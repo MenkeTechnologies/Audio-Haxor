@@ -959,6 +959,320 @@
     .logo h1 {
       animation: glitch 8s ease-in-out infinite;
     }
+
+    /* Audio Samples Tab */
+    .audio-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .audio-toolbar {
+      display: flex; gap: 10px; padding: 12px 24px;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+
+    .audio-stats {
+      display: flex; gap: 16px; padding: 8px 24px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .audio-stat-value {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      color: var(--cyan);
+      text-shadow: 0 0 8px var(--cyan-glow);
+    }
+
+    .audio-table-wrap {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+      min-height: 0;
+      -webkit-app-region: no-drag;
+    }
+
+    .audio-table-wrap::-webkit-scrollbar { width: 4px; }
+    .audio-table-wrap::-webkit-scrollbar-track { background: transparent; }
+    .audio-table-wrap::-webkit-scrollbar-thumb {
+      background: var(--accent); border-radius: 0;
+      box-shadow: 0 0 6px var(--accent-glow);
+    }
+
+    .audio-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .audio-table thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .audio-table th {
+      padding: 10px 14px;
+      text-align: left;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .audio-table th:hover {
+      color: var(--cyan);
+    }
+
+    .audio-table th.sort-active {
+      color: var(--cyan);
+      text-shadow: 0 0 8px var(--cyan-glow);
+    }
+
+    .audio-table th .sort-arrow {
+      margin-left: 4px;
+      font-size: 9px;
+    }
+
+    .audio-table td {
+      padding: 8px 14px;
+      border-bottom: 1px solid rgba(26, 26, 62, 0.5);
+      color: var(--text);
+      max-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .audio-table tr:hover td {
+      background: var(--bg-hover);
+    }
+
+    .audio-table .col-name {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .audio-table .col-format {
+      width: 70px;
+    }
+
+    .audio-table .col-size {
+      width: 90px;
+      text-align: right;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .audio-table .col-date {
+      width: 100px;
+      color: var(--text-muted);
+    }
+
+    .audio-table .col-path {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .audio-table .col-actions {
+      width: 130px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .format-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 0;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .format-wav { background: transparent; color: var(--cyan); border: 1px solid var(--cyan); box-shadow: 0 0 6px var(--cyan-dim); }
+    .format-mp3 { background: transparent; color: var(--accent); border: 1px solid var(--accent); box-shadow: 0 0 6px rgba(255,42,109,0.15); }
+    .format-aiff, .format-aif { background: transparent; color: var(--green); border: 1px solid var(--green); box-shadow: 0 0 6px rgba(57,255,20,0.15); }
+    .format-flac { background: transparent; color: var(--magenta); border: 1px solid var(--magenta); box-shadow: 0 0 6px var(--magenta-glow); }
+    .format-ogg { background: transparent; color: var(--orange); border: 1px solid var(--orange); box-shadow: 0 0 6px rgba(255,107,53,0.15); }
+    .format-m4a, .format-aac { background: transparent; color: var(--yellow); border: 1px solid rgba(249,240,2,0.5); box-shadow: 0 0 6px var(--yellow-glow); }
+    .format-default { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+
+    .audio-progress-bar {
+      height: 2px;
+      background: var(--border);
+      overflow: hidden;
+      display: none;
+    }
+
+    .audio-progress-bar.active { display: block; }
+
+    .audio-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--accent), var(--magenta), var(--cyan));
+      background-size: 200% 100%;
+      width: 0%;
+      transition: width 0.3s;
+      animation: progress-color-shift 3s linear infinite;
+      box-shadow: 0 0 10px var(--cyan-glow);
+    }
+
+    /* Audio preview / playback controls */
+    .btn-play {
+      background: transparent;
+      color: var(--green);
+      border: 1px solid var(--green);
+      box-shadow: 0 0 6px rgba(57,255,20,0.15);
+      font-size: 12px;
+      padding: 5px 8px;
+      min-width: 28px;
+    }
+    .btn-play:hover {
+      background: rgba(57, 255, 20, 0.1);
+      box-shadow: 0 0 12px rgba(57,255,20,0.3);
+    }
+    .btn-play.playing {
+      color: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+      animation: badge-flash 1s ease-in-out infinite;
+    }
+
+    .btn-loop {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      padding: 5px 8px;
+      min-width: 28px;
+    }
+    .btn-loop:hover {
+      color: var(--cyan);
+      border-color: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan-dim);
+    }
+    .btn-loop.active {
+      color: var(--yellow);
+      border-color: var(--yellow);
+      box-shadow: 0 0 8px var(--yellow-glow);
+    }
+
+    /* Now-playing bar */
+    .audio-now-playing {
+      display: none;
+      padding: 8px 24px;
+      background: linear-gradient(90deg, rgba(57,255,20,0.08), rgba(5,217,232,0.05));
+      border-top: 1px solid var(--border);
+      align-items: center;
+      gap: 12px;
+      font-size: 11px;
+      -webkit-app-region: no-drag;
+    }
+    .audio-now-playing.active { display: flex; }
+
+    .now-playing-name {
+      font-weight: 600;
+      color: var(--cyan);
+      flex-shrink: 0;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .now-playing-waveform {
+      flex: 1;
+      height: 24px;
+      position: relative;
+      cursor: pointer;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+    }
+
+    .now-playing-progress {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      background: linear-gradient(90deg, rgba(5,217,232,0.2), rgba(255,42,109,0.15));
+      pointer-events: none;
+      transition: width 0.1s linear;
+    }
+
+    .now-playing-time {
+      color: var(--text-dim);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px;
+      letter-spacing: 1px;
+      flex-shrink: 0;
+    }
+
+    .now-playing-controls {
+      display: flex; gap: 6px;
+      flex-shrink: 0;
+    }
+
+    /* Metadata detail row */
+    .audio-meta-row td {
+      padding: 0 !important;
+      border-bottom: 1px solid var(--border) !important;
+      background: var(--bg-secondary) !important;
+    }
+
+    .audio-meta-panel {
+      padding: 14px 18px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px 24px;
+      animation: meta-slide 0.15s ease-out;
+    }
+
+    @keyframes meta-slide {
+      from { opacity: 0; max-height: 0; }
+      to { opacity: 1; max-height: 300px; }
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .meta-label {
+      font-size: 9px;
+      font-family: 'Orbitron', sans-serif;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .meta-value {
+      font-size: 12px;
+      color: var(--cyan);
+      word-break: break-all;
+    }
+
+    .audio-table .row-playing td {
+      background: rgba(57, 255, 20, 0.04);
+    }
+
+    .audio-table .row-expanded td {
+      border-bottom-color: transparent;
+    }
   </style>
 </head>
 <body>
@@ -1006,6 +1320,11 @@
           <span class="stat-value" id="unknownCount">0</span>
           <span>Unknown Latest Version</span>
         </div>
+        <div class="stat">
+          <span class="stat-dot" style="background: var(--yellow); box-shadow: 0 0 6px var(--yellow-glow);"></span>
+          <span class="stat-value" id="sampleCount">0</span>
+          <span>Samples Found</span>
+        </div>
       </div>
       <div class="progress-bar" id="progressBar">
         <div class="progress-fill"></div>
@@ -1015,6 +1334,7 @@
     <div class="tab-nav">
       <button class="tab-btn active" onclick="switchTab('plugins')">Plugins</button>
       <button class="tab-btn" onclick="switchTab('history')">History</button>
+      <button class="tab-btn" onclick="switchTab('samples')">Samples</button>
     </div>
 
     <div class="tab-content active" id="tabPlugins">
@@ -1089,6 +1409,61 @@
       </div>
     </div>
 
+    <div class="tab-content" id="tabSamples">
+      <div class="audio-container">
+        <div class="audio-toolbar">
+          <button class="btn btn-primary" id="btnScanAudio" onclick="scanAudioSamples()">&#127925; Scan Samples</button>
+          <button class="btn btn-stop" id="btnStopAudio" style="display: none;" onclick="stopAudioScan()">&#9632; Stop</button>
+          <div class="search-box" style="flex: 1;">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" id="audioSearchInput" placeholder="Search samples by name, path, or format..." oninput="filterAudioSamples()">
+          </div>
+          <select class="filter-select" id="audioFormatFilter" onchange="filterAudioSamples()">
+            <option value="all">All Formats</option>
+            <option value="WAV">WAV</option>
+            <option value="MP3">MP3</option>
+            <option value="AIFF">AIFF</option>
+            <option value="AIF">AIF</option>
+            <option value="FLAC">FLAC</option>
+            <option value="OGG">OGG</option>
+            <option value="M4A">M4A</option>
+            <option value="AAC">AAC</option>
+          </select>
+        </div>
+        <div class="audio-progress-bar" id="audioProgressBar">
+          <div class="audio-progress-fill" id="audioProgressFill"></div>
+        </div>
+        <div class="audio-stats" id="audioStats" style="display: none;">
+          <span>Total: <span class="audio-stat-value" id="audioTotalCount">0</span></span>
+          <span>WAV: <span class="audio-stat-value" id="audioWavCount">0</span></span>
+          <span>MP3: <span class="audio-stat-value" id="audioMp3Count">0</span></span>
+          <span>AIFF: <span class="audio-stat-value" id="audioAiffCount">0</span></span>
+          <span>FLAC: <span class="audio-stat-value" id="audioFlacCount">0</span></span>
+          <span>Other: <span class="audio-stat-value" id="audioOtherCount">0</span></span>
+          <span>Size: <span class="audio-stat-value" id="audioTotalSize">0 B</span></span>
+        </div>
+        <div class="audio-table-wrap" id="audioTableWrap">
+          <div class="state-message" id="audioEmptyState">
+            <div class="state-icon">&#127925;</div>
+            <h2>Audio Sample Index</h2>
+            <p>Click <strong>"Scan Samples"</strong> to find all audio files (WAV, MP3, AIFF, FLAC, etc.) on your system.</p>
+          </div>
+        </div>
+        <div class="audio-now-playing" id="audioNowPlaying">
+          <div class="now-playing-controls">
+            <button class="btn-small btn-play" id="npBtnPlay" onclick="toggleAudioPlayback()" title="Play/Pause">&#9654;</button>
+            <button class="btn-small btn-loop" id="npBtnLoop" onclick="toggleAudioLoop()" title="Loop">&#8634;</button>
+          </div>
+          <span class="now-playing-name" id="npName"></span>
+          <div class="now-playing-waveform" id="npWaveform" onclick="seekAudio(event)">
+            <div class="now-playing-progress" id="npProgress"></div>
+          </div>
+          <span class="now-playing-time" id="npTime">0:00 / 0:00</span>
+          <button class="btn-small btn-stop" onclick="stopAudioPlayback()" style="font-size: 10px; padding: 4px 8px;">&#10005;</button>
+        </div>
+      </div>
+    </div>
+
     <div class="status-bar" id="statusBar">
       <div class="status-bar-inner">
         <span class="status-spinner"></span>
@@ -1119,6 +1494,8 @@
         await window.vstUpdater.stopUpdates();
       } else if (currentOperation === 'kvr-resolve') {
         stopKvrResolve();
+      } else if (currentOperation === 'audio-scan') {
+        await window.vstUpdater.stopAudioScan();
       }
     }
 
@@ -1587,49 +1964,77 @@
 
     // ── Tab switching ──
     function switchTab(tab) {
+      const tabs = ['plugins', 'history', 'samples'];
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        b.classList.toggle('active', (tab === 'plugins' && i === 0) || (tab === 'history' && i === 1));
+        b.classList.toggle('active', tab === tabs[i]);
       });
       document.getElementById('tabPlugins').classList.toggle('active', tab === 'plugins');
       document.getElementById('tabHistory').classList.toggle('active', tab === 'history');
+      document.getElementById('tabSamples').classList.toggle('active', tab === 'samples');
       if (tab === 'history') loadHistory();
     }
 
     // ── History ──
     let historyScanList = [];
+    let historyAudioScanList = [];
+    let historyMergedList = []; // merged + sorted
     let selectedScanId = null;
+    let selectedScanType = null; // 'plugin' or 'audio'
 
     async function loadHistory() {
-      historyScanList = await window.vstUpdater.getScans();
+      const [pluginScans, audioScans] = await Promise.all([
+        window.vstUpdater.getScans(),
+        window.vstUpdater.getAudioScans(),
+      ]);
+      historyScanList = pluginScans;
+      historyAudioScanList = audioScans;
+      // Merge and sort by timestamp descending
+      historyMergedList = [
+        ...pluginScans.map(s => ({ ...s, _type: 'plugin' })),
+        ...audioScans.map(s => ({ ...s, _type: 'audio' })),
+      ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       renderHistoryList();
     }
 
     function renderHistoryList() {
       const container = document.getElementById('historyList');
-      if (historyScanList.length === 0) {
+      if (historyMergedList.length === 0) {
         container.innerHTML = '<div class="empty-history"><div class="empty-history-icon">&#128197;</div><p>No scan history yet.<br>Run a scan to start tracking.</p></div>';
         return;
       }
 
-      container.innerHTML = historyScanList.map(s => {
+      container.innerHTML = historyMergedList.map(s => {
         const d = new Date(s.timestamp);
         const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
         const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
         const selected = s.id === selectedScanId ? ' selected' : '';
+        const isAudio = s._type === 'audio';
+        const icon = isAudio ? '&#127925;' : '&#127911;';
+        const label = isAudio
+          ? `${s.sampleCount} sample${s.sampleCount !== 1 ? 's' : ''}`
+          : `${s.pluginCount} plugin${s.pluginCount !== 1 ? 's' : ''}`;
+        const typeTag = isAudio ? 'Samples' : 'Plugins';
         return `
-          <div class="history-item${selected}" onclick="selectScan('${s.id}')">
-            <div class="history-item-date">${dateStr} at ${timeStr}</div>
+          <div class="history-item${selected}" onclick="selectScan('${s.id}', '${s._type}')">
+            <div class="history-item-date">${icon} ${dateStr} at ${timeStr}</div>
             <div class="history-item-meta">
-              <span>${s.pluginCount} plugin${s.pluginCount !== 1 ? 's' : ''}</span>
+              <span style="color: ${isAudio ? 'var(--yellow)' : 'var(--cyan)'}; font-weight: 600;">${typeTag}</span>
+              <span>${label}</span>
               <span>${timeAgo(d)}</span>
             </div>
           </div>`;
       }).join('');
     }
 
-    async function selectScan(id) {
+    async function selectScan(id, type) {
       selectedScanId = id;
+      selectedScanType = type || 'plugin';
       renderHistoryList();
+
+      if (selectedScanType === 'audio') {
+        await selectAudioScan(id);
+        return;
+      }
 
       const detail = await window.vstUpdater.getScanDetail(id);
       if (!detail) return;
@@ -1638,7 +2043,7 @@
       const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
       const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-      // Build compare dropdown (other scans to diff against)
+      // Build compare dropdown (other plugin scans to diff against)
       const otherScans = historyScanList.filter(s => s.id !== id);
       let compareHtml = '';
       if (otherScans.length > 0) {
@@ -1699,6 +2104,118 @@
         </div>`;
     }
 
+    async function selectAudioScan(id) {
+      const detail = await window.vstUpdater.getAudioScanDetail(id);
+      if (!detail) return;
+
+      const d = new Date(detail.timestamp);
+      const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      // Format breakdown
+      const fmtBreakdown = Object.entries(detail.formatCounts || {}).map(([fmt, count]) => {
+        const cls = getFormatClass(fmt);
+        return `<span class="format-badge ${cls}">${fmt}: ${count}</span>`;
+      }).join(' ');
+
+      // Compare dropdown (other audio scans)
+      const otherScans = historyAudioScanList.filter(s => s.id !== id);
+      let compareHtml = '';
+      if (otherScans.length > 0) {
+        const options = otherScans.map(s => {
+          const od = new Date(s.timestamp);
+          return `<option value="${s.id}">${od.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${od.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} (${s.sampleCount})</option>`;
+        }).join('');
+        compareHtml = `
+          <div class="compare-controls">
+            <span>Compare with:</span>
+            <select id="compareSelect">
+              <option value="">Select a scan...</option>
+              ${options}
+            </select>
+            <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" onclick="runAudioDiff('${id}')">Compare</button>
+          </div>`;
+      }
+
+      const container = document.getElementById('historyDetail');
+      container.innerHTML = `
+        <div class="history-detail-header">
+          <div>
+            <h2>&#127925; ${dateStr}</h2>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${timeStr} &middot; ${detail.sampleCount} samples &middot; ${formatAudioSize(detail.totalBytes)} &middot; ${fmtBreakdown}</div>
+          </div>
+          <button class="btn-danger" onclick="deleteAudioScanEntry('${id}')">Delete</button>
+        </div>
+        ${compareHtml}
+        <div id="diffResults"></div>
+        <div style="margin-top: 8px;">
+          ${detail.samples.map(s => {
+            const fmtClass = getFormatClass(s.format);
+            return `
+              <div class="plugin-card">
+                <div class="plugin-info">
+                  <h3>${escapeHtml(s.name)}</h3>
+                  <div class="plugin-meta">
+                    <span class="format-badge ${fmtClass}">${s.format}</span>
+                    <span>${s.sizeFormatted || formatAudioSize(s.size)}</span>
+                    <span>${escapeHtml(s.directory || '')}</span>
+                  </div>
+                </div>
+                <div></div><div></div>
+                <div class="plugin-actions">
+                  <button class="btn-small btn-folder" onclick="openAudioFolder('${escapePath(s.path)}')" title="${escapePath(s.path)}">&#128193;</button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+    }
+
+    async function runAudioDiff(currentId) {
+      const compareId = document.getElementById('compareSelect').value;
+      if (!compareId) return;
+
+      const diff = await window.vstUpdater.diffAudioScans(compareId, currentId);
+      if (!diff) return;
+
+      const container = document.getElementById('diffResults');
+      let html = '';
+
+      if (diff.added.length === 0 && diff.removed.length === 0) {
+        html = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;">No differences found between these scans.</div>';
+      } else {
+        if (diff.added.length > 0) {
+          html += `<div class="diff-section diff-added">
+            <h3>Added <span class="diff-count">${diff.added.length}</span></h3>
+            ${diff.added.map(s => `
+              <div class="diff-plugin">
+                <div class="diff-plugin-name">${escapeHtml(s.name)}</div>
+                <div class="diff-plugin-detail">${s.format} &middot; ${s.sizeFormatted || formatAudioSize(s.size)} &middot; ${escapeHtml(s.directory || '')}</div>
+              </div>`).join('')}
+          </div>`;
+        }
+        if (diff.removed.length > 0) {
+          html += `<div class="diff-section diff-removed">
+            <h3>Removed <span class="diff-count">${diff.removed.length}</span></h3>
+            ${diff.removed.map(s => `
+              <div class="diff-plugin">
+                <div class="diff-plugin-name">${escapeHtml(s.name)}</div>
+                <div class="diff-plugin-detail">${s.format} &middot; ${s.sizeFormatted || formatAudioSize(s.size)} &middot; ${escapeHtml(s.directory || '')}</div>
+              </div>`).join('')}
+          </div>`;
+        }
+      }
+
+      container.innerHTML = html;
+    }
+
+    async function deleteAudioScanEntry(id) {
+      await window.vstUpdater.deleteAudioScan(id);
+      selectedScanId = null;
+      selectedScanType = null;
+      document.getElementById('historyDetail').innerHTML = '<div class="empty-history"><div class="empty-history-icon">&#8592;</div><p>Select a scan from the sidebar to view details</p></div>';
+      await loadHistory();
+    }
+
     async function runDiff(currentId) {
       const compareId = document.getElementById('compareSelect').value;
       if (!compareId) return;
@@ -1750,13 +2267,18 @@
     async function deleteScanEntry(id) {
       await window.vstUpdater.deleteScan(id);
       selectedScanId = null;
+      selectedScanType = null;
       document.getElementById('historyDetail').innerHTML = '<div class="empty-history"><div class="empty-history-icon">&#8592;</div><p>Select a scan from the sidebar to view details</p></div>';
       await loadHistory();
     }
 
     async function clearAllHistory() {
-      await window.vstUpdater.clearHistory();
+      await Promise.all([
+        window.vstUpdater.clearHistory(),
+        window.vstUpdater.clearAudioHistory(),
+      ]);
       selectedScanId = null;
+      selectedScanType = null;
       document.getElementById('historyDetail').innerHTML = '<div class="empty-history"><div class="empty-history-icon">&#8592;</div><p>Select a scan from the sidebar to view details</p></div>';
       await loadHistory();
     }
@@ -1891,43 +2413,581 @@
       }
     }
 
+    // ── Audio Samples ──
+    let allAudioSamples = [];
+    let filteredAudioSamples = [];
+    let audioSortKey = 'name';
+    let audioSortAsc = true;
+    let audioScanProgressCleanup = null;
+
+    // Playback state
+    let audioPlayer = new Audio();
+    let audioPlayerPath = null;
+    let audioLooping = false;
+    let audioPlaybackRAF = null;
+    let expandedMetaPath = null;
+
+    audioPlayer.addEventListener('ended', () => {
+      if (!audioLooping) {
+        clearAudioPlaybackUI();
+      }
+    });
+    audioPlayer.addEventListener('timeupdate', updatePlaybackTime);
+
+    function formatAudioSize(bytes) {
+      if (bytes === 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+    }
+
+    function formatTime(sec) {
+      if (!sec || !isFinite(sec)) return '0:00';
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function getFormatClass(format) {
+      const f = format.toLowerCase();
+      if (['wav', 'mp3', 'aiff', 'aif', 'flac', 'ogg', 'm4a', 'aac'].includes(f)) return 'format-' + f;
+      return 'format-default';
+    }
+
+    async function scanAudioSamples() {
+      const btn = document.getElementById('btnScanAudio');
+      const stopBtn = document.getElementById('btnStopAudio');
+      const progressBar = document.getElementById('audioProgressBar');
+      const progressFill = document.getElementById('audioProgressFill');
+      const tableWrap = document.getElementById('audioTableWrap');
+
+      btn.disabled = true;
+      btn.innerHTML = '&#8635; Scanning...';
+      stopBtn.style.display = '';
+      progressBar.classList.add('active');
+      progressFill.style.width = '0%';
+      allAudioSamples = [];
+      filteredAudioSamples = [];
+      expandedMetaPath = null;
+      resetAudioStats();
+      document.getElementById('audioStats').style.display = 'none';
+      tableWrap.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for audio files...</h2><p>Walking filesystem directories...</p></div>';
+
+      let firstAudioBatch = true;
+      let pendingSamples = [];
+      let pendingFound = 0;
+      let flushScheduled = false;
+      const FLUSH_INTERVAL = 300; // ms - throttle DOM updates
+      let lastFlush = 0;
+
+      function flushPendingSamples() {
+        flushScheduled = false;
+        if (pendingSamples.length === 0) return;
+
+        if (firstAudioBatch) {
+          firstAudioBatch = false;
+          tableWrap.innerHTML = '';
+          initAudioTable();
+        }
+
+        const toAdd = pendingSamples;
+        pendingSamples = [];
+
+        allAudioSamples.push(...toAdd);
+        accumulateAudioStats(toAdd);
+        btn.innerHTML = `&#8635; ${pendingFound} found`;
+        progressFill.style.width = '';
+        progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
+
+        // Incrementally append matching rows (cap DOM at 2000 during scan)
+        const search = (document.getElementById('audioSearchInput').value || '').toLowerCase();
+        const fmt = document.getElementById('audioFormatFilter').value;
+        const matching = toAdd.filter(s => {
+          if (fmt !== 'all' && s.format !== fmt) return false;
+          if (search && !s.name.toLowerCase().includes(search) && !s.path.toLowerCase().includes(search) && !s.format.toLowerCase().includes(search)) return false;
+          return true;
+        });
+        if (matching.length > 0) {
+          filteredAudioSamples.push(...matching);
+          const tbody = document.getElementById('audioTableBody');
+          if (tbody && audioRenderCount < 2000) {
+            const loadMore = document.getElementById('audioLoadMore');
+            if (loadMore) loadMore.remove();
+            const toRender = matching.slice(0, 2000 - audioRenderCount);
+            tbody.insertAdjacentHTML('beforeend', toRender.map(buildAudioRow).join(''));
+            audioRenderCount += toRender.length;
+          }
+        }
+
+        updateAudioStats();
+        lastFlush = performance.now();
+      }
+
+      function scheduleFlush() {
+        if (flushScheduled) return;
+        flushScheduled = true;
+        const elapsed = performance.now() - lastFlush;
+        const delay = Math.max(0, FLUSH_INTERVAL - elapsed);
+        setTimeout(() => requestAnimationFrame(flushPendingSamples), delay);
+      }
+
+      if (audioScanProgressCleanup) audioScanProgressCleanup();
+      audioScanProgressCleanup = window.vstUpdater.onAudioScanProgress((data) => {
+        if (data.phase === 'status') {
+          // status message
+        } else if (data.phase === 'scanning') {
+          pendingSamples.push(...data.samples);
+          pendingFound = data.found;
+          scheduleFlush();
+        }
+      });
+
+      try {
+        const result = await window.vstUpdater.scanAudioSamples();
+        if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
+        flushPendingSamples();
+        allAudioSamples = result.samples;
+        rebuildAudioStats();
+        filterAudioSamples();
+        // Save to history
+        try { await window.vstUpdater.saveAudioScan(result.samples); } catch (e) { console.error('Failed to save audio scan history:', e); }
+      } catch (err) {
+        if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
+        flushPendingSamples();
+        if (err.message !== 'stopped') {
+          tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${err.message}</p></div>`;
+        } else if (allAudioSamples.length > 0) {
+          rebuildAudioStats();
+          filterAudioSamples();
+        }
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = '&#127925; Scan Samples';
+      stopBtn.style.display = 'none';
+      progressBar.classList.remove('active');
+      progressFill.style.width = '0%';
+      progressFill.style.animation = '';
+    }
+
+    async function stopAudioScan() {
+      await window.vstUpdater.stopAudioScan();
+    }
+
+    // Running stat counters — avoid re-scanning the full array every flush
+    let audioStatCounts = {};
+    let audioStatBytes = 0;
+
+    function resetAudioStats() {
+      audioStatCounts = {};
+      audioStatBytes = 0;
+    }
+
+    function accumulateAudioStats(samples) {
+      for (const s of samples) {
+        audioStatCounts[s.format] = (audioStatCounts[s.format] || 0) + 1;
+        audioStatBytes += s.size;
+      }
+    }
+
+    function updateAudioStats() {
+      const stats = document.getElementById('audioStats');
+      stats.style.display = 'flex';
+      document.getElementById('audioTotalCount').textContent = allAudioSamples.length;
+      document.getElementById('audioWavCount').textContent = audioStatCounts['WAV'] || 0;
+      document.getElementById('audioMp3Count').textContent = audioStatCounts['MP3'] || 0;
+      document.getElementById('audioAiffCount').textContent = (audioStatCounts['AIFF'] || 0) + (audioStatCounts['AIF'] || 0);
+      document.getElementById('audioFlacCount').textContent = audioStatCounts['FLAC'] || 0;
+      const mainFormats = (audioStatCounts['WAV'] || 0) + (audioStatCounts['MP3'] || 0) + (audioStatCounts['AIFF'] || 0) + (audioStatCounts['AIF'] || 0) + (audioStatCounts['FLAC'] || 0);
+      document.getElementById('audioOtherCount').textContent = allAudioSamples.length - mainFormats;
+      document.getElementById('audioTotalSize').textContent = formatAudioSize(audioStatBytes);
+      // Update top stats bar sample count
+      document.getElementById('sampleCount').textContent = allAudioSamples.length;
+    }
+
+    function rebuildAudioStats() {
+      resetAudioStats();
+      accumulateAudioStats(allAudioSamples);
+      updateAudioStats();
+    }
+
+    function initAudioTable() {
+      const tableWrap = document.getElementById('audioTableWrap');
+      tableWrap.innerHTML = `<table class="audio-table" id="audioTable">
+        <thead>
+          <tr>
+            <th onclick="sortAudio('name')" style="width: 28%;">Name <span class="sort-arrow" id="sortArrowName">&#9660;</span></th>
+            <th onclick="sortAudio('format')" class="col-format">Format <span class="sort-arrow" id="sortArrowFormat"></span></th>
+            <th onclick="sortAudio('size')" class="col-size">Size <span class="sort-arrow" id="sortArrowSize"></span></th>
+            <th onclick="sortAudio('modified')" class="col-date">Modified <span class="sort-arrow" id="sortArrowModified"></span></th>
+            <th onclick="sortAudio('directory')" style="width: 30%;">Path <span class="sort-arrow" id="sortArrowDirectory"></span></th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="audioTableBody"></tbody>
+      </table>`;
+    }
+
+    function filterAudioSamples() {
+      const search = (document.getElementById('audioSearchInput').value || '').toLowerCase();
+      const format = document.getElementById('audioFormatFilter').value;
+
+      filteredAudioSamples = allAudioSamples.filter(s => {
+        if (format !== 'all' && s.format !== format) return false;
+        if (search && !s.name.toLowerCase().includes(search) && !s.path.toLowerCase().includes(search) && !s.format.toLowerCase().includes(search)) return false;
+        return true;
+      });
+
+      sortAudioArray();
+      renderAudioTable();
+    }
+
+    function sortAudio(key) {
+      if (audioSortKey === key) {
+        audioSortAsc = !audioSortAsc;
+      } else {
+        audioSortKey = key;
+        audioSortAsc = true;
+      }
+      ['Name', 'Format', 'Size', 'Modified', 'Directory'].forEach(k => {
+        const el = document.getElementById('sortArrow' + k);
+        if (el) {
+          const isActive = k.toLowerCase() === audioSortKey;
+          el.innerHTML = isActive ? (audioSortAsc ? '&#9650;' : '&#9660;') : '';
+          el.closest('th').classList.toggle('sort-active', isActive);
+        }
+      });
+      sortAudioArray();
+      renderAudioTable();
+    }
+
+    function sortAudioArray() {
+      const key = audioSortKey;
+      const dir = audioSortAsc ? 1 : -1;
+      filteredAudioSamples.sort((a, b) => {
+        let va = a[key], vb = b[key];
+        if (key === 'size') return (va - vb) * dir;
+        if (typeof va === 'string') return va.localeCompare(vb) * dir;
+        return 0;
+      });
+    }
+
+    const AUDIO_PAGE_SIZE = 500;
+    let audioRenderCount = 0;
+
+    function renderAudioTable() {
+      if (!document.getElementById('audioTable')) initAudioTable();
+      const tbody = document.getElementById('audioTableBody');
+      if (!tbody) return;
+      audioRenderCount = Math.min(AUDIO_PAGE_SIZE, filteredAudioSamples.length);
+      tbody.innerHTML = filteredAudioSamples.slice(0, audioRenderCount).map(buildAudioRow).join('');
+
+      if (audioRenderCount < filteredAudioSamples.length) {
+        appendLoadMore(tbody);
+      }
+    }
+
+    function appendLoadMore(tbody) {
+      tbody.insertAdjacentHTML('beforeend',
+        `<tr id="audioLoadMore"><td colspan="6" style="text-align: center; padding: 12px; color: var(--text-muted); cursor: pointer;" onclick="loadMoreAudio()">
+          Showing ${audioRenderCount} of ${filteredAudioSamples.length} &#8212; click to load more
+        </td></tr>`);
+    }
+
+    function loadMoreAudio() {
+      const tbody = document.getElementById('audioTableBody');
+      const loadMore = document.getElementById('audioLoadMore');
+      if (loadMore) loadMore.remove();
+      const nextBatch = filteredAudioSamples.slice(audioRenderCount, audioRenderCount + AUDIO_PAGE_SIZE);
+      audioRenderCount += nextBatch.length;
+      tbody.insertAdjacentHTML('beforeend', nextBatch.map(buildAudioRow).join(''));
+      if (audioRenderCount < filteredAudioSamples.length) {
+        appendLoadMore(tbody);
+      }
+    }
+
+    function buildAudioRow(s) {
+      const fmtClass = getFormatClass(s.format);
+      const ep = escapePath(s.path);
+      const isPlaying = audioPlayerPath === s.path;
+      const rowClass = isPlaying ? ' class="row-playing"' : '';
+      return `<tr${rowClass} data-audio-path="${ep}" onclick="toggleMetadata('${ep}', event)">
+        <td class="col-name" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</td>
+        <td class="col-format"><span class="format-badge ${fmtClass}">${s.format}</span></td>
+        <td class="col-size">${s.sizeFormatted}</td>
+        <td class="col-date">${s.modified}</td>
+        <td class="col-path" title="${escapeHtml(s.path)}">${escapeHtml(s.directory)}</td>
+        <td class="col-actions" onclick="event.stopPropagation()">
+          <button class="btn-small btn-play${isPlaying ? ' playing' : ''}" onclick="previewAudio('${ep}')" title="Preview">
+            ${isPlaying && !audioPlayer.paused ? '&#9646;&#9646;' : '&#9654;'}
+          </button>
+          <button class="btn-small btn-loop${isPlaying && audioLooping ? ' active' : ''}" onclick="toggleRowLoop('${ep}', event)" title="Loop">&#8634;</button>
+          <button class="btn-small btn-folder" onclick="openAudioFolder('${ep}')" title="Reveal in Finder">&#128193;</button>
+        </td>
+      </tr>`;
+    }
+
+    // ── Audio Preview / Playback ──
+    async function previewAudio(filePath) {
+      if (audioPlayerPath === filePath && !audioPlayer.paused) {
+        // Pause current
+        audioPlayer.pause();
+        updatePlayBtnStates();
+        updateNowPlayingBtn();
+        return;
+      }
+
+      if (audioPlayerPath === filePath && audioPlayer.paused) {
+        // Resume current
+        audioPlayer.play();
+        updatePlayBtnStates();
+        updateNowPlayingBtn();
+        return;
+      }
+
+      // New file
+      try {
+        const fileUrl = await window.vstUpdater.getAudioFileUrl(filePath);
+        audioPlayer.src = fileUrl;
+        audioPlayer.loop = audioLooping;
+        audioPlayerPath = filePath;
+        audioPlayer.play();
+
+        // Show now-playing bar
+        const np = document.getElementById('audioNowPlaying');
+        np.classList.add('active');
+        const sample = allAudioSamples.find(s => s.path === filePath);
+        document.getElementById('npName').textContent = sample ? `${sample.name}.${sample.format.toLowerCase()}` : filePath.split('/').pop();
+        updatePlayBtnStates();
+        updateNowPlayingBtn();
+      } catch (err) {
+        console.error('Preview failed:', err);
+      }
+    }
+
+    function toggleAudioPlayback() {
+      if (!audioPlayerPath) return;
+      if (audioPlayer.paused) {
+        audioPlayer.play();
+      } else {
+        audioPlayer.pause();
+      }
+      updatePlayBtnStates();
+      updateNowPlayingBtn();
+    }
+
+    function toggleAudioLoop() {
+      audioLooping = !audioLooping;
+      audioPlayer.loop = audioLooping;
+      document.getElementById('npBtnLoop').classList.toggle('active', audioLooping);
+      updateLoopBtnStates();
+    }
+
+    function toggleRowLoop(filePath, event) {
+      event.stopPropagation();
+      // If this sample isn't playing yet, start it with loop on
+      if (audioPlayerPath !== filePath) {
+        audioLooping = true;
+        audioPlayer.loop = true;
+        document.getElementById('npBtnLoop').classList.add('active');
+        previewAudio(filePath);
+        updateLoopBtnStates();
+        return;
+      }
+      // Toggle loop for the currently playing sample
+      toggleAudioLoop();
+    }
+
+    function updateLoopBtnStates() {
+      document.querySelectorAll('.audio-table .btn-loop').forEach(btn => {
+        const row = btn.closest('tr');
+        if (!row) return;
+        const rowPath = row.getAttribute('data-audio-path');
+        const isThis = rowPath === audioPlayerPath;
+        btn.classList.toggle('active', isThis && audioLooping);
+      });
+    }
+
+    function stopAudioPlayback() {
+      audioPlayer.pause();
+      audioPlayer.currentTime = 0;
+      audioPlayer.src = '';
+      audioPlayerPath = null;
+      clearAudioPlaybackUI();
+    }
+
+    function clearAudioPlaybackUI() {
+      document.getElementById('audioNowPlaying').classList.remove('active');
+      document.getElementById('npProgress').style.width = '0%';
+      document.getElementById('npTime').textContent = '0:00 / 0:00';
+      updatePlayBtnStates();
+    }
+
+    function updatePlayBtnStates() {
+      document.querySelectorAll('.audio-table .btn-play').forEach(btn => {
+        const row = btn.closest('tr');
+        if (!row) return;
+        const rowPath = row.getAttribute('data-audio-path');
+        const isThis = rowPath === audioPlayerPath;
+        btn.classList.toggle('playing', isThis && !audioPlayer.paused);
+        btn.innerHTML = (isThis && !audioPlayer.paused) ? '&#9646;&#9646;' : '&#9654;';
+        row.classList.toggle('row-playing', isThis && !audioPlayer.paused);
+      });
+      updateLoopBtnStates();
+    }
+
+    function updateNowPlayingBtn() {
+      const btn = document.getElementById('npBtnPlay');
+      if (audioPlayer.paused) {
+        btn.innerHTML = '&#9654;';
+        btn.classList.remove('playing');
+      } else {
+        btn.innerHTML = '&#9646;&#9646;';
+        btn.classList.add('playing');
+      }
+    }
+
+    function updatePlaybackTime() {
+      const cur = audioPlayer.currentTime;
+      const dur = audioPlayer.duration;
+      document.getElementById('npTime').textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+      if (dur > 0) {
+        document.getElementById('npProgress').style.width = ((cur / dur) * 100) + '%';
+      }
+    }
+
+    function seekAudio(event) {
+      if (!audioPlayerPath || !audioPlayer.duration) return;
+      const bar = document.getElementById('npWaveform');
+      const rect = bar.getBoundingClientRect();
+      const pct = (event.clientX - rect.left) / rect.width;
+      audioPlayer.currentTime = pct * audioPlayer.duration;
+    }
+
+    // ── Metadata Panel ──
+    async function toggleMetadata(filePath, event) {
+      // Don't toggle if clicking buttons
+      if (event.target.closest('.col-actions')) return;
+
+      const tbody = document.getElementById('audioTableBody');
+      if (!tbody) return;
+
+      const existingMeta = document.getElementById('audioMetaRow');
+
+      // Close existing
+      if (existingMeta) {
+        const wasPath = existingMeta.getAttribute('data-meta-path');
+        existingMeta.remove();
+        // Un-mark the expanded row
+        const prevRow = tbody.querySelector(`tr.row-expanded`);
+        if (prevRow) prevRow.classList.remove('row-expanded');
+
+        if (wasPath === filePath) {
+          expandedMetaPath = null;
+          return; // toggle off
+        }
+      }
+
+      expandedMetaPath = filePath;
+
+      // Find the clicked row
+      const row = tbody.querySelector(`tr[data-audio-path="${CSS.escape(filePath)}"]`);
+      if (!row) return;
+      row.classList.add('row-expanded');
+
+      // Insert loading row
+      const metaRow = document.createElement('tr');
+      metaRow.id = 'audioMetaRow';
+      metaRow.className = 'audio-meta-row';
+      metaRow.setAttribute('data-meta-path', filePath);
+      metaRow.innerHTML = `<td colspan="6"><div class="audio-meta-panel" style="justify-items: center;"><div class="spinner" style="width: 18px; height: 18px;"></div></div></td>`;
+      row.after(metaRow);
+
+      // Fetch metadata
+      try {
+        const meta = await window.vstUpdater.getAudioMetadata(filePath);
+        if (expandedMetaPath !== filePath) return; // user closed it
+
+        let items = '';
+        items += metaItem('File Name', meta.fileName);
+        items += metaItem('Format', meta.format);
+        items += metaItem('Size', formatAudioSize(meta.sizeBytes));
+        items += metaItem('Full Path', meta.fullPath);
+
+        if (meta.sampleRate) items += metaItem('Sample Rate', meta.sampleRate.toLocaleString() + ' Hz');
+        if (meta.bitsPerSample) items += metaItem('Bit Depth', meta.bitsPerSample + '-bit');
+        if (meta.channels) items += metaItem('Channels', meta.channels === 1 ? 'Mono' : meta.channels === 2 ? 'Stereo' : meta.channels + ' ch');
+        if (meta.duration) items += metaItem('Duration', formatTime(meta.duration));
+        if (meta.byteRate) items += metaItem('Byte Rate', formatAudioSize(meta.byteRate) + '/s');
+
+        items += metaItem('Created', new Date(meta.created).toLocaleString());
+        items += metaItem('Modified', new Date(meta.modified).toLocaleString());
+        items += metaItem('Accessed', new Date(meta.accessed).toLocaleString());
+        items += metaItem('Permissions', meta.permissions);
+
+        metaRow.innerHTML = `<td colspan="6"><div class="audio-meta-panel">${items}</div></td>`;
+      } catch (err) {
+        metaRow.innerHTML = `<td colspan="6"><div class="audio-meta-panel"><span style="color: var(--red);">Failed to load metadata</span></div></td>`;
+      }
+    }
+
+    function metaItem(label, value) {
+      return `<div class="meta-item"><span class="meta-label">${label}</span><span class="meta-value">${escapeHtml(String(value || '—'))}</span></div>`;
+    }
+
+    function openAudioFolder(filePath) {
+      window.vstUpdater.openAudioFolder(filePath);
+    }
+
     // Auto-load last scan on startup
     (async function loadLastScan() {
       try {
         const latest = await window.vstUpdater.getLatestScan();
-        if (!latest || !latest.plugins || latest.plugins.length === 0) return;
+        if (latest && latest.plugins && latest.plugins.length > 0) {
+          allPlugins = latest.plugins;
 
-        allPlugins = latest.plugins;
+          // Restore cached KVR results
+          try {
+            const kvrCache = await window.vstUpdater.getKvrCache();
+            applyKvrCache(allPlugins, kvrCache);
+          } catch {}
 
-        // Restore cached KVR results
-        try {
-          const kvrCache = await window.vstUpdater.getKvrCache();
-          applyKvrCache(allPlugins, kvrCache);
-        } catch {}
+          document.getElementById('totalCount').textContent = allPlugins.length;
+          document.getElementById('btnCheckUpdates').disabled = false;
+          document.getElementById('toolbar').style.display = 'flex';
 
-        document.getElementById('totalCount').textContent = allPlugins.length;
-        document.getElementById('btnCheckUpdates').disabled = false;
-        document.getElementById('toolbar').style.display = 'flex';
+          // Update stat counters from cached data
+          const withUpdates = allPlugins.filter(p => p.hasUpdate).length;
+          const unknown = allPlugins.filter(p => p.source === 'not-found').length;
+          const upToDate = allPlugins.filter(p => !p.hasUpdate && p.source && p.source !== 'not-found').length;
+          if (withUpdates || unknown || upToDate) {
+            document.getElementById('updateCount').textContent = withUpdates;
+            document.getElementById('unknownCount').textContent = unknown;
+            document.getElementById('upToDateCount').textContent = upToDate;
+          }
 
-        // Update stat counters from cached data
-        const withUpdates = allPlugins.filter(p => p.hasUpdate).length;
-        const unknown = allPlugins.filter(p => p.source === 'not-found').length;
-        const upToDate = allPlugins.filter(p => !p.hasUpdate && p.source && p.source !== 'not-found').length;
-        if (withUpdates || unknown || upToDate) {
-          document.getElementById('updateCount').textContent = withUpdates;
-          document.getElementById('unknownCount').textContent = unknown;
-          document.getElementById('upToDateCount').textContent = upToDate;
+          const dirsSection = document.getElementById('dirsSection');
+          dirsSection.style.display = 'block';
+          document.getElementById('dirsList').innerHTML = buildDirsTable(latest.directories || [], allPlugins);
+
+          renderPlugins(allPlugins);
+          // Resume resolving KVR links for plugins not yet cached
+          resolveKvrDownloads();
         }
-
-        const dirsSection = document.getElementById('dirsSection');
-        dirsSection.style.display = 'block';
-        document.getElementById('dirsList').innerHTML = buildDirsTable(latest.directories || [], allPlugins);
-
-        renderPlugins(allPlugins);
-        // Resume resolving KVR links for plugins not yet cached
-        resolveKvrDownloads();
       } catch (err) {
-        console.error('Failed to load last scan:', err);
+        console.error('Failed to load last plugin scan:', err);
+      }
+
+      // Auto-load last audio scan
+      try {
+        const latestAudio = await window.vstUpdater.getLatestAudioScan();
+        if (latestAudio && latestAudio.samples && latestAudio.samples.length > 0) {
+          allAudioSamples = latestAudio.samples;
+          rebuildAudioStats();
+          filterAudioSamples();
+        }
+      } catch (err) {
+        console.error('Failed to load last audio scan:', err);
       }
     })();
   </script>

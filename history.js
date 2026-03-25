@@ -72,6 +72,23 @@ function clearKvrCache() {
   saveKvrCache({});
 }
 
+let AUDIO_HISTORY_FILE;
+try {
+  const electron3 = require('electron');
+  const app3 = electron3.app || (electron3.remote && electron3.remote.app);
+  if (app3 && typeof app3.getPath === 'function') {
+    AUDIO_HISTORY_FILE = path.join(app3.getPath('userData'), 'audio-scan-history.json');
+  } else {
+    throw new Error('no app');
+  }
+} catch {
+  AUDIO_HISTORY_FILE = path.join(__dirname, 'audio-scan-history.json');
+}
+
+function setAudioHistoryFile(filePath) {
+  AUDIO_HISTORY_FILE = filePath;
+}
+
 function loadHistory() {
   try {
     if (fs.existsSync(HISTORY_FILE)) {
@@ -163,4 +180,95 @@ function getLatestScan() {
   return history.scans.length > 0 ? history.scans[0] : null;
 }
 
-module.exports = { saveScan, getScans, getScanDetail, deleteScan, clearHistory, diffScans, getLatestScan, setHistoryFile, setKvrCacheFile, updateKvrCache, getKvrCache, clearKvrCache };
+// ── Audio scan history ──
+
+function loadAudioHistory() {
+  try {
+    if (fs.existsSync(AUDIO_HISTORY_FILE)) {
+      return JSON.parse(fs.readFileSync(AUDIO_HISTORY_FILE, 'utf8'));
+    }
+  } catch {}
+  return { scans: [] };
+}
+
+function saveAudioHistory(history) {
+  fs.writeFileSync(AUDIO_HISTORY_FILE, JSON.stringify(history, null, 2), 'utf8');
+}
+
+function saveAudioScan(samples) {
+  const history = loadAudioHistory();
+  // Compute format stats
+  const formatCounts = {};
+  let totalBytes = 0;
+  for (const s of samples) {
+    formatCounts[s.format] = (formatCounts[s.format] || 0) + 1;
+    totalBytes += s.size || 0;
+  }
+  const snapshot = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    timestamp: new Date().toISOString(),
+    sampleCount: samples.length,
+    totalBytes,
+    formatCounts,
+    samples,
+  };
+  history.scans.unshift(snapshot);
+  if (history.scans.length > 50) {
+    history.scans = history.scans.slice(0, 50);
+  }
+  saveAudioHistory(history);
+  return snapshot;
+}
+
+function getAudioScans() {
+  const history = loadAudioHistory();
+  return history.scans.map((s) => ({
+    id: s.id,
+    timestamp: s.timestamp,
+    sampleCount: s.sampleCount,
+    totalBytes: s.totalBytes,
+    formatCounts: s.formatCounts,
+  }));
+}
+
+function getAudioScanDetail(id) {
+  const history = loadAudioHistory();
+  return history.scans.find((s) => s.id === id) || null;
+}
+
+function deleteAudioScan(id) {
+  const history = loadAudioHistory();
+  history.scans = history.scans.filter((s) => s.id !== id);
+  saveAudioHistory(history);
+}
+
+function clearAudioHistory() {
+  saveAudioHistory({ scans: [] });
+}
+
+function getLatestAudioScan() {
+  const history = loadAudioHistory();
+  return history.scans.length > 0 ? history.scans[0] : null;
+}
+
+function diffAudioScans(oldId, newId) {
+  const history = loadAudioHistory();
+  const oldScan = history.scans.find((s) => s.id === oldId);
+  const newScan = history.scans.find((s) => s.id === newId);
+  if (!oldScan || !newScan) return null;
+
+  const oldPaths = new Set(oldScan.samples.map((s) => s.path));
+  const newPaths = new Set(newScan.samples.map((s) => s.path));
+
+  const added = newScan.samples.filter((s) => !oldPaths.has(s.path));
+  const removed = oldScan.samples.filter((s) => !newPaths.has(s.path));
+
+  return {
+    oldScan: { id: oldScan.id, timestamp: oldScan.timestamp, sampleCount: oldScan.sampleCount },
+    newScan: { id: newScan.id, timestamp: newScan.timestamp, sampleCount: newScan.sampleCount },
+    added,
+    removed,
+  };
+}
+
+module.exports = { saveScan, getScans, getScanDetail, deleteScan, clearHistory, diffScans, getLatestScan, setHistoryFile, setKvrCacheFile, updateKvrCache, getKvrCache, clearKvrCache, saveAudioScan, getAudioScans, getAudioScanDetail, deleteAudioScan, clearAudioHistory, getLatestAudioScan, diffAudioScans, setAudioHistoryFile };

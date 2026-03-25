@@ -25,6 +25,25 @@ contextBridge.exposeInMainWorld('vstUpdater', {
   clearHistory: () => ipcRenderer.invoke('history-clear'),
   diffScans: (oldId, newId) => ipcRenderer.invoke('history-diff', oldId, newId),
   getLatestScan: () => ipcRenderer.invoke('history-latest'),
+  // Audio samples
+  scanAudioSamples: () => ipcRenderer.invoke('scan-audio-samples'),
+  stopAudioScan: () => ipcRenderer.invoke('stop-audio-scan'),
+  onAudioScanProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('audio-scan-progress', handler);
+    return () => ipcRenderer.removeListener('audio-scan-progress', handler);
+  },
+  openAudioFolder: (path) => ipcRenderer.invoke('open-audio-folder', path),
+  getAudioMetadata: (filePath) => ipcRenderer.invoke('get-audio-metadata', filePath),
+  getAudioFileUrl: (filePath) => ipcRenderer.invoke('get-audio-file-url', filePath),
+  // Audio history
+  saveAudioScan: (samples) => ipcRenderer.invoke('audio-history-save', samples),
+  getAudioScans: () => ipcRenderer.invoke('audio-history-get-scans'),
+  getAudioScanDetail: (id) => ipcRenderer.invoke('audio-history-get-detail', id),
+  deleteAudioScan: (id) => ipcRenderer.invoke('audio-history-delete', id),
+  clearAudioHistory: () => ipcRenderer.invoke('audio-history-clear'),
+  getLatestAudioScan: () => ipcRenderer.invoke('audio-history-latest'),
+  diffAudioScans: (oldId, newId) => ipcRenderer.invoke('audio-history-diff', oldId, newId),
   // KVR cache
   getKvrCache: () => ipcRenderer.invoke('kvr-cache-get'),
   updateKvrCache: (entries) => ipcRenderer.invoke('kvr-cache-update', entries),
