@@ -1,0 +1,96 @@
+{
+  "name": "universal-plugin-update-manager",
+  "version": "1.0.0",
+  "description": "Universal desktop app to scan and update VST/VST3/AU audio plugins",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac --win --linux",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "vst",
+    "plugins",
+    "audio",
+    "updater"
+  ],
+  "author": {
+    "name": "MenkeTechnologies",
+    "email": "MenkeTechnologies@gmail.com"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.menketechnologies.universal-plugin-update-manager",
+    "productName": "Universal Plugin Update Manager",
+    "files": [
+      "main.js",
+      "preload.js",
+      "scanner.js",
+      "scanner-worker.js",
+      "update-worker.js",
+      "history.js",
+      "index.html"
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Audio"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^41.0.4",
+    "electron-builder": "^26.8.1"
+  }
+}
