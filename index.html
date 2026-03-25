@@ -276,6 +276,7 @@
     .stat-dot.green { background: var(--green); box-shadow: 0 0 6px rgba(57,255,20,0.5); }
     .stat-dot.orange { background: var(--orange); box-shadow: 0 0 6px rgba(255,107,53,0.5); }
     .stat-dot.purple { background: var(--cyan); box-shadow: 0 0 6px var(--cyan-glow); }
+    .stat-dot.muted { background: var(--text-muted); }
 
     /* Search / Filter */
     .toolbar {
@@ -1000,6 +1001,11 @@
           <span class="stat-value" id="updateCount">0</span>
           <span>Updates Available</span>
         </div>
+        <div class="stat">
+          <span class="stat-dot muted"></span>
+          <span class="stat-value" id="unknownCount">0</span>
+          <span>Unknown Latest Version</span>
+        </div>
       </div>
       <div class="progress-bar" id="progressBar">
         <div class="progress-fill"></div>
@@ -1027,6 +1033,7 @@
         <option value="all">All Status</option>
         <option value="update">Updates Available</option>
         <option value="current">Up to Date</option>
+        <option value="unknown">Unknown Latest</option>
       </select>
     </div>
 
@@ -1313,15 +1320,18 @@
           // Update live stats
           const checkedPlugins = [...updatedByPath.values()];
           const withUpdates = checkedPlugins.filter(p => p.hasUpdate).length;
-          const upToDate = checkedPlugins.filter(p => !p.hasUpdate).length;
+          const unknown = checkedPlugins.filter(p => !p.hasUpdate && p.source === 'not-found').length;
+          const upToDate = checkedPlugins.filter(p => !p.hasUpdate && p.source !== 'not-found').length;
           const kvrFound = checkedPlugins.filter(p => p.source === 'kvr' || p.source === 'kvr-ddg').length;
           const pending = data.total - data.processed;
           document.getElementById('updateCount').textContent = withUpdates;
           document.getElementById('upToDateCount').textContent = upToDate;
+          document.getElementById('unknownCount').textContent = unknown;
 
           statusStats.innerHTML =
             `<span class="stat-avail">${withUpdates} updates</span>` +
             `<span class="stat-up">${upToDate} current</span>` +
+            `<span style="color: var(--text-muted);">${unknown} unknown</span>` +
             `<span style="color: var(--yellow);">${kvrFound} KVR</span>` +
             `<span class="stat-pending">${pending} pending</span>`;
         }
@@ -1331,9 +1341,11 @@
         allPlugins = await window.vstUpdater.checkUpdates(allPlugins);
         pluginsWithUpdates = allPlugins.filter(p => p.hasUpdate);
 
+        const finalUnknown = allPlugins.filter(p => !p.hasUpdate && p.source === 'not-found').length;
         document.getElementById('upToDateCount').textContent =
-          allPlugins.filter(p => !p.hasUpdate).length;
+          allPlugins.filter(p => !p.hasUpdate && p.source !== 'not-found').length;
         document.getElementById('updateCount').textContent = pluginsWithUpdates.length;
+        document.getElementById('unknownCount').textContent = finalUnknown;
 
         if (pluginsWithUpdates.length > 0) {
           const batchBar = document.getElementById('batchBar');
@@ -1386,7 +1398,8 @@
         const matchesType = typeFilter === 'all' || p.type === typeFilter;
         let matchesStatus = true;
         if (statusFilter === 'update') matchesStatus = p.hasUpdate === true;
-        if (statusFilter === 'current') matchesStatus = p.hasUpdate === false;
+        if (statusFilter === 'current') matchesStatus = p.hasUpdate === false && p.source !== 'not-found';
+        if (statusFilter === 'unknown') matchesStatus = !p.hasUpdate && p.source === 'not-found';
         return matchesSearch && matchesType && matchesStatus;
       });
 
