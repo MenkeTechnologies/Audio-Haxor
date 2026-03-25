@@ -261,16 +261,41 @@ ipcMain.handle('resolve-kvr', async (_event, directUrl, pluginName) => {
     }
   } catch {}
 
-  // Fallback: search KVR
+  // Fallback: search KVR by plugin name
   try {
     const searchUrl = `https://www.kvraudio.com/plugins/search?q=${encodeURIComponent(pluginName)}`;
     const html = await fetchHtml(searchUrl);
 
+    // Collect unique product links from search results
     const pattern = /href="(\/product\/[^"]+)"/gi;
+    const productLinks = [];
+    const seen = new Set();
     let match;
     while ((match = pattern.exec(html)) !== null) {
-      const foundUrl = 'https://www.kvraudio.com' + match[1];
-      const result = await scrapeProductPage(foundUrl);
+      const href = match[1];
+      if (!seen.has(href)) {
+        seen.add(href);
+        productLinks.push('https://www.kvraudio.com' + href);
+      }
+    }
+
+    // Check the plugin name appears in the product URL slug (basic relevance check)
+    const nameSlug = pluginName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const nameWords = pluginName.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/);
+
+    for (const foundUrl of productLinks.slice(0, 5)) {
+      const urlSlug = foundUrl.split('/product/')[1] || '';
+      // Check if the URL contains the plugin name or most of its words
+      const matchingWords = nameWords.filter(w => w.length > 1 && urlSlug.includes(w));
+      if (urlSlug.includes(nameSlug) || matchingWords.length >= Math.ceil(nameWords.length * 0.5)) {
+        const result = await scrapeProductPage(foundUrl);
+        return result;
+      }
+    }
+
+    // If no relevant match, return the first result anyway
+    if (productLinks.length > 0) {
+      const result = await scrapeProductPage(productLinks[0]);
       return result;
     }
   } catch {}

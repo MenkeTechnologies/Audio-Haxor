@@ -1522,17 +1522,40 @@
     }
 
     function slugify(str) {
-      return str.toLowerCase()
+      return str
+        // Insert hyphen before uppercase letters in camelCase (e.g. MadronaLabs -> Madrona-Labs)
+        .replace(/([a-z])([A-Z])/g, '$1-$2')
+        // Insert hyphen between letters and digits (e.g. Plugin3 -> Plugin-3)
+        .replace(/([a-zA-Z])(\d)/g, '$1-$2')
+        .replace(/(\d)([a-zA-Z])/g, '$1-$2')
+        .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
     }
 
+    // Common audio plugin manufacturers where bundle ID doesn't match KVR slug
+    const KVR_MANUFACTURER_MAP = {
+      'madronalabs': 'madrona-labs',
+      'audiothing': 'audio-thing',
+      'audiodamage': 'audio-damage',
+      'soundtoys': 'soundtoys',
+      'native-instruments': 'native-instruments',
+      'plugin-alliance': 'plugin-alliance',
+      'softube': 'softube',
+      'izotope': 'izotope',
+      'eventide': 'eventide',
+      'arturia': 'arturia',
+      'u-he': 'u-he',
+    };
+
     function buildKvrUrl(name, manufacturer) {
-      const slug = slugify(name);
+      const nameSlug = slugify(name);
       if (manufacturer && manufacturer !== 'Unknown') {
-        return `https://www.kvraudio.com/product/${slug}-by-${slugify(manufacturer)}`;
+        const mfgLower = manufacturer.toLowerCase().replace(/[^a-z0-9]+/g, '');
+        const mfgSlug = KVR_MANUFACTURER_MAP[mfgLower] || slugify(manufacturer);
+        return `https://www.kvraudio.com/product/${nameSlug}-by-${mfgSlug}`;
       }
-      return `https://www.kvraudio.com/product/${slug}`;
+      return `https://www.kvraudio.com/product/${nameSlug}`;
     }
 
     function buildDirsTable(directories, plugins) {
