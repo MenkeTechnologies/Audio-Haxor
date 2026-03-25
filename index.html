@@ -1300,12 +1300,24 @@
             statusText.textContent = `Checking ${mfg}${lastPlugin.name} (${data.processed}/${data.total})`;
           }
 
-          // Update individual plugin cards in-place
+          // Update individual plugin cards in-place and save to KVR cache
+          const cacheEntries = [];
           for (const p of data.plugins) {
             updatedByPath.set(p.path, p);
             // Update allPlugins array entry
             const idx = allPlugins.findIndex(ap => ap.path === p.path);
             if (idx !== -1) allPlugins[idx] = p;
+            // Queue cache entry
+            if (p.source && p.source !== 'not-found') {
+              cacheEntries.push({
+                key: kvrCacheKey(p),
+                kvrUrl: p.kvrUrl || null,
+                updateUrl: p.updateUrl || null,
+                latestVersion: p.latestVersion || null,
+                hasUpdate: p.hasUpdate || false,
+                source: p.source,
+              });
+            }
             // Find and replace the card in the DOM
             const escapedPath = escapePath(p.path);
             const card = document.querySelector(`.plugin-card[data-path="${CSS.escape(escapedPath)}"]`);
@@ -1315,6 +1327,11 @@
               const newCard = temp.firstElementChild;
               card.replaceWith(newCard);
             }
+          }
+
+          // Persist to KVR cache
+          if (cacheEntries.length > 0) {
+            window.vstUpdater.updateKvrCache(cacheEntries).catch(() => {});
           }
 
           // Update live stats
@@ -1740,12 +1757,16 @@
     async function resolveKvrDownloads() {
       kvrResolveAbort = false;
 
-      // Deduplicate by name+manufacturer
+      // Load existing cache to skip already-resolved plugins
+      let kvrCache = {};
+      try { kvrCache = await window.vstUpdater.getKvrCache(); } catch {}
+
+      // Deduplicate by name+manufacturer, skip cached
       const seen = new Map();
       const queue = [];
       for (const p of allPlugins) {
-        if (p.updateUrl) continue; // already has a download URL
-        const key = `${p.manufacturer}|||${p.name}`.toLowerCase();
+        const key = kvrCacheKey(p);
+        if (kvrCache[key]) continue; // already cached from previous run
         if (seen.has(key)) continue;
         seen.set(key, true);
         queue.push(p);
@@ -1774,8 +1795,19 @@
           const result = await window.vstUpdater.resolveKvr(kvrUrl, plugin.name);
           const productUrl = result.productUrl || kvrUrl;
           const downloadUrl = result.downloadUrl || null;
+          const key = kvrCacheKey(plugin);
 
-          // Update all matching plugin cards (same name+manufacturer may appear as VST2/VST3/AU)
+          // Save to cache
+          try {
+            await window.vstUpdater.updateKvrCache([{
+              key,
+              kvrUrl: productUrl,
+              updateUrl: downloadUrl,
+              source: 'kvr',
+            }]);
+          } catch {}
+
+          // Update all matching plugin cards
           for (const p of allPlugins) {
             if (p.name === plugin.name && p.manufacturer === plugin.manufacturer) {
               p.kvrUrl = productUrl;
