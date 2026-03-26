@@ -198,6 +198,15 @@
       margin-top: -2px;
     }
 
+    .logo-version {
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--cyan-glow);
+      opacity: 0.8;
+      margin-left: 8px;
+      font-weight: 500;
+    }
+
     .header-actions {
       display: flex; gap: 10px;
     }
@@ -1285,6 +1294,7 @@
           <div class="logo-text">
             <h1>Universal Plugin Update Manager</h1>
             <span class="logo-author">by MenkeTechnologies</span>
+            <span class="logo-version" id="appVersion"></span>
           </div>
         </div>
         <div class="header-actions">
@@ -1477,6 +1487,11 @@
     let allPlugins = [];
     let pluginsWithUpdates = [];
     let currentOperation = null; // 'scan' or 'updates'
+
+    // Display app version in header
+    window.vstUpdater.getVersion().then(v => {
+      document.getElementById('appVersion').textContent = 'v' + v;
+    });
 
     function showStopButton() {
       document.getElementById('btnStop').style.display = '';

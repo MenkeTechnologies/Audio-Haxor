@@ -47,6 +47,8 @@ app.on('activate', () => {
 });
 
 // IPC handlers
+ipcMain.handle('get-version', () => app.getVersion());
+
 ipcMain.handle('scan-plugins', async () => {
   return new Promise((resolve, reject) => {
     const allPlugins = [];

@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('vstUpdater', {
+  getVersion: () => ipcRenderer.invoke('get-version'),
   scanPlugins: () => ipcRenderer.invoke('scan-plugins'),
   stopScan: () => ipcRenderer.invoke('stop-scan'),
   onScanProgress: (callback) => {

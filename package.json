@@ -32,6 +32,7 @@
       "scanner.js",
       "scanner-worker.js",
       "update-worker.js",
+      "audio-scanner-worker.js",
       "history.js",
       "index.html"
     ],
