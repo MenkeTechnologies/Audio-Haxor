@@ -2212,6 +2212,39 @@
       if (e.target.dataset.action === 'settingCustomDirs') settingSaveCustomDirs();
     }, true);
 
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      const isMac = navigator.platform.includes('Mac');
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+
+      // Cmd/Ctrl+F — focus search in active tab
+      if (mod && e.key === 'f') {
+        e.preventDefault();
+        const activeTab = document.querySelector('.tab-content.active');
+        const input = activeTab?.querySelector('input[type="text"]');
+        if (input) { input.focus(); input.select(); }
+      }
+
+      // Escape — clear search or stop operation
+      if (e.key === 'Escape') {
+        const focused = document.activeElement;
+        if (focused?.tagName === 'INPUT' && focused.value) {
+          focused.value = '';
+          focused.dispatchEvent(new Event('input', { bubbles: true }));
+        } else if (currentOperation) {
+          stopCurrentOperation();
+        }
+      }
+
+      // Cmd/Ctrl+1-5 — switch tabs
+      if (mod && e.key >= '1' && e.key <= '5') {
+        e.preventDefault();
+        const tabs = ['plugins', 'history', 'samples', 'daw', 'settings'];
+        const idx = parseInt(e.key) - 1;
+        if (idx < tabs.length) switchTab(tabs[idx]);
+      }
+    });
+
     window.vstUpdater = {
       getVersion: () => invoke('get_version'),
       scanPlugins: () => invoke('scan_plugins'),
@@ -2285,6 +2318,21 @@
     let allPlugins = [];
     let pluginsWithUpdates = [];
     let currentOperation = null; // 'scan' or 'updates'
+
+    // Common audio plugin manufacturers where bundle ID doesn't match KVR slug
+    const KVR_MANUFACTURER_MAP = {
+      'madronalabs': 'madrona-labs',
+      'audiothing': 'audio-thing',
+      'audiodamage': 'audio-damage',
+      'soundtoys': 'soundtoys',
+      'native-instruments': 'native-instruments',
+      'plugin-alliance': 'plugin-alliance',
+      'softube': 'softube',
+      'izotope': 'izotope',
+      'eventide': 'eventide',
+      'arturia': 'arturia',
+      'u-he': 'u-he',
+    };
 
     // Display app version in header
     window.vstUpdater.getVersion().then(v => {
@@ -2869,6 +2917,7 @@
     }
 
     async function settingClearAllHistory() {
+      if (!confirm('Clear all plugin, audio, and DAW scan history? This cannot be undone.')) return;
       await Promise.all([
         window.vstUpdater.clearHistory(),
         window.vstUpdater.clearAudioHistory(),
@@ -2877,6 +2926,7 @@
     }
 
     async function settingClearKvrCache() {
+      if (!confirm('Clear all cached KVR version lookups? Next update check will re-fetch everything.')) return;
       await window.vstUpdater.updateKvrCache([]);
     }
 
@@ -3087,21 +3137,6 @@
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
     }
-
-    // Common audio plugin manufacturers where bundle ID doesn't match KVR slug
-    const KVR_MANUFACTURER_MAP = {
-      'madronalabs': 'madrona-labs',
-      'audiothing': 'audio-thing',
-      'audiodamage': 'audio-damage',
-      'soundtoys': 'soundtoys',
-      'native-instruments': 'native-instruments',
-      'plugin-alliance': 'plugin-alliance',
-      'softube': 'softube',
-      'izotope': 'izotope',
-      'eventide': 'eventide',
-      'arturia': 'arturia',
-      'u-he': 'u-he',
-    };
 
     function buildKvrUrl(name, manufacturer) {
       const nameSlug = slugify(name);
@@ -3577,6 +3612,7 @@
     }
 
     async function clearAllHistory() {
+      if (!confirm('Clear all scan history? This cannot be undone.')) return;
       await Promise.all([
         window.vstUpdater.clearHistory(),
         window.vstUpdater.clearAudioHistory(),
