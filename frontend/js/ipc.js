@@ -62,7 +62,9 @@ document.addEventListener('click', (e) => {
     case 'settingToggleAutoScan': settingToggleAutoScan(); break;
     case 'settingToggleAutoUpdate': settingToggleAutoUpdate(); break;
     case 'applyCustomScheme': applyCustomScheme(); break;
-    case 'saveCustomScheme': saveCustomScheme(); break;
+    case 'showSavePreset': showSavePreset(); break;
+    case 'confirmSavePreset': confirmSavePreset(); break;
+    case 'cancelSavePreset': cancelSavePreset(); break;
     case 'deleteCustomSchemes': deleteCustomSchemes(); break;
     case 'loadCustomPreset': loadCustomPreset(el.dataset.idx); break;
     case 'saveCustomDirs': saveCustomDirs(); break;
@@ -118,7 +120,7 @@ document.addEventListener('keydown', (e) => {
   // Cmd/Ctrl+1-5 — switch tabs
   if (mod && e.key >= '1' && e.key <= '5') {
     e.preventDefault();
-    const tabs = ['plugins', 'history', 'samples', 'daw', 'settings'];
+    const tabs = ['plugins', 'samples', 'daw', 'history', 'settings'];
     const idx = parseInt(e.key) - 1;
     if (idx < tabs.length) switchTab(tabs[idx]);
   }
@@ -197,6 +199,8 @@ window.vstUpdater = {
   exportDawJson: (projects, filePath) => invoke('export_daw_json', { projects, filePath }),
   exportDawDsv: (projects, filePath) => invoke('export_daw_dsv', { projects, filePath }),
   // Preferences (file-backed)
+  openPrefsFile: () => invoke('open_prefs_file'),
+  getPrefsPath: () => invoke('get_prefs_path'),
   prefsGetAll: () => invoke('prefs_get_all'),
   prefsSet: (key, value) => invoke('prefs_set', { key, value }),
   prefsRemove: (key) => invoke('prefs_remove', { key }),
@@ -216,6 +220,14 @@ const prefs = {
     const val = this._cache[key];
     if (val === undefined || val === null) return null;
     return typeof val === 'string' ? val : JSON.stringify(val);
+  },
+  getObject(key, fallback) {
+    const val = this._cache[key];
+    if (val === undefined || val === null) return fallback;
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return fallback; }
+    }
+    return val;
   },
   setItem(key, value) {
     this._cache[key] = value;

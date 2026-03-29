@@ -98,14 +98,20 @@ async fn scan_plugins(
     let app_handle = app.clone();
     let result = tokio::task::spawn_blocking(move || {
         let scan_state = app_handle.state::<ScanState>();
-        let mut directories = scanner::get_vst_directories();
-        if let Some(extra) = custom_roots {
-            for r in extra {
-                if std::path::Path::new(&r).exists() && !directories.contains(&r) {
-                    directories.push(r);
-                }
+        let directories = if let Some(ref extra) = custom_roots {
+            let custom: Vec<String> = extra
+                .iter()
+                .filter(|r| std::path::Path::new(r).exists())
+                .cloned()
+                .collect();
+            if custom.is_empty() {
+                scanner::get_vst_directories()
+            } else {
+                custom
             }
-        }
+        } else {
+            scanner::get_vst_directories()
+        };
         let plugin_paths = scanner::discover_plugins(&directories);
         let total = plugin_paths.len();
 
@@ -118,42 +124,35 @@ async fn scan_plugins(
             }),
         );
 
-        let mut all_plugins = Vec::new();
+        // Deduplicate paths
         let mut seen = HashSet::new();
-        let mut processed = 0usize;
+        let unique_paths: Vec<_> = plugin_paths
+            .into_iter()
+            .filter(|p| seen.insert(p.to_string_lossy().to_string()))
+            .collect();
+
+        // Process all plugins in parallel
+        use rayon::prelude::*;
+        let all_infos: Vec<_> = unique_paths
+            .par_iter()
+            .filter(|_| !scan_state.stop_scan.load(Ordering::Relaxed))
+            .filter_map(|p| scanner::get_plugin_info(p))
+            .collect();
+
+        // Emit progress in batches
         let batch_size = 10;
-        let mut batch = Vec::new();
-
-        for plugin_path in &plugin_paths {
-            if scan_state.stop_scan.load(Ordering::SeqCst) {
-                break;
-            }
-
-            let path_str = plugin_path.to_string_lossy().to_string();
-            if seen.contains(&path_str) {
-                processed += 1;
-                continue;
-            }
-            seen.insert(path_str);
-
-            if let Some(info) = scanner::get_plugin_info(plugin_path) {
-                batch.push(info);
-            }
-            processed += 1;
-
-            if batch.len() >= batch_size || processed == total {
-                all_plugins.extend(batch.clone());
-                let _ = app_handle.emit(
-                    "scan-progress",
-                    serde_json::json!({
-                        "phase": "scanning",
-                        "plugins": batch,
-                        "processed": processed,
-                        "total": total
-                    }),
-                );
-                batch.clear();
-            }
+        let mut all_plugins = Vec::new();
+        for (i, chunk) in all_infos.chunks(batch_size).enumerate() {
+            all_plugins.extend_from_slice(chunk);
+            let _ = app_handle.emit(
+                "scan-progress",
+                serde_json::json!({
+                    "phase": "scanning",
+                    "plugins": chunk,
+                    "processed": std::cmp::min((i + 1) * batch_size, all_infos.len()),
+                    "total": total
+                }),
+            );
         }
 
         all_plugins.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -399,15 +398,20 @@ async fn scan_audio_samples(
     let app_handle = app.clone();
     let result = tokio::task::spawn_blocking(move || {
         let audio_state = app_handle.state::<AudioScanState>();
-        let mut roots = audio_scanner::get_audio_roots();
-        if let Some(extra) = custom_roots {
-            for r in extra {
-                let p = std::path::PathBuf::from(&r);
-                if p.exists() && !roots.contains(&p) {
-                    roots.push(p);
-                }
+        let roots = if let Some(ref extra) = custom_roots {
+            let custom: Vec<std::path::PathBuf> = extra
+                .iter()
+                .map(std::path::PathBuf::from)
+                .filter(|p| p.exists())
+                .collect();
+            if custom.is_empty() {
+                audio_scanner::get_audio_roots()
+            } else {
+                custom
             }
-        }
+        } else {
+            audio_scanner::get_audio_roots()
+        };
         let mut all_samples: Vec<AudioSample> = Vec::new();
 
         audio_scanner::walk_for_audio(
@@ -514,15 +518,20 @@ async fn scan_daw_projects(
     let app_handle = app.clone();
     let result = tokio::task::spawn_blocking(move || {
         let daw_state = app_handle.state::<DawScanState>();
-        let mut roots = daw_scanner::get_daw_roots();
-        if let Some(extra) = custom_roots {
-            for r in extra {
-                let p = std::path::PathBuf::from(&r);
-                if p.exists() && !roots.contains(&p) {
-                    roots.push(p);
-                }
+        let roots = if let Some(ref extra) = custom_roots {
+            let custom: Vec<std::path::PathBuf> = extra
+                .iter()
+                .map(std::path::PathBuf::from)
+                .filter(|p| p.exists())
+                .collect();
+            if custom.is_empty() {
+                daw_scanner::get_daw_roots()
+            } else {
+                custom
             }
-        }
+        } else {
+            daw_scanner::get_daw_roots()
+        };
         let mut all_projects: Vec<DawProject> = Vec::new();
 
         daw_scanner::walk_for_daw(
@@ -647,7 +656,7 @@ async fn open_audio_folder(file_path: String) -> Result<(), String> {
 // ── Preferences commands ──
 
 #[tauri::command]
-fn prefs_get_all() -> std::collections::HashMap<String, serde_json::Value> {
+fn prefs_get_all() -> history::PrefsMap {
     history::load_preferences()
 }
 
@@ -662,8 +671,21 @@ fn prefs_remove(key: String) {
 }
 
 #[tauri::command]
-fn prefs_save_all(prefs: std::collections::HashMap<String, serde_json::Value>) {
+fn prefs_save_all(prefs: history::PrefsMap) {
     history::save_preferences(&prefs);
+}
+
+#[tauri::command]
+async fn open_prefs_file() -> Result<(), String> {
+    let path = history::get_preferences_path();
+    opener::open(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_prefs_path() -> String {
+    history::get_preferences_path()
+        .to_string_lossy()
+        .to_string()
 }
 
 // ── Export / Import commands ──
@@ -1170,15 +1192,23 @@ pub fn run() {
             prefs_set,
             prefs_remove,
             prefs_save_all,
+            open_prefs_file,
+            get_prefs_path,
         ])
         .setup(|app| {
             let prefs = history::load_preferences();
             if let Some(win_val) = prefs.get("window") {
                 if let Some(win) = app.get_webview_window("main") {
-                    if let Some(w) = win_val.get("width").and_then(|v| v.as_f64()) {
-                        if let Some(h) = win_val.get("height").and_then(|v| v.as_f64()) {
-                            let size = tauri::LogicalSize::new(w, h);
-                            let _ = win.set_size(tauri::Size::Logical(size));
+                    if let Some(w) = win_val.get("width").and_then(|v| v.as_u64()) {
+                        if let Some(h) = win_val.get("height").and_then(|v| v.as_u64()) {
+                            let size = tauri::PhysicalSize::new(w as u32, h as u32);
+                            let _ = win.set_size(tauri::Size::Physical(size));
+                        }
+                    }
+                    if let Some(x) = win_val.get("x").and_then(|v| v.as_i64()) {
+                        if let Some(y) = win_val.get("y").and_then(|v| v.as_i64()) {
+                            let pos = tauri::PhysicalPosition::new(x as i32, y as i32);
+                            let _ = win.set_position(tauri::Position::Physical(pos));
                         }
                     }
                 }

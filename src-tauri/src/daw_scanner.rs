@@ -1,7 +1,10 @@
 use crate::history::DawProject;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// File extensions for DAW project files.
 /// Includes both single-file formats and macOS bundle/package formats.
@@ -153,46 +156,60 @@ pub fn get_daw_roots() -> Vec<PathBuf> {
 pub fn walk_for_daw(
     roots: &[PathBuf],
     on_batch: &mut dyn FnMut(&[DawProject], usize),
-    should_stop: &dyn Fn() -> bool,
+    should_stop: &(dyn Fn() -> bool + Sync),
 ) {
-    let mut visited = HashSet::new();
-    let mut batch = Vec::new();
-    let mut found = 0usize;
     let batch_size = 50;
+    let stop = Arc::new(AtomicBool::new(false));
+    let found = Arc::new(AtomicUsize::new(0));
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<DawProject>>(64);
+    let visited = Arc::new(Mutex::new(HashSet::new()));
 
-    for root in roots {
-        if should_stop() {
-            break;
+    let collector = std::thread::spawn(move || {
+        let mut all = Vec::new();
+        for projects in rx {
+            all.extend(projects);
         }
-        walk_dir(
+        all
+    });
+
+    roots.par_iter().for_each(|root| {
+        if stop.load(Ordering::Relaxed) || should_stop() {
+            stop.store(true, Ordering::Relaxed);
+            return;
+        }
+        walk_dir_parallel(
             root,
             0,
-            &mut visited,
-            &mut batch,
-            &mut found,
+            &visited,
+            &tx,
+            &found,
             batch_size,
-            on_batch,
+            &stop,
             should_stop,
         );
-    }
+    });
+    drop(tx);
 
-    if !batch.is_empty() {
-        on_batch(&batch, found);
+    let all_projects = collector.join().unwrap_or_default();
+    let mut delivered = 0usize;
+    for chunk in all_projects.chunks(batch_size) {
+        delivered += chunk.len();
+        on_batch(chunk, delivered);
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn walk_dir(
+fn walk_dir_parallel(
     dir: &Path,
     depth: u32,
-    visited: &mut HashSet<PathBuf>,
-    batch: &mut Vec<DawProject>,
-    found: &mut usize,
+    visited: &Arc<Mutex<HashSet<PathBuf>>>,
+    tx: &std::sync::mpsc::SyncSender<Vec<DawProject>>,
+    found: &Arc<AtomicUsize>,
     batch_size: usize,
-    on_batch: &mut dyn FnMut(&[DawProject], usize),
-    should_stop: &dyn Fn() -> bool,
+    stop: &Arc<AtomicBool>,
+    should_stop: &(dyn Fn() -> bool + Sync),
 ) {
-    if depth > 30 || should_stop() {
+    if depth > 30 || stop.load(Ordering::Relaxed) || should_stop() {
         return;
     }
 
@@ -200,118 +217,107 @@ fn walk_dir(
         Ok(p) => p,
         Err(_) => return,
     };
-    if !visited.insert(real_dir) {
-        return;
+    {
+        let mut vis = visited.lock().unwrap();
+        if !vis.insert(real_dir) {
+            return;
+        }
     }
 
-    let entries = match fs::read_dir(dir) {
-        Ok(e) => e,
+    let entries: Vec<_> = match fs::read_dir(dir) {
+        Ok(e) => e.flatten().collect(),
         Err(_) => return,
     };
 
-    for entry in entries.flatten() {
-        if should_stop() {
-            return;
-        }
+    let mut files_and_packages = Vec::new();
+    let mut subdirs = Vec::new();
 
+    for entry in &entries {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
         if name_str.starts_with('.') || SKIP_DIRS.contains(&name_str.as_ref()) {
             continue;
         }
-
         let path = entry.path();
-
         if path.is_dir() {
-            // Check if this directory is a macOS package (e.g. .logicx, .band)
             if is_package_ext(&path) {
-                if let Some(format) = ext_matches(&path) {
-                    let size = get_directory_size(&path);
-                    let modified = fs::metadata(&path)
-                        .ok()
-                        .and_then(|m| m.modified().ok())
-                        .map(|t| {
-                            let dt: chrono::DateTime<chrono::Utc> = t.into();
-                            dt.format("%Y-%m-%d").to_string()
-                        })
-                        .unwrap_or_default();
-
-                    let project_name = path
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_default();
-
-                    let daw = daw_name_for_format(&format).to_string();
-
-                    batch.push(DawProject {
-                        name: project_name,
-                        path: path.to_string_lossy().to_string(),
-                        directory: dir.to_string_lossy().to_string(),
-                        format,
-                        daw,
-                        size,
-                        size_formatted: format_size(size),
-                        modified,
-                    });
-                    *found += 1;
-
-                    if batch.len() >= batch_size {
-                        on_batch(batch, *found);
-                        batch.clear();
-                    }
-                }
-                // Don't recurse into package directories
-                continue;
+                files_and_packages.push((path, dir.to_path_buf(), true));
+            } else {
+                subdirs.push(path);
             }
-
-            walk_dir(
-                &path,
-                depth + 1,
-                visited,
-                batch,
-                found,
-                batch_size,
-                on_batch,
-                should_stop,
-            );
         } else if path.is_file() {
-            if let Some(format) = ext_matches(&path) {
-                if let Ok(meta) = fs::metadata(&path) {
-                    let project_name = path
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_default();
-                    let modified = meta
-                        .modified()
-                        .ok()
-                        .map(|t| {
-                            let dt: chrono::DateTime<chrono::Utc> = t.into();
-                            dt.format("%Y-%m-%d").to_string()
-                        })
-                        .unwrap_or_default();
+            files_and_packages.push((path, dir.to_path_buf(), false));
+        }
+    }
 
-                    let daw = daw_name_for_format(&format).to_string();
+    let mut batch = Vec::new();
+    for (path, parent, is_pkg) in files_and_packages {
+        if let Some(format) = ext_matches(&path) {
+            let (size, modified) = if is_pkg {
+                let sz = get_directory_size(&path);
+                let mod_str = fs::metadata(&path)
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .map(|t| {
+                        let dt: chrono::DateTime<chrono::Utc> = t.into();
+                        dt.format("%Y-%m-%d").to_string()
+                    })
+                    .unwrap_or_default();
+                (sz, mod_str)
+            } else if let Ok(meta) = fs::metadata(&path) {
+                let mod_str = meta
+                    .modified()
+                    .ok()
+                    .map(|t| {
+                        let dt: chrono::DateTime<chrono::Utc> = t.into();
+                        dt.format("%Y-%m-%d").to_string()
+                    })
+                    .unwrap_or_default();
+                (meta.len(), mod_str)
+            } else {
+                continue;
+            };
 
-                    batch.push(DawProject {
-                        name: project_name,
-                        path: path.to_string_lossy().to_string(),
-                        directory: dir.to_string_lossy().to_string(),
-                        format,
-                        daw,
-                        size: meta.len(),
-                        size_formatted: format_size(meta.len()),
-                        modified,
-                    });
-                    *found += 1;
+            let project_name = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let daw = daw_name_for_format(&format).to_string();
 
-                    if batch.len() >= batch_size {
-                        on_batch(batch, *found);
-                        batch.clear();
-                    }
-                }
+            batch.push(DawProject {
+                name: project_name,
+                path: path.to_string_lossy().to_string(),
+                directory: parent.to_string_lossy().to_string(),
+                format,
+                daw,
+                size,
+                size_formatted: format_size(size),
+                modified,
+            });
+            found.fetch_add(1, Ordering::Relaxed);
+
+            if batch.len() >= batch_size {
+                let _ = tx.send(batch);
+                batch = Vec::new();
             }
         }
     }
+    if !batch.is_empty() {
+        let _ = tx.send(batch);
+    }
+
+    subdirs.par_iter().for_each(|subdir| {
+        walk_dir_parallel(
+            subdir,
+            depth + 1,
+            visited,
+            tx,
+            found,
+            batch_size,
+            stop,
+            should_stop,
+        );
+    });
 }
 
 #[cfg(test)]

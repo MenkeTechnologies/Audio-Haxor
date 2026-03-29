@@ -1,0 +1,34 @@
+[window]
+width = 2200
+height = 1400
+x = 0
+y = 0
+
+[appearance]
+theme = "dark"
+colorScheme = "cyberpunk"
+crtEffects = "on"
+
+[scanning]
+autoScan = "off"
+autoUpdate = "off"
+defaultTypeFilter = "all"
+customDirs = ""
+audioScanDirs = ""
+dawScanDirs = ""
+
+[sorting]
+pluginSort = "name-asc"
+audioSort = "name"
+dawSort = "name"
+
+[performance]
+pageSize = "500"
+flushInterval = "300"
+
+[data]
+widths = {}
+
+[customScheme]
+vars = {}
+presets = []

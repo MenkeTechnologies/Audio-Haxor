@@ -66,9 +66,8 @@ function toggleDirs() {
 
 // ── Tab switching ──
 function switchTab(tab) {
-  const tabs = ['plugins', 'history', 'samples', 'daw', 'settings'];
-  document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', tab === tabs[i]);
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
   });
   document.getElementById('tabPlugins').classList.toggle('active', tab === 'plugins');
   document.getElementById('tabHistory').classList.toggle('active', tab === 'history');

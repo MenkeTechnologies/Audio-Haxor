@@ -1,3 +1,34 @@
+// Save window size and position (debounced) using Tauri window events
+(async function setupWindowListeners() {
+  let _timer = null;
+  let _pending = {};
+  try {
+    const win = window.__TAURI__.webviewWindow
+      ? window.__TAURI__.webviewWindow.getCurrentWebviewWindow()
+      : null;
+    if (!win) return;
+
+    function saveWindow() {
+      clearTimeout(_timer);
+      _timer = setTimeout(async () => {
+        try {
+          const size = await win.outerSize();
+          const pos = await win.outerPosition();
+          prefs.setItem('window', {
+            width: size.width, height: size.height,
+            x: pos.x, y: pos.y,
+          });
+        } catch {}
+      }, 500);
+    }
+
+    await win.onResized(saveWindow);
+    await win.onMoved(saveWindow);
+  } catch (e) {
+    console.error('Failed to set up window listeners:', e);
+  }
+})();
+
 // Auto-load last scan on startup
 (async function loadLastScan() {
   // Load file-backed preferences before anything else

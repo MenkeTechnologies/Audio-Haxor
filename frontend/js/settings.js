@@ -269,36 +269,65 @@ function applyCustomVars(vars) {
 
 function applySchemeVars(vars) {
   const root = document.documentElement.style;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const lightKeep = new Set(['--bg-primary', '--bg-secondary', '--bg-card', '--bg-hover',
+    '--text', '--text-dim', '--text-muted', '--border', '--border-glow']);
+  // Always remove ALL inline vars first so CSS selectors can take effect
   for (const key of SCHEME_VAR_KEYS) {
     root.removeProperty(key);
   }
-  applyCustomVars(vars);
+  // In light mode, filter out bg/text/border — let [data-theme="light"] CSS handle those
+  const filtered = isLight
+    ? Object.fromEntries(Object.entries(vars).filter(([k]) => !lightKeep.has(k)))
+    : vars;
+  applyCustomVars(filtered);
 }
 
 function applyCustomScheme() {
   const vars = readCustomColorsFromPickers();
   prefs.setItem('colorScheme', 'custom');
-  prefs.setItem('customSchemeVars', JSON.stringify(vars));
+  prefs.setItem('customSchemeVars', vars);
   applySchemeVars(vars);
   document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
   refreshCustomPresetUI();
 }
 
-function saveCustomScheme() {
+function showSavePreset() {
+  const row = document.getElementById('savePresetRow');
+  const input = document.getElementById('savePresetName');
+  const presets = prefs.getObject('customSchemePresets', []);
+  input.value = 'Custom ' + (presets.length + 1);
+  row.style.display = 'flex';
+  input.focus();
+  input.select();
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') confirmSavePreset();
+    if (e.key === 'Escape') cancelSavePreset();
+  };
+}
+
+function cancelSavePreset() {
+  document.getElementById('savePresetRow').style.display = 'none';
+}
+
+function confirmSavePreset() {
+  const input = document.getElementById('savePresetName');
+  const name = input.value.trim();
+  if (!name) return;
   const vars = readCustomColorsFromPickers();
-  const presets = JSON.parse(prefs.getItem('customSchemePresets') || '[]');
-  const name = 'Custom ' + (presets.length + 1);
+  const presets = prefs.getObject('customSchemePresets', []);
   presets.push({ name, vars });
-  prefs.setItem('customSchemePresets', JSON.stringify(presets));
+  prefs.setItem('customSchemePresets', presets);
   prefs.setItem('colorScheme', 'custom-' + (presets.length - 1));
-  prefs.setItem('customSchemeVars', JSON.stringify(vars));
+  prefs.setItem('customSchemeVars', vars);
   applySchemeVars(vars);
   document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('savePresetRow').style.display = 'none';
   refreshCustomPresetUI();
 }
 
 function loadCustomPreset(idx) {
-  const presets = JSON.parse(prefs.getItem('customSchemePresets') || '[]');
+  const presets = prefs.getObject('customSchemePresets', []);
   const preset = presets[idx];
   if (!preset) return;
   for (const input of document.querySelectorAll('.custom-color-input')) {
@@ -306,7 +335,7 @@ function loadCustomPreset(idx) {
     if (preset.vars[v]) input.value = preset.vars[v];
   }
   prefs.setItem('colorScheme', 'custom-' + idx);
-  prefs.setItem('customSchemeVars', JSON.stringify(preset.vars));
+  prefs.setItem('customSchemeVars', preset.vars);
   applySchemeVars(preset.vars);
   document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
   refreshCustomPresetUI();
@@ -321,7 +350,7 @@ function deleteCustomSchemes() {
 function refreshCustomPresetUI() {
   const container = document.getElementById('customSchemeSaved');
   const deleteBtn = document.getElementById('btnDeleteCustom');
-  const presets = JSON.parse(prefs.getItem('customSchemePresets') || '[]');
+  const presets = prefs.getObject('customSchemePresets', []);
   const currentScheme = prefs.getItem('colorScheme') || 'cyberpunk';
 
   if (presets.length === 0) {
@@ -355,11 +384,12 @@ function settingToggleTheme() {
   prefs.setItem('theme', next);
   const scheme = prefs.getItem('colorScheme') || 'cyberpunk';
   if (scheme.startsWith('custom')) {
-    const customVars = JSON.parse(prefs.getItem('customSchemeVars') || '{}');
-    if (next === 'light') {
+    const customVars = prefs.getObject('customSchemeVars', {});
+    if (Object.keys(customVars).length > 0) {
+      applySchemeVars(customVars);
+    } else {
       for (const key of SCHEME_VAR_KEYS) html.style.removeProperty(key);
     }
-    if (Object.keys(customVars).length > 0) applyCustomVars(customVars);
   } else {
     applyColorScheme(scheme);
   }
@@ -465,6 +495,10 @@ function saveDawScanDirs() {
   showSavedMsg('savedMsgDawScanDirs');
 }
 
+function openPrefsFile() {
+  window.vstUpdater.openPrefsFile().catch(e => console.error('Failed to open prefs file:', e));
+}
+
 function getSettingValue(key, defaultVal) {
   return prefs.getItem(key) || defaultVal;
 }
@@ -560,7 +594,7 @@ function refreshSettingsUI() {
   refreshCustomPresetUI();
 
   // Sync color pickers to current scheme (preset or custom)
-  const customVars = JSON.parse(prefs.getItem('customSchemeVars') || '{}');
+  const customVars = prefs.getObject('customSchemeVars', {});
   const schemeObj = COLOR_SCHEMES[currentScheme];
   document.querySelectorAll('.custom-color-input').forEach(input => {
     const v = input.dataset.var;
@@ -575,6 +609,12 @@ function refreshSettingsUI() {
   const ver = document.getElementById('appVersion')?.textContent || '';
   const settingsVer = document.getElementById('settingsVersion');
   if (settingsVer) settingsVer.textContent = ver;
+
+  // Prefs file path
+  const prefsPathEl = document.getElementById('prefsFilePath');
+  if (prefsPathEl && !prefsPathEl.textContent) {
+    window.vstUpdater.getPrefsPath().then(p => { prefsPathEl.textContent = p; }).catch(() => {});
+  }
 }
 
 // Restore settings on load
@@ -589,9 +629,9 @@ function restoreSettings() {
   }
   const scheme = prefs.getItem('colorScheme');
   if (scheme && scheme.startsWith('custom')) {
-    const customVars = JSON.parse(prefs.getItem('customSchemeVars') || '{}');
+    const customVars = prefs.getObject('customSchemeVars', {});
     if (Object.keys(customVars).length > 0) {
-      applyCustomVars(customVars);
+      applySchemeVars(customVars);
     }
   } else if (scheme && scheme !== 'cyberpunk') {
     applyColorScheme(scheme);

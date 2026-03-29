@@ -235,28 +235,244 @@ fn daw_history_file() -> PathBuf {
 }
 
 fn preferences_file() -> PathBuf {
+    ensure_data_dir().join("preferences.toml")
+}
+
+fn legacy_preferences_file() -> PathBuf {
     ensure_data_dir().join("preferences.json")
 }
 
-fn default_config() -> std::collections::HashMap<String, serde_json::Value> {
-    let bytes = include_str!("../../config.default.json");
-    serde_json::from_str(bytes).unwrap_or_default()
+pub fn get_preferences_path() -> PathBuf {
+    preferences_file()
 }
 
-pub fn load_preferences() -> std::collections::HashMap<String, serde_json::Value> {
+pub type PrefsMap = serde_json::Map<String, serde_json::Value>;
+
+// Maps flat pref keys to TOML sections for organized file layout.
+// Keys not listed here go under [general].
+// Format: (section_name, &[(flat_key, toml_key)])
+const SECTION_MAP: &[(&str, &[(&str, &str)])] = &[
+    ("window", &[("window", "window")]),
+    (
+        "appearance",
+        &[
+            ("theme", "theme"),
+            ("colorScheme", "colorScheme"),
+            ("crtEffects", "crtEffects"),
+        ],
+    ),
+    (
+        "scanning",
+        &[
+            ("autoScan", "autoScan"),
+            ("autoUpdate", "autoUpdate"),
+            ("defaultTypeFilter", "defaultTypeFilter"),
+            ("customDirs", "customDirs"),
+            ("audioScanDirs", "audioScanDirs"),
+            ("dawScanDirs", "dawScanDirs"),
+        ],
+    ),
+    (
+        "sorting",
+        &[
+            ("pluginSort", "pluginSort"),
+            ("audioSort", "audioSort"),
+            ("dawSort", "dawSort"),
+        ],
+    ),
+    (
+        "performance",
+        &[("pageSize", "pageSize"), ("flushInterval", "flushInterval")],
+    ),
+    (
+        "customScheme",
+        &[
+            ("customSchemeVars", "vars"),
+            ("customSchemePresets", "presets"),
+        ],
+    ),
+    ("data", &[("columnWidths", "widths")]),
+];
+
+fn default_config() -> PrefsMap {
+    let toml_str = include_str!("../../config.default.toml");
+    toml_to_flat(toml_str)
+}
+
+/// Build a reverse lookup: (section, toml_key) → flat_key
+fn toml_key_to_flat(section: &str, toml_key: &str) -> Option<String> {
+    for (sec, keys) in SECTION_MAP {
+        if *sec == section {
+            for (flat, tk) in *keys {
+                if *tk == toml_key {
+                    return Some(flat.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// If a value is a string that looks like JSON array/object, parse it to native.
+/// Handles migration from old format where structured data was JSON-stringified.
+fn migrate_json_string(val: serde_json::Value) -> serde_json::Value {
+    if let serde_json::Value::String(s) = &val {
+        let trimmed = s.trim();
+        if (trimmed.starts_with('[') && trimmed.ends_with(']'))
+            || (trimmed.starts_with('{') && trimmed.ends_with('}'))
+        {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                return parsed;
+            }
+        }
+    }
+    val
+}
+
+/// Parse a TOML string into a flat PrefsMap.
+/// Top-level sections become either a nested JSON value (for "window")
+/// or their inner keys are promoted to flat top-level keys using SECTION_MAP.
+fn toml_to_flat(toml_str: &str) -> PrefsMap {
+    let table: toml::Table = match toml::from_str(toml_str) {
+        Ok(t) => t,
+        Err(_) => return PrefsMap::new(),
+    };
+    let mut map = PrefsMap::new();
+    for (section, val) in &table {
+        if let toml::Value::Table(inner) = val {
+            if section == "window" {
+                map.insert(
+                    section.clone(),
+                    toml_value_to_json(&toml::Value::Table(inner.clone())),
+                );
+            } else {
+                for (toml_key, v) in inner {
+                    let flat_key =
+                        toml_key_to_flat(section, toml_key).unwrap_or_else(|| toml_key.clone());
+                    let json_val = migrate_json_string(toml_value_to_json(v));
+                    map.insert(flat_key, json_val);
+                }
+            }
+        } else {
+            map.insert(section.clone(), toml_value_to_json(val));
+        }
+    }
+    map
+}
+
+fn toml_value_to_json(val: &toml::Value) -> serde_json::Value {
+    match val {
+        toml::Value::String(s) => serde_json::Value::String(s.clone()),
+        toml::Value::Integer(i) => serde_json::json!(*i),
+        toml::Value::Float(f) => serde_json::json!(*f),
+        toml::Value::Boolean(b) => serde_json::Value::Bool(*b),
+        toml::Value::Array(arr) => {
+            serde_json::Value::Array(arr.iter().map(toml_value_to_json).collect())
+        }
+        toml::Value::Table(t) => {
+            let mut m = PrefsMap::new();
+            for (k, v) in t {
+                m.insert(k.clone(), toml_value_to_json(v));
+            }
+            serde_json::Value::Object(m)
+        }
+        toml::Value::Datetime(d) => serde_json::Value::String(d.to_string()),
+    }
+}
+
+fn json_to_toml_value(val: &serde_json::Value) -> toml::Value {
+    match val {
+        serde_json::Value::String(s) => toml::Value::String(s.clone()),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                toml::Value::Integer(i)
+            } else {
+                toml::Value::Float(n.as_f64().unwrap_or(0.0))
+            }
+        }
+        serde_json::Value::Bool(b) => toml::Value::Boolean(*b),
+        serde_json::Value::Array(arr) => {
+            toml::Value::Array(arr.iter().map(json_to_toml_value).collect())
+        }
+        serde_json::Value::Object(m) => {
+            let mut t = toml::Table::new();
+            for (k, v) in m {
+                t.insert(k.clone(), json_to_toml_value(v));
+            }
+            toml::Value::Table(t)
+        }
+        serde_json::Value::Null => toml::Value::String(String::new()),
+    }
+}
+
+/// Convert a flat PrefsMap into sectioned TOML string.
+fn flat_to_toml(prefs: &PrefsMap) -> String {
+    let mut root = toml::Table::new();
+
+    // Collect keys into sections preserving SECTION_MAP order
+    for (section, key_pairs) in SECTION_MAP {
+        let mut sec_table = toml::Table::new();
+        if *section == "window" {
+            if let Some(serde_json::Value::Object(m)) = prefs.get("window") {
+                for (k, v) in m {
+                    sec_table.insert(k.clone(), json_to_toml_value(v));
+                }
+            }
+        } else {
+            for (flat_key, toml_key) in *key_pairs {
+                if let Some(val) = prefs.get(*flat_key) {
+                    sec_table.insert(toml_key.to_string(), json_to_toml_value(val));
+                }
+            }
+        }
+        if !sec_table.is_empty() {
+            root.insert(section.to_string(), toml::Value::Table(sec_table));
+        }
+    }
+
+    // Any remaining keys not in SECTION_MAP go under [general]
+    let all_flat_keys: Vec<&str> = SECTION_MAP
+        .iter()
+        .flat_map(|(_, pairs)| pairs.iter().map(|(flat, _)| *flat))
+        .collect();
+    let mut general = toml::Table::new();
+    for (k, v) in prefs {
+        if k == "window" || all_flat_keys.contains(&k.as_str()) {
+            continue;
+        }
+        general.insert(k.clone(), json_to_toml_value(v));
+    }
+    if !general.is_empty() {
+        root.insert("general".to_string(), toml::Value::Table(general));
+    }
+
+    toml::to_string_pretty(&root).unwrap_or_default()
+}
+
+pub fn load_preferences() -> PrefsMap {
     let path = preferences_file();
+
+    // Migrate from legacy JSON if TOML doesn't exist yet
+    if !path.exists() {
+        let legacy = legacy_preferences_file();
+        if legacy.exists() {
+            if let Ok(data) = fs::read_to_string(&legacy) {
+                if let Ok(serde_json::Value::Object(user)) = serde_json::from_str(&data) {
+                    let defaults = default_config();
+                    let merged = merge_prefs(&defaults, &user);
+                    save_preferences(&merged);
+                    let _ = fs::remove_file(&legacy);
+                    return merged;
+                }
+            }
+        }
+    }
+
     if path.exists() {
         if let Ok(data) = fs::read_to_string(&path) {
-            if let Ok(prefs) =
-                serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(&data)
-            {
-                // Merge defaults under user prefs so new keys are picked up
-                let mut merged = default_config();
-                for (k, v) in prefs {
-                    merged.insert(k, v);
-                }
-                return merged;
-            }
+            let user = toml_to_flat(&data);
+            let defaults = default_config();
+            return merge_prefs(&defaults, &user);
         }
     }
     let defaults = default_config();
@@ -264,11 +480,23 @@ pub fn load_preferences() -> std::collections::HashMap<String, serde_json::Value
     defaults
 }
 
-pub fn save_preferences(prefs: &std::collections::HashMap<String, serde_json::Value>) {
-    let path = preferences_file();
-    if let Ok(json) = serde_json::to_string_pretty(prefs) {
-        let _ = fs::write(&path, json);
+fn merge_prefs(defaults: &PrefsMap, user: &PrefsMap) -> PrefsMap {
+    let mut merged = PrefsMap::new();
+    for (k, v) in defaults {
+        merged.insert(k.clone(), user.get(k).cloned().unwrap_or_else(|| v.clone()));
     }
+    for (k, v) in user {
+        if !merged.contains_key(k) {
+            merged.insert(k.clone(), v.clone());
+        }
+    }
+    merged
+}
+
+pub fn save_preferences(prefs: &PrefsMap) {
+    let path = preferences_file();
+    let toml_str = flat_to_toml(prefs);
+    let _ = fs::write(&path, toml_str);
 }
 
 pub fn set_preference(key: &str, value: serde_json::Value) {

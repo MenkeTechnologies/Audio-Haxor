@@ -1,8 +1,11 @@
 use crate::history::AudioSample;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 const AUDIO_EXTENSIONS: &[&str] = &[
     ".wav", ".mp3", ".aiff", ".aif", ".flac", ".ogg", ".m4a", ".wma", ".aac", ".opus", ".rex",
@@ -80,46 +83,65 @@ pub fn get_audio_roots() -> Vec<PathBuf> {
 pub fn walk_for_audio(
     roots: &[PathBuf],
     on_batch: &mut dyn FnMut(&[AudioSample], usize),
-    should_stop: &dyn Fn() -> bool,
+    should_stop: &(dyn Fn() -> bool + Sync),
 ) {
-    let mut visited = HashSet::new();
-    let mut batch = Vec::new();
-    let mut found = 0usize;
     let batch_size = 50;
+    let stop = Arc::new(AtomicBool::new(false));
+    let found = Arc::new(AtomicUsize::new(0));
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<AudioSample>>(64);
+    let visited = Arc::new(Mutex::new(HashSet::new()));
 
-    for root in roots {
-        if should_stop() {
-            break;
+    let collector = std::thread::spawn(move || {
+        let mut total = 0usize;
+        let mut pending = Vec::new();
+        for samples in rx {
+            total += samples.len();
+            pending.extend(samples);
+            // We can't call on_batch here (not Send), so collect all
         }
-        walk_dir(
+        (pending, total)
+    });
+
+    // Walk all roots in parallel using rayon
+    roots.par_iter().for_each(|root| {
+        if stop.load(Ordering::Relaxed) || should_stop() {
+            stop.store(true, Ordering::Relaxed);
+            return;
+        }
+        walk_dir_parallel(
             root,
             0,
-            &mut visited,
-            &mut batch,
-            &mut found,
+            &visited,
+            &tx,
+            &found,
             batch_size,
-            on_batch,
+            &stop,
             should_stop,
         );
-    }
+    });
+    drop(tx);
 
-    if !batch.is_empty() {
-        on_batch(&batch, found);
+    let (all_samples, _) = collector.join().unwrap_or_default();
+    // Deliver in batches to the callback
+    let mut delivered = 0usize;
+    for chunk in all_samples.chunks(batch_size) {
+        delivered += chunk.len();
+        on_batch(chunk, delivered);
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn walk_dir(
+fn walk_dir_parallel(
     dir: &Path,
     depth: u32,
-    visited: &mut HashSet<PathBuf>,
-    batch: &mut Vec<AudioSample>,
-    found: &mut usize,
+    visited: &Arc<Mutex<HashSet<PathBuf>>>,
+    tx: &std::sync::mpsc::SyncSender<Vec<AudioSample>>,
+    found: &Arc<AtomicUsize>,
     batch_size: usize,
-    on_batch: &mut dyn FnMut(&[AudioSample], usize),
-    should_stop: &dyn Fn() -> bool,
+    stop: &Arc<AtomicBool>,
+    should_stop: &(dyn Fn() -> bool + Sync),
 ) {
-    if depth > 30 || should_stop() {
+    if depth > 30 || stop.load(Ordering::Relaxed) || should_stop() {
         return;
     }
 
@@ -127,79 +149,93 @@ fn walk_dir(
         Ok(p) => p,
         Err(_) => return,
     };
-    if !visited.insert(real_dir) {
-        return;
+    {
+        let mut vis = visited.lock().unwrap();
+        if !vis.insert(real_dir) {
+            return;
+        }
     }
 
-    let entries = match fs::read_dir(dir) {
-        Ok(e) => e,
+    let entries: Vec<_> = match fs::read_dir(dir) {
+        Ok(e) => e.flatten().collect(),
         Err(_) => return,
     };
 
-    for entry in entries.flatten() {
-        if should_stop() {
-            return;
-        }
+    let mut files = Vec::new();
+    let mut subdirs = Vec::new();
 
+    for entry in &entries {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
         if name_str.starts_with('.') || SKIP_DIRS.contains(&name_str.as_ref()) {
             continue;
         }
-
         let path = entry.path();
-
         if path.is_dir() {
-            walk_dir(
-                &path,
-                depth + 1,
-                visited,
-                batch,
-                found,
-                batch_size,
-                on_batch,
-                should_stop,
-            );
+            subdirs.push(path);
         } else if path.is_file() {
-            let ext = path
-                .extension()
-                .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
-                .unwrap_or_default();
+            files.push((path, dir.to_path_buf()));
+        }
+    }
 
-            if AUDIO_EXTENSIONS.contains(&ext.as_str()) {
-                if let Ok(meta) = fs::metadata(&path) {
-                    let sample_name = path
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_default();
-                    let modified = meta
-                        .modified()
-                        .ok()
-                        .map(|t| {
-                            let dt: chrono::DateTime<chrono::Utc> = t.into();
-                            dt.format("%Y-%m-%d").to_string()
-                        })
-                        .unwrap_or_default();
+    // Process files in this directory
+    let mut batch = Vec::new();
+    for (path, parent) in files {
+        let ext = path
+            .extension()
+            .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
+            .unwrap_or_default();
 
-                    batch.push(AudioSample {
-                        name: sample_name,
-                        path: path.to_string_lossy().to_string(),
-                        directory: dir.to_string_lossy().to_string(),
-                        format: ext[1..].to_uppercase(),
-                        size: meta.len(),
-                        size_formatted: format_size(meta.len()),
-                        modified,
-                    });
-                    *found += 1;
+        if AUDIO_EXTENSIONS.contains(&ext.as_str()) {
+            if let Ok(meta) = fs::metadata(&path) {
+                let sample_name = path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let modified = meta
+                    .modified()
+                    .ok()
+                    .map(|t| {
+                        let dt: chrono::DateTime<chrono::Utc> = t.into();
+                        dt.format("%Y-%m-%d").to_string()
+                    })
+                    .unwrap_or_default();
 
-                    if batch.len() >= batch_size {
-                        on_batch(batch, *found);
-                        batch.clear();
-                    }
+                batch.push(AudioSample {
+                    name: sample_name,
+                    path: path.to_string_lossy().to_string(),
+                    directory: parent.to_string_lossy().to_string(),
+                    format: ext[1..].to_uppercase(),
+                    size: meta.len(),
+                    size_formatted: format_size(meta.len()),
+                    modified,
+                });
+                found.fetch_add(1, Ordering::Relaxed);
+
+                if batch.len() >= batch_size {
+                    let _ = tx.send(batch);
+                    batch = Vec::new();
                 }
             }
         }
     }
+    if !batch.is_empty() {
+        let _ = tx.send(batch);
+    }
+
+    // Recurse into subdirectories in parallel
+    subdirs.par_iter().for_each(|subdir| {
+        walk_dir_parallel(
+            subdir,
+            depth + 1,
+            visited,
+            tx,
+            found,
+            batch_size,
+            stop,
+            should_stop,
+        );
+    });
 }
 
 // Audio metadata extraction

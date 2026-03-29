@@ -11,8 +11,8 @@
     "windows": [
       {
         "title": "AUDIO_HAXOR",
-        "width": 1800,
-        "height": 1100,
+        "width": 2200,
+        "height": 1400,
         "minWidth": 800,
         "minHeight": 600,
         "decorations": true,

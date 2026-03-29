@@ -65,15 +65,15 @@ function saveColumnWidths(tableId) {
   if (tableWidth <= 0) return;
   const pcts = Array.from(table.querySelectorAll('thead th')).map(th => +(th.offsetWidth / tableWidth * 100).toFixed(2));
   try {
-    const allWidths = JSON.parse(prefs.getItem('columnWidths') || '{}');
+    const allWidths = prefs.getObject('columnWidths', {});
     allWidths[tableId] = pcts;
-    prefs.setItem('columnWidths', JSON.stringify(allWidths));
+    prefs.setItem('columnWidths', allWidths);
   } catch {}
 }
 
 function loadColumnWidths(tableId) {
   try {
-    const allWidths = JSON.parse(prefs.getItem('columnWidths') || '{}');
+    const allWidths = prefs.getObject('columnWidths', {});
     return allWidths[tableId] || null;
   } catch { return null; }
 }

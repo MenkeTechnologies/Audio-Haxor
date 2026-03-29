@@ -578,6 +578,29 @@
       margin-top: 12px;
     }
 
+    .save-preset-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      align-items: center;
+    }
+
+    .settings-input {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 6px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      flex: 1;
+    }
+    .settings-input:focus {
+      border-color: var(--cyan);
+      outline: none;
+      box-shadow: 0 0 8px var(--cyan-dim);
+    }
+
     .custom-scheme-saved {
       display: flex;
       flex-wrap: wrap;
@@ -1814,9 +1837,9 @@
 
     <div class="tab-nav">
       <button class="tab-btn active" data-action="switchTab" data-tab="plugins">Plugins</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="history">History</button>
       <button class="tab-btn" data-action="switchTab" data-tab="samples">Samples</button>
       <button class="tab-btn" data-action="switchTab" data-tab="daw">DAW Projects</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="history">History</button>
       <button class="tab-btn" data-action="switchTab" data-tab="settings">&#9881; Settings</button>
     </div>
 
@@ -2106,8 +2129,13 @@
               </div>
               <div class="custom-scheme-actions">
                 <button class="btn btn-secondary btn-settings-action" data-action="applyCustomScheme">Apply</button>
-                <button class="btn btn-secondary btn-settings-action" data-action="saveCustomScheme">Save as Preset</button>
+                <button class="btn btn-secondary btn-settings-action" id="btnShowSavePreset" data-action="showSavePreset">Save as Preset</button>
                 <button class="btn btn-stop btn-settings-action" data-action="deleteCustomSchemes" id="btnDeleteCustom" style="display: none;">Delete Saved</button>
+              </div>
+              <div class="save-preset-row" id="savePresetRow" style="display: none;">
+                <input type="text" class="settings-input" id="savePresetName" placeholder="Preset name">
+                <button class="btn btn-secondary btn-settings-action" data-action="confirmSavePreset">Save</button>
+                <button class="btn btn-secondary btn-settings-action" data-action="cancelSavePreset">Cancel</button>
               </div>
               <div class="custom-scheme-saved" id="customSchemeSaved"></div>
             </div>
@@ -2293,6 +2321,16 @@
             </div>
             <div class="settings-control">
               <button class="btn btn-stop btn-settings-action" data-action="settingClearKvrCache">Clear</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Open Preferences File</span>
+              <span class="settings-desc">Open the preferences TOML file in your default editor</span>
+            </div>
+            <div class="settings-control" style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+              <button class="btn btn-secondary btn-settings-action" data-action="openPrefsFile" style="flex-shrink: 0;">Open</button>
+              <code class="root-path" id="prefsFilePath" style="font-size: 11px; word-break: break-all; overflow-wrap: anywhere; min-width: 0;"></code>
             </div>
           </div>
         </div>
