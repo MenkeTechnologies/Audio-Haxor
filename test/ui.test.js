@@ -1074,20 +1074,29 @@ describe('getSettingValue', () => {
 });
 
 describe('COLOR_SCHEMES', () => {
+  const REQUIRED_VARS = [
+    '--accent', '--cyan', '--magenta', '--green', '--yellow', '--orange', '--red', '--text',
+  ];
+
   const COLOR_SCHEMES = {
-    cyberpunk: { label: 'Cyberpunk', vars: {} },
-    midnight: { label: 'Midnight', vars: { '--accent': '#7c3aed', '--cyan': '#38bdf8' } },
-    matrix: { label: 'Matrix', vars: { '--accent': '#22c55e', '--cyan': '#39ff14' } },
-    ember: { label: 'Ember', vars: { '--accent': '#f59e0b', '--cyan': '#fb923c' } },
-    arctic: { label: 'Arctic', vars: { '--accent': '#0ea5e9', '--cyan': '#67e8f9' } },
+    cyberpunk: { label: 'Cyberpunk', vars: {
+      '--accent': '#ff2a6d', '--accent-light': '#ff6b9d', '--accent-glow': 'rgba(255, 42, 109, 0.4)',
+      '--cyan': '#05d9e8', '--cyan-glow': 'rgba(5, 217, 232, 0.4)', '--cyan-dim': 'rgba(5, 217, 232, 0.15)',
+      '--magenta': '#d300c5', '--magenta-glow': 'rgba(211, 0, 197, 0.3)',
+      '--green': '#39ff14', '--green-bg': 'rgba(57, 255, 20, 0.08)',
+      '--yellow': '#f9f002', '--yellow-glow': 'rgba(249, 240, 2, 0.2)',
+      '--orange': '#ff6b35', '--orange-bg': 'rgba(255, 107, 53, 0.1)',
+      '--red': '#ff073a',
+      '--text': '#e0f0ff', '--text-dim': '#7a8ba8', '--text-muted': '#3d4f6a',
+    }},
+    midnight: { label: 'Midnight', vars: { '--accent': '#7c3aed', '--cyan': '#38bdf8', '--magenta': '#6366f1', '--green': '#34d399', '--yellow': '#c084fc', '--orange': '#818cf8', '--red': '#f472b6', '--text': '#e0e7ff' } },
+    matrix: { label: 'Matrix', vars: { '--accent': '#22c55e', '--cyan': '#39ff14', '--magenta': '#16a34a', '--green': '#4ade80', '--yellow': '#a3e635', '--orange': '#86efac', '--red': '#ef4444', '--text': '#d1fae5' } },
+    ember: { label: 'Ember', vars: { '--accent': '#f59e0b', '--cyan': '#fb923c', '--magenta': '#ea580c', '--green': '#84cc16', '--yellow': '#fde047', '--orange': '#f97316', '--red': '#dc2626', '--text': '#fef3c7' } },
+    arctic: { label: 'Arctic', vars: { '--accent': '#0ea5e9', '--cyan': '#67e8f9', '--magenta': '#06b6d4', '--green': '#2dd4bf', '--yellow': '#a5f3fc', '--orange': '#22d3ee', '--red': '#f43f5e', '--text': '#ecfeff' } },
   };
 
   it('has 5 schemes', () => {
     assert.strictEqual(Object.keys(COLOR_SCHEMES).length, 5);
-  });
-
-  it('cyberpunk has empty vars (uses defaults)', () => {
-    assert.deepStrictEqual(COLOR_SCHEMES.cyberpunk.vars, {});
   });
 
   it('all schemes have a label', () => {
@@ -1096,11 +1105,11 @@ describe('COLOR_SCHEMES', () => {
     }
   });
 
-  it('non-default schemes override --accent and --cyan', () => {
+  it('all schemes define all 8 required color vars', () => {
     for (const [name, scheme] of Object.entries(COLOR_SCHEMES)) {
-      if (name === 'cyberpunk') continue;
-      assert.ok(scheme.vars['--accent'], `${name} should override --accent`);
-      assert.ok(scheme.vars['--cyan'], `${name} should override --cyan`);
+      for (const v of REQUIRED_VARS) {
+        assert.ok(scheme.vars[v], `${name} should define ${v}`);
+      }
     }
   });
 
@@ -1110,6 +1119,23 @@ describe('COLOR_SCHEMES', () => {
       for (const [key, val] of Object.entries(scheme.vars)) {
         if (val.startsWith('#')) {
           assert.ok(hexRegex.test(val), `${name} ${key}: "${val}" should be valid hex`);
+        }
+      }
+    }
+  });
+
+  it('cyberpunk matches the :root defaults', () => {
+    assert.strictEqual(COLOR_SCHEMES.cyberpunk.vars['--accent'], '#ff2a6d');
+    assert.strictEqual(COLOR_SCHEMES.cyberpunk.vars['--cyan'], '#05d9e8');
+    assert.strictEqual(COLOR_SCHEMES.cyberpunk.vars['--green'], '#39ff14');
+  });
+
+  it('all rgba values have valid format', () => {
+    const rgbaRegex = /^rgba\(\d{1,3}, \d{1,3}, \d{1,3}, [\d.]+\)$/;
+    for (const [name, scheme] of Object.entries(COLOR_SCHEMES)) {
+      for (const [key, val] of Object.entries(scheme.vars)) {
+        if (val.startsWith('rgba')) {
+          assert.ok(rgbaRegex.test(val), `${name} ${key}: "${val}" should be valid rgba`);
         }
       }
     }
