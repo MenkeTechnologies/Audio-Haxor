@@ -43,9 +43,7 @@ pub fn get_vst_directories() -> Vec<String> {
             PathBuf::from(&pf).join("Steinberg").join("VSTPlugins"),
             PathBuf::from(&pf86).join("Common Files").join("VST3"),
             PathBuf::from(&pf86).join("VSTPlugins"),
-            PathBuf::from(&pf86)
-                .join("Steinberg")
-                .join("VSTPlugins"),
+            PathBuf::from(&pf86).join("Steinberg").join("VSTPlugins"),
         ]);
     }
 
@@ -373,7 +371,10 @@ mod tests {
         fs::write(&plugin_file, b"not a real plugin").unwrap();
 
         let info = get_plugin_info(&plugin_file);
-        assert!(info.is_some(), "Should return Some even for a file with .vst3 ext");
+        assert!(
+            info.is_some(),
+            "Should return Some even for a file with .vst3 ext"
+        );
         let info = info.unwrap();
         assert_eq!(info.name, "FakeFile");
         assert_eq!(info.plugin_type, "VST3");

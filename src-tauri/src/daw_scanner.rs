@@ -6,23 +6,23 @@ use std::path::{Path, PathBuf};
 /// File extensions for DAW project files.
 /// Includes both single-file formats and macOS bundle/package formats.
 const DAW_EXTENSIONS: &[&str] = &[
-    ".als",       // Ableton Live Set
-    ".alp",       // Ableton Live Pack
-    ".logicx",    // Logic Pro X (macOS package)
-    ".flp",       // FL Studio
-    ".cpr",       // Cubase Project
-    ".npr",       // Nuendo Project
+    ".als",        // Ableton Live Set
+    ".alp",        // Ableton Live Pack
+    ".logicx",     // Logic Pro X (macOS package)
+    ".flp",        // FL Studio
+    ".cpr",        // Cubase Project
+    ".npr",        // Nuendo Project
     ".bwproject",  // Bitwig Studio
-    ".rpp",       // REAPER
-    ".rpp-bak",   // REAPER backup
-    ".ptx",       // Pro Tools (v10+)
-    ".ptf",       // Pro Tools (legacy)
-    ".song",      // Studio One
-    ".reason",    // Reason
-    ".aup",       // Audacity (legacy)
-    ".aup3",      // Audacity 3
-    ".band",      // GarageBand (macOS package)
-    ".ardour",    // Ardour
+    ".rpp",        // REAPER
+    ".rpp-bak",    // REAPER backup
+    ".ptx",        // Pro Tools (v10+)
+    ".ptf",        // Pro Tools (legacy)
+    ".song",       // Studio One
+    ".reason",     // Reason
+    ".aup",        // Audacity (legacy)
+    ".aup3",       // Audacity 3
+    ".band",       // GarageBand (macOS package)
+    ".ardour",     // Ardour
     ".dawproject", // DAWproject (open standard)
 ];
 
@@ -76,7 +76,10 @@ fn ext_matches(path: &Path) -> Option<String> {
 }
 
 fn is_package_ext(path: &Path) -> bool {
-    let name = path.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
     PACKAGE_EXTENSIONS.iter().any(|ext| name.ends_with(ext))
 }
 
@@ -125,8 +128,7 @@ pub fn get_daw_roots() -> Vec<PathBuf> {
             std::env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".into()),
         ));
         roots.push(PathBuf::from(
-            std::env::var("ProgramFiles(x86)")
-                .unwrap_or_else(|_| "C:\\Program Files (x86)".into()),
+            std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:\\Program Files (x86)".into()),
         ));
         for c in b'C'..=b'Z' {
             let drive = format!("{}:\\", c as char);
@@ -179,6 +181,7 @@ pub fn walk_for_daw(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn walk_dir(
     dir: &Path,
     depth: u32,
@@ -327,7 +330,16 @@ mod tests {
 
     #[test]
     fn test_daw_extensions_complete() {
-        for ext in &[".als", ".logicx", ".flp", ".cpr", ".bwproject", ".rpp", ".ptx", ".song"] {
+        for ext in &[
+            ".als",
+            ".logicx",
+            ".flp",
+            ".cpr",
+            ".bwproject",
+            ".rpp",
+            ".ptx",
+            ".song",
+        ] {
             assert!(
                 DAW_EXTENSIONS.contains(ext),
                 "DAW_EXTENSIONS should contain {}",
@@ -339,11 +351,7 @@ mod tests {
     #[test]
     fn test_skip_dirs_complete() {
         for dir in &["node_modules", ".git", ".Trash"] {
-            assert!(
-                SKIP_DIRS.contains(dir),
-                "SKIP_DIRS should contain {}",
-                dir
-            );
+            assert!(SKIP_DIRS.contains(dir), "SKIP_DIRS should contain {}", dir);
         }
     }
 
@@ -351,7 +359,10 @@ mod tests {
     fn test_ext_matches() {
         assert_eq!(ext_matches(Path::new("song.als")), Some("ALS".into()));
         assert_eq!(ext_matches(Path::new("song.flp")), Some("FLP".into()));
-        assert_eq!(ext_matches(Path::new("project.logicx")), Some("LOGICX".into()));
+        assert_eq!(
+            ext_matches(Path::new("project.logicx")),
+            Some("LOGICX".into())
+        );
         assert_eq!(ext_matches(Path::new("not_a_daw.txt")), None);
     }
 

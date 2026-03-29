@@ -235,7 +235,9 @@ pub fn load_preferences() -> std::collections::HashMap<String, serde_json::Value
     let path = preferences_file();
     if path.exists() {
         if let Ok(data) = fs::read_to_string(&path) {
-            if let Ok(prefs) = serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(&data) {
+            if let Ok(prefs) =
+                serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(&data)
+            {
                 // Merge defaults under user prefs so new keys are picked up
                 let mut merged = default_config();
                 for (k, v) in prefs {
@@ -383,8 +385,11 @@ pub fn diff_scans(old_id: &str, new_id: &str) -> Option<ScanDiff> {
     let new_paths: std::collections::HashSet<&str> =
         new_scan.plugins.iter().map(|p| p.path.as_str()).collect();
 
-    let old_by_path: std::collections::HashMap<&str, &PluginInfo> =
-        old_scan.plugins.iter().map(|p| (p.path.as_str(), p)).collect();
+    let old_by_path: std::collections::HashMap<&str, &PluginInfo> = old_scan
+        .plugins
+        .iter()
+        .map(|p| (p.path.as_str(), p))
+        .collect();
 
     let added: Vec<PluginInfo> = new_scan
         .plugins
@@ -981,7 +986,10 @@ mod tests {
             let diff = diff_scans(&snap1.id, &snap2.id).unwrap();
             assert!(diff.added.is_empty(), "added should be empty");
             assert!(diff.removed.is_empty(), "removed should be empty");
-            assert!(diff.version_changed.is_empty(), "version_changed should be empty");
+            assert!(
+                diff.version_changed.is_empty(),
+                "version_changed should be empty"
+            );
         });
     }
 
@@ -989,7 +997,10 @@ mod tests {
     fn test_diff_scans_nonexistent_ids() {
         with_test_dir("diff_nonexistent", || {
             let result = diff_scans("fake-id-1", "fake-id-2");
-            assert!(result.is_none(), "diff_scans with fake ids should return None");
+            assert!(
+                result.is_none(),
+                "diff_scans with fake ids should return None"
+            );
         });
     }
 
@@ -1146,7 +1157,12 @@ mod tests {
     #[test]
     fn test_daw_history_limit_50() {
         with_test_dir("daw_limit_50", || {
-            let projects = vec![make_daw_project("Song", "/tmp/song.als", "ALS", "Ableton Live")];
+            let projects = vec![make_daw_project(
+                "Song",
+                "/tmp/song.als",
+                "ALS",
+                "Ableton Live",
+            )];
             for _ in 0..55 {
                 save_daw_scan(&projects);
             }

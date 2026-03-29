@@ -55,8 +55,7 @@ pub fn get_audio_roots() -> Vec<PathBuf> {
             std::env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".into()),
         ));
         roots.push(PathBuf::from(
-            std::env::var("ProgramFiles(x86)")
-                .unwrap_or_else(|_| "C:\\Program Files (x86)".into()),
+            std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:\\Program Files (x86)".into()),
         ));
         for c in b'C'..=b'Z' {
             let drive = format!("{}:\\", c as char);
@@ -109,6 +108,7 @@ pub fn walk_for_audio(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn walk_dir(
     dir: &Path,
     depth: u32,
@@ -351,9 +351,12 @@ fn parse_aiff(path: &Path, meta: &mut AudioMetadata) {
     let mut offset = 12usize;
     while offset + 8 < bytes_read {
         let chunk_id = &buf[offset..offset + 4];
-        let chunk_size =
-            u32::from_be_bytes([buf[offset + 4], buf[offset + 5], buf[offset + 6], buf[offset + 7]])
-                as usize;
+        let chunk_size = u32::from_be_bytes([
+            buf[offset + 4],
+            buf[offset + 5],
+            buf[offset + 6],
+            buf[offset + 7],
+        ]) as usize;
 
         if chunk_id == b"COMM" && offset + 18 < bytes_read {
             meta.channels = Some(u16::from_be_bytes([buf[offset + 8], buf[offset + 9]]));
@@ -383,7 +386,7 @@ fn parse_aiff(path: &Path, meta: &mut AudioMetadata) {
         }
 
         offset += 8 + chunk_size;
-        if chunk_size % 2 != 0 {
+        if !chunk_size.is_multiple_of(2) {
             offset += 1;
         }
     }
@@ -405,9 +408,9 @@ fn parse_flac(path: &Path, meta: &mut AudioMetadata) {
 
     let sample_rate = ((buf[18] as u32) << 12) | ((buf[19] as u32) << 4) | ((buf[20] as u32) >> 4);
     let channels = ((buf[20] >> 1) & 0x07) + 1;
-    let bits_per_sample = (((buf[20] & 1) as u16) << 4) | ((buf[21] >> 4) as u16) + 1;
+    let bits_per_sample = (((buf[20] & 1) as u16) << 4) | (((buf[21] >> 4) as u16) + 1);
 
-    let total_samples = ((buf[21] & 0x0F) as u64) * (1u64 << 32)
+    let total_samples = (((buf[21] & 0x0F) as u64) * (1u64 << 32))
         | ((buf[22] as u64) << 24)
         | ((buf[23] as u64) << 16)
         | ((buf[24] as u64) << 8)
@@ -451,11 +454,7 @@ mod tests {
     #[test]
     fn test_skip_dirs_complete() {
         for dir in &["node_modules", ".git", ".Trash"] {
-            assert!(
-                SKIP_DIRS.contains(dir),
-                "SKIP_DIRS should contain {}",
-                dir
-            );
+            assert!(SKIP_DIRS.contains(dir), "SKIP_DIRS should contain {}", dir);
         }
     }
 
@@ -598,7 +597,7 @@ mod tests {
         header[28..32].copy_from_slice(&176400u32.to_le_bytes()); // byte rate
         header[32..34].copy_from_slice(&4u16.to_le_bytes()); // block align
         header[34..36].copy_from_slice(&16u16.to_le_bytes()); // bits per sample
-        // data chunk
+                                                              // data chunk
         header[36..40].copy_from_slice(b"data");
         header[40..44].copy_from_slice(&1000u32.to_le_bytes());
 
@@ -779,9 +778,9 @@ mod tests {
         data.extend_from_slice(&1u16.to_be_bytes()); // channels = 1
         data.extend_from_slice(&48000u32.to_be_bytes()); // num_frames = 48000
         data.extend_from_slice(&24u16.to_be_bytes()); // bits_per_sample = 24
-        // 80-bit extended float for sample rate 48000
-        // exponent = 16383 + 15 = 16398 = 0x400E
-        // mantissa = 48000 << 16 = 0xBB80_0000 (top 32 bits), lower 32 bits = 0
+                                                      // 80-bit extended float for sample rate 48000
+                                                      // exponent = 16383 + 15 = 16398 = 0x400E
+                                                      // mantissa = 48000 << 16 = 0xBB80_0000 (top 32 bits), lower 32 bits = 0
         data.extend_from_slice(&[0x40, 0x0E, 0xBB, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 
         fs::write(&aiff_path, &data).unwrap();
@@ -810,12 +809,16 @@ mod tests {
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
         let path = tmp.join("garbage.wav");
-        fs::write(&path, &[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33,
-                           0xAA, 0xBB, 0xCC, 0xDD, 0x00, 0x00, 0x00, 0x00,
-                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                           0x00, 0x00, 0x00, 0x00]).unwrap();
+        fs::write(
+            &path,
+            &[
+                0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33, 0xAA, 0xBB, 0xCC, 0xDD, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00,
+            ],
+        )
+        .unwrap();
 
         let mut meta = AudioMetadata {
             full_path: path.to_string_lossy().to_string(),

@@ -458,10 +458,7 @@ fn audio_history_latest() -> Option<history::AudioScanSnapshot> {
 }
 
 #[tauri::command]
-fn audio_history_diff(
-    old_id: String,
-    new_id: String,
-) -> Option<history::AudioScanDiff> {
+fn audio_history_diff(old_id: String, new_id: String) -> Option<history::AudioScanDiff> {
     history::diff_audio_scans(&old_id, &new_id)
 }
 
@@ -654,7 +651,10 @@ fn export_plugins_json(plugins: Vec<PluginInfo>, file_path: String) -> Result<()
 #[tauri::command]
 fn export_plugins_csv(plugins: Vec<PluginInfo>, file_path: String) -> Result<(), String> {
     let sep = detect_separator(&file_path);
-    let mut out = format!("Name{s}Type{s}Version{s}Manufacturer{s}Manufacturer URL{s}Path{s}Size{s}Modified\n", s = sep);
+    let mut out = format!(
+        "Name{s}Type{s}Version{s}Manufacturer{s}Manufacturer URL{s}Path{s}Size{s}Modified\n",
+        s = sep
+    );
     for p in &plugins {
         out.push_str(&format!(
             "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
@@ -671,6 +671,7 @@ fn export_plugins_csv(plugins: Vec<PluginInfo>, file_path: String) -> Result<(),
     std::fs::write(&file_path, out).map_err(|e| e.to_string())
 }
 
+#[cfg(test)]
 fn csv_escape(s: &str) -> String {
     if s.contains(',') || s.contains('"') || s.contains('\n') {
         format!("\"{}\"", s.replace('"', "\"\""))
@@ -711,7 +712,10 @@ fn export_audio_json(samples: Vec<history::AudioSample>, file_path: String) -> R
 #[tauri::command]
 fn export_audio_dsv(samples: Vec<history::AudioSample>, file_path: String) -> Result<(), String> {
     let sep = detect_separator(&file_path);
-    let mut out = format!("Name{s}Format{s}Path{s}Directory{s}Size{s}Modified\n", s = sep);
+    let mut out = format!(
+        "Name{s}Format{s}Path{s}Directory{s}Size{s}Modified\n",
+        s = sep
+    );
     for s in &samples {
         out.push_str(&format!(
             "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
@@ -742,7 +746,10 @@ fn export_daw_json(projects: Vec<history::DawProject>, file_path: String) -> Res
 #[tauri::command]
 fn export_daw_dsv(projects: Vec<history::DawProject>, file_path: String) -> Result<(), String> {
     let sep = detect_separator(&file_path);
-    let mut out = format!("Name{s}DAW{s}Format{s}Path{s}Directory{s}Size{s}Modified\n", s = sep);
+    let mut out = format!(
+        "Name{s}DAW{s}Format{s}Path{s}Directory{s}Size{s}Modified\n",
+        s = sep
+    );
     for p in &projects {
         out.push_str(&format!(
             "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
@@ -843,7 +850,10 @@ mod tests {
         assert_eq!(exported[0].plugin_type, "VST3");
         assert_eq!(exported[0].version, "1.0.0");
         assert_eq!(exported[0].manufacturer, "TestCo");
-        assert_eq!(exported[0].manufacturer_url, Some("https://testco.com".into()));
+        assert_eq!(
+            exported[0].manufacturer_url,
+            Some("https://testco.com".into())
+        );
     }
 
     #[test]
@@ -859,10 +869,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_export_json.json");
         let _ = fs::remove_file(&tmp);
 
-        let plugins = vec![
-            make_plugin("PluginA", "VST3"),
-            make_plugin("PluginB", "AU"),
-        ];
+        let plugins = vec![make_plugin("PluginA", "VST3"), make_plugin("PluginB", "AU")];
 
         export_plugins_json(plugins.clone(), tmp.to_string_lossy().to_string()).unwrap();
         let imported = import_plugins_json(tmp.to_string_lossy().to_string()).unwrap();
@@ -904,7 +911,10 @@ mod tests {
 
         let content = fs::read_to_string(&tmp).unwrap();
         let lines: Vec<&str> = content.lines().collect();
-        assert_eq!(lines[0], "Name,Type,Version,Manufacturer,Manufacturer URL,Path,Size,Modified");
+        assert_eq!(
+            lines[0],
+            "Name,Type,Version,Manufacturer,Manufacturer URL,Path,Size,Modified"
+        );
         assert!(lines[1].starts_with("Serum,VST3,1.0.0,TestCo,"));
 
         let _ = fs::remove_file(&tmp);

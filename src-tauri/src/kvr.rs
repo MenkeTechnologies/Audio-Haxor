@@ -7,21 +7,16 @@ use std::sync::LazyLock;
 static DOWNLOAD_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"href="(https?://[^"]*(?:download|get|buy|release)[^"]*)""#).unwrap()
 });
-static PRODUCT_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"href="(/product/[^"]+)""#).unwrap()
-});
-static PLUGINS_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"href="(/plugins/[^"]+)""#).unwrap()
-});
+static PRODUCT_LINK_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"href="(/product/[^"]+)""#).unwrap());
+static PLUGINS_LINK_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"href="(/plugins/[^"]+)""#).unwrap());
 static KVR_DDG_LINK_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"href="[^"]*?(https?://(?:www\.)?kvraudio\.com/product/[^"&]+)"#).unwrap()
 });
-static HTML_TAG_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"<[^>]+>").unwrap()
-});
-static DATE_FILTER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^20[0-2]\d\.|^\d{4}\.").unwrap()
-});
+static HTML_TAG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]+>").unwrap());
+static DATE_FILTER_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^20[0-2]\d\.|^\d{4}\.").unwrap());
 static VERSION_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     [
         r"(?i)Version\s*[:]\s*(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)",
@@ -34,15 +29,10 @@ static VERSION_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     .map(|p| Regex::new(p).unwrap())
     .collect()
 });
-pub static URL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"https?://[^\s)"',]+"#).unwrap()
-});
+pub static URL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"https?://[^\s)"',]+"#).unwrap());
 
-const KVR_INVALID_PAGES: &[&str] = &[
-    "/plugins/the-newest-plugins",
-    "/plugins/newest",
-    "/plugins",
-];
+const KVR_INVALID_PAGES: &[&str] = &["/plugins/the-newest-plugins", "/plugins/newest", "/plugins"];
 
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
@@ -100,9 +90,7 @@ async fn fetch_with_validation(client: &Client, url: &str) -> Option<(String, St
         .split('#')
         .next()
         .unwrap_or("");
-    let is_invalid = KVR_INVALID_PAGES
-        .iter()
-        .any(|p| final_path.starts_with(p));
+    let is_invalid = KVR_INVALID_PAGES.iter().any(|p| final_path.starts_with(p));
     let status = resp.status();
     let html = resp.text().await.ok()?;
     Some((html, final_url, !is_invalid && status.is_success()))
@@ -320,9 +308,7 @@ pub async fn find_latest_version(
                     .filter(|c| c.is_alphanumeric())
                     .collect::<String>()
                     .to_lowercase();
-                let page_text = HTML_TAG_RE
-                    .replace_all(&page_html, "")
-                    .to_lowercase();
+                let page_text = HTML_TAG_RE.replace_all(&page_html, "").to_lowercase();
 
                 if !page_text.contains(&clean_name) && !page_text.contains(&name.to_lowercase()) {
                     continue;
@@ -410,15 +396,27 @@ mod tests {
 
     #[test]
     fn test_compare_versions_equal() {
-        assert_eq!(compare_versions("1.0.0", "1.0.0"), std::cmp::Ordering::Equal);
+        assert_eq!(
+            compare_versions("1.0.0", "1.0.0"),
+            std::cmp::Ordering::Equal
+        );
         assert_eq!(compare_versions("2.1", "2.1.0"), std::cmp::Ordering::Equal);
     }
 
     #[test]
     fn test_compare_versions_greater() {
-        assert_eq!(compare_versions("2.0.0", "1.9.9"), std::cmp::Ordering::Greater);
-        assert_eq!(compare_versions("1.1", "1.0.9"), std::cmp::Ordering::Greater);
-        assert_eq!(compare_versions("1.0.1", "1.0.0"), std::cmp::Ordering::Greater);
+        assert_eq!(
+            compare_versions("2.0.0", "1.9.9"),
+            std::cmp::Ordering::Greater
+        );
+        assert_eq!(
+            compare_versions("1.1", "1.0.9"),
+            std::cmp::Ordering::Greater
+        );
+        assert_eq!(
+            compare_versions("1.0.1", "1.0.0"),
+            std::cmp::Ordering::Greater
+        );
     }
 
     #[test]
@@ -429,8 +427,14 @@ mod tests {
 
     #[test]
     fn test_compare_versions_different_lengths() {
-        assert_eq!(compare_versions("1.0", "1.0.0.0"), std::cmp::Ordering::Equal);
-        assert_eq!(compare_versions("1.0.0.1", "1.0"), std::cmp::Ordering::Greater);
+        assert_eq!(
+            compare_versions("1.0", "1.0.0.0"),
+            std::cmp::Ordering::Equal
+        );
+        assert_eq!(
+            compare_versions("1.0.0.1", "1.0"),
+            std::cmp::Ordering::Greater
+        );
     }
 
     #[test]
