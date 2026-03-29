@@ -157,12 +157,14 @@ pub fn walk_for_daw(
     roots: &[PathBuf],
     on_batch: &mut dyn FnMut(&[DawProject], usize),
     should_stop: &(dyn Fn() -> bool + Sync),
+    exclude: Option<HashSet<String>>,
 ) {
     let batch_size = 50;
     let stop = Arc::new(AtomicBool::new(false));
     let found = Arc::new(AtomicUsize::new(0));
     let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<DawProject>>(64);
     let visited = Arc::new(Mutex::new(HashSet::new()));
+    let exclude = Arc::new(exclude.unwrap_or_default());
 
     let roots_owned: Vec<PathBuf> = roots.to_vec();
     let stop2 = stop.clone();
@@ -172,7 +174,9 @@ pub fn walk_for_daw(
             if stop2.load(Ordering::Relaxed) {
                 return;
             }
-            walk_dir_parallel(root, 0, &visited, &tx, &found2, batch_size, &stop2);
+            walk_dir_parallel(
+                root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
+            );
         });
     });
 
@@ -197,6 +201,7 @@ fn walk_dir_parallel(
     found: &Arc<AtomicUsize>,
     batch_size: usize,
     stop: &Arc<AtomicBool>,
+    exclude: &Arc<HashSet<String>>,
 ) {
     if depth > 30 || stop.load(Ordering::Relaxed) {
         return;
@@ -241,6 +246,9 @@ fn walk_dir_parallel(
 
     let mut batch = Vec::new();
     for (path, parent, is_pkg) in files_and_packages {
+        if exclude.contains(&path.to_string_lossy().to_string()) {
+            continue;
+        }
         if let Some(format) = ext_matches(&path) {
             let (size, modified) = if is_pkg {
                 let sz = get_directory_size(&path);
@@ -296,7 +304,16 @@ fn walk_dir_parallel(
     }
 
     subdirs.par_iter().for_each(|subdir| {
-        walk_dir_parallel(subdir, depth + 1, visited, tx, found, batch_size, stop);
+        walk_dir_parallel(
+            subdir,
+            depth + 1,
+            visited,
+            tx,
+            found,
+            batch_size,
+            stop,
+            exclude,
+        );
     });
 }
 
@@ -392,6 +409,7 @@ mod tests {
                 total = count;
             },
             &|| false,
+            None,
         );
         assert_eq!(total, 0);
         let _ = fs::remove_dir_all(&tmp);
@@ -412,6 +430,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| false,
+            None,
         );
         assert_eq!(found.len(), 1);
         assert!(found[0].path.contains("mysong.als"));
@@ -436,6 +455,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| false,
+            None,
         );
         assert_eq!(found.len(), 3);
         let formats: Vec<&str> = found.iter().map(|d| d.format.as_str()).collect();
@@ -459,6 +479,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| true,
+            None,
         );
         assert_eq!(found.len(), 0);
         let _ = fs::remove_dir_all(&tmp);
@@ -480,6 +501,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| false,
+            None,
         );
         assert_eq!(found.len(), 1);
         assert!(found[0].path.contains("visible"));
@@ -508,6 +530,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| false,
+            None,
         );
         assert_eq!(found.len(), 2);
         let formats: Vec<&str> = found.iter().map(|d| d.format.as_str()).collect();
@@ -533,6 +556,7 @@ mod tests {
                 batch_call_count += 1;
             },
             &|| false,
+            None,
         );
         assert!(
             batch_call_count >= 2,
@@ -562,6 +586,7 @@ mod tests {
                     found.extend_from_slice(batch);
                 },
                 &|| false,
+                None,
             );
             let count = found.iter().filter(|d| d.name == "test").count();
             assert_eq!(

@@ -158,23 +158,32 @@ function loadMoreDaw() {
   }
 }
 
-async function scanDawProjects() {
+async function scanDawProjects(resume = false) {
   const btn = document.getElementById('btnScanDaw');
+  const resumeBtn = document.getElementById('btnResumeDaw');
   const stopBtn = document.getElementById('btnStopDaw');
   const progressBar = document.getElementById('dawProgressBar');
   const progressFill = document.getElementById('dawProgressFill');
   const tableWrap = document.getElementById('dawTableWrap');
 
+  const excludePaths = resume ? allDawProjects.map(p => p.path) : null;
+
   btn.disabled = true;
-  btn.innerHTML = '&#8635; Scanning...';
+  btn.innerHTML = resume ? '&#8635; Resuming...' : '&#8635; Scanning...';
+  resumeBtn.style.display = 'none';
   stopBtn.style.display = '';
   progressBar.classList.add('active');
   progressFill.style.width = '0%';
-  allDawProjects = [];
-  filteredDawProjects = [];
-  resetDawStats();
-  document.getElementById('dawStats').style.display = 'none';
-  tableWrap.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for DAW projects...</h2><p>Walking filesystem directories...</p></div>';
+
+  if (!resume) {
+    allDawProjects = [];
+    filteredDawProjects = [];
+    resetDawStats();
+  }
+  if (!resume) {
+    document.getElementById('dawStats').style.display = 'none';
+    tableWrap.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for DAW projects...</h2><p>Walking filesystem directories parallelized...</p></div>';
+  }
 
   let firstDawBatch = true;
   let pendingProjects = [];
@@ -246,13 +255,17 @@ async function scanDawProjects() {
 
   try {
     const dawRoots = (prefs.getItem('dawScanDirs') || '').split('\n').map(s => s.trim()).filter(Boolean);
-    const result = await window.vstUpdater.scanDawProjects(dawRoots.length ? dawRoots : undefined);
+    const result = await window.vstUpdater.scanDawProjects(dawRoots.length ? dawRoots : undefined, excludePaths);
     if (dawScanProgressCleanup) { dawScanProgressCleanup(); dawScanProgressCleanup = null; }
     flushPendingProjects();
-    allDawProjects = result.projects;
+    if (resume) {
+      allDawProjects = [...allDawProjects, ...result.projects];
+    } else {
+      allDawProjects = result.projects;
+    }
     rebuildDawStats();
     filterDawProjects();
-    try { await window.vstUpdater.saveDawScan(result.projects, result.roots); } catch (e) { console.error('Failed to save DAW scan history:', e); }
+    try { await window.vstUpdater.saveDawScan(allDawProjects, result.roots); } catch (e) { console.error('Failed to save DAW scan history:', e); }
   } catch (err) {
     if (dawScanProgressCleanup) { dawScanProgressCleanup(); dawScanProgressCleanup = null; }
     flushPendingProjects();
@@ -261,7 +274,7 @@ async function scanDawProjects() {
     } else if (allDawProjects.length > 0) {
       rebuildDawStats();
       filterDawProjects();
-      // Save partial results so next launch can resume
+      resumeBtn.style.display = '';
       try { await window.vstUpdater.saveDawScan(allDawProjects); } catch (e) { console.error('Failed to save partial DAW scan:', e); }
     }
   }

@@ -1793,6 +1793,9 @@
           <button class="btn btn-secondary" id="btnScan" data-action="scanPlugins">
             &#8635; Scan Plugins
           </button>
+          <button class="btn btn-secondary" id="btnResumeScan" data-action="resumePluginScan" style="display: none;">
+            &#9654; Resume
+          </button>
           <button class="btn btn-primary" id="btnCheckUpdates" data-action="checkUpdates" disabled>
             &#9889; Check Updates
           </button>
@@ -1919,6 +1922,7 @@
       <div class="audio-container">
         <div class="audio-toolbar">
           <button class="btn btn-primary" id="btnScanAudio" data-action="scanAudioSamples">&#127925; Scan Samples</button>
+          <button class="btn btn-secondary" id="btnResumeAudio" data-action="resumeAudioScan" style="display: none;">&#9654; Resume</button>
           <button class="btn btn-stop" id="btnStopAudio" style="display: none;" data-action="stopAudioScan">&#9632; Stop</button>
           <button class="btn btn-secondary" id="btnExportAudio" data-action="exportAudio" style="display:none;">&#128230; Export</button>
           <div class="search-box" style="flex: 1;">
@@ -1975,6 +1979,7 @@
       <div class="audio-container">
         <div class="audio-toolbar">
           <button class="btn btn-primary" id="btnScanDaw" data-action="scanDawProjects">&#127911; Scan DAW Projects</button>
+          <button class="btn btn-secondary" id="btnResumeDaw" data-action="resumeDawScan" style="display: none;">&#9654; Resume</button>
           <button class="btn btn-stop" id="btnStopDaw" style="display: none;" data-action="stopDawScan">&#9632; Stop</button>
           <button class="btn btn-secondary" id="btnExportDaw" data-action="exportDaw" style="display:none;">&#128230; Export</button>
           <div class="search-box" style="flex: 1;">

@@ -84,12 +84,14 @@ pub fn walk_for_audio(
     roots: &[PathBuf],
     on_batch: &mut dyn FnMut(&[AudioSample], usize),
     should_stop: &(dyn Fn() -> bool + Sync),
+    exclude: Option<HashSet<String>>,
 ) {
     let batch_size = 50;
     let stop = Arc::new(AtomicBool::new(false));
     let found = Arc::new(AtomicUsize::new(0));
     let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<AudioSample>>(64);
     let visited = Arc::new(Mutex::new(HashSet::new()));
+    let exclude = Arc::new(exclude.unwrap_or_default());
 
     // Spawn parallel walkers on a separate thread so we can drain results here
     let roots_owned: Vec<PathBuf> = roots.to_vec();
@@ -100,7 +102,9 @@ pub fn walk_for_audio(
             if stop2.load(Ordering::Relaxed) {
                 return;
             }
-            walk_dir_parallel(root, 0, &visited, &tx, &found2, batch_size, &stop2);
+            walk_dir_parallel(
+                root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
+            );
         });
     });
 
@@ -125,6 +129,7 @@ fn walk_dir_parallel(
     found: &Arc<AtomicUsize>,
     batch_size: usize,
     stop: &Arc<AtomicBool>,
+    exclude: &Arc<HashSet<String>>,
 ) {
     if depth > 30 || stop.load(Ordering::Relaxed) {
         return;
@@ -172,6 +177,10 @@ fn walk_dir_parallel(
             .unwrap_or_default();
 
         if AUDIO_EXTENSIONS.contains(&ext.as_str()) {
+            let path_str = path.to_string_lossy().to_string();
+            if exclude.contains(&path_str) {
+                continue;
+            }
             if let Ok(meta) = fs::metadata(&path) {
                 let sample_name = path
                     .file_stem()
@@ -210,7 +219,16 @@ fn walk_dir_parallel(
 
     // Recurse into subdirectories in parallel
     subdirs.par_iter().for_each(|subdir| {
-        walk_dir_parallel(subdir, depth + 1, visited, tx, found, batch_size, stop);
+        walk_dir_parallel(
+            subdir,
+            depth + 1,
+            visited,
+            tx,
+            found,
+            batch_size,
+            stop,
+            exclude,
+        );
     });
 }
 
@@ -492,6 +510,7 @@ mod tests {
                 total = count;
             },
             &|| false,
+            None,
         );
         assert_eq!(total, 0);
         let _ = fs::remove_dir_all(&tmp);
@@ -512,6 +531,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| false,
+            None,
         );
         assert_eq!(found.len(), 1);
         assert!(found[0].path.contains("test.wav"));
@@ -532,6 +552,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| true,
+            None,
         );
         assert_eq!(found.len(), 0);
         let _ = fs::remove_dir_all(&tmp);
@@ -553,6 +574,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| false,
+            None,
         );
         assert_eq!(found.len(), 1);
         assert!(found[0].path.contains("visible"));
@@ -575,6 +597,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| false,
+            None,
         );
         assert_eq!(found.len(), 1);
         assert!(found[0].path.contains("music"));
@@ -703,6 +726,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| false,
+            None,
         );
         assert!(
             !found.iter().any(|s| s.name == "deep"),
@@ -728,6 +752,7 @@ mod tests {
                 batch_call_count += 1;
             },
             &|| false,
+            None,
         );
         assert!(
             batch_call_count >= 2,
@@ -758,6 +783,7 @@ mod tests {
                     found.extend_from_slice(batch);
                 },
                 &|| false,
+                None,
             );
             let wav_count = found.iter().filter(|s| s.name == "test").count();
             assert_eq!(

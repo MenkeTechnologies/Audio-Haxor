@@ -1,23 +1,28 @@
 let scanProgressCleanup = null;
 
-async function scanPlugins() {
+async function scanPlugins(resume = false) {
   const btn = document.getElementById('btnScan');
+  const resumeBtn = document.getElementById('btnResumeScan');
   const progress = document.getElementById('progressBar');
   const progressFill = progress.querySelector('.progress-fill');
   const list = document.getElementById('pluginList');
 
+  const excludePaths = resume ? allPlugins.map(p => p.path) : null;
+
   currentOperation = 'scan';
   showStopButton();
   btn.disabled = true;
-  btn.innerHTML = '&#8635; Scanning...';
+  resumeBtn.style.display = 'none';
+  btn.innerHTML = resume ? '&#8635; Resuming...' : '&#8635; Scanning...';
   progress.classList.add('active');
   progressFill.style.animation = 'none';
   progressFill.style.width = '0%';
-  list.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for plugins...</h2><p>Discovering plugin files across system directories...</p></div>';
 
-  // Reset state
-  allPlugins = [];
-  document.getElementById('toolbar').style.display = 'none';
+  if (!resume) {
+    list.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for plugins...</h2><p>Discovering plugin files across system directories...</p></div>';
+    allPlugins = [];
+    document.getElementById('toolbar').style.display = 'none';
+  }
 
   // Listen for streaming progress from the worker
   let firstBatch = true;
@@ -46,9 +51,13 @@ async function scanPlugins() {
 
   try {
     const customDirs = (prefs.getItem('customDirs') || '').split('\n').map(s => s.trim()).filter(Boolean);
-    const result = await window.vstUpdater.scanPlugins(customDirs.length ? customDirs : undefined);
-    // Final state -- use the sorted full list from the main process
-    allPlugins = result.plugins;
+    const result = await window.vstUpdater.scanPlugins(customDirs.length ? customDirs : undefined, excludePaths);
+    // Final state -- merge with existing on resume
+    if (resume) {
+      allPlugins = [...allPlugins, ...result.plugins];
+    } else {
+      allPlugins = result.plugins;
+    }
 
     document.getElementById('totalCount').textContent = allPlugins.length;
     document.getElementById('btnCheckUpdates').disabled = allPlugins.length === 0;
@@ -68,11 +77,12 @@ async function scanPlugins() {
     if (err.message !== 'stopped') {
       list.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${err.message}</p></div>`;
     }
-    // On stop: keep whatever plugins were already loaded
+    // On stop: keep whatever plugins were already loaded, show resume
     if (allPlugins.length > 0) {
       document.getElementById('totalCount').textContent = allPlugins.length;
       document.getElementById('btnCheckUpdates').disabled = false;
       document.getElementById('toolbar').style.display = 'flex';
+      resumeBtn.style.display = '';
     }
   }
 

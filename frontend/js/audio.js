@@ -39,24 +39,31 @@ function getFormatClass(format) {
   return 'format-default';
 }
 
-async function scanAudioSamples() {
+async function scanAudioSamples(resume = false) {
   const btn = document.getElementById('btnScanAudio');
+  const resumeBtn = document.getElementById('btnResumeAudio');
   const stopBtn = document.getElementById('btnStopAudio');
   const progressBar = document.getElementById('audioProgressBar');
   const progressFill = document.getElementById('audioProgressFill');
   const tableWrap = document.getElementById('audioTableWrap');
 
+  const excludePaths = resume ? allAudioSamples.map(s => s.path) : null;
+
   btn.disabled = true;
-  btn.innerHTML = '&#8635; Scanning...';
+  btn.innerHTML = resume ? '&#8635; Resuming...' : '&#8635; Scanning...';
+  resumeBtn.style.display = 'none';
   stopBtn.style.display = '';
   progressBar.classList.add('active');
   progressFill.style.width = '0%';
-  allAudioSamples = [];
-  filteredAudioSamples = [];
-  expandedMetaPath = null;
-  resetAudioStats();
-  document.getElementById('audioStats').style.display = 'none';
-  tableWrap.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for audio files...</h2><p>Walking filesystem directories...</p></div>';
+
+  if (!resume) {
+    allAudioSamples = [];
+    filteredAudioSamples = [];
+    expandedMetaPath = null;
+    resetAudioStats();
+    document.getElementById('audioStats').style.display = 'none';
+    tableWrap.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for audio files...</h2><p>Walking filesystem directories parallelized...</p></div>';
+  }
 
   let firstAudioBatch = true;
   let pendingSamples = [];
@@ -129,14 +136,17 @@ async function scanAudioSamples() {
 
   try {
     const audioRoots = (prefs.getItem('audioScanDirs') || '').split('\n').map(s => s.trim()).filter(Boolean);
-    const result = await window.vstUpdater.scanAudioSamples(audioRoots.length ? audioRoots : undefined);
+    const result = await window.vstUpdater.scanAudioSamples(audioRoots.length ? audioRoots : undefined, excludePaths);
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
     flushPendingSamples();
-    allAudioSamples = result.samples;
+    if (resume) {
+      allAudioSamples = [...allAudioSamples, ...result.samples];
+    } else {
+      allAudioSamples = result.samples;
+    }
     rebuildAudioStats();
     filterAudioSamples();
-    // Save to history
-    try { await window.vstUpdater.saveAudioScan(result.samples, result.roots); } catch (e) { console.error('Failed to save audio scan history:', e); }
+    try { await window.vstUpdater.saveAudioScan(allAudioSamples, result.roots); } catch (e) { console.error('Failed to save audio scan history:', e); }
   } catch (err) {
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
     flushPendingSamples();
@@ -145,7 +155,7 @@ async function scanAudioSamples() {
     } else if (allAudioSamples.length > 0) {
       rebuildAudioStats();
       filterAudioSamples();
-      // Save partial results so next launch can resume
+      resumeBtn.style.display = '';
       try { await window.vstUpdater.saveAudioScan(allAudioSamples); } catch (e) { console.error('Failed to save partial audio scan:', e); }
     }
   }

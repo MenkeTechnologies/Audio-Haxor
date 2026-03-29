@@ -87,6 +87,7 @@ fn get_version(app: AppHandle) -> String {
 async fn scan_plugins(
     app: AppHandle,
     custom_roots: Option<Vec<String>>,
+    exclude_paths: Option<Vec<String>>,
 ) -> Result<serde_json::Value, String> {
     let state = app.state::<ScanState>();
 
@@ -124,11 +125,15 @@ async fn scan_plugins(
             }),
         );
 
-        // Deduplicate paths
+        // Deduplicate and exclude already-scanned paths
+        let exclude_set: HashSet<String> = exclude_paths.unwrap_or_default().into_iter().collect();
         let mut seen = HashSet::new();
         let unique_paths: Vec<_> = plugin_paths
             .into_iter()
-            .filter(|p| seen.insert(p.to_string_lossy().to_string()))
+            .filter(|p| {
+                let s = p.to_string_lossy().to_string();
+                !exclude_set.contains(&s) && seen.insert(s)
+            })
             .collect();
 
         // Process plugins in parallel, streaming results to UI via channel
@@ -411,6 +416,7 @@ fn kvr_cache_update(entries: Vec<KvrCacheUpdateEntry>) {
 async fn scan_audio_samples(
     app: AppHandle,
     custom_roots: Option<Vec<String>>,
+    exclude_paths: Option<Vec<String>>,
 ) -> Result<serde_json::Value, String> {
     let state = app.state::<AudioScanState>();
     if state.scanning.swap(true, Ordering::SeqCst) {
@@ -444,6 +450,7 @@ async fn scan_audio_samples(
             audio_scanner::get_audio_roots()
         };
         let mut all_samples: Vec<AudioSample> = Vec::new();
+        let exclude_set = exclude_paths.map(|v| v.into_iter().collect::<HashSet<String>>());
 
         audio_scanner::walk_for_audio(
             &roots,
@@ -459,6 +466,7 @@ async fn scan_audio_samples(
                 );
             },
             &|| audio_state.stop_scan.load(Ordering::SeqCst),
+            exclude_set,
         );
 
         let root_strs: Vec<String> = roots
@@ -531,6 +539,7 @@ fn audio_history_diff(old_id: String, new_id: String) -> Option<history::AudioSc
 async fn scan_daw_projects(
     app: AppHandle,
     custom_roots: Option<Vec<String>>,
+    exclude_paths: Option<Vec<String>>,
 ) -> Result<serde_json::Value, String> {
     let state = app.state::<DawScanState>();
     if state.scanning.swap(true, Ordering::SeqCst) {
@@ -564,6 +573,7 @@ async fn scan_daw_projects(
             daw_scanner::get_daw_roots()
         };
         let mut all_projects: Vec<DawProject> = Vec::new();
+        let exclude_set = exclude_paths.map(|v| v.into_iter().collect::<HashSet<String>>());
 
         daw_scanner::walk_for_daw(
             &roots,
@@ -579,6 +589,7 @@ async fn scan_daw_projects(
                 );
             },
             &|| daw_state.stop_scan.load(Ordering::SeqCst),
+            exclude_set,
         );
 
         let root_strs: Vec<String> = roots
