@@ -94,45 +94,48 @@ git clone https://github.com/MenkeTechnologies/universal-plugin-update-manager.g
 cd universal-plugin-update-manager
 
 # Install dependencies
-npm install
+pnpm install
 
 # Run in development mode
-npm run tauri:dev
+pnpm tauri:dev
 
 # Build for distribution
-npm run tauri:build
+pnpm tauri:build
 ```
 
-Requires [Node.js](https://nodejs.org/), npm, and [Rust](https://rustup.rs/). The Tauri CLI is pulled in as a dev dependency.
+Requires [Node.js](https://nodejs.org/), [pnpm](https://pnpm.io/), and [Rust](https://rustup.rs/). The Tauri CLI is pulled in as a dev dependency.
 
 ---
 
 ## // TESTING //
 
 ```bash
-# Run Rust backend tests
+# Run all tests (JS + Rust)
+pnpm test
+
+# Run Rust backend tests only
 cd src-tauri && cargo test -- --test-threads=1
 
-# Run JavaScript unit tests
-npm test
+# Run JavaScript unit tests only
+node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 ```
 
-### Rust tests (40 tests)
+### Rust tests (79 tests)
 
-| Module | Coverage |
-|--------|----------|
-| **scanner** | Plugin type mapping, file size formatting, directory size calculation, plugin discovery, VST directory enumeration |
-| **kvr** | Version parsing, version comparison, HTML version extraction (6 formats), download URL extraction, date filtering |
-| **history** | Scan CRUD, 50-scan limit, diff (added/removed/version-changed), KVR cache, audio history CRUD, audio diff |
-| **audio_server** | MIME type mapping, request path extraction (with URL-encoded spaces), server binding |
+| Module | Tests | Coverage |
+|--------|-------|----------|
+| **kvr** | 27 | Version parsing, version comparison, HTML version extraction (6 formats), download URL extraction, platform keyword detection, date filtering |
+| **history** | 19 | Scan CRUD, 50-scan limit, diff (added/removed/version-changed), KVR cache CRUD, audio history CRUD, audio diff, ID generation |
+| **audio_scanner** | 18 | Audio file discovery, metadata extraction (WAV/FLAC/AIFF), format size formatting, symlink deduplication, directory walking, stop signal, skip directories |
+| **scanner** | 15 | Plugin type mapping, file size formatting, directory size calculation, plugin discovery, VST directory enumeration |
 
-### JavaScript tests
+### JavaScript tests (124 tests)
 
-| Module | Coverage |
-|--------|----------|
-| **history** | Save, retrieve, delete, clear, 50-scan limit, diff (added/removed/version-changed), latest scan retrieval |
-| **scanner** | Plugin type mapping (`.vst`/`.vst3`/`.component`/`.dll`), file size formatting |
-| **update-worker** | Version parsing, version comparison, KVR URL builder (slug generation, manufacturer suffix) |
+| Module | Tests | Coverage |
+|--------|-------|----------|
+| **ui** | 96 | `escapeHtml`, `escapePath`, `slugify`, `buildKvrUrl`, `formatAudioSize`, `formatTime`, `getFormatClass`, `timeAgo`, `kvrCacheKey`, `buildDirsTable`, `applyKvrCache`, `metaItem`, `buildPluginCardHtml` |
+| **update-worker** | 17 | Version parsing, version comparison, KVR URL builder (slug generation, manufacturer suffix) |
+| **scanner** | 11 | Plugin type mapping (`.vst`/`.vst3`/`.component`/`.dll`), file size formatting |
 
 ---
 
@@ -140,7 +143,7 @@ npm test
 
 ```bash
 # Build optimized release bundle
-npm run tauri:build
+pnpm tauri:build
 ```
 
 Built packages land in `src-tauri/target/release/bundle/`:
