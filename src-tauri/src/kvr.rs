@@ -474,4 +474,49 @@ mod tests {
     fn test_platform_keywords_not_empty() {
         assert!(!platform_keywords().is_empty());
     }
+
+    #[test]
+    fn test_extract_version_with_v_prefix() {
+        let html = "current version v2.3.1";
+        assert_eq!(extract_version(html), Some("2.3.1".into()));
+    }
+
+    #[test]
+    fn test_extract_version_release_context() {
+        let html = "latest release 4.0.2 available";
+        assert_eq!(extract_version(html), Some("4.0.2".into()));
+    }
+
+    #[test]
+    fn test_extract_download_url_platform_specific() {
+        let html = r#"
+            <a href="https://example.com/download/plugin-win.zip">Windows</a>
+            <a href="https://example.com/download/plugin-mac.dmg">Mac</a>
+            <a href="https://example.com/download/plugin-linux.tar.gz">Linux</a>
+        "#;
+        let result = extract_download_url(html);
+        assert!(result.is_some());
+        let (url, is_platform) = result.unwrap();
+        // On macOS, should prefer the mac link; on other platforms, the respective one
+        if cfg!(target_os = "macos") {
+            assert!(url.contains("mac"), "Expected mac URL, got: {}", url);
+            assert!(is_platform);
+        } else if cfg!(target_os = "windows") {
+            assert!(url.contains("win"), "Expected windows URL, got: {}", url);
+            assert!(is_platform);
+        } else {
+            assert!(url.contains("linux"), "Expected linux URL, got: {}", url);
+            assert!(is_platform);
+        }
+    }
+
+    #[test]
+    fn test_compare_versions_single_component() {
+        assert_eq!(compare_versions("3", "2"), std::cmp::Ordering::Greater);
+    }
+
+    #[test]
+    fn test_parse_version_non_numeric() {
+        assert_eq!(parse_version("abc"), vec![0]);
+    }
 }

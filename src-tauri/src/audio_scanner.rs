@@ -421,3 +421,290 @@ fn parse_flac(path: &Path, meta: &mut AudioMetadata) {
         meta.duration = Some(total_samples as f64 / sample_rate as f64);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::io::Write;
+
+    #[test]
+    fn test_format_size() {
+        assert_eq!(format_size(0), "0 B");
+        assert_eq!(format_size(500), "500.0 B");
+        assert_eq!(format_size(1024), "1.0 KB");
+        assert_eq!(format_size(1_048_576), "1.0 MB");
+        assert_eq!(format_size(1_073_741_824), "1.0 GB");
+    }
+
+    #[test]
+    fn test_audio_extensions_complete() {
+        for ext in &[".wav", ".mp3", ".flac", ".aiff", ".ogg", ".m4a"] {
+            assert!(
+                AUDIO_EXTENSIONS.contains(ext),
+                "AUDIO_EXTENSIONS should contain {}",
+                ext
+            );
+        }
+    }
+
+    #[test]
+    fn test_skip_dirs_complete() {
+        for dir in &["node_modules", ".git", ".Trash"] {
+            assert!(
+                SKIP_DIRS.contains(dir),
+                "SKIP_DIRS should contain {}",
+                dir
+            );
+        }
+    }
+
+    #[test]
+    fn test_get_audio_roots_not_empty() {
+        let roots = get_audio_roots();
+        assert!(
+            roots.iter().any(|r| r.exists()),
+            "get_audio_roots should return at least one existing path"
+        );
+    }
+
+    #[test]
+    fn test_walk_for_audio_empty_dir() {
+        let tmp = std::env::temp_dir().join("upum_test_walk_empty");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        let mut total = 0usize;
+        walk_for_audio(
+            &[tmp.clone()],
+            &mut |_batch, count| {
+                total = count;
+            },
+            &|| false,
+        );
+        assert_eq!(total, 0);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_audio_finds_files() {
+        let tmp = std::env::temp_dir().join("upum_test_walk_finds");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("test.wav"), b"fake wav data").unwrap();
+        fs::write(tmp.join("test.txt"), b"not audio").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_audio(
+            &[tmp.clone()],
+            &mut |batch, _count| {
+                found.extend_from_slice(batch);
+            },
+            &|| false,
+        );
+        assert_eq!(found.len(), 1);
+        assert!(found[0].path.contains("test.wav"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_audio_stop() {
+        let tmp = std::env::temp_dir().join("upum_test_walk_stop");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("test.wav"), b"fake wav data").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_audio(
+            &[tmp.clone()],
+            &mut |batch, _count| {
+                found.extend_from_slice(batch);
+            },
+            &|| true,
+        );
+        assert_eq!(found.len(), 0);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_audio_skips_dotdirs() {
+        let tmp = std::env::temp_dir().join("upum_test_walk_dotdirs");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join(".hidden")).unwrap();
+        fs::create_dir_all(tmp.join("visible")).unwrap();
+        fs::write(tmp.join(".hidden").join("test.wav"), b"hidden").unwrap();
+        fs::write(tmp.join("visible").join("test.wav"), b"visible").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_audio(
+            &[tmp.clone()],
+            &mut |batch, _count| {
+                found.extend_from_slice(batch);
+            },
+            &|| false,
+        );
+        assert_eq!(found.len(), 1);
+        assert!(found[0].path.contains("visible"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_audio_skips_node_modules() {
+        let tmp = std::env::temp_dir().join("upum_test_walk_nodemod");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("node_modules")).unwrap();
+        fs::create_dir_all(tmp.join("music")).unwrap();
+        fs::write(tmp.join("node_modules").join("test.wav"), b"nm").unwrap();
+        fs::write(tmp.join("music").join("test.wav"), b"music").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_audio(
+            &[tmp.clone()],
+            &mut |batch, _count| {
+                found.extend_from_slice(batch);
+            },
+            &|| false,
+        );
+        assert_eq!(found.len(), 1);
+        assert!(found[0].path.contains("music"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_get_audio_metadata_nonexistent() {
+        let meta = get_audio_metadata("/nonexistent/path/fake.wav");
+        assert!(meta.error.is_some());
+    }
+
+    #[test]
+    fn test_get_audio_metadata_wav() {
+        let tmp = std::env::temp_dir().join("upum_test_meta_wav");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let wav_path = tmp.join("test.wav");
+
+        let mut header = [0u8; 44];
+        // RIFF header
+        header[0..4].copy_from_slice(b"RIFF");
+        let file_size: u32 = 44 - 8 + 1000;
+        header[4..8].copy_from_slice(&file_size.to_le_bytes());
+        header[8..12].copy_from_slice(b"WAVE");
+        // fmt chunk
+        header[12..16].copy_from_slice(b"fmt ");
+        header[16..20].copy_from_slice(&16u32.to_le_bytes());
+        header[20..22].copy_from_slice(&1u16.to_le_bytes()); // PCM
+        header[22..24].copy_from_slice(&2u16.to_le_bytes()); // channels
+        header[24..28].copy_from_slice(&44100u32.to_le_bytes()); // sample rate
+        header[28..32].copy_from_slice(&176400u32.to_le_bytes()); // byte rate
+        header[32..34].copy_from_slice(&4u16.to_le_bytes()); // block align
+        header[34..36].copy_from_slice(&16u16.to_le_bytes()); // bits per sample
+        // data chunk
+        header[36..40].copy_from_slice(b"data");
+        header[40..44].copy_from_slice(&1000u32.to_le_bytes());
+
+        let mut file = fs::File::create(&wav_path).unwrap();
+        file.write_all(&header).unwrap();
+        // Write some data bytes to match the data size
+        file.write_all(&vec![0u8; 1000]).unwrap();
+
+        let meta = get_audio_metadata(wav_path.to_str().unwrap());
+        assert_eq!(meta.format, "WAV");
+        assert_eq!(meta.channels, Some(2));
+        assert_eq!(meta.sample_rate, Some(44100));
+        assert_eq!(meta.bits_per_sample, Some(16));
+        assert!(meta.error.is_none());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_get_audio_metadata_flac() {
+        let tmp = std::env::temp_dir().join("upum_test_meta_flac");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let flac_path = tmp.join("test.flac");
+
+        let mut buf = [0u8; 42];
+        // fLaC magic
+        buf[0..4].copy_from_slice(b"fLaC");
+        // Metadata block header: last-block flag (0x80) + type 0 (STREAMINFO)
+        buf[4] = 0x80;
+        // Block size = 34 as 3-byte big-endian
+        buf[5] = 0;
+        buf[6] = 0;
+        buf[7] = 34;
+        // Min/max block size
+        buf[8..10].copy_from_slice(&4096u16.to_be_bytes());
+        buf[10..12].copy_from_slice(&4096u16.to_be_bytes());
+        // Min/max frame size (3 bytes each, zeros)
+        // bytes 12-17 are already 0
+        // Sample rate (20 bits) + channels-1 (3 bits) + bps-1 high bit (1 bit)
+        // 44100 Hz, 2 channels, 16 bits per sample
+        // sample_rate = 44100 = 0xAC44
+        // byte18 = (44100 >> 12) = 0x0A
+        // byte19 = (44100 >> 4) & 0xFF = 0xC4 (44100 = 0xAC44, >> 4 = 0xAC4, & 0xFF = 0xC4)
+        // byte20 = ((44100 & 0x0F) << 4) | ((2-1) << 1) | ((16-1) >> 4)
+        //        = (0x04 << 4) | (1 << 1) | (15 >> 4)
+        //        = 0x40 | 0x02 | 0x00 = 0x42
+        buf[18] = 0x0A;
+        buf[19] = 0xC4;
+        buf[20] = 0x42;
+        // byte21: bps-1 low 4 bits (15 & 0x0F = 0xF) << 4 | total_samples high 4 bits
+        // total_samples = 44100 = 0x0000AC44
+        // high 4 bits of 36-bit total = 0
+        buf[21] = 0xF0;
+        // bytes 22-25: total samples low 32 bits = 44100
+        buf[22] = 0x00;
+        buf[23] = 0x00;
+        buf[24] = 0xAC;
+        buf[25] = 0x44;
+        // bytes 26-41: MD5 (zeros, already set)
+
+        fs::write(&flac_path, &buf).unwrap();
+
+        let meta = get_audio_metadata(flac_path.to_str().unwrap());
+        assert_eq!(meta.format, "FLAC");
+        assert_eq!(meta.sample_rate, Some(44100));
+        assert_eq!(meta.channels, Some(2));
+        // bits_per_sample parsing: (((buf[20] & 1) as u16) << 4) | ((buf[21] >> 4) as u16) + 1
+        // = ((0x42 & 1) << 4) | (0xF0 >> 4) + 1 = (0 << 4) | 15 + 1 = 16
+        assert_eq!(meta.bits_per_sample, Some(16));
+        assert!(meta.error.is_none());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_parse_wav_invalid() {
+        let tmp = std::env::temp_dir().join("upum_test_parse_wav_invalid");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let path = tmp.join("garbage.wav");
+        fs::write(&path, &[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33,
+                           0xAA, 0xBB, 0xCC, 0xDD, 0x00, 0x00, 0x00, 0x00,
+                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                           0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                           0x00, 0x00, 0x00, 0x00]).unwrap();
+
+        let mut meta = AudioMetadata {
+            full_path: path.to_string_lossy().to_string(),
+            file_name: "garbage.wav".to_string(),
+            directory: tmp.to_string_lossy().to_string(),
+            format: "WAV".to_string(),
+            size_bytes: 44,
+            created: String::new(),
+            modified: String::new(),
+            accessed: String::new(),
+            permissions: String::new(),
+            channels: None,
+            sample_rate: None,
+            bits_per_sample: None,
+            duration: None,
+            error: None,
+        };
+        parse_wav(&path, &mut meta);
+        // Should not crash; fields remain None since RIFF/WAVE magic doesn't match
+        assert!(meta.channels.is_none());
+        assert!(meta.sample_rate.is_none());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}

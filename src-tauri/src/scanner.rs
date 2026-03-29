@@ -316,4 +316,55 @@ mod tests {
             assert!(Path::new(d).exists(), "Directory {} should exist", d);
         }
     }
+
+    #[test]
+    fn test_format_size_edge_cases() {
+        assert_eq!(format_size(1), "1.0 B");
+        assert_eq!(format_size(1023), "1023.0 B");
+        assert_eq!(format_size(1024), "1.0 KB");
+        // Large value: 5 GB
+        assert_eq!(format_size(5 * 1024 * 1024 * 1024), "5.0 GB");
+    }
+
+    #[test]
+    fn test_get_plugin_info_on_real_dir() {
+        let tmp = std::env::temp_dir().join("upum_test_plugin_info");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        let plugin_dir = tmp.join("FakePlugin.vst3");
+        fs::create_dir_all(&plugin_dir).unwrap();
+
+        let info = get_plugin_info(&plugin_dir);
+        assert!(info.is_some());
+        let info = info.unwrap();
+        assert_eq!(info.name, "FakePlugin");
+        assert_eq!(info.plugin_type, "VST3");
+        assert!(info.path.contains("FakePlugin.vst3"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_discover_plugins_ignores_subdirs() {
+        let tmp = std::env::temp_dir().join("upum_test_discover_subdirs");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        // Create a subdir, and put a .vst3 inside it (nested, not top-level)
+        let subdir = tmp.join("subdir");
+        fs::create_dir_all(&subdir).unwrap();
+        let nested_plugin = subdir.join("Nested.vst3");
+        fs::create_dir_all(&nested_plugin).unwrap();
+
+        // discover_plugins should only scan one level deep from the given directories
+        let dirs = vec![tmp.to_string_lossy().to_string()];
+        let result = discover_plugins(&dirs);
+        // "subdir" has no plugin extension, and Nested.vst3 is inside subdir, not at top level of tmp
+        assert!(
+            result.is_empty(),
+            "Should not find plugins nested inside subdirs, found: {:?}",
+            result
+        );
+        let _ = fs::remove_dir_all(&tmp);
+    }
 }

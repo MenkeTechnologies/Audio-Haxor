@@ -6,7 +6,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "test": "node --test test/scanner.test.js test/update-worker.test.js && cargo test --manifest-path src-tauri/Cargo.toml"
+    "test": "node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "keywords": [
     "vst",
