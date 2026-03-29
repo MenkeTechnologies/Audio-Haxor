@@ -1,20 +1,158 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-// Pure utility functions replicated from frontend/index.html for testing.
-// escapeHtml uses DOM APIs in the original; replicated here with equivalent
-// string replacements so it can run under Node.
+// ── Shared utility functions (replicated from frontend/index.html) ──
+// These live at module scope so multiple describe blocks can reference them.
 
-describe('escapeHtml', () => {
-  function escapeHtml(str) {
-    return (str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+function escapeHtml(str) {
+  return (str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function escapePath(str) {
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function slugify(str) {
+  return str
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .replace(/([a-zA-Z])(\d)/g, '$1-$2')
+    .replace(/(\d)([a-zA-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+const KVR_MANUFACTURER_MAP = {
+  'madronalabs': 'madrona-labs',
+  'audiothing': 'audio-thing',
+  'audiodamage': 'audio-damage',
+  'soundtoys': 'soundtoys',
+  'native-instruments': 'native-instruments',
+  'plugin-alliance': 'plugin-alliance',
+  'softube': 'softube',
+  'izotope': 'izotope',
+  'eventide': 'eventide',
+  'arturia': 'arturia',
+  'u-he': 'u-he',
+};
+
+function buildKvrUrl(name, manufacturer) {
+  const nameSlug = slugify(name);
+  if (manufacturer && manufacturer !== 'Unknown') {
+    const mfgLower = manufacturer.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const mfgSlug = KVR_MANUFACTURER_MAP[mfgLower] || slugify(manufacturer);
+    return `https://www.kvraudio.com/product/${nameSlug}-by-${mfgSlug}`;
+  }
+  return `https://www.kvraudio.com/product/${nameSlug}`;
+}
+
+function kvrCacheKey(plugin) {
+  return `${(plugin.manufacturer || 'Unknown').toLowerCase()}|||${plugin.name.toLowerCase()}`;
+}
+
+function buildPluginCardHtml(p) {
+  const typeClass = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : 'type-au';
+  let versionHtml = `<span class="version-current">v${p.version}</span>`;
+  let badgeHtml = '';
+  const mfgUrl = p.manufacturerUrl || null;
+  const mfgBtn = mfgUrl
+    ? `<button class="btn-small btn-mfg" data-action="openUpdate" data-url="${mfgUrl}" title="${mfgUrl}">&#127760;</button>`
+    : `<button class="btn-small btn-no-web" disabled title="No manufacturer website">&#128683;</button>`;
+  const kvrUrl = p.kvrUrl || buildKvrUrl(p.name, p.manufacturer);
+  const kvrBtn = `<button class="btn-small btn-kvr" data-action="openKvr" data-url="${kvrUrl.replace(/'/g, '&apos;')}" data-name="${escapePath(p.name)}" title="${escapeHtml(kvrUrl)}">KVR</button>`;
+  const dlUrl = (p.hasUpdate && p.updateUrl) ? p.updateUrl : null;
+  const dlBtn = dlUrl
+    ? `<button class="btn-small btn-download btn-dl-kvr" data-action="openUpdate" data-url="${dlUrl.replace(/'/g, '&apos;')}" title="${escapeHtml(dlUrl)}">&#11015; Download</button>`
+    : '';
+  let actionsHtml = dlBtn + kvrBtn + mfgBtn + `<button class="btn-small btn-folder" data-action="openFolder" data-path="${escapePath(p.path)}" title="${escapePath(p.path)}">&#128193;</button>`;
+
+  if (p.hasUpdate !== undefined) {
+    if (p.hasUpdate) {
+      versionHtml = `<span class="version-current">v${p.currentVersion}</span>
+            <span class="version-arrow">&#8594;</span>
+            <span class="version-latest">v${p.latestVersion}</span>`;
+      badgeHtml = '<span class="badge badge-update">Update Available</span>';
+    } else if (p.source === 'not-found') {
+      badgeHtml = '<span class="badge badge-unknown">Unknown Latest</span>';
+    } else {
+      badgeHtml = '<span class="badge badge-current">Up to Date</span>';
+    }
   }
 
+  return `
+        <div class="plugin-card" data-path="${escapePath(p.path)}">
+          <div class="plugin-info">
+            <h3>${escapeHtml(p.name)}</h3>
+            <div class="plugin-meta">
+              <span class="plugin-type ${typeClass}">${p.type}</span>
+              <span>${escapeHtml(p.manufacturer)}</span>
+              <span>${p.size}</span>
+              <span>${p.modified}</span>
+            </div>
+          </div>
+          <div class="plugin-version">${versionHtml}</div>
+          ${badgeHtml}
+          <div class="plugin-actions">${actionsHtml}</div>
+        </div>`;
+}
+
+function buildDirsTable(directories, plugins) {
+  if (!directories || directories.length === 0) return '';
+  const rows = directories.map(dir => {
+    const count = plugins.filter(p => p.path.startsWith(dir + '/')).length;
+    const types = {};
+    plugins.filter(p => p.path.startsWith(dir + '/')).forEach(p => {
+      types[p.type] = (types[p.type] || 0) + 1;
+    });
+    const typeStr = Object.entries(types)
+      .map(([t, c]) => `<span class="plugin-type ${t === 'VST2' ? 'type-vst2' : t === 'VST3' ? 'type-vst3' : 'type-au'}">${t}: ${c}</span>`)
+      .join(' ');
+    return `<tr>
+          <td style="padding: 4px 8px 4px 0; color: var(--cyan); opacity: 0.7;">${dir}</td>
+          <td style="padding: 4px 8px; text-align: right; font-family: Orbitron, sans-serif; color: var(--text);">${count}</td>
+          <td style="padding: 4px 0 4px 8px;">${typeStr}</td>
+        </tr>`;
+  });
+  return `<table style="width: 100%; border-collapse: collapse; margin-top: 6px;">
+        <tr style="color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px;">
+          <th style="text-align: left; padding: 2px 8px 2px 0;">Directory</th>
+          <th style="text-align: right; padding: 2px 8px;">Plugins</th>
+          <th style="text-align: left; padding: 2px 0 2px 8px;">Types</th>
+        </tr>
+        ${rows.join('')}
+      </table>`;
+}
+
+function applyKvrCache(plugins, cache) {
+  for (const p of plugins) {
+    const cached = cache[kvrCacheKey(p)];
+    if (cached) {
+      p.kvrUrl = cached.kvrUrl || p.kvrUrl;
+      p.source = cached.source || p.source;
+      if (cached.latestVersion && cached.latestVersion !== p.version) {
+        p.latestVersion = cached.latestVersion;
+        p.currentVersion = p.version;
+        p.hasUpdate = cached.hasUpdate || false;
+      }
+      if (cached.updateUrl && p.hasUpdate) {
+        p.updateUrl = cached.updateUrl;
+      }
+    }
+  }
+}
+
+function metaItem(label, value) {
+  return `<div class="meta-item"><span class="meta-label">${label}</span><span class="meta-value">${escapeHtml(String(value || '\u2014'))}</span></div>`;
+}
+
+// ── Tests ──
+
+describe('escapeHtml', () => {
   it('escapes ampersand', () => {
     assert.strictEqual(escapeHtml('a & b'), 'a &amp; b');
   });
@@ -43,13 +181,18 @@ describe('escapeHtml', () => {
   it('escapes multiple special chars together', () => {
     assert.strictEqual(escapeHtml('<a href="x">&'), '&lt;a href=&quot;x&quot;&gt;&amp;');
   });
+
+  it('handles numbers (coerced to string)', () => {
+    // escapeHtml receives (str || '') so a number is truthy and toString is called via replace
+    assert.strictEqual(escapeHtml(String(42)), '42');
+  });
+
+  it('does not double-escape existing entities', () => {
+    assert.strictEqual(escapeHtml('&amp;'), '&amp;amp;');
+  });
 });
 
 describe('escapePath', () => {
-  function escapePath(str) {
-    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  }
-
   it('escapes backslashes', () => {
     assert.strictEqual(escapePath('C:\\Users\\test'), 'C:\\\\Users\\\\test');
   });
@@ -68,16 +211,6 @@ describe('escapePath', () => {
 });
 
 describe('slugify', () => {
-  function slugify(str) {
-    return str
-      .replace(/([a-z])([A-Z])/g, '$1-$2')
-      .replace(/([a-zA-Z])(\d)/g, '$1-$2')
-      .replace(/(\d)([a-zA-Z])/g, '$1-$2')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  }
-
   it('lowercases and hyphenates spaces', () => {
     assert.strictEqual(slugify('Hello World'), 'hello-world');
   });
@@ -102,43 +235,21 @@ describe('slugify', () => {
   it('collapses multiple separators', () => {
     assert.strictEqual(slugify('a   b   c'), 'a-b-c');
   });
+
+  it('empty string returns empty', () => {
+    assert.strictEqual(slugify(''), '');
+  });
+
+  it('all special chars returns empty', () => {
+    assert.strictEqual(slugify('!@#$%^&*()'), '');
+  });
+
+  it('numbers are preserved', () => {
+    assert.strictEqual(slugify('12345'), '12345');
+  });
 });
 
 describe('buildKvrUrl', () => {
-  const KVR_MANUFACTURER_MAP = {
-    'madronalabs': 'madrona-labs',
-    'audiothing': 'audio-thing',
-    'audiodamage': 'audio-damage',
-    'soundtoys': 'soundtoys',
-    'native-instruments': 'native-instruments',
-    'plugin-alliance': 'plugin-alliance',
-    'softube': 'softube',
-    'izotope': 'izotope',
-    'eventide': 'eventide',
-    'arturia': 'arturia',
-    'u-he': 'u-he',
-  };
-
-  function slugify(str) {
-    return str
-      .replace(/([a-z])([A-Z])/g, '$1-$2')
-      .replace(/([a-zA-Z])(\d)/g, '$1-$2')
-      .replace(/(\d)([a-zA-Z])/g, '$1-$2')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  }
-
-  function buildKvrUrl(name, manufacturer) {
-    const nameSlug = slugify(name);
-    if (manufacturer && manufacturer !== 'Unknown') {
-      const mfgLower = manufacturer.toLowerCase().replace(/[^a-z0-9]+/g, '');
-      const mfgSlug = KVR_MANUFACTURER_MAP[mfgLower] || slugify(manufacturer);
-      return `https://www.kvraudio.com/product/${nameSlug}-by-${mfgSlug}`;
-    }
-    return `https://www.kvraudio.com/product/${nameSlug}`;
-  }
-
   it('builds URL without manufacturer', () => {
     assert.strictEqual(
       buildKvrUrl('Serum', null),
@@ -178,6 +289,20 @@ describe('buildKvrUrl', () => {
     assert.strictEqual(
       buildKvrUrl('My Plugin!', 'SomeCompany'),
       'https://www.kvraudio.com/product/my-plugin-by-some-company'
+    );
+  });
+
+  it('handles empty name', () => {
+    assert.strictEqual(
+      buildKvrUrl('', 'SomeCompany'),
+      'https://www.kvraudio.com/product/-by-some-company'
+    );
+  });
+
+  it('excludes manufacturer when it is "Unknown"', () => {
+    assert.strictEqual(
+      buildKvrUrl('Reverb', 'Unknown'),
+      'https://www.kvraudio.com/product/reverb'
     );
   });
 });
@@ -348,13 +473,26 @@ describe('timeAgo', () => {
   it('boundary: 60 seconds is 1m ago', () => {
     assert.strictEqual(timeAgo(new Date(Date.now() - 60 * 1000)), '1m ago');
   });
+
+  it('exactly 1 minute ago', () => {
+    assert.strictEqual(timeAgo(new Date(Date.now() - 60 * 1000)), '1m ago');
+  });
+
+  it('exactly 1 hour ago', () => {
+    assert.strictEqual(timeAgo(new Date(Date.now() - 60 * 60 * 1000)), '1h ago');
+  });
+
+  it('exactly 1 day ago', () => {
+    assert.strictEqual(timeAgo(new Date(Date.now() - 24 * 60 * 60 * 1000)), '1d ago');
+  });
+
+  it('future date returns just now', () => {
+    // seconds will be negative, which is < 60
+    assert.strictEqual(timeAgo(new Date(Date.now() + 60 * 60 * 1000)), 'just now');
+  });
 });
 
 describe('kvrCacheKey', () => {
-  function kvrCacheKey(plugin) {
-    return `${(plugin.manufacturer || 'Unknown').toLowerCase()}|||${plugin.name.toLowerCase()}`;
-  }
-
   it('builds key from manufacturer and name', () => {
     assert.strictEqual(
       kvrCacheKey({ manufacturer: 'Xfer Records', name: 'Serum' }),
@@ -381,5 +519,233 @@ describe('kvrCacheKey', () => {
       kvrCacheKey({ manufacturer: 'NATIVE INSTRUMENTS', name: 'MASSIVE' }),
       'native instruments|||massive'
     );
+  });
+});
+
+// ── New describe blocks ──
+
+describe('buildDirsTable', () => {
+  it('empty directories returns empty string', () => {
+    assert.strictEqual(buildDirsTable([], []), '');
+  });
+
+  it('null directories returns empty string', () => {
+    assert.strictEqual(buildDirsTable(null, []), '');
+  });
+
+  it('counts plugins per directory correctly', () => {
+    const dirs = ['/usr/lib/vst'];
+    const plugins = [
+      { path: '/usr/lib/vst/PluginA.vst', type: 'VST2' },
+      { path: '/usr/lib/vst/PluginB.vst', type: 'VST2' },
+    ];
+    const html = buildDirsTable(dirs, plugins);
+    // The count cell should contain 2
+    assert.ok(html.includes('>2</td>'));
+  });
+
+  it('groups plugin types (VST2, VST3, AU) per directory', () => {
+    const dirs = ['/usr/lib/vst'];
+    const plugins = [
+      { path: '/usr/lib/vst/A.vst', type: 'VST2' },
+      { path: '/usr/lib/vst/B.vst3', type: 'VST3' },
+      { path: '/usr/lib/vst/C.component', type: 'AU' },
+    ];
+    const html = buildDirsTable(dirs, plugins);
+    assert.ok(html.includes('type-vst2'));
+    assert.ok(html.includes('VST2: 1'));
+    assert.ok(html.includes('type-vst3'));
+    assert.ok(html.includes('VST3: 1'));
+    assert.ok(html.includes('type-au'));
+    assert.ok(html.includes('AU: 1'));
+  });
+
+  it('handles directory with zero matching plugins', () => {
+    const dirs = ['/empty/dir'];
+    const plugins = [
+      { path: '/other/dir/A.vst', type: 'VST2' },
+    ];
+    const html = buildDirsTable(dirs, plugins);
+    assert.ok(html.includes('>0</td>'));
+  });
+});
+
+describe('applyKvrCache', () => {
+  it('applies cached kvrUrl to plugin', () => {
+    const plugins = [{ name: 'Serum', manufacturer: 'Xfer Records', version: '1.0' }];
+    const cache = { 'xfer records|||serum': { kvrUrl: 'https://kvr.example.com/serum' } };
+    applyKvrCache(plugins, cache);
+    assert.strictEqual(plugins[0].kvrUrl, 'https://kvr.example.com/serum');
+  });
+
+  it('applies latestVersion and sets hasUpdate', () => {
+    const plugins = [{ name: 'Serum', manufacturer: 'Xfer', version: '1.0' }];
+    const cache = { 'xfer|||serum': { latestVersion: '2.0', hasUpdate: true } };
+    applyKvrCache(plugins, cache);
+    assert.strictEqual(plugins[0].latestVersion, '2.0');
+    assert.strictEqual(plugins[0].hasUpdate, true);
+  });
+
+  it('sets currentVersion when update available', () => {
+    const plugins = [{ name: 'Serum', manufacturer: 'Xfer', version: '1.0' }];
+    const cache = { 'xfer|||serum': { latestVersion: '2.0', hasUpdate: true } };
+    applyKvrCache(plugins, cache);
+    assert.strictEqual(plugins[0].currentVersion, '1.0');
+  });
+
+  it('applies updateUrl only when hasUpdate is true', () => {
+    const plugins = [{ name: 'Serum', manufacturer: 'Xfer', version: '1.0' }];
+    const cache = { 'xfer|||serum': { latestVersion: '2.0', hasUpdate: true, updateUrl: 'https://dl.example.com' } };
+    applyKvrCache(plugins, cache);
+    assert.strictEqual(plugins[0].updateUrl, 'https://dl.example.com');
+
+    // When hasUpdate is false, updateUrl should not be applied
+    const plugins2 = [{ name: 'Serum', manufacturer: 'Xfer', version: '1.0' }];
+    const cache2 = { 'xfer|||serum': { latestVersion: '2.0', hasUpdate: false, updateUrl: 'https://dl.example.com' } };
+    applyKvrCache(plugins2, cache2);
+    assert.strictEqual(plugins2[0].updateUrl, undefined);
+  });
+
+  it('skips plugins not in cache', () => {
+    const plugins = [{ name: 'Vital', manufacturer: 'Matt Tytel', version: '1.0' }];
+    const cache = { 'xfer|||serum': { kvrUrl: 'https://kvr.example.com/serum' } };
+    applyKvrCache(plugins, cache);
+    assert.strictEqual(plugins[0].kvrUrl, undefined);
+  });
+
+  it('does not overwrite existing kvrUrl with undefined', () => {
+    const plugins = [{ name: 'Serum', manufacturer: 'Xfer', version: '1.0', kvrUrl: 'https://existing.com' }];
+    const cache = { 'xfer|||serum': { kvrUrl: undefined } };
+    applyKvrCache(plugins, cache);
+    // cached.kvrUrl is undefined so (undefined || p.kvrUrl) keeps existing
+    assert.strictEqual(plugins[0].kvrUrl, 'https://existing.com');
+  });
+
+  it('handles empty cache', () => {
+    const plugins = [{ name: 'Serum', manufacturer: 'Xfer', version: '1.0' }];
+    applyKvrCache(plugins, {});
+    assert.strictEqual(plugins[0].kvrUrl, undefined);
+    assert.strictEqual(plugins[0].hasUpdate, undefined);
+  });
+});
+
+describe('metaItem', () => {
+  it('renders label and value', () => {
+    const html = metaItem('Sample Rate', '44100 Hz');
+    assert.ok(html.includes('Sample Rate'));
+    assert.ok(html.includes('44100 Hz'));
+    assert.ok(html.includes('meta-label'));
+    assert.ok(html.includes('meta-value'));
+  });
+
+  it('handles null value (shows \u2014)', () => {
+    const html = metaItem('Codec', null);
+    assert.ok(html.includes('\u2014'));
+  });
+
+  it('handles undefined value', () => {
+    const html = metaItem('Codec', undefined);
+    assert.ok(html.includes('\u2014'));
+  });
+
+  it('escapes HTML in value', () => {
+    const html = metaItem('Tag', '<script>alert("xss")</script>');
+    assert.ok(html.includes('&lt;script&gt;'));
+    assert.ok(!html.includes('<script>'));
+  });
+});
+
+describe('buildPluginCardHtml', () => {
+  function makePlugin(overrides) {
+    return {
+      name: 'TestPlugin',
+      type: 'VST3',
+      manufacturer: 'TestCo',
+      version: '1.0.0',
+      path: '/usr/lib/vst3/TestPlugin.vst3',
+      size: '2.5 MB',
+      modified: '2025-01-01',
+      ...overrides,
+    };
+  }
+
+  it('renders basic plugin card with name, type, manufacturer', () => {
+    const html = buildPluginCardHtml(makePlugin());
+    assert.ok(html.includes('TestPlugin'));
+    assert.ok(html.includes('VST3'));
+    assert.ok(html.includes('TestCo'));
+    assert.ok(html.includes('plugin-card'));
+  });
+
+  it('shows correct type class for VST2', () => {
+    const html = buildPluginCardHtml(makePlugin({ type: 'VST2' }));
+    assert.ok(html.includes('type-vst2'));
+  });
+
+  it('shows correct type class for VST3', () => {
+    const html = buildPluginCardHtml(makePlugin({ type: 'VST3' }));
+    assert.ok(html.includes('type-vst3'));
+  });
+
+  it('shows correct type class for AU', () => {
+    const html = buildPluginCardHtml(makePlugin({ type: 'AU' }));
+    assert.ok(html.includes('type-au'));
+  });
+
+  it('shows update badge when hasUpdate is true', () => {
+    const html = buildPluginCardHtml(makePlugin({
+      hasUpdate: true,
+      currentVersion: '1.0.0',
+      latestVersion: '2.0.0',
+    }));
+    assert.ok(html.includes('badge-update'));
+    assert.ok(html.includes('Update Available'));
+    assert.ok(html.includes('v1.0.0'));
+    assert.ok(html.includes('v2.0.0'));
+  });
+
+  it('shows "Up to Date" badge when hasUpdate is false', () => {
+    const html = buildPluginCardHtml(makePlugin({ hasUpdate: false }));
+    assert.ok(html.includes('badge-current'));
+    assert.ok(html.includes('Up to Date'));
+  });
+
+  it('shows "Unknown Latest" badge when source is "not-found"', () => {
+    const html = buildPluginCardHtml(makePlugin({ hasUpdate: false, source: 'not-found' }));
+    assert.ok(html.includes('badge-unknown'));
+    assert.ok(html.includes('Unknown Latest'));
+  });
+
+  it('shows download button only when hasUpdate and updateUrl present', () => {
+    const withUpdate = buildPluginCardHtml(makePlugin({
+      hasUpdate: true,
+      currentVersion: '1.0.0',
+      latestVersion: '2.0.0',
+      updateUrl: 'https://download.example.com/update',
+    }));
+    assert.ok(withUpdate.includes('btn-download'));
+    assert.ok(withUpdate.includes('Download'));
+
+    const withoutUpdate = buildPluginCardHtml(makePlugin({ hasUpdate: false }));
+    assert.ok(!withoutUpdate.includes('btn-download'));
+  });
+
+  it('shows disabled manufacturer button when no manufacturerUrl', () => {
+    const html = buildPluginCardHtml(makePlugin());
+    assert.ok(html.includes('btn-no-web'));
+    assert.ok(html.includes('disabled'));
+  });
+
+  it('shows active manufacturer button when manufacturerUrl present', () => {
+    const html = buildPluginCardHtml(makePlugin({ manufacturerUrl: 'https://testco.com' }));
+    assert.ok(html.includes('btn-mfg'));
+    assert.ok(html.includes('https://testco.com'));
+    assert.ok(!html.includes('btn-no-web'));
+  });
+
+  it('escapes HTML in plugin name', () => {
+    const html = buildPluginCardHtml(makePlugin({ name: '<b>Bold</b>' }));
+    // The <h3> should contain the escaped version
+    assert.ok(html.includes('&lt;b&gt;Bold&lt;/b&gt;'));
   });
 });

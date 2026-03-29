@@ -673,6 +673,138 @@ mod tests {
     }
 
     #[test]
+    fn test_walk_for_audio_respects_depth_limit() {
+        let tmp = std::env::temp_dir().join("upum_test_walk_depth");
+        let _ = fs::remove_dir_all(&tmp);
+
+        // Create a dir structure 32 levels deep (exceeds depth > 30 guard)
+        let mut deep = tmp.clone();
+        for i in 0..32 {
+            deep = deep.join(format!("d{}", i));
+        }
+        fs::create_dir_all(&deep).unwrap();
+        fs::write(deep.join("deep.wav"), b"deep wav").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_audio(
+            &[tmp.clone()],
+            &mut |batch, _count| {
+                found.extend_from_slice(batch);
+            },
+            &|| false,
+        );
+        assert!(
+            !found.iter().any(|s| s.name == "deep"),
+            "Should not find audio files deeper than 30 levels"
+        );
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_audio_batching() {
+        let tmp = std::env::temp_dir().join("upum_test_walk_batching");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        for i in 0..60 {
+            fs::write(tmp.join(format!("sample_{}.wav", i)), b"wav data").unwrap();
+        }
+
+        let mut batch_call_count = 0usize;
+        walk_for_audio(
+            &[tmp.clone()],
+            &mut |_batch, _count| {
+                batch_call_count += 1;
+            },
+            &|| false,
+        );
+        assert!(
+            batch_call_count >= 2,
+            "Expected on_batch called at least twice for 60 files with batch_size=50, got {}",
+            batch_call_count
+        );
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_audio_deduplicates_symlinks() {
+        let tmp = std::env::temp_dir().join("upum_test_walk_symlinks");
+        let _ = fs::remove_dir_all(&tmp);
+        let subdir = tmp.join("originals");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::write(subdir.join("test.wav"), b"wav data").unwrap();
+
+        // Create a symlink to subdir
+        #[cfg(unix)]
+        {
+            let link = tmp.join("linked");
+            std::os::unix::fs::symlink(&subdir, &link).unwrap();
+
+            let mut found = Vec::new();
+            walk_for_audio(
+                &[tmp.clone()],
+                &mut |batch, _count| {
+                    found.extend_from_slice(batch);
+                },
+                &|| false,
+            );
+            let wav_count = found.iter().filter(|s| s.name == "test").count();
+            assert_eq!(
+                wav_count, 1,
+                "test.wav should be found exactly once despite symlink, found {}",
+                wav_count
+            );
+        }
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_get_audio_metadata_aiff() {
+        let tmp = std::env::temp_dir().join("upum_test_meta_aiff");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let aiff_path = tmp.join("test.aiff");
+
+        // Build a minimal valid AIFF file
+        let mut data = Vec::new();
+        // FORM header
+        data.extend_from_slice(b"FORM");
+        // file_size - 8 placeholder (will fill after)
+        let total_size: u32 = 4 + 8 + 18; // "AIFF" + COMM chunk header + COMM data
+        data.extend_from_slice(&total_size.to_be_bytes());
+        data.extend_from_slice(b"AIFF");
+        // COMM chunk
+        data.extend_from_slice(b"COMM");
+        data.extend_from_slice(&18u32.to_be_bytes()); // chunk size
+        data.extend_from_slice(&1u16.to_be_bytes()); // channels = 1
+        data.extend_from_slice(&48000u32.to_be_bytes()); // num_frames = 48000
+        data.extend_from_slice(&24u16.to_be_bytes()); // bits_per_sample = 24
+        // 80-bit extended float for sample rate 48000
+        // exponent = 16383 + 15 = 16398 = 0x400E
+        // mantissa = 48000 << 16 = 0xBB80_0000 (top 32 bits), lower 32 bits = 0
+        data.extend_from_slice(&[0x40, 0x0E, 0xBB, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
+        fs::write(&aiff_path, &data).unwrap();
+
+        let meta = get_audio_metadata(aiff_path.to_str().unwrap());
+        assert_eq!(meta.format, "AIFF");
+        assert_eq!(meta.channels, Some(1));
+        assert_eq!(meta.sample_rate, Some(48000));
+        assert_eq!(meta.bits_per_sample, Some(24));
+        assert!(meta.error.is_none());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_format_size_boundary_values() {
+        assert_eq!(format_size(1023), "1023.0 B");
+        assert_eq!(format_size(1024), "1.0 KB");
+        assert_eq!(format_size(1025), "1.0 KB");
+        assert_eq!(format_size(1024 * 1024 - 1), "1024.0 KB");
+        assert_eq!(format_size(1024 * 1024), "1.0 MB");
+    }
+
+    #[test]
     fn test_parse_wav_invalid() {
         let tmp = std::env::temp_dir().join("upum_test_parse_wav_invalid");
         let _ = fs::remove_dir_all(&tmp);

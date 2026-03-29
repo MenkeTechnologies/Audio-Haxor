@@ -519,4 +519,65 @@ mod tests {
     fn test_parse_version_non_numeric() {
         assert_eq!(parse_version("abc"), vec![0]);
     }
+
+    #[test]
+    fn test_extract_version_multiple_versions_picks_first() {
+        let html = r#"<div>Version: 1.0</div><div>Version: 2.0</div>"#;
+        assert_eq!(extract_version(html), Some("1.0".into()));
+    }
+
+    #[test]
+    fn test_extract_version_html_tags_between() {
+        let html = r#"<dt>Version</dt><dd>3.2.1</dd>"#;
+        assert_eq!(extract_version(html), Some("3.2.1".into()));
+    }
+
+    #[test]
+    fn test_compare_versions_zero_vs_zero() {
+        assert_eq!(
+            compare_versions("0.0.0", "0.0.0"),
+            std::cmp::Ordering::Equal
+        );
+    }
+
+    #[test]
+    fn test_compare_versions_leading_zeros() {
+        // parse_version("1.02.3") -> [1, 2, 3] since i32 parse drops leading zeros
+        let a = parse_version("1.02.3");
+        let b = parse_version("1.2.3");
+        assert_eq!(a, b);
+        assert_eq!(
+            compare_versions("1.02.3", "1.2.3"),
+            std::cmp::Ordering::Equal
+        );
+    }
+
+    #[test]
+    fn test_extract_download_url_multiple_links() {
+        let html = r#"
+            <a href="https://example.com/download/a.zip">A</a>
+            <a href="https://example.com/download/b.zip">B</a>
+            <a href="https://example.com/download/c.zip">C</a>
+        "#;
+        let result = extract_download_url(html);
+        assert!(result.is_some(), "Should find at least one download link");
+    }
+
+    #[test]
+    fn test_extract_download_url_get_link() {
+        let html = r#"<a href="https://example.com/get/plugin">Get Plugin</a>"#;
+        let result = extract_download_url(html);
+        assert!(result.is_some(), "Should find 'get' link");
+        let (url, _) = result.unwrap();
+        assert_eq!(url, "https://example.com/get/plugin");
+    }
+
+    #[test]
+    fn test_extract_download_url_buy_link() {
+        let html = r#"<a href="https://example.com/buy/plugin">Buy Plugin</a>"#;
+        let result = extract_download_url(html);
+        assert!(result.is_some(), "Should find 'buy' link");
+        let (url, _) = result.unwrap();
+        assert_eq!(url, "https://example.com/buy/plugin");
+    }
 }

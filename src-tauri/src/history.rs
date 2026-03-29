@@ -688,6 +688,166 @@ mod tests {
     }
 
     #[test]
+    fn test_save_scan_preserves_order() {
+        with_test_dir("scan_order", || {
+            let dirs = vec!["/tmp".to_string()];
+            let s1 = save_scan(&[make_plugin("A", "1.0", "/tmp/a.vst3")], &dirs);
+            let s2 = save_scan(&[make_plugin("B", "1.0", "/tmp/b.vst3")], &dirs);
+            let s3 = save_scan(&[make_plugin("C", "1.0", "/tmp/c.vst3")], &dirs);
+
+            let scans = get_scans();
+            // Newest first
+            assert_eq!(scans[0].id, s3.id);
+            assert_eq!(scans[1].id, s2.id);
+            assert_eq!(scans[2].id, s1.id);
+        });
+    }
+
+    #[test]
+    fn test_delete_nonexistent_scan() {
+        with_test_dir("delete_nonexistent", || {
+            let dirs = vec!["/tmp".to_string()];
+            let snap = save_scan(&[make_plugin("X", "1.0", "/tmp/x.vst3")], &dirs);
+
+            // Delete a fake id - should not crash
+            delete_scan("totally-fake-id-12345");
+
+            // Original scan should still exist
+            let detail = get_scan_detail(&snap.id);
+            assert!(detail.is_some());
+        });
+    }
+
+    #[test]
+    fn test_clear_history_idempotent() {
+        with_test_dir("clear_idempotent", || {
+            let dirs = vec!["/tmp".to_string()];
+            save_scan(&[make_plugin("X", "1.0", "/tmp/x.vst3")], &dirs);
+
+            clear_history();
+            assert!(get_scans().is_empty());
+
+            // Second clear should not crash
+            clear_history();
+            assert!(get_scans().is_empty());
+        });
+    }
+
+    #[test]
+    fn test_diff_scans_no_changes() {
+        with_test_dir("diff_no_changes", || {
+            let plugins = vec![
+                make_plugin("PlugA", "1.0", "/tmp/a.vst3"),
+                make_plugin("PlugB", "2.0", "/tmp/b.vst3"),
+            ];
+            let dirs = vec!["/tmp".to_string()];
+            let snap1 = save_scan(&plugins, &dirs);
+            let snap2 = save_scan(&plugins, &dirs);
+
+            let diff = diff_scans(&snap1.id, &snap2.id).unwrap();
+            assert!(diff.added.is_empty(), "added should be empty");
+            assert!(diff.removed.is_empty(), "removed should be empty");
+            assert!(diff.version_changed.is_empty(), "version_changed should be empty");
+        });
+    }
+
+    #[test]
+    fn test_diff_scans_nonexistent_ids() {
+        with_test_dir("diff_nonexistent", || {
+            let result = diff_scans("fake-id-1", "fake-id-2");
+            assert!(result.is_none(), "diff_scans with fake ids should return None");
+        });
+    }
+
+    #[test]
+    fn test_audio_history_limit_50() {
+        with_test_dir("audio_limit_50", || {
+            let sample = vec![make_sample("kick", "/tmp/kick.wav", "WAV")];
+            for _ in 0..55 {
+                save_audio_scan(&sample);
+            }
+            let scans = get_audio_scans();
+            assert!(
+                scans.len() <= 50,
+                "Audio history should be limited to 50, got {}",
+                scans.len()
+            );
+        });
+    }
+
+    #[test]
+    fn test_kvr_cache_update_overwrites() {
+        with_test_dir("kvr_overwrite", || {
+            let entries_v1 = vec![KvrCacheUpdateEntry {
+                key: "my-plugin".into(),
+                kvr_url: Some("https://kvr.com/my".into()),
+                update_url: None,
+                latest_version: Some("1.0".into()),
+                has_update: Some(false),
+                source: Some("kvr".into()),
+            }];
+            update_kvr_cache(&entries_v1);
+
+            let entries_v2 = vec![KvrCacheUpdateEntry {
+                key: "my-plugin".into(),
+                kvr_url: Some("https://kvr.com/my".into()),
+                update_url: Some("https://example.com/dl".into()),
+                latest_version: Some("2.0".into()),
+                has_update: Some(true),
+                source: Some("kvr".into()),
+            }];
+            update_kvr_cache(&entries_v2);
+
+            let cache = load_kvr_cache();
+            let entry = &cache["my-plugin"];
+            assert_eq!(entry.latest_version, Some("2.0".into()));
+            assert!(entry.has_update);
+            assert_eq!(entry.update_url, Some("https://example.com/dl".into()));
+        });
+    }
+
+    #[test]
+    fn test_kvr_cache_multiple_entries() {
+        with_test_dir("kvr_multiple", || {
+            let entries = vec![
+                KvrCacheUpdateEntry {
+                    key: "plugin-a".into(),
+                    kvr_url: Some("https://kvr.com/a".into()),
+                    update_url: None,
+                    latest_version: Some("1.0".into()),
+                    has_update: Some(false),
+                    source: Some("kvr".into()),
+                },
+                KvrCacheUpdateEntry {
+                    key: "plugin-b".into(),
+                    kvr_url: Some("https://kvr.com/b".into()),
+                    update_url: None,
+                    latest_version: Some("2.0".into()),
+                    has_update: Some(true),
+                    source: Some("kvr".into()),
+                },
+                KvrCacheUpdateEntry {
+                    key: "plugin-c".into(),
+                    kvr_url: Some("https://kvr.com/c".into()),
+                    update_url: None,
+                    latest_version: Some("3.0".into()),
+                    has_update: Some(false),
+                    source: Some("kvr".into()),
+                },
+            ];
+            update_kvr_cache(&entries);
+
+            let cache = load_kvr_cache();
+            assert!(cache.contains_key("plugin-a"));
+            assert!(cache.contains_key("plugin-b"));
+            assert!(cache.contains_key("plugin-c"));
+            assert_eq!(cache["plugin-a"].latest_version, Some("1.0".into()));
+            assert_eq!(cache["plugin-b"].latest_version, Some("2.0".into()));
+            assert_eq!(cache["plugin-c"].latest_version, Some("3.0".into()));
+        });
+    }
+
+    #[test]
     fn test_audio_diff() {
         with_test_dir("audio_diff", || {
             let samples1 = vec![

@@ -345,6 +345,97 @@ mod tests {
     }
 
     #[test]
+    fn test_format_size_exact_boundaries() {
+        assert_eq!(format_size(0), "0 B");
+        assert_eq!(format_size(1), "1.0 B");
+        assert_eq!(format_size(1024), "1.0 KB");
+        assert_eq!(format_size(1048576), "1.0 MB");
+        assert_eq!(format_size(1073741824), "1.0 GB");
+    }
+
+    #[test]
+    fn test_get_plugin_info_returns_none_for_nonexistent() {
+        let path = Path::new("/nonexistent/path/that/does/not/exist/Plugin.vst3");
+        let result = get_plugin_info(path);
+        assert!(
+            result.is_none(),
+            "get_plugin_info should return None for nonexistent path"
+        );
+    }
+
+    #[test]
+    fn test_get_plugin_info_file_not_dir() {
+        let tmp = std::env::temp_dir().join("upum_test_plugin_info_file");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        // Create a regular file with .vst3 extension (not a directory bundle)
+        let plugin_file = tmp.join("FakeFile.vst3");
+        fs::write(&plugin_file, b"not a real plugin").unwrap();
+
+        let info = get_plugin_info(&plugin_file);
+        assert!(info.is_some(), "Should return Some even for a file with .vst3 ext");
+        let info = info.unwrap();
+        assert_eq!(info.name, "FakeFile");
+        assert_eq!(info.plugin_type, "VST3");
+        // Size should reflect the file size (not 0)
+        assert_ne!(info.size, "0 B");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_discover_plugins_multiple_dirs() {
+        let tmp1 = std::env::temp_dir().join("upum_test_discover_multi_1");
+        let tmp2 = std::env::temp_dir().join("upum_test_discover_multi_2");
+        let _ = fs::remove_dir_all(&tmp1);
+        let _ = fs::remove_dir_all(&tmp2);
+        fs::create_dir_all(&tmp1).unwrap();
+        fs::create_dir_all(&tmp2).unwrap();
+
+        fs::create_dir_all(tmp1.join("PlugA.vst3")).unwrap();
+        fs::create_dir_all(tmp1.join("PlugB.vst")).unwrap();
+        fs::create_dir_all(tmp2.join("PlugC.component")).unwrap();
+
+        let dirs = vec![
+            tmp1.to_string_lossy().to_string(),
+            tmp2.to_string_lossy().to_string(),
+        ];
+        let result = discover_plugins(&dirs);
+        assert_eq!(result.len(), 3, "Should find all plugins across both dirs");
+
+        let _ = fs::remove_dir_all(&tmp1);
+        let _ = fs::remove_dir_all(&tmp2);
+    }
+
+    #[test]
+    fn test_discover_plugins_mixed_extensions() {
+        let tmp = std::env::temp_dir().join("upum_test_discover_mixed");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        // Valid plugin extensions
+        fs::create_dir_all(tmp.join("A.vst")).unwrap();
+        fs::create_dir_all(tmp.join("B.vst3")).unwrap();
+        fs::create_dir_all(tmp.join("C.component")).unwrap();
+        fs::write(tmp.join("D.dll"), b"fake dll").unwrap();
+
+        // Invalid extensions
+        fs::write(tmp.join("readme.txt"), b"text").unwrap();
+        fs::create_dir_all(tmp.join("Something.app")).unwrap();
+
+        let dirs = vec![tmp.to_string_lossy().to_string()];
+        let result = discover_plugins(&dirs);
+        assert_eq!(
+            result.len(),
+            4,
+            "Should find exactly 4 valid plugins (.vst, .vst3, .component, .dll), found: {:?}",
+            result
+        );
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
     fn test_discover_plugins_ignores_subdirs() {
         let tmp = std::env::temp_dir().join("upum_test_discover_subdirs");
         let _ = fs::remove_dir_all(&tmp);
