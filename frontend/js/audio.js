@@ -147,17 +147,13 @@ async function scanAudioSamples(resume = false) {
     rebuildAudioStats();
     filterAudioSamples();
     try { await window.vstUpdater.saveAudioScan(allAudioSamples, result.roots); } catch (e) { console.error('Failed to save audio scan history:', e); }
+    if (result.stopped && allAudioSamples.length > 0) {
+      resumeBtn.style.display = '';
+    }
   } catch (err) {
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
     flushPendingSamples();
-    if (err.message !== 'stopped') {
-      tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${err.message}</p></div>`;
-    } else if (allAudioSamples.length > 0) {
-      rebuildAudioStats();
-      filterAudioSamples();
-      resumeBtn.style.display = '';
-      try { await window.vstUpdater.saveAudioScan(allAudioSamples); } catch (e) { console.error('Failed to save partial audio scan:', e); }
-    }
+    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${err.message}</p></div>`;
   }
 
   btn.disabled = false;

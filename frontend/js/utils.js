@@ -73,6 +73,7 @@ function switchTab(tab) {
   document.getElementById('tabHistory').classList.toggle('active', tab === 'history');
   document.getElementById('tabSamples').classList.toggle('active', tab === 'samples');
   document.getElementById('tabDaw').classList.toggle('active', tab === 'daw');
+  document.getElementById('tabPresets').classList.toggle('active', tab === 'presets');
   document.getElementById('tabSettings').classList.toggle('active', tab === 'settings');
   if (tab === 'history') loadHistory();
   if (tab === 'settings') refreshSettingsUI();

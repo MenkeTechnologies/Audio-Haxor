@@ -2,9 +2,10 @@ pub mod audio_scanner;
 pub mod daw_scanner;
 pub mod history;
 pub mod kvr;
+pub mod preset_scanner;
 pub mod scanner;
 
-use history::{AudioSample, DawProject, KvrCacheUpdateEntry};
+use history::{AudioSample, DawProject, KvrCacheUpdateEntry, PresetFile};
 use scanner::PluginInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -51,6 +52,11 @@ struct AudioScanState {
 }
 
 struct DawScanState {
+    scanning: AtomicBool,
+    stop_scan: AtomicBool,
+}
+
+struct PresetScanState {
     scanning: AtomicBool,
     stop_scan: AtomicBool,
 }
@@ -191,6 +197,7 @@ async fn scan_plugins(
             );
         }
 
+        let was_stopped = scan_state.stop_scan.load(Ordering::Relaxed);
         all_plugins.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         let roots: Vec<String> = directories.clone();
         let snapshot = history::save_scan(&all_plugins, &directories, &roots);
@@ -198,7 +205,8 @@ async fn scan_plugins(
         serde_json::json!({
             "plugins": all_plugins,
             "directories": directories,
-            "snapshotId": snapshot.id
+            "snapshotId": snapshot.id,
+            "stopped": was_stopped
         })
     })
     .await
@@ -473,8 +481,9 @@ async fn scan_audio_samples(
             .iter()
             .map(|r| r.to_string_lossy().to_string())
             .collect();
+        let was_stopped = audio_state.stop_scan.load(Ordering::Relaxed);
         all_samples.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-        serde_json::json!({ "samples": all_samples, "roots": root_strs })
+        serde_json::json!({ "samples": all_samples, "roots": root_strs, "stopped": was_stopped })
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -596,8 +605,9 @@ async fn scan_daw_projects(
             .iter()
             .map(|r| r.to_string_lossy().to_string())
             .collect();
+        let was_stopped = daw_state.stop_scan.load(Ordering::Relaxed);
         all_projects.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-        serde_json::json!({ "projects": all_projects, "roots": root_strs })
+        serde_json::json!({ "projects": all_projects, "roots": root_strs, "stopped": was_stopped })
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -650,6 +660,130 @@ fn daw_history_latest() -> Option<history::DawScanSnapshot> {
 #[tauri::command]
 fn daw_history_diff(old_id: String, new_id: String) -> Option<history::DawScanDiff> {
     history::diff_daw_scans(&old_id, &new_id)
+}
+
+// Preset scanner commands
+#[tauri::command]
+async fn scan_presets(
+    app: AppHandle,
+    custom_roots: Option<Vec<String>>,
+    exclude_paths: Option<Vec<String>>,
+) -> Result<serde_json::Value, String> {
+    let state = app.state::<PresetScanState>();
+    if state.scanning.swap(true, Ordering::SeqCst) {
+        return Err("Preset scan already in progress".into());
+    }
+    state.stop_scan.store(false, Ordering::SeqCst);
+
+    let _ = app.emit(
+        "preset-scan-progress",
+        serde_json::json!({
+            "phase": "status",
+            "message": "Walking filesystem directories parallelized for preset files..."
+        }),
+    );
+
+    let app_handle = app.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let preset_state = app_handle.state::<PresetScanState>();
+        let roots = if let Some(ref extra) = custom_roots {
+            let custom: Vec<std::path::PathBuf> = extra
+                .iter()
+                .map(std::path::PathBuf::from)
+                .filter(|p| p.exists())
+                .collect();
+            if custom.is_empty() {
+                preset_scanner::get_preset_roots()
+            } else {
+                custom
+            }
+        } else {
+            preset_scanner::get_preset_roots()
+        };
+        let mut all_presets: Vec<PresetFile> = Vec::new();
+        let exclude_set = exclude_paths.map(|v| v.into_iter().collect::<HashSet<String>>());
+
+        preset_scanner::walk_for_presets(
+            &roots,
+            &mut |batch, found| {
+                all_presets.extend_from_slice(batch);
+                let _ = app_handle.emit(
+                    "preset-scan-progress",
+                    serde_json::json!({
+                        "phase": "scanning",
+                        "presets": batch,
+                        "found": found
+                    }),
+                );
+            },
+            &|| preset_state.stop_scan.load(Ordering::SeqCst),
+            exclude_set,
+        );
+
+        let was_stopped = preset_state.stop_scan.load(Ordering::Relaxed);
+        let root_strs: Vec<String> = roots
+            .iter()
+            .map(|r| r.to_string_lossy().to_string())
+            .collect();
+        all_presets.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        serde_json::json!({ "presets": all_presets, "roots": root_strs, "stopped": was_stopped })
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    state.scanning.store(false, Ordering::SeqCst);
+    Ok(result)
+}
+
+#[tauri::command]
+async fn stop_preset_scan(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<PresetScanState>();
+    state.stop_scan.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+// Preset history commands
+#[tauri::command]
+fn preset_history_save(
+    presets: Vec<PresetFile>,
+    roots: Option<Vec<String>>,
+) -> history::PresetScanSnapshot {
+    history::save_preset_scan(&presets, &roots.unwrap_or_default())
+}
+
+#[tauri::command]
+fn preset_history_get_scans() -> Vec<history::PresetScanSummary> {
+    history::get_preset_scans()
+}
+
+#[tauri::command]
+fn preset_history_get_detail(id: String) -> Option<history::PresetScanSnapshot> {
+    history::get_preset_scan_detail(&id)
+}
+
+#[tauri::command]
+fn preset_history_delete(id: String) {
+    history::delete_preset_scan(&id);
+}
+
+#[tauri::command]
+fn preset_history_clear() {
+    history::clear_preset_history();
+}
+
+#[tauri::command]
+fn preset_history_latest() -> Option<history::PresetScanSnapshot> {
+    history::get_latest_preset_scan()
+}
+
+#[tauri::command]
+fn preset_history_diff(old_id: String, new_id: String) -> Option<history::PresetScanDiff> {
+    history::diff_preset_scans(&old_id, &new_id)
+}
+
+#[tauri::command]
+async fn open_preset_folder(file_path: String) -> Result<(), String> {
+    open_plugin_folder(file_path).await
 }
 
 #[tauri::command]
@@ -894,6 +1028,32 @@ fn import_plugins_json(file_path: String) -> Result<Vec<PluginInfo>, String> {
             modified: p.modified,
         })
         .collect())
+}
+
+// ── Preset export/import ──
+
+#[tauri::command]
+fn export_presets_json(presets: Vec<PresetFile>, file_path: String) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(&presets).map_err(|e| e.to_string())?;
+    std::fs::write(&file_path, json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn import_presets_json(file_path: String) -> Result<Vec<PresetFile>, String> {
+    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn import_audio_json(file_path: String) -> Result<Vec<AudioSample>, String> {
+    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn import_daw_json(file_path: String) -> Result<Vec<DawProject>, String> {
+    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&data).map_err(|e| e.to_string())
 }
 
 // ── Tests ──
@@ -1185,6 +1345,10 @@ pub fn run() {
             scanning: AtomicBool::new(false),
             stop_scan: AtomicBool::new(false),
         })
+        .manage(PresetScanState {
+            scanning: AtomicBool::new(false),
+            stop_scan: AtomicBool::new(false),
+        })
         .invoke_handler(tauri::generate_handler![
             get_version,
             scan_plugins,
@@ -1234,6 +1398,20 @@ pub fn run() {
             prefs_set,
             prefs_remove,
             prefs_save_all,
+            scan_presets,
+            stop_preset_scan,
+            preset_history_save,
+            preset_history_get_scans,
+            preset_history_get_detail,
+            preset_history_delete,
+            preset_history_clear,
+            preset_history_latest,
+            preset_history_diff,
+            open_preset_folder,
+            export_presets_json,
+            import_presets_json,
+            import_audio_json,
+            import_daw_json,
             open_prefs_file,
             get_prefs_path,
         ])

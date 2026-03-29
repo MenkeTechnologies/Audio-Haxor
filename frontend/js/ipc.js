@@ -17,6 +17,7 @@ document.addEventListener('click', (e) => {
     case 'stopCurrentOperation': stopCurrentOperation(); break;
     case 'scanPlugins': scanPlugins(); break;
     case 'resumePluginScan': scanPlugins(true); break;
+    case 'stopPluginScan': window.vstUpdater.stopScan(); break;
     case 'checkUpdates': checkUpdates(); break;
     case 'switchTab': switchTab(el.dataset.tab); break;
     case 'skipUpdate': skipUpdate(); break;
@@ -47,15 +48,27 @@ document.addEventListener('click', (e) => {
     case 'scanDawProjects': scanDawProjects(); break;
     case 'resumeDawScan': scanDawProjects(true); break;
     case 'stopDawScan': stopDawScan(); break;
+    case 'scanPresets': scanPresets(); break;
+    case 'resumePresetScan': scanPresets(true); break;
+    case 'stopPresetScan': stopPresetScan(); break;
+    case 'openPresetFolder': openPresetFolder(el.dataset.path); break;
+    case 'sortPreset': sortPreset(el.dataset.key); break;
+    case 'loadMorePresets': loadMorePresets(); break;
     case 'openDawFolder': openDawFolder(el.dataset.path); break;
     case 'sortDaw': sortDaw(el.dataset.key); break;
     case 'loadMoreDaw': loadMoreDaw(); break;
     case 'runDawDiff': runDawDiff(el.dataset.id); break;
     case 'deleteDawScanEntry': deleteDawScanEntry(el.dataset.id); break;
+    case 'runPresetDiff': runPresetDiff(el.dataset.id); break;
+    case 'deletePresetScanEntry': deletePresetScanEntry(el.dataset.id); break;
     case 'exportPlugins': exportPlugins(); break;
     case 'importPlugins': importPlugins(); break;
     case 'exportAudio': exportAudio(); break;
+    case 'importAudio': importAudio(); break;
     case 'exportDaw': exportDaw(); break;
+    case 'importDaw': importDaw(); break;
+    case 'exportPresets': exportPresets(); break;
+    case 'importPresets': importPresets(); break;
     case 'settingToggleTheme': settingToggleTheme(); break;
     case 'settingToggleCrt': settingToggleCrt(); break;
     case 'settingResetColumns': settingResetColumns(); break;
@@ -73,6 +86,7 @@ document.addEventListener('click', (e) => {
     case 'saveCustomDirs': saveCustomDirs(); break;
     case 'saveAudioScanDirs': saveAudioScanDirs(); break;
     case 'saveDawScanDirs': saveDawScanDirs(); break;
+    case 'savePresetScanDirs': savePresetScanDirs(); break;
     case 'openPrefsFile': openPrefsFile(); break;
   }
 });
@@ -81,6 +95,7 @@ document.addEventListener('input', (e) => {
   if (action === 'filterPlugins') filterPlugins();
   else if (action === 'filterAudioSamples') filterAudioSamples();
   else if (action === 'filterDawProjects') filterDawProjects();
+  else if (action === 'filterPresets') filterPresets();
   else if (action === 'settingPageSize') settingUpdatePageSize(e.target.value);
   else if (action === 'settingFlushInterval') settingUpdateFlushInterval(e.target.value);
 });
@@ -89,6 +104,7 @@ document.addEventListener('change', (e) => {
   if (action === 'filterPlugins') filterPlugins();
   else if (action === 'filterAudioSamples') filterAudioSamples();
   else if (action === 'filterDawProjects') filterDawProjects();
+  else if (action === 'filterPresets') filterPresets();
   else if (action === 'settingDefaultTypeFilter') settingSaveSelect('defaultTypeFilter', e.target.value);
   else if (action === 'settingPluginSort') settingSaveSelect('pluginSort', e.target.value);
   else if (action === 'settingAudioSort') settingSaveSelect('audioSort', e.target.value);
@@ -121,9 +137,9 @@ document.addEventListener('keydown', (e) => {
   }
 
   // Cmd/Ctrl+1-5 — switch tabs
-  if (mod && e.key >= '1' && e.key <= '5') {
+  if (mod && e.key >= '1' && e.key <= '6') {
     e.preventDefault();
-    const tabs = ['plugins', 'samples', 'daw', 'history', 'settings'];
+    const tabs = ['plugins', 'samples', 'daw', 'presets', 'history', 'settings'];
     const idx = parseInt(e.key) - 1;
     if (idx < tabs.length) switchTab(tabs[idx]);
   }
@@ -175,6 +191,26 @@ window.vstUpdater = {
   diffAudioScans: (oldId, newId) => invoke('audio_history_diff', { oldId, newId }),
   // DAW projects
   scanDawProjects: (customRoots, excludePaths) => invoke('scan_daw_projects', { customRoots: customRoots || null, excludePaths: excludePaths || null }),
+  // Presets
+  scanPresets: (customRoots, excludePaths) => invoke('scan_presets', { customRoots: customRoots || null, excludePaths: excludePaths || null }),
+  stopPresetScan: () => invoke('stop_preset_scan'),
+  onPresetScanProgress: (callback) => {
+    let unlisten = null;
+    listen('preset-scan-progress', (event) => callback(event.payload)).then(fn => unlisten = fn);
+    return () => { if (unlisten) unlisten(); };
+  },
+  openPresetFolder: (path) => invoke('open_preset_folder', { filePath: path }),
+  savePresetScan: (presets, roots) => invoke('preset_history_save', { presets, roots: roots || null }),
+  getPresetScans: () => invoke('preset_history_get_scans'),
+  getPresetScanDetail: (id) => invoke('preset_history_get_detail', { id }),
+  deletePresetScan: (id) => invoke('preset_history_delete', { id }),
+  clearPresetHistory: () => invoke('preset_history_clear'),
+  getLatestPresetScan: () => invoke('preset_history_latest'),
+  diffPresetScans: (oldId, newId) => invoke('preset_history_diff', { oldId, newId }),
+  exportPresetsJson: (presets, filePath) => invoke('export_presets_json', { presets, filePath }),
+  importPresetsJson: (filePath) => invoke('import_presets_json', { filePath }),
+  importAudioJson: (filePath) => invoke('import_audio_json', { filePath }),
+  importDawJson: (filePath) => invoke('import_daw_json', { filePath }),
   stopDawScan: () => invoke('stop_daw_scan'),
   onDawScanProgress: (callback) => {
     let unlisten = null;
@@ -291,5 +327,7 @@ async function stopCurrentOperation() {
     await window.vstUpdater.stopAudioScan();
   } else if (currentOperation === 'daw-scan') {
     await window.vstUpdater.stopDawScan();
+  } else if (currentOperation === 'preset-scan') {
+    await window.vstUpdater.stopPresetScan();
   }
 }

@@ -96,6 +96,18 @@
     console.error('Failed to load last DAW scan:', err);
   }
 
+  // Auto-load last preset scan
+  try {
+    const latestPresets = await window.vstUpdater.getLatestPresetScan();
+    if (latestPresets && latestPresets.presets && latestPresets.presets.length > 0) {
+      allPresets = latestPresets.presets;
+      rebuildPresetStats();
+      filterPresets();
+    }
+  } catch (err) {
+    console.error('Failed to load last preset scan:', err);
+  }
+
   // Apply default type filter from settings
   const defaultType = prefs.getItem('defaultTypeFilter');
   if (defaultType && defaultType !== 'all') {

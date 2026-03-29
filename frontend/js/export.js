@@ -54,7 +54,6 @@ async function importPlugins() {
       allPlugins = imported;
       document.getElementById('totalCount').textContent = allPlugins.length;
       document.getElementById('btnCheckUpdates').disabled = false;
-      document.getElementById('toolbar').style.display = 'flex';
       document.getElementById('btnExport').style.display = '';
       renderPlugins(allPlugins);
     }
@@ -109,4 +108,86 @@ async function exportDaw() {
       await window.vstUpdater.exportDawJson(allDawProjects, path);
     }
   } catch (err) { console.error('DAW export failed:', err); }
+}
+
+async function exportPresets() {
+  if (allPresets.length === 0) return;
+  const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+  if (!dialogApi) return;
+  const filePath = await dialogApi.save({
+    title: 'Export Preset List',
+    defaultPath: 'presets',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (!filePath) return;
+  try {
+    const path = filePath.endsWith('.json') ? filePath : filePath + '.json';
+    await window.vstUpdater.exportPresetsJson(allPresets, path);
+  } catch (err) { console.error('Preset export failed:', err); }
+}
+
+async function importAudio() {
+  const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+  if (!dialogApi) return;
+  const selected = await dialogApi.open({
+    title: 'Import Audio Sample List',
+    multiple: false,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (!selected) return;
+  const filePath = typeof selected === 'string' ? selected : selected.path;
+  if (!filePath) return;
+  try {
+    const imported = await window.vstUpdater.importAudioJson(filePath);
+    if (imported && imported.length > 0) {
+      allAudioSamples = imported;
+      rebuildAudioStats();
+      filterAudioSamples();
+      document.getElementById('btnExportAudio').style.display = '';
+    }
+  } catch (err) { console.error('Audio import failed:', err); }
+}
+
+async function importDaw() {
+  const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+  if (!dialogApi) return;
+  const selected = await dialogApi.open({
+    title: 'Import DAW Project List',
+    multiple: false,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (!selected) return;
+  const filePath = typeof selected === 'string' ? selected : selected.path;
+  if (!filePath) return;
+  try {
+    const imported = await window.vstUpdater.importDawJson(filePath);
+    if (imported && imported.length > 0) {
+      allDawProjects = imported;
+      rebuildDawStats();
+      filterDawProjects();
+      document.getElementById('btnExportDaw').style.display = '';
+    }
+  } catch (err) { console.error('DAW import failed:', err); }
+}
+
+async function importPresets() {
+  const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+  if (!dialogApi) return;
+  const selected = await dialogApi.open({
+    title: 'Import Preset List',
+    multiple: false,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (!selected) return;
+  const filePath = typeof selected === 'string' ? selected : selected.path;
+  if (!filePath) return;
+  try {
+    const imported = await window.vstUpdater.importPresetsJson(filePath);
+    if (imported && imported.length > 0) {
+      allPresets = imported;
+      rebuildPresetStats();
+      filterPresets();
+      document.getElementById('btnExportPresets').style.display = '';
+    }
+  } catch (err) { console.error('Preset import failed:', err); }
 }

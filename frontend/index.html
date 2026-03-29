@@ -699,11 +699,6 @@
     .stat-dot.muted { background: var(--text-muted); }
 
     /* Search / Filter */
-    .toolbar {
-      display: flex; gap: 10px; padding: 12px 24px;
-      background: var(--bg-primary);
-      border-bottom: 1px solid var(--border);
-    }
 
     .search-box {
       flex: 1;
@@ -1780,26 +1775,7 @@
             <span class="logo-version" id="appVersion"></span>
           </div>
         </div>
-        <div class="header-actions">
-          <button class="btn btn-stop" id="btnStop" data-action="stopCurrentOperation" style="display:none;">
-            &#9632; Stop
-          </button>
-          <button class="btn btn-secondary" id="btnExport" data-action="exportPlugins" style="display:none;">
-            &#8615; Export
-          </button>
-          <button class="btn btn-secondary" id="btnImport" data-action="importPlugins">
-            &#8613; Import
-          </button>
-          <button class="btn btn-secondary" id="btnScan" data-action="scanPlugins">
-            &#8635; Scan Plugins
-          </button>
-          <button class="btn btn-secondary" id="btnResumeScan" data-action="resumePluginScan" style="display: none;">
-            &#9654; Resume
-          </button>
-          <button class="btn btn-primary" id="btnCheckUpdates" data-action="checkUpdates" disabled>
-            &#9889; Check Updates
-          </button>
-        </div>
+        <div class="header-actions"></div>
       </div>
       <div class="stats-bar" id="statsBar">
         <div class="stat">
@@ -1832,9 +1808,11 @@
           <span class="stat-value" id="dawProjectCount">0</span>
           <span>DAW Projects</span>
         </div>
-      </div>
-      <div class="progress-bar" id="progressBar">
-        <div class="progress-fill"></div>
+        <div class="stat">
+          <span class="stat-dot" style="background: var(--orange); box-shadow: 0 0 6px var(--orange-bg);"></span>
+          <span class="stat-value" id="presetCountHeader">0</span>
+          <span>Presets</span>
+        </div>
       </div>
     </div>
 
@@ -1842,29 +1820,40 @@
       <button class="tab-btn active" data-action="switchTab" data-tab="plugins">Plugins</button>
       <button class="tab-btn" data-action="switchTab" data-tab="samples">Samples</button>
       <button class="tab-btn" data-action="switchTab" data-tab="daw">DAW Projects</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="presets">Presets</button>
       <button class="tab-btn" data-action="switchTab" data-tab="history">History</button>
       <button class="tab-btn" data-action="switchTab" data-tab="settings">&#9881; Settings</button>
     </div>
 
     <div class="tab-content active" id="tabPlugins">
-    <div class="toolbar" id="toolbar" style="display: none;">
-      <div class="search-box">
-        <span class="search-icon">&#128269;</span>
-        <input type="text" id="searchInput" placeholder="Search plugins..." data-action="filterPlugins">
+    <div class="audio-container">
+      <div class="audio-toolbar">
+        <button class="btn btn-primary" id="btnScan" data-action="scanPlugins">&#8635; Scan Plugins</button>
+        <button class="btn btn-secondary" id="btnResumeScan" data-action="resumePluginScan" style="display:none;">&#9654; Resume</button>
+        <button class="btn btn-stop" id="btnStopPlugins" data-action="stopPluginScan" style="display:none;">&#9632; Stop</button>
+        <button class="btn btn-primary" id="btnCheckUpdates" data-action="checkUpdates" disabled>&#9889; Check Updates</button>
+        <button class="btn btn-secondary" id="btnExport" data-action="exportPlugins" style="display:none;">&#8615; Export</button>
+        <button class="btn btn-secondary" id="btnImport" data-action="importPlugins">&#8613; Import</button>
+        <div class="search-box" style="flex: 1;">
+          <span class="search-icon">&#128269;</span>
+          <input type="text" id="searchInput" placeholder="Search plugins..." data-action="filterPlugins">
+        </div>
+        <select class="filter-select" id="typeFilter" data-action="filterPlugins">
+          <option value="all">All Types</option>
+          <option value="VST2">VST2</option>
+          <option value="VST3">VST3</option>
+          <option value="AU">Audio Units</option>
+        </select>
+        <select class="filter-select" id="statusFilter" data-action="filterPlugins">
+          <option value="all">All Status</option>
+          <option value="update">Updates Available</option>
+          <option value="current">Up to Date</option>
+          <option value="unknown">Unknown Latest</option>
+        </select>
       </div>
-      <select class="filter-select" id="typeFilter" data-action="filterPlugins">
-        <option value="all">All Types</option>
-        <option value="VST2">VST2</option>
-        <option value="VST3">VST3</option>
-        <option value="AU">Audio Units</option>
-      </select>
-      <select class="filter-select" id="statusFilter" data-action="filterPlugins">
-        <option value="all">All Status</option>
-        <option value="update">Updates Available</option>
-        <option value="current">Up to Date</option>
-        <option value="unknown">Unknown Latest</option>
-      </select>
-    </div>
+      <div class="progress-bar" id="progressBar">
+        <div class="progress-fill"></div>
+      </div>
 
     <div class="batch-bar" id="batchBar">
       <div>
@@ -1893,6 +1882,7 @@
       </div>
       <div class="dirs-list" id="dirsList"></div>
     </div>
+    </div><!-- end audio-container -->
     </div><!-- end tabPlugins -->
 
     <div class="tab-content" id="tabHistory">
@@ -1924,7 +1914,8 @@
           <button class="btn btn-primary" id="btnScanAudio" data-action="scanAudioSamples">&#127925; Scan Samples</button>
           <button class="btn btn-secondary" id="btnResumeAudio" data-action="resumeAudioScan" style="display: none;">&#9654; Resume</button>
           <button class="btn btn-stop" id="btnStopAudio" style="display: none;" data-action="stopAudioScan">&#9632; Stop</button>
-          <button class="btn btn-secondary" id="btnExportAudio" data-action="exportAudio" style="display:none;">&#128230; Export</button>
+          <button class="btn btn-secondary" id="btnExportAudio" data-action="exportAudio" style="display:none;">&#8615; Export</button>
+          <button class="btn btn-secondary" id="btnImportAudio" data-action="importAudio">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="audioSearchInput" placeholder="Search samples by name, path, or format..." data-action="filterAudioSamples">
@@ -1981,7 +1972,8 @@
           <button class="btn btn-primary" id="btnScanDaw" data-action="scanDawProjects">&#127911; Scan DAW Projects</button>
           <button class="btn btn-secondary" id="btnResumeDaw" data-action="resumeDawScan" style="display: none;">&#9654; Resume</button>
           <button class="btn btn-stop" id="btnStopDaw" style="display: none;" data-action="stopDawScan">&#9632; Stop</button>
-          <button class="btn btn-secondary" id="btnExportDaw" data-action="exportDaw" style="display:none;">&#128230; Export</button>
+          <button class="btn btn-secondary" id="btnExportDaw" data-action="exportDaw" style="display:none;">&#8615; Export</button>
+          <button class="btn btn-secondary" id="btnImportDaw" data-action="importDaw">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="dawSearchInput" placeholder="Search projects by name, path, or DAW..." data-action="filterDawProjects">
@@ -2018,6 +2010,49 @@
             <div class="state-icon">&#127911;</div>
             <h2>DAW Project Index</h2>
             <p>Click <strong>"Scan DAW Projects"</strong> to find all DAW project files (Ableton, Logic, FL Studio, Cubase, REAPER, etc.) on your system.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tabPresets">
+      <div class="audio-container">
+        <div class="audio-toolbar">
+          <button class="btn btn-primary" id="btnScanPresets" data-action="scanPresets">&#127924; Scan Presets</button>
+          <button class="btn btn-secondary" id="btnResumePresets" data-action="resumePresetScan" style="display: none;">&#9654; Resume</button>
+          <button class="btn btn-stop" id="btnStopPresets" style="display: none;" data-action="stopPresetScan">&#9632; Stop</button>
+          <button class="btn btn-secondary" id="btnExportPresets" data-action="exportPresets" style="display:none;">&#8615; Export</button>
+          <button class="btn btn-secondary" id="btnImportPresets" data-action="importPresets">&#8613; Import</button>
+          <div class="search-box" style="flex: 1;">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" id="presetSearchInput" placeholder="Search presets by name, path, or format..." data-action="filterPresets">
+          </div>
+          <select class="filter-select" id="presetFormatFilter" data-action="filterPresets">
+            <option value="all">All Formats</option>
+            <option value="FXP">FXP</option>
+            <option value="FXB">FXB</option>
+            <option value="VSTPRESET">VSTPRESET</option>
+            <option value="AUPRESET">AUPRESET</option>
+            <option value="ADV">ADV</option>
+            <option value="ADG">ADG</option>
+            <option value="NKI">NKI</option>
+            <option value="H2P">H2P</option>
+            <option value="SYX">SYX</option>
+          </select>
+        </div>
+        <div class="progress-bar" id="presetProgressBar">
+          <div class="progress-fill" id="presetProgressFill"></div>
+        </div>
+        <div class="audio-stats" id="presetStats" style="display: none;">
+          <div class="audio-stat"><span class="audio-stat-value" id="presetFilteredCount"></span><span class="audio-stat-value" id="presetCount">0</span> presets</div>
+          <div class="audio-stat"><span class="audio-stat-value" id="presetTotalSize">0 B</span></div>
+          <div class="audio-stat" id="presetFormatBreakdown"></div>
+        </div>
+        <div class="audio-table-wrap" id="presetTableWrap">
+          <div class="state-message">
+            <div class="state-icon">&#127924;</div>
+            <h2>Scan for Presets</h2>
+            <p>Click <strong>"Scan Presets"</strong> to discover VST/AU/DAW presets on your system.</p>
           </div>
         </div>
       </div>
@@ -2180,6 +2215,17 @@
               <textarea class="settings-textarea" id="settingDawScanDirs" rows="3" placeholder="/path/to/projects&#10;/another/path"></textarea>
               <button class="btn btn-secondary btn-settings-action" data-action="saveDawScanDirs" style="margin-top: 6px;">Save</button>
               <span class="settings-saved-msg" id="savedMsgDawScanDirs"></span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Preset Scan Directories</span>
+              <span class="settings-desc">Additional directories to scan for plugin presets (one per line)</span>
+            </div>
+            <div class="settings-control">
+              <textarea class="settings-textarea" id="settingPresetScanDirs" rows="3" placeholder="/path/to/presets&#10;/another/path"></textarea>
+              <button class="btn btn-secondary btn-settings-action" data-action="savePresetScanDirs" style="margin-top: 6px;">Save</button>
+              <span class="settings-saved-msg" id="savedMsgPresetScanDirs"></span>
             </div>
           </div>
           <div class="settings-row">
@@ -2373,6 +2419,7 @@
   <script src="js/kvr.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/daw.js"></script>
+  <script src="js/presets.js"></script>
   <script src="js/columns.js"></script>
   <script src="js/app.js"></script>
 </body>

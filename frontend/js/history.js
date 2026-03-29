@@ -6,21 +6,24 @@ let selectedScanId = null;
 let selectedScanType = null; // 'plugin' or 'audio'
 
 let historyDawScanList = [];
+let historyPresetScanList = [];
 
 async function loadHistory() {
-  const [pluginScans, audioScans, dawScans] = await Promise.all([
+  const [pluginScans, audioScans, dawScans, presetScans] = await Promise.all([
     window.vstUpdater.getScans(),
     window.vstUpdater.getAudioScans(),
     window.vstUpdater.getDawScans(),
+    window.vstUpdater.getPresetScans(),
   ]);
   historyScanList = pluginScans;
   historyAudioScanList = audioScans;
   historyDawScanList = dawScans;
-  // Merge and sort by timestamp descending
+  historyPresetScanList = presetScans;
   historyMergedList = [
     ...pluginScans.map(s => ({ ...s, _type: 'plugin' })),
     ...audioScans.map(s => ({ ...s, _type: 'audio' })),
     ...dawScans.map(s => ({ ...s, _type: 'daw' })),
+    ...presetScans.map(s => ({ ...s, _type: 'preset' })),
   ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   renderHistoryList();
 }
@@ -39,14 +42,17 @@ function renderHistoryList() {
     const selected = s.id === selectedScanId ? ' selected' : '';
     const isAudio = s._type === 'audio';
     const isDaw = s._type === 'daw';
-    const icon = isDaw ? '&#127911;' : isAudio ? '&#127925;' : '&#127911;';
-    const label = isDaw
+    const isPreset = s._type === 'preset';
+    const icon = isPreset ? '&#127924;' : isDaw ? '&#127911;' : isAudio ? '&#127925;' : '&#127911;';
+    const label = isPreset
+      ? `${s.presetCount} preset${s.presetCount !== 1 ? 's' : ''}`
+      : isDaw
       ? `${s.projectCount} project${s.projectCount !== 1 ? 's' : ''}`
       : isAudio
       ? `${s.sampleCount} sample${s.sampleCount !== 1 ? 's' : ''}`
       : `${s.pluginCount} plugin${s.pluginCount !== 1 ? 's' : ''}`;
-    const typeTag = isDaw ? 'DAW Projects' : isAudio ? 'Samples' : 'Plugins';
-    const typeColor = isDaw ? 'var(--magenta)' : isAudio ? 'var(--yellow)' : 'var(--cyan)';
+    const typeTag = isPreset ? 'Presets' : isDaw ? 'DAW Projects' : isAudio ? 'Samples' : 'Plugins';
+    const typeColor = isPreset ? 'var(--orange)' : isDaw ? 'var(--magenta)' : isAudio ? 'var(--yellow)' : 'var(--cyan)';
     const rootsHint = s.roots && s.roots.length > 0
       ? `<div class="history-item-roots" title="${s.roots.map(r => escapeHtml(r)).join('\n')}">${s.roots.map(r => escapeHtml(r)).join(', ')}</div>`
       : '';
@@ -67,6 +73,11 @@ async function selectScan(id, type) {
   selectedScanId = id;
   selectedScanType = type || 'plugin';
   renderHistoryList();
+
+  if (selectedScanType === 'preset') {
+    await selectPresetScan(id);
+    return;
+  }
 
   if (selectedScanType === 'daw') {
     await selectDawScan(id);
@@ -374,6 +385,119 @@ async function deleteDawScanEntry(id) {
   await loadHistory();
 }
 
+async function selectPresetScan(id) {
+  const detail = await window.vstUpdater.getPresetScanDetail(id);
+  if (!detail) return;
+
+  const d = new Date(detail.timestamp);
+  const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const fmtBreakdown = Object.entries(detail.formatCounts || {}).map(([fmt, count]) => {
+    return `<span class="format-badge format-default">${fmt}: ${count}</span>`;
+  }).join(' ');
+
+  const presetRootsHtml = detail.roots && detail.roots.length > 0
+    ? `<div class="history-detail-roots"><span style="color: var(--text-dim); font-size: 11px;">Scanned:</span> ${detail.roots.map(r => `<code class="root-path">${escapeHtml(r)}</code>`).join(' ')}</div>`
+    : '';
+
+  const otherScans = historyPresetScanList.filter(s => s.id !== id);
+  let compareHtml = '';
+  if (otherScans.length > 0) {
+    const options = otherScans.map(s => {
+      const od = new Date(s.timestamp);
+      return `<option value="${s.id}">${od.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${od.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} (${s.presetCount})</option>`;
+    }).join('');
+    compareHtml = `
+      <div class="compare-controls">
+        <span>Compare with:</span>
+        <select id="compareSelect">
+          <option value="">Select a scan...</option>
+          ${options}
+        </select>
+        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runPresetDiff" data-id="${id}">Compare</button>
+      </div>`;
+  }
+
+  const container = document.getElementById('historyDetail');
+  container.innerHTML = `
+    <div class="history-detail-header">
+      <div>
+        <h2>&#127924; ${dateStr}</h2>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${timeStr} &middot; ${detail.presetCount} presets &middot; ${formatAudioSize(detail.totalBytes)} &middot; ${fmtBreakdown}</div>
+        ${presetRootsHtml}
+      </div>
+      <button class="btn-danger" data-action="deletePresetScanEntry" data-id="${id}">Delete</button>
+    </div>
+    ${compareHtml}
+    <div id="diffResults"></div>
+    <div style="margin-top: 8px;">
+      ${detail.presets.map(p => {
+        return `
+          <div class="plugin-card">
+            <div class="plugin-info">
+              <h3>${escapeHtml(p.name)}</h3>
+              <div class="plugin-meta">
+                <span class="format-badge format-default">${p.format}</span>
+                <span>${p.sizeFormatted || formatAudioSize(p.size)}</span>
+                <span>${escapeHtml(p.directory || '')}</span>
+              </div>
+            </div>
+            <div></div><div></div>
+            <div class="plugin-actions">
+              <button class="btn-small btn-folder" data-action="openPresetFolder" data-path="${escapePath(p.path)}" title="${escapePath(p.path)}">&#128193;</button>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+async function runPresetDiff(currentId) {
+  const compareId = document.getElementById('compareSelect').value;
+  if (!compareId) return;
+
+  const diff = await window.vstUpdater.diffPresetScans(compareId, currentId);
+  if (!diff) return;
+
+  const container = document.getElementById('diffResults');
+  let html = '';
+
+  if (diff.added.length === 0 && diff.removed.length === 0) {
+    html = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;">No differences found between these scans.</div>';
+  } else {
+    if (diff.added.length > 0) {
+      html += `<div class="diff-section diff-added">
+        <h3>Added <span class="diff-count">${diff.added.length}</span></h3>
+        ${diff.added.map(p => `
+          <div class="diff-plugin">
+            <div class="diff-plugin-name">${escapeHtml(p.name)}</div>
+            <div class="diff-plugin-detail">${p.format} &middot; ${p.sizeFormatted || formatAudioSize(p.size)} &middot; ${escapeHtml(p.directory || '')}</div>
+          </div>`).join('')}
+      </div>`;
+    }
+    if (diff.removed.length > 0) {
+      html += `<div class="diff-section diff-removed">
+        <h3>Removed <span class="diff-count">${diff.removed.length}</span></h3>
+        ${diff.removed.map(p => `
+          <div class="diff-plugin">
+            <div class="diff-plugin-name">${escapeHtml(p.name)}</div>
+            <div class="diff-plugin-detail">${p.format} &middot; ${p.sizeFormatted || formatAudioSize(p.size)} &middot; ${escapeHtml(p.directory || '')}</div>
+          </div>`).join('')}
+      </div>`;
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+async function deletePresetScanEntry(id) {
+  await window.vstUpdater.deletePresetScan(id);
+  selectedScanId = null;
+  selectedScanType = null;
+  document.getElementById('historyDetail').innerHTML = '<div class="empty-history"><div class="empty-history-icon">&#8592;</div><p>Select a scan from the sidebar to view details</p></div>';
+  await loadHistory();
+}
+
 async function deleteAudioScanEntry(id) {
   await window.vstUpdater.deleteAudioScan(id);
   selectedScanId = null;
@@ -444,6 +568,7 @@ async function clearAllHistory() {
     window.vstUpdater.clearHistory(),
     window.vstUpdater.clearAudioHistory(),
     window.vstUpdater.clearDawHistory(),
+    window.vstUpdater.clearPresetHistory(),
   ]);
   selectedScanId = null;
   selectedScanType = null;

@@ -266,17 +266,13 @@ async function scanDawProjects(resume = false) {
     rebuildDawStats();
     filterDawProjects();
     try { await window.vstUpdater.saveDawScan(allDawProjects, result.roots); } catch (e) { console.error('Failed to save DAW scan history:', e); }
+    if (result.stopped && allDawProjects.length > 0) {
+      resumeBtn.style.display = '';
+    }
   } catch (err) {
     if (dawScanProgressCleanup) { dawScanProgressCleanup(); dawScanProgressCleanup = null; }
     flushPendingProjects();
-    if (err.message !== 'stopped') {
-      tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${err.message}</p></div>`;
-    } else if (allDawProjects.length > 0) {
-      rebuildDawStats();
-      filterDawProjects();
-      resumeBtn.style.display = '';
-      try { await window.vstUpdater.saveDawScan(allDawProjects); } catch (e) { console.error('Failed to save partial DAW scan:', e); }
-    }
+    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${err.message}</p></div>`;
   }
 
   btn.disabled = false;

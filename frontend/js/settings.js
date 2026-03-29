@@ -495,6 +495,12 @@ function saveDawScanDirs() {
   showSavedMsg('savedMsgDawScanDirs');
 }
 
+function savePresetScanDirs() {
+  const val = document.getElementById('settingPresetScanDirs').value.trim();
+  prefs.setItem('presetScanDirs', val);
+  showSavedMsg('savedMsgPresetScanDirs');
+}
+
 function openPrefsFile() {
   window.vstUpdater.openPrefsFile().catch(e => console.error('Failed to open prefs file:', e));
 }
@@ -585,6 +591,10 @@ function refreshSettingsUI() {
   const dawScanDirs = prefs.getItem('dawScanDirs') || '';
   const dawScanDirsEl = document.getElementById('settingDawScanDirs');
   if (dawScanDirsEl) dawScanDirsEl.value = dawScanDirs;
+
+  const presetScanDirs = prefs.getItem('presetScanDirs') || '';
+  const presetScanDirsEl = document.getElementById('settingPresetScanDirs');
+  if (presetScanDirsEl) presetScanDirsEl.value = presetScanDirs;
 
   const dawSort = getSettingValue('dawSort', 'name');
   const dawSortEl = document.getElementById('settingDawSort');

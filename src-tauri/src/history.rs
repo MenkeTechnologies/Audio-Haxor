@@ -195,6 +195,63 @@ pub struct AudioScanDiff {
     pub removed: Vec<AudioSample>,
 }
 
+// Preset scan types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PresetFile {
+    pub name: String,
+    pub path: String,
+    pub directory: String,
+    pub format: String,
+    pub size: u64,
+    #[serde(rename = "sizeFormatted")]
+    pub size_formatted: String,
+    pub modified: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PresetScanSnapshot {
+    pub id: String,
+    pub timestamp: String,
+    #[serde(rename = "presetCount")]
+    pub preset_count: usize,
+    #[serde(rename = "totalBytes")]
+    pub total_bytes: u64,
+    #[serde(rename = "formatCounts")]
+    pub format_counts: std::collections::HashMap<String, usize>,
+    pub presets: Vec<PresetFile>,
+    #[serde(default)]
+    pub roots: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PresetScanSummary {
+    pub id: String,
+    pub timestamp: String,
+    #[serde(rename = "presetCount")]
+    pub preset_count: usize,
+    #[serde(rename = "totalBytes")]
+    pub total_bytes: u64,
+    #[serde(rename = "formatCounts")]
+    pub format_counts: std::collections::HashMap<String, usize>,
+    #[serde(default)]
+    pub roots: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PresetHistory {
+    pub scans: Vec<PresetScanSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PresetScanDiff {
+    #[serde(rename = "oldScan")]
+    pub old_scan: PresetScanSummary,
+    #[serde(rename = "newScan")]
+    pub new_scan: PresetScanSummary,
+    pub added: Vec<PresetFile>,
+    pub removed: Vec<PresetFile>,
+}
+
 #[cfg(test)]
 thread_local! {
     static TEST_DATA_DIR: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
@@ -973,6 +1030,138 @@ pub fn diff_audio_scans(old_id: &str, new_id: &str) -> Option<AudioScanDiff> {
             id: new_scan.id.clone(),
             timestamp: new_scan.timestamp.clone(),
             sample_count: new_scan.sample_count,
+            total_bytes: new_scan.total_bytes,
+            format_counts: new_scan.format_counts.clone(),
+            roots: new_scan.roots.clone(),
+        },
+        added,
+        removed,
+    })
+}
+
+// ── Preset scan history ──
+
+fn preset_history_file() -> PathBuf {
+    ensure_data_dir().join("preset-scan-history.json")
+}
+
+fn load_preset_history() -> PresetHistory {
+    let path = preset_history_file();
+    if path.exists() {
+        if let Ok(data) = fs::read_to_string(&path) {
+            if let Ok(h) = serde_json::from_str(&data) {
+                return h;
+            }
+        }
+    }
+    PresetHistory { scans: vec![] }
+}
+
+fn save_preset_history(history: &PresetHistory) {
+    let path = preset_history_file();
+    if let Ok(json) = serde_json::to_string(&history) {
+        let _ = fs::write(&path, json);
+    }
+}
+
+pub fn save_preset_scan(presets: &[PresetFile], roots: &[String]) -> PresetScanSnapshot {
+    let mut history = load_preset_history();
+    let mut format_counts = std::collections::HashMap::new();
+    let mut total_bytes = 0u64;
+    for p in presets {
+        *format_counts.entry(p.format.clone()).or_insert(0) += 1;
+        total_bytes += p.size;
+    }
+    let snapshot = PresetScanSnapshot {
+        id: gen_id(),
+        timestamp: now_iso(),
+        preset_count: presets.len(),
+        total_bytes,
+        format_counts,
+        presets: presets.to_vec(),
+        roots: roots.to_vec(),
+    };
+    history.scans.insert(0, snapshot.clone());
+    if history.scans.len() > 50 {
+        history.scans.truncate(50);
+    }
+    save_preset_history(&history);
+    snapshot
+}
+
+pub fn get_preset_scans() -> Vec<PresetScanSummary> {
+    let history = load_preset_history();
+    history
+        .scans
+        .iter()
+        .map(|s| PresetScanSummary {
+            id: s.id.clone(),
+            timestamp: s.timestamp.clone(),
+            preset_count: s.preset_count,
+            total_bytes: s.total_bytes,
+            format_counts: s.format_counts.clone(),
+            roots: s.roots.clone(),
+        })
+        .collect()
+}
+
+pub fn get_preset_scan_detail(id: &str) -> Option<PresetScanSnapshot> {
+    let history = load_preset_history();
+    history.scans.into_iter().find(|s| s.id == id)
+}
+
+pub fn delete_preset_scan(id: &str) {
+    let mut history = load_preset_history();
+    history.scans.retain(|s| s.id != id);
+    save_preset_history(&history);
+}
+
+pub fn clear_preset_history() {
+    save_preset_history(&PresetHistory { scans: vec![] });
+}
+
+pub fn get_latest_preset_scan() -> Option<PresetScanSnapshot> {
+    let history = load_preset_history();
+    history.scans.into_iter().next()
+}
+
+pub fn diff_preset_scans(old_id: &str, new_id: &str) -> Option<PresetScanDiff> {
+    let history = load_preset_history();
+    let old_scan = history.scans.iter().find(|s| s.id == old_id)?.clone();
+    let new_scan = history.scans.iter().find(|s| s.id == new_id)?.clone();
+
+    let old_paths: std::collections::HashSet<&str> =
+        old_scan.presets.iter().map(|p| p.path.as_str()).collect();
+    let new_paths: std::collections::HashSet<&str> =
+        new_scan.presets.iter().map(|p| p.path.as_str()).collect();
+
+    let added: Vec<PresetFile> = new_scan
+        .presets
+        .iter()
+        .filter(|p| !old_paths.contains(p.path.as_str()))
+        .cloned()
+        .collect();
+
+    let removed: Vec<PresetFile> = old_scan
+        .presets
+        .iter()
+        .filter(|p| !new_paths.contains(p.path.as_str()))
+        .cloned()
+        .collect();
+
+    Some(PresetScanDiff {
+        old_scan: PresetScanSummary {
+            id: old_scan.id.clone(),
+            timestamp: old_scan.timestamp.clone(),
+            preset_count: old_scan.preset_count,
+            total_bytes: old_scan.total_bytes,
+            format_counts: old_scan.format_counts.clone(),
+            roots: old_scan.roots.clone(),
+        },
+        new_scan: PresetScanSummary {
+            id: new_scan.id.clone(),
+            timestamp: new_scan.timestamp.clone(),
+            preset_count: new_scan.preset_count,
             total_bytes: new_scan.total_bytes,
             format_counts: new_scan.format_counts.clone(),
             roots: new_scan.roots.clone(),
