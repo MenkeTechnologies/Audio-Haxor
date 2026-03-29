@@ -1,5 +1,4 @@
 pub mod audio_scanner;
-pub mod audio_server;
 pub mod history;
 pub mod kvr;
 pub mod scanner;
@@ -26,8 +25,6 @@ struct AudioScanState {
     scanning: AtomicBool,
     stop_scan: AtomicBool,
 }
-
-struct AudioServerPort(u16);
 
 // ── Plugin update types ──
 
@@ -377,16 +374,6 @@ fn get_audio_metadata(file_path: String) -> audio_scanner::AudioMetadata {
     audio_scanner::get_audio_metadata(&file_path)
 }
 
-#[tauri::command]
-fn get_audio_file_url(app: AppHandle, file_path: String) -> Result<String, String> {
-    let port = app.state::<AudioServerPort>().0;
-    Ok(format!(
-        "http://127.0.0.1:{}/audio?path={}",
-        port,
-        urlencoding::encode(&file_path)
-    ))
-}
-
 // Audio history commands
 #[tauri::command]
 fn audio_history_save(samples: Vec<AudioSample>) -> history::AudioScanSnapshot {
@@ -468,11 +455,8 @@ async fn open_audio_folder(file_path: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let port = audio_server::start();
-
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .manage(AudioServerPort(port))
         .manage(ScanState {
             scanning: AtomicBool::new(false),
             stop_scan: AtomicBool::new(false),
@@ -503,7 +487,6 @@ pub fn run() {
             scan_audio_samples,
             stop_audio_scan,
             get_audio_metadata,
-            get_audio_file_url,
             audio_history_save,
             audio_history_get_scans,
             audio_history_get_detail,

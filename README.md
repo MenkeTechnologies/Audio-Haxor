@@ -213,7 +213,6 @@ src-tauri/
     lib.rs             -- IPC command handlers + app setup
     scanner.rs         -- Plugin filesystem scanner (VST2/VST3/AU)
     audio_scanner.rs   -- Audio sample discovery + metadata extraction
-    audio_server.rs    -- Local HTTP server for audio streaming (legacy)
     history.rs         -- Scan history persistence + diff engine
     kvr.rs             -- KVR Audio scraper + version checker
   Cargo.toml           -- Rust dependencies
@@ -221,15 +220,8 @@ src-tauri/
 
 frontend/
   index.html           -- Single-file cyberpunk UI (HTML/CSS/JS)
-  main.js              -- Electron main process (legacy, unused by Tauri)
-  preload.js           -- Context bridge (legacy, unused by Tauri)
-  scanner.js           -- Plugin scanner JS (legacy, unused by Tauri)
-  scanner-worker.js    -- Scanner worker thread (legacy, unused by Tauri)
-  update-worker.js     -- Update checker worker (legacy, unused by Tauri)
-  history.js           -- History module JS (legacy, unused by Tauri)
 
-test/                  -- Unit tests (node --test)
-  history.test.js      -- History CRUD, diff, limits
+test/                  -- Unit tests
   scanner.test.js      -- Plugin type mapping, size formatting
   update-worker.test.js -- Version comparison, KVR URL builder
 ```

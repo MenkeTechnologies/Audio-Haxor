@@ -1576,7 +1576,6 @@
       },
       openAudioFolder: (path) => invoke('open_audio_folder', { filePath: path }),
       getAudioMetadata: (filePath) => invoke('get_audio_metadata', { filePath }),
-      getAudioFileUrl: (filePath) => invoke('get_audio_file_url', { filePath }),
       // Audio history
       saveAudioScan: (samples) => invoke('audio_history_save', { samples }),
       getAudioScans: () => invoke('audio_history_get_scans'),
