@@ -469,6 +469,86 @@
       border-radius: 50%;
     }
 
+    .settings-select {
+      padding: 6px 12px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      min-width: 120px;
+    }
+    .settings-select:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan-dim);
+      outline: none;
+    }
+
+    .settings-range-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .settings-range {
+      -webkit-appearance: none;
+      width: 140px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+    }
+    .settings-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 6px var(--cyan-glow);
+      cursor: pointer;
+    }
+
+    .settings-range-value {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 12px;
+      color: var(--cyan);
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .settings-confirm {
+      font-size: 11px;
+      color: var(--green);
+      margin-left: 8px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .settings-confirm.show {
+      opacity: 1;
+    }
+
+    .settings-textarea {
+      width: 240px;
+      padding: 8px 10px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--cyan);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      resize: vertical;
+      outline: none;
+    }
+    .settings-textarea:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan-dim);
+    }
+    .settings-textarea::placeholder {
+      color: var(--text-muted);
+    }
+
     /* Stats bar */
     .stats-bar {
       display: flex; gap: 24px; align-items: center;
@@ -1880,6 +1960,118 @@
         </div>
 
         <div class="settings-section">
+          <h2 class="settings-heading">Scanning</h2>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Plugin Scan Directories</span>
+              <span class="settings-desc">Additional directories to scan for plugins (one per line)</span>
+            </div>
+            <div class="settings-control">
+              <textarea class="settings-textarea" id="settingCustomDirs" rows="3" placeholder="/path/to/plugins&#10;/another/path" data-action="settingCustomDirs"></textarea>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Default Plugin Type Filter</span>
+              <span class="settings-desc">Plugin type to show by default after scanning</span>
+            </div>
+            <div class="settings-control">
+              <select class="settings-select" id="settingDefaultTypeFilter" data-action="settingDefaultTypeFilter">
+                <option value="all">All Types</option>
+                <option value="VST2">VST2</option>
+                <option value="VST3">VST3</option>
+                <option value="AU">Audio Units</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Auto-Scan on Launch</span>
+              <span class="settings-desc">Automatically scan for plugins when the app starts</span>
+            </div>
+            <div class="settings-control">
+              <button class="settings-toggle" id="settingAutoScan" data-action="settingToggleAutoScan">
+                <span class="settings-toggle-label" id="settingAutoScanLabel">Off</span>
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+              </button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Auto-Check Updates on Launch</span>
+              <span class="settings-desc">Automatically check for plugin updates after scanning</span>
+            </div>
+            <div class="settings-control">
+              <button class="settings-toggle" id="settingAutoUpdate" data-action="settingToggleAutoUpdate">
+                <span class="settings-toggle-label" id="settingAutoUpdateLabel">Off</span>
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="settings-heading">Performance</h2>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Table Page Size</span>
+              <span class="settings-desc">Number of rows to render per page in audio/DAW tables</span>
+            </div>
+            <div class="settings-control">
+              <div class="settings-range-wrap">
+                <input type="range" class="settings-range" id="settingPageSize" min="100" max="2000" step="100" value="500" data-action="settingPageSize">
+                <span class="settings-range-value" id="settingPageSizeValue">500</span>
+              </div>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">UI Update Throttle</span>
+              <span class="settings-desc">Minimum ms between DOM updates during scans (lower = smoother, higher = faster)</span>
+            </div>
+            <div class="settings-control">
+              <div class="settings-range-wrap">
+                <input type="range" class="settings-range" id="settingFlushInterval" min="100" max="1000" step="50" value="300" data-action="settingFlushInterval">
+                <span class="settings-range-value" id="settingFlushIntervalValue">300</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="settings-heading">Sorting</h2>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Default Plugin Sort</span>
+              <span class="settings-desc">How plugins are ordered after scanning</span>
+            </div>
+            <div class="settings-control">
+              <select class="settings-select" id="settingPluginSort" data-action="settingPluginSort">
+                <option value="name-asc">Name A-Z</option>
+                <option value="name-desc">Name Z-A</option>
+                <option value="type">By Type</option>
+                <option value="manufacturer">By Manufacturer</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Default Audio Sort</span>
+              <span class="settings-desc">How audio samples are ordered after scanning</span>
+            </div>
+            <div class="settings-control">
+              <select class="settings-select" id="settingAudioSort" data-action="settingAudioSort">
+                <option value="name">Name</option>
+                <option value="format">Format</option>
+                <option value="size">Size</option>
+                <option value="modified">Modified Date</option>
+                <option value="directory">Path</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <h2 class="settings-heading">Data</h2>
           <div class="settings-row">
             <div class="settings-label">
@@ -1994,6 +2186,8 @@
         case 'settingClearAllHistory': settingClearAllHistory(); break;
         case 'settingClearKvrCache': settingClearKvrCache(); break;
         case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;
+        case 'settingToggleAutoScan': settingToggleAutoScan(); break;
+        case 'settingToggleAutoUpdate': settingToggleAutoUpdate(); break;
       }
     });
     document.addEventListener('input', (e) => {
@@ -2001,13 +2195,22 @@
       if (action === 'filterPlugins') filterPlugins();
       else if (action === 'filterAudioSamples') filterAudioSamples();
       else if (action === 'filterDawProjects') filterDawProjects();
+      else if (action === 'settingPageSize') settingUpdatePageSize(e.target.value);
+      else if (action === 'settingFlushInterval') settingUpdateFlushInterval(e.target.value);
     });
     document.addEventListener('change', (e) => {
       const action = e.target.dataset.action;
       if (action === 'filterPlugins') filterPlugins();
       else if (action === 'filterAudioSamples') filterAudioSamples();
       else if (action === 'filterDawProjects') filterDawProjects();
+      else if (action === 'settingDefaultTypeFilter') settingSaveSelect('defaultTypeFilter', e.target.value);
+      else if (action === 'settingPluginSort') settingSaveSelect('pluginSort', e.target.value);
+      else if (action === 'settingAudioSort') settingSaveSelect('audioSort', e.target.value);
+      else if (action === 'settingCustomDirs') settingSaveCustomDirs();
     });
+    document.addEventListener('blur', (e) => {
+      if (e.target.dataset.action === 'settingCustomDirs') settingSaveCustomDirs();
+    }, true);
 
     window.vstUpdater = {
       getVersion: () => invoke('get_version'),
@@ -2652,28 +2855,120 @@
     }
 
     async function settingClearKvrCache() {
-      // Clear by writing empty cache
       await window.vstUpdater.updateKvrCache([]);
     }
 
+    function settingToggleAutoScan() {
+      const current = localStorage.getItem('autoScan') === 'on';
+      localStorage.setItem('autoScan', current ? 'off' : 'on');
+      refreshSettingsUI();
+    }
+
+    function settingToggleAutoUpdate() {
+      const current = localStorage.getItem('autoUpdate') === 'on';
+      localStorage.setItem('autoUpdate', current ? 'off' : 'on');
+      refreshSettingsUI();
+    }
+
+    function settingUpdatePageSize(val) {
+      document.getElementById('settingPageSizeValue').textContent = val;
+      localStorage.setItem('pageSize', val);
+      AUDIO_PAGE_SIZE = parseInt(val, 10);
+      DAW_PAGE_SIZE = parseInt(val, 10);
+    }
+
+    function settingUpdateFlushInterval(val) {
+      document.getElementById('settingFlushIntervalValue').textContent = val;
+      localStorage.setItem('flushInterval', val);
+    }
+
+    function settingSaveSelect(key, value) {
+      localStorage.setItem(key, value);
+    }
+
+    function settingSaveCustomDirs() {
+      const val = document.getElementById('settingCustomDirs').value.trim();
+      localStorage.setItem('customDirs', val);
+    }
+
+    function getSettingValue(key, defaultVal) {
+      return localStorage.getItem(key) || defaultVal;
+    }
+
     function refreshSettingsUI() {
+      // Theme
       const theme = document.documentElement.getAttribute('data-theme') || 'dark';
       const themeBtn = document.getElementById('settingTheme');
       const themeLabel = document.getElementById('settingThemeLabel');
       themeBtn.classList.toggle('active', theme === 'light');
       themeLabel.textContent = theme === 'light' ? 'Light' : 'Dark';
 
+      // CRT
       const crtOn = localStorage.getItem('crtEffects') !== 'off';
       const crtBtn = document.getElementById('settingCrt');
       const crtLabel = document.getElementById('settingCrtLabel');
       crtBtn.classList.toggle('active', crtOn);
       crtLabel.textContent = crtOn ? 'On' : 'Off';
 
-      // Color scheme buttons
+      // Color scheme
       const currentScheme = localStorage.getItem('colorScheme') || 'cyberpunk';
       document.querySelectorAll('.scheme-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.scheme === currentScheme);
       });
+
+      // Auto-scan
+      const autoScan = localStorage.getItem('autoScan') === 'on';
+      const autoScanBtn = document.getElementById('settingAutoScan');
+      const autoScanLabel = document.getElementById('settingAutoScanLabel');
+      if (autoScanBtn) {
+        autoScanBtn.classList.toggle('active', autoScan);
+        autoScanLabel.textContent = autoScan ? 'On' : 'Off';
+      }
+
+      // Auto-update
+      const autoUpdate = localStorage.getItem('autoUpdate') === 'on';
+      const autoUpdateBtn = document.getElementById('settingAutoUpdate');
+      const autoUpdateLabel = document.getElementById('settingAutoUpdateLabel');
+      if (autoUpdateBtn) {
+        autoUpdateBtn.classList.toggle('active', autoUpdate);
+        autoUpdateLabel.textContent = autoUpdate ? 'On' : 'Off';
+      }
+
+      // Page size
+      const pageSize = getSettingValue('pageSize', '500');
+      const pageSizeEl = document.getElementById('settingPageSize');
+      const pageSizeValEl = document.getElementById('settingPageSizeValue');
+      if (pageSizeEl) {
+        pageSizeEl.value = pageSize;
+        pageSizeValEl.textContent = pageSize;
+      }
+
+      // Flush interval
+      const flush = getSettingValue('flushInterval', '300');
+      const flushEl = document.getElementById('settingFlushInterval');
+      const flushValEl = document.getElementById('settingFlushIntervalValue');
+      if (flushEl) {
+        flushEl.value = flush;
+        flushValEl.textContent = flush;
+      }
+
+      // Selects
+      const typeFilter = getSettingValue('defaultTypeFilter', 'all');
+      const typeFilterEl = document.getElementById('settingDefaultTypeFilter');
+      if (typeFilterEl) typeFilterEl.value = typeFilter;
+
+      const pluginSort = getSettingValue('pluginSort', 'name-asc');
+      const pluginSortEl = document.getElementById('settingPluginSort');
+      if (pluginSortEl) pluginSortEl.value = pluginSort;
+
+      const audioSort = getSettingValue('audioSort', 'name');
+      const audioSortEl = document.getElementById('settingAudioSort');
+      if (audioSortEl) audioSortEl.value = audioSort;
+
+      // Custom dirs
+      const customDirs = localStorage.getItem('customDirs') || '';
+      const customDirsEl = document.getElementById('settingCustomDirs');
+      if (customDirsEl) customDirsEl.value = customDirs;
 
       // Version
       const ver = document.getElementById('appVersion')?.textContent || '';
@@ -2695,6 +2990,10 @@
       if (scheme && scheme !== 'cyberpunk') {
         applyColorScheme(scheme);
       }
+      // Restore page sizes
+      const pageSize = parseInt(localStorage.getItem('pageSize') || '500', 10);
+      AUDIO_PAGE_SIZE = pageSize;
+      DAW_PAGE_SIZE = pageSize;
     })();
 
     let batchIndex = 0;
@@ -3461,7 +3760,7 @@
       let pendingSamples = [];
       let pendingFound = 0;
       let flushScheduled = false;
-      const FLUSH_INTERVAL = 300; // ms - throttle DOM updates
+      const FLUSH_INTERVAL = parseInt(localStorage.getItem('flushInterval') || '300', 10);
       let lastFlush = 0;
 
       function flushPendingSamples() {
@@ -3657,7 +3956,7 @@
       });
     }
 
-    const AUDIO_PAGE_SIZE = 500;
+    let AUDIO_PAGE_SIZE = parseInt(localStorage.getItem('pageSize') || '500', 10);
     let audioRenderCount = 0;
 
     function renderAudioTable() {
@@ -4049,7 +4348,7 @@
       });
     }
 
-    const DAW_PAGE_SIZE = 500;
+    let DAW_PAGE_SIZE = parseInt(localStorage.getItem('pageSize') || '500', 10);
     let dawRenderCount = 0;
 
     function renderDawTable() {
@@ -4345,6 +4644,22 @@
         }
       } catch (err) {
         console.error('Failed to load last DAW scan:', err);
+      }
+
+      // Apply default type filter from settings
+      const defaultType = localStorage.getItem('defaultTypeFilter');
+      if (defaultType && defaultType !== 'all') {
+        document.getElementById('typeFilter').value = defaultType;
+        filterPlugins();
+      }
+
+      // Auto-scan on launch
+      if (localStorage.getItem('autoScan') === 'on' && allPlugins.length === 0) {
+        scanPlugins().then(() => {
+          if (localStorage.getItem('autoUpdate') === 'on' && allPlugins.length > 0) {
+            checkUpdates();
+          }
+        });
       }
     })();
   </script>

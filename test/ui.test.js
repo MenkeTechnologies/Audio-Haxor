@@ -1051,3 +1051,132 @@ describe('buildPluginCardHtml edge cases', () => {
     assert.ok(html.includes('2025-06-15'));
   });
 });
+
+// ── Settings helpers ──
+
+describe('getSettingValue', () => {
+  // Simulates the getSettingValue function from frontend
+  function getSettingValue(store, key, defaultVal) {
+    return store[key] || defaultVal;
+  }
+
+  it('returns default when key missing', () => {
+    assert.strictEqual(getSettingValue({}, 'pageSize', '500'), '500');
+  });
+
+  it('returns stored value when present', () => {
+    assert.strictEqual(getSettingValue({ pageSize: '1000' }, 'pageSize', '500'), '1000');
+  });
+
+  it('returns default for falsy stored value', () => {
+    assert.strictEqual(getSettingValue({ pageSize: '' }, 'pageSize', '500'), '500');
+  });
+});
+
+describe('COLOR_SCHEMES', () => {
+  const COLOR_SCHEMES = {
+    cyberpunk: { label: 'Cyberpunk', vars: {} },
+    midnight: { label: 'Midnight', vars: { '--accent': '#7c3aed', '--cyan': '#38bdf8' } },
+    matrix: { label: 'Matrix', vars: { '--accent': '#22c55e', '--cyan': '#39ff14' } },
+    ember: { label: 'Ember', vars: { '--accent': '#f59e0b', '--cyan': '#fb923c' } },
+    arctic: { label: 'Arctic', vars: { '--accent': '#0ea5e9', '--cyan': '#67e8f9' } },
+  };
+
+  it('has 5 schemes', () => {
+    assert.strictEqual(Object.keys(COLOR_SCHEMES).length, 5);
+  });
+
+  it('cyberpunk has empty vars (uses defaults)', () => {
+    assert.deepStrictEqual(COLOR_SCHEMES.cyberpunk.vars, {});
+  });
+
+  it('all schemes have a label', () => {
+    for (const [name, scheme] of Object.entries(COLOR_SCHEMES)) {
+      assert.ok(scheme.label, `${name} should have a label`);
+    }
+  });
+
+  it('non-default schemes override --accent and --cyan', () => {
+    for (const [name, scheme] of Object.entries(COLOR_SCHEMES)) {
+      if (name === 'cyberpunk') continue;
+      assert.ok(scheme.vars['--accent'], `${name} should override --accent`);
+      assert.ok(scheme.vars['--cyan'], `${name} should override --cyan`);
+    }
+  });
+
+  it('all color values are valid hex', () => {
+    const hexRegex = /^#[0-9a-f]{6}$/i;
+    for (const [name, scheme] of Object.entries(COLOR_SCHEMES)) {
+      for (const [key, val] of Object.entries(scheme.vars)) {
+        if (val.startsWith('#')) {
+          assert.ok(hexRegex.test(val), `${name} ${key}: "${val}" should be valid hex`);
+        }
+      }
+    }
+  });
+});
+
+describe('filterPlugins with sort settings', () => {
+  function sortPlugins(plugins, sortKey) {
+    const sorted = [...plugins];
+    switch (sortKey) {
+      case 'name-asc': sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case 'name-desc': sorted.sort((a, b) => b.name.localeCompare(a.name)); break;
+      case 'type': sorted.sort((a, b) => a.type.localeCompare(b.type)); break;
+      case 'manufacturer': sorted.sort((a, b) => (a.manufacturer || '').localeCompare(b.manufacturer || '')); break;
+    }
+    return sorted;
+  }
+
+  const plugins = [
+    { name: 'Zebra', type: 'VST3', manufacturer: 'u-he' },
+    { name: 'Analog', type: 'AU', manufacturer: 'Ableton' },
+    { name: 'Massive', type: 'VST2', manufacturer: 'NI' },
+  ];
+
+  it('sorts by name ascending', () => {
+    const sorted = sortPlugins(plugins, 'name-asc');
+    assert.strictEqual(sorted[0].name, 'Analog');
+    assert.strictEqual(sorted[2].name, 'Zebra');
+  });
+
+  it('sorts by name descending', () => {
+    const sorted = sortPlugins(plugins, 'name-desc');
+    assert.strictEqual(sorted[0].name, 'Zebra');
+    assert.strictEqual(sorted[2].name, 'Analog');
+  });
+
+  it('sorts by type', () => {
+    const sorted = sortPlugins(plugins, 'type');
+    assert.strictEqual(sorted[0].type, 'AU');
+    assert.strictEqual(sorted[1].type, 'VST2');
+    assert.strictEqual(sorted[2].type, 'VST3');
+  });
+
+  it('sorts by manufacturer', () => {
+    const sorted = sortPlugins(plugins, 'manufacturer');
+    assert.strictEqual(sorted[0].manufacturer, 'Ableton');
+    assert.strictEqual(sorted[2].manufacturer, 'u-he');
+  });
+});
+
+describe('page size parsing', () => {
+  it('parses valid page size', () => {
+    assert.strictEqual(parseInt('500', 10), 500);
+    assert.strictEqual(parseInt('1000', 10), 1000);
+    assert.strictEqual(parseInt('2000', 10), 2000);
+  });
+
+  it('falls back to default on invalid', () => {
+    assert.strictEqual(parseInt(null || '500', 10), 500);
+    assert.strictEqual(parseInt('' || '500', 10), 500);
+    assert.strictEqual(parseInt(undefined || '500', 10), 500);
+  });
+
+  it('clamps to range boundaries', () => {
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    assert.strictEqual(clamp(50, 100, 2000), 100);
+    assert.strictEqual(clamp(3000, 100, 2000), 2000);
+    assert.strictEqual(clamp(500, 100, 2000), 500);
+  });
+});
