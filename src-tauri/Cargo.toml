@@ -23,6 +23,8 @@ chrono = "0.4"
 urlencoding = "2"
 toml = "0.8"
 tauri-plugin-dialog = "2.6.0"
+libc = "0.2"
+num_cpus = "1"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

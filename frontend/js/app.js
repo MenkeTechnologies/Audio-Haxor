@@ -115,6 +115,9 @@
     filterPlugins();
   }
 
+  updateHeaderInfo();
+  setInterval(updateHeaderInfo, 2000); // refresh process stats every 2s
+
   // Auto-scan on launch
   if (prefs.getItem('autoScan') === 'on' && allPlugins.length === 0) {
     scanPlugins().then(() => {
@@ -124,3 +127,73 @@
     });
   }
 })();
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+}
+
+async function updateHeaderInfo() {
+  try {
+    const stats = await window.vstUpdater.getProcessStats();
+    const memEl = document.getElementById('headerMem');
+    const thrEl = document.getElementById('headerThreads');
+    if (memEl) memEl.textContent = formatBytes(stats.memBytes);
+    if (thrEl) thrEl.textContent = stats.threads;
+  } catch {}
+}
+
+let scanAllRunning = false;
+
+async function scanAll(resume = false) {
+  const btn = document.getElementById('btnScanAll');
+  const stopBtn = document.getElementById('btnStopAll');
+  const resumeBtn = document.getElementById('btnResumeAll');
+  btn.disabled = true;
+  btn.textContent = resume ? 'Resuming...' : 'Scanning...';
+  stopBtn.style.display = '';
+  resumeBtn.style.display = 'none';
+  scanAllRunning = true;
+
+  try {
+    await Promise.all([
+      scanPlugins(resume),
+      scanAudioSamples(resume),
+      scanDawProjects(resume),
+      scanPresets(resume),
+    ]);
+  } catch (err) {
+    console.error('Scan all failed:', err);
+  }
+
+  scanAllRunning = false;
+  btn.disabled = false;
+  btn.innerHTML = '&#9889; Scan All';
+  stopBtn.style.display = 'none';
+
+  // Show resume if any scan was stopped with partial results
+  const hasPartial = allPlugins.length > 0 || allAudioSamples.length > 0 ||
+    allDawProjects.length > 0 || allPresets.length > 0;
+  const anyResumeVisible = document.getElementById('btnResumeScan')?.style.display !== 'none' ||
+    document.getElementById('btnResumeAudio')?.style.display !== 'none' ||
+    document.getElementById('btnResumeDaw')?.style.display !== 'none' ||
+    document.getElementById('btnResumePresets')?.style.display !== 'none';
+  if (anyResumeVisible && hasPartial) {
+    resumeBtn.style.display = '';
+  }
+}
+
+async function stopAll() {
+  await Promise.all([
+    window.vstUpdater.stopScan().catch(() => {}),
+    window.vstUpdater.stopAudioScan().catch(() => {}),
+    window.vstUpdater.stopDawScan().catch(() => {}),
+    window.vstUpdater.stopPresetScan().catch(() => {}),
+  ]);
+}
+
+async function resumeAll() {
+  await scanAll(true);
+}

@@ -1030,6 +1030,88 @@ fn import_plugins_json(file_path: String) -> Result<Vec<PluginInfo>, String> {
         .collect())
 }
 
+// ── Process stats ──
+
+#[tauri::command]
+fn get_process_stats() -> serde_json::Value {
+    let mem_bytes = get_rss_bytes();
+    let threads = get_thread_count();
+    serde_json::json!({
+        "memBytes": mem_bytes,
+        "threads": threads,
+    })
+}
+
+#[cfg(target_os = "macos")]
+#[allow(deprecated)]
+fn get_rss_bytes() -> u64 {
+    unsafe {
+        let mut info: libc::mach_task_basic_info_data_t = std::mem::zeroed();
+        let mut count = (std::mem::size_of::<libc::mach_task_basic_info_data_t>()
+            / std::mem::size_of::<libc::natural_t>()) as u32;
+        let kr = libc::task_info(
+            libc::mach_task_self(),
+            libc::MACH_TASK_BASIC_INFO,
+            &mut info as *mut _ as *mut i32,
+            &mut count,
+        );
+        if kr == libc::KERN_SUCCESS {
+            info.resident_size as u64
+        } else {
+            0
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn get_rss_bytes() -> u64 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("VmRSS:"))
+                .and_then(|l| l.split_whitespace().nth(1))
+                .and_then(|v| v.parse::<u64>().ok())
+                .map(|kb| kb * 1024)
+        })
+        .unwrap_or(0)
+}
+
+#[cfg(target_os = "windows")]
+fn get_rss_bytes() -> u64 {
+    0
+}
+
+fn get_thread_count() -> u32 {
+    #[cfg(target_os = "macos")]
+    {
+        let output = std::process::Command::new("ps")
+            .args(["-M", "-p", &std::process::id().to_string()])
+            .output();
+        if let Ok(out) = output {
+            let s = String::from_utf8_lossy(&out.stdout);
+            return s.lines().count().saturating_sub(1) as u32;
+        }
+        0
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_to_string("/proc/self/status")
+            .ok()
+            .and_then(|s| {
+                s.lines()
+                    .find(|l| l.starts_with("Threads:"))
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .and_then(|v| v.parse().ok())
+            })
+            .unwrap_or(0)
+    }
+    #[cfg(target_os = "windows")]
+    {
+        0
+    }
+}
+
 // ── Preset export/import ──
 
 #[tauri::command]
@@ -1576,6 +1658,12 @@ mod tests {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize rayon thread pool — sized for concurrent scans across all cores
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_cpus::get())
+        .build_global()
+        .ok();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -1662,6 +1750,7 @@ pub fn run() {
             import_presets_json,
             import_audio_json,
             import_daw_json,
+            get_process_stats,
             open_prefs_file,
             get_prefs_path,
         ])

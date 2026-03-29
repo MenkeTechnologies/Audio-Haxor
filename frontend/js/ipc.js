@@ -15,6 +15,9 @@ document.addEventListener('click', (e) => {
   const action = el.dataset.action;
   switch (action) {
     case 'stopCurrentOperation': stopCurrentOperation(); break;
+    case 'scanAll': scanAll(); break;
+    case 'stopAll': stopAll(); break;
+    case 'resumeAll': resumeAll(); break;
     case 'scanPlugins': scanPlugins(); break;
     case 'resumePluginScan': scanPlugins(true); break;
     case 'stopPluginScan': window.vstUpdater.stopScan(); break;
@@ -238,6 +241,7 @@ window.vstUpdater = {
   exportDawJson: (projects, filePath) => invoke('export_daw_json', { projects, filePath }),
   exportDawDsv: (projects, filePath) => invoke('export_daw_dsv', { projects, filePath }),
   // Preferences (file-backed)
+  getProcessStats: () => invoke('get_process_stats'),
   openPrefsFile: () => invoke('open_prefs_file'),
   getPrefsPath: () => invoke('get_prefs_path'),
   prefsGetAll: () => invoke('prefs_get_all'),
