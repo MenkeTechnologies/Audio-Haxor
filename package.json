@@ -9,7 +9,7 @@
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/history.test.js test/scanner.test.js test/update-worker.test.js"
   },
   "keywords": [
     "vst",

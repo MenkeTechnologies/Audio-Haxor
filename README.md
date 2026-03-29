@@ -1,5 +1,3 @@
-[![CI](https://github.com/MenkeTechnologies/universal-plugin-update-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/MenkeTechnologies/universal-plugin-update-manager/actions/workflows/ci.yml)
-
 ```
  ██▓███   ██▓     █    ██   ▄████  ██▓ ███▄    █
 ▓██░  ██▒▓██▒     ██  ▓██▒ ██▒ ▀█▒▓██▒ ██ ▀█   █
@@ -29,6 +27,9 @@
 A high-voltage Electron desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU module it finds, checks the web for the latest versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Cyberpunk CRT interface with neon glow, scanline overlays, and glitch effects.
 
 ---
+
+[![CI](https://github.com/MenkeTechnologies/universal-plugin-update-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/MenkeTechnologies/universal-plugin-update-manager/actions/workflows/ci.yml)
+
 
 ## // VISUAL INTERFACE //
 
