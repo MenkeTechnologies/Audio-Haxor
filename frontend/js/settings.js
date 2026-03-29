@@ -140,17 +140,20 @@ const ROOT_DEFAULTS = {};
 function applyColorScheme(name) {
   const scheme = COLOR_SCHEMES[name];
   if (!scheme) return;
-  const root = document.documentElement.style;
-  // Reset all to defaults first
-  for (const [k, v] of Object.entries(ROOT_DEFAULTS)) {
-    root.setProperty(k, v);
-  }
-  // Apply scheme overrides
-  for (const [k, v] of Object.entries(scheme.vars)) {
-    root.setProperty(k, v);
-  }
   prefs.setItem('colorScheme', name);
   prefs.removeItem('customSchemeVars');
+  // In light mode, only save the preference — don't apply inline vars
+  // that would override [data-theme="light"] CSS
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (!isLight) {
+    const root = document.documentElement.style;
+    for (const [k, v] of Object.entries(ROOT_DEFAULTS)) {
+      root.setProperty(k, v);
+    }
+    for (const [k, v] of Object.entries(scheme.vars)) {
+      root.setProperty(k, v);
+    }
+  }
   refreshSettingsUI();
 }
 
@@ -192,16 +195,20 @@ function applyCustomVars(vars) {
   }
 }
 
-function applyCustomScheme() {
-  const vars = readCustomColorsFromPickers();
-  // Reset to defaults first
+function applySchemeVarsIfDark(vars) {
+  if (document.documentElement.getAttribute('data-theme') === 'light') return;
+  const root = document.documentElement.style;
   for (const [k, v] of Object.entries(ROOT_DEFAULTS)) {
-    document.documentElement.style.setProperty(k, v);
+    root.setProperty(k, v);
   }
   applyCustomVars(vars);
+}
+
+function applyCustomScheme() {
+  const vars = readCustomColorsFromPickers();
   prefs.setItem('colorScheme', 'custom');
   prefs.setItem('customSchemeVars', JSON.stringify(vars));
-  // Deselect preset buttons
+  applySchemeVarsIfDark(vars);
   document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
   refreshCustomPresetUI();
 }
@@ -212,10 +219,9 @@ function saveCustomScheme() {
   const name = 'Custom ' + (presets.length + 1);
   presets.push({ name, vars });
   prefs.setItem('customSchemePresets', JSON.stringify(presets));
-  // Apply it immediately
-  applyCustomVars(vars);
   prefs.setItem('colorScheme', 'custom-' + (presets.length - 1));
   prefs.setItem('customSchemeVars', JSON.stringify(vars));
+  applySchemeVarsIfDark(vars);
   document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
   refreshCustomPresetUI();
 }
@@ -224,18 +230,13 @@ function loadCustomPreset(idx) {
   const presets = JSON.parse(prefs.getItem('customSchemePresets') || '[]');
   const preset = presets[idx];
   if (!preset) return;
-  // Load into pickers
   for (const input of document.querySelectorAll('.custom-color-input')) {
     const v = input.dataset.var;
     if (preset.vars[v]) input.value = preset.vars[v];
   }
-  // Apply
-  for (const [k, v] of Object.entries(ROOT_DEFAULTS)) {
-    document.documentElement.style.setProperty(k, v);
-  }
-  applyCustomVars(preset.vars);
   prefs.setItem('colorScheme', 'custom-' + idx);
   prefs.setItem('customSchemeVars', JSON.stringify(preset.vars));
+  applySchemeVarsIfDark(preset.vars);
   document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
   refreshCustomPresetUI();
 }
