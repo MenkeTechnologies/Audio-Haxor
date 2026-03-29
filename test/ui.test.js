@@ -1273,6 +1273,79 @@ describe('filterPlugins with cached search', () => {
   });
 });
 
+describe('hexToRgba', () => {
+  function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  it('converts red to rgba', () => {
+    assert.strictEqual(hexToRgba('#ff0000', 0.5), 'rgba(255, 0, 0, 0.5)');
+  });
+
+  it('converts black to rgba', () => {
+    assert.strictEqual(hexToRgba('#000000', 1), 'rgba(0, 0, 0, 1)');
+  });
+
+  it('converts white to rgba', () => {
+    assert.strictEqual(hexToRgba('#ffffff', 0.4), 'rgba(255, 255, 255, 0.4)');
+  });
+
+  it('converts cyberpunk accent', () => {
+    assert.strictEqual(hexToRgba('#ff2a6d', 0.4), 'rgba(255, 42, 109, 0.4)');
+  });
+
+  it('handles zero alpha', () => {
+    assert.strictEqual(hexToRgba('#05d9e8', 0), 'rgba(5, 217, 232, 0)');
+  });
+});
+
+describe('custom scheme var generation', () => {
+  function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function buildCustomVars(inputs) {
+    const vars = {};
+    for (const { var: v, value: hex } of inputs) {
+      vars[v] = hex;
+      if (v === '--accent') {
+        vars['--accent-light'] = hex;
+        vars['--accent-glow'] = hexToRgba(hex, 0.4);
+      } else if (v === '--cyan') {
+        vars['--cyan-glow'] = hexToRgba(hex, 0.4);
+        vars['--cyan-dim'] = hexToRgba(hex, 0.15);
+      }
+    }
+    return vars;
+  }
+
+  it('generates glow variants for accent', () => {
+    const vars = buildCustomVars([{ var: '--accent', value: '#ff0000' }]);
+    assert.strictEqual(vars['--accent'], '#ff0000');
+    assert.strictEqual(vars['--accent-light'], '#ff0000');
+    assert.strictEqual(vars['--accent-glow'], 'rgba(255, 0, 0, 0.4)');
+  });
+
+  it('generates glow and dim for cyan', () => {
+    const vars = buildCustomVars([{ var: '--cyan', value: '#00ff00' }]);
+    assert.strictEqual(vars['--cyan'], '#00ff00');
+    assert.strictEqual(vars['--cyan-glow'], 'rgba(0, 255, 0, 0.4)');
+    assert.strictEqual(vars['--cyan-dim'], 'rgba(0, 255, 0, 0.15)');
+  });
+
+  it('passes through non-special vars unchanged', () => {
+    const vars = buildCustomVars([{ var: '--red', value: '#dc2626' }]);
+    assert.strictEqual(vars['--red'], '#dc2626');
+    assert.strictEqual(vars['--red-glow'], undefined);
+  });
+});
+
 describe('page size parsing', () => {
   it('parses valid page size', () => {
     assert.strictEqual(parseInt('500', 10), 500);

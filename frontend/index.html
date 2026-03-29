@@ -529,6 +529,84 @@
       opacity: 1;
     }
 
+    .custom-color-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 8px;
+    }
+
+    .custom-color-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    .custom-color-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+    }
+
+    .custom-color-input {
+      -webkit-appearance: none;
+      width: 48px;
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      background: var(--bg-secondary);
+      cursor: pointer;
+      padding: 2px;
+    }
+    .custom-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+    .custom-color-input::-webkit-color-swatch { border: none; border-radius: 1px; }
+
+    .custom-scheme-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .custom-scheme-saved {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .custom-preset-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-size: 11px;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .custom-preset-chip:hover {
+      border-color: var(--cyan);
+    }
+    .custom-preset-chip.active {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan-dim);
+    }
+    .custom-preset-chip-dots {
+      display: flex;
+      gap: 2px;
+    }
+    .custom-preset-chip-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
     .settings-textarea {
       width: 240px;
       padding: 8px 10px;
@@ -1957,6 +2035,62 @@
               </div>
             </button>
           </div>
+          <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 12px;">
+            <div class="settings-label">
+              <span class="settings-title">Custom Color Scheme</span>
+              <span class="settings-desc">Create your own color scheme by picking colors below</span>
+            </div>
+            <div class="custom-scheme-editor" id="customSchemeEditor">
+              <div class="custom-color-grid">
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Accent</span>
+                  <input type="color" class="custom-color-input" data-var="--accent" value="#ff2a6d">
+                </label>
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Cyan</span>
+                  <input type="color" class="custom-color-input" data-var="--cyan" value="#05d9e8">
+                </label>
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Magenta</span>
+                  <input type="color" class="custom-color-input" data-var="--magenta" value="#d300c5">
+                </label>
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Green</span>
+                  <input type="color" class="custom-color-input" data-var="--green" value="#39ff14">
+                </label>
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Yellow</span>
+                  <input type="color" class="custom-color-input" data-var="--yellow" value="#f9f002">
+                </label>
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Orange</span>
+                  <input type="color" class="custom-color-input" data-var="--orange" value="#ff6b35">
+                </label>
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Red</span>
+                  <input type="color" class="custom-color-input" data-var="--red" value="#ff073a">
+                </label>
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Text</span>
+                  <input type="color" class="custom-color-input" data-var="--text" value="#e0f0ff">
+                </label>
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Background</span>
+                  <input type="color" class="custom-color-input" data-var="--bg-primary" value="#05050a">
+                </label>
+                <label class="custom-color-item">
+                  <span class="custom-color-label">Card BG</span>
+                  <input type="color" class="custom-color-input" data-var="--bg-card" value="#0d0d1a">
+                </label>
+              </div>
+              <div class="custom-scheme-actions">
+                <button class="btn btn-secondary btn-settings-action" data-action="applyCustomScheme">Apply</button>
+                <button class="btn btn-secondary btn-settings-action" data-action="saveCustomScheme">Save as Preset</button>
+                <button class="btn btn-stop btn-settings-action" data-action="deleteCustomSchemes" id="btnDeleteCustom" style="display: none;">Delete Saved</button>
+              </div>
+              <div class="custom-scheme-saved" id="customSchemeSaved"></div>
+            </div>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -2188,6 +2322,10 @@
         case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;
         case 'settingToggleAutoScan': settingToggleAutoScan(); break;
         case 'settingToggleAutoUpdate': settingToggleAutoUpdate(); break;
+        case 'applyCustomScheme': applyCustomScheme(); break;
+        case 'saveCustomScheme': saveCustomScheme(); break;
+        case 'deleteCustomSchemes': deleteCustomSchemes(); break;
+        case 'loadCustomPreset': loadCustomPreset(el.dataset.idx); break;
       }
     });
     document.addEventListener('input', (e) => {
@@ -2871,11 +3009,144 @@
         root.setProperty(k, v);
       }
       localStorage.setItem('colorScheme', name);
+      localStorage.removeItem('customSchemeVars');
       refreshSettingsUI();
     }
 
     function settingColorScheme(name) {
       applyColorScheme(name);
+    }
+
+    // ── Custom Color Schemes ──
+
+    function hexToRgba(hex, alpha) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function readCustomColorsFromPickers() {
+      const vars = {};
+      document.querySelectorAll('.custom-color-input').forEach(input => {
+        const v = input.dataset.var;
+        const hex = input.value;
+        vars[v] = hex;
+        // Auto-generate glow/dim variants for accent and cyan
+        if (v === '--accent') {
+          vars['--accent-light'] = hex;
+          vars['--accent-glow'] = hexToRgba(hex, 0.4);
+        } else if (v === '--cyan') {
+          vars['--cyan-glow'] = hexToRgba(hex, 0.4);
+          vars['--cyan-dim'] = hexToRgba(hex, 0.15);
+        } else if (v === '--magenta') {
+          vars['--magenta-glow'] = hexToRgba(hex, 0.3);
+        } else if (v === '--yellow') {
+          vars['--yellow-glow'] = hexToRgba(hex, 0.2);
+        } else if (v === '--green') {
+          vars['--green-bg'] = hexToRgba(hex, 0.08);
+        } else if (v === '--orange') {
+          vars['--orange-bg'] = hexToRgba(hex, 0.1);
+        } else if (v === '--bg-primary') {
+          // Derive secondary bg slightly lighter
+          const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + 5);
+          const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + 5);
+          const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + 10);
+          vars['--bg-secondary'] = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+          vars['--bg-hover'] = `#${Math.min(255,r+8).toString(16).padStart(2,'0')}${Math.min(255,g+8).toString(16).padStart(2,'0')}${Math.min(255,b+16).toString(16).padStart(2,'0')}`;
+        }
+      });
+      return vars;
+    }
+
+    function applyCustomVars(vars) {
+      const root = document.documentElement.style;
+      for (const [k, v] of Object.entries(vars)) {
+        root.setProperty(k, v);
+      }
+    }
+
+    function applyCustomScheme() {
+      const vars = readCustomColorsFromPickers();
+      // Reset to defaults first
+      for (const [k, v] of Object.entries(ROOT_DEFAULTS)) {
+        document.documentElement.style.setProperty(k, v);
+      }
+      applyCustomVars(vars);
+      localStorage.setItem('colorScheme', 'custom');
+      localStorage.setItem('customSchemeVars', JSON.stringify(vars));
+      // Deselect preset buttons
+      document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
+      refreshCustomPresetUI();
+    }
+
+    function saveCustomScheme() {
+      const vars = readCustomColorsFromPickers();
+      const presets = JSON.parse(localStorage.getItem('customSchemePresets') || '[]');
+      const name = 'Custom ' + (presets.length + 1);
+      presets.push({ name, vars });
+      localStorage.setItem('customSchemePresets', JSON.stringify(presets));
+      // Apply it immediately
+      applyCustomVars(vars);
+      localStorage.setItem('colorScheme', 'custom-' + (presets.length - 1));
+      localStorage.setItem('customSchemeVars', JSON.stringify(vars));
+      document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
+      refreshCustomPresetUI();
+    }
+
+    function loadCustomPreset(idx) {
+      const presets = JSON.parse(localStorage.getItem('customSchemePresets') || '[]');
+      const preset = presets[idx];
+      if (!preset) return;
+      // Load into pickers
+      for (const input of document.querySelectorAll('.custom-color-input')) {
+        const v = input.dataset.var;
+        if (preset.vars[v]) input.value = preset.vars[v];
+      }
+      // Apply
+      for (const [k, v] of Object.entries(ROOT_DEFAULTS)) {
+        document.documentElement.style.setProperty(k, v);
+      }
+      applyCustomVars(preset.vars);
+      localStorage.setItem('colorScheme', 'custom-' + idx);
+      localStorage.setItem('customSchemeVars', JSON.stringify(preset.vars));
+      document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
+      refreshCustomPresetUI();
+    }
+
+    function deleteCustomSchemes() {
+      if (!confirm('Delete all saved custom color schemes?')) return;
+      localStorage.removeItem('customSchemePresets');
+      refreshCustomPresetUI();
+    }
+
+    function refreshCustomPresetUI() {
+      const container = document.getElementById('customSchemeSaved');
+      const deleteBtn = document.getElementById('btnDeleteCustom');
+      const presets = JSON.parse(localStorage.getItem('customSchemePresets') || '[]');
+      const currentScheme = localStorage.getItem('colorScheme') || 'cyberpunk';
+
+      if (presets.length === 0) {
+        container.innerHTML = '';
+        deleteBtn.style.display = 'none';
+        return;
+      }
+
+      deleteBtn.style.display = '';
+      container.innerHTML = presets.map((p, i) => {
+        const active = currentScheme === 'custom-' + i ? ' active' : '';
+        const accent = p.vars['--accent'] || '#ff2a6d';
+        const cyan = p.vars['--cyan'] || '#05d9e8';
+        const magenta = p.vars['--magenta'] || '#d300c5';
+        return `<button class="custom-preset-chip${active}" data-action="loadCustomPreset" data-idx="${i}">
+          <span class="custom-preset-chip-dots">
+            <span class="custom-preset-chip-dot" style="background:${accent}"></span>
+            <span class="custom-preset-chip-dot" style="background:${cyan}"></span>
+            <span class="custom-preset-chip-dot" style="background:${magenta}"></span>
+          </span>
+          ${escapeHtml(p.name)}
+        </button>`;
+      }).join('');
     }
 
     function settingToggleTheme() {
@@ -3044,6 +3315,18 @@
       const customDirsEl = document.getElementById('settingCustomDirs');
       if (customDirsEl) customDirsEl.value = customDirs;
 
+      // Custom scheme presets
+      refreshCustomPresetUI();
+
+      // Load current custom colors into pickers
+      const customVars = JSON.parse(localStorage.getItem('customSchemeVars') || '{}');
+      if (Object.keys(customVars).length > 0) {
+        document.querySelectorAll('.custom-color-input').forEach(input => {
+          const v = input.dataset.var;
+          if (customVars[v] && customVars[v].startsWith('#')) input.value = customVars[v];
+        });
+      }
+
       // Version
       const ver = document.getElementById('appVersion')?.textContent || '';
       const settingsVer = document.getElementById('settingsVersion');
@@ -3061,7 +3344,13 @@
         applyCrtSetting(false);
       }
       const scheme = localStorage.getItem('colorScheme');
-      if (scheme && scheme !== 'cyberpunk') {
+      if (scheme && scheme.startsWith('custom')) {
+        // Restore custom scheme from saved vars
+        const customVars = JSON.parse(localStorage.getItem('customSchemeVars') || '{}');
+        if (Object.keys(customVars).length > 0) {
+          applyCustomVars(customVars);
+        }
+      } else if (scheme && scheme !== 'cyberpunk') {
         applyColorScheme(scheme);
       }
       // Restore page sizes
