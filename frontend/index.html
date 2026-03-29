@@ -3742,14 +3742,15 @@
       if (!table) return;
       const tableId = table.id;
 
-      // Defer to next frame so layout is settled before reading offsetWidth
       requestAnimationFrame(() => {
-        const ths = table.querySelectorAll('thead th');
+        const ths = Array.from(table.querySelectorAll('thead th'));
+        const tableWidth = table.offsetWidth;
+        if (tableWidth <= 0) return;
 
-        // Restore saved widths or snapshot current layout to pixels
+        // Restore saved percentage widths or snapshot current layout
         const saved = loadColumnWidths(tableId);
-        if (saved && saved.length === ths.length) {
-          ths.forEach((th, i) => { th.style.width = saved[i] + 'px'; });
+        if (saved && saved.length === ths.length && saved.every(w => w > 0)) {
+          ths.forEach((th, i) => { th.style.width = (saved[i] / 100 * tableWidth) + 'px'; });
         } else {
           ths.forEach(th => { th.style.width = th.offsetWidth + 'px'; });
         }
@@ -3799,10 +3800,12 @@
     function saveColumnWidths(tableId) {
       const table = document.getElementById(tableId);
       if (!table) return;
-      const widths = Array.from(table.querySelectorAll('thead th')).map(th => th.offsetWidth);
+      const tableWidth = table.offsetWidth;
+      if (tableWidth <= 0) return;
+      const pcts = Array.from(table.querySelectorAll('thead th')).map(th => +(th.offsetWidth / tableWidth * 100).toFixed(2));
       try {
         const allWidths = JSON.parse(localStorage.getItem('columnWidths') || '{}');
-        allWidths[tableId] = widths;
+        allWidths[tableId] = pcts;
         localStorage.setItem('columnWidths', JSON.stringify(allWidths));
       } catch {}
     }
