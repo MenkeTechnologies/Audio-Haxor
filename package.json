@@ -22,5 +22,8 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2"
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.6.0"
+  }
 }

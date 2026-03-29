@@ -11,6 +11,29 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 
+// ── Export / Import types ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ExportPayload {
+    version: String,
+    exported_at: String,
+    plugins: Vec<ExportPlugin>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ExportPlugin {
+    name: String,
+    #[serde(rename = "type")]
+    plugin_type: String,
+    version: String,
+    manufacturer: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    manufacturer_url: Option<String>,
+    path: String,
+    size: String,
+    modified: String,
+}
+
 // Shared state for cancellation
 struct ScanState {
     scanning: AtomicBool,
@@ -554,12 +577,89 @@ async fn open_audio_folder(file_path: String) -> Result<(), String> {
     open_plugin_folder(file_path).await
 }
 
+// ── Export / Import commands ──
+
+fn plugins_to_export(plugins: &[PluginInfo]) -> Vec<ExportPlugin> {
+    plugins
+        .iter()
+        .map(|p| ExportPlugin {
+            name: p.name.clone(),
+            plugin_type: p.plugin_type.clone(),
+            version: p.version.clone(),
+            manufacturer: p.manufacturer.clone(),
+            manufacturer_url: p.manufacturer_url.clone(),
+            path: p.path.clone(),
+            size: p.size.clone(),
+            modified: p.modified.clone(),
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn export_plugins_json(plugins: Vec<PluginInfo>, file_path: String) -> Result<(), String> {
+    let payload = ExportPayload {
+        version: "1.0".into(),
+        exported_at: chrono::Utc::now().to_rfc3339(),
+        plugins: plugins_to_export(&plugins),
+    };
+    let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
+    std::fs::write(&file_path, json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn export_plugins_csv(plugins: Vec<PluginInfo>, file_path: String) -> Result<(), String> {
+    let mut csv = String::from("Name,Type,Version,Manufacturer,Manufacturer URL,Path,Size,Modified\n");
+    for p in &plugins {
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{},{}\n",
+            csv_escape(&p.name),
+            csv_escape(&p.plugin_type),
+            csv_escape(&p.version),
+            csv_escape(&p.manufacturer),
+            csv_escape(p.manufacturer_url.as_deref().unwrap_or("")),
+            csv_escape(&p.path),
+            csv_escape(&p.size),
+            csv_escape(&p.modified),
+        ));
+    }
+    std::fs::write(&file_path, csv).map_err(|e| e.to_string())
+}
+
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+#[tauri::command]
+fn import_plugins_json(file_path: String) -> Result<Vec<PluginInfo>, String> {
+    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+    let payload: ExportPayload = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+    Ok(payload
+        .plugins
+        .into_iter()
+        .map(|p| PluginInfo {
+            name: p.name,
+            path: p.path,
+            plugin_type: p.plugin_type,
+            version: p.version,
+            manufacturer: p.manufacturer,
+            manufacturer_url: p.manufacturer_url,
+            size: p.size,
+            modified: p.modified,
+        })
+        .collect())
+}
+
 // ── App setup ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(ScanState {
             scanning: AtomicBool::new(false),
             stop_scan: AtomicBool::new(false),
@@ -614,6 +714,9 @@ pub fn run() {
             open_update_url,
             open_plugin_folder,
             open_audio_folder,
+            export_plugins_json,
+            export_plugins_csv,
+            import_plugins_json,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

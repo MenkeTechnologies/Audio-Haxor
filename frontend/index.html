@@ -36,6 +36,40 @@
       --border-glow: #2a1a4e;
     }
 
+    [data-theme="light"] {
+      --bg-primary: #f0f2f5;
+      --bg-secondary: #e4e7ec;
+      --bg-card: #ffffff;
+      --bg-hover: #f7f8fa;
+      --accent: #d6196e;
+      --accent-light: #e84d8a;
+      --accent-glow: rgba(214, 25, 110, 0.15);
+      --cyan: #0891b2;
+      --cyan-glow: rgba(8, 145, 178, 0.2);
+      --cyan-dim: rgba(8, 145, 178, 0.08);
+      --magenta: #a300a3;
+      --magenta-glow: rgba(163, 0, 163, 0.15);
+      --yellow: #a16207;
+      --yellow-glow: rgba(161, 98, 7, 0.1);
+      --green: #15803d;
+      --green-bg: rgba(21, 128, 61, 0.08);
+      --orange: #c2410c;
+      --orange-bg: rgba(194, 65, 12, 0.06);
+      --red: #dc2626;
+      --text: #1e293b;
+      --text-dim: #475569;
+      --text-muted: #94a3b8;
+      --border: #cbd5e1;
+      --border-glow: #a5b4c8;
+    }
+
+    [data-theme="light"] .app::after,
+    [data-theme="light"] .app::before,
+    [data-theme="light"] .crt-scanline,
+    [data-theme="light"] .crt-scanline-v {
+      display: none;
+    }
+
     body {
       font-family: 'Share Tech Mono', 'SF Mono', 'Fira Code', monospace;
       background: var(--bg-primary);
@@ -257,6 +291,12 @@
     .btn-stop:hover {
       background: rgba(255, 7, 58, 0.1);
       box-shadow: 0 0 15px rgba(255, 7, 58, 0.4);
+    }
+
+    .btn-theme {
+      padding: 8px 12px;
+      font-size: 16px;
+      min-width: 38px;
     }
 
     /* Stats bar */
@@ -1351,11 +1391,20 @@
           <button class="btn btn-stop" id="btnStop" data-action="stopCurrentOperation" style="display:none;">
             &#9632; Stop
           </button>
+          <button class="btn btn-secondary" id="btnExport" data-action="exportPlugins" style="display:none;">
+            &#8615; Export
+          </button>
+          <button class="btn btn-secondary" id="btnImport" data-action="importPlugins">
+            &#8613; Import
+          </button>
           <button class="btn btn-secondary" id="btnScan" data-action="scanPlugins">
             &#8635; Scan Plugins
           </button>
           <button class="btn btn-primary" id="btnCheckUpdates" data-action="checkUpdates" disabled>
             &#9889; Check Updates
+          </button>
+          <button class="btn btn-secondary btn-theme" id="btnTheme" data-action="toggleTheme" title="Toggle light/dark theme">
+            &#9788;
           </button>
         </div>
       </div>
@@ -1637,6 +1686,9 @@
         case 'loadMoreDaw': loadMoreDaw(); break;
         case 'runDawDiff': runDawDiff(el.dataset.id); break;
         case 'deleteDawScanEntry': deleteDawScanEntry(el.dataset.id); break;
+        case 'exportPlugins': exportPlugins(); break;
+        case 'importPlugins': importPlugins(); break;
+        case 'toggleTheme': toggleTheme(); break;
       }
     });
     document.addEventListener('input', (e) => {
@@ -1716,6 +1768,10 @@
       // KVR cache
       getKvrCache: () => invoke('kvr_cache_get'),
       updateKvrCache: (entries) => invoke('kvr_cache_update', { entries }),
+      // Export / Import
+      exportJson: (plugins, filePath) => invoke('export_plugins_json', { plugins, filePath }),
+      exportCsv: (plugins, filePath) => invoke('export_plugins_csv', { plugins, filePath }),
+      importJson: (filePath) => invoke('import_plugins_json', { filePath }),
     };
 
     let allPlugins = [];
@@ -2022,6 +2078,7 @@
     }
 
     function renderPlugins(plugins) {
+      updateExportButton();
       const list = document.getElementById('pluginList');
 
       if (plugins.length === 0) {
@@ -2090,6 +2147,90 @@
     function openFolder(pluginPath) {
       window.vstUpdater.openPluginFolder(pluginPath);
     }
+
+    // ── Export button visibility ──
+    function updateExportButton() {
+      document.getElementById('btnExport').style.display = allPlugins.length > 0 ? '' : 'none';
+    }
+
+    // ── Export / Import ──
+
+    async function exportPlugins() {
+      if (allPlugins.length === 0) return;
+
+      const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+      if (!dialogApi) return;
+
+      const filePath = await dialogApi.save({
+        title: 'Export Plugin Inventory',
+        defaultPath: 'plugin-inventory',
+        filters: [
+          { name: 'JSON', extensions: ['json'] },
+          { name: 'CSV', extensions: ['csv'] },
+        ],
+      });
+      if (!filePath) return;
+
+      try {
+        if (filePath.endsWith('.csv')) {
+          await window.vstUpdater.exportCsv(allPlugins, filePath);
+        } else {
+          const path = filePath.endsWith('.json') ? filePath : filePath + '.json';
+          await window.vstUpdater.exportJson(allPlugins, path);
+        }
+      } catch (err) {
+        console.error('Export failed:', err);
+      }
+    }
+
+    async function importPlugins() {
+      const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+      if (!dialogApi) return;
+
+      const selected = await dialogApi.open({
+        title: 'Import Plugin Inventory',
+        multiple: false,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (!selected) return;
+
+      const filePath = typeof selected === 'string' ? selected : selected.path;
+      if (!filePath) return;
+
+      try {
+        const imported = await window.vstUpdater.importJson(filePath);
+        if (imported && imported.length > 0) {
+          allPlugins = imported;
+          document.getElementById('totalCount').textContent = allPlugins.length;
+          document.getElementById('btnCheckUpdates').disabled = false;
+          document.getElementById('toolbar').style.display = 'flex';
+          document.getElementById('btnExport').style.display = '';
+          renderPlugins(allPlugins);
+        }
+      } catch (err) {
+        console.error('Import failed:', err);
+      }
+    }
+
+    // ── Theme toggle ──
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      document.getElementById('btnTheme').innerHTML = next === 'light' ? '&#9790;' : '&#9788;';
+    }
+
+    // Restore saved theme
+    (function restoreTheme() {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.getElementById('btnTheme').innerHTML = '&#9790;';
+      }
+    })();
 
     let batchIndex = 0;
 
