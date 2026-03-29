@@ -1,6 +1,6 @@
 {
   "name": "universal-plugin-update-manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Universal desktop app to scan and update VST/VST3/AU audio plugins",
   "scripts": {
     "tauri": "tauri",

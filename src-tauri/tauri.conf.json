@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/v2/crates/tauri-utils/schema.json",
   "productName": "Universal Plugin Update Manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "identifier": "com.menketechnologies.universal-plugin-update-manager",
   "build": {
     "frontendDist": "../frontend"

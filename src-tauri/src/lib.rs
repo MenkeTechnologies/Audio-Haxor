@@ -180,6 +180,9 @@ async fn check_updates(
     }
     state.stop_updates.store(false, Ordering::SeqCst);
 
+    // Load KVR cache to skip already-checked plugins (resume from previous run)
+    let kvr_cache = history::load_kvr_cache();
+
     let total = plugins.len();
     let _ = app.emit(
         "update-progress",
@@ -212,12 +215,30 @@ async fn check_updates(
             break;
         }
 
-        let update_result = kvr::find_latest_version(
-            &representative.name,
-            &representative.manufacturer,
-            &representative.version,
-        )
-        .await;
+        let cache_key =
+            format!("{}|||{}", representative.manufacturer, representative.name).to_lowercase();
+
+        // Use cached result if available
+        let update_result = if let Some(cached) = kvr_cache.get(&cache_key) {
+            Some(kvr::UpdateResult {
+                latest_version: cached
+                    .latest_version
+                    .clone()
+                    .unwrap_or_else(|| representative.version.clone()),
+                has_update: cached.has_update,
+                update_url: cached.update_url.clone(),
+                kvr_url: cached.kvr_url.clone(),
+                has_platform_download: cached.update_url.is_some(),
+                source: cached.source.clone(),
+            })
+        } else {
+            kvr::find_latest_version(
+                &representative.name,
+                &representative.manufacturer,
+                &representative.version,
+            )
+            .await
+        };
 
         let mut batch_plugins = Vec::new();
         for sibling in siblings {
@@ -264,8 +285,10 @@ async fn check_updates(
             }),
         );
 
-        // Rate limit
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        // Only rate-limit when we actually hit the network
+        if !kvr_cache.contains_key(&cache_key) {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
     }
 
     state.checking.store(false, Ordering::SeqCst);
@@ -620,7 +643,7 @@ fn plugins_to_export(plugins: &[PluginInfo]) -> Vec<ExportPlugin> {
 #[tauri::command]
 fn export_plugins_json(plugins: Vec<PluginInfo>, file_path: String) -> Result<(), String> {
     let payload = ExportPayload {
-        version: "1.0".into(),
+        version: env!("CARGO_PKG_VERSION").into(),
         exported_at: chrono::Utc::now().to_rfc3339(),
         plugins: plugins_to_export(&plugins),
     };
@@ -630,21 +653,22 @@ fn export_plugins_json(plugins: Vec<PluginInfo>, file_path: String) -> Result<()
 
 #[tauri::command]
 fn export_plugins_csv(plugins: Vec<PluginInfo>, file_path: String) -> Result<(), String> {
-    let mut csv = String::from("Name,Type,Version,Manufacturer,Manufacturer URL,Path,Size,Modified\n");
+    let sep = detect_separator(&file_path);
+    let mut out = format!("Name{s}Type{s}Version{s}Manufacturer{s}Manufacturer URL{s}Path{s}Size{s}Modified\n", s = sep);
     for p in &plugins {
-        csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{}\n",
-            csv_escape(&p.name),
-            csv_escape(&p.plugin_type),
-            csv_escape(&p.version),
-            csv_escape(&p.manufacturer),
-            csv_escape(p.manufacturer_url.as_deref().unwrap_or("")),
-            csv_escape(&p.path),
-            csv_escape(&p.size),
-            csv_escape(&p.modified),
+        out.push_str(&format!(
+            "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
+            dsv_escape(&p.name, sep),
+            dsv_escape(&p.plugin_type, sep),
+            dsv_escape(&p.version, sep),
+            dsv_escape(&p.manufacturer, sep),
+            dsv_escape(p.manufacturer_url.as_deref().unwrap_or(""), sep),
+            dsv_escape(&p.path, sep),
+            dsv_escape(&p.size, sep),
+            dsv_escape(&p.modified, sep),
         ));
     }
-    std::fs::write(&file_path, csv).map_err(|e| e.to_string())
+    std::fs::write(&file_path, out).map_err(|e| e.to_string())
 }
 
 fn csv_escape(s: &str) -> String {
@@ -653,6 +677,85 @@ fn csv_escape(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+fn dsv_escape(s: &str, sep: char) -> String {
+    if s.contains(sep) || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+fn detect_separator(file_path: &str) -> char {
+    if file_path.ends_with(".tsv") {
+        '\t'
+    } else {
+        ','
+    }
+}
+
+// ── Audio export ──
+
+#[tauri::command]
+fn export_audio_json(samples: Vec<history::AudioSample>, file_path: String) -> Result<(), String> {
+    let payload = serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "exported_at": chrono::Utc::now().to_rfc3339(),
+        "samples": samples,
+    });
+    let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
+    std::fs::write(&file_path, json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn export_audio_dsv(samples: Vec<history::AudioSample>, file_path: String) -> Result<(), String> {
+    let sep = detect_separator(&file_path);
+    let mut out = format!("Name{s}Format{s}Path{s}Directory{s}Size{s}Modified\n", s = sep);
+    for s in &samples {
+        out.push_str(&format!(
+            "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
+            dsv_escape(&s.name, sep),
+            dsv_escape(&s.format, sep),
+            dsv_escape(&s.path, sep),
+            dsv_escape(&s.directory, sep),
+            dsv_escape(&s.size_formatted, sep),
+            dsv_escape(&s.modified, sep),
+        ));
+    }
+    std::fs::write(&file_path, out).map_err(|e| e.to_string())
+}
+
+// ── DAW export ──
+
+#[tauri::command]
+fn export_daw_json(projects: Vec<history::DawProject>, file_path: String) -> Result<(), String> {
+    let payload = serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "exported_at": chrono::Utc::now().to_rfc3339(),
+        "projects": projects,
+    });
+    let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
+    std::fs::write(&file_path, json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn export_daw_dsv(projects: Vec<history::DawProject>, file_path: String) -> Result<(), String> {
+    let sep = detect_separator(&file_path);
+    let mut out = format!("Name{s}DAW{s}Format{s}Path{s}Directory{s}Size{s}Modified\n", s = sep);
+    for p in &projects {
+        out.push_str(&format!(
+            "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
+            dsv_escape(&p.name, sep),
+            dsv_escape(&p.daw, sep),
+            dsv_escape(&p.format, sep),
+            dsv_escape(&p.path, sep),
+            dsv_escape(&p.directory, sep),
+            dsv_escape(&p.size_formatted, sep),
+            dsv_escape(&p.modified, sep),
+        ));
+    }
+    std::fs::write(&file_path, out).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -784,7 +887,7 @@ mod tests {
 
         let content = fs::read_to_string(&tmp).unwrap();
         let payload: serde_json::Value = serde_json::from_str(&content).unwrap();
-        assert_eq!(payload["version"], "1.0");
+        assert_eq!(payload["version"], env!("CARGO_PKG_VERSION"));
         assert!(payload["exported_at"].as_str().unwrap().contains("T"));
         assert_eq!(payload["plugins"].as_array().unwrap().len(), 1);
 
@@ -1002,11 +1105,29 @@ pub fn run() {
             export_plugins_json,
             export_plugins_csv,
             import_plugins_json,
+            export_audio_json,
+            export_audio_dsv,
+            export_daw_json,
+            export_daw_dsv,
             prefs_get_all,
             prefs_set,
             prefs_remove,
             prefs_save_all,
         ])
+        .setup(|app| {
+            let prefs = history::load_preferences();
+            if let Some(win_val) = prefs.get("window") {
+                if let Some(win) = app.get_webview_window("main") {
+                    if let Some(w) = win_val.get("width").and_then(|v| v.as_f64()) {
+                        if let Some(h) = win_val.get("height").and_then(|v| v.as_f64()) {
+                            let size = tauri::LogicalSize::new(w, h);
+                            let _ = win.set_size(tauri::Size::Logical(size));
+                        }
+                    }
+                }
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

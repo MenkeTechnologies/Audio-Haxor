@@ -1,0 +1,22 @@
+{
+  "window": {
+    "width": 1400,
+    "height": 900,
+    "minWidth": 800,
+    "minHeight": 600
+  },
+  "theme": "dark",
+  "colorScheme": "cyberpunk",
+  "crtEffects": "on",
+  "pageSize": "500",
+  "flushInterval": "300",
+  "autoScan": "off",
+  "autoUpdate": "off",
+  "defaultTypeFilter": "all",
+  "pluginSort": "name-asc",
+  "audioSort": "name",
+  "customDirs": "",
+  "customSchemeVars": {},
+  "customSchemePresets": [],
+  "columnWidths": {}
+}

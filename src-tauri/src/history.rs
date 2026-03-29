@@ -226,16 +226,28 @@ fn preferences_file() -> PathBuf {
     ensure_data_dir().join("preferences.json")
 }
 
+fn default_config() -> std::collections::HashMap<String, serde_json::Value> {
+    let bytes = include_str!("../../config.default.json");
+    serde_json::from_str(bytes).unwrap_or_default()
+}
+
 pub fn load_preferences() -> std::collections::HashMap<String, serde_json::Value> {
     let path = preferences_file();
     if path.exists() {
         if let Ok(data) = fs::read_to_string(&path) {
-            if let Ok(prefs) = serde_json::from_str(&data) {
-                return prefs;
+            if let Ok(prefs) = serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(&data) {
+                // Merge defaults under user prefs so new keys are picked up
+                let mut merged = default_config();
+                for (k, v) in prefs {
+                    merged.insert(k, v);
+                }
+                return merged;
             }
         }
     }
-    std::collections::HashMap::new()
+    let defaults = default_config();
+    save_preferences(&defaults);
+    defaults
 }
 
 pub fn save_preferences(prefs: &std::collections::HashMap<String, serde_json::Value>) {
