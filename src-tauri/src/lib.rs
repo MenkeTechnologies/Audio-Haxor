@@ -577,6 +577,28 @@ async fn open_audio_folder(file_path: String) -> Result<(), String> {
     open_plugin_folder(file_path).await
 }
 
+// ── Preferences commands ──
+
+#[tauri::command]
+fn prefs_get_all() -> std::collections::HashMap<String, serde_json::Value> {
+    history::load_preferences()
+}
+
+#[tauri::command]
+fn prefs_set(key: String, value: serde_json::Value) {
+    history::set_preference(&key, value);
+}
+
+#[tauri::command]
+fn prefs_remove(key: String) {
+    history::remove_preference(&key);
+}
+
+#[tauri::command]
+fn prefs_save_all(prefs: std::collections::HashMap<String, serde_json::Value>) {
+    history::save_preferences(&prefs);
+}
+
 // ── Export / Import commands ──
 
 fn plugins_to_export(plugins: &[PluginInfo]) -> Vec<ExportPlugin> {
@@ -980,6 +1002,10 @@ pub fn run() {
             export_plugins_json,
             export_plugins_csv,
             import_plugins_json,
+            prefs_get_all,
+            prefs_set,
+            prefs_remove,
+            prefs_save_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

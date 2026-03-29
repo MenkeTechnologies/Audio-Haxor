@@ -2471,13 +2471,42 @@
       exportJson: (plugins, filePath) => invoke('export_plugins_json', { plugins, filePath }),
       exportCsv: (plugins, filePath) => invoke('export_plugins_csv', { plugins, filePath }),
       importJson: (filePath) => invoke('import_plugins_json', { filePath }),
+      // Preferences (file-backed)
+      prefsGetAll: () => invoke('prefs_get_all'),
+      prefsSet: (key, value) => invoke('prefs_set', { key, value }),
+      prefsRemove: (key) => invoke('prefs_remove', { key }),
+      prefsSaveAll: (prefs) => invoke('prefs_save_all', { prefs }),
+    };
+
+    // ── Preferences layer (file-backed, survives reboots) ──
+    // In-memory cache loaded from Rust on startup; writes go to both cache and disk.
+    const prefs = {
+      _cache: {},
+      _loaded: false,
+      async load() {
+        this._cache = await window.vstUpdater.prefsGetAll();
+        this._loaded = true;
+      },
+      getItem(key) {
+        const val = this._cache[key];
+        if (val === undefined || val === null) return null;
+        return typeof val === 'string' ? val : JSON.stringify(val);
+      },
+      setItem(key, value) {
+        this._cache[key] = value;
+        window.vstUpdater.prefsSet(key, value).catch(() => {});
+      },
+      removeItem(key) {
+        delete this._cache[key];
+        window.vstUpdater.prefsRemove(key).catch(() => {});
+      },
     };
 
     let allPlugins = [];
     let pluginsWithUpdates = [];
     let currentOperation = null; // 'scan' or 'updates'
-    let AUDIO_PAGE_SIZE = parseInt(localStorage.getItem('pageSize') || '500', 10);
-    let DAW_PAGE_SIZE = parseInt(localStorage.getItem('pageSize') || '500', 10);
+    let AUDIO_PAGE_SIZE = 500;
+    let DAW_PAGE_SIZE = 500;
 
     // Common audio plugin manufacturers where bundle ID doesn't match KVR slug
     const KVR_MANUFACTURER_MAP = {
@@ -3068,8 +3097,8 @@
       for (const [k, v] of Object.entries(scheme.vars)) {
         root.setProperty(k, v);
       }
-      localStorage.setItem('colorScheme', name);
-      localStorage.removeItem('customSchemeVars');
+      prefs.setItem('colorScheme', name);
+      prefs.removeItem('customSchemeVars');
       refreshSettingsUI();
     }
 
@@ -3133,8 +3162,8 @@
         document.documentElement.style.setProperty(k, v);
       }
       applyCustomVars(vars);
-      localStorage.setItem('colorScheme', 'custom');
-      localStorage.setItem('customSchemeVars', JSON.stringify(vars));
+      prefs.setItem('colorScheme', 'custom');
+      prefs.setItem('customSchemeVars', JSON.stringify(vars));
       // Deselect preset buttons
       document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
       refreshCustomPresetUI();
@@ -3142,20 +3171,20 @@
 
     function saveCustomScheme() {
       const vars = readCustomColorsFromPickers();
-      const presets = JSON.parse(localStorage.getItem('customSchemePresets') || '[]');
+      const presets = JSON.parse(prefs.getItem('customSchemePresets') || '[]');
       const name = 'Custom ' + (presets.length + 1);
       presets.push({ name, vars });
-      localStorage.setItem('customSchemePresets', JSON.stringify(presets));
+      prefs.setItem('customSchemePresets', JSON.stringify(presets));
       // Apply it immediately
       applyCustomVars(vars);
-      localStorage.setItem('colorScheme', 'custom-' + (presets.length - 1));
-      localStorage.setItem('customSchemeVars', JSON.stringify(vars));
+      prefs.setItem('colorScheme', 'custom-' + (presets.length - 1));
+      prefs.setItem('customSchemeVars', JSON.stringify(vars));
       document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
       refreshCustomPresetUI();
     }
 
     function loadCustomPreset(idx) {
-      const presets = JSON.parse(localStorage.getItem('customSchemePresets') || '[]');
+      const presets = JSON.parse(prefs.getItem('customSchemePresets') || '[]');
       const preset = presets[idx];
       if (!preset) return;
       // Load into pickers
@@ -3168,23 +3197,23 @@
         document.documentElement.style.setProperty(k, v);
       }
       applyCustomVars(preset.vars);
-      localStorage.setItem('colorScheme', 'custom-' + idx);
-      localStorage.setItem('customSchemeVars', JSON.stringify(preset.vars));
+      prefs.setItem('colorScheme', 'custom-' + idx);
+      prefs.setItem('customSchemeVars', JSON.stringify(preset.vars));
       document.querySelectorAll('.scheme-btn').forEach(b => b.classList.remove('active'));
       refreshCustomPresetUI();
     }
 
     function deleteCustomSchemes() {
       if (!confirm('Delete all saved custom color schemes?')) return;
-      localStorage.removeItem('customSchemePresets');
+      prefs.removeItem('customSchemePresets');
       refreshCustomPresetUI();
     }
 
     function refreshCustomPresetUI() {
       const container = document.getElementById('customSchemeSaved');
       const deleteBtn = document.getElementById('btnDeleteCustom');
-      const presets = JSON.parse(localStorage.getItem('customSchemePresets') || '[]');
-      const currentScheme = localStorage.getItem('colorScheme') || 'cyberpunk';
+      const presets = JSON.parse(prefs.getItem('customSchemePresets') || '[]');
+      const currentScheme = prefs.getItem('colorScheme') || 'cyberpunk';
 
       if (presets.length === 0) {
         container.innerHTML = '';
@@ -3214,14 +3243,14 @@
       const current = html.getAttribute('data-theme');
       const next = current === 'light' ? 'dark' : 'light';
       html.setAttribute('data-theme', next);
-      localStorage.setItem('theme', next);
+      prefs.setItem('theme', next);
       refreshSettingsUI();
     }
 
     function settingToggleCrt() {
-      const current = localStorage.getItem('crtEffects') !== 'off';
+      const current = prefs.getItem('crtEffects') !== 'off';
       const next = !current;
-      localStorage.setItem('crtEffects', next ? 'on' : 'off');
+      prefs.setItem('crtEffects', next ? 'on' : 'off');
       applyCrtSetting(next);
       refreshSettingsUI();
     }
@@ -3237,7 +3266,7 @@
     }
 
     function settingResetColumns() {
-      localStorage.removeItem('columnWidths');
+      prefs.removeItem('columnWidths');
       // Re-init tables if they exist
       const audioTable = document.getElementById('audioTable');
       const dawTable = document.getElementById('dawTable');
@@ -3264,40 +3293,40 @@
     }
 
     function settingToggleAutoScan() {
-      const current = localStorage.getItem('autoScan') === 'on';
-      localStorage.setItem('autoScan', current ? 'off' : 'on');
+      const current = prefs.getItem('autoScan') === 'on';
+      prefs.setItem('autoScan', current ? 'off' : 'on');
       refreshSettingsUI();
     }
 
     function settingToggleAutoUpdate() {
-      const current = localStorage.getItem('autoUpdate') === 'on';
-      localStorage.setItem('autoUpdate', current ? 'off' : 'on');
+      const current = prefs.getItem('autoUpdate') === 'on';
+      prefs.setItem('autoUpdate', current ? 'off' : 'on');
       refreshSettingsUI();
     }
 
     function settingUpdatePageSize(val) {
       document.getElementById('settingPageSizeValue').textContent = val;
-      localStorage.setItem('pageSize', val);
+      prefs.setItem('pageSize', val);
       AUDIO_PAGE_SIZE = parseInt(val, 10);
       DAW_PAGE_SIZE = parseInt(val, 10);
     }
 
     function settingUpdateFlushInterval(val) {
       document.getElementById('settingFlushIntervalValue').textContent = val;
-      localStorage.setItem('flushInterval', val);
+      prefs.setItem('flushInterval', val);
     }
 
     function settingSaveSelect(key, value) {
-      localStorage.setItem(key, value);
+      prefs.setItem(key, value);
     }
 
     function settingSaveCustomDirs() {
       const val = document.getElementById('settingCustomDirs').value.trim();
-      localStorage.setItem('customDirs', val);
+      prefs.setItem('customDirs', val);
     }
 
     function getSettingValue(key, defaultVal) {
-      return localStorage.getItem(key) || defaultVal;
+      return prefs.getItem(key) || defaultVal;
     }
 
     function refreshSettingsUI() {
@@ -3309,20 +3338,20 @@
       themeLabel.textContent = theme === 'light' ? 'Light' : 'Dark';
 
       // CRT
-      const crtOn = localStorage.getItem('crtEffects') !== 'off';
+      const crtOn = prefs.getItem('crtEffects') !== 'off';
       const crtBtn = document.getElementById('settingCrt');
       const crtLabel = document.getElementById('settingCrtLabel');
       crtBtn.classList.toggle('active', crtOn);
       crtLabel.textContent = crtOn ? 'On' : 'Off';
 
       // Color scheme
-      const currentScheme = localStorage.getItem('colorScheme') || 'cyberpunk';
+      const currentScheme = prefs.getItem('colorScheme') || 'cyberpunk';
       document.querySelectorAll('.scheme-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.scheme === currentScheme);
       });
 
       // Auto-scan
-      const autoScan = localStorage.getItem('autoScan') === 'on';
+      const autoScan = prefs.getItem('autoScan') === 'on';
       const autoScanBtn = document.getElementById('settingAutoScan');
       const autoScanLabel = document.getElementById('settingAutoScanLabel');
       if (autoScanBtn) {
@@ -3331,7 +3360,7 @@
       }
 
       // Auto-update
-      const autoUpdate = localStorage.getItem('autoUpdate') === 'on';
+      const autoUpdate = prefs.getItem('autoUpdate') === 'on';
       const autoUpdateBtn = document.getElementById('settingAutoUpdate');
       const autoUpdateLabel = document.getElementById('settingAutoUpdateLabel');
       if (autoUpdateBtn) {
@@ -3371,7 +3400,7 @@
       if (audioSortEl) audioSortEl.value = audioSort;
 
       // Custom dirs
-      const customDirs = localStorage.getItem('customDirs') || '';
+      const customDirs = prefs.getItem('customDirs') || '';
       const customDirsEl = document.getElementById('settingCustomDirs');
       if (customDirsEl) customDirsEl.value = customDirs;
 
@@ -3379,7 +3408,7 @@
       refreshCustomPresetUI();
 
       // Load current custom colors into pickers
-      const customVars = JSON.parse(localStorage.getItem('customSchemeVars') || '{}');
+      const customVars = JSON.parse(prefs.getItem('customSchemeVars') || '{}');
       if (Object.keys(customVars).length > 0) {
         document.querySelectorAll('.custom-color-input').forEach(input => {
           const v = input.dataset.var;
@@ -3394,30 +3423,29 @@
     }
 
     // Restore settings on load
-    (function restoreSettings() {
-      const saved = localStorage.getItem('theme');
+    function restoreSettings() {
+      const saved = prefs.getItem('theme');
       if (saved === 'light') {
         document.documentElement.setAttribute('data-theme', 'light');
       }
-      const crt = localStorage.getItem('crtEffects');
+      const crt = prefs.getItem('crtEffects');
       if (crt === 'off') {
         applyCrtSetting(false);
       }
-      const scheme = localStorage.getItem('colorScheme');
+      const scheme = prefs.getItem('colorScheme');
       if (scheme && scheme.startsWith('custom')) {
-        // Restore custom scheme from saved vars
-        const customVars = JSON.parse(localStorage.getItem('customSchemeVars') || '{}');
+        const customVars = JSON.parse(prefs.getItem('customSchemeVars') || '{}');
         if (Object.keys(customVars).length > 0) {
           applyCustomVars(customVars);
         }
       } else if (scheme && scheme !== 'cyberpunk') {
         applyColorScheme(scheme);
       }
-      // Restore page sizes
-      const pageSize = parseInt(localStorage.getItem('pageSize') || '500', 10);
+      const pageSize = parseInt(prefs.getItem('pageSize') || '500', 10);
       AUDIO_PAGE_SIZE = pageSize;
       DAW_PAGE_SIZE = pageSize;
-    })();
+    }
+    // restoreSettings is called from loadLastScan after prefs.load()
 
     let batchIndex = 0;
 
@@ -4169,7 +4197,7 @@
       let pendingSamples = [];
       let pendingFound = 0;
       let flushScheduled = false;
-      const FLUSH_INTERVAL = parseInt(localStorage.getItem('flushInterval') || '300', 10);
+      const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '300', 10);
       let lastFlush = 0;
 
       function flushPendingSamples() {
@@ -4977,21 +5005,25 @@
       if (tableWidth <= 0) return;
       const pcts = Array.from(table.querySelectorAll('thead th')).map(th => +(th.offsetWidth / tableWidth * 100).toFixed(2));
       try {
-        const allWidths = JSON.parse(localStorage.getItem('columnWidths') || '{}');
+        const allWidths = JSON.parse(prefs.getItem('columnWidths') || '{}');
         allWidths[tableId] = pcts;
-        localStorage.setItem('columnWidths', JSON.stringify(allWidths));
+        prefs.setItem('columnWidths', JSON.stringify(allWidths));
       } catch {}
     }
 
     function loadColumnWidths(tableId) {
       try {
-        const allWidths = JSON.parse(localStorage.getItem('columnWidths') || '{}');
+        const allWidths = JSON.parse(prefs.getItem('columnWidths') || '{}');
         return allWidths[tableId] || null;
       } catch { return null; }
     }
 
     // Auto-load last scan on startup
     (async function loadLastScan() {
+      // Load file-backed preferences before anything else
+      await prefs.load();
+      restoreSettings();
+
       try {
         const latest = await window.vstUpdater.getLatestScan();
         if (latest && latest.plugins && latest.plugins.length > 0) {
@@ -5054,16 +5086,16 @@
       }
 
       // Apply default type filter from settings
-      const defaultType = localStorage.getItem('defaultTypeFilter');
+      const defaultType = prefs.getItem('defaultTypeFilter');
       if (defaultType && defaultType !== 'all') {
         document.getElementById('typeFilter').value = defaultType;
         filterPlugins();
       }
 
       // Auto-scan on launch
-      if (localStorage.getItem('autoScan') === 'on' && allPlugins.length === 0) {
+      if (prefs.getItem('autoScan') === 'on' && allPlugins.length === 0) {
         scanPlugins().then(() => {
-          if (localStorage.getItem('autoUpdate') === 'on' && allPlugins.length > 0) {
+          if (prefs.getItem('autoUpdate') === 'on' && allPlugins.length > 0) {
             checkUpdates();
           }
         });

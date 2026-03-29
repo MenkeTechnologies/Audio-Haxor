@@ -222,6 +222,46 @@ fn daw_history_file() -> PathBuf {
     ensure_data_dir().join("daw-scan-history.json")
 }
 
+fn preferences_file() -> PathBuf {
+    ensure_data_dir().join("preferences.json")
+}
+
+pub fn load_preferences() -> std::collections::HashMap<String, serde_json::Value> {
+    let path = preferences_file();
+    if path.exists() {
+        if let Ok(data) = fs::read_to_string(&path) {
+            if let Ok(prefs) = serde_json::from_str(&data) {
+                return prefs;
+            }
+        }
+    }
+    std::collections::HashMap::new()
+}
+
+pub fn save_preferences(prefs: &std::collections::HashMap<String, serde_json::Value>) {
+    let path = preferences_file();
+    if let Ok(json) = serde_json::to_string_pretty(prefs) {
+        let _ = fs::write(&path, json);
+    }
+}
+
+pub fn set_preference(key: &str, value: serde_json::Value) {
+    let mut prefs = load_preferences();
+    prefs.insert(key.to_string(), value);
+    save_preferences(&prefs);
+}
+
+pub fn get_preference(key: &str) -> Option<serde_json::Value> {
+    let prefs = load_preferences();
+    prefs.get(key).cloned()
+}
+
+pub fn remove_preference(key: &str) {
+    let mut prefs = load_preferences();
+    prefs.remove(key);
+    save_preferences(&prefs);
+}
+
 fn gen_id() -> String {
     use rand::Rng;
     let ts = std::time::SystemTime::now()
