@@ -63,11 +63,37 @@
       --border-glow: #a5b4c8;
     }
 
-    [data-theme="light"] .app::after,
-    [data-theme="light"] .app::before,
-    [data-theme="light"] .crt-scanline,
+    [data-theme="light"] .app::after {
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.02) 2px,
+        rgba(0, 0, 0, 0.02) 4px
+      );
+    }
+    [data-theme="light"] .app::before {
+      background: radial-gradient(ellipse at center, transparent 65%, rgba(0,0,0,0.12) 100%);
+    }
+    [data-theme="light"] .crt-scanline {
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(0, 0, 0, 0.04) 20%,
+        rgba(0, 0, 0, 0.08) 50%,
+        rgba(0, 0, 0, 0.04) 80%,
+        transparent 100%
+      );
+      box-shadow: 0 0 15px 5px rgba(0, 0, 0, 0.03);
+    }
     [data-theme="light"] .crt-scanline-v {
-      display: none;
+      background: linear-gradient(180deg,
+        transparent 0%,
+        rgba(0, 0, 0, 0.03) 20%,
+        rgba(0, 0, 0, 0.06) 50%,
+        rgba(0, 0, 0, 0.03) 80%,
+        transparent 100%
+      );
+      box-shadow: 0 0 15px 5px rgba(0, 0, 0, 0.02);
     }
 
     body {
