@@ -503,25 +503,26 @@ function tagWizardConfirmRename(oldTag) {
 
 // Event delegation for tag wizard
 document.addEventListener('click', (e) => {
-  // Close
-  const closeAction = e.target.closest('[data-action-modal="closeTagWizard"]');
-  if (closeAction) {
-    if (e.target === closeAction || closeAction.classList.contains('modal-close')) {
-      closeTagWizard();
-    }
+  // Check tag wizard actions first (before modal close)
+  const tw = e.target.closest('[data-action-tw]');
+  if (tw) {
+    const act = tw.dataset.actionTw;
+    const tag = tw.dataset.tag;
+    if (act === 'add') tagWizardAdd();
+    else if (act === 'delete') tagWizardDelete(tag);
+    else if (act === 'startRename') tagWizardStartRename(tag);
+    else if (act === 'cancelRename') tagWizardCancelRename();
+    else if (act === 'confirmRename') tagWizardConfirmRename(tag);
     return;
   }
 
-  const tw = e.target.closest('[data-action-tw]');
-  if (!tw) return;
-  const act = tw.dataset.actionTw;
-  const tag = tw.dataset.tag;
-
-  if (act === 'add') tagWizardAdd();
-  else if (act === 'delete') tagWizardDelete(tag);
-  else if (act === 'startRename') tagWizardStartRename(tag);
-  else if (act === 'cancelRename') tagWizardCancelRename();
-  else if (act === 'confirmRename') tagWizardConfirmRename(tag);
+  // Close modal on overlay/close button click
+  const closeAction = e.target.closest('[data-action-modal="closeTagWizard"]');
+  if (closeAction) {
+    if (e.target === closeAction || e.target.classList.contains('modal-close')) {
+      closeTagWizard();
+    }
+  }
 });
 
 // Enter key in add input or rename input
