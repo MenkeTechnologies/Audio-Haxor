@@ -1,10 +1,15 @@
 // ── Batch Selection ──
-// Adds checkboxes to table rows for multi-item operations
+// Checkboxes in table rows for multi-item operations
 
 const batchSelected = new Set();
 
-function toggleBatchSelect(path, checkbox) {
-  if (checkbox.checked) {
+function getRowPath(tr) {
+  if (!tr) return null;
+  return tr.dataset.audioPath || tr.dataset.dawPath || tr.dataset.presetPath || null;
+}
+
+function toggleBatchSelect(path, checked) {
+  if (checked) {
     batchSelected.add(path);
   } else {
     batchSelected.delete(path);
@@ -12,12 +17,12 @@ function toggleBatchSelect(path, checkbox) {
   updateBatchBar();
 }
 
-function selectAllVisible(tableBodyId) {
-  const tbody = document.getElementById(tableBodyId);
+function selectAllVisible() {
+  const tbody = document.querySelector('.tab-content.active tbody');
   if (!tbody) return;
   tbody.querySelectorAll('.batch-cb').forEach(cb => {
     cb.checked = true;
-    const path = cb.closest('tr')?.dataset.audioPath || cb.closest('tr')?.dataset.dawPath || cb.closest('tr')?.dataset.presetPath;
+    const path = getRowPath(cb.closest('tr'));
     if (path) batchSelected.add(path);
   });
   updateBatchBar();
@@ -43,21 +48,20 @@ function updateBatchBar() {
 function batchFavoriteAll() {
   const activeTab = document.querySelector('.tab-content.active');
   if (!activeTab) return;
-  let type = 'sample';
-  if (activeTab.id === 'tabDaw') type = 'daw';
-  else if (activeTab.id === 'tabPresets') type = 'preset';
+  let type = 'sample', items = allAudioSamples;
+  if (activeTab.id === 'tabDaw') { type = 'daw'; items = allDawProjects; }
+  else if (activeTab.id === 'tabPresets') { type = 'preset'; items = allPresets; }
 
+  let added = 0;
   for (const path of batchSelected) {
     if (isFavorite(path)) continue;
-    let item;
-    if (type === 'sample') item = allAudioSamples.find(s => s.path === path);
-    else if (type === 'daw') item = allDawProjects.find(p => p.path === path);
-    else if (type === 'preset') item = allPresets.find(p => p.path === path);
+    const item = items.find(i => i.path === path);
     if (item) {
       addFavorite(type, path, item.name, { format: item.format, daw: item.daw });
+      added++;
     }
   }
-  showToast(`Added ${batchSelected.size} items to favorites`);
+  showToast(`Added ${added} items to favorites`);
   deselectAll();
 }
 
@@ -85,23 +89,40 @@ function batchExportSelected() {
   showToast(`Copied ${items.length} items as JSON`);
 }
 
-// Wire up batch action buttons via delegation
-document.addEventListener('click', (e) => {
+function batchRevealAll() {
+  const activeTab = document.querySelector('.tab-content.active');
+  if (!activeTab || batchSelected.size === 0) return;
+  // Reveal first selected item
+  const path = [...batchSelected][0];
+  if (activeTab.id === 'tabSamples') openAudioFolder(path);
+  else if (activeTab.id === 'tabDaw') openDawFolder(path);
+  else if (activeTab.id === 'tabPresets') openPresetFolder(path);
+  showToast(`Revealing first of ${batchSelected.size} items`);
+}
+
+// Wire up checkbox changes and batch action buttons
+document.addEventListener('change', (e) => {
   if (e.target.classList.contains('batch-cb')) {
-    const path = e.target.closest('tr')?.dataset.audioPath || e.target.closest('tr')?.dataset.dawPath || e.target.closest('tr')?.dataset.presetPath;
-    if (path) toggleBatchSelect(path, e.target);
+    const path = getRowPath(e.target.closest('tr'));
+    if (path) toggleBatchSelect(path, e.target.checked);
+  }
+});
+
+document.addEventListener('click', (e) => {
+  // Prevent row click-through on checkbox cell
+  if (e.target.classList.contains('batch-cb')) {
     e.stopPropagation();
     return;
   }
+
   const action = e.target.closest('[data-batch-action]');
   if (action) {
     const act = action.dataset.batchAction;
-    if (act === 'selectAll') {
-      const tbody = document.querySelector('.tab-content.active tbody');
-      if (tbody) selectAllVisible(tbody.id);
-    } else if (act === 'deselectAll') deselectAll();
+    if (act === 'selectAll') selectAllVisible();
+    else if (act === 'deselectAll') deselectAll();
     else if (act === 'favorite') batchFavoriteAll();
     else if (act === 'copyPaths') batchCopyPaths();
     else if (act === 'exportJson') batchExportSelected();
+    else if (act === 'reveal') batchRevealAll();
   }
 });

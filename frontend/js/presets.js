@@ -16,7 +16,9 @@ function formatPresetSize(bytes) {
 
 function buildPresetRow(p) {
   const ep = escapePath(p.path);
+  const checked = batchSelected.has(p.path) ? ' checked' : '';
   return `<tr data-preset-path="${ep}" style="cursor: pointer;" title="Double-click to reveal in Finder">
+    <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
     <td>${highlightMatch(p.name, _lastPresetSearch, _lastPresetMode)}</td>
     <td class="col-format"><span class="format-badge format-default">${p.format}</span></td>
     <td title="${escapePath(p.path)}">${escapeHtml(p.directory)}</td>
@@ -121,7 +123,7 @@ function filterPresets() {
 
   if (filteredPresets.length > PRESET_PAGE_SIZE) {
     tbody.insertAdjacentHTML('beforeend',
-      `<tr><td colspan="6" style="text-align:center; padding: 12px;">
+      `<tr><td colspan="7" style="text-align:center; padding: 12px;">
         <button class="btn btn-secondary" data-action="loadMorePresets">Load more (${filteredPresets.length - PRESET_PAGE_SIZE} remaining)</button>
       </td></tr>`);
   }
@@ -141,7 +143,7 @@ function loadMorePresets() {
 
   if (presetRenderCount < filteredPresets.length) {
     tbody.insertAdjacentHTML('beforeend',
-      `<tr><td colspan="6" style="text-align:center; padding: 12px;">
+      `<tr><td colspan="7" style="text-align:center; padding: 12px;">
         <button class="btn btn-secondary" data-action="loadMorePresets">Load more (${filteredPresets.length - presetRenderCount} remaining)</button>
       </td></tr>`);
   }
@@ -195,6 +197,7 @@ async function scanPresets(resume = false) {
       firstBatch = false;
       tableWrap.innerHTML = `<table class="audio-table" id="presetTable">
         <thead><tr>
+          <th style="width: 30px; padding: 0;"></th>
           <th data-action="sortPreset" data-key="name" style="width: 25%;">Name <span class="sort-arrow" id="presetSortArrowName">&#9660;</span></th>
           <th data-action="sortPreset" data-key="format" class="col-format" style="width: 100px;">Format <span class="sort-arrow" id="presetSortArrowFormat"></span></th>
           <th data-action="sortPreset" data-key="directory" style="width: 35%;">Path <span class="sort-arrow" id="presetSortArrowDirectory"></span></th>

@@ -20,6 +20,8 @@ pub struct PluginInfo {
     #[serde(rename = "manufacturerUrl")]
     pub manufacturer_url: Option<String>,
     pub size: String,
+    #[serde(rename = "sizeBytes", default)]
+    pub size_bytes: u64,
     pub modified: String,
     #[serde(rename = "architectures", default)]
     pub architectures: Vec<String>,
@@ -314,6 +316,7 @@ pub fn get_plugin_info(file_path: &Path) -> Option<PluginInfo> {
         manufacturer: manufacturer.unwrap_or_else(|| "Unknown".into()),
         manufacturer_url,
         size: format_size(size),
+        size_bytes: size,
         modified,
         architectures,
     })
@@ -671,6 +674,7 @@ mod tests {
             manufacturer: "TestCo".into(),
             manufacturer_url: Some("https://test.com".into()),
             size: "1.0 MB".into(),
+            size_bytes: 1048576,
             modified: "2024-01-01".into(),
             architectures: vec!["ARM64".into(), "x86_64".into()],
         };
