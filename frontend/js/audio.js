@@ -443,6 +443,7 @@ function clearAudioPlaybackUI() {
   const np = document.getElementById('audioNowPlaying');
   np.classList.remove('active');
   np.classList.remove('expanded');
+  np.classList.remove('np-playing');
   document.getElementById('npProgress').style.width = '0%';
   document.getElementById('npTime').textContent = '0:00 / 0:00';
   updatePlayBtnStates();
@@ -464,12 +465,15 @@ function updatePlayBtnStates() {
 
 function updateNowPlayingBtn() {
   const btn = document.getElementById('npBtnPlay');
+  const np = document.getElementById('audioNowPlaying');
   if (audioPlayer.paused) {
     btn.innerHTML = '&#9654;';
     btn.classList.remove('playing');
+    np.classList.remove('np-playing');
   } else {
     btn.innerHTML = '&#9646;&#9646;';
     btn.classList.add('playing');
+    np.classList.add('np-playing');
   }
 }
 
@@ -636,6 +640,27 @@ document.getElementById('npHistoryList')?.addEventListener('click', (e) => {
     previewAudio(item.dataset.path);
   }
 });
+
+// ── Visualizer bars init ──
+(function initVisualizer() {
+  const viz = document.getElementById('npVisualizer');
+  if (!viz) return;
+  const BAR_COUNT = 24;
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'np-viz-bar';
+    // Randomize timing and height for organic look
+    const dur = (0.4 + Math.random() * 0.6).toFixed(2);
+    const minH = (3 + Math.random() * 4).toFixed(0);
+    const maxH = (12 + Math.random() * 20).toFixed(0);
+    const delay = (Math.random() * -1.5).toFixed(2);
+    bar.style.setProperty('--viz-dur', dur + 's');
+    bar.style.setProperty('--viz-min', minH + 'px');
+    bar.style.setProperty('--viz-max', maxH + 'px');
+    bar.style.animationDelay = delay + 's';
+    viz.appendChild(bar);
+  }
+})();
 
 // ── Drag-to-dock ──
 (function initPlayerDrag() {

@@ -2053,6 +2053,49 @@
       display: none;
     }
 
+    /* Cyberpunk visualizer animation */
+    .np-visualizer {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 32px;
+      padding: 0 4px;
+      overflow: hidden;
+    }
+    .np-viz-bar {
+      flex: 1;
+      min-width: 3px;
+      max-width: 6px;
+      background: linear-gradient(180deg, var(--cyan), var(--magenta));
+      border-radius: 1px 1px 0 0;
+      transform-origin: bottom;
+      height: 4px;
+      transition: height 0.15s ease;
+    }
+    .audio-now-playing.np-playing .np-viz-bar {
+      animation: viz-bounce var(--viz-dur, 0.6s) ease-in-out infinite alternate;
+    }
+    @keyframes viz-bounce {
+      0%   { height: var(--viz-min, 4px); opacity: 0.5; }
+      100% { height: var(--viz-max, 28px); opacity: 1; }
+    }
+
+    .audio-now-playing.np-playing {
+      border-color: var(--cyan);
+      animation: np-glow-pulse 2s ease-in-out infinite;
+    }
+    @keyframes np-glow-pulse {
+      0%, 100% { box-shadow: 0 0 20px var(--cyan-glow), 0 4px 24px rgba(0,0,0,0.5); }
+      50%      { box-shadow: 0 0 35px var(--cyan-glow), 0 0 15px var(--magenta-glow), 0 4px 24px rgba(0,0,0,0.5); }
+    }
+
+    .audio-now-playing.expanded .np-visualizer {
+      height: 48px;
+    }
+    .audio-now-playing.expanded.np-playing .np-viz-bar {
+      max-width: 8px;
+    }
+
     .now-playing-header {
       display: flex;
       align-items: center;
@@ -2392,6 +2435,7 @@
         </div>
         <span class="now-playing-time" id="npTime">0:00 / 0:00</span>
       </div>
+      <div class="np-visualizer" id="npVisualizer"></div>
       <div class="now-playing-transport">
         <div class="now-playing-volume">
           <label>Vol</label>
