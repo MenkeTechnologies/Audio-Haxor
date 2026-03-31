@@ -322,6 +322,10 @@
         <p>Right-click any item to add notes and tags. Persisted in preferences. Note indicator icons on annotated items.</p>
       </div>
       <div class="feature-card">
+        <h3><span class="icon">&#128269;</span> Command Palette</h3>
+        <p>Press Cmd+K to fuzzy search across all items — plugins, samples, DAW projects, presets, directories, tags, and actions. Arrow keys to navigate, Enter to jump.</p>
+      </div>
+      <div class="feature-card">
         <h3><span class="icon">&#9889;</span> Plugin Cross-Reference</h3>
         <p>Parses Ableton (.als) and REAPER (.rpp) projects to extract plugin references. See which plugins each project uses, or find which projects use a given plugin.</p>
       </div>
@@ -705,6 +709,7 @@
         <tr><td><kbd>Cmd</kbd> + <kbd>6</kbd></td><td>Notes tab</td></tr>
         <tr><td><kbd>Cmd</kbd> + <kbd>7</kbd></td><td>History tab</td></tr>
         <tr><td><kbd>Cmd</kbd> + <kbd>8</kbd></td><td>Settings tab</td></tr>
+        <tr><td><kbd>Cmd</kbd> + <kbd>K</kbd></td><td>Open command palette (search everything)</td></tr>
         <tr><td><kbd>Cmd</kbd> + <kbd>F</kbd></td><td>Focus the search box in the active tab</td></tr>
         <tr><td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td><td>Scan All</td></tr>
         <tr><td><kbd>Cmd</kbd> + <kbd>.</kbd></td><td>Stop All</td></tr>
@@ -770,10 +775,11 @@ src-tauri/src/
   history.rs         -- Scan history persistence + diff engine
   kvr.rs             -- KVR Audio scraper + version checker
 
-frontend/js/  (25 modules)
+frontend/js/  (26 modules)
   app.js             -- Startup, auto-load, preferences
   audio.js           -- Sample scanning, playback, visualizer, player dock
   batch-select.js    -- Checkbox selection + batch operations
+  command-palette.js -- Cmd+K universal fuzzy search
   columns.js         -- Resizable table columns
   context-menu.js    -- Right-click menus for all elements
   daw.js             -- DAW project scanning + stats
