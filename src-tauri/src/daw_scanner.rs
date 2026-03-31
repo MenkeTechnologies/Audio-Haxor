@@ -49,10 +49,10 @@ const SKIP_DIRS: &[&str] = &[
     "__pycache__",
 ];
 
-/// Additional directories to skip when not including Ableton backups.
+/// Additional directories to skip when not including Ableton backups/crashes.
 /// Ableton stores auto-saved backup Live Sets in a "Backup" folder
-/// inside each project directory.
-const BACKUP_DIRS: &[&str] = &["Backup"];
+/// and crash recovery sets in a "Crash" folder inside each project directory.
+const BACKUP_DIRS: &[&str] = &["Backup", "Crash"];
 
 pub fn format_size(bytes: u64) -> String {
     if bytes == 0 {
