@@ -268,6 +268,7 @@ function filterAudioSamples() {
   if (search) {
     const scored = [];
     for (const s of allAudioSamples) {
+      if (typeof passesGlobalTagFilter === 'function' && !passesGlobalTagFilter(s.path)) continue;
       if (fmtSet && !fmtSet.has(s.format)) continue;
       const score = searchScore(search, [s.name, s.path, s.format], mode);
       if (score > 0) scored.push({ item: s, score });
@@ -276,6 +277,7 @@ function filterAudioSamples() {
     filteredAudioSamples = scored.map(s => s.item);
   } else {
     filteredAudioSamples = allAudioSamples.filter(s => {
+      if (typeof passesGlobalTagFilter === 'function' && !passesGlobalTagFilter(s.path)) return false;
       if (fmtSet && !fmtSet.has(s.format)) return false;
       return true;
     });
@@ -408,6 +410,7 @@ async function previewAudio(filePath) {
     updatePlayBtnStates();
     updateNowPlayingBtn();
     updateMetaLine();
+    drawWaveform(filePath);
   } catch (err) {
     showToast(`Playback failed — ${err.message || err || 'Unknown error'}`, 4000, 'error');
   }
@@ -712,6 +715,80 @@ function toggleMute() {
     if (btn) btn.innerHTML = '&#128263;';
     if (slider) slider.value = 0;
     document.getElementById('npVolumePct').textContent = '0%';
+  }
+}
+
+// ── Waveform rendering ──
+let _audioCtx = null;
+let _waveformCache = {};
+
+async function drawWaveform(filePath) {
+  const canvas = document.getElementById('npWaveformCanvas');
+  if (!canvas) return;
+  const container = canvas.parentElement;
+  canvas.width = container.offsetWidth * (window.devicePixelRatio || 1);
+  canvas.height = container.offsetHeight * (window.devicePixelRatio || 1);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Check cache
+  if (_waveformCache[filePath]) {
+    renderWaveformData(ctx, canvas, _waveformCache[filePath]);
+    return;
+  }
+
+  try {
+    if (!_audioCtx) _audioCtx = new AudioContext();
+    const src = convertFileSrc(filePath);
+    const resp = await fetch(src);
+    const buf = await resp.arrayBuffer();
+    const audioBuf = await _audioCtx.decodeAudioData(buf);
+    const raw = audioBuf.getChannelData(0);
+
+    // Downsample to canvas width
+    const bars = Math.min(canvas.width, 200);
+    const step = Math.floor(raw.length / bars);
+    const peaks = [];
+    for (let i = 0; i < bars; i++) {
+      let max = 0;
+      const start = i * step;
+      for (let j = start; j < start + step && j < raw.length; j++) {
+        const abs = Math.abs(raw[j]);
+        if (abs > max) max = abs;
+      }
+      peaks.push(max);
+    }
+
+    _waveformCache[filePath] = peaks;
+    renderWaveformData(ctx, canvas, peaks);
+  } catch {
+    // Fallback: draw a simple centered line
+    ctx.strokeStyle = 'rgba(5,217,232,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height / 2);
+    ctx.lineTo(canvas.width, canvas.height / 2);
+    ctx.stroke();
+  }
+}
+
+function renderWaveformData(ctx, canvas, peaks) {
+  const w = canvas.width;
+  const h = canvas.height;
+  const barW = w / peaks.length;
+  const mid = h / 2;
+
+  ctx.clearRect(0, 0, w, h);
+  for (let i = 0; i < peaks.length; i++) {
+    const barH = peaks[i] * mid * 0.9;
+    const x = i * barW;
+    // Gradient from cyan to magenta
+    const t = i / peaks.length;
+    const r = Math.round(5 + t * 250);
+    const g = Math.round(217 - t * 175);
+    const b = Math.round(232 - t * 23);
+    ctx.fillStyle = `rgba(${r},${g},${b},0.6)`;
+    ctx.fillRect(x, mid - barH, barW - 0.5, barH * 2);
   }
 }
 

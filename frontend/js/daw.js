@@ -100,6 +100,7 @@ function filterDawProjects() {
   if (search) {
     const scored = [];
     for (const p of allDawProjects) {
+      if (typeof passesGlobalTagFilter === 'function' && !passesGlobalTagFilter(p.path)) continue;
       if (dawSet && !dawSet.has(p.daw)) continue;
       const score = searchScore(search, [p.name, p.path, p.daw, p.format], mode);
       if (score > 0) scored.push({ item: p, score });
@@ -108,6 +109,7 @@ function filterDawProjects() {
     filteredDawProjects = scored.map(s => s.item);
   } else {
     filteredDawProjects = allDawProjects.filter(p => {
+      if (typeof passesGlobalTagFilter === 'function' && !passesGlobalTagFilter(p.path)) return false;
       if (dawSet && !dawSet.has(p.daw)) return false;
       return true;
     });

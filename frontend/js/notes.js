@@ -288,8 +288,71 @@ function clearAllNotes() {
   showToast('All notes deleted');
 }
 
-// Tag click filtering + note card actions + tag management
+// ── Global Tag Filter ──
+let _globalActiveTag = null;
+
+function getGlobalActiveTag() { return _globalActiveTag; }
+
+function renderGlobalTagBar() {
+  const bar = document.getElementById('globalTagBar');
+  const list = document.getElementById('globalTagList');
+  if (!bar || !list) return;
+
+  const allTags = getAllTags();
+  if (allTags.length === 0) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  list.innerHTML = allTags.map(t =>
+    `<span class="global-tag-item${_globalActiveTag === t ? ' active' : ''}" data-action-global-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`
+  ).join('');
+}
+
+function setGlobalTag(tag) {
+  _globalActiveTag = _globalActiveTag === tag ? null : tag;
+  renderGlobalTagBar();
+  // Re-filter the active tab
+  const active = document.querySelector('.tab-content.active');
+  if (active) {
+    if (active.id === 'tabPlugins') filterPlugins();
+    else if (active.id === 'tabSamples') filterAudioSamples();
+    else if (active.id === 'tabDaw') filterDawProjects();
+    else if (active.id === 'tabPresets') filterPresets();
+    else if (active.id === 'tabFavorites') renderFavorites();
+    else if (active.id === 'tabNotes') renderNotesTab();
+  }
+}
+
+function clearGlobalTag() {
+  _globalActiveTag = null;
+  renderGlobalTagBar();
+  // Re-filter active tab
+  setGlobalTag(null);
+}
+
+// Check if an item passes the global tag filter
+function passesGlobalTagFilter(path) {
+  if (!_globalActiveTag) return true;
+  return hasTag(path, _globalActiveTag);
+}
+
+// Render global tag bar on tab switch
+const _origSwitchTabForTags = switchTab;
+switchTab = function(tab) {
+  _origSwitchTabForTags(tab);
+  renderGlobalTagBar();
+};
+
+// Tag click filtering + note card actions + tag management + global tag
 document.addEventListener('click', (e) => {
+  // Global tag bar
+  const globalTag = e.target.closest('[data-action-global-tag]');
+  if (globalTag) {
+    setGlobalTag(globalTag.dataset.actionGlobalTag);
+    return;
+  }
+
   const tag = e.target.closest('[data-action-tag]');
   if (tag) {
     const list = document.getElementById('notesList');

@@ -134,6 +134,7 @@ document.addEventListener('click', (e) => {
     case 'settingToggleCrt': settingToggleCrt(); break;
     case 'clearFavorites': clearFavorites(); break;
     case 'clearAllNotes': clearAllNotes(); break;
+    case 'clearGlobalTag': clearGlobalTag(); break;
     case 'settingResetColumns': settingResetColumns(); break;
     case 'settingResetSectionOrder': resetSettingsSectionOrder(); break;
     case 'settingResetTabOrder': settingResetTabOrder(); break;

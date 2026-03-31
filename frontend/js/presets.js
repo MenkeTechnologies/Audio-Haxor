@@ -89,6 +89,7 @@ function filterPresets() {
   if (search) {
     const scored = [];
     for (const p of allPresets) {
+      if (typeof passesGlobalTagFilter === 'function' && !passesGlobalTagFilter(p.path)) continue;
       if (fmtSet && !fmtSet.has(p.format)) continue;
       const score = searchScore(search, [p.name, p.path, p.format], mode);
       if (score > 0) scored.push({ item: p, score });
@@ -97,6 +98,7 @@ function filterPresets() {
     filteredPresets = scored.map(s => s.item);
   } else {
     filteredPresets = allPresets.filter(p => {
+      if (typeof passesGlobalTagFilter === 'function' && !passesGlobalTagFilter(p.path)) return false;
       if (fmtSet && !fmtSet.has(p.format)) return false;
       return true;
     });

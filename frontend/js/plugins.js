@@ -345,6 +345,7 @@ const _filterPluginsImmediate = function() {
 
   let scored = [];
   for (const p of allPlugins) {
+    if (typeof passesGlobalTagFilter === 'function' && !passesGlobalTagFilter(p.path)) continue;
     if (typeSet && !typeSet.has(p.type)) continue;
     if (statusSet) {
       let matchesStatus = false;

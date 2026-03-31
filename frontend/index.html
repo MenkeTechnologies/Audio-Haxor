@@ -1384,6 +1384,64 @@
     }
 
     /* Tab nav */
+    /* Global tag filter bar */
+    .global-tag-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 24px;
+      background: rgba(249,240,2,0.04);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      animation: fadeIn 0.2s ease-out;
+    }
+    .global-tag-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--yellow);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      flex-shrink: 0;
+    }
+    .global-tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      flex: 1;
+    }
+    .global-tag-item {
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    .global-tag-item:hover {
+      border-color: var(--yellow);
+      color: var(--yellow);
+    }
+    .global-tag-item.active {
+      background: var(--yellow);
+      color: var(--bg);
+      border-color: var(--yellow);
+      box-shadow: 0 0 6px var(--yellow-glow);
+    }
+    .global-tag-clear {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 2px;
+    }
+    .global-tag-clear:hover { color: var(--red); border-color: var(--red); }
+
     .tab-nav {
       display: flex; gap: 0;
       border-bottom: 1px solid var(--border);
@@ -2802,6 +2860,13 @@
       border: 1px solid var(--border);
     }
 
+    .waveform-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
     .now-playing-progress {
       position: absolute;
       top: 0; left: 0; bottom: 0;
@@ -3106,6 +3171,7 @@
           <button class="btn-small btn-loop" id="npBtnShuffle" data-action="toggleShuffle" title="Shuffle">&#128256;</button>
         </div>
         <div class="now-playing-waveform" id="npWaveform" data-action="seekAudio">
+          <canvas class="waveform-canvas" id="npWaveformCanvas"></canvas>
           <div class="now-playing-progress" id="npProgress"></div>
         </div>
         <span class="now-playing-time" id="npTime">0:00 / 0:00</span>
@@ -3218,6 +3284,11 @@
       </div>
     </div>
 
+    <div class="global-tag-bar" id="globalTagBar" style="display:none;">
+      <span class="global-tag-label">&#127991; Tag Filter:</span>
+      <div class="global-tag-list" id="globalTagList"></div>
+      <button class="global-tag-clear" id="globalTagClear" data-action="clearGlobalTag" title="Clear tag filter">&#10005;</button>
+    </div>
     <div class="tab-nav">
       <button class="tab-btn active" data-action="switchTab" data-tab="plugins" title="VST2, VST3, and AU plugins (Cmd+1)">Plugins</button>
       <button class="tab-btn" data-action="switchTab" data-tab="samples" title="Audio sample files (Cmd+2)">Samples</button>

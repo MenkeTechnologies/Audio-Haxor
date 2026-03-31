@@ -40,6 +40,7 @@
   initSortPersistence();
   initSettingsSectionDrag();
   loadRecentlyPlayed();
+  renderGlobalTagBar();
 
   try {
     const latest = await window.vstUpdater.getLatestScan();
