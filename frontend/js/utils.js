@@ -348,6 +348,34 @@ function toggleRegex(btn) {
   }
 }
 
+// ── Loading helpers ──
+function showGlobalProgress() {
+  document.getElementById('globalProgress')?.classList.add('active');
+}
+function hideGlobalProgress() {
+  document.getElementById('globalProgress')?.classList.remove('active');
+}
+function btnLoading(btn, loading) {
+  if (!btn) return;
+  if (loading) {
+    btn.classList.add('btn-loading');
+    btn.disabled = true;
+  } else {
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
+  }
+}
+function skeletonRows(container, count = 5) {
+  container.innerHTML = Array.from({ length: count }, () =>
+    `<div class="skeleton-row fade-in">
+      <div class="skeleton skeleton-bar" style="flex: 2;"></div>
+      <div class="skeleton skeleton-bar" style="flex: 1;"></div>
+      <div class="skeleton skeleton-bar" style="width: 80px;"></div>
+      <div class="skeleton skeleton-bar" style="width: 80px;"></div>
+    </div>`
+  ).join('');
+}
+
 function escapePath(str) {
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }

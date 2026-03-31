@@ -1221,6 +1221,69 @@
       100% { background-position: 200% 0%; }
     }
 
+    /* Global top loading bar */
+    .global-progress {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      z-index: 30000;
+      display: none;
+    }
+    .global-progress.active { display: block; }
+    .global-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--magenta), var(--cyan));
+      background-size: 200% 100%;
+      animation: progress-indeterminate 1.5s ease-in-out infinite, progress-color-shift 3s linear infinite;
+      box-shadow: 0 0 8px var(--cyan-glow);
+    }
+
+    /* Button loading spinner */
+    .btn-loading {
+      position: relative;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+    .btn-loading::after {
+      content: '';
+      position: absolute;
+      right: 8px; top: 50%;
+      width: 12px; height: 12px;
+      margin-top: -6px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    /* Skeleton loading placeholder */
+    .skeleton {
+      background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-hover) 50%, var(--bg-card) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.5s ease-in-out infinite;
+      border-radius: 2px;
+    }
+    @keyframes skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skeleton-row {
+      display: flex; gap: 12px; padding: 12px 18px;
+      border: 1px solid var(--border); margin-bottom: 4px;
+    }
+    .skeleton-bar {
+      height: 14px; border-radius: 2px;
+    }
+
+    /* Fade-in animation for newly rendered content */
+    .fade-in {
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     /* Scanned directories list */
     .dirs-section {
       padding: 8px 24px;
@@ -2535,6 +2598,7 @@
     </div>
   </div>
   <div class="toast-container" id="toastContainer"></div>
+  <div class="global-progress" id="globalProgress"><div class="global-progress-fill"></div></div>
   <div class="crt-scanline"></div>
   <div class="app">
     <div class="header">

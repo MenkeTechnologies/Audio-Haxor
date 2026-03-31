@@ -53,6 +53,9 @@ async function exportPlugins() {
     filters: ALL_EXPORT_FILTERS,
   });
   if (!filePath) return;
+  const btn = document.getElementById('btnExport');
+  btnLoading(btn, true);
+  showGlobalProgress();
   try {
     const fmt = getFileFormat(filePath);
     if (fmt === 'pdf') {
@@ -69,6 +72,9 @@ async function exportPlugins() {
     showToast('Plugins exported');
   } catch (err) {
     showToast(`Export failed — ${err.message || err || 'Unknown error'}`, 4000, 'error');
+  } finally {
+    btnLoading(btn, false);
+    hideGlobalProgress();
   }
 }
 
@@ -79,6 +85,9 @@ async function importPlugins() {
   if (!selected) return;
   const filePath = typeof selected === 'string' ? selected : selected.path;
   if (!filePath) return;
+  const ibtn = document.getElementById('btnImport');
+  btnLoading(ibtn, true);
+  showGlobalProgress();
   try {
     let imported;
     if (filePath.endsWith('.toml')) {
@@ -100,6 +109,9 @@ async function importPlugins() {
     showToast(`Imported ${imported.length} plugins`);
   } catch (err) {
     await showImportError('plugins', err.message || String(err));
+  } finally {
+    btnLoading(ibtn, false);
+    hideGlobalProgress();
   }
 }
 
@@ -115,6 +127,7 @@ async function exportAudio() {
     filters: ALL_EXPORT_FILTERS,
   });
   if (!filePath) return;
+  showGlobalProgress();
   try {
     const fmt = getFileFormat(filePath);
     if (fmt === 'pdf') {
