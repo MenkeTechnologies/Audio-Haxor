@@ -116,7 +116,7 @@ document.addEventListener('contextmenu', (e) => {
     const name = dawRow.querySelector('.col-name')?.textContent || '';
     const dawName = dawRow.querySelector('.format-badge')?.textContent || 'DAW';
     const items = [
-      { icon: '&#9654;', label: `Open in ${dawName}`, action: () => { showToast(`Opening "${name}" in ${dawName}...`); window.vstUpdater.openDawProject(path); } },
+      { icon: '&#9654;', label: `Open in ${dawName}`, action: () => { showToast(`Opening "${name}" in ${dawName}...`); window.vstUpdater.openDawProject(path).catch(err => showToast(`${dawName} not installed — ${err}`, 4000, 'error')); } },
       { icon: '&#128193;', label: 'Reveal in Finder', action: () => openDawFolder(path) },
       '---',
       { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
@@ -159,6 +159,26 @@ document.addEventListener('contextmenu', (e) => {
       showContextMenu(e, items);
       return;
     }
+  }
+
+  // Floating player
+  const player = e.target.closest('#audioNowPlaying');
+  if (player && player.classList.contains('active')) {
+    const isPlaying = audioPlayerPath && !audioPlayer.paused;
+    const isExpanded = player.classList.contains('expanded');
+    const items = [];
+    if (audioPlayerPath) {
+      items.push({ icon: isPlaying ? '&#9646;&#9646;' : '&#9654;', label: isPlaying ? 'Pause' : 'Play', action: () => toggleAudioPlayback() });
+      items.push({ icon: '&#8634;', label: audioLooping ? 'Disable Loop' : 'Enable Loop', action: () => toggleAudioLoop() });
+      items.push({ icon: '&#128193;', label: 'Reveal in Finder', action: () => openAudioFolder(audioPlayerPath) });
+      items.push('---');
+      items.push({ icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(audioPlayerPath) });
+      items.push('---');
+    }
+    items.push({ icon: isExpanded ? '&#9660;' : '&#9650;', label: isExpanded ? 'Collapse Player' : 'Expand Player', action: () => togglePlayerExpanded() });
+    items.push({ icon: '&#10005;', label: 'Close Player', action: () => stopAudioPlayback() });
+    showContextMenu(e, items);
+    return;
   }
 
   // Tab buttons

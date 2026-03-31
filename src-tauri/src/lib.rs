@@ -793,7 +793,49 @@ async fn open_daw_folder(file_path: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn open_daw_project(file_path: String) -> Result<(), String> {
-    opener::open(&file_path).map_err(|e| e.to_string())
+    let path = std::path::Path::new(&file_path);
+    if !path.exists() {
+        return Err(format!("File not found: {}", file_path));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let output = std::process::Command::new("open")
+            .arg(&file_path)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("No application can open") || stderr.contains("no application set") {
+                return Err("No application installed to open this project file".to_string());
+            }
+            return Err(format!("Failed to open project: {}", stderr.trim()));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let output = std::process::Command::new("cmd")
+            .args(["/C", "start", "", &file_path])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            return Err("No application installed to open this project file".to_string());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let output = std::process::Command::new("xdg-open")
+            .arg(&file_path)
+            .output()
+            .map_err(|e| format!("No application installed to open this project file: {}", e))?;
+        if !output.status.success() {
+            return Err("No application installed to open this project file".to_string());
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

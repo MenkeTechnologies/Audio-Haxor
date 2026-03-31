@@ -581,7 +581,7 @@ function renderRecentlyPlayed() {
   list.innerHTML = recentlyPlayed.map(r => {
     const isActive = r.path === audioPlayerPath;
     const isPlaying = isActive && !audioPlayer.paused;
-    return `<div class="np-history-item${isActive ? ' active' : ''}" data-action="playRecent" data-path="${escapePath(r.path)}">
+    return `<div class="np-history-item${isActive ? ' active' : ''}" data-action="playRecent" data-path="${escapeHtml(r.path)}">
       <span class="np-h-icon">${isPlaying ? '&#9654;' : '&#9835;'}</span>
       <span class="np-h-name" title="${escapeHtml(r.path)}">${escapeHtml(r.name)}</span>
       <span class="np-h-format">${r.format}</span>
@@ -609,6 +609,7 @@ document.getElementById('audioNowPlaying').addEventListener('dblclick', (e) => {
 document.getElementById('npHistoryList')?.addEventListener('click', (e) => {
   const item = e.target.closest('[data-action="playRecent"]');
   if (item) {
+    e.stopPropagation();
     previewAudio(item.dataset.path);
   }
 });

@@ -107,7 +107,9 @@ document.addEventListener('dblclick', (e) => {
     void dawRow.offsetWidth;
     dawRow.classList.add('row-opening');
     showToast(`Opening "${name}" in ${dawName}...`);
-    window.vstUpdater.openDawProject(filePath);
+    window.vstUpdater.openDawProject(filePath).catch(err => {
+      showToast(`${dawName} not installed — ${err}`, 4000, 'error');
+    });
     return;
   }
 
@@ -197,10 +199,10 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-function showToast(message, duration = 2500) {
+function showToast(message, duration = 2500, type = '') {
   const container = document.getElementById('toastContainer');
   const el = document.createElement('div');
-  el.className = 'toast';
+  el.className = 'toast' + (type ? ` toast-${type}` : '');
   el.textContent = message;
   container.appendChild(el);
   setTimeout(() => el.remove(), duration);

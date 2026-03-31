@@ -86,6 +86,14 @@ pub fn is_package_ext(path: &Path) -> bool {
     PACKAGE_EXTENSIONS.iter().any(|ext| name.ends_with(ext))
 }
 
+/// Validate that a .band directory is actually a GarageBand project.
+/// Real GarageBand bundles contain a `projectData` file at the top level.
+fn is_valid_band_package(path: &Path) -> bool {
+    path.join("projectData").exists()
+        || path.join("Output").join("Output.aif").exists()
+        || path.join("Media").is_dir()
+}
+
 pub fn daw_name_for_format(format: &str) -> &'static str {
     match format {
         "ALS" | "ALP" => "Ableton Live",
@@ -250,6 +258,10 @@ fn walk_dir_parallel(
             continue;
         }
         if let Some(format) = ext_matches(&path) {
+            // Validate .band packages to avoid false positives
+            if format == "BAND" && is_pkg && !is_valid_band_package(&path) {
+                continue;
+            }
             let (size, modified) = if is_pkg {
                 let sz = get_directory_size(&path);
                 let mod_str = fs::metadata(&path)
