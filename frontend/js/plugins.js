@@ -74,7 +74,9 @@ async function scanPlugins(resume = false) {
       resumeBtn.style.display = '';
     }
   } catch (err) {
-    list.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${err.message || err || 'Unknown error'}</p></div>`;
+    const errMsg = err.message || err || 'Unknown error';
+    list.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
+    showToast(`Plugin scan failed — ${errMsg}`, 4000, 'error');
   }
 
   if (scanProgressCleanup) { scanProgressCleanup(); scanProgressCleanup = null; }
@@ -253,8 +255,9 @@ async function checkUpdates() {
 
     renderPlugins(allPlugins);
   } catch (err) {
-    if ((err.message || err) !== 'stopped') {
-      console.error('Check updates error:', err);
+    const updateErr = err.message || err || 'Unknown error';
+    if (updateErr !== 'stopped') {
+      showToast(`Update check failed — ${updateErr}`, 4000, 'error');
     }
   }
 

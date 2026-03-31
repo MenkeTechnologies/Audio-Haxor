@@ -89,7 +89,7 @@ async function exportPlugins() {
       await window.vstUpdater.exportJson(allPlugins, path);
     }
   } catch (err) {
-    console.error('Export failed:', err);
+    showToast(`Export failed — ${err.message || err || 'Unknown error'}`, 4000, 'error');
   }
 }
 
@@ -145,7 +145,7 @@ async function exportAudio() {
       const path = filePath.endsWith('.json') ? filePath : filePath + '.json';
       await window.vstUpdater.exportAudioJson(allAudioSamples, path);
     }
-  } catch (err) { console.error('Audio export failed:', err); }
+  } catch (err) { showToast(`Audio export failed — ${err.message || err || 'Unknown error'}`, 4000, 'error'); }
 }
 
 async function exportDaw() {
@@ -169,7 +169,7 @@ async function exportDaw() {
       const path = filePath.endsWith('.json') ? filePath : filePath + '.json';
       await window.vstUpdater.exportDawJson(allDawProjects, path);
     }
-  } catch (err) { console.error('DAW export failed:', err); }
+  } catch (err) { showToast(`DAW export failed — ${err.message || err || 'Unknown error'}`, 4000, 'error'); }
 }
 
 async function exportPresets() {
@@ -185,7 +185,7 @@ async function exportPresets() {
   try {
     const path = filePath.endsWith('.json') ? filePath : filePath + '.json';
     await window.vstUpdater.exportPresetsJson(allPresets, path);
-  } catch (err) { console.error('Preset export failed:', err); }
+  } catch (err) { showToast(`Preset export failed — ${err.message || err || 'Unknown error'}`, 4000, 'error'); }
 }
 
 async function importAudio() {

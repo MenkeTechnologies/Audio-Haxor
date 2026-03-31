@@ -150,14 +150,16 @@ async function scanAudioSamples(resume = false) {
     }
     rebuildAudioStats();
     filterAudioSamples();
-    try { await window.vstUpdater.saveAudioScan(allAudioSamples, result.roots); } catch (e) { console.error('Failed to save audio scan history:', e); }
+    try { await window.vstUpdater.saveAudioScan(allAudioSamples, result.roots); } catch (e) { showToast(`Failed to save audio history — ${e.message || e}`, 4000, 'error'); }
     if (result.stopped && allAudioSamples.length > 0) {
       resumeBtn.style.display = '';
     }
   } catch (err) {
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
     flushPendingSamples();
-    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${err.message || err || 'Unknown error'}</p></div>`;
+    const errMsg = err.message || err || 'Unknown error';
+    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
+    showToast(`Audio scan failed — ${errMsg}`, 4000, 'error');
   }
 
   btn.disabled = false;
@@ -365,7 +367,7 @@ async function previewAudio(filePath) {
     updatePlayBtnStates();
     updateNowPlayingBtn();
   } catch (err) {
-    console.error('Preview failed:', err);
+    showToast(`Playback failed — ${err.message || err || 'Unknown error'}`, 4000, 'error');
   }
 }
 

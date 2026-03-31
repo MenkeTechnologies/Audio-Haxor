@@ -70,7 +70,7 @@
       resolveKvrDownloads();
     }
   } catch (err) {
-    console.error('Failed to load last plugin scan:', err);
+    showToast(`Failed to load plugin scan — ${err.message || err}`, 4000, 'error');
   }
 
   // Auto-load last audio scan
@@ -82,7 +82,7 @@
       filterAudioSamples();
     }
   } catch (err) {
-    console.error('Failed to load last audio scan:', err);
+    showToast(`Failed to load audio scan — ${err.message || err}`, 4000, 'error');
   }
 
   // Auto-load last DAW scan
@@ -94,7 +94,7 @@
       filterDawProjects();
     }
   } catch (err) {
-    console.error('Failed to load last DAW scan:', err);
+    showToast(`Failed to load DAW scan — ${err.message || err}`, 4000, 'error');
   }
 
   // Auto-load last preset scan
@@ -106,7 +106,7 @@
       filterPresets();
     }
   } catch (err) {
-    console.error('Failed to load last preset scan:', err);
+    showToast(`Failed to load preset scan — ${err.message || err}`, 4000, 'error');
   }
 
   // Apply default type filter from settings
@@ -180,7 +180,7 @@ async function scanAll(resume = false) {
       scanPresets(resume),
     ]);
   } catch (err) {
-    console.error('Scan all failed:', err);
+    showToast(`Scan all failed — ${err.message || err}`, 4000, 'error');
   }
 
   scanAllRunning = false;

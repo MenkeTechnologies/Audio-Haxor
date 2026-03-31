@@ -508,7 +508,7 @@ function savePresetScanDirs() {
 }
 
 function openPrefsFile() {
-  window.vstUpdater.openPrefsFile().catch(e => console.error('Failed to open prefs file:', e));
+  window.vstUpdater.openPrefsFile().catch(e => showToast(`Failed to open prefs file — ${e.message || e}`, 4000, 'error'));
 }
 
 function getSettingValue(key, defaultVal) {

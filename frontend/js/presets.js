@@ -232,14 +232,16 @@ async function scanPresets(resume = false) {
     }
     rebuildPresetStats();
     filterPresets();
-    try { await window.vstUpdater.savePresetScan(allPresets, result.roots); } catch (e) { console.error('Failed to save preset scan history:', e); }
+    try { await window.vstUpdater.savePresetScan(allPresets, result.roots); } catch (e) { showToast(`Failed to save preset history — ${e.message || e}`, 4000, 'error'); }
     if (result.stopped && allPresets.length > 0) {
       resumeBtn.style.display = '';
     }
   } catch (err) {
     if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
     flushPending();
-    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${err.message || err || 'Unknown error'}</p></div>`;
+    const errMsg = err.message || err || 'Unknown error';
+    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
+    showToast(`Preset scan failed — ${errMsg}`, 4000, 'error');
   }
 
   btn.disabled = false;
