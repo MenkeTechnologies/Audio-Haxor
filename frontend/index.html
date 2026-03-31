@@ -1201,19 +1201,27 @@
       color: var(--text-muted);
       font-size: 12px;
       font-weight: 600;
-      cursor: pointer;
+      cursor: grab;
       border-bottom: 2px solid transparent;
       transition: all 0.2s;
       -webkit-app-region: no-drag;
       text-transform: uppercase;
       letter-spacing: 2px;
       font-family: 'Orbitron', sans-serif;
+      user-select: none;
     }
     .tab-btn:hover { color: var(--text-dim); }
     .tab-btn.active {
       color: var(--cyan);
       border-bottom-color: var(--cyan);
       text-shadow: 0 0 10px var(--cyan-glow);
+    }
+    .tab-btn.tab-dragging {
+      opacity: 0.4;
+      cursor: grabbing;
+    }
+    .tab-btn.tab-drag-over {
+      border-left: 2px solid var(--cyan);
     }
 
     .tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; min-height: 0; }
@@ -2900,6 +2908,15 @@
 
         <div class="settings-section">
           <h2 class="settings-heading">Data</h2>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Reset Tab Order</span>
+              <span class="settings-desc">Restore the default tab order (drag tabs to rearrange)</span>
+            </div>
+            <div class="settings-control">
+              <button class="btn btn-secondary btn-settings-action" data-action="settingResetTabOrder">Reset</button>
+            </div>
+          </div>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title">Reset Column Widths</span>

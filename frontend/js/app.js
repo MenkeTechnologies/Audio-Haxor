@@ -34,6 +34,7 @@
   // Load file-backed preferences before anything else
   await prefs.load();
   restoreSettings();
+  initTabDragReorder();
 
   try {
     const latest = await window.vstUpdater.getLatestScan();

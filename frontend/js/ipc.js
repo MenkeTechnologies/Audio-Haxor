@@ -75,6 +75,7 @@ document.addEventListener('click', (e) => {
     case 'settingToggleTheme': settingToggleTheme(); break;
     case 'settingToggleCrt': settingToggleCrt(); break;
     case 'settingResetColumns': settingResetColumns(); break;
+    case 'settingResetTabOrder': settingResetTabOrder(); break;
     case 'settingClearAllHistory': settingClearAllHistory(); break;
     case 'settingClearKvrCache': settingClearKvrCache(); break;
     case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;

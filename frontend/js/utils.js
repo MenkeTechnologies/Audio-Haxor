@@ -111,6 +111,108 @@ function toggleDirs() {
   arrow.innerHTML = list.classList.contains('open') ? '&#9660;' : '&#9654;';
 }
 
+// ── Tab drag reorder ──
+function initTabDragReorder() {
+  const nav = document.querySelector('.tab-nav');
+  let draggedTab = null;
+
+  nav.addEventListener('dragstart', (e) => {
+    const btn = e.target.closest('.tab-btn');
+    if (!btn) return;
+    draggedTab = btn;
+    btn.classList.add('tab-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+  });
+
+  nav.addEventListener('dragend', (e) => {
+    const btn = e.target.closest('.tab-btn');
+    if (btn) btn.classList.remove('tab-dragging');
+    nav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-drag-over'));
+    draggedTab = null;
+  });
+
+  nav.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.target.closest('.tab-btn');
+    nav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-drag-over'));
+    if (target && target !== draggedTab) {
+      target.classList.add('tab-drag-over');
+    }
+  });
+
+  nav.addEventListener('dragleave', (e) => {
+    const target = e.target.closest('.tab-btn');
+    if (target) target.classList.remove('tab-drag-over');
+  });
+
+  nav.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const target = e.target.closest('.tab-btn');
+    if (!target || !draggedTab || target === draggedTab) return;
+    target.classList.remove('tab-drag-over');
+
+    // Reorder in DOM
+    const tabs = [...nav.querySelectorAll('.tab-btn')];
+    const dragIdx = tabs.indexOf(draggedTab);
+    const dropIdx = tabs.indexOf(target);
+    if (dragIdx < dropIdx) {
+      nav.insertBefore(draggedTab, target.nextSibling);
+    } else {
+      nav.insertBefore(draggedTab, target);
+    }
+
+    saveTabOrder();
+  });
+
+  // Make tabs draggable
+  nav.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.setAttribute('draggable', 'true');
+  });
+
+  // Restore saved order
+  restoreTabOrder();
+}
+
+function saveTabOrder() {
+  const tabs = [...document.querySelectorAll('.tab-nav .tab-btn')].map(b => b.dataset.tab);
+  prefs.setItem('tabOrder', JSON.stringify(tabs));
+}
+
+function restoreTabOrder() {
+  const saved = prefs.getItem('tabOrder');
+  if (!saved) return;
+  try {
+    const order = JSON.parse(saved);
+    if (!Array.isArray(order)) return;
+    const nav = document.querySelector('.tab-nav');
+    const tabs = [...nav.querySelectorAll('.tab-btn')];
+    const tabMap = {};
+    tabs.forEach(btn => { tabMap[btn.dataset.tab] = btn; });
+    // Re-append in saved order, skip any missing
+    for (const key of order) {
+      if (tabMap[key]) nav.appendChild(tabMap[key]);
+    }
+    // Append any tabs not in saved order (new tabs)
+    tabs.forEach(btn => {
+      if (!order.includes(btn.dataset.tab)) nav.appendChild(btn);
+    });
+  } catch {}
+}
+
+function settingResetTabOrder() {
+  prefs.removeItem('tabOrder');
+  const nav = document.querySelector('.tab-nav');
+  const defaultOrder = ['plugins', 'samples', 'daw', 'presets', 'history', 'settings'];
+  const tabMap = {};
+  nav.querySelectorAll('.tab-btn').forEach(btn => { tabMap[btn.dataset.tab] = btn; });
+  for (const key of defaultOrder) {
+    if (tabMap[key]) nav.appendChild(tabMap[key]);
+  }
+  showToast('Tab order reset');
+}
+
 // ── Tab switching ──
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => {
