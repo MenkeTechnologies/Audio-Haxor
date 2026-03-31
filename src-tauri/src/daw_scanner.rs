@@ -39,6 +39,14 @@ const DAW_EXTENSIONS: &[&str] = &[
 /// be treated as files, not recursed into).
 const PACKAGE_EXTENSIONS: &[&str] = &[".logicx", ".band"];
 
+/// Plugin bundle extensions — directories with these extensions should never
+/// be recursed into by the DAW scanner. They contain plugin code and presets,
+/// not DAW projects.
+const PLUGIN_BUNDLE_EXTENSIONS: &[&str] = &[
+    ".vst", ".vst3", ".component", ".aaxplugin", ".app",
+    ".framework", ".bundle", ".plugin", ".dpm", ".clap",
+];
+
 const SKIP_DIRS: &[&str] = &[
     "node_modules",
     ".git",
@@ -275,6 +283,11 @@ fn walk_dir_parallel(
         }
         let path = entry.path();
         if path.is_dir() {
+            // Skip plugin bundles entirely — they contain presets, not DAW projects
+            let name_lower = name_str.to_lowercase();
+            if PLUGIN_BUNDLE_EXTENSIONS.iter().any(|ext| name_lower.ends_with(ext)) {
+                continue;
+            }
             if is_package_ext(&path) {
                 files_and_packages.push((path, dir.to_path_buf(), true));
             } else {
