@@ -18,9 +18,17 @@ function setNote(path, note, tags) {
   prefs.setItem('itemNotes', notes);
 }
 
+function getStandaloneTags() {
+  return prefs.getObject('standaloneTags', []);
+}
+
+function setStandaloneTags(tags) {
+  prefs.setItem('standaloneTags', tags);
+}
+
 function getAllTags() {
   const notes = getNotes();
-  const tags = new Set();
+  const tags = new Set(getStandaloneTags());
   for (const entry of Object.values(notes)) {
     if (entry.tags) entry.tags.forEach(t => tags.add(t));
   }
@@ -30,6 +38,8 @@ function getAllTags() {
 function getTagCounts() {
   const notes = getNotes();
   const counts = {};
+  // Include standalone tags with 0 count
+  for (const t of getStandaloneTags()) counts[t] = 0;
   for (const entry of Object.values(notes)) {
     if (entry.tags) entry.tags.forEach(t => { counts[t] = (counts[t] || 0) + 1; });
   }
@@ -90,8 +100,15 @@ function deleteTag(tag) {
   }
   if (changed > 0) {
     prefs.setItem('itemNotes', notes);
-    showToast(`Removed tag "${tag}" from ${changed} items`);
   }
+  // Also remove from standalone tags
+  const standalone = getStandaloneTags();
+  const idx = standalone.indexOf(tag);
+  if (idx !== -1) {
+    standalone.splice(idx, 1);
+    setStandaloneTags(standalone);
+  }
+  showToast(`Removed tag "${tag}"${changed > 0 ? ` from ${changed} items` : ''}`);
 }
 
 // ── Note Editor Modal ──
@@ -284,9 +301,10 @@ function renderNotesTab() {
 function clearAllNotes() {
   if (!confirm('Delete all notes and tags?')) return;
   prefs.setItem('itemNotes', {});
+  setStandaloneTags([]);
   renderNotesTab();
   renderGlobalTagBar();
-  showToast('All notes deleted');
+  showToast('All notes and tags deleted');
 }
 
 // ── Tags Manager Tab ──
@@ -345,10 +363,18 @@ function renderTagsManager() {
 function createNewTag() {
   const tag = prompt('Enter new tag name:');
   if (!tag || !tag.trim()) return;
-  // Tag doesn't get attached to anything yet — it exists once added to an item
-  showToast(`Tag "${tag.trim()}" created. Right-click an item to apply it.`);
-  // Just show the tag manager
+  const name = tag.trim();
+  const existing = getAllTags();
+  if (existing.includes(name)) {
+    showToast(`Tag "${name}" already exists`);
+    return;
+  }
+  const standalone = getStandaloneTags();
+  standalone.push(name);
+  setStandaloneTags(standalone);
+  showToast(`Tag "${name}" created — right-click any item to apply it`);
   renderTagsManager();
+  renderGlobalTagBar();
 }
 
 // ── Global Tag Filter ──
