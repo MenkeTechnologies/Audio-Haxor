@@ -666,4 +666,91 @@ mod tests {
         }
         let _ = fs::remove_dir_all(&tmp);
     }
+
+    #[test]
+    fn test_walk_for_daw_skips_backup_dirs() {
+        let tmp = std::env::temp_dir().join("upum_test_daw_backup");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("Backup")).unwrap();
+        fs::create_dir_all(tmp.join("Crash")).unwrap();
+        fs::write(tmp.join("main.als"), b"data").unwrap();
+        fs::write(tmp.join("Backup").join("backup.als"), b"data").unwrap();
+        fs::write(tmp.join("Crash").join("crash.als"), b"data").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_daw(
+            &[tmp.clone()],
+            &mut |batch, _| { found.extend_from_slice(batch); },
+            &|| false,
+            None,
+            false, // include_backups = false
+        );
+        // Should only find main.als, not backup or crash
+        assert_eq!(found.len(), 1, "Expected 1 (main.als), found {}: {:?}", found.len(), found.iter().map(|f| &f.name).collect::<Vec<_>>());
+        assert_eq!(found[0].name, "main");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_daw_includes_backup_when_enabled() {
+        let tmp = std::env::temp_dir().join("upum_test_daw_backup_on");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("Backup")).unwrap();
+        fs::write(tmp.join("main.als"), b"data").unwrap();
+        fs::write(tmp.join("Backup").join("backup.als"), b"data").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_daw(
+            &[tmp.clone()],
+            &mut |batch, _| { found.extend_from_slice(batch); },
+            &|| false,
+            None,
+            true, // include_backups = true
+        );
+        assert_eq!(found.len(), 2);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_daw_skips_plugin_bundles() {
+        let tmp = std::env::temp_dir().join("upum_test_daw_plugin_skip");
+        let _ = fs::remove_dir_all(&tmp);
+        // Create a .vst3 directory with .als inside — should NOT be found
+        fs::create_dir_all(tmp.join("Plugin.vst3").join("Contents")).unwrap();
+        fs::write(tmp.join("Plugin.vst3").join("Contents").join("fake.als"), b"data").unwrap();
+        // Create a real .als outside
+        fs::write(tmp.join("real.als"), b"data").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_daw(
+            &[tmp.clone()],
+            &mut |batch, _| { found.extend_from_slice(batch); },
+            &|| false,
+            None,
+            false,
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].name, "real");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_band_plain_file_rejected() {
+        let tmp = std::env::temp_dir().join("upum_test_band_file");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        // .band as a plain file should be rejected
+        fs::write(tmp.join("preset.band"), b"not a garageband project").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_daw(
+            &[tmp.clone()],
+            &mut |batch, _| { found.extend_from_slice(batch); },
+            &|| false,
+            None,
+            false,
+        );
+        assert_eq!(found.len(), 0, "Plain .band file should be rejected");
+        let _ = fs::remove_dir_all(&tmp);
+    }
 }

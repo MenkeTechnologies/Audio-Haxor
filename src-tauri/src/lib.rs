@@ -2315,6 +2315,191 @@ mod tests {
 
         let _ = fs::remove_file(&tmp);
     }
+
+    // ── File browser tests ──
+
+    #[test]
+    fn test_fs_list_dir_valid() {
+        let tmp = std::env::temp_dir().join("upum_test_fs_list");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("file1.txt"), "hello").unwrap();
+        fs::write(tmp.join("file2.wav"), "audio").unwrap();
+        fs::create_dir(tmp.join("subdir")).unwrap();
+        fs::write(tmp.join(".hidden"), "skip").unwrap();
+
+        let result = fs_list_dir(tmp.to_string_lossy().to_string()).unwrap();
+        let entries = result["entries"].as_array().unwrap();
+        // Should have 3 entries (subdir, file1.txt, file2.wav) — .hidden is skipped
+        assert_eq!(entries.len(), 3);
+        // Dirs first
+        assert!(entries[0]["isDir"].as_bool().unwrap());
+        assert_eq!(entries[0]["name"].as_str().unwrap(), "subdir");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_fs_list_dir_nonexistent() {
+        let result = fs_list_dir("/nonexistent/upum_dir_xyz".into());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_fs_list_dir_not_a_dir() {
+        let tmp = std::env::temp_dir().join("upum_test_fs_notdir.txt");
+        fs::write(&tmp, "data").unwrap();
+        let result = fs_list_dir(tmp.to_string_lossy().to_string());
+        assert!(result.is_err());
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_delete_file_regular() {
+        let tmp = std::env::temp_dir().join("upum_test_delete.txt");
+        fs::write(&tmp, "delete me").unwrap();
+        assert!(tmp.exists());
+        delete_file(tmp.to_string_lossy().to_string()).unwrap();
+        assert!(!tmp.exists());
+    }
+
+    #[test]
+    fn test_delete_file_directory() {
+        let tmp = std::env::temp_dir().join("upum_test_delete_dir");
+        fs::create_dir_all(tmp.join("inner")).unwrap();
+        fs::write(tmp.join("inner").join("file.txt"), "data").unwrap();
+        delete_file(tmp.to_string_lossy().to_string()).unwrap();
+        assert!(!tmp.exists());
+    }
+
+    #[test]
+    fn test_delete_file_nonexistent() {
+        let result = delete_file("/nonexistent/upum_file_xyz.txt".into());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_rename_file() {
+        let tmp1 = std::env::temp_dir().join("upum_test_rename_old.txt");
+        let tmp2 = std::env::temp_dir().join("upum_test_rename_new.txt");
+        let _ = fs::remove_file(&tmp2);
+        fs::write(&tmp1, "content").unwrap();
+        rename_file(tmp1.to_string_lossy().to_string(), tmp2.to_string_lossy().to_string()).unwrap();
+        assert!(!tmp1.exists());
+        assert!(tmp2.exists());
+        assert_eq!(fs::read_to_string(&tmp2).unwrap(), "content");
+        let _ = fs::remove_file(&tmp2);
+    }
+
+    #[test]
+    fn test_get_home_dir() {
+        let result = get_home_dir();
+        assert!(result.is_ok());
+        let home = result.unwrap();
+        assert!(!home.is_empty());
+        assert!(std::path::Path::new(&home).exists());
+    }
+
+    // ── TOML export/import tests ──
+
+    #[test]
+    fn test_export_import_toml_roundtrip() {
+        let tmp = std::env::temp_dir().join("upum_test_export.toml");
+        let data = serde_json::json!({
+            "plugins": [{"name": "Test", "version": "1.0"}]
+        });
+        export_toml(data.clone(), tmp.to_string_lossy().to_string()).unwrap();
+        let imported = import_toml(tmp.to_string_lossy().to_string()).unwrap();
+        assert!(imported["plugins"].is_array());
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_import_toml_nonexistent() {
+        let result = import_toml("/nonexistent/file.toml".into());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_import_toml_invalid() {
+        let tmp = std::env::temp_dir().join("upum_test_invalid.toml");
+        fs::write(&tmp, "this is not valid toml [[[").unwrap();
+        let result = import_toml(tmp.to_string_lossy().to_string());
+        assert!(result.is_err());
+        let _ = fs::remove_file(&tmp);
+    }
+
+    // ── Preset DSV export tests ──
+
+    #[test]
+    fn test_export_presets_dsv_csv() {
+        let tmp = std::env::temp_dir().join("upum_test_presets.csv");
+        let presets = vec![PresetFile {
+            name: "Lead".into(),
+            path: "/presets/lead.fxp".into(),
+            directory: "/presets".into(),
+            format: "FXP".into(),
+            size: 1024,
+            size_formatted: "1.0 KB".into(),
+            modified: "2024-01-01".into(),
+        }];
+        export_presets_dsv(presets, tmp.to_string_lossy().to_string()).unwrap();
+        let content = fs::read_to_string(&tmp).unwrap();
+        assert!(content.contains("Lead"));
+        assert!(content.contains("FXP"));
+        assert!(content.contains(","));
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_export_presets_dsv_tsv() {
+        let tmp = std::env::temp_dir().join("upum_test_presets.tsv");
+        let presets = vec![PresetFile {
+            name: "Bass".into(),
+            path: "/presets/bass.fxp".into(),
+            directory: "/presets".into(),
+            format: "FXP".into(),
+            size: 2048,
+            size_formatted: "2.0 KB".into(),
+            modified: "2024-02-01".into(),
+        }];
+        export_presets_dsv(presets, tmp.to_string_lossy().to_string()).unwrap();
+        let content = fs::read_to_string(&tmp).unwrap();
+        assert!(content.contains("Bass"));
+        assert!(content.contains("\t"));
+        let _ = fs::remove_file(&tmp);
+    }
+
+    // ── .band validation tests ──
+
+    #[test]
+    fn test_band_validation_valid() {
+        let tmp = std::env::temp_dir().join("upum_test_valid.band");
+        fs::create_dir_all(tmp.join("Media")).unwrap();
+        fs::write(tmp.join("projectData"), b"bplist00fake").unwrap();
+        assert!(daw_scanner::is_package_ext(&tmp));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_band_validation_no_bplist() {
+        let tmp = std::env::temp_dir().join("upum_test_nobplist.band");
+        fs::create_dir_all(tmp.join("Media")).unwrap();
+        fs::write(tmp.join("projectData"), b"not a plist").unwrap();
+        // is_package_ext returns true (it's a .band dir) but the internal
+        // validation in walk_for_daw would reject it
+        assert!(daw_scanner::is_package_ext(&tmp));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    // ── open_daw_project tests ──
+
+    #[test]
+    fn test_open_daw_project_nonexistent() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(open_daw_project("/nonexistent/project.als".into()));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
 }
 
 // ── App setup ──
