@@ -98,6 +98,13 @@ function setPan(value) {
   }
 }
 
+function toggleEqSection() {
+  const section = document.getElementById('npEqSection');
+  const btn = document.getElementById('npEqToggle');
+  section.classList.toggle('visible');
+  btn.classList.toggle('active', section.classList.contains('visible'));
+}
+
 function toggleMono() {
   _monoMode = !_monoMode;
   const btn = document.getElementById('npBtnMono');
@@ -733,6 +740,10 @@ function seekAudio(event) {
 function setAudioVolume(value) {
   const vol = parseInt(value, 10) / 100;
   audioPlayer.volume = Math.max(0, Math.min(1, vol));
+  // Also set via gain node for Web Audio API path
+  if (_gainNode) {
+    _gainNode.gain.value = vol * parseFloat(document.getElementById('npGainSlider')?.value || '1');
+  }
   document.getElementById('npVolumePct').textContent = value + '%';
 }
 

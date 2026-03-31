@@ -167,6 +167,7 @@ document.addEventListener('click', (e) => {
     case 'toggleMute': toggleMute(); break;
     case 'resetEq': resetEq(); break;
     case 'toggleMono': toggleMono(); break;
+    case 'toggleEqSection': toggleEqSection(); break;
     case 'setAbA': setAbLoopStart(); break;
     case 'setAbB': setAbLoopEnd(); break;
     case 'clearAbLoop': clearAbLoop(); break;

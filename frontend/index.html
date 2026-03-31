@@ -3127,9 +3127,23 @@
       padding-top: 10px;
       margin-top: 4px;
     }
-    .audio-now-playing.expanded .np-eq-section {
+    .np-eq-section.visible {
       display: block;
     }
+    .np-eq-toggle {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 9px;
+      font-family: inherit;
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .np-eq-toggle:hover { color: var(--text); border-color: var(--cyan); }
+    .np-eq-toggle.active { color: var(--cyan); border-color: var(--cyan); }
     .np-eq-header {
       display: flex;
       align-items: center;
@@ -3812,7 +3826,13 @@
         </div>
       </div>
       <div class="np-expand-hint">double-click to expand</div>
-      <!-- EQ & Processing — only visible when expanded -->
+      <div class="np-history" id="npHistory">
+        <div class="np-history-title">Recently Played</div>
+        <div id="npHistoryList"></div>
+      </div>
+      <div style="text-align: center; padding: 6px 0;">
+        <button class="np-eq-toggle" id="npEqToggle" data-action="toggleEqSection">EQ &amp; FX</button>
+      </div>
       <div class="np-eq-section" id="npEqSection">
         <div class="np-eq-header">
           <span class="np-eq-title">EQ &amp; Processing</span>
@@ -3856,10 +3876,6 @@
             <button class="btn-small btn-stop" id="npAbClear" data-action="clearAbLoop" title="Clear A-B loop" style="display:none;font-size:9px;padding:2px 6px;">&#10005;</button>
           </div>
         </div>
-      </div>
-      <div class="np-history" id="npHistory">
-        <div class="np-history-title">Recently Played</div>
-        <div id="npHistoryList"></div>
       </div>
     </div>
   </div>
