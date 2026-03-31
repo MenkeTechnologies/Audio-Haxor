@@ -219,8 +219,9 @@
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#screenshots">Screenshots</a>
-    <a href="#guide">User Guide</a>
+    <a href="#use-cases">Use Cases</a>
     <a href="#shortcuts">Shortcuts</a>
+    <a href="#architecture">Architecture</a>
     <a href="#install">Install</a>
     <a href="https://github.com/MenkeTechnologies/universal-plugin-update-manager">GitHub</a>
   </div>
@@ -310,94 +311,344 @@
         <img src="../screenshots/welcome.png" alt="Welcome Screen">
         <div class="screenshot-caption">
           <h3>> BOOT SEQUENCE</h3>
-          <p>Initial state. The grid awaits your scan command. Last scan results auto-load on startup so you're ready instantly.</p>
+          <p>Initial state. The grid awaits your scan command. Last scan results auto-load on startup so you're ready instantly. The header shows real-time process stats (CPU, memory, threads, uptime).</p>
         </div>
       </div>
       <div class="screenshot-item">
         <img src="../screenshots/scan-results.png" alt="Scan Results">
         <div class="screenshot-caption">
           <h3>> SCANNING AUDIO NODES</h3>
-          <p>Plugins stream into the list in real-time. Progress counter shows live status. Architecture badges (ARM64, x86_64) per plugin. Hit Stop anytime -- discovered plugins are kept.</p>
+          <p>Plugins stream into the list in real-time as Rayon worker threads discover them. Progress counter with ETA shows live status. Architecture badges (ARM64, x86_64) per plugin. Hit Stop anytime -- discovered plugins are kept. Resume to continue from where you left off.</p>
         </div>
       </div>
       <div class="screenshot-item">
         <img src="../screenshots/updates.png" alt="Update Checker">
         <div class="screenshot-caption">
           <h3>> UPDATE MATRIX LOADED</h3>
-          <p>KVR Audio check in progress. Cards update incrementally with "Update Available" or "Up to Date" badges. Yellow KVR buttons link to product pages. Green download buttons for outdated plugins.</p>
+          <p>KVR Audio check in progress. Cards update incrementally with "Update Available" or "Up to Date" badges. Yellow KVR buttons link to product pages. Green download buttons for outdated plugins. Status bar shows current plugin being checked.</p>
         </div>
       </div>
       <div class="screenshot-item">
         <img src="../screenshots/history.png" alt="History & Diff">
         <div class="screenshot-caption">
           <h3>> SCAN HISTORY // DIFF ENGINE</h3>
-          <p>Every scan is timestamped and archived. Select two snapshots and the diff engine shows plugins added, removed, or version-changed between them.</p>
+          <p>Every scan is timestamped and archived (up to 50 snapshots). Select any two and the diff engine shows plugins added, removed, or version-changed between them. Plugin, audio, DAW, and preset scans are merged in a unified timeline.</p>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- User Guide -->
-<section class="section" id="guide">
+<!-- Detailed Use Cases -->
+<section class="section" id="use-cases">
   <div class="container">
-    <h2 class="section-title">> USER GUIDE</h2>
-    <p class="section-subtitle">How to use AUDIO_HAXOR effectively.</p>
-    <div class="guide-steps">
-      <div class="guide-step">
-        <div class="step-number">1</div>
-        <div class="step-content">
-          <h3>Scan Your Plugins</h3>
-          <p>Click <strong>"Scan Plugins"</strong> or use <strong>"Scan All"</strong> in the header to scan plugins, samples, DAW projects, and presets simultaneously. Results stream in real-time. Use <strong>Stop</strong> to cancel anytime without losing results.</p>
+    <h2 class="section-title">> USE CASES</h2>
+    <p class="section-subtitle">Detailed walkthroughs for every major workflow.</p>
+
+    <!-- Use Case 1: Plugin Management -->
+    <div style="margin-bottom: 64px;">
+      <h3 style="color: var(--cyan); font-family: 'Courier New', monospace; font-size: 20px; margin-bottom: 24px;">1. Plugin Inventory & Updates</h3>
+      <div class="screenshot-item" style="margin-bottom: 24px;">
+        <img src="../screenshots/scan-results.png" alt="Plugin Scanning">
+      </div>
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="step-number">A</div>
+          <div class="step-content">
+            <h3>Scan System Directories</h3>
+            <p>Click <strong>"Scan Plugins"</strong> to discover all VST2, VST3, and Audio Unit plugins. The scanner crawls platform-specific directories (<code>/Library/Audio/Plug-Ins/</code> on macOS) using parallel Rayon threads. Results stream in real-time -- you see each plugin appear as it's found.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">B</div>
+          <div class="step-content">
+            <h3>View Architecture Info</h3>
+            <p>Each plugin card shows architecture badges: <span style="color: var(--green);">ARM64</span> (Apple Silicon native), <span style="color: var(--yellow);">x86_64</span> (Intel), or both. This is detected by reading Mach-O headers directly -- no subprocess spawning. Use the type filter to show only VST3 or Audio Units.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">C</div>
+          <div class="step-content">
+            <h3>Check KVR for Updates</h3>
+            <p>Click <strong>"Check Updates"</strong> to query <a href="https://www.kvraudio.com">KVR Audio</a> for each plugin's latest version. Rate-limited to 2s between plugins (~90 min for 2600 plugins). Cards update in-place with badges: <span style="color: var(--accent);">Update Available</span>, <span style="color: var(--green);">Up to Date</span>, or <span style="color: var(--text-muted);">Unknown</span>. Results are cached in <code>kvr-cache.json</code> for instant restarts.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">D</div>
+          <div class="step-content">
+            <h3>Download Updates</h3>
+            <p>Green <strong>Download</strong> buttons appear on plugins with confirmed newer versions and a KVR download link. Click to download. Use the <strong>Batch Updater</strong> to walk through all outdated plugins one by one with skip/open controls.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">E</div>
+          <div class="step-content">
+            <h3>Custom Scan Directories</h3>
+            <p>Go to <strong>Settings > Plugin Scan Directories</strong> to add custom paths. One path per line. The scanner will crawl these instead of the default system directories. Useful for external drives or non-standard install locations.</p>
+          </div>
         </div>
       </div>
-      <div class="guide-step">
-        <div class="step-number">2</div>
-        <div class="step-content">
-          <h3>Check for Updates</h3>
-          <p>After scanning, click <strong>"Check Updates"</strong> to query KVR Audio for each plugin. Cards update with version badges as results arrive. Green download buttons appear for outdated plugins. Results are cached -- subsequent checks are instant.</p>
+    </div>
+
+    <!-- Use Case 2: Audio Sample Library -->
+    <div style="margin-bottom: 64px;">
+      <h3 style="color: var(--cyan); font-family: 'Courier New', monospace; font-size: 20px; margin-bottom: 24px;">2. Audio Sample Library Management</h3>
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="step-number">A</div>
+          <div class="step-content">
+            <h3>Scan for Samples</h3>
+            <p>Switch to the <strong>Samples tab</strong> (<kbd>Cmd+2</kbd>) and click <strong>"Scan Samples"</strong>. Discovers WAV, FLAC, AIFF, MP3, OGG, M4A, AAC files across your system. Elapsed time shown during scan. Configure custom directories in Settings.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">B</div>
+          <div class="step-content">
+            <h3>Preview with Floating Player</h3>
+            <p>Click any sample row to start playback. The <strong>floating audio player</strong> appears with: play/pause, loop toggle, seek bar, volume slider (0-100%), and playback speed (0.25x-2x). The player stays visible across all tabs.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">C</div>
+          <div class="step-content">
+            <h3>Dock the Player</h3>
+            <p>Drag the grip dots (mini mode) or toolbar (expanded mode) to move the player. Release to snap it to the nearest corner: top-left, top-right, bottom-left, or bottom-right. Dock position is saved across sessions.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">D</div>
+          <div class="step-content">
+            <h3>Expanded Player & History</h3>
+            <p>Double-click the player to expand it. The expanded view shows a <strong>cyberpunk visualizer</strong> (24 animated bars with cyan-to-magenta gradient) and a scrollable <strong>Recently Played</strong> list (up to 50 tracks). Click any track to replay it.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">E</div>
+          <div class="step-content">
+            <h3>View Metadata</h3>
+            <p>Click a sample row to expand its metadata panel showing: file name, format, size, full path, sample rate, bit depth, channels, duration, byte rate, and filesystem timestamps (created, modified, accessed).</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">F</div>
+          <div class="step-content">
+            <h3>Multi-Select Format Filter</h3>
+            <p>Click the format dropdown to select multiple formats simultaneously (e.g. WAV + FLAC). Typing a format name in the search box auto-activates the filter. The filter stays sticky until you clear the search.</p>
+          </div>
         </div>
       </div>
-      <div class="guide-step">
-        <div class="step-number">3</div>
-        <div class="step-content">
-          <h3>Search & Filter</h3>
-          <p>Type in any search box for fzf-style fuzzy matching with highlighted results. Use operators: <code>'exact</code> for exact match, <code>^prefix</code> for prefix, <code>!term</code> to exclude, <code>term1 | term2</code> for OR. Toggle the <code>.*</code> button for regex mode. Multi-select any filter dropdown to combine types.</p>
+    </div>
+
+    <!-- Use Case 3: DAW Projects -->
+    <div style="margin-bottom: 64px;">
+      <h3 style="color: var(--cyan); font-family: 'Courier New', monospace; font-size: 20px; margin-bottom: 24px;">3. DAW Project Discovery</h3>
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="step-number">A</div>
+          <div class="step-content">
+            <h3>Scan for Projects</h3>
+            <p>The DAW scanner finds project files across <strong>14+ formats</strong>: Ableton (.als/.alp), Logic (.logicx), FL Studio (.flp), REAPER (.rpp), Cubase/Nuendo (.cpr/.npr), Pro Tools (.ptx/.ptf), Bitwig (.bwproject), Studio One (.song), Reason (.reason), Audacity (.aup/.aup3), GarageBand (.band), Ardour (.ardour), and DAWproject (.dawproject).</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">B</div>
+          <div class="step-content">
+            <h3>Open in DAW</h3>
+            <p>Double-click any project row to open it directly in its associated DAW. Uses the OS file association -- if the DAW is installed, it opens. If not, a <span style="color: var(--accent);">red error toast</span> shows "DAW not installed." GarageBand .band bundles are validated by checking for <code>projectData</code> inside the package.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">C</div>
+          <div class="step-content">
+            <h3>Filter by DAW</h3>
+            <p>Use the multi-select DAW dropdown to show only specific DAWs. Typing <code>ableton</code>, <code>als</code>, <code>logic</code>, <code>flp</code>, etc. in the search box auto-activates the corresponding filter. Combine multiple DAWs (e.g. Ableton + Logic) to cross-reference projects.</p>
+          </div>
         </div>
       </div>
-      <div class="guide-step">
-        <div class="step-number">4</div>
-        <div class="step-content">
-          <h3>Preview Audio Samples</h3>
-          <p>Click any sample row to start playback. The floating player appears with volume, speed control (0.25x-2x), loop toggle, and seek bar. Drag the player to any corner. Double-click to expand and see your recently played history with a cyberpunk visualizer.</p>
+    </div>
+
+    <!-- Use Case 4: Search -->
+    <div style="margin-bottom: 64px;">
+      <h3 style="color: var(--cyan); font-family: 'Courier New', monospace; font-size: 20px; margin-bottom: 24px;">4. fzf-Style Search</h3>
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="step-number">A</div>
+          <div class="step-content">
+            <h3>Fuzzy Matching</h3>
+            <p>All search bars use <strong>fzf-style scoring</strong>. Characters match in order but don't need to be contiguous. Substring matches are always prioritized (score +1000) over fuzzy-only matches. Matched characters are <span style="color: var(--cyan); border-bottom: 1px solid var(--cyan);">highlighted in cyan</span> in the results.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">B</div>
+          <div class="step-content">
+            <h3>Extended Syntax</h3>
+            <p>
+              <code>'exact</code> — exact substring match<br>
+              <code>^prefix</code> — must start with this text<br>
+              <code>suffix$</code> — must end with this text<br>
+              <code>!term</code> — exclude items containing this<br>
+              <code>term1 | term2</code> — match either term (OR)<br>
+              Multiple terms separated by spaces are AND-ed together.
+            </p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">C</div>
+          <div class="step-content">
+            <h3>Regex Mode</h3>
+            <p>Click the <code>.*</code> button in any search box to switch to regex mode (button glows <span style="color: var(--magenta);">magenta</span>). Full JavaScript regex patterns supported. Invalid patterns fall back to substring match gracefully.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">D</div>
+          <div class="step-content">
+            <h3>Score-Ranked Results</h3>
+            <p>When searching, results are sorted by match score (highest first). Exact full-name matches rank highest (+2000), substring matches next (+1000), then fuzzy matches scored by fzf algorithm (word boundary +9, camelCase +7, consecutive +4, gap penalties). Clear the search to restore original sort order.</p>
+          </div>
         </div>
       </div>
-      <div class="guide-step">
-        <div class="step-number">5</div>
-        <div class="step-content">
-          <h3>Open DAW Projects</h3>
-          <p>Double-click any DAW project row to open it directly in its associated DAW application. If the DAW isn't installed, you'll see an error toast. Right-click for more options including Reveal in Finder.</p>
+    </div>
+
+    <!-- Use Case 5: Favorites -->
+    <div style="margin-bottom: 64px;">
+      <h3 style="color: var(--cyan); font-family: 'Courier New', monospace; font-size: 20px; margin-bottom: 24px;">5. Favorites</h3>
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="step-number">A</div>
+          <div class="step-content">
+            <h3>Add to Favorites</h3>
+            <p>Right-click any plugin card, sample row, DAW project, or preset and choose <strong>"Add to Favorites"</strong> (<span style="color: var(--yellow);">&#9733;</span> star icon). A toast confirms the addition. Right-click again to remove.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">B</div>
+          <div class="step-content">
+            <h3>Favorites Tab</h3>
+            <p>Switch to the <strong>Favorites tab</strong> (<kbd>Cmd+5</kbd>) to see all starred items. Each favorite shows its type badge (Plugin/Sample/DAW Project/Preset), name, format, and action buttons. Filter by type using the dropdown. Search favorites with the search box.</p>
+          </div>
         </div>
       </div>
-      <div class="guide-step">
-        <div class="step-number">6</div>
-        <div class="step-content">
-          <h3>Manage Favorites</h3>
-          <p>Right-click any plugin, sample, DAW project, or preset and choose <strong>"Add to Favorites"</strong>. Switch to the <strong>Favorites tab</strong> to see all starred items. Filter by type, search, and manage your collection.</p>
+    </div>
+
+    <!-- Use Case 6: Export/Import -->
+    <div style="margin-bottom: 64px;">
+      <h3 style="color: var(--cyan); font-family: 'Courier New', monospace; font-size: 20px; margin-bottom: 24px;">6. Export & Import</h3>
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="step-number">A</div>
+          <div class="step-content">
+            <h3>Export Any Tab</h3>
+            <p>Click <strong>Export</strong> on any tab. A native file dialog lets you choose the format:</p>
+            <table class="shortcuts-table" style="margin-top: 12px;">
+              <thead><tr><th>Format</th><th>Use Case</th></tr></thead>
+              <tbody>
+                <tr><td><code>JSON</code></td><td>Re-importable, preserves all fields</td></tr>
+                <tr><td><code>TOML</code></td><td>Human-readable config format</td></tr>
+                <tr><td><code>CSV</code></td><td>Open in Excel, Google Sheets</td></tr>
+                <tr><td><code>TSV</code></td><td>Tab-separated, better for paths with commas</td></tr>
+                <tr><td><code>PDF</code></td><td>Printable A4 landscape report with headers</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">B</div>
+          <div class="step-content">
+            <h3>Import Data</h3>
+            <p>Click <strong>Import</strong> to load previously exported data from JSON or TOML files. The import auto-detects the format from the file extension. Accepts both bare arrays and wrapped objects (e.g. <code>{"plugins": [...]}</code>).</p>
+          </div>
         </div>
       </div>
-      <div class="guide-step">
-        <div class="step-number">7</div>
-        <div class="step-content">
-          <h3>Export Your Data</h3>
-          <p>Click <strong>Export</strong> on any tab to save your data. Choose from JSON, TOML, CSV, TSV, or PDF format. Import previously exported data from JSON or TOML files.</p>
+    </div>
+
+    <!-- Use Case 7: Context Menus -->
+    <div style="margin-bottom: 64px;">
+      <h3 style="color: var(--cyan); font-family: 'Courier New', monospace; font-size: 20px; margin-bottom: 24px;">7. Context Menus</h3>
+      <p style="color: var(--text-dim); margin-bottom: 16px;">Right-click anywhere for contextual actions. Every interactive element has a menu.</p>
+      <table class="shortcuts-table">
+        <thead><tr><th>Area</th><th>Menu Items</th></tr></thead>
+        <tbody>
+          <tr><td>Plugin cards</td><td>Open on KVR, manufacturer site, reveal in Finder, copy name/path/architecture, add to favorites</td></tr>
+          <tr><td>Sample rows</td><td>Play/pause, loop, reveal in Finder, copy name/path, add to favorites</td></tr>
+          <tr><td>DAW project rows</td><td>Open in DAW, reveal in Finder, copy name/path, add to favorites</td></tr>
+          <tr><td>Preset rows</td><td>Reveal in Finder, copy name/path, add to favorites</td></tr>
+          <tr><td>Column headers</td><td>Sort ascending/descending, reset column widths</td></tr>
+          <tr><td>Search boxes</td><td>Clear search, paste &amp; search, toggle fuzzy/regex</td></tr>
+          <tr><td>Filter dropdowns</td><td>Reset to "All"</td></tr>
+          <tr><td>Toolbars</td><td>Scan, export, import actions for the active tab</td></tr>
+          <tr><td>Stats bar</td><td>Copy stats, scan all</td></tr>
+          <tr><td>Header / logo</td><td>Open GitHub, settings, scan all</td></tr>
+          <tr><td>Tab buttons</td><td>Switch to tab, reset tab order</td></tr>
+          <tr><td>History entries</td><td>View details, delete entry</td></tr>
+          <tr><td>Floating player</td><td>Play/pause, loop, reveal, copy path, expand/collapse, close</td></tr>
+          <tr><td>Settings rows</td><td>Toggle on/off, clear/copy textarea values</td></tr>
+          <tr><td>Settings area</td><td>Reset columns, reset tabs, clear history, open prefs file</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Use Case 8: Customization -->
+    <div style="margin-bottom: 64px;">
+      <h3 style="color: var(--cyan); font-family: 'Courier New', monospace; font-size: 20px; margin-bottom: 24px;">8. Customization & Settings</h3>
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="step-number">A</div>
+          <div class="step-content">
+            <h3>Color Schemes</h3>
+            <p>Go to <strong>Settings > Appearance</strong> to switch between built-in themes (Cyberpunk, Midnight, Ocean, etc.) or create a <strong>custom scheme</strong> with 17 configurable color variables. Save custom presets for later. Toggle the CRT scanline overlay on/off. Switch between dark and light mode.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">B</div>
+          <div class="step-content">
+            <h3>Drag to Reorder Tabs</h3>
+            <p>Drag any tab button left or right to rearrange the tab order. The order is saved across sessions. Use <strong>Settings > Data > Reset Tab Order</strong> or right-click the tab bar to restore defaults.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">C</div>
+          <div class="step-content">
+            <h3>Resizable Columns</h3>
+            <p>Drag column borders in any table to resize. Widths persist across sessions. Right-click a column header to sort ascending/descending or reset all column widths.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">D</div>
+          <div class="step-content">
+            <h3>Performance Tuning</h3>
+            <p>Adjust <strong>Table Page Size</strong> (100-2000 rows per page) and <strong>Flush Interval</strong> (how often the UI updates during scans) in Settings > Performance. Lower values = more responsive but uses more CPU.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">E</div>
+          <div class="step-content">
+            <h3>Auto-Scan & Auto-Update</h3>
+            <p>Enable <strong>Auto-Scan on Launch</strong> to automatically scan for plugins when the app starts. Enable <strong>Auto-Check Updates</strong> to automatically check KVR after scanning. Both can be toggled in Settings.</p>
+          </div>
         </div>
       </div>
-      <div class="guide-step">
-        <div class="step-number">8</div>
-        <div class="step-content">
-          <h3>Right-Click Everything</h3>
-          <p>Every element has a context menu. Right-click plugins for KVR links, samples for playback controls, headers for stats, search boxes to toggle modes, column headers to sort, settings to toggle, and the player for controls.</p>
+    </div>
+
+    <!-- Use Case 9: History & Diff -->
+    <div style="margin-bottom: 64px;">
+      <h3 style="color: var(--cyan); font-family: 'Courier New', monospace; font-size: 20px; margin-bottom: 24px;">9. Scan History & Diff</h3>
+      <div class="screenshot-item" style="margin-bottom: 24px;">
+        <img src="../screenshots/history.png" alt="History & Diff">
+      </div>
+      <div class="guide-steps">
+        <div class="guide-step">
+          <div class="step-number">A</div>
+          <div class="step-content">
+            <h3>Unified Timeline</h3>
+            <p>The History tab (<kbd>Cmd+6</kbd>) shows a merged timeline of all scan types: plugins, audio samples, DAW projects, and presets. Up to 50 snapshots are stored. Each entry shows the scan type, timestamp, and item count.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="step-number">B</div>
+          <div class="step-content">
+            <h3>Diff Any Two Scans</h3>
+            <p>Select two scan entries of the same type to run a diff. The diff engine shows items <span style="color: var(--green);">added</span>, <span style="color: var(--accent);">removed</span>, and <span style="color: var(--yellow);">version-changed</span> between the snapshots. Great for tracking what changed after installing new plugins.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -414,16 +665,82 @@
         <tr><th>Shortcut</th><th>Action</th></tr>
       </thead>
       <tbody>
-        <tr><td><kbd>Cmd</kbd> + <kbd>1</kbd>-<kbd>7</kbd></td><td>Switch between tabs (Plugins, Samples, DAW, Presets, Favorites, History, Settings)</td></tr>
+        <tr><td><kbd>Cmd</kbd> + <kbd>1</kbd></td><td>Plugins tab</td></tr>
+        <tr><td><kbd>Cmd</kbd> + <kbd>2</kbd></td><td>Samples tab</td></tr>
+        <tr><td><kbd>Cmd</kbd> + <kbd>3</kbd></td><td>DAW Projects tab</td></tr>
+        <tr><td><kbd>Cmd</kbd> + <kbd>4</kbd></td><td>Presets tab</td></tr>
+        <tr><td><kbd>Cmd</kbd> + <kbd>5</kbd></td><td>Favorites tab</td></tr>
+        <tr><td><kbd>Cmd</kbd> + <kbd>6</kbd></td><td>History tab</td></tr>
+        <tr><td><kbd>Cmd</kbd> + <kbd>7</kbd></td><td>Settings tab</td></tr>
         <tr><td><kbd>Cmd</kbd> + <kbd>F</kbd></td><td>Focus the search box in the active tab</td></tr>
         <tr><td><kbd>Escape</kbd></td><td>Clear search, close context menu, or stop current operation</td></tr>
+        <tr><td>Double-click plugin card</td><td>Open on KVR Audio</td></tr>
+        <tr><td>Double-click sample row</td><td>Start playback (also single-click)</td></tr>
+        <tr><td>Double-click DAW project</td><td>Open project in its DAW application</td></tr>
+        <tr><td>Double-click preset row</td><td>Reveal preset in Finder</td></tr>
+        <tr><td>Double-click floating player</td><td>Expand/collapse player with history</td></tr>
+        <tr><td>Drag tab button</td><td>Reorder tabs</td></tr>
+        <tr><td>Drag player handle</td><td>Move player to different corner</td></tr>
+        <tr><td>Drag column border</td><td>Resize table column</td></tr>
+        <tr><td>Right-click anywhere</td><td>Context menu with relevant actions</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
+<!-- Architecture -->
+<section class="section" id="architecture">
+  <div class="container">
+    <h2 class="section-title">> ARCHITECTURE</h2>
+    <p class="section-subtitle">How AUDIO_HAXOR is built under the hood.</p>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h3>Rust Backend</h3>
+        <p>All scanning, version checking, and file operations run in Rust. Plugin scanning uses Rayon for parallel directory traversal. KVR scraping uses async Tokio tasks with rate limiting. History and preferences persisted as JSON on disk.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Tauri v2 Bridge</h3>
+        <p>IPC via Tauri's <code>invoke()</code> API. Events streamed from Rust to WebView for real-time progress updates. Native file dialogs via <code>tauri-plugin-dialog</code>. Audio playback via Tauri's <code>asset://</code> protocol.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Frontend</h3>
+        <p>Vanilla HTML/CSS/JS -- no framework. Event delegation via <code>data-action</code> attributes. CSS variables for theming. Multi-column CSS grid for settings layout. Custom multi-select dropdowns.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Testing</h3>
+        <p>136 Rust tests (scanner, KVR, history, audio, DAW, presets) + 207 JavaScript tests (UI helpers, version parsing, type mapping). 44 Criterion benchmarks for hot paths. CI via GitHub Actions.</p>
+      </div>
+    </div>
+    <pre style="margin-top: 32px;">
+src-tauri/src/
+  scanner.rs         -- Plugin scanner (VST2/VST3/AU, architecture detection)
+  audio_scanner.rs   -- Audio sample discovery + metadata extraction
+  daw_scanner.rs     -- DAW project scanner (14+ formats)
+  kvr.rs             -- KVR Audio scraper + version checker
+  history.rs         -- Scan history persistence + diff engine
+  lib.rs             -- IPC commands, export/import, PDF generation
+
+frontend/js/
+  app.js             -- Startup, auto-load, preferences
+  audio.js           -- Sample scanning, playback, visualizer, player dock
+  plugins.js         -- Plugin scanning, filtering, updates
+  daw.js             -- DAW project scanning + stats
+  presets.js         -- Preset scanning + filtering
+  favorites.js       -- Favorites management
+  export.js          -- Export/import (JSON/TOML/CSV/TSV/PDF)
+  context-menu.js    -- Right-click menus for all elements
+  multi-filter.js    -- Multi-select checkbox dropdowns
+  utils.js           -- fzf search, highlighting, ETA, helpers
+  history.js         -- Scan history timeline + diff
+  settings.js        -- Themes, color schemes, toggles
+  columns.js         -- Resizable table columns
+  ipc.js             -- Tauri IPC bridge + event delegation
+  kvr.js             -- KVR resolver + cache</pre>
+  </div>
+</section>
+
 <!-- Install -->
-<section class="section" id="install">
+<section class="section" id="install" style="background: var(--bg2);">
   <div class="container">
     <h2 class="section-title">> QUICK START</h2>
     <p class="section-subtitle">Get up and running in minutes.</p>
@@ -439,10 +756,26 @@ pnpm install
 pnpm tauri:dev
 
 # Build for distribution
-pnpm tauri:build</pre>
+pnpm tauri:build
+
+# Run tests
+pnpm test
+
+# Run Rust benchmarks
+cd src-tauri && cargo bench</pre>
     <p style="color: var(--text-dim); margin-top: 16px; font-size: 14px;">
       Requires <a href="https://nodejs.org/">Node.js</a>, <a href="https://pnpm.io/">pnpm</a>, and <a href="https://rustup.rs/">Rust</a>. The Tauri CLI is pulled in as a dev dependency.
     </p>
+    <h3 style="color: var(--text); margin-top: 32px; margin-bottom: 12px;">Build Outputs</h3>
+    <table class="shortcuts-table">
+      <thead><tr><th>Platform</th><th>Format</th><th>Output</th></tr></thead>
+      <tbody>
+        <tr><td>macOS</td><td>App Bundle</td><td><code>AUDIO_HAXOR.app</code></td></tr>
+        <tr><td>macOS</td><td>DMG</td><td><code>AUDIO_HAXOR_x.x.x_aarch64.dmg</code></td></tr>
+        <tr><td>Windows</td><td>NSIS / MSI</td><td><code>AUDIO_HAXOR Setup x.x.x.exe</code></td></tr>
+        <tr><td>Linux</td><td>AppImage / Deb</td><td><code>audio-haxor_x.x.x_amd64.AppImage</code></td></tr>
+      </tbody>
+    </table>
   </div>
 </section>
 
