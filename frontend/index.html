@@ -1945,14 +1945,32 @@
       display: none;
       flex-direction: column;
       gap: 0;
-      max-height: 340px;
-      overflow-y: auto;
       border-top: 1px solid var(--border);
       padding-top: 8px;
       margin-top: 4px;
+      min-height: 0;
     }
     .audio-now-playing.expanded .np-history {
       display: flex;
+    }
+    #npHistoryList {
+      max-height: 280px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    #npHistoryList::-webkit-scrollbar {
+      width: 4px;
+    }
+    #npHistoryList::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #npHistoryList::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
+    }
+    #npHistoryList::-webkit-scrollbar-thumb:hover {
+      background: var(--cyan);
     }
     .np-history-title {
       font-size: 10px;
