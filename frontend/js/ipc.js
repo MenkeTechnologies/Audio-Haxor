@@ -165,6 +165,7 @@ document.addEventListener('click', (e) => {
     case 'nextTrack': nextTrack(); break;
     case 'toggleShuffle': toggleShuffle(); break;
     case 'toggleMute': toggleMute(); break;
+    case 'createTag': createNewTag(); break;
   }
 });
 document.addEventListener('dblclick', (e) => {
