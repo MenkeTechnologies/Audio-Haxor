@@ -172,10 +172,10 @@ pub fn walk_for_daw(
     should_stop: &(dyn Fn() -> bool + Sync),
     exclude: Option<HashSet<String>>,
 ) {
-    let batch_size = 50;
+    let batch_size = 100;
     let stop = Arc::new(AtomicBool::new(false));
     let found = Arc::new(AtomicUsize::new(0));
-    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<DawProject>>(64);
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<DawProject>>(256);
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let exclude = Arc::new(exclude.unwrap_or_default());
 
@@ -562,7 +562,7 @@ mod tests {
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
 
-        for i in 0..60 {
+        for i in 0..120 {
             fs::write(tmp.join(format!("song_{}.als", i)), b"data").unwrap();
         }
 
@@ -577,7 +577,7 @@ mod tests {
         );
         assert!(
             batch_call_count >= 2,
-            "Expected on_batch called at least twice for 60 files with batch_size=50, got {}",
+            "Expected on_batch called at least twice for 120 files with batch_size=100, got {}",
             batch_call_count
         );
         let _ = fs::remove_dir_all(&tmp);

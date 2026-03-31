@@ -163,8 +163,8 @@ async fn scan_plugins(
 
         // Process plugins in parallel, streaming results to UI via channel
         use rayon::prelude::*;
-        let batch_size = 10;
-        let (tx, rx) = std::sync::mpsc::sync_channel::<scanner::PluginInfo>(64);
+        let batch_size = 20;
+        let (tx, rx) = std::sync::mpsc::sync_channel::<scanner::PluginInfo>(256);
         let stop_flag = std::sync::Arc::new(AtomicBool::new(false));
         let stop_flag2 = stop_flag.clone();
 
@@ -1377,82 +1377,176 @@ fn export_pdf(
     file_path: String,
 ) -> Result<(), String> {
     use printpdf::*;
+    use printpdf::path::{PaintMode, WindingOrder};
 
     let page_w = Mm(297.0); // A4 landscape
     let page_h = Mm(210.0);
-    let margin = Mm(15.0);
-    let font_size = 9.0;
-    let header_size = 11.0;
-    let title_size = 16.0;
-    let line_height = Mm(5.0);
+    let margin_x = 18.0_f32;
+    let margin_top = 15.0_f32;
+    let margin_bottom = 18.0_f32;
+    let row_height = 5.2_f32;
+    let header_row_h = 7.0_f32;
     let col_count = headers.len();
-    let usable_w = page_w.0 - margin.0 * 2.0;
+    let usable_w = page_w.0 - margin_x * 2.0;
     let col_w = if col_count > 0 { usable_w / col_count as f32 } else { usable_w };
+    let version = env!("CARGO_PKG_VERSION");
+    let total_pages = 1 + (rows.len() as f32 / 32.0).ceil() as usize;
 
     let (doc, page1, layer1) = PdfDocument::new(&title, page_w, page_h, "Layer 1");
     let font = doc.add_builtin_font(BuiltinFont::Helvetica).map_err(|e| e.to_string())?;
     let font_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold).map_err(|e| e.to_string())?;
+    let font_italic = doc.add_builtin_font(BuiltinFont::HelveticaOblique).map_err(|e| e.to_string())?;
 
     let mut current_page = page1;
     let mut current_layer = layer1;
-    let mut y = page_h.0 - margin.0;
+    let mut y: f32;
+    let mut page_num = 1_usize;
+    let mut row_idx = 0_usize;
 
-    // Helper: get layer reference
     macro_rules! layer {
-        () => {
-            doc.get_page(current_page).get_layer(current_layer)
-        };
+        () => { doc.get_page(current_page).get_layer(current_layer) };
     }
 
-    // Title
-    layer!().use_text(&title, title_size, Mm(margin.0), Mm(y), &font_bold);
-    y -= 8.0;
+    // Color helper (Color doesn't impl Clone)
+    fn rgb(r: f32, g: f32, b: f32) -> Color { Color::Rgb(Rgb::new(r, g, b, None)) }
 
-    // Subtitle
-    let subtitle = format!("{} items — exported {}", rows.len(), chrono::Local::now().format("%Y-%m-%d %H:%M"));
-    layer!().use_text(&subtitle, font_size, Mm(margin.0), Mm(y), &font);
-    y -= 8.0;
-
-    // Header row
-    for (i, h) in headers.iter().enumerate() {
-        let x = margin.0 + col_w * i as f32;
-        layer!().use_text(h, header_size, Mm(x), Mm(y), &font_bold);
+    fn fill_rect(layer: &PdfLayerReference, x: f32, y: f32, w: f32, h: f32, r: f32, g: f32, b: f32) {
+        layer.set_fill_color(rgb(r, g, b));
+        layer.set_outline_color(rgb(r, g, b));
+        layer.set_outline_thickness(0.0);
+        let points = vec![
+            (Point::new(Mm(x), Mm(y)), false),
+            (Point::new(Mm(x + w), Mm(y)), false),
+            (Point::new(Mm(x + w), Mm(y + h)), false),
+            (Point::new(Mm(x), Mm(y + h)), false),
+        ];
+        layer.add_polygon(Polygon {
+            rings: vec![points],
+            mode: PaintMode::FillStroke,
+            winding_order: WindingOrder::NonZero,
+        });
     }
-    y -= 2.0;
 
-    // Header underline
-    let points = vec![
-        (Point::new(Mm(margin.0), Mm(y)), false),
-        (Point::new(Mm(page_w.0 - margin.0), Mm(y)), false),
-    ];
-    let line = Line { points, is_closed: false };
-    layer!().set_outline_color(Color::Greyscale(Greyscale::new(0.7, None)));
-    layer!().set_outline_thickness(0.5);
-    layer!().add_line(line);
-    y -= line_height.0;
+    fn stroke_line(layer: &PdfLayerReference, x1: f32, y1: f32, x2: f32, y2: f32, r: f32, g: f32, b: f32, thickness: f32) {
+        layer.set_outline_color(rgb(r, g, b));
+        layer.set_outline_thickness(thickness);
+        let points = vec![
+            (Point::new(Mm(x1), Mm(y1)), false),
+            (Point::new(Mm(x2), Mm(y2)), false),
+        ];
+        layer.add_line(Line { points, is_closed: false });
+    }
 
-    // Data rows
+    // ── Render page header ──
+    let render_header = |layer_ref: &PdfLayerReference, y: &mut f32, page: usize| {
+        // Dark header bar
+        fill_rect(layer_ref, 0.0, page_h.0 - 22.0, page_w.0, 22.0, 0.02, 0.02, 0.04);
+
+        // App name + music note (cyan)
+        layer_ref.set_fill_color(rgb(0.02, 0.85, 0.91));
+        layer_ref.use_text("\u{266B} AUDIO_HAXOR", 14.0, Mm(margin_x), Mm(page_h.0 - 14.0), &font_bold);
+
+        // Version (white)
+        layer_ref.set_fill_color(rgb(1.0, 1.0, 1.0));
+        layer_ref.use_text(&format!("v{}", version), 8.0, Mm(margin_x + 68.0), Mm(page_h.0 - 14.0), &font);
+
+        // Title on the right
+        layer_ref.use_text(&title, 12.0, Mm(page_w.0 - margin_x - 80.0), Mm(page_h.0 - 14.0), &font_bold);
+
+        // Cyan accent line under header
+        stroke_line(layer_ref, 0.0, page_h.0 - 22.0, page_w.0, page_h.0 - 22.0, 0.02, 0.85, 0.91, 1.5);
+
+        *y = page_h.0 - 28.0;
+
+        // Subtitle (only on first page)
+        if page == 1 {
+            layer_ref.set_fill_color(rgb(0.55, 0.55, 0.55));
+            let sub = format!(
+                "{} items  |  Exported {}  |  by MenkeTechnologies",
+                rows.len(),
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+            );
+            layer_ref.use_text(&sub, 8.0, Mm(margin_x), Mm(*y), &font_italic);
+            *y -= 6.0;
+        }
+    };
+
+    // ── Render column headers ──
+    let render_col_headers = |layer_ref: &PdfLayerReference, y: &mut f32| {
+        // Header background
+        fill_rect(layer_ref, margin_x - 1.0, *y - 1.5, usable_w + 2.0, header_row_h, 0.93, 0.93, 0.93);
+
+        layer_ref.set_fill_color(rgb(0.15, 0.15, 0.15));
+        for (i, h) in headers.iter().enumerate() {
+            let x = margin_x + col_w * i as f32 + 1.0;
+            layer_ref.use_text(h, 9.0, Mm(x), Mm(*y), &font_bold);
+        }
+        *y -= header_row_h;
+
+        // Cyan line under headers
+        stroke_line(layer_ref, margin_x, *y + 1.0, page_w.0 - margin_x, *y + 1.0, 0.02, 0.85, 0.91, 0.8);
+    };
+
+    // ── Render footer ──
+    let render_footer = |layer_ref: &PdfLayerReference, page: usize| {
+        let footer_y = 8.0;
+        // Thin gray line
+        stroke_line(layer_ref, margin_x, footer_y + 3.0, page_w.0 - margin_x, footer_y + 3.0, 0.8, 0.8, 0.8, 0.3);
+
+        layer_ref.set_fill_color(rgb(0.55, 0.55, 0.55));
+        layer_ref.use_text(
+            &format!("AUDIO_HAXOR v{} — {}", version, title),
+            7.0, Mm(margin_x), Mm(footer_y), &font,
+        );
+
+        let page_str = format!("Page {} of {}", page, total_pages);
+        layer_ref.use_text(&page_str, 7.0, Mm(page_w.0 - margin_x - 25.0), Mm(footer_y), &font);
+    };
+
+    // ── First page ──
+    y = 0.0;
+    render_header(&layer!(), &mut y, page_num);
+    render_col_headers(&layer!(), &mut y);
+    y -= 1.0;
+
+    // ── Data rows ──
     for row in &rows {
-        if y < margin.0 + 5.0 {
-            // New page
+        if y < margin_bottom + 5.0 {
+            render_footer(&layer!(), page_num);
             let (new_page, new_layer) = doc.add_page(page_w, page_h, "Layer 1");
             current_page = new_page;
             current_layer = new_layer;
-            y = page_h.0 - margin.0;
+            page_num += 1;
+            y = 0.0;
+            render_header(&layer!(), &mut y, page_num);
+            render_col_headers(&layer!(), &mut y);
+            y -= 1.0;
+            row_idx = 0;
         }
+
+        // Alternating row stripe
+        if row_idx % 2 == 1 {
+            fill_rect(&layer!(), margin_x - 1.0, y - 1.2, usable_w + 2.0, row_height, 0.96, 0.96, 0.98);
+        }
+
+        layer!().set_fill_color(rgb(0.12, 0.12, 0.12));
         for (i, cell) in row.iter().enumerate() {
-            let x = margin.0 + col_w * i as f32;
-            // Truncate long text to fit column
+            let x = margin_x + col_w * i as f32 + 1.0;
             let max_chars = (col_w / 1.8) as usize;
-            let text = if cell.len() > max_chars {
-                format!("{}...", &cell[..max_chars.saturating_sub(3)])
+            let text = if cell.len() > max_chars && max_chars > 3 {
+                format!("{}...", &cell[..max_chars - 3])
             } else {
                 cell.clone()
             };
-            layer!().use_text(&text, font_size, Mm(x), Mm(y), &font);
+            layer!().use_text(&text, 8.0, Mm(x), Mm(y), &font);
         }
-        y -= line_height.0;
+
+        y -= row_height;
+        row_idx += 1;
     }
+
+    // Final page footer
+    render_footer(&layer!(), page_num);
 
     doc.save(&mut std::io::BufWriter::new(
         std::fs::File::create(&file_path).map_err(|e| e.to_string())?,
@@ -2009,10 +2103,13 @@ pub fn run() {
     // Initialize app start time for uptime tracking
     APP_START.get_or_init(Instant::now);
 
-    // Initialize rayon thread pool with panic handler to prevent crashes
+    // Initialize rayon thread pool — 2x CPU cores to saturate I/O-bound scans.
+    // Filesystem scanning is mostly I/O wait, so extra threads keep cores busy
+    // while others block on disk reads. 8MB stack for deep directory recursion.
+    let pool_size = num_cpus::get() * 2;
     rayon::ThreadPoolBuilder::new()
-        .num_threads(num_cpus::get())
-        .stack_size(8 * 1024 * 1024) // 8MB stack per thread for deep recursion
+        .num_threads(pool_size)
+        .stack_size(8 * 1024 * 1024)
         .panic_handler(|panic_info| {
             eprintln!("Rayon thread panicked: {:?}", panic_info);
         })

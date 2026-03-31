@@ -91,10 +91,10 @@ pub fn walk_for_presets(
     should_stop: &(dyn Fn() -> bool + Sync),
     exclude: Option<HashSet<String>>,
 ) {
-    let batch_size = 50;
+    let batch_size = 100;
     let stop = Arc::new(AtomicBool::new(false));
     let found = Arc::new(AtomicUsize::new(0));
-    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<PresetFile>>(64);
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<PresetFile>>(256);
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let exclude = Arc::new(exclude.unwrap_or_default());
 
