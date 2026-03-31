@@ -73,7 +73,7 @@ function buildDawRow(p) {
   const checked = batchSelected.has(p.path) ? ' checked' : '';
   return `<tr data-daw-path="${ep}" title="Double-click to open in ${escapeHtml(p.daw)}" style="cursor: pointer;">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
-    <td class="col-name" title="${escapeHtml(p.name)}">${highlightMatch(p.name, _lastDawSearch, _lastDawMode)}</td>
+    <td class="col-name" title="${escapeHtml(p.name)}">${noteIndicator(p.path)}${highlightMatch(p.name, _lastDawSearch, _lastDawMode)}</td>
     <td class="col-format"><span class="format-badge ${dawClass}">${escapeHtml(p.daw)}</span></td>
     <td class="col-format"><span class="format-badge format-default">${p.format}</span></td>
     <td class="col-size">${p.sizeFormatted}</td>

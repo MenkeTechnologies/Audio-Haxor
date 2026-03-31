@@ -133,6 +133,7 @@ document.addEventListener('click', (e) => {
     case 'settingToggleTheme': settingToggleTheme(); break;
     case 'settingToggleCrt': settingToggleCrt(); break;
     case 'clearFavorites': clearFavorites(); break;
+    case 'clearAllNotes': clearAllNotes(); break;
     case 'settingResetColumns': settingResetColumns(); break;
     case 'settingResetSectionOrder': resetSettingsSectionOrder(); break;
     case 'settingResetTabOrder': settingResetTabOrder(); break;
@@ -216,6 +217,7 @@ document.addEventListener('input', (e) => {
   else if (action === 'filterDawProjects') filterDawProjects();
   else if (action === 'filterPresets') filterPresets();
   else if (action === 'filterFavorites') renderFavorites();
+  else if (action === 'filterNotes') renderNotesTab();
   else if (action === 'setVolume') setAudioVolume(e.target.value);
   else if (action === 'settingPageSize') settingUpdatePageSize(e.target.value);
   else if (action === 'settingFlushInterval') settingUpdateFlushInterval(e.target.value);

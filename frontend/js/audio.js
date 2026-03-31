@@ -355,7 +355,7 @@ function buildAudioRow(s) {
   const checked = batchSelected.has(s.path) ? ' checked' : '';
   return `<tr${rowClass} data-audio-path="${ep}" data-action="toggleMetadata" data-path="${ep}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
-    <td class="col-name" title="${escapeHtml(s.name)}">${highlightMatch(s.name, _lastAudioSearch, _lastAudioMode)}</td>
+    <td class="col-name" title="${escapeHtml(s.name)}">${noteIndicator(s.path)}${highlightMatch(s.name, _lastAudioSearch, _lastAudioMode)}</td>
     <td class="col-format"><span class="format-badge ${fmtClass}">${s.format}</span></td>
     <td class="col-size">${s.sizeFormatted}</td>
     <td class="col-date">${s.modified}</td>

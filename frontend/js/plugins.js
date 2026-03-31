@@ -129,6 +129,7 @@ function buildPluginCardHtml(p) {
   return `
     <div class="plugin-card" data-path="${escapePath(p.path)}">
       <div class="plugin-info">
+        ${noteIndicator(p.path)}
         <h3>${highlightMatch(p.name, _lastPluginSearch, _lastPluginMode)}</h3>
         <div class="plugin-meta">
           <span class="plugin-type ${typeClass}">${p.type}</span>

@@ -1973,6 +1973,74 @@
       display: flex;
       gap: 8px;
     }
+    .notes-list {
+      padding: 12px 24px 120px;
+    }
+    .note-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--yellow);
+      padding: 14px 18px;
+      margin-bottom: 8px;
+      transition: border-color 0.2s;
+    }
+    .note-card:hover { border-left-color: var(--cyan); }
+    .note-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .note-card-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .note-card-path {
+      font-size: 11px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 8px;
+    }
+    .note-card-body {
+      font-size: 13px;
+      color: var(--text-dim);
+      white-space: pre-wrap;
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+    .note-card-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .note-tag {
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--yellow);
+      border: 1px solid var(--yellow);
+      border-radius: 2px;
+    }
+    .note-card-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .note-card-date {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 1px;
+    }
     .note-icon {
       font-size: 12px;
       cursor: pointer;
@@ -3133,6 +3201,7 @@
       <button class="tab-btn" data-action="switchTab" data-tab="daw" title="DAW project files (Cmd+3)">DAW Projects</button>
       <button class="tab-btn" data-action="switchTab" data-tab="presets" title="Plugin presets (Cmd+4)">Presets</button>
       <button class="tab-btn" data-action="switchTab" data-tab="favorites" title="Favorited items (Cmd+5)">&#9733; Favorites</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="notes" title="Notes &amp; tags (Cmd+6)">&#128221; Notes</button>
       <button class="tab-btn" data-action="switchTab" data-tab="history" title="Scan history and diffs (Cmd+6)">History</button>
       <button class="tab-btn" data-action="switchTab" data-tab="settings" title="App settings (Cmd+7)">&#9881; Settings</button>
     </div>
@@ -3220,6 +3289,25 @@
             <div class="state-icon">&#9733;</div>
             <h2>No Favorites</h2>
             <p>Right-click any plugin, sample, DAW project, or preset and choose <strong>"Add to Favorites"</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tabNotes">
+      <div class="audio-container">
+        <div class="audio-toolbar">
+          <div class="search-box" style="flex: 1;">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" id="noteSearchInput" placeholder="Search notes and tags..." data-action="filterNotes">
+          </div>
+          <button class="btn btn-stop btn-settings-action" data-action="clearAllNotes" title="Delete all notes">Clear All</button>
+        </div>
+        <div class="notes-list" id="notesList">
+          <div class="state-message" id="notesEmptyState">
+            <div class="state-icon">&#128221;</div>
+            <h2>No Notes</h2>
+            <p>Right-click any plugin, sample, DAW project, or preset and choose <strong>"Add Note"</strong>.</p>
           </div>
         </div>
       </div>
