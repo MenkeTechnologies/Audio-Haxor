@@ -13,6 +13,9 @@ let audioPlaybackRAF = null;
 let expandedMetaPath = null;
 let recentlyPlayed = [];
 const MAX_RECENT = 50;
+let audioShuffling = false;
+let audioMuted = false;
+let savedVolume = 1;
 
 function loadRecentlyPlayed() {
   recentlyPlayed = prefs.getObject('recentlyPlayed', []);
@@ -23,8 +26,12 @@ function saveRecentlyPlayed() {
 
 audioPlayer.addEventListener('ended', () => {
   if (!audioLooping) {
-    updatePlayBtnStates();
-    updateNowPlayingBtn();
+    if (filteredAudioSamples.length > 1) {
+      nextTrack(); // auto-advance
+    } else {
+      updatePlayBtnStates();
+      updateNowPlayingBtn();
+    }
   }
 });
 audioPlayer.addEventListener('timeupdate', updatePlaybackTime);
@@ -400,6 +407,7 @@ async function previewAudio(filePath) {
 
     updatePlayBtnStates();
     updateNowPlayingBtn();
+    updateMetaLine();
   } catch (err) {
     showToast(`Playback failed — ${err.message || err || 'Unknown error'}`, 4000, 'error');
   }
@@ -658,6 +666,64 @@ document.getElementById('npHistoryList')?.addEventListener('click', (e) => {
     previewAudio(item.dataset.path);
   }
 });
+
+// ── Previous / Next / Shuffle ──
+function prevTrack() {
+  if (recentlyPlayed.length < 2) return;
+  // Find current in recently played, go to next older one
+  const idx = recentlyPlayed.findIndex(r => r.path === audioPlayerPath);
+  const nextIdx = idx >= 0 && idx < recentlyPlayed.length - 1 ? idx + 1 : 0;
+  previewAudio(recentlyPlayed[nextIdx].path);
+}
+
+function nextTrack() {
+  if (audioShuffling) {
+    // Random from filtered samples
+    if (filteredAudioSamples.length === 0) return;
+    const rand = filteredAudioSamples[Math.floor(Math.random() * filteredAudioSamples.length)];
+    previewAudio(rand.path);
+  } else {
+    // Next in filtered list after current
+    const idx = filteredAudioSamples.findIndex(s => s.path === audioPlayerPath);
+    const nextIdx = (idx + 1) % filteredAudioSamples.length;
+    if (filteredAudioSamples.length > 0) previewAudio(filteredAudioSamples[nextIdx].path);
+  }
+}
+
+function toggleShuffle() {
+  audioShuffling = !audioShuffling;
+  const btn = document.getElementById('npBtnShuffle');
+  if (btn) btn.classList.toggle('active', audioShuffling);
+}
+
+function toggleMute() {
+  const btn = document.getElementById('npBtnMute');
+  const slider = document.getElementById('npVolume');
+  if (audioMuted) {
+    audioPlayer.volume = savedVolume;
+    audioMuted = false;
+    if (btn) btn.innerHTML = '&#128264;';
+    if (slider) slider.value = Math.round(savedVolume * 100);
+    document.getElementById('npVolumePct').textContent = Math.round(savedVolume * 100) + '%';
+  } else {
+    savedVolume = audioPlayer.volume;
+    audioPlayer.volume = 0;
+    audioMuted = true;
+    if (btn) btn.innerHTML = '&#128263;';
+    if (slider) slider.value = 0;
+    document.getElementById('npVolumePct').textContent = '0%';
+  }
+}
+
+function updateMetaLine() {
+  const el = document.getElementById('npMetaLine');
+  if (!el || !audioPlayerPath) { if (el) el.textContent = ''; return; }
+  const sample = allAudioSamples.find(s => s.path === audioPlayerPath);
+  if (!sample) { el.textContent = audioPlayerPath.split('/').pop(); return; }
+  const parts = [sample.format, sample.sizeFormatted];
+  if (sample.directory) parts.push(sample.directory);
+  el.textContent = parts.join(' \u2022 ');
+}
 
 // ── Visualizer bars init ──
 (function initVisualizer() {

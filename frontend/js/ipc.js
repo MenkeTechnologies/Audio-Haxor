@@ -155,6 +155,10 @@ document.addEventListener('click', (e) => {
     case 'openPrefsFile': openPrefsFile(); break;
     case 'toggleRegex': toggleRegex(el); break;
     case 'collapsePlayer': collapsePlayer(); break;
+    case 'prevTrack': prevTrack(); break;
+    case 'nextTrack': nextTrack(); break;
+    case 'toggleShuffle': toggleShuffle(); break;
+    case 'toggleMute': toggleMute(); break;
   }
 });
 document.addEventListener('dblclick', (e) => {
