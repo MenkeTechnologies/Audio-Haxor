@@ -361,6 +361,7 @@
     .settings-section {
       margin-bottom: 32px;
       break-inside: avoid;
+      overflow: hidden;
     }
 
     .settings-heading {
@@ -876,6 +877,15 @@
       font-family: 'Orbitron', sans-serif;
       font-size: 13px; font-weight: 600; margin-bottom: 4px;
       letter-spacing: 0.5px;
+    }
+
+    /* fzf match highlighting */
+    .fzf-hl {
+      background: rgba(5,217,232,0.15);
+      color: var(--cyan);
+      border-bottom: 1px solid var(--cyan);
+      padding: 0;
+      border-radius: 0;
     }
 
     .plugin-meta {
@@ -3015,7 +3025,8 @@
               <span class="settings-title">AUDIO_HAXOR</span>
               <span class="settings-desc">
                 Version <span id="settingsVersion"></span><br>
-                by MenkeTechnologies
+                by MenkeTechnologies<br>
+                <a href="#" data-action="openUpdate" data-url="https://github.com/MenkeTechnologies/universal-plugin-update-manager" style="color: var(--cyan); text-decoration: none;">&#128279; GitHub Repository</a>
               </span>
             </div>
           </div>

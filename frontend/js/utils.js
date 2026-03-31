@@ -4,18 +4,170 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Fuzzy match: all characters of needle appear in haystack in order
-function fuzzyMatch(needle, haystack) {
-  let ni = 0;
-  for (let hi = 0; hi < haystack.length && ni < needle.length; hi++) {
-    if (haystack[hi] === needle[ni]) ni++;
-  }
-  return ni === needle.length;
+// ── fzf-style fuzzy matching with scoring ──
+
+// Scoring constants (from fzf)
+const SCORE_MATCH = 16;
+const SCORE_GAP_START = -3;
+const SCORE_GAP_EXTENSION = -1;
+const BONUS_BOUNDARY = 9;
+const BONUS_NON_WORD = 8;
+const BONUS_CAMEL = 7;
+const BONUS_CONSECUTIVE = 4;
+const BONUS_FIRST_CHAR_MULT = 2;
+
+function charClass(c) {
+  if (c >= 'a' && c <= 'z') return 1; // lower
+  if (c >= 'A' && c <= 'Z') return 2; // upper
+  if (c >= '0' && c <= '9') return 3; // digit
+  return 0; // non-word
 }
 
-// Unified search: checks one or more fields against the query.
+function positionBonus(prev, curr) {
+  const pc = charClass(prev);
+  const cc = charClass(curr);
+  if (pc === 0 && cc !== 0) return BONUS_BOUNDARY;       // word boundary
+  if (pc === 1 && cc === 2) return BONUS_CAMEL;           // camelCase
+  if (cc !== 0 && pc !== 0 && pc !== cc) return BONUS_NON_WORD;
+  return 0;
+}
+
+// Fuzzy match with fzf-style scoring. Returns { score, indices } or null.
+function fzfMatch(needle, haystack) {
+  const nLen = needle.length, hLen = haystack.length;
+  if (nLen === 0) return { score: 0, indices: [] };
+  if (nLen > hLen) return null;
+
+  const nLower = needle.toLowerCase();
+  const hLower = haystack.toLowerCase();
+
+  // Quick check: all chars present in order
+  let ni = 0;
+  for (let hi = 0; hi < hLen && ni < nLen; hi++) {
+    if (hLower[hi] === nLower[ni]) ni++;
+  }
+  if (ni < nLen) return null;
+
+  // Find best match using greedy-with-backtrack
+  // Try to find the match that maximizes score
+  let bestScore = -Infinity, bestIndices = null;
+
+  // Find all positions of first char
+  const starts = [];
+  for (let i = 0; i <= hLen - nLen; i++) {
+    if (hLower[i] === nLower[0]) starts.push(i);
+  }
+
+  for (const start of starts) {
+    const indices = [start];
+    let si = start;
+    let valid = true;
+
+    for (let n = 1; n < nLen; n++) {
+      let found = false;
+      for (let h = si + 1; h < hLen; h++) {
+        if (hLower[h] === nLower[n]) {
+          indices.push(h);
+          si = h;
+          found = true;
+          break;
+        }
+      }
+      if (!found) { valid = false; break; }
+    }
+    if (!valid) continue;
+
+    // Score this match
+    let score = 0;
+    let prevIdx = -2;
+    for (let i = 0; i < indices.length; i++) {
+      const idx = indices[i];
+      score += SCORE_MATCH;
+
+      // Position bonus
+      const prev = idx > 0 ? haystack[idx - 1] : ' ';
+      let bonus = positionBonus(prev, haystack[idx]);
+      if (i === 0) bonus *= BONUS_FIRST_CHAR_MULT;
+      score += bonus;
+
+      // Consecutive bonus / gap penalty
+      if (prevIdx === idx - 1) {
+        score += BONUS_CONSECUTIVE;
+      } else if (i > 0) {
+        const gap = idx - prevIdx - 1;
+        score += SCORE_GAP_START + SCORE_GAP_EXTENSION * (gap - 1);
+      }
+      prevIdx = idx;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndices = indices;
+    }
+  }
+
+  if (!bestIndices) return null;
+  return { score: bestScore, indices: bestIndices };
+}
+
+// Parse fzf extended search syntax: 'exact, ^prefix, suffix$, !negate, term1 | term2
+function parseFzfQuery(query) {
+  // Split by spaces, but group | as OR
+  const tokens = query.split(/\s+/).filter(Boolean);
+  const groups = []; // array of OR-groups, each is array of terms
+  let currentGroup = [];
+
+  for (const token of tokens) {
+    if (token === '|') continue; // standalone pipe
+    if (token.startsWith('|')) {
+      currentGroup.push(parseToken(token.slice(1)));
+    } else if (token.endsWith('|')) {
+      currentGroup.push(parseToken(token.slice(0, -1)));
+      groups.push(currentGroup);
+      currentGroup = [];
+    } else {
+      if (currentGroup.length > 0) {
+        groups.push(currentGroup);
+        currentGroup = [];
+      }
+      currentGroup = [parseToken(token)];
+    }
+  }
+  if (currentGroup.length > 0) groups.push(currentGroup);
+  return groups;
+}
+
+function parseToken(token) {
+  let negate = false, type = 'fuzzy', text = token;
+  if (text.startsWith('!')) { negate = true; text = text.slice(1); }
+  if (text.startsWith("'") && text.endsWith("'") && text.length > 2) {
+    type = 'exact'; text = text.slice(1, -1);
+  } else if (text.startsWith("'")) {
+    type = 'exact'; text = text.slice(1);
+  } else if (text.startsWith('^')) {
+    type = 'prefix'; text = text.slice(1);
+  } else if (text.endsWith('$')) {
+    type = 'suffix'; text = text.slice(0, -1);
+  }
+  return { type, text, negate };
+}
+
+function matchToken(token, value) {
+  const v = value.toLowerCase(), t = token.text.toLowerCase();
+  switch (token.type) {
+    case 'exact': return v.includes(t);
+    case 'prefix': return v.startsWith(t);
+    case 'suffix': return v.endsWith(t);
+    case 'fuzzy': {
+      const m = fzfMatch(token.text, value);
+      return m !== null;
+    }
+  }
+  return false;
+}
+
+// Unified search: checks fields against fzf-style query.
 // mode: 'fuzzy' (default) or 'regex'
-// Fuzzy mode: substring first, then fuzzy fallback for typo tolerance
 function searchMatch(query, fields, mode) {
   if (!query) return true;
   if (mode === 'regex') {
@@ -26,12 +178,74 @@ function searchMatch(query, fields, mode) {
       return fields.some(f => f.toLowerCase().includes(query.toLowerCase()));
     }
   }
-  const q = query.toLowerCase();
-  // Substring match first (exact)
-  if (fields.some(f => f.toLowerCase().includes(q))) return true;
-  // Fuzzy fallback — only if query is short enough to avoid noise
-  if (q.length >= 3) return fields.some(f => fuzzyMatch(q, f.toLowerCase()));
-  return false;
+  const groups = parseFzfQuery(query);
+  // All groups must match (AND between groups)
+  return groups.every(orGroup => {
+    // Any term in the OR group must match
+    return orGroup.some(token => {
+      const matched = fields.some(f => matchToken(token, f));
+      return token.negate ? !matched : matched;
+    });
+  });
+}
+
+// Get best fuzzy match indices for highlighting a single field
+function getMatchIndices(query, text, mode) {
+  if (!query || !text || mode === 'regex') {
+    if (mode === 'regex' && query) {
+      try {
+        const re = new RegExp(query, 'ig');
+        const indices = [];
+        let m;
+        while ((m = re.exec(text)) !== null) {
+          for (let i = m.index; i < m.index + m[0].length; i++) indices.push(i);
+        }
+        return indices;
+      } catch { return []; }
+    }
+    return [];
+  }
+  // For fzf mode, collect indices from all fuzzy tokens
+  const groups = parseFzfQuery(query);
+  const allIndices = new Set();
+  for (const group of groups) {
+    for (const token of group) {
+      if (token.negate) continue;
+      if (token.type === 'fuzzy') {
+        const m = fzfMatch(token.text, text);
+        if (m) m.indices.forEach(i => allIndices.add(i));
+      } else {
+        const t = token.text.toLowerCase();
+        const idx = text.toLowerCase().indexOf(t);
+        if (idx >= 0) {
+          for (let i = idx; i < idx + t.length; i++) allIndices.add(i);
+        }
+      }
+    }
+  }
+  return [...allIndices].sort((a, b) => a - b);
+}
+
+// Highlight matched characters in text
+function highlightMatch(text, query, mode) {
+  if (!query || !text) return escapeHtml(text);
+  const indices = getMatchIndices(query, text, mode);
+  if (indices.length === 0) return escapeHtml(text);
+  const idxSet = new Set(indices);
+  let result = '';
+  let inMark = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = escapeHtml(text[i]);
+    if (idxSet.has(i)) {
+      if (!inMark) { result += '<mark class="fzf-hl">'; inMark = true; }
+      result += ch;
+    } else {
+      if (inMark) { result += '</mark>'; inMark = false; }
+      result += ch;
+    }
+  }
+  if (inMark) result += '</mark>';
+  return result;
 }
 
 // Get search mode for a tab's regex toggle
@@ -120,60 +334,66 @@ function toggleDirs() {
 function initTabDragReorder() {
   const nav = document.querySelector('.tab-nav');
   let draggedTab = null;
+  let dragStartX = 0;
+  let isDragging = false;
+  let didMove = false;
 
-  nav.addEventListener('dragstart', (e) => {
+  nav.addEventListener('mousedown', (e) => {
     const btn = e.target.closest('.tab-btn');
-    if (!btn) return;
+    if (!btn || e.button !== 0) return;
     draggedTab = btn;
-    btn.classList.add('tab-dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');
+    dragStartX = e.clientX;
+    isDragging = false;
+    didMove = false;
   });
 
-  nav.addEventListener('dragend', (e) => {
-    const btn = e.target.closest('.tab-btn');
-    if (btn) btn.classList.remove('tab-dragging');
-    nav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-drag-over'));
-    draggedTab = null;
-  });
+  document.addEventListener('mousemove', (e) => {
+    if (!draggedTab) return;
+    // Start drag after 5px threshold to avoid accidental drags on click
+    if (!isDragging && Math.abs(e.clientX - dragStartX) > 5) {
+      isDragging = true;
+      draggedTab.classList.add('tab-dragging');
+    }
+    if (!isDragging) return;
+    didMove = true;
 
-  nav.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const target = e.target.closest('.tab-btn');
+    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.tab-btn');
     nav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-drag-over'));
     if (target && target !== draggedTab) {
       target.classList.add('tab-drag-over');
     }
   });
 
-  nav.addEventListener('dragleave', (e) => {
-    const target = e.target.closest('.tab-btn');
-    if (target) target.classList.remove('tab-drag-over');
-  });
+  document.addEventListener('mouseup', (e) => {
+    if (!draggedTab) return;
 
-  nav.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const target = e.target.closest('.tab-btn');
-    if (!target || !draggedTab || target === draggedTab) return;
-    target.classList.remove('tab-drag-over');
+    if (isDragging) {
+      const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.tab-btn');
+      nav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-drag-over'));
+      draggedTab.classList.remove('tab-dragging');
 
-    // Reorder in DOM
-    const tabs = [...nav.querySelectorAll('.tab-btn')];
-    const dragIdx = tabs.indexOf(draggedTab);
-    const dropIdx = tabs.indexOf(target);
-    if (dragIdx < dropIdx) {
-      nav.insertBefore(draggedTab, target.nextSibling);
-    } else {
-      nav.insertBefore(draggedTab, target);
+      if (target && target !== draggedTab) {
+        const tabs = [...nav.querySelectorAll('.tab-btn')];
+        const dragIdx = tabs.indexOf(draggedTab);
+        const dropIdx = tabs.indexOf(target);
+        if (dragIdx < dropIdx) {
+          nav.insertBefore(draggedTab, target.nextSibling);
+        } else {
+          nav.insertBefore(draggedTab, target);
+        }
+        saveTabOrder();
+      }
     }
 
-    saveTabOrder();
-  });
+    // Suppress the click that follows mouseup if we actually dragged
+    if (didMove) {
+      const suppress = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      nav.addEventListener('click', suppress, { capture: true, once: true });
+    }
 
-  // Make tabs draggable
-  nav.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.setAttribute('draggable', 'true');
+    draggedTab = null;
+    isDragging = false;
+    didMove = false;
   });
 
   // Restore saved order

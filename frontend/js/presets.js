@@ -17,7 +17,7 @@ function formatPresetSize(bytes) {
 function buildPresetRow(p) {
   const ep = escapePath(p.path);
   return `<tr data-preset-path="${ep}" style="cursor: pointer;" title="Double-click to reveal in Finder">
-    <td>${escapeHtml(p.name)}</td>
+    <td>${highlightMatch(p.name, _lastPresetSearch, _lastPresetMode)}</td>
     <td class="col-format"><span class="format-badge format-default">${p.format}</span></td>
     <td title="${escapePath(p.path)}">${escapeHtml(p.directory)}</td>
     <td class="col-size">${p.sizeFormatted || formatPresetSize(p.size)}</td>
@@ -72,10 +72,15 @@ function sortPreset(key) {
   filterPresets();
 }
 
+let _lastPresetSearch = '';
+let _lastPresetMode = 'fuzzy';
+
 function filterPresets() {
   const search = document.getElementById('presetSearchInput')?.value || '';
   const formatFilter = document.getElementById('presetFormatFilter')?.value || 'all';
   const mode = getSearchMode('regexPresets');
+  _lastPresetSearch = search;
+  _lastPresetMode = mode;
 
   filteredPresets = allPresets.filter(p => {
     if (formatFilter !== 'all' && p.format !== formatFilter) return false;

@@ -124,7 +124,7 @@ function buildPluginCardHtml(p) {
   return `
     <div class="plugin-card" data-path="${escapePath(p.path)}">
       <div class="plugin-info">
-        <h3>${escapeHtml(p.name)}</h3>
+        <h3>${highlightMatch(p.name, _lastPluginSearch, _lastPluginMode)}</h3>
         <div class="plugin-meta">
           <span class="plugin-type ${typeClass}">${p.type}</span>
           <span>${escapeHtml(p.manufacturer)}</span>
@@ -316,11 +316,16 @@ function ensureSearchCache(plugins) {
   }
 }
 
+let _lastPluginSearch = '';
+let _lastPluginMode = 'fuzzy';
+
 const _filterPluginsImmediate = function() {
   const search = document.getElementById('searchInput').value;
   const typeFilter = document.getElementById('typeFilter').value;
   const statusFilter = document.getElementById('statusFilter').value;
   const mode = getSearchMode('regexPlugins');
+  _lastPluginSearch = search;
+  _lastPluginMode = mode;
 
   let filtered = allPlugins.filter(p => {
     const matchesSearch = searchMatch(search, [p.name, p.manufacturer || ''], mode);

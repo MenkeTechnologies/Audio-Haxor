@@ -230,10 +230,15 @@ function initAudioTable() {
   initColumnResize(document.getElementById('audioTable'));
 }
 
+let _lastAudioSearch = '';
+let _lastAudioMode = 'fuzzy';
+
 function filterAudioSamples() {
   const search = document.getElementById('audioSearchInput').value || '';
   const format = document.getElementById('audioFormatFilter').value;
   const mode = getSearchMode('regexAudio');
+  _lastAudioSearch = search;
+  _lastAudioMode = mode;
 
   filteredAudioSamples = allAudioSamples.filter(s => {
     if (format !== 'all' && s.format !== format) return false;
@@ -314,7 +319,7 @@ function buildAudioRow(s) {
   const isPlaying = audioPlayerPath === s.path;
   const rowClass = isPlaying ? ' class="row-playing"' : '';
   return `<tr${rowClass} data-audio-path="${ep}" data-action="toggleMetadata" data-path="${ep}">
-    <td class="col-name" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</td>
+    <td class="col-name" title="${escapeHtml(s.name)}">${highlightMatch(s.name, _lastAudioSearch, _lastAudioMode)}</td>
     <td class="col-format"><span class="format-badge ${fmtClass}">${s.format}</span></td>
     <td class="col-size">${s.sizeFormatted}</td>
     <td class="col-date">${s.modified}</td>
