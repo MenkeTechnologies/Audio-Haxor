@@ -39,10 +39,21 @@ function updateBatchBar() {
   if (!bar) return;
   if (batchSelected.size === 0) {
     bar.style.display = 'none';
+    // Uncheck header "select all" checkboxes
+    document.querySelectorAll('.batch-cb-all').forEach(cb => { cb.checked = false; });
     return;
   }
   bar.style.display = 'flex';
   document.getElementById('batchCount').textContent = `${batchSelected.size} selected`;
+
+  // Update header checkbox state (checked if all visible are selected)
+  const tbody = document.querySelector('.tab-content.active tbody');
+  if (tbody) {
+    const allCbs = tbody.querySelectorAll('.batch-cb');
+    const allChecked = allCbs.length > 0 && [...allCbs].every(cb => cb.checked);
+    const headerCb = tbody.closest('table')?.querySelector('.batch-cb-all');
+    if (headerCb) headerCb.checked = allChecked;
+  }
 }
 
 function batchFavoriteAll() {
