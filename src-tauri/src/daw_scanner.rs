@@ -93,25 +93,10 @@ pub fn is_package_ext(path: &Path) -> bool {
 }
 
 /// Validate that a .band directory is actually a GarageBand project.
-/// GarageBand bundles are macOS packages containing specific internal structure.
-/// Must have `projectData` (the core project plist) — this is the definitive marker.
-/// Alternatively, check for the `Output/Output.aif` rendered file combined with
-/// other GarageBand-specific directories to avoid false positives from unrelated
-/// `.band` directories (e.g. network configs, app data bundles).
+/// Only `projectData` is accepted — it's a binary plist unique to GarageBand.
+/// No fallback heuristics: if projectData is missing, it's not a GarageBand project.
 fn is_valid_band_package(path: &Path) -> bool {
-    // Definitive: projectData is always present in real GarageBand projects
-    if path.join("projectData").exists() {
-        return true;
-    }
-    // Secondary: must have at least 2 of these GarageBand-specific directories/files
-    let markers = [
-        path.join("Media").is_dir(),
-        path.join("Output").is_dir(),
-        path.join("Freeze Files").is_dir(),
-        path.join("Resources").is_dir(),
-        path.join("Alternatives").is_dir(),
-    ];
-    markers.iter().filter(|&&m| m).count() >= 2
+    path.join("projectData").exists()
 }
 
 pub fn daw_name_for_format(format: &str) -> &'static str {
