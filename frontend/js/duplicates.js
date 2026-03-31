@@ -60,11 +60,11 @@ function renderDuplicateModal(results) {
   const totalGroups = results.reduce((sum, r) => sum + r.groups.length, 0);
   const totalItems = results.reduce((sum, r) => sum + r.groups.reduce((s, g) => s + g.items.length, 0), 0);
 
-  let html = `<div class="modal-overlay" id="dupModal">
+  let html = `<div class="modal-overlay" id="dupModal" data-action-modal="closeDup">
     <div class="modal-content">
       <div class="modal-header">
         <h2>Duplicate Detection</h2>
-        <button class="modal-close" onclick="document.getElementById('dupModal').remove()">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeDup">&#10005;</button>
       </div>
       <div class="modal-body">`;
 
@@ -96,3 +96,14 @@ function renderDuplicateModal(results) {
   html += '</div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
 }
+
+// Event delegation for duplicates modal
+document.addEventListener('click', (e) => {
+  const action = e.target.closest('[data-action-modal="closeDup"]');
+  if (action) {
+    if (e.target === action || action.classList.contains('modal-close')) {
+      const modal = document.getElementById('dupModal');
+      if (modal) modal.remove();
+    }
+  }
+});

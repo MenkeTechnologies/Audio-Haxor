@@ -1,3 +1,9 @@
+//! Plugin preset file scanner.
+//!
+//! Discovers preset files (FXP, FXB, VSTPRESET, AUPRESET, etc.) across
+//! platform-specific preset directories. Supports parallel traversal
+//! and stop signaling.
+
 use crate::history::PresetFile;
 use rayon::prelude::*;
 use std::collections::HashSet;

@@ -1,3 +1,10 @@
+//! KVR Audio scraper and plugin version checker.
+//!
+//! Queries [KVR Audio](https://www.kvraudio.com) for plugin product pages,
+//! extracts version numbers and download URLs. Falls back to DuckDuckGo
+//! site-restricted search when direct URL construction fails. Rate-limited
+//! to avoid overloading KVR's servers.
+
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};

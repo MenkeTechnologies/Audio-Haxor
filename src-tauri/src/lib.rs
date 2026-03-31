@@ -2131,6 +2131,26 @@ pub fn run() {
 
             let handle = app.handle();
 
+            // App menu (macOS convention — first menu shows app name)
+            let app_about = PredefinedMenuItem::about(handle, Some("About AUDIO_HAXOR"), None)?;
+            let app_sep1 = PredefinedMenuItem::separator(handle)?;
+            let app_prefs = MenuItem::with_id(handle, "open_prefs_app", "Preferences...", true, Some("CmdOrCtrl+,"))?;
+            let app_sep2 = PredefinedMenuItem::separator(handle)?;
+            let app_services = PredefinedMenuItem::services(handle, None)?;
+            let app_sep3 = PredefinedMenuItem::separator(handle)?;
+            let app_hide = PredefinedMenuItem::hide(handle, None)?;
+            let app_hide_others = PredefinedMenuItem::hide_others(handle, None)?;
+            let app_show_all = PredefinedMenuItem::show_all(handle, None)?;
+            let app_sep4 = PredefinedMenuItem::separator(handle)?;
+            let app_quit = PredefinedMenuItem::quit(handle, None)?;
+
+            let app_menu = Submenu::with_id_and_items(handle, "app", "AUDIO_HAXOR", true, &[
+                &app_about, &app_sep1, &app_prefs, &app_sep2,
+                &app_services, &app_sep3,
+                &app_hide, &app_hide_others, &app_show_all, &app_sep4,
+                &app_quit,
+            ])?;
+
             // File menu
             let scan_all = MenuItem::with_id(handle, "scan_all", "Scan All", true, Some("CmdOrCtrl+Shift+S"))?;
             let stop_all = MenuItem::with_id(handle, "stop_all", "Stop All", true, Some("CmdOrCtrl+."))?;
@@ -2146,16 +2166,12 @@ pub fn run() {
             let sep4 = PredefinedMenuItem::separator(handle)?;
             let export_presets = MenuItem::with_id(handle, "export_presets", "Export Presets...", true, None::<&str>)?;
             let import_presets = MenuItem::with_id(handle, "import_presets", "Import Presets...", true, None::<&str>)?;
-            let sep5 = PredefinedMenuItem::separator(handle)?;
-            let open_prefs = MenuItem::with_id(handle, "open_prefs", "Open Preferences File", true, Some("CmdOrCtrl+,"))?;
-
             let file_menu = Submenu::with_id_and_items(handle, "file", "File", true, &[
                 &scan_all, &stop_all, &sep1,
                 &export_plugins, &import_plugins, &sep2,
                 &export_audio, &import_audio, &sep3,
                 &export_daw, &import_daw, &sep4,
-                &export_presets, &import_presets, &sep5,
-                &open_prefs,
+                &export_presets, &import_presets,
             ])?;
 
             // Edit menu
@@ -2240,15 +2256,13 @@ pub fn run() {
             // Help menu
             let github = MenuItem::with_id(handle, "github", "GitHub Repository", true, None::<&str>)?;
             let docs = MenuItem::with_id(handle, "docs", "Documentation", true, None::<&str>)?;
-            let help_sep = PredefinedMenuItem::separator(handle)?;
-            let about = PredefinedMenuItem::about(handle, Some("About AUDIO_HAXOR"), None)?;
 
             let help_menu = Submenu::with_id_and_items(handle, "help", "Help", true, &[
-                &github, &docs, &help_sep, &about,
+                &github, &docs,
             ])?;
 
             let menu = Menu::with_items(handle, &[
-                &file_menu, &edit_menu, &scan_menu, &view_menu, &playback_menu, &data_menu, &window_menu, &help_menu,
+                &app_menu, &file_menu, &edit_menu, &scan_menu, &view_menu, &playback_menu, &data_menu, &window_menu, &help_menu,
             ])?;
             app.set_menu(menu)?;
 

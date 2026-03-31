@@ -1,3 +1,10 @@
+//! DAW project file scanner supporting 14+ DAW formats.
+//!
+//! Discovers Ableton, Logic, FL Studio, REAPER, Cubase, Pro Tools,
+//! Bitwig, Studio One, Reason, Audacity, GarageBand, Ardour, and
+//! DAWproject files. Handles macOS package directories (.logicx, .band)
+//! and validates GarageBand bundles by internal structure.
+
 use crate::history::DawProject;
 use rayon::prelude::*;
 use std::collections::HashSet;
@@ -10,7 +17,6 @@ use std::sync::{Arc, Mutex};
 /// Includes both single-file formats and macOS bundle/package formats.
 const DAW_EXTENSIONS: &[&str] = &[
     ".als",        // Ableton Live Set
-    ".alp",        // Ableton Live Pack
     ".logicx",     // Logic Pro X (macOS package)
     ".flp",        // FL Studio
     ".cpr",        // Cubase Project
@@ -110,7 +116,7 @@ fn is_valid_band_package(path: &Path) -> bool {
 
 pub fn daw_name_for_format(format: &str) -> &'static str {
     match format {
-        "ALS" | "ALP" => "Ableton Live",
+        "ALS" => "Ableton Live",
         "LOGICX" => "Logic Pro",
         "FLP" => "FL Studio",
         "CPR" => "Cubase",

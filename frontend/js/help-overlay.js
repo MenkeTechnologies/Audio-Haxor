@@ -5,11 +5,11 @@ function toggleHelpOverlay() {
   let existing = document.getElementById('helpOverlay');
   if (existing) { existing.remove(); return; }
 
-  const html = `<div class="modal-overlay" id="helpOverlay" onclick="if(event.target===this)this.remove()">
+  const html = `<div class="modal-overlay" id="helpOverlay" data-action-modal="closeHelp">
     <div class="modal-content">
       <div class="modal-header">
         <h2>Keyboard Shortcuts</h2>
-        <button class="modal-close" onclick="document.getElementById('helpOverlay').remove()">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeHelp">&#10005;</button>
       </div>
       <div class="modal-body">
         <div class="help-grid">
@@ -53,3 +53,14 @@ function toggleHelpOverlay() {
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
 }
+
+// Event delegation for help modal
+document.addEventListener('click', (e) => {
+  const action = e.target.closest('[data-action-modal="closeHelp"]');
+  if (action) {
+    if (e.target === action || action.classList.contains('modal-close')) {
+      const overlay = document.getElementById('helpOverlay');
+      if (overlay) overlay.remove();
+    }
+  }
+});

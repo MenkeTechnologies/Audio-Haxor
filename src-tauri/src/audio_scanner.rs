@@ -1,3 +1,10 @@
+//! Audio sample file scanner with metadata extraction.
+//!
+//! Discovers WAV, FLAC, AIFF, MP3, OGG, M4A, and AAC files across
+//! the filesystem. Extracts audio metadata (sample rate, bit depth,
+//! channels, duration) by reading file headers directly. Supports
+//! symlink deduplication and parallel directory traversal via Rayon.
+
 use crate::history::AudioSample;
 use rayon::prelude::*;
 use std::collections::HashSet;

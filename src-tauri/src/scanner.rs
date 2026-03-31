@@ -1,7 +1,14 @@
+//! Plugin filesystem scanner for VST2, VST3, and Audio Unit plugins.
+//!
+//! Discovers plugins from platform-specific directories, extracts version
+//! and manufacturer info from macOS Info.plist bundles, and detects binary
+//! architectures by reading Mach-O/PE headers directly.
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Information about a discovered audio plugin.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginInfo {
     pub name: String,
@@ -565,5 +572,124 @@ mod tests {
             result
         );
         let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_get_vst_directories_returns_existing() {
+        let dirs = super::get_vst_directories();
+        // All returned directories should exist
+        for dir in &dirs {
+            assert!(
+                std::path::Path::new(dir).exists(),
+                "Directory should exist: {}",
+                dir
+            );
+        }
+    }
+
+    #[test]
+    fn test_detect_architectures_nonexistent() {
+        let archs = super::detect_architectures(Path::new("/nonexistent/plugin.vst3"));
+        assert!(archs.is_empty());
+    }
+
+    #[test]
+    fn test_detect_architectures_empty_dir() {
+        let tmp = std::env::temp_dir().join("upum_test_empty_plugin.vst3");
+        let _ = fs::create_dir_all(&tmp);
+        let archs = super::detect_architectures(&tmp);
+        // No Contents/MacOS dir, should return empty
+        assert!(archs.is_empty());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_detect_architectures_macho_thin() {
+        let tmp = std::env::temp_dir().join("upum_test_macho_plugin.vst3");
+        let macos = tmp.join("Contents").join("MacOS");
+        let _ = fs::create_dir_all(&macos);
+        // Write a minimal Mach-O 64-bit ARM64 header
+        let mut header = vec![0u8; 8];
+        header[0..4].copy_from_slice(&0xFEEDFACFu32.to_le_bytes()); // MH_MAGIC_64
+        header[4..8].copy_from_slice(&0x0100000Cu32.to_le_bytes()); // CPU_TYPE_ARM64
+        fs::write(macos.join("binary"), &header).unwrap();
+
+        let archs = super::detect_architectures(&tmp);
+        assert_eq!(archs, vec!["ARM64"]);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_detect_architectures_macho_x86() {
+        let tmp = std::env::temp_dir().join("upum_test_x86_plugin.vst3");
+        let macos = tmp.join("Contents").join("MacOS");
+        let _ = fs::create_dir_all(&macos);
+        let mut header = vec![0u8; 8];
+        header[0..4].copy_from_slice(&0xFEEDFACFu32.to_le_bytes());
+        header[4..8].copy_from_slice(&0x01000007u32.to_le_bytes()); // CPU_TYPE_X86_64
+        fs::write(macos.join("binary"), &header).unwrap();
+
+        let archs = super::detect_architectures(&tmp);
+        assert_eq!(archs, vec!["x86_64"]);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_detect_architectures_fat_binary() {
+        let tmp = std::env::temp_dir().join("upum_test_fat_plugin.vst3");
+        let macos = tmp.join("Contents").join("MacOS");
+        let _ = fs::create_dir_all(&macos);
+        // Fat binary: magic CAFEBABE, 2 archs
+        let mut header = vec![0u8; 48];
+        header[0..4].copy_from_slice(&0xCAFEBABEu32.to_be_bytes());
+        header[4..8].copy_from_slice(&2u32.to_be_bytes()); // nfat_arch = 2
+        // Arch 1: x86_64
+        header[8..12].copy_from_slice(&0x01000007u32.to_be_bytes());
+        // Arch 2: ARM64 (at offset 28)
+        header[28..32].copy_from_slice(&0x0100000Cu32.to_be_bytes());
+        fs::write(macos.join("binary"), &header).unwrap();
+
+        let archs = super::detect_architectures(&tmp);
+        assert!(archs.contains(&"x86_64".to_string()));
+        assert!(archs.contains(&"ARM64".to_string()));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_get_plugin_info_nonexistent() {
+        let info = super::get_plugin_info(Path::new("/nonexistent/plugin.vst3"));
+        assert!(info.is_none());
+    }
+
+    #[test]
+    fn test_plugin_info_serialization() {
+        let info = PluginInfo {
+            name: "TestPlugin".into(),
+            path: "/test/plugin.vst3".into(),
+            plugin_type: "VST3".into(),
+            version: "1.0.0".into(),
+            manufacturer: "TestCo".into(),
+            manufacturer_url: Some("https://test.com".into()),
+            size: "1.0 MB".into(),
+            modified: "2024-01-01".into(),
+            architectures: vec!["ARM64".into(), "x86_64".into()],
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("TestPlugin"));
+        assert!(json.contains("ARM64"));
+        assert!(json.contains("architectures"));
+
+        // Deserialize back
+        let back: PluginInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.name, "TestPlugin");
+        assert_eq!(back.architectures.len(), 2);
+    }
+
+    #[test]
+    fn test_plugin_info_missing_architectures_deserialize() {
+        // Old JSON without architectures field should deserialize with empty vec
+        let json = r#"{"name":"Old","path":"/old","type":"VST3","version":"1.0","manufacturer":"Co","size":"1 MB","modified":"2024"}"#;
+        let info: PluginInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.architectures.len(), 0);
     }
 }
