@@ -551,10 +551,10 @@ mod tests {
         fs::create_dir_all(&logicx).unwrap();
         fs::write(logicx.join("projectdata"), b"logic data").unwrap();
 
-        // Create a .band package directory
+        // Create a .band package directory (must have projectData for validation)
         let band = tmp.join("MyBand.band");
         fs::create_dir_all(&band).unwrap();
-        fs::write(band.join("projectdata"), b"band data").unwrap();
+        fs::write(band.join("projectData"), b"band data").unwrap();
 
         let mut found = Vec::new();
         walk_for_daw(
