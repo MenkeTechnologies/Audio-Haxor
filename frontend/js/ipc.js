@@ -310,6 +310,7 @@ window.vstUpdater = {
   exportPresetsDsv: (presets, filePath) => invoke('export_presets_dsv', { presets, filePath }),
   exportToml: (data, filePath) => invoke('export_toml', { data, filePath }),
   importToml: (filePath) => invoke('import_toml', { filePath }),
+  exportPdf: (title, headers, rows, filePath) => invoke('export_pdf', { title, headers, rows, filePath }),
   // Preferences (file-backed)
   getProcessStats: () => invoke('get_process_stats'),
   openPrefsFile: () => invoke('open_prefs_file'),

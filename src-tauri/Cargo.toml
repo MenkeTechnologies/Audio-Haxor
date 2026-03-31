@@ -25,6 +25,7 @@ toml = "0.8"
 tauri-plugin-dialog = "2.6.0"
 libc = "0.2"
 num_cpus = "1"
+printpdf = "0.7"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -24,6 +24,7 @@ const ALL_EXPORT_FILTERS = [
   { name: 'TOML', extensions: ['toml'] },
   { name: 'CSV', extensions: ['csv'] },
   { name: 'TSV', extensions: ['tsv'] },
+  { name: 'PDF', extensions: ['pdf'] },
 ];
 
 const ALL_IMPORT_FILTERS = [
@@ -36,6 +37,7 @@ function getFileFormat(filePath) {
   if (filePath.endsWith('.toml')) return 'toml';
   if (filePath.endsWith('.csv')) return 'csv';
   if (filePath.endsWith('.tsv')) return 'tsv';
+  if (filePath.endsWith('.pdf')) return 'pdf';
   return 'json';
 }
 
@@ -53,7 +55,11 @@ async function exportPlugins() {
   if (!filePath) return;
   try {
     const fmt = getFileFormat(filePath);
-    if (fmt === 'csv' || fmt === 'tsv') {
+    if (fmt === 'pdf') {
+      const headers = ['Name', 'Type', 'Version', 'Manufacturer', 'Architecture', 'Size', 'Modified'];
+      const rows = allPlugins.map(p => [p.name, p.type, p.version, p.manufacturer || '', (p.architectures || []).join(', '), p.size, p.modified]);
+      await window.vstUpdater.exportPdf('Plugin Inventory', headers, rows, filePath);
+    } else if (fmt === 'csv' || fmt === 'tsv') {
       await window.vstUpdater.exportCsv(allPlugins, filePath);
     } else if (fmt === 'toml') {
       await window.vstUpdater.exportToml({ plugins: allPlugins }, filePath);
@@ -111,7 +117,11 @@ async function exportAudio() {
   if (!filePath) return;
   try {
     const fmt = getFileFormat(filePath);
-    if (fmt === 'csv' || fmt === 'tsv') {
+    if (fmt === 'pdf') {
+      const headers = ['Name', 'Format', 'Size', 'Modified', 'Path'];
+      const rows = allAudioSamples.map(s => [s.name, s.format, s.sizeFormatted, s.modified, s.directory]);
+      await window.vstUpdater.exportPdf('Audio Sample Library', headers, rows, filePath);
+    } else if (fmt === 'csv' || fmt === 'tsv') {
       await window.vstUpdater.exportAudioDsv(allAudioSamples, filePath);
     } else if (fmt === 'toml') {
       await window.vstUpdater.exportToml({ samples: allAudioSamples }, filePath);
@@ -163,7 +173,11 @@ async function exportDaw() {
   if (!filePath) return;
   try {
     const fmt = getFileFormat(filePath);
-    if (fmt === 'csv' || fmt === 'tsv') {
+    if (fmt === 'pdf') {
+      const headers = ['Name', 'DAW', 'Format', 'Size', 'Modified', 'Path'];
+      const rows = allDawProjects.map(p => [p.name, p.daw, p.format, p.sizeFormatted, p.modified, p.directory]);
+      await window.vstUpdater.exportPdf('DAW Projects', headers, rows, filePath);
+    } else if (fmt === 'csv' || fmt === 'tsv') {
       await window.vstUpdater.exportDawDsv(allDawProjects, filePath);
     } else if (fmt === 'toml') {
       await window.vstUpdater.exportToml({ projects: allDawProjects }, filePath);
@@ -215,7 +229,11 @@ async function exportPresets() {
   if (!filePath) return;
   try {
     const fmt = getFileFormat(filePath);
-    if (fmt === 'csv' || fmt === 'tsv') {
+    if (fmt === 'pdf') {
+      const headers = ['Name', 'Format', 'Size', 'Modified', 'Path'];
+      const rows = allPresets.map(p => [p.name, p.format, p.sizeFormatted || '', p.modified, p.directory]);
+      await window.vstUpdater.exportPdf('Presets', headers, rows, filePath);
+    } else if (fmt === 'csv' || fmt === 'tsv') {
       await window.vstUpdater.exportPresetsDsv(allPresets, filePath);
     } else if (fmt === 'toml') {
       await window.vstUpdater.exportToml({ presets: allPresets }, filePath);

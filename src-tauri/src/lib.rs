@@ -1348,6 +1348,99 @@ fn import_toml(file_path: String) -> Result<serde_json::Value, String> {
     serde_json::from_str(&json_str).map_err(|e| e.to_string())
 }
 
+// ── PDF export ──
+
+#[tauri::command]
+fn export_pdf(
+    title: String,
+    headers: Vec<String>,
+    rows: Vec<Vec<String>>,
+    file_path: String,
+) -> Result<(), String> {
+    use printpdf::*;
+
+    let page_w = Mm(297.0); // A4 landscape
+    let page_h = Mm(210.0);
+    let margin = Mm(15.0);
+    let font_size = 9.0;
+    let header_size = 11.0;
+    let title_size = 16.0;
+    let line_height = Mm(5.0);
+    let col_count = headers.len();
+    let usable_w = page_w.0 - margin.0 * 2.0;
+    let col_w = if col_count > 0 { usable_w / col_count as f32 } else { usable_w };
+
+    let (doc, page1, layer1) = PdfDocument::new(&title, page_w, page_h, "Layer 1");
+    let font = doc.add_builtin_font(BuiltinFont::Helvetica).map_err(|e| e.to_string())?;
+    let font_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold).map_err(|e| e.to_string())?;
+
+    let mut current_page = page1;
+    let mut current_layer = layer1;
+    let mut y = page_h.0 - margin.0;
+
+    // Helper: get layer reference
+    macro_rules! layer {
+        () => {
+            doc.get_page(current_page).get_layer(current_layer)
+        };
+    }
+
+    // Title
+    layer!().use_text(&title, title_size, Mm(margin.0), Mm(y), &font_bold);
+    y -= 8.0;
+
+    // Subtitle
+    let subtitle = format!("{} items — exported {}", rows.len(), chrono::Local::now().format("%Y-%m-%d %H:%M"));
+    layer!().use_text(&subtitle, font_size, Mm(margin.0), Mm(y), &font);
+    y -= 8.0;
+
+    // Header row
+    for (i, h) in headers.iter().enumerate() {
+        let x = margin.0 + col_w * i as f32;
+        layer!().use_text(h, header_size, Mm(x), Mm(y), &font_bold);
+    }
+    y -= 2.0;
+
+    // Header underline
+    let points = vec![
+        (Point::new(Mm(margin.0), Mm(y)), false),
+        (Point::new(Mm(page_w.0 - margin.0), Mm(y)), false),
+    ];
+    let line = Line { points, is_closed: false };
+    layer!().set_outline_color(Color::Greyscale(Greyscale::new(0.7, None)));
+    layer!().set_outline_thickness(0.5);
+    layer!().add_line(line);
+    y -= line_height.0;
+
+    // Data rows
+    for row in &rows {
+        if y < margin.0 + 5.0 {
+            // New page
+            let (new_page, new_layer) = doc.add_page(page_w, page_h, "Layer 1");
+            current_page = new_page;
+            current_layer = new_layer;
+            y = page_h.0 - margin.0;
+        }
+        for (i, cell) in row.iter().enumerate() {
+            let x = margin.0 + col_w * i as f32;
+            // Truncate long text to fit column
+            let max_chars = (col_w / 1.8) as usize;
+            let text = if cell.len() > max_chars {
+                format!("{}...", &cell[..max_chars.saturating_sub(3)])
+            } else {
+                cell.clone()
+            };
+            layer!().use_text(&text, font_size, Mm(x), Mm(y), &font);
+        }
+        y -= line_height.0;
+    }
+
+    doc.save(&mut std::io::BufWriter::new(
+        std::fs::File::create(&file_path).map_err(|e| e.to_string())?,
+    ))
+    .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn import_presets_json(file_path: String) -> Result<Vec<PresetFile>, String> {
     let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
@@ -1990,6 +2083,7 @@ pub fn run() {
             export_presets_dsv,
             export_toml,
             import_toml,
+            export_pdf,
             import_presets_json,
             import_audio_json,
             import_daw_json,
