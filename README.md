@@ -154,13 +154,13 @@ node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 | **bpm** | 16 | WAV/AIFF PCM reading, onset-strength autocorrelation, click track detection (90/120/140/174 BPM), silence rejection, short file handling, 8/16/24-bit decode, stereo mixdown, extra chunk handling, AIFF parsing |
 | **preset_scanner** | 6 | Preset discovery, directory walking, stop signal, format detection, batching |
 
-### JavaScript tests (207 tests)
+### JavaScript tests (256 tests)
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
-| **ui** | 96 | `escapeHtml`, `escapePath`, `slugify`, `buildKvrUrl`, `formatAudioSize`, `formatTime`, `getFormatClass`, `timeAgo`, `kvrCacheKey`, `buildDirsTable`, `applyKvrCache`, `metaItem`, `buildPluginCardHtml` |
-| **update-worker** | 17 | Version parsing, version comparison, KVR URL builder (slug generation, manufacturer suffix) |
-| **scanner** | 94 | Plugin type mapping (`.vst`/`.vst3`/`.component`/`.dll`), file size formatting, DAW type mapping, audio format detection |
+| **ui** | 119 | `escapeHtml` (null, numeric, double-escaping), `escapePath` (spaces, quotes, unicode), `slugify` (camelCase, numbers, special chars), `buildKvrUrl` (spaces, parens, empty manufacturer), `formatAudioSize`, `formatTime` (0s, 60s, 3661s, negative), `getFormatClass` (all formats), `timeAgo` (seconds, minutes, hours, days), `kvrCacheKey` (special chars, unicode), `buildDirsTable`, `applyKvrCache`, `metaItem`, `buildPluginCardHtml` |
+| **scanner** | 110 | Plugin type mapping (`.vst`/`.vst3`/`.component`/`.dll`/`.aaxplugin`/`.clap`), file size formatting (0B, 1B, 1023B, 1TB), DAW type mapping (all 14+ formats), audio format detection (WAV, MP3, FLAC, M4A, AAC, OPUS, REX) |
+| **update-worker** | 27 | Version parsing (pre-release, leading v, multi-part), version comparison (identical, long versions), KVR URL builder (slug generation, manufacturer suffix) |
 
 ---
 

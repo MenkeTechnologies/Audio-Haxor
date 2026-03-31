@@ -495,6 +495,104 @@ mod tests {
     }
 
     #[test]
+    fn test_estimate_bpm_174() {
+        let tmp = std::env::temp_dir().join("test_bpm_174.wav");
+        let samples = click_track(174.0, 8.0, 44100);
+        write_wav(&tmp, &samples, 44100);
+
+        let bpm = estimate_bpm(tmp.to_str().unwrap());
+        assert!(bpm.is_some(), "Should detect BPM for 174 drum-and-bass tempo");
+        let bpm = bpm.unwrap();
+        assert!(
+            (bpm - 174.0).abs() < 8.0,
+            "Expected ~174 BPM, got {bpm}"
+        );
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_decode_pcm_24bit() {
+        // 24-bit LE sample: bytes [0x00, 0x00, 0x40] = 0x400000 as signed = 4194304
+        // normalized: 4194304 / 8388608 = 0.5
+        let data = [0x00u8, 0x00, 0x40];
+        let samples = decode_pcm(&data, 24, 1, true);
+        assert_eq!(samples.len(), 1);
+        assert!(
+            (samples[0] - 0.5).abs() < 0.001,
+            "Expected ~0.5, got {}",
+            samples[0]
+        );
+    }
+
+    #[test]
+    fn test_decode_pcm_empty() {
+        let data: [u8; 0] = [];
+        let samples = decode_pcm(&data, 16, 1, true);
+        assert!(samples.is_empty(), "Empty input should produce empty output");
+    }
+
+    #[test]
+    fn test_read_wav_invalid_header() {
+        let tmp = std::env::temp_dir().join("test_bpm_invalid_header.wav");
+        // Write data that is NOT a valid RIFF header
+        fs::write(&tmp, b"NOT_RIFF_DATA_HERE_1234567890abcdefghijklmnopqrstuvwx").unwrap();
+
+        let result = read_wav_pcm(&tmp);
+        assert!(result.is_none(), "Non-RIFF data should return None");
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_read_aiff_basic() {
+        let tmp = std::env::temp_dir().join("test_bpm_aiff_basic.aiff");
+
+        let mut data = Vec::new();
+        data.extend_from_slice(b"FORM");
+        // total size placeholder — filled after building
+        data.extend_from_slice(&[0u8; 4]);
+        data.extend_from_slice(b"AIFF");
+
+        // COMM chunk: 18 bytes
+        data.extend_from_slice(b"COMM");
+        data.extend_from_slice(&18u32.to_be_bytes());
+        data.extend_from_slice(&1u16.to_be_bytes()); // channels = 1
+        data.extend_from_slice(&1000u32.to_be_bytes()); // num sample frames
+        data.extend_from_slice(&16u16.to_be_bytes()); // bits per sample
+        // 80-bit extended for 44100 Hz:
+        // exponent = 16383 + 15 = 16398 = 0x400E
+        // mantissa high 32 bits = 44100 << 16 = 0xAC44_0000
+        data.extend_from_slice(&[0x40, 0x0E, 0xAC, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
+        // SSND chunk: 8 bytes header (offset + blockSize) + PCM data
+        let pcm_bytes = 1000 * 2; // 1000 frames, 16-bit mono
+        let ssnd_size = 8 + pcm_bytes;
+        data.extend_from_slice(b"SSND");
+        data.extend_from_slice(&(ssnd_size as u32).to_be_bytes());
+        data.extend_from_slice(&0u32.to_be_bytes()); // offset
+        data.extend_from_slice(&0u32.to_be_bytes()); // blockSize
+        // 1000 frames of silence (big-endian 16-bit zeros)
+        data.extend_from_slice(&vec![0u8; pcm_bytes]);
+
+        // Fix FORM size
+        let form_size = (data.len() - 8) as u32;
+        data[4..8].copy_from_slice(&form_size.to_be_bytes());
+
+        fs::write(&tmp, &data).unwrap();
+
+        let result = read_aiff_pcm(&tmp);
+        assert!(result.is_some(), "Valid AIFF should parse successfully");
+        let (samples, sr) = result.unwrap();
+        assert_eq!(sr, 44100);
+        assert_eq!(samples.len(), 1000);
+        // All samples should be zero (silence)
+        assert!(samples.iter().all(|&s| s.abs() < 0.001));
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_read_wav_with_extra_chunks() {
         // WAV with a LIST chunk before data
         let tmp = std::env::temp_dir().join("test_bpm_extrachunk.wav");

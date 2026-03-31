@@ -478,6 +478,77 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_ableton_empty_xml() {
+        // Valid gzip but no plugin blocks at all
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Ableton>
+  <LiveSet>
+    <Tracks>
+      <AudioTrack>
+        <DeviceChain>
+          <Devices />
+        </DeviceChain>
+      </AudioTrack>
+    </Tracks>
+  </LiveSet>
+</Ableton>"#;
+
+        let tmp = std::env::temp_dir().join("test_xref_als_empty_xml.als");
+        let f = fs::File::create(&tmp).unwrap();
+        let mut enc = GzEncoder::new(f, Compression::default());
+        enc.write_all(xml.as_bytes()).unwrap();
+        enc.finish().unwrap();
+
+        let result = extract_plugins(tmp.to_str().unwrap());
+        assert!(result.is_empty(), "No plugin blocks should yield empty result");
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_parse_reaper_clap() {
+        let rpp = r#"<REAPER_PROJECT
+  <TRACK
+    <FXCHAIN
+      <CLAP "CLAP: Surge XT (Surge Synth Team)" com.surge-synth-team.surge-xt 0
+      >
+    >
+  >
+>"#;
+        let tmp = std::env::temp_dir().join("test_xref_rpp_clap.rpp");
+        fs::write(&tmp, rpp).unwrap();
+
+        let result = extract_plugins(tmp.to_str().unwrap());
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "Surge XT");
+        assert_eq!(result[0].manufacturer, "Surge Synth Team");
+        assert_eq!(result[0].plugin_type, "CLAP");
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_extract_rpp_bak_extension() {
+        let rpp = r#"<REAPER_PROJECT
+  <TRACK
+    <FXCHAIN
+      <VST "VST: Vital (Matt Tytel)" Vital.dll 0 "" 999
+      >
+    >
+  >
+>"#;
+        let tmp = std::env::temp_dir().join("test_xref.rpp-bak");
+        fs::write(&tmp, rpp).unwrap();
+
+        let result = extract_plugins(tmp.to_str().unwrap());
+        assert_eq!(result.len(), 1, ".rpp-bak should be treated as REAPER");
+        assert_eq!(result[0].name, "Vital");
+        assert_eq!(result[0].plugin_type, "VST2");
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_results_sorted_by_name() {
         let rpp = r#"<REAPER_PROJECT
   <TRACK

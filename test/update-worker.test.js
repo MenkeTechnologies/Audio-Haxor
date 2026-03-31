@@ -184,4 +184,44 @@ describe('compareVersions edge cases', () => {
   it('handles very large version numbers', () => {
     assert.ok(compareVersions('100.200.300', '100.200.299') > 0);
   });
+
+  it('identical versions return 0', () => {
+    assert.strictEqual(compareVersions('3.5.1', '3.5.1'), 0);
+    assert.strictEqual(compareVersions('0.0.1', '0.0.1'), 0);
+  });
+
+  it('very long version numbers like 1.2.3.4.5', () => {
+    assert.ok(compareVersions('1.2.3.4.5', '1.2.3.4.4') > 0);
+    assert.ok(compareVersions('1.2.3.4.5', '1.2.3.4.6') < 0);
+    assert.strictEqual(compareVersions('1.2.3.4.5', '1.2.3.4.5'), 0);
+  });
+
+  it('version with leading "v" prefix', () => {
+    // parseVersion splits on "." and parseInt("v1") yields NaN → 0
+    // so "v1.2.3" becomes [0, 2, 3] which is less than [1, 2, 3]
+    assert.ok(compareVersions('v1.2.3', '1.2.3') < 0);
+  });
+});
+
+describe('parseVersion pre-release strings', () => {
+  function parseVersion(ver) {
+    if (!ver || ver === 'Unknown') return [0, 0, 0];
+    return ver.split('.').map(n => parseInt(n, 10) || 0);
+  }
+
+  it('parses 1.2.3-beta (hyphen suffix stripped by parseInt)', () => {
+    // parseInt("3-beta") returns 3
+    assert.deepStrictEqual(parseVersion('1.2.3-beta'), [1, 2, 3]);
+  });
+
+  it('parses 1.0.0-rc.1 (rc segment becomes 0)', () => {
+    // "1.0.0-rc.1" splits into ["1","0","0-rc","1"]
+    // parseInt("0-rc") = 0
+    assert.deepStrictEqual(parseVersion('1.0.0-rc.1'), [1, 0, 0, 1]);
+  });
+
+  it('parses version with leading v prefix', () => {
+    // parseInt("v1") returns NaN → 0
+    assert.deepStrictEqual(parseVersion('v1.2.3'), [0, 2, 3]);
+  });
 });

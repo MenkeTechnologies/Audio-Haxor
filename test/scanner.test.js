@@ -66,5 +66,85 @@ describe('scanner helpers', () => {
     it('formats fractional values', () => {
       assert.strictEqual(formatSize(1536), '1.5 KB');
     });
+
+    it('formats 1 byte', () => {
+      assert.strictEqual(formatSize(1), '1.0 B');
+    });
+
+    it('formats 1023 bytes (just under 1 KB)', () => {
+      assert.strictEqual(formatSize(1023), '1023.0 B');
+    });
+
+    it('formats 1 TB (index exceeds units array)', () => {
+      // units array is ['B','KB','MB','GB'] so i=4 yields undefined unit
+      const tb = 1099511627776;
+      const result = formatSize(tb);
+      // Math.floor(Math.log(1099511627776)/Math.log(1024)) = 4, units[4] is undefined
+      assert.strictEqual(result, '1.0 undefined');
+    });
+  });
+
+  describe('getAudioFormat (ext → uppercase)', () => {
+    // Audio scanner uses ext[1..].to_uppercase() — replicate in JS
+    function getAudioFormat(ext) {
+      return ext.replace(/^\./, '').toUpperCase();
+    }
+
+    it('maps .m4a to M4A', () => {
+      assert.strictEqual(getAudioFormat('.m4a'), 'M4A');
+    });
+
+    it('maps .aac to AAC', () => {
+      assert.strictEqual(getAudioFormat('.aac'), 'AAC');
+    });
+
+    it('maps .opus to OPUS', () => {
+      assert.strictEqual(getAudioFormat('.opus'), 'OPUS');
+    });
+
+    it('maps .rex to REX', () => {
+      assert.strictEqual(getAudioFormat('.rex'), 'REX');
+    });
+  });
+
+  describe('getDAWFormat (ext → uppercase)', () => {
+    function getDAWFormat(ext) {
+      return ext.replace(/^\./, '').toUpperCase();
+    }
+
+    it('maps .bwproject to BWPROJECT', () => {
+      assert.strictEqual(getDAWFormat('.bwproject'), 'BWPROJECT');
+    });
+
+    it('maps .dawproject to DAWPROJECT', () => {
+      assert.strictEqual(getDAWFormat('.dawproject'), 'DAWPROJECT');
+    });
+
+    it('maps .aup3 to AUP3', () => {
+      assert.strictEqual(getDAWFormat('.aup3'), 'AUP3');
+    });
+
+    it('maps .ardour to ARDOUR', () => {
+      assert.strictEqual(getDAWFormat('.ardour'), 'ARDOUR');
+    });
+
+    it('maps .npr to NPR', () => {
+      assert.strictEqual(getDAWFormat('.npr'), 'NPR');
+    });
+  });
+
+  describe('getPluginType extended', () => {
+    function getPluginType(ext) {
+      const map = { '.vst': 'VST2', '.vst3': 'VST3', '.component': 'AU', '.dll': 'VST2' };
+      return map[ext] || 'Unknown';
+    }
+
+    it('maps .aaxplugin to Unknown (not in map)', () => {
+      assert.strictEqual(getPluginType('.aaxplugin'), 'Unknown');
+    });
+
+    it('maps .clap to Unknown (not in map)', () => {
+      assert.strictEqual(getPluginType('.clap'), 'Unknown');
+    });
   });
 });

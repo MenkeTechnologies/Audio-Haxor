@@ -849,6 +849,22 @@ mod tests {
     }
 
     #[test]
+    fn test_format_size_zero() {
+        assert_eq!(format_size(0), "0 B");
+    }
+
+    #[test]
+    fn test_audio_extensions_includes_common() {
+        for ext in &[".wav", ".mp3", ".flac"] {
+            assert!(
+                AUDIO_EXTENSIONS.contains(ext),
+                "AUDIO_EXTENSIONS must include {}",
+                ext
+            );
+        }
+    }
+
+    #[test]
     fn test_parse_wav_invalid() {
         let tmp = std::env::temp_dir().join("upum_test_parse_wav_invalid");
         let _ = fs::remove_dir_all(&tmp);

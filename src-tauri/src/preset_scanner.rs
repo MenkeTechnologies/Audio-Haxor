@@ -255,6 +255,29 @@ mod tests {
     }
 
     #[test]
+    fn test_preset_extensions_includes_common() {
+        for ext in &[".fxp", ".fxb", ".vstpreset"] {
+            assert!(
+                PRESET_EXTENSIONS.contains(ext),
+                "PRESET_EXTENSIONS must contain {}",
+                ext
+            );
+        }
+    }
+
+    #[test]
+    fn test_preset_roots_exist() {
+        let roots = get_preset_roots();
+        assert!(
+            !roots.is_empty(),
+            "At least one preset root directory should exist on this system"
+        );
+        for root in &roots {
+            assert!(root.exists(), "Returned root should exist: {:?}", root);
+        }
+    }
+
+    #[test]
     fn test_walk_for_presets_empty_dir() {
         let tmp = std::env::temp_dir().join("upum_test_preset_empty");
         let _ = fs::remove_dir_all(&tmp);

@@ -690,6 +690,22 @@ mod tests {
     }
 
     #[test]
+    fn test_get_plugin_type_unknown_ext() {
+        assert_eq!(get_plugin_type(".xyz"), "Unknown");
+        assert_eq!(get_plugin_type(""), "Unknown");
+        assert_eq!(get_plugin_type(".so"), "Unknown");
+        assert_eq!(get_plugin_type(".app"), "Unknown");
+        assert_eq!(get_plugin_type(".clap"), "Unknown");
+    }
+
+    #[test]
+    fn test_format_size_1_byte_1023_bytes_1_gb() {
+        assert_eq!(format_size(1), "1.0 B");
+        assert_eq!(format_size(1023), "1023.0 B");
+        assert_eq!(format_size(1_073_741_824), "1.0 GB");
+    }
+
+    #[test]
     fn test_plugin_info_missing_architectures_deserialize() {
         // Old JSON without architectures field should deserialize with empty vec
         let json = r#"{"name":"Old","path":"/old","type":"VST3","version":"1.0","manufacturer":"Co","size":"1 MB","modified":"2024"}"#;

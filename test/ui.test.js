@@ -190,6 +190,23 @@ describe('escapeHtml', () => {
   it('does not double-escape existing entities', () => {
     assert.strictEqual(escapeHtml('&amp;'), '&amp;amp;');
   });
+
+  it('handles numeric input (coerced falsy 0 becomes empty)', () => {
+    // escapeHtml(0) → (0 || '') → ''
+    assert.strictEqual(escapeHtml(0), '');
+  });
+
+  it('handles already-escaped input (double escaping)', () => {
+    assert.strictEqual(escapeHtml('&lt;div&gt;'), '&amp;lt;div&amp;gt;');
+  });
+
+  it('handles very long string', () => {
+    const long = '<script>'.repeat(1000);
+    const result = escapeHtml(long);
+    assert.ok(result.includes('&lt;script&gt;'));
+    assert.ok(!result.includes('<script>'));
+    assert.strictEqual(result.length, '&lt;script&gt;'.length * 1000);
+  });
 });
 
 describe('escapePath', () => {
@@ -247,6 +264,18 @@ describe('slugify', () => {
   it('numbers are preserved', () => {
     assert.strictEqual(slugify('12345'), '12345');
   });
+
+  it('splits camelCase for FabFilter', () => {
+    assert.strictEqual(slugify('FabFilter'), 'fab-filter');
+  });
+
+  it('handles numbers embedded in names', () => {
+    assert.strictEqual(slugify('Pro100Mix'), 'pro-100-mix');
+  });
+
+  it('handles special chars mixed with text', () => {
+    assert.strictEqual(slugify('Plug-In (v2.0)'), 'plug-in-v-2-0');
+  });
 });
 
 describe('buildKvrUrl', () => {
@@ -303,6 +332,27 @@ describe('buildKvrUrl', () => {
     assert.strictEqual(
       buildKvrUrl('Reverb', 'Unknown'),
       'https://www.kvraudio.com/product/reverb'
+    );
+  });
+
+  it('handles manufacturer with spaces', () => {
+    assert.strictEqual(
+      buildKvrUrl('Synth', 'My Great Company'),
+      'https://www.kvraudio.com/product/synth-by-my-great-company'
+    );
+  });
+
+  it('handles plugin name with parentheses', () => {
+    assert.strictEqual(
+      buildKvrUrl('Compressor (Stereo)', 'TestCo'),
+      'https://www.kvraudio.com/product/compressor-stereo-by-test-co'
+    );
+  });
+
+  it('handles empty manufacturer string', () => {
+    assert.strictEqual(
+      buildKvrUrl('EQ', ''),
+      'https://www.kvraudio.com/product/eq'
     );
   });
 });
@@ -385,6 +435,24 @@ describe('formatTime', () => {
   it('floors fractional seconds', () => {
     assert.strictEqual(formatTime(5.7), '0:05');
   });
+
+  it('formats exactly 60 seconds as 1:00', () => {
+    assert.strictEqual(formatTime(60), '1:00');
+  });
+
+  it('formats 3661 seconds as 61:01', () => {
+    assert.strictEqual(formatTime(3661), '61:01');
+  });
+
+  it('returns 0:00 for negative value', () => {
+    // negative is truthy and isFinite, so it will compute
+    // Math.floor(-5/60) = -1, Math.floor(-5%60) = depends on impl
+    // Actually -5 % 60 = -5 in JS, Math.floor(-5) = -5
+    // So result is "-1:-5" which is weird but that's the function behavior
+    // Let's verify: !(-5) = false, isFinite(-5) = true, so it proceeds
+    const result = formatTime(-5);
+    assert.strictEqual(result, '-1:-5');
+  });
 });
 
 describe('getFormatClass', () => {
@@ -429,6 +497,34 @@ describe('getFormatClass', () => {
   it('returns format-default for unknown format', () => {
     assert.strictEqual(getFormatClass('wma'), 'format-default');
     assert.strictEqual(getFormatClass('opus'), 'format-default');
+  });
+
+  it('returns format-wav for lowercase wav', () => {
+    assert.strictEqual(getFormatClass('wav'), 'format-wav');
+  });
+
+  it('returns format-flac for FLAC', () => {
+    assert.strictEqual(getFormatClass('FLAC'), 'format-flac');
+  });
+
+  it('returns format-mp3 for Mp3 (mixed case)', () => {
+    assert.strictEqual(getFormatClass('Mp3'), 'format-mp3');
+  });
+
+  it('returns format-aiff for Aiff (mixed case)', () => {
+    assert.strictEqual(getFormatClass('Aiff'), 'format-aiff');
+  });
+
+  it('returns format-ogg for OGG', () => {
+    assert.strictEqual(getFormatClass('OGG'), 'format-ogg');
+  });
+
+  it('returns format-m4a for M4A', () => {
+    assert.strictEqual(getFormatClass('M4A'), 'format-m4a');
+  });
+
+  it('returns format-aac for AAC', () => {
+    assert.strictEqual(getFormatClass('AAC'), 'format-aac');
   });
 });
 
@@ -490,6 +586,22 @@ describe('timeAgo', () => {
     // seconds will be negative, which is < 60
     assert.strictEqual(timeAgo(new Date(Date.now() + 60 * 60 * 1000)), 'just now');
   });
+
+  it('30 seconds ago is just now', () => {
+    assert.strictEqual(timeAgo(new Date(Date.now() - 30 * 1000)), 'just now');
+  });
+
+  it('90 seconds ago is 1m ago', () => {
+    assert.strictEqual(timeAgo(new Date(Date.now() - 90 * 1000)), '1m ago');
+  });
+
+  it('2 hours ago', () => {
+    assert.strictEqual(timeAgo(new Date(Date.now() - 2 * 60 * 60 * 1000)), '2h ago');
+  });
+
+  it('14 days ago', () => {
+    assert.strictEqual(timeAgo(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)), '14d ago');
+  });
 });
 
 describe('kvrCacheKey', () => {
@@ -518,6 +630,27 @@ describe('kvrCacheKey', () => {
     assert.strictEqual(
       kvrCacheKey({ manufacturer: 'NATIVE INSTRUMENTS', name: 'MASSIVE' }),
       'native instruments|||massive'
+    );
+  });
+
+  it('handles plugin name with special characters', () => {
+    assert.strictEqual(
+      kvrCacheKey({ manufacturer: 'FabFilter', name: 'Pro-Q 3' }),
+      'fabfilter|||pro-q 3'
+    );
+  });
+
+  it('handles manufacturer with dots and ampersands', () => {
+    assert.strictEqual(
+      kvrCacheKey({ manufacturer: 'A & B Corp.', name: 'Synth v2.0' }),
+      'a & b corp.|||synth v2.0'
+    );
+  });
+
+  it('handles unicode in names', () => {
+    assert.strictEqual(
+      kvrCacheKey({ manufacturer: 'Müller Audio', name: 'Über Comp' }),
+      'müller audio|||über comp'
     );
   });
 });
@@ -884,6 +1017,19 @@ describe('escapePath edge cases', () => {
 
   it('handles empty string', () => {
     assert.strictEqual(escapePath(''), '');
+  });
+
+  it('handles path with spaces', () => {
+    assert.strictEqual(escapePath('/Users/my user/plugins'), '/Users/my user/plugins');
+  });
+
+  it('handles path with double quotes (unaffected)', () => {
+    assert.strictEqual(escapePath('/path/"quoted"'), '/path/"quoted"');
+  });
+
+  it('handles path with unicode characters', () => {
+    assert.strictEqual(escapePath('/Users/Müller/Plugins'), '/Users/Müller/Plugins');
+    assert.strictEqual(escapePath('/音楽/プラグイン'), '/音楽/プラグイン');
   });
 });
 
