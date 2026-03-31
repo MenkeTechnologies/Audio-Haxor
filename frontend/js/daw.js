@@ -82,12 +82,13 @@ function buildDawRow(p) {
 }
 
 function filterDawProjects() {
-  const search = (document.getElementById('dawSearchInput').value || '').toLowerCase();
+  const search = document.getElementById('dawSearchInput').value || '';
   const daw = document.getElementById('dawDawFilter').value;
+  const mode = getSearchMode('regexDaw');
 
   filteredDawProjects = allDawProjects.filter(p => {
     if (daw !== 'all' && p.daw !== daw) return false;
-    if (search && !p.name.toLowerCase().includes(search) && !p.path.toLowerCase().includes(search) && !p.daw.toLowerCase().includes(search) && !p.format.toLowerCase().includes(search)) return false;
+    if (search && !searchMatch(search, [p.name, p.path, p.daw, p.format], mode)) return false;
     return true;
   });
 
@@ -211,11 +212,12 @@ async function scanDawProjects(resume = false) {
     progressFill.style.width = '';
     progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
 
-    const search = (document.getElementById('dawSearchInput').value || '').toLowerCase();
+    const search = document.getElementById('dawSearchInput').value || '';
     const daw = document.getElementById('dawDawFilter').value;
+    const scanMode = getSearchMode('regexDaw');
     const matching = toAdd.filter(p => {
       if (daw !== 'all' && p.daw !== daw) return false;
-      if (search && !p.name.toLowerCase().includes(search) && !p.path.toLowerCase().includes(search) && !p.daw.toLowerCase().includes(search)) return false;
+      if (search && !searchMatch(search, [p.name, p.path, p.daw], scanMode)) return false;
       return true;
     });
     if (matching.length > 0) {

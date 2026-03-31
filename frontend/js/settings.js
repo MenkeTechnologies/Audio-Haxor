@@ -453,6 +453,12 @@ function settingToggleAutoUpdate() {
   refreshSettingsUI();
 }
 
+function settingToggleSingleClickPlay() {
+  const current = prefs.getItem('singleClickPlay') === 'on';
+  prefs.setItem('singleClickPlay', current ? 'off' : 'on');
+  refreshSettingsUI();
+}
+
 function settingUpdatePageSize(val) {
   document.getElementById('settingPageSizeValue').textContent = val;
   prefs.setItem('pageSize', val);
@@ -546,6 +552,15 @@ function refreshSettingsUI() {
   if (autoUpdateBtn) {
     autoUpdateBtn.classList.toggle('active', autoUpdate);
     autoUpdateLabel.textContent = autoUpdate ? 'On' : 'Off';
+  }
+
+  // Single-click play
+  const singleClick = prefs.getItem('singleClickPlay') === 'on';
+  const singleClickBtn = document.getElementById('settingSingleClickPlay');
+  const singleClickLabel = document.getElementById('settingSingleClickPlayLabel');
+  if (singleClickBtn) {
+    singleClickBtn.classList.toggle('active', singleClick);
+    singleClickLabel.textContent = singleClick ? 'On' : 'Off';
   }
 
   // Page size

@@ -73,14 +73,13 @@ function sortPreset(key) {
 }
 
 function filterPresets() {
-  const search = (document.getElementById('presetSearchInput')?.value || '').toLowerCase();
+  const search = document.getElementById('presetSearchInput')?.value || '';
   const formatFilter = document.getElementById('presetFormatFilter')?.value || 'all';
+  const mode = getSearchMode('regexPresets');
 
   filteredPresets = allPresets.filter(p => {
     if (formatFilter !== 'all' && p.format !== formatFilter) return false;
-    if (search && !p.name.toLowerCase().includes(search) &&
-        !p.path.toLowerCase().includes(search) &&
-        !p.format.toLowerCase().includes(search)) return false;
+    if (search && !searchMatch(search, [p.name, p.path, p.format], mode)) return false;
     return true;
   });
 

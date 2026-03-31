@@ -4,6 +4,53 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Fuzzy match: all characters of needle appear in haystack in order
+function fuzzyMatch(needle, haystack) {
+  let ni = 0;
+  for (let hi = 0; hi < haystack.length && ni < needle.length; hi++) {
+    if (haystack[hi] === needle[ni]) ni++;
+  }
+  return ni === needle.length;
+}
+
+// Unified search: checks one or more fields against the query.
+// mode: 'fuzzy' (default) or 'regex'
+function searchMatch(query, fields, mode) {
+  if (!query) return true;
+  if (mode === 'regex') {
+    try {
+      const re = new RegExp(query, 'i');
+      return fields.some(f => re.test(f));
+    } catch {
+      return fields.some(f => f.toLowerCase().includes(query.toLowerCase()));
+    }
+  }
+  const q = query.toLowerCase();
+  return fields.some(f => fuzzyMatch(q, f.toLowerCase()));
+}
+
+// Get search mode for a tab's regex toggle
+function getSearchMode(toggleId) {
+  const btn = document.getElementById(toggleId);
+  return btn && btn.classList.contains('active') ? 'regex' : 'fuzzy';
+}
+
+function toggleRegex(btn) {
+  btn.classList.toggle('active');
+  const isRegex = btn.classList.contains('active');
+  const input = btn.closest('.search-box').querySelector('input');
+  if (input) {
+    const base = input.placeholder.replace(/^(Fuzzy|Regex) /, '');
+    input.placeholder = (isRegex ? 'Regex ' : 'Fuzzy ') + base;
+    // Re-trigger the filter
+    const action = btn.dataset.target;
+    if (action === 'filterPlugins') filterPlugins();
+    else if (action === 'filterAudioSamples') filterAudioSamples();
+    else if (action === 'filterDawProjects') filterDawProjects();
+    else if (action === 'filterPresets') filterPresets();
+  }
+}
+
 function escapePath(str) {
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }

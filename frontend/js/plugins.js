@@ -303,14 +303,13 @@ function ensureSearchCache(plugins) {
 }
 
 const _filterPluginsImmediate = function() {
-  const search = document.getElementById('searchInput').value.toLowerCase();
+  const search = document.getElementById('searchInput').value;
   const typeFilter = document.getElementById('typeFilter').value;
   const statusFilter = document.getElementById('statusFilter').value;
-
-  ensureSearchCache(allPlugins);
+  const mode = getSearchMode('regexPlugins');
 
   let filtered = allPlugins.filter(p => {
-    const matchesSearch = !search || p._nameLower.includes(search) || p._mfgLower.includes(search);
+    const matchesSearch = searchMatch(search, [p.name, p.manufacturer || ''], mode);
     const matchesType = typeFilter === 'all' || p.type === typeFilter;
     let matchesStatus = true;
     if (statusFilter === 'update') matchesStatus = p.hasUpdate === true;

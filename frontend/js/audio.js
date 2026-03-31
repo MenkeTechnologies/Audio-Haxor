@@ -93,11 +93,12 @@ async function scanAudioSamples(resume = false) {
     progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
 
     // Incrementally append matching rows (cap DOM at 2000 during scan)
-    const search = (document.getElementById('audioSearchInput').value || '').toLowerCase();
+    const search = document.getElementById('audioSearchInput').value || '';
     const fmt = document.getElementById('audioFormatFilter').value;
+    const scanMode = getSearchMode('regexAudio');
     const matching = toAdd.filter(s => {
       if (fmt !== 'all' && s.format !== fmt) return false;
-      if (search && !s.name.toLowerCase().includes(search) && !s.path.toLowerCase().includes(search) && !s.format.toLowerCase().includes(search)) return false;
+      if (search && !searchMatch(search, [s.name, s.path, s.format], scanMode)) return false;
       return true;
     });
     if (matching.length > 0) {
@@ -226,12 +227,13 @@ function initAudioTable() {
 }
 
 function filterAudioSamples() {
-  const search = (document.getElementById('audioSearchInput').value || '').toLowerCase();
+  const search = document.getElementById('audioSearchInput').value || '';
   const format = document.getElementById('audioFormatFilter').value;
+  const mode = getSearchMode('regexAudio');
 
   filteredAudioSamples = allAudioSamples.filter(s => {
     if (format !== 'all' && s.format !== format) return false;
-    if (search && !s.name.toLowerCase().includes(search) && !s.path.toLowerCase().includes(search) && !s.format.toLowerCase().includes(search)) return false;
+    if (search && !searchMatch(search, [s.name, s.path, s.format], mode)) return false;
     return true;
   });
 
@@ -473,6 +475,11 @@ function setPlaybackSpeed(value) {
 async function toggleMetadata(filePath, event) {
   // Don't toggle if clicking buttons
   if (event.target.closest('.col-actions')) return;
+
+  // Single-click playback when enabled
+  if (prefs.getItem('singleClickPlay') === 'on') {
+    previewAudio(filePath);
+  }
 
   const tbody = document.getElementById('audioTableBody');
   if (!tbody) return;

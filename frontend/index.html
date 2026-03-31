@@ -751,7 +751,7 @@
 
     .search-box input {
       width: 100%;
-      padding: 9px 14px 9px 36px;
+      padding: 9px 52px 9px 36px;
       border-radius: 2px;
       border: 1px solid var(--border);
       background: var(--bg-secondary);
@@ -765,6 +765,32 @@
       box-shadow: 0 0 10px var(--cyan-dim);
     }
     .search-box input::placeholder { color: var(--text-muted); }
+    .search-box .btn-regex {
+      position: absolute; right: 6px; top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 700;
+      font-family: 'Orbitron', sans-serif;
+      padding: 3px 6px;
+      cursor: pointer;
+      border-radius: 2px;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+      z-index: 1;
+    }
+    .search-box .btn-regex:hover {
+      color: var(--magenta);
+      border-color: var(--magenta);
+    }
+    .search-box .btn-regex.active {
+      color: var(--magenta);
+      border-color: var(--magenta);
+      background: rgba(255,42,109,0.1);
+      box-shadow: 0 0 8px rgba(255,42,109,0.2);
+    }
     .search-box .search-icon {
       position: absolute; left: 12px; top: 50%;
       transform: translateY(-50%);
@@ -2064,7 +2090,8 @@
         <button class="btn btn-secondary" id="btnImport" data-action="importPlugins">&#8613; Import</button>
         <div class="search-box" style="flex: 1;">
           <span class="search-icon">&#128269;</span>
-          <input type="text" id="searchInput" placeholder="Search plugins..." data-action="filterPlugins">
+          <input type="text" id="searchInput" placeholder="Fuzzy search plugins..." data-action="filterPlugins">
+          <button class="btn-regex" id="regexPlugins" data-action="toggleRegex" data-target="filterPlugins" title="Toggle regex search">.*</button>
         </div>
         <select class="filter-select" id="typeFilter" data-action="filterPlugins">
           <option value="all">All Types</option>
@@ -2146,7 +2173,8 @@
           <button class="btn btn-secondary" id="btnImportAudio" data-action="importAudio">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="audioSearchInput" placeholder="Search samples by name, path, or format..." data-action="filterAudioSamples">
+            <input type="text" id="audioSearchInput" placeholder="Fuzzy search samples..." data-action="filterAudioSamples">
+            <button class="btn-regex" id="regexAudio" data-action="toggleRegex" data-target="filterAudioSamples" title="Toggle regex search">.*</button>
           </div>
           <select class="filter-select" id="audioFormatFilter" data-action="filterAudioSamples">
             <option value="all">All Formats</option>
@@ -2192,7 +2220,8 @@
           <button class="btn btn-secondary" id="btnImportDaw" data-action="importDaw">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="dawSearchInput" placeholder="Search projects by name, path, or DAW..." data-action="filterDawProjects">
+            <input type="text" id="dawSearchInput" placeholder="Fuzzy search projects..." data-action="filterDawProjects">
+            <button class="btn-regex" id="regexDaw" data-action="toggleRegex" data-target="filterDawProjects" title="Toggle regex search">.*</button>
           </div>
           <select class="filter-select" id="dawDawFilter" data-action="filterDawProjects">
             <option value="all">All DAWs</option>
@@ -2241,7 +2270,8 @@
           <button class="btn btn-secondary" id="btnImportPresets" data-action="importPresets">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="presetSearchInput" placeholder="Search presets by name, path, or format..." data-action="filterPresets">
+            <input type="text" id="presetSearchInput" placeholder="Fuzzy search presets..." data-action="filterPresets">
+            <button class="btn-regex" id="regexPresets" data-action="toggleRegex" data-target="filterPresets" title="Toggle regex search">.*</button>
           </div>
           <select class="filter-select" id="presetFormatFilter" data-action="filterPresets">
             <option value="all">All Formats</option>
@@ -2478,6 +2508,18 @@
             <div class="settings-control">
               <button class="settings-toggle" id="settingAutoUpdate" data-action="settingToggleAutoUpdate">
                 <span class="settings-toggle-label" id="settingAutoUpdateLabel">Off</span>
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+              </button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Single-Click Sample Playback</span>
+              <span class="settings-desc">Click a sample row to start playback instead of requiring double-click</span>
+            </div>
+            <div class="settings-control">
+              <button class="settings-toggle" id="settingSingleClickPlay" data-action="settingToggleSingleClickPlay">
+                <span class="settings-toggle-label" id="settingSingleClickPlayLabel">Off</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
             </div>

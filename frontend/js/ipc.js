@@ -80,6 +80,7 @@ document.addEventListener('click', (e) => {
     case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;
     case 'settingToggleAutoScan': settingToggleAutoScan(); break;
     case 'settingToggleAutoUpdate': settingToggleAutoUpdate(); break;
+    case 'settingToggleSingleClickPlay': settingToggleSingleClickPlay(); break;
     case 'applyCustomScheme': applyCustomScheme(); break;
     case 'showSavePreset': showSavePreset(); break;
     case 'confirmSavePreset': confirmSavePreset(); break;
@@ -91,6 +92,7 @@ document.addEventListener('click', (e) => {
     case 'saveDawScanDirs': saveDawScanDirs(); break;
     case 'savePresetScanDirs': savePresetScanDirs(); break;
     case 'openPrefsFile': openPrefsFile(); break;
+    case 'toggleRegex': toggleRegex(el); break;
   }
 });
 document.addEventListener('dblclick', (e) => {
@@ -100,10 +102,11 @@ document.addEventListener('dblclick', (e) => {
     e.preventDefault();
     const filePath = dawRow.dataset.dawPath;
     const name = dawRow.querySelector('.col-name')?.textContent || filePath.split('/').pop();
+    const dawName = dawRow.querySelector('.format-badge')?.textContent || 'DAW';
     dawRow.classList.remove('row-opening');
     void dawRow.offsetWidth;
     dawRow.classList.add('row-opening');
-    showToast(`Opening ${name}...`);
+    showToast(`Opening "${name}" in ${dawName}...`);
     window.vstUpdater.openDawProject(filePath);
     return;
   }
@@ -131,8 +134,9 @@ document.addEventListener('dblclick', (e) => {
   const presetRow = e.target.closest('#presetTableBody tr[data-preset-path]');
   if (presetRow && !e.target.closest('.col-actions')) {
     e.preventDefault();
+    const presetName = presetRow.querySelector('td')?.textContent || 'preset';
     openPresetFolder(presetRow.dataset.presetPath);
-    showToast('Revealing preset in Finder...');
+    showToast(`Revealing "${presetName}" in Finder...`);
     return;
   }
 });
