@@ -14,7 +14,8 @@ let expandedMetaPath = null;
 
 audioPlayer.addEventListener('ended', () => {
   if (!audioLooping) {
-    clearAudioPlaybackUI();
+    updatePlayBtnStates();
+    updateNowPlayingBtn();
   }
 });
 audioPlayer.addEventListener('timeupdate', updatePlaybackTime);
