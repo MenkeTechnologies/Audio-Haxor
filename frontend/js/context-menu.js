@@ -80,6 +80,10 @@ document.addEventListener('contextmenu', (e) => {
     if (archBadges) {
       items.push({ icon: '&#128203;', label: 'Copy Architecture', action: () => copyToClipboard(archBadges) });
     }
+    items.push('---');
+    const pluginFav = isFavorite(path);
+    items.push({ icon: pluginFav ? '&#9734;' : '&#9733;', label: pluginFav ? 'Remove from Favorites' : 'Add to Favorites',
+      action: () => pluginFav ? removeFavorite(path) : addFavorite('plugin', path, name, { format: pluginCard.querySelector('.plugin-type')?.textContent }) });
     showContextMenu(e, items);
     return;
   }
@@ -97,6 +101,9 @@ document.addEventListener('contextmenu', (e) => {
       '---',
       { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
       { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+      '---',
+      ...[(() => { const f = isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
+        action: () => f ? removeFavorite(path) : addFavorite('sample', path, name, { format: audioRow.querySelector('.format-badge')?.textContent }) }; })()],
     ];
     showContextMenu(e, items);
     return;
@@ -114,6 +121,9 @@ document.addEventListener('contextmenu', (e) => {
       '---',
       { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
       { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+      '---',
+      ...[(() => { const f = isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
+        action: () => f ? removeFavorite(path) : addFavorite('daw', path, name, { format: dawRow.querySelector('.format-badge:last-of-type')?.textContent, daw: dawName }) }; })()],
     ];
     showContextMenu(e, items);
     return;
@@ -129,6 +139,9 @@ document.addEventListener('contextmenu', (e) => {
       '---',
       { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
       { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+      '---',
+      ...[(() => { const f = isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
+        action: () => f ? removeFavorite(path) : addFavorite('preset', path, name, { format: presetRow.querySelector('.format-badge')?.textContent }) }; })()],
     ];
     showContextMenu(e, items);
     return;

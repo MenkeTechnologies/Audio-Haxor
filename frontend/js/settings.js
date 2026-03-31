@@ -428,12 +428,14 @@ function settingResetColumns() {
 }
 
 async function settingClearAllHistory() {
-  if (!confirm('Clear all plugin, audio, and DAW scan history? This cannot be undone.')) return;
+  if (!confirm('Clear all plugin, audio, DAW, and preset scan history? This cannot be undone.')) return;
   await Promise.all([
     window.vstUpdater.clearHistory(),
     window.vstUpdater.clearAudioHistory(),
     window.vstUpdater.clearDawHistory(),
+    window.vstUpdater.clearPresetHistory(),
   ]);
+  showToast('All scan history cleared');
 }
 
 async function settingClearKvrCache() {

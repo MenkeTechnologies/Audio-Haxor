@@ -301,26 +301,30 @@ const EXT_TO_FILTER = {
 };
 
 // Auto-select dropdown when search matches a format/type keyword.
-// Resets to 'all' when search is cleared or no longer matches.
+// Only activates on exact keyword match. Keeps filter sticky once set —
+// does not reset unless search is fully cleared.
 function autoSelectDropdown(selectEl, search) {
   if (!selectEl) return;
   const q = search.trim().toLowerCase().replace(/^\./, '');
   if (!q) {
-    if (selectEl.value !== 'all') selectEl.value = 'all';
+    // Reset to all only when search is completely empty
+    if (selectEl._autoSet) {
+      selectEl.value = 'all';
+      selectEl._autoSet = false;
+    }
     return;
   }
-  const mapped = EXT_TO_FILTER[q];
-  if (mapped) {
-    // Check if this value exists in the dropdown
-    const option = [...selectEl.options].find(o => o.value === mapped);
-    if (option && selectEl.value !== mapped) {
-      selectEl.value = mapped;
-    }
-  } else if (selectEl.value !== 'all') {
-    // Check if current selection's text still matches
-    const currentOpt = selectEl.options[selectEl.selectedIndex];
-    if (currentOpt && !currentOpt.text.toLowerCase().includes(q) && currentOpt.value !== 'all') {
-      selectEl.value = 'all';
+  // Check each word in the search for a format match
+  const words = q.split(/\s+/);
+  for (const word of words) {
+    const mapped = EXT_TO_FILTER[word];
+    if (mapped) {
+      const option = [...selectEl.options].find(o => o.value === mapped);
+      if (option && selectEl.value !== mapped) {
+        selectEl.value = mapped;
+        selectEl._autoSet = true;
+      }
+      return;
     }
   }
 }
@@ -506,7 +510,7 @@ function restoreTabOrder() {
 function settingResetTabOrder() {
   prefs.removeItem('tabOrder');
   const nav = document.querySelector('.tab-nav');
-  const defaultOrder = ['plugins', 'samples', 'daw', 'presets', 'history', 'settings'];
+  const defaultOrder = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'history', 'settings'];
   const tabMap = {};
   nav.querySelectorAll('.tab-btn').forEach(btn => { tabMap[btn.dataset.tab] = btn; });
   for (const key of defaultOrder) {
@@ -525,7 +529,9 @@ function switchTab(tab) {
   document.getElementById('tabSamples').classList.toggle('active', tab === 'samples');
   document.getElementById('tabDaw').classList.toggle('active', tab === 'daw');
   document.getElementById('tabPresets').classList.toggle('active', tab === 'presets');
+  document.getElementById('tabFavorites').classList.toggle('active', tab === 'favorites');
   document.getElementById('tabSettings').classList.toggle('active', tab === 'settings');
   if (tab === 'history') loadHistory();
+  if (tab === 'favorites') renderFavorites();
   if (tab === 'settings') refreshSettingsUI();
 }

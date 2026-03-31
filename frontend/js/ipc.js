@@ -74,6 +74,7 @@ document.addEventListener('click', (e) => {
     case 'importPresets': importPresets(); break;
     case 'settingToggleTheme': settingToggleTheme(); break;
     case 'settingToggleCrt': settingToggleCrt(); break;
+    case 'clearFavorites': clearFavorites(); break;
     case 'settingResetColumns': settingResetColumns(); break;
     case 'settingResetTabOrder': settingResetTabOrder(); break;
     case 'settingClearAllHistory': settingClearAllHistory(); break;
@@ -150,6 +151,7 @@ document.addEventListener('input', (e) => {
   else if (action === 'filterAudioSamples') filterAudioSamples();
   else if (action === 'filterDawProjects') filterDawProjects();
   else if (action === 'filterPresets') filterPresets();
+  else if (action === 'filterFavorites') renderFavorites();
   else if (action === 'setVolume') setAudioVolume(e.target.value);
   else if (action === 'settingPageSize') settingUpdatePageSize(e.target.value);
   else if (action === 'settingFlushInterval') settingUpdateFlushInterval(e.target.value);
@@ -192,10 +194,10 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
-  // Cmd/Ctrl+1-5 — switch tabs
-  if (mod && e.key >= '1' && e.key <= '6') {
+  // Cmd/Ctrl+1-7 — switch tabs
+  if (mod && e.key >= '1' && e.key <= '7') {
     e.preventDefault();
-    const tabs = ['plugins', 'samples', 'daw', 'presets', 'history', 'settings'];
+    const tabs = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'history', 'settings'];
     const idx = parseInt(e.key) - 1;
     if (idx < tabs.length) switchTab(tabs[idx]);
   }

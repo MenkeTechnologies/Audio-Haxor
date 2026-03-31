@@ -2312,6 +2312,47 @@
       background: transparent;
       color: var(--text);
     }
+    /* Favorites */
+    .fav-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 24px;
+    }
+    .fav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--yellow);
+      margin-bottom: 4px;
+      transition: border-color 0.2s;
+    }
+    .fav-item:hover {
+      border-left-color: var(--cyan);
+    }
+    .fav-star {
+      color: var(--yellow);
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .fav-type { flex-shrink: 0; }
+    .fav-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .fav-actions {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
     .ctx-menu-sep {
       height: 1px;
       background: var(--border);
@@ -2401,9 +2442,9 @@
             <div class="header-info-item" title="Process uptime">UP <span class="header-info-value" id="headerUptime">--</span></div>
             <div class="header-info-item" title="Process ID">PID <span class="header-info-value" id="headerPid">--</span></div>
           </div>
-          <button class="btn btn-primary" id="btnScanAll" data-action="scanAll">&#9889; Scan All</button>
-          <button class="btn btn-stop" id="btnStopAll" data-action="stopAll" style="display:none;">&#9632; Stop All</button>
-          <button class="btn btn-secondary" id="btnResumeAll" data-action="resumeAll" style="display:none;">&#9654; Resume All</button>
+          <button class="btn btn-primary" id="btnScanAll" data-action="scanAll" title="Scan all plugins, samples, DAW projects, and presets">&#9889; Scan All</button>
+          <button class="btn btn-stop" id="btnStopAll" data-action="stopAll" style="display:none;" title="Stop all running scans">&#9632; Stop All</button>
+          <button class="btn btn-secondary" id="btnResumeAll" data-action="resumeAll" style="display:none;" title="Resume all paused scans">&#9654; Resume All</button>
         </div>
       </div>
       <div class="stats-bar" id="statsBar">
@@ -2446,35 +2487,36 @@
     </div>
 
     <div class="tab-nav">
-      <button class="tab-btn active" data-action="switchTab" data-tab="plugins">Plugins</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="samples">Samples</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="daw">DAW Projects</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="presets">Presets</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="history">History</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="settings">&#9881; Settings</button>
+      <button class="tab-btn active" data-action="switchTab" data-tab="plugins" title="VST2, VST3, and AU plugins (Cmd+1)">Plugins</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="samples" title="Audio sample files (Cmd+2)">Samples</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="daw" title="DAW project files (Cmd+3)">DAW Projects</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="presets" title="Plugin presets (Cmd+4)">Presets</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="favorites" title="Favorited items (Cmd+5)">&#9733; Favorites</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="history" title="Scan history and diffs (Cmd+6)">History</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="settings" title="App settings (Cmd+7)">&#9881; Settings</button>
     </div>
 
     <div class="tab-content active" id="tabPlugins">
     <div class="audio-container">
       <div class="audio-toolbar">
-        <button class="btn btn-primary" id="btnScan" data-action="scanPlugins">&#8635; Scan Plugins</button>
-        <button class="btn btn-secondary" id="btnResumeScan" data-action="resumePluginScan" style="display:none;">&#9654; Resume</button>
-        <button class="btn btn-stop" id="btnStopPlugins" data-action="stopPluginScan" style="display:none;">&#9632; Stop</button>
-        <button class="btn btn-primary" id="btnCheckUpdates" data-action="checkUpdates" disabled>&#9889; Check Updates</button>
-        <button class="btn btn-secondary" id="btnExport" data-action="exportPlugins" style="display:none;">&#8615; Export</button>
-        <button class="btn btn-secondary" id="btnImport" data-action="importPlugins">&#8613; Import</button>
+        <button class="btn btn-primary" id="btnScan" data-action="scanPlugins" title="Scan system directories for audio plugins">&#8635; Scan Plugins</button>
+        <button class="btn btn-secondary" id="btnResumeScan" data-action="resumePluginScan" style="display:none;" title="Resume scan from where it stopped">&#9654; Resume</button>
+        <button class="btn btn-stop" id="btnStopPlugins" data-action="stopPluginScan" style="display:none;" title="Stop the current scan">&#9632; Stop</button>
+        <button class="btn btn-primary" id="btnCheckUpdates" data-action="checkUpdates" disabled title="Check KVR Audio for newer versions">&#9889; Check Updates</button>
+        <button class="btn btn-secondary" id="btnExport" data-action="exportPlugins" style="display:none;" title="Export plugin list to JSON">&#8615; Export</button>
+        <button class="btn btn-secondary" id="btnImport" data-action="importPlugins" title="Import plugin list from JSON">&#8613; Import</button>
         <div class="search-box" style="flex: 1;">
           <span class="search-icon">&#128269;</span>
           <input type="text" id="searchInput" placeholder="Fuzzy search plugins..." data-action="filterPlugins">
           <button class="btn-regex" id="regexPlugins" data-action="toggleRegex" data-target="filterPlugins" title="Toggle regex search">.*</button>
         </div>
-        <select class="filter-select" id="typeFilter" data-action="filterPlugins">
+        <select class="filter-select" id="typeFilter" data-action="filterPlugins" title="Filter by plugin format">
           <option value="all">All Types</option>
           <option value="VST2">VST2</option>
           <option value="VST3">VST3</option>
           <option value="AU">Audio Units</option>
         </select>
-        <select class="filter-select" id="statusFilter" data-action="filterPlugins">
+        <select class="filter-select" id="statusFilter" data-action="filterPlugins" title="Filter by update status">
           <option value="all">All Status</option>
           <option value="update">Updates Available</option>
           <option value="current">Up to Date</option>
@@ -2515,6 +2557,32 @@
     </div><!-- end audio-container -->
     </div><!-- end tabPlugins -->
 
+    <div class="tab-content" id="tabFavorites">
+      <div class="audio-container">
+        <div class="audio-toolbar">
+          <div class="search-box" style="flex: 1;">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" id="favSearchInput" placeholder="Search favorites..." data-action="filterFavorites">
+          </div>
+          <select class="filter-select" id="favTypeFilter" data-action="filterFavorites" title="Filter by item type">
+            <option value="all">All Types</option>
+            <option value="plugin">Plugins</option>
+            <option value="sample">Samples</option>
+            <option value="daw">DAW Projects</option>
+            <option value="preset">Presets</option>
+          </select>
+          <button class="btn btn-stop btn-settings-action" data-action="clearFavorites" title="Remove all favorites">Clear All</button>
+        </div>
+        <div class="fav-list" id="favList">
+          <div class="state-message" id="favEmptyState">
+            <div class="state-icon">&#9733;</div>
+            <h2>No Favorites</h2>
+            <p>Right-click any plugin, sample, DAW project, or preset and choose <strong>"Add to Favorites"</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="tab-content" id="tabHistory">
       <div class="history-container">
         <div class="history-sidebar">
@@ -2541,17 +2609,17 @@
     <div class="tab-content" id="tabSamples">
       <div class="audio-container">
         <div class="audio-toolbar">
-          <button class="btn btn-primary" id="btnScanAudio" data-action="scanAudioSamples">&#127925; Scan Samples</button>
-          <button class="btn btn-secondary" id="btnResumeAudio" data-action="resumeAudioScan" style="display: none;">&#9654; Resume</button>
-          <button class="btn btn-stop" id="btnStopAudio" style="display: none;" data-action="stopAudioScan">&#9632; Stop</button>
-          <button class="btn btn-secondary" id="btnExportAudio" data-action="exportAudio" style="display:none;">&#8615; Export</button>
-          <button class="btn btn-secondary" id="btnImportAudio" data-action="importAudio">&#8613; Import</button>
+          <button class="btn btn-primary" id="btnScanAudio" data-action="scanAudioSamples" title="Scan for audio sample files">&#127925; Scan Samples</button>
+          <button class="btn btn-secondary" id="btnResumeAudio" data-action="resumeAudioScan" style="display: none;" title="Resume sample scan">&#9654; Resume</button>
+          <button class="btn btn-stop" id="btnStopAudio" style="display: none;" data-action="stopAudioScan" title="Stop the current scan">&#9632; Stop</button>
+          <button class="btn btn-secondary" id="btnExportAudio" data-action="exportAudio" style="display:none;" title="Export samples to JSON">&#8615; Export</button>
+          <button class="btn btn-secondary" id="btnImportAudio" data-action="importAudio" title="Import samples from JSON">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="audioSearchInput" placeholder="Fuzzy search samples..." data-action="filterAudioSamples">
             <button class="btn-regex" id="regexAudio" data-action="toggleRegex" data-target="filterAudioSamples" title="Toggle regex search">.*</button>
           </div>
-          <select class="filter-select" id="audioFormatFilter" data-action="filterAudioSamples">
+          <select class="filter-select" id="audioFormatFilter" data-action="filterAudioSamples" title="Filter by audio format">
             <option value="all">All Formats</option>
             <option value="WAV">WAV</option>
             <option value="MP3">MP3</option>
@@ -2588,17 +2656,17 @@
     <div class="tab-content" id="tabDaw">
       <div class="audio-container">
         <div class="audio-toolbar">
-          <button class="btn btn-primary" id="btnScanDaw" data-action="scanDawProjects">&#127911; Scan DAW Projects</button>
-          <button class="btn btn-secondary" id="btnResumeDaw" data-action="resumeDawScan" style="display: none;">&#9654; Resume</button>
-          <button class="btn btn-stop" id="btnStopDaw" style="display: none;" data-action="stopDawScan">&#9632; Stop</button>
-          <button class="btn btn-secondary" id="btnExportDaw" data-action="exportDaw" style="display:none;">&#8615; Export</button>
-          <button class="btn btn-secondary" id="btnImportDaw" data-action="importDaw">&#8613; Import</button>
+          <button class="btn btn-primary" id="btnScanDaw" data-action="scanDawProjects" title="Scan for DAW project files">&#127911; Scan DAW Projects</button>
+          <button class="btn btn-secondary" id="btnResumeDaw" data-action="resumeDawScan" style="display: none;" title="Resume DAW scan">&#9654; Resume</button>
+          <button class="btn btn-stop" id="btnStopDaw" style="display: none;" data-action="stopDawScan" title="Stop the current scan">&#9632; Stop</button>
+          <button class="btn btn-secondary" id="btnExportDaw" data-action="exportDaw" style="display:none;" title="Export projects to JSON">&#8615; Export</button>
+          <button class="btn btn-secondary" id="btnImportDaw" data-action="importDaw" title="Import projects from JSON">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="dawSearchInput" placeholder="Fuzzy search projects..." data-action="filterDawProjects">
             <button class="btn-regex" id="regexDaw" data-action="toggleRegex" data-target="filterDawProjects" title="Toggle regex search">.*</button>
           </div>
-          <select class="filter-select" id="dawDawFilter" data-action="filterDawProjects">
+          <select class="filter-select" id="dawDawFilter" data-action="filterDawProjects" title="Filter by DAW application">
             <option value="all">All DAWs</option>
             <option value="Ableton Live">Ableton Live</option>
             <option value="Logic Pro">Logic Pro</option>
@@ -2638,17 +2706,17 @@
     <div class="tab-content" id="tabPresets">
       <div class="audio-container">
         <div class="audio-toolbar">
-          <button class="btn btn-primary" id="btnScanPresets" data-action="scanPresets">&#127924; Scan Presets</button>
-          <button class="btn btn-secondary" id="btnResumePresets" data-action="resumePresetScan" style="display: none;">&#9654; Resume</button>
-          <button class="btn btn-stop" id="btnStopPresets" style="display: none;" data-action="stopPresetScan">&#9632; Stop</button>
-          <button class="btn btn-secondary" id="btnExportPresets" data-action="exportPresets" style="display:none;">&#8615; Export</button>
-          <button class="btn btn-secondary" id="btnImportPresets" data-action="importPresets">&#8613; Import</button>
+          <button class="btn btn-primary" id="btnScanPresets" data-action="scanPresets" title="Scan for plugin presets">&#127924; Scan Presets</button>
+          <button class="btn btn-secondary" id="btnResumePresets" data-action="resumePresetScan" style="display: none;" title="Resume preset scan">&#9654; Resume</button>
+          <button class="btn btn-stop" id="btnStopPresets" style="display: none;" data-action="stopPresetScan" title="Stop the current scan">&#9632; Stop</button>
+          <button class="btn btn-secondary" id="btnExportPresets" data-action="exportPresets" style="display:none;" title="Export presets to JSON">&#8615; Export</button>
+          <button class="btn btn-secondary" id="btnImportPresets" data-action="importPresets" title="Import presets from JSON">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="presetSearchInput" placeholder="Fuzzy search presets..." data-action="filterPresets">
             <button class="btn-regex" id="regexPresets" data-action="toggleRegex" data-target="filterPresets" title="Toggle regex search">.*</button>
           </div>
-          <select class="filter-select" id="presetFormatFilter" data-action="filterPresets">
+          <select class="filter-select" id="presetFormatFilter" data-action="filterPresets" title="Filter by preset format">
             <option value="all">All Formats</option>
             <option value="FXP">FXP</option>
             <option value="FXB">FXB</option>
@@ -3063,6 +3131,7 @@
   <script src="js/audio.js"></script>
   <script src="js/daw.js"></script>
   <script src="js/presets.js"></script>
+  <script src="js/favorites.js"></script>
   <script src="js/context-menu.js"></script>
   <script src="js/columns.js"></script>
   <script src="js/app.js"></script>
