@@ -15,7 +15,8 @@ function formatPresetSize(bytes) {
 }
 
 function buildPresetRow(p) {
-  return `<tr>
+  const ep = escapePath(p.path);
+  return `<tr data-preset-path="${ep}" style="cursor: pointer;" title="Double-click to reveal in Finder">
     <td>${escapeHtml(p.name)}</td>
     <td class="col-format"><span class="format-badge format-default">${p.format}</span></td>
     <td title="${escapePath(p.path)}">${escapeHtml(p.directory)}</td>

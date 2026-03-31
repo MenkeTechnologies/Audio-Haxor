@@ -128,14 +128,11 @@ document.addEventListener('dblclick', (e) => {
   }
 
   // Presets — reveal in Finder
-  const presetRow = e.target.closest('#presetTableBody tr');
+  const presetRow = e.target.closest('#presetTableBody tr[data-preset-path]');
   if (presetRow && !e.target.closest('.col-actions')) {
     e.preventDefault();
-    const folderBtn = presetRow.querySelector('[data-action="openPresetFolder"]');
-    if (folderBtn) {
-      openPresetFolder(folderBtn.dataset.path);
-      showToast('Revealing preset in Finder...');
-    }
+    openPresetFolder(presetRow.dataset.presetPath);
+    showToast('Revealing preset in Finder...');
     return;
   }
 });
