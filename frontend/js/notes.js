@@ -360,22 +360,191 @@ function renderTagsManager() {
   container.innerHTML = html;
 }
 
+// ── Tag Wizard Modal ──
+
+let _tagWizardRenaming = null; // tag name being renamed, or null
+
 function createNewTag() {
-  const tag = prompt('Enter new tag name:');
-  if (!tag || !tag.trim()) return;
-  const name = tag.trim();
+  showTagWizard();
+}
+
+function showTagWizard() {
+  let existing = document.getElementById('tagWizardModal');
+  if (existing) existing.remove();
+  _tagWizardRenaming = null;
+
+  const html = `<div class="modal-overlay" id="tagWizardModal" data-action-modal="closeTagWizard">
+    <div class="modal-content modal-wide">
+      <div class="modal-header">
+        <h2>Tag Manager</h2>
+        <button class="modal-close" data-action-modal="closeTagWizard">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <div class="tag-wizard-add">
+          <input type="text" id="tagWizardInput" placeholder="New tag name..." autocomplete="off" spellcheck="false">
+          <button class="btn btn-primary" id="tagWizardAddBtn" data-action-tw="add">+ Add</button>
+        </div>
+        <div class="tag-wizard-list" id="tagWizardList"></div>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  renderTagWizardList();
+  document.getElementById('tagWizardInput').focus();
+}
+
+function closeTagWizard() {
+  const modal = document.getElementById('tagWizardModal');
+  if (modal) modal.remove();
+  _tagWizardRenaming = null;
+  renderTagsManager();
+  renderGlobalTagBar();
+}
+
+function renderTagWizardList() {
+  const list = document.getElementById('tagWizardList');
+  if (!list) return;
+
+  const tagCounts = getTagCounts();
+  const allTags = Object.keys(tagCounts).sort();
+
+  if (allTags.length === 0) {
+    list.innerHTML = '<div class="tag-wizard-empty">No tags yet. Type a name above and click Add.</div>';
+    return;
+  }
+
+  list.innerHTML = allTags.map(tag => {
+    const count = tagCounts[tag];
+    const isRenaming = _tagWizardRenaming === tag;
+    const nameHtml = isRenaming
+      ? `<input type="text" class="tag-wizard-rename-input" data-tw-rename-tag="${escapeHtml(tag)}" value="${escapeHtml(tag)}" autofocus>`
+      : escapeHtml(tag);
+    return `<div class="tag-wizard-row">
+      <span class="tag-wizard-name">${nameHtml}</span>
+      <span class="tag-wizard-count">${count} item${count !== 1 ? 's' : ''}</span>
+      <div class="tag-wizard-actions">
+        ${isRenaming
+          ? `<button class="btn-small btn-primary" data-action-tw="confirmRename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;">Save</button>
+             <button class="btn-small btn-secondary" data-action-tw="cancelRename" style="padding:3px 8px;font-size:10px;">Cancel</button>`
+          : `<button class="btn-small btn-secondary" data-action-tw="startRename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;">Rename</button>
+             <button class="btn-small btn-stop" data-action-tw="delete" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;">Delete</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+
+  // Focus rename input if active
+  if (_tagWizardRenaming) {
+    const inp = list.querySelector('.tag-wizard-rename-input');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+}
+
+function tagWizardAdd() {
+  const input = document.getElementById('tagWizardInput');
+  if (!input) return;
+  const name = input.value.trim();
+  if (!name) return;
+
   const existing = getAllTags();
   if (existing.includes(name)) {
     showToast(`Tag "${name}" already exists`);
     return;
   }
+
   const standalone = getStandaloneTags();
   standalone.push(name);
   setStandaloneTags(standalone);
-  showToast(`Tag "${name}" created — right-click any item to apply it`);
-  renderTagsManager();
-  renderGlobalTagBar();
+  input.value = '';
+  renderTagWizardList();
+  showToast(`Tag "${name}" created`);
 }
+
+function tagWizardDelete(tag) {
+  if (!confirm(`Delete tag "${tag}" from all items?`)) return;
+  deleteTag(tag);
+  renderTagWizardList();
+}
+
+function tagWizardStartRename(tag) {
+  _tagWizardRenaming = tag;
+  renderTagWizardList();
+}
+
+function tagWizardCancelRename() {
+  _tagWizardRenaming = null;
+  renderTagWizardList();
+}
+
+function tagWizardConfirmRename(oldTag) {
+  const input = document.querySelector(`.tag-wizard-rename-input[data-tw-rename-tag="${CSS.escape(oldTag)}"]`);
+  if (!input) return;
+  const newName = input.value.trim();
+  if (!newName || newName === oldTag) {
+    tagWizardCancelRename();
+    return;
+  }
+  const existing = getAllTags();
+  if (existing.includes(newName)) {
+    showToast(`Tag "${newName}" already exists`);
+    return;
+  }
+  renameTag(oldTag, newName);
+  // Also rename in standalone tags
+  const standalone = getStandaloneTags();
+  const idx = standalone.indexOf(oldTag);
+  if (idx !== -1) {
+    standalone[idx] = newName;
+    setStandaloneTags(standalone);
+  }
+  _tagWizardRenaming = null;
+  renderTagWizardList();
+}
+
+// Event delegation for tag wizard
+document.addEventListener('click', (e) => {
+  // Close
+  const closeAction = e.target.closest('[data-action-modal="closeTagWizard"]');
+  if (closeAction) {
+    if (e.target === closeAction || closeAction.classList.contains('modal-close')) {
+      closeTagWizard();
+    }
+    return;
+  }
+
+  const tw = e.target.closest('[data-action-tw]');
+  if (!tw) return;
+  const act = tw.dataset.actionTw;
+  const tag = tw.dataset.tag;
+
+  if (act === 'add') tagWizardAdd();
+  else if (act === 'delete') tagWizardDelete(tag);
+  else if (act === 'startRename') tagWizardStartRename(tag);
+  else if (act === 'cancelRename') tagWizardCancelRename();
+  else if (act === 'confirmRename') tagWizardConfirmRename(tag);
+});
+
+// Enter key in add input or rename input
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.id === 'tagWizardInput') {
+    e.preventDefault();
+    tagWizardAdd();
+    return;
+  }
+  if (e.key === 'Enter' && e.target.classList.contains('tag-wizard-rename-input')) {
+    e.preventDefault();
+    const oldTag = e.target.dataset.twRenameTag;
+    tagWizardConfirmRename(oldTag);
+    return;
+  }
+  if (e.key === 'Escape' && _tagWizardRenaming) {
+    tagWizardCancelRename();
+    return;
+  }
+  if (e.key === 'Escape' && document.getElementById('tagWizardModal')) {
+    closeTagWizard();
+  }
+});
 
 // ── Global Tag Filter ──
 let _globalActiveTag = null;
