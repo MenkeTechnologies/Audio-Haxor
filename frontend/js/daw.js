@@ -213,7 +213,7 @@ async function scanDawProjects(resume = false) {
   let flushScheduled = false;
   const dawEta = createETA();
   dawEta.start();
-  const FLUSH_INTERVAL = 300;
+  const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '100', 10);
   let lastFlush = 0;
 
   function flushPendingProjects() {
@@ -275,6 +275,8 @@ async function scanDawProjects(resume = false) {
     } else if (data.phase === 'scanning') {
       pendingProjects.push(...data.projects);
       pendingFound = data.found;
+      // Immediately update header counter
+      document.getElementById('dawProjectCount').textContent = pendingFound;
       scheduleFlush();
     }
   });

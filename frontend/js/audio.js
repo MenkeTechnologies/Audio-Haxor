@@ -82,7 +82,7 @@ async function scanAudioSamples(resume = false) {
   let flushScheduled = false;
   const audioEta = createETA();
   audioEta.start();
-  const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '300', 10);
+  const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '100', 10);
   let lastFlush = 0;
 
   function flushPendingSamples() {
@@ -145,6 +145,8 @@ async function scanAudioSamples(resume = false) {
     } else if (data.phase === 'scanning') {
       pendingSamples.push(...data.samples);
       pendingFound = data.found;
+      // Immediately update header counter
+      document.getElementById('sampleCount').textContent = pendingFound;
       scheduleFlush();
     }
   });

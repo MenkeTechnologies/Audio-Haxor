@@ -185,7 +185,7 @@ async function scanPresets(resume = false) {
   let flushScheduled = false;
   const presetEta = createETA();
   presetEta.start();
-  const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '300', 10);
+  const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '100', 10);
   let lastFlush = 0;
 
   function flushPending() {
@@ -242,6 +242,8 @@ async function scanPresets(resume = false) {
     } else if (data.phase === 'scanning') {
       pendingPresets.push(...data.presets);
       pendingFound = data.found;
+      // Immediately update header counter
+      document.getElementById('presetCountHeader').textContent = pendingFound;
       scheduleFlush();
     }
   });

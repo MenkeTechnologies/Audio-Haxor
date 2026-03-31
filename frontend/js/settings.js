@@ -586,7 +586,7 @@ function refreshSettingsUI() {
   }
 
   // Flush interval
-  const flush = getSettingValue('flushInterval', '300');
+  const flush = getSettingValue('flushInterval', '100');
   const flushEl = document.getElementById('settingFlushInterval');
   const flushValEl = document.getElementById('settingFlushIntervalValue');
   if (flushEl) {
