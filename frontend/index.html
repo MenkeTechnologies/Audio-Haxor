@@ -1413,7 +1413,7 @@
       border-left: 2px solid var(--cyan);
     }
 
-    .tab-content { display: none; flex: 1; overflow: auto; flex-direction: column; min-height: 0; }
+    .tab-content { display: none; flex: 1 1 0; overflow-y: auto; overflow-x: hidden; flex-direction: column; min-height: 200px; }
     .tab-content.active { animation: tabFadeIn 0.2s ease-out; }
     @keyframes tabFadeIn {
       from { opacity: 0; }
