@@ -165,6 +165,11 @@ document.addEventListener('click', (e) => {
     case 'nextTrack': nextTrack(); break;
     case 'toggleShuffle': toggleShuffle(); break;
     case 'toggleMute': toggleMute(); break;
+    case 'resetEq': resetEq(); break;
+    case 'toggleMono': toggleMono(); break;
+    case 'setAbA': setAbLoopStart(); break;
+    case 'setAbB': setAbLoopEnd(); break;
+    case 'clearAbLoop': clearAbLoop(); break;
     case 'createTag': createNewTag(); break;
   }
 });
@@ -225,6 +230,11 @@ document.addEventListener('input', (e) => {
   else if (action === 'filterNotes') renderNotesTab();
   else if (action === 'filterTags') renderTagsManager();
   else if (action === 'setVolume') setAudioVolume(e.target.value);
+  else if (action === 'setEqLow') setEqBand('low', e.target.value);
+  else if (action === 'setEqMid') setEqBand('mid', e.target.value);
+  else if (action === 'setEqHigh') setEqBand('high', e.target.value);
+  else if (action === 'setGain') setPreampGain(e.target.value);
+  else if (action === 'setPan') setPan(e.target.value);
   else if (action === 'settingPageSize') settingUpdatePageSize(e.target.value);
   else if (action === 'settingFlushInterval') settingUpdateFlushInterval(e.target.value);
   else if (action === 'settingThreadMultiplier') settingUpdateThreadMultiplier(e.target.value);

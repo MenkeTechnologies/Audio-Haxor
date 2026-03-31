@@ -3120,6 +3120,125 @@
       padding: 14px 16px 12px;
     }
 
+    /* EQ section — only visible when expanded */
+    .np-eq-section {
+      display: none;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      margin-top: 4px;
+    }
+    .audio-now-playing.expanded .np-eq-section {
+      display: block;
+    }
+    .np-eq-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .np-eq-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+    }
+    .np-eq-controls {
+      display: flex;
+      align-items: flex-end;
+      gap: 14px;
+      justify-content: center;
+    }
+    .np-eq-band {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .np-eq-band label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+    }
+    .eq-slider {
+      -webkit-appearance: slider-vertical;
+      appearance: slider-vertical;
+      writing-mode: vertical-lr;
+      direction: rtl;
+      width: 20px;
+      height: 80px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .eq-slider::-webkit-slider-runnable-track {
+      width: 4px;
+      background: var(--border);
+      border-radius: 2px;
+    }
+    .eq-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 4px var(--cyan-glow);
+      cursor: pointer;
+    }
+    .eq-val {
+      font-size: 9px;
+      font-family: 'Orbitron', sans-serif;
+      color: var(--cyan);
+      letter-spacing: 0.5px;
+      min-width: 36px;
+      text-align: center;
+    }
+    .eq-freq {
+      font-size: 8px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+    .np-eq-divider {
+      width: 1px;
+      height: 100px;
+      background: var(--border);
+      flex-shrink: 0;
+      align-self: center;
+    }
+    .np-eq-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+    }
+    .np-eq-buttons .btn-small {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    /* A-B loop markers on waveform */
+    .ab-marker {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 2px;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .ab-marker-a {
+      background: var(--green);
+      box-shadow: 0 0 4px rgba(57,255,20,0.5);
+    }
+    .ab-marker-b {
+      background: var(--accent);
+      box-shadow: 0 0 4px rgba(255,42,109,0.5);
+    }
+
     .np-history {
       display: none;
       flex-direction: column;
@@ -3693,6 +3812,51 @@
         </div>
       </div>
       <div class="np-expand-hint">double-click to expand</div>
+      <!-- EQ & Processing — only visible when expanded -->
+      <div class="np-eq-section" id="npEqSection">
+        <div class="np-eq-header">
+          <span class="np-eq-title">EQ &amp; Processing</span>
+          <button class="btn-small btn-secondary" data-action="resetEq" style="padding:2px 8px;font-size:9px;">Reset</button>
+        </div>
+        <div class="np-eq-controls">
+          <div class="np-eq-band">
+            <label>Low</label>
+            <input type="range" class="eq-slider" id="npEqLow" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqLow">
+            <span class="eq-val" id="npEqLowVal">0 dB</span>
+            <span class="eq-freq">200 Hz</span>
+          </div>
+          <div class="np-eq-band">
+            <label>Mid</label>
+            <input type="range" class="eq-slider" id="npEqMid" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqMid">
+            <span class="eq-val" id="npEqMidVal">0 dB</span>
+            <span class="eq-freq">1 kHz</span>
+          </div>
+          <div class="np-eq-band">
+            <label>High</label>
+            <input type="range" class="eq-slider" id="npEqHigh" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqHigh">
+            <span class="eq-val" id="npEqHighVal">0 dB</span>
+            <span class="eq-freq">8 kHz</span>
+          </div>
+          <div class="np-eq-divider"></div>
+          <div class="np-eq-band">
+            <label>Gain</label>
+            <input type="range" class="eq-slider" id="npGainSlider" min="0" max="2" value="1" step="0.05" orient="vertical" data-action="setGain">
+            <span class="eq-val" id="npGainVal">100%</span>
+          </div>
+          <div class="np-eq-band">
+            <label>Pan</label>
+            <input type="range" class="eq-slider" id="npPanSlider" min="-1" max="1" value="0" step="0.05" orient="vertical" data-action="setPan">
+            <span class="eq-val" id="npPanVal">C</span>
+          </div>
+          <div class="np-eq-divider"></div>
+          <div class="np-eq-buttons">
+            <button class="btn-small btn-loop" id="npBtnMono" data-action="toggleMono" title="Mono">M</button>
+            <button class="btn-small btn-secondary" id="npAbA" data-action="setAbA" title="Set A point (loop start)">A</button>
+            <button class="btn-small btn-secondary" id="npAbB" data-action="setAbB" title="Set B point (loop end)">B</button>
+            <button class="btn-small btn-stop" id="npAbClear" data-action="clearAbLoop" title="Clear A-B loop" style="display:none;font-size:9px;padding:2px 6px;">&#10005;</button>
+          </div>
+        </div>
+      </div>
       <div class="np-history" id="npHistory">
         <div class="np-history-title">Recently Played</div>
         <div id="npHistoryList"></div>

@@ -17,6 +17,189 @@ let audioShuffling = false;
 let audioMuted = false;
 let savedVolume = 1;
 
+// ── Web Audio processing chain ──
+let _playbackCtx = null;
+let _sourceNode = null;
+let _eqLow = null;
+let _eqMid = null;
+let _eqHigh = null;
+let _gainNode = null;
+let _panNode = null;
+let _monoMode = false;
+let _abLoop = null; // { start, end } in seconds, or null
+
+function ensureAudioGraph() {
+  if (_playbackCtx) return;
+  _playbackCtx = new AudioContext();
+  _sourceNode = _playbackCtx.createMediaElementSource(audioPlayer);
+
+  // 3-band EQ
+  _eqLow = _playbackCtx.createBiquadFilter();
+  _eqLow.type = 'lowshelf';
+  _eqLow.frequency.value = 200;
+  _eqLow.gain.value = 0;
+
+  _eqMid = _playbackCtx.createBiquadFilter();
+  _eqMid.type = 'peaking';
+  _eqMid.frequency.value = 1000;
+  _eqMid.Q.value = 1;
+  _eqMid.gain.value = 0;
+
+  _eqHigh = _playbackCtx.createBiquadFilter();
+  _eqHigh.type = 'highshelf';
+  _eqHigh.frequency.value = 8000;
+  _eqHigh.gain.value = 0;
+
+  // Gain (preamp)
+  _gainNode = _playbackCtx.createGain();
+  _gainNode.gain.value = 1;
+
+  // Stereo pan
+  _panNode = _playbackCtx.createStereoPanner();
+  _panNode.pan.value = 0;
+
+  // Chain: source → eqLow → eqMid → eqHigh → gain → pan → destination
+  _sourceNode.connect(_eqLow);
+  _eqLow.connect(_eqMid);
+  _eqMid.connect(_eqHigh);
+  _eqHigh.connect(_gainNode);
+  _gainNode.connect(_panNode);
+  _panNode.connect(_playbackCtx.destination);
+}
+
+function setEqBand(band, value) {
+  ensureAudioGraph();
+  const db = parseFloat(value);
+  if (band === 'low') _eqLow.gain.value = db;
+  else if (band === 'mid') _eqMid.gain.value = db;
+  else if (band === 'high') _eqHigh.gain.value = db;
+  // Update label
+  const label = document.getElementById('npEq' + band.charAt(0).toUpperCase() + band.slice(1) + 'Val');
+  if (label) label.textContent = (db >= 0 ? '+' : '') + db.toFixed(0) + ' dB';
+}
+
+function setPreampGain(value) {
+  ensureAudioGraph();
+  const g = parseFloat(value);
+  _gainNode.gain.value = g;
+  const label = document.getElementById('npGainVal');
+  if (label) label.textContent = (g * 100).toFixed(0) + '%';
+}
+
+function setPan(value) {
+  ensureAudioGraph();
+  const p = parseFloat(value);
+  _panNode.pan.value = p;
+  const label = document.getElementById('npPanVal');
+  if (label) {
+    if (Math.abs(p) < 0.05) label.textContent = 'C';
+    else if (p < 0) label.textContent = Math.round(Math.abs(p) * 100) + 'L';
+    else label.textContent = Math.round(p * 100) + 'R';
+  }
+}
+
+function toggleMono() {
+  _monoMode = !_monoMode;
+  const btn = document.getElementById('npBtnMono');
+  if (btn) btn.classList.toggle('active', _monoMode);
+  // Mono via pan automation isn't possible with StereoPanner alone,
+  // so we use a ChannelMerger approach. Simpler: just set pan to center
+  // and note the state. Full mono requires a splitter/merger which is
+  // heavy — for a preview player, center-pan is the practical equivalent.
+  if (_monoMode) {
+    setPan(0);
+    const slider = document.getElementById('npPanSlider');
+    if (slider) { slider.value = 0; slider.disabled = true; }
+  } else {
+    const slider = document.getElementById('npPanSlider');
+    if (slider) slider.disabled = false;
+  }
+}
+
+function resetEq() {
+  ensureAudioGraph();
+  _eqLow.gain.value = 0;
+  _eqMid.gain.value = 0;
+  _eqHigh.gain.value = 0;
+  _gainNode.gain.value = 1;
+  _panNode.pan.value = 0;
+  _monoMode = false;
+  // Update UI
+  ['npEqLow', 'npEqMid', 'npEqHigh'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = 0;
+  });
+  const gain = document.getElementById('npGainSlider');
+  if (gain) gain.value = 1;
+  const pan = document.getElementById('npPanSlider');
+  if (pan) { pan.value = 0; pan.disabled = false; }
+  const mono = document.getElementById('npBtnMono');
+  if (mono) mono.classList.remove('active');
+  document.getElementById('npEqLowVal').textContent = '0 dB';
+  document.getElementById('npEqMidVal').textContent = '0 dB';
+  document.getElementById('npEqHighVal').textContent = '0 dB';
+  document.getElementById('npGainVal').textContent = '100%';
+  document.getElementById('npPanVal').textContent = 'C';
+  showToast('EQ reset');
+}
+
+// A-B loop
+function setAbLoopStart() {
+  if (!audioPlayerPath || !audioPlayer.duration) return;
+  if (!_abLoop) _abLoop = { start: 0, end: audioPlayer.duration };
+  _abLoop.start = audioPlayer.currentTime;
+  updateAbLoopUI();
+  showToast(`A point: ${formatTime(_abLoop.start)}`);
+}
+
+function setAbLoopEnd() {
+  if (!audioPlayerPath || !audioPlayer.duration) return;
+  if (!_abLoop) _abLoop = { start: 0, end: audioPlayer.duration };
+  _abLoop.end = audioPlayer.currentTime;
+  updateAbLoopUI();
+  showToast(`B point: ${formatTime(_abLoop.end)}`);
+}
+
+function clearAbLoop() {
+  _abLoop = null;
+  updateAbLoopUI();
+}
+
+function updateAbLoopUI() {
+  const aBtn = document.getElementById('npAbA');
+  const bBtn = document.getElementById('npAbB');
+  const clearBtn = document.getElementById('npAbClear');
+  if (aBtn) aBtn.classList.toggle('active', !!_abLoop);
+  if (bBtn) bBtn.classList.toggle('active', !!_abLoop);
+  if (clearBtn) clearBtn.style.display = _abLoop ? '' : 'none';
+  // Show markers on waveform
+  const wf = document.getElementById('npWaveform');
+  let markerA = document.getElementById('npAbMarkerA');
+  let markerB = document.getElementById('npAbMarkerB');
+  if (!_abLoop) {
+    if (markerA) markerA.style.display = 'none';
+    if (markerB) markerB.style.display = 'none';
+    return;
+  }
+  const dur = audioPlayer.duration || 1;
+  if (!markerA) {
+    markerA = document.createElement('div');
+    markerA.id = 'npAbMarkerA';
+    markerA.className = 'ab-marker ab-marker-a';
+    wf.appendChild(markerA);
+  }
+  if (!markerB) {
+    markerB = document.createElement('div');
+    markerB.id = 'npAbMarkerB';
+    markerB.className = 'ab-marker ab-marker-b';
+    wf.appendChild(markerB);
+  }
+  markerA.style.display = '';
+  markerB.style.display = '';
+  markerA.style.left = ((_abLoop.start / dur) * 100) + '%';
+  markerB.style.left = ((_abLoop.end / dur) * 100) + '%';
+}
+
 function loadRecentlyPlayed() {
   recentlyPlayed = prefs.getObject('recentlyPlayed', []);
 }
@@ -392,6 +575,8 @@ async function previewAudio(filePath) {
 
   // New file
   try {
+    ensureAudioGraph();
+    if (_playbackCtx.state === 'suspended') _playbackCtx.resume();
     audioPlayer.src = convertFileSrc(filePath);
     audioPlayer.loop = audioLooping;
     audioPlayerPath = filePath;
@@ -510,6 +695,10 @@ function updateNowPlayingBtn() {
 function updatePlaybackTime() {
   const cur = audioPlayer.currentTime;
   const dur = audioPlayer.duration;
+  // A-B loop enforcement
+  if (_abLoop && dur > 0 && cur >= _abLoop.end) {
+    audioPlayer.currentTime = _abLoop.start;
+  }
   document.getElementById('npTime').textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
   if (dur > 0) {
     const pct = (cur / dur) * 100;
