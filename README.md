@@ -98,6 +98,7 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **Cyberpunk Visualizer** | Animated equalizer bars in the floating player with cyan-to-magenta gradient. Bars bounce when playing, freeze on pause. Border glow pulse effect |
 | **PDF Export** | Export any tab to PDF (A4 landscape, Helvetica, auto-paginated, header with item count and timestamp) |
 | **TOML Export/Import** | Export/import all tabs in TOML format alongside JSON, CSV, TSV |
+| **Directory Bookmarks** | Bookmark favorite directories in the File Browser for instant navigation. Chips displayed above the file list, persisted across sessions. Right-click any folder to bookmark it |
 
 ---
 

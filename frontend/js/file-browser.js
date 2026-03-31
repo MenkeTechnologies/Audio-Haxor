@@ -4,6 +4,64 @@ let _fileBrowserPath = null;
 let _fileBrowserEntries = [];
 let _fileBrowserInited = false;
 
+// ── Favorite Directories ──
+function getFavDirs() {
+  return prefs.getObject('favDirs', []);
+}
+
+function saveFavDirs(dirs) {
+  prefs.setItem('favDirs', dirs);
+}
+
+function isFavDir(dirPath) {
+  return getFavDirs().some(d => d.path === dirPath);
+}
+
+function addFavDir(dirPath) {
+  const dirs = getFavDirs();
+  if (dirs.some(d => d.path === dirPath)) return;
+  const name = dirPath.split('/').filter(Boolean).pop() || dirPath;
+  dirs.push({ path: dirPath, name });
+  saveFavDirs(dirs);
+  renderFavDirs();
+  updateBookmarkBtn();
+  showToast(`Bookmarked "${name}"`);
+}
+
+function removeFavDir(dirPath) {
+  saveFavDirs(getFavDirs().filter(d => d.path !== dirPath));
+  renderFavDirs();
+  updateBookmarkBtn();
+  showToast('Bookmark removed');
+}
+
+function renderFavDirs() {
+  const container = document.getElementById('fileFavs');
+  const grid = document.getElementById('fileFavsGrid');
+  if (!container || !grid) return;
+  const dirs = getFavDirs();
+  if (dirs.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = '';
+  grid.innerHTML = dirs.map(d =>
+    `<div class="file-fav-chip" data-fav-dir="${escapeHtml(d.path)}" title="${escapeHtml(d.path)}">
+      <span class="fav-chip-icon">&#128193;</span>
+      <span class="fav-chip-name">${escapeHtml(d.name)}</span>
+      <span class="fav-chip-remove" data-remove-fav-dir="${escapeHtml(d.path)}" title="Remove bookmark">&#10005;</span>
+    </div>`
+  ).join('');
+}
+
+function updateBookmarkBtn() {
+  const btn = document.getElementById('btnFileFav');
+  if (!btn || !_fileBrowserPath) return;
+  const fav = isFavDir(_fileBrowserPath);
+  btn.innerHTML = fav ? '&#9733; Unbookmark' : '&#9733; Bookmark';
+  btn.title = fav ? 'Remove current directory from bookmarks' : 'Bookmark current directory';
+}
+
 const AUDIO_EXTS = ['wav', 'mp3', 'aiff', 'aif', 'flac', 'ogg', 'm4a', 'aac'];
 const DAW_EXTS = ['als', 'logicx', 'flp', 'rpp', 'cpr', 'npr', 'ptx', 'ptf', 'song', 'reason', 'aup', 'aup3', 'band', 'ardour', 'dawproject', 'bwproject'];
 const PLUGIN_EXTS = ['vst', 'vst3', 'component', 'aaxplugin'];
@@ -22,6 +80,7 @@ function fileIcon(entry) {
 }
 
 async function initFileBrowser() {
+  renderFavDirs();
   if (_fileBrowserPath) {
     await loadDirectory(_fileBrowserPath);
     return;
@@ -46,6 +105,7 @@ async function loadDirectory(dirPath) {
     _fileBrowserEntries = result.entries;
     renderFileList();
     renderBreadcrumb(dirPath);
+    updateBookmarkBtn();
   } catch (err) {
     showToast(`Failed to open directory — ${err.message || err}`, 4000, 'error');
   } finally {
@@ -135,6 +195,25 @@ document.addEventListener('click', (e) => {
     }
   } else if (action.dataset.action === 'fileHome') {
     window.vstUpdater.getHomeDir().then(h => loadDirectory(h)).catch(() => {});
+  } else if (action.dataset.action === 'fileFav') {
+    if (_fileBrowserPath) {
+      if (isFavDir(_fileBrowserPath)) removeFavDir(_fileBrowserPath);
+      else addFavDir(_fileBrowserPath);
+    }
+  }
+});
+
+// Fav directory chip clicks
+document.addEventListener('click', (e) => {
+  const remove = e.target.closest('[data-remove-fav-dir]');
+  if (remove) {
+    e.stopPropagation();
+    removeFavDir(remove.dataset.removeFavDir);
+    return;
+  }
+  const chip = e.target.closest('[data-fav-dir]');
+  if (chip) {
+    loadDirectory(chip.dataset.favDir);
   }
 });
 
@@ -156,6 +235,9 @@ document.addEventListener('contextmenu', (e) => {
   if (isDir) {
     items.push({ icon: '&#128193;', label: 'Open Folder', action: () => loadDirectory(path) });
     items.push({ icon: '&#128193;', label: 'Reveal in Finder', action: () => window.vstUpdater.openPresetFolder(path) });
+    const dirFav = isFavDir(path);
+    items.push({ icon: dirFav ? '&#9734;' : '&#9733;', label: dirFav ? 'Remove Bookmark' : 'Bookmark Directory',
+      action: () => dirFav ? removeFavDir(path) : addFavDir(path) });
   } else {
     if (AUDIO_EXTS.includes(ext)) {
       items.push({ icon: '&#9654;', label: 'Play', action: () => previewAudio(path) });

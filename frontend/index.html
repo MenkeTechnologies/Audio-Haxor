@@ -2175,6 +2175,58 @@
       width: 50px;
       flex-shrink: 0;
     }
+    .file-favs {
+      padding: 12px 24px 0;
+    }
+    .file-favs-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+    }
+    .file-favs-header span { flex: 1; border-bottom: 1px solid var(--border); }
+    .file-favs-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .file-fav-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: rgba(5,217,232,0.06);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--cyan);
+      transition: background 0.15s, border-color 0.15s;
+      max-width: 260px;
+    }
+    .file-fav-chip:hover {
+      background: rgba(5,217,232,0.12);
+      border-color: var(--cyan);
+    }
+    .file-fav-chip .fav-chip-icon { font-size: 14px; flex-shrink: 0; }
+    .file-fav-chip .fav-chip-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-fav-chip .fav-chip-remove {
+      font-size: 10px;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0 2px;
+      flex-shrink: 0;
+    }
+    .file-fav-chip .fav-chip-remove:hover { color: var(--accent); }
 
     /* Welcome dashboard */
     .welcome-dashboard {
@@ -3610,11 +3662,16 @@
         <div class="audio-toolbar">
           <button class="btn btn-secondary" id="btnFileUp" data-action="fileUp" title="Go to parent directory">&#8593; Up</button>
           <button class="btn btn-secondary" data-action="fileHome" title="Go to home directory">&#127968; Home</button>
+          <button class="btn btn-secondary" id="btnFileFav" data-action="fileFav" title="Bookmark current directory">&#9733; Bookmark</button>
           <div class="file-breadcrumb" id="fileBreadcrumb"></div>
           <div class="search-box" style="flex: 1; max-width: 300px;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="fileSearchInput" placeholder="Filter files..." data-action="filterFiles">
           </div>
+        </div>
+        <div class="file-favs" id="fileFavs" style="display:none;">
+          <div class="file-favs-header">&#9733; Favorite Directories <span></span></div>
+          <div class="file-favs-grid" id="fileFavsGrid"></div>
         </div>
         <div class="file-list" id="fileList">
           <div class="state-message">
