@@ -18,6 +18,7 @@ listen('menu-action', (event) => {
     case 'export_presets': exportPresets(); break;
     case 'import_presets': importPresets(); break;
     case 'open_prefs': openPrefsFile(); break;
+    case 'open_prefs_app': switchTab('settings'); break;
     // Scan
     case 'scan_plugins': scanPlugins(); break;
     case 'scan_audio': scanAudioSamples(); break;
