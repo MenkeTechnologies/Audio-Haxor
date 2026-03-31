@@ -81,6 +81,7 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **Fuzzy Search** | All search bars default to fuzzy matching (characters match in order, not contiguous). Toggle the `.*` button to switch to regex mode with full pattern support. Available in all tabs |
 | **Resizable Columns** | Drag column borders to resize. Widths persist across sessions |
 | **Floating Player** | Cyberpunk-styled floating audio player in the bottom-right corner with play/pause, loop, seek bar, volume slider, and playback speed (0.25x-2x). Persists across tab switches |
+| **Context Menus** | Right-click context menus on every interactive element -- plugins (KVR, manufacturer, reveal, copy), samples (play, loop, reveal, copy), DAW projects (open in DAW, reveal, copy), presets (reveal, copy), and history entries (view, delete) |
 | **Toast Notifications** | Slide-in notifications for actions like opening DAW projects or revealing files in Finder |
 
 ---
@@ -239,6 +240,7 @@ frontend/
     app.js             -- Startup, auto-load last scan, restore preferences
     audio.js           -- Audio sample scanning + inline playback
     columns.js         -- Resizable table columns with width persistence
+    context-menu.js    -- Right-click context menus for all tabs
     daw.js             -- DAW project scanning + stats
     export.js          -- Export/import plugins (JSON/CSV/TSV)
     history.js         -- Scan history management + merged timeline

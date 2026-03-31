@@ -1964,9 +1964,49 @@
     .row-opening {
       animation: row-open-flash 0.8s ease-out;
     }
+
+    /* Context menu */
+    .ctx-menu {
+      display: none;
+      position: fixed;
+      z-index: 20000;
+      min-width: 180px;
+      background: var(--bg-primary);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 0 20px var(--cyan-glow), 0 4px 20px rgba(0,0,0,0.6);
+      padding: 4px 0;
+      font-size: 12px;
+      font-family: inherit;
+    }
+    .ctx-menu.visible { display: block; }
+    .ctx-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      cursor: pointer;
+      color: var(--text);
+      transition: background 0.1s;
+      white-space: nowrap;
+    }
+    .ctx-menu-item:hover {
+      background: rgba(5,217,232,0.1);
+      color: var(--cyan);
+    }
+    .ctx-menu-item .ctx-icon {
+      width: 16px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .ctx-menu-sep {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 8px;
+    }
   </style>
 </head>
 <body>
+  <div class="ctx-menu" id="ctxMenu"></div>
   <div class="audio-now-playing" id="audioNowPlaying">
     <div class="now-playing-header">
       <span class="now-playing-name" id="npName"></span>
@@ -2678,6 +2718,7 @@
   <script src="js/audio.js"></script>
   <script src="js/daw.js"></script>
   <script src="js/presets.js"></script>
+  <script src="js/context-menu.js"></script>
   <script src="js/columns.js"></script>
   <script src="js/app.js"></script>
 </body>
