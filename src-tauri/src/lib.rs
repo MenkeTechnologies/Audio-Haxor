@@ -228,11 +228,10 @@ async fn scan_plugins(
             "stopped": was_stopped
         })
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await;
 
     state.scanning.store(false, Ordering::SeqCst);
-    Ok(result)
+    Ok(result.map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -504,11 +503,10 @@ async fn scan_audio_samples(
         all_samples.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         serde_json::json!({ "samples": all_samples, "roots": root_strs, "stopped": was_stopped })
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await;
 
     state.scanning.store(false, Ordering::SeqCst);
-    Ok(result)
+    Ok(result.map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -628,11 +626,10 @@ async fn scan_daw_projects(
         all_projects.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         serde_json::json!({ "projects": all_projects, "roots": root_strs, "stopped": was_stopped })
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await;
 
     state.scanning.store(false, Ordering::SeqCst);
-    Ok(result)
+    Ok(result.map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -747,11 +744,10 @@ async fn scan_presets(
         all_presets.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         serde_json::json!({ "presets": all_presets, "roots": root_strs, "stopped": was_stopped })
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await;
 
     state.scanning.store(false, Ordering::SeqCst);
-    Ok(result)
+    Ok(result.map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
