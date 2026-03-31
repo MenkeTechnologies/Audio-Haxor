@@ -73,8 +73,7 @@ fn parse_ableton(path: &Path) -> Vec<PluginRef> {
     let mut plugins = Vec::new();
 
     // VST2 plugins: <VstPluginInfo> ... <PlugName Value="X"/> ... <Manufacturer Value="Y"/>
-    let vst2_re =
-        Regex::new(r#"<VstPluginInfo[^>]*>[\s\S]*?</VstPluginInfo>"#).unwrap();
+    let vst2_re = Regex::new(r#"<VstPluginInfo[^>]*>[\s\S]*?</VstPluginInfo>"#).unwrap();
     let vst2_name_re = Regex::new(r#"<PlugName\s+Value="([^"]+)""#).unwrap();
     let vst2_mfg_re = Regex::new(r#"<Manufacturer\s+Value="([^"]+)""#).unwrap();
 
@@ -100,8 +99,7 @@ fn parse_ableton(path: &Path) -> Vec<PluginRef> {
     }
 
     // VST3 plugins: <Vst3PluginInfo> ... <Name Value="X"/> ... <DeviceCreator Value="Y"/>
-    let vst3_re =
-        Regex::new(r#"<Vst3PluginInfo[^>]*>[\s\S]*?</Vst3PluginInfo>"#).unwrap();
+    let vst3_re = Regex::new(r#"<Vst3PluginInfo[^>]*>[\s\S]*?</Vst3PluginInfo>"#).unwrap();
     let vst3_name_re = Regex::new(r#"<Name\s+Value="([^"]+)""#).unwrap();
     let vst3_mfg_re = Regex::new(r#"<DeviceCreator\s+Value="([^"]+)""#).unwrap();
 
@@ -127,8 +125,7 @@ fn parse_ableton(path: &Path) -> Vec<PluginRef> {
     }
 
     // AU plugins: <AuPluginInfo> ... <Name Value="X"/> ... <Manufacturer Value="Y"/>
-    let au_re =
-        Regex::new(r#"<AuPluginInfo[^>]*>[\s\S]*?</AuPluginInfo>"#).unwrap();
+    let au_re = Regex::new(r#"<AuPluginInfo[^>]*>[\s\S]*?</AuPluginInfo>"#).unwrap();
     let au_name_re = Regex::new(r#"<Name\s+Value="([^"]+)""#).unwrap();
     let au_mfg_re = Regex::new(r#"<Manufacturer\s+Value="([^"]+)""#).unwrap();
 
@@ -172,14 +169,15 @@ fn parse_reaper(path: &Path) -> Vec<PluginRef> {
     let mut plugins = Vec::new();
 
     // Match <VST "VST: Name (Mfg)" or <VST "VST3: Name (Mfg)" or <AU "AU: Name (Mfg)"
-    let re = Regex::new(
-        r#"<(?:VST|AU|CLAP)\s+"(VST3?|AU|CLAP):\s*(.+?)\s*(?:\(([^)]+)\))?\s*""#,
-    )
-    .unwrap();
+    let re = Regex::new(r#"<(?:VST|AU|CLAP)\s+"(VST3?|AU|CLAP):\s*(.+?)\s*(?:\(([^)]+)\))?\s*""#)
+        .unwrap();
 
     for cap in re.captures_iter(&text) {
         let ptype = cap.get(1).map(|m| m.as_str()).unwrap_or("VST2");
-        let name = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+        let name = cap
+            .get(2)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
         let mfg = cap
             .get(3)
             .map(|m| m.as_str().trim().to_string())
@@ -396,9 +394,15 @@ mod tests {
 
         let result = extract_plugins(tmp.to_str().unwrap());
         assert_eq!(result.len(), 3);
-        assert!(result.iter().any(|p| p.name == "Serum" && p.plugin_type == "VST2"));
-        assert!(result.iter().any(|p| p.name == "Ozone 11" && p.plugin_type == "VST3"));
-        assert!(result.iter().any(|p| p.name == "AUHighShelfFilter" && p.plugin_type == "AU"));
+        assert!(result
+            .iter()
+            .any(|p| p.name == "Serum" && p.plugin_type == "VST2"));
+        assert!(result
+            .iter()
+            .any(|p| p.name == "Ozone 11" && p.plugin_type == "VST3"));
+        assert!(result
+            .iter()
+            .any(|p| p.name == "AUHighShelfFilter" && p.plugin_type == "AU"));
 
         let _ = fs::remove_file(&tmp);
     }
@@ -500,7 +504,10 @@ mod tests {
         enc.finish().unwrap();
 
         let result = extract_plugins(tmp.to_str().unwrap());
-        assert!(result.is_empty(), "No plugin blocks should yield empty result");
+        assert!(
+            result.is_empty(),
+            "No plugin blocks should yield empty result"
+        );
 
         let _ = fs::remove_file(&tmp);
     }

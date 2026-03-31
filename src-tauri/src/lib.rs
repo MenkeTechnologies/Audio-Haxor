@@ -638,7 +638,8 @@ async fn scan_daw_projects(
             exclude_set,
             {
                 let prefs = history::load_preferences();
-                prefs.get("includeAbletonBackups")
+                prefs
+                    .get("includeAbletonBackups")
                     .and_then(|v| v.as_str())
                     .map(|s| s == "on")
                     .unwrap_or(false)
@@ -905,7 +906,11 @@ fn open_with_app(file_path: String, app_name: String) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Could not open with {}: {}", app_name, stderr.trim()));
+            return Err(format!(
+                "Could not open with {}: {}",
+                app_name,
+                stderr.trim()
+            ));
         }
     }
 
@@ -1773,7 +1778,9 @@ fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
     for entry in read.flatten() {
         let ep = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') { continue; } // skip hidden
+        if name.starts_with('.') {
+            continue;
+        } // skip hidden
         let is_dir = ep.is_dir();
         let meta = std::fs::metadata(&ep).ok();
         let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
@@ -1784,7 +1791,10 @@ fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
                 dt.format("%Y-%m-%d %H:%M").to_string()
             })
             .unwrap_or_default();
-        let ext = ep.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+        let ext = ep
+            .extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
         entries.push(serde_json::json!({
             "name": name,
             "path": ep.to_string_lossy(),
@@ -1800,7 +1810,11 @@ fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
         let a_dir = a["isDir"].as_bool().unwrap_or(false);
         let b_dir = b["isDir"].as_bool().unwrap_or(false);
         b_dir.cmp(&a_dir).then_with(|| {
-            a["name"].as_str().unwrap_or("").to_lowercase().cmp(&b["name"].as_str().unwrap_or("").to_lowercase())
+            a["name"]
+                .as_str()
+                .unwrap_or("")
+                .to_lowercase()
+                .cmp(&b["name"].as_str().unwrap_or("").to_lowercase())
         })
     });
     Ok(serde_json::json!({ "entries": entries, "path": dir_path }))
@@ -2439,7 +2453,11 @@ mod tests {
         let tmp2 = std::env::temp_dir().join("upum_test_rename_new.txt");
         let _ = fs::remove_file(&tmp2);
         fs::write(&tmp1, "content").unwrap();
-        rename_file(tmp1.to_string_lossy().to_string(), tmp2.to_string_lossy().to_string()).unwrap();
+        rename_file(
+            tmp1.to_string_lossy().to_string(),
+            tmp2.to_string_lossy().to_string(),
+        )
+        .unwrap();
         assert!(!tmp1.exists());
         assert!(tmp2.exists());
         assert_eq!(fs::read_to_string(&tmp2).unwrap(), "content");

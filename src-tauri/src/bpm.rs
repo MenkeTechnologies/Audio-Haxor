@@ -45,9 +45,12 @@ fn read_wav_pcm(path: &Path) -> Option<(Vec<f32>, u32)> {
     let mut offset = 12;
     while offset + 8 < data.len() {
         let chunk_id = &data[offset..offset + 4];
-        let chunk_size =
-            u32::from_le_bytes([data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]])
-                as usize;
+        let chunk_size = u32::from_le_bytes([
+            data[offset + 4],
+            data[offset + 5],
+            data[offset + 6],
+            data[offset + 7],
+        ]) as usize;
         if chunk_id == b"data" {
             let start = offset + 8;
             let end = (start + chunk_size).min(data.len());
@@ -56,8 +59,7 @@ fn read_wav_pcm(path: &Path) -> Option<(Vec<f32>, u32)> {
             return Some((samples, sample_rate));
         }
         offset += 8 + chunk_size;
-        // WAV chunks are word-aligned
-        if chunk_size % 2 != 0 {
+        if !chunk_size.is_multiple_of(2) {
             offset += 1;
         }
     }
@@ -79,9 +81,12 @@ fn read_aiff_pcm(path: &Path) -> Option<(Vec<f32>, u32)> {
     let mut offset = 12;
     while offset + 8 < data.len() {
         let chunk_id = &data[offset..offset + 4];
-        let chunk_size =
-            u32::from_be_bytes([data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7]])
-                as usize;
+        let chunk_size = u32::from_be_bytes([
+            data[offset + 4],
+            data[offset + 5],
+            data[offset + 6],
+            data[offset + 7],
+        ]) as usize;
 
         if chunk_id == b"COMM" && offset + 26 <= data.len() {
             channels = u16::from_be_bytes([data[offset + 8], data[offset + 9]]);
@@ -89,7 +94,10 @@ fn read_aiff_pcm(path: &Path) -> Option<(Vec<f32>, u32)> {
             // 80-bit extended float sample rate
             let exp = u16::from_be_bytes([data[offset + 16], data[offset + 17]]) as i32;
             let mantissa = u32::from_be_bytes([
-                data[offset + 18], data[offset + 19], data[offset + 20], data[offset + 21],
+                data[offset + 18],
+                data[offset + 19],
+                data[offset + 20],
+                data[offset + 21],
             ]);
             sample_rate = (mantissa as f64 * 2f64.powi(exp - 16383 - 31)).round() as u32;
         } else if chunk_id == b"SSND" {
@@ -102,7 +110,7 @@ fn read_aiff_pcm(path: &Path) -> Option<(Vec<f32>, u32)> {
         }
 
         offset += 8 + chunk_size;
-        if chunk_size % 2 != 0 {
+        if !chunk_size.is_multiple_of(2) {
             offset += 1;
         }
     }
@@ -152,9 +160,19 @@ fn decode_pcm(data: &[u8], bits: u16, channels: usize, little_endian: bool) -> V
             }
             32 => {
                 let raw = if little_endian {
-                    i32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+                    i32::from_le_bytes([
+                        data[offset],
+                        data[offset + 1],
+                        data[offset + 2],
+                        data[offset + 3],
+                    ])
                 } else {
-                    i32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+                    i32::from_be_bytes([
+                        data[offset],
+                        data[offset + 1],
+                        data[offset + 2],
+                        data[offset + 3],
+                    ])
                 };
                 raw as f32 / 2147483648.0
             }
@@ -184,11 +202,8 @@ fn detect_tempo(samples: &[f32], sample_rate: u32) -> Option<f64> {
     for i in 0..num_frames {
         let start = i * hop;
         let end = (start + hop).min(samples.len());
-        let rms: f32 = samples[start..end]
-            .iter()
-            .map(|s| s * s)
-            .sum::<f32>()
-            / (end - start) as f32;
+        let rms: f32 =
+            samples[start..end].iter().map(|s| s * s).sum::<f32>() / (end - start) as f32;
         energy.push(rms.sqrt());
     }
 
@@ -212,7 +227,7 @@ fn detect_tempo(samples: &[f32], sample_rate: u32) -> Option<f64> {
     // Autocorrelation over BPM range 50–220
     let frame_rate = sample_rate as f64 / hop as f64;
     let min_lag = (frame_rate * 60.0 / 220.0).floor() as usize; // 220 BPM
-    let max_lag = (frame_rate * 60.0 / 50.0).ceil() as usize;   // 50 BPM
+    let max_lag = (frame_rate * 60.0 / 50.0).ceil() as usize; // 50 BPM
     let max_lag = max_lag.min(onset.len() - 1);
 
     if min_lag >= max_lag || max_lag >= onset.len() {
@@ -233,9 +248,14 @@ fn detect_tempo(samples: &[f32], sample_rate: u32) -> Option<f64> {
     // Find raw best lag
     let mut best_lag = min_lag;
     let mut best_corr = f64::NEG_INFINITY;
-    for lag in min_lag..=max_lag {
-        if corr_values[lag] > best_corr {
-            best_corr = corr_values[lag];
+    for (lag, &corr) in corr_values
+        .iter()
+        .enumerate()
+        .skip(min_lag)
+        .take(max_lag - min_lag + 1)
+    {
+        if corr > best_corr {
+            best_corr = corr;
             best_lag = lag;
         }
     }
@@ -266,12 +286,11 @@ fn detect_tempo(samples: &[f32], sample_rate: u32) -> Option<f64> {
     let mut best_in_range: Option<(f64, f64)> = None;
 
     for &(bpm, corr) in &candidates {
-        if (80.0..=170.0).contains(&bpm) {
-            if corr > best_corr * 0.25 {
-                if best_in_range.is_none() || corr > best_in_range.unwrap().1 {
-                    best_in_range = Some((bpm, corr));
-                }
-            }
+        if (80.0..=170.0).contains(&bpm)
+            && corr > best_corr * 0.25
+            && (best_in_range.is_none() || corr > best_in_range.unwrap().1)
+        {
+            best_in_range = Some((bpm, corr));
         }
     }
 
@@ -281,7 +300,11 @@ fn detect_tempo(samples: &[f32], sample_rate: u32) -> Option<f64> {
         // Fallback: pick highest-weighted candidate
         let mut best_score = f64::NEG_INFINITY;
         for &(bpm, corr) in &candidates {
-            let weight = if (60.0..=220.0).contains(&bpm) { 1.2 } else { 1.0 };
+            let weight = if (60.0..=220.0).contains(&bpm) {
+                1.2
+            } else {
+                1.0
+            };
             if corr * weight > best_score {
                 best_score = corr * weight;
                 final_bpm = bpm;
@@ -307,15 +330,6 @@ fn detect_tempo(samples: &[f32], sample_rate: u32) -> Option<f64> {
     };
 
     Some((refined_bpm * 10.0).round() / 10.0)
-}
-
-fn autocorr_at(onset: &[f32], lag: usize) -> f64 {
-    let n = onset.len() - lag;
-    let mut corr = 0.0f64;
-    for i in 0..n {
-        corr += onset[i] as f64 * onset[i + lag] as f64;
-    }
-    corr / n as f64
 }
 
 #[cfg(test)]
@@ -406,10 +420,7 @@ mod tests {
         let bpm = estimate_bpm(tmp.to_str().unwrap());
         assert!(bpm.is_some(), "Should detect BPM");
         let bpm = bpm.unwrap();
-        assert!(
-            (bpm - 120.0).abs() < 8.0,
-            "Expected ~120 BPM, got {bpm}"
-        );
+        assert!((bpm - 120.0).abs() < 8.0, "Expected ~120 BPM, got {bpm}");
 
         let _ = fs::remove_file(&tmp);
     }
@@ -423,10 +434,7 @@ mod tests {
         let bpm = estimate_bpm(tmp.to_str().unwrap());
         assert!(bpm.is_some());
         let bpm = bpm.unwrap();
-        assert!(
-            (bpm - 140.0).abs() < 8.0,
-            "Expected ~140 BPM, got {bpm}"
-        );
+        assert!((bpm - 140.0).abs() < 8.0, "Expected ~140 BPM, got {bpm}");
 
         let _ = fs::remove_file(&tmp);
     }
@@ -440,10 +448,7 @@ mod tests {
         let bpm = estimate_bpm(tmp.to_str().unwrap());
         assert!(bpm.is_some());
         let bpm = bpm.unwrap();
-        assert!(
-            (bpm - 90.0).abs() < 8.0,
-            "Expected ~90 BPM, got {bpm}"
-        );
+        assert!((bpm - 90.0).abs() < 8.0, "Expected ~90 BPM, got {bpm}");
 
         let _ = fs::remove_file(&tmp);
     }
@@ -501,12 +506,12 @@ mod tests {
         write_wav(&tmp, &samples, 44100);
 
         let bpm = estimate_bpm(tmp.to_str().unwrap());
-        assert!(bpm.is_some(), "Should detect BPM for 174 drum-and-bass tempo");
-        let bpm = bpm.unwrap();
         assert!(
-            (bpm - 174.0).abs() < 8.0,
-            "Expected ~174 BPM, got {bpm}"
+            bpm.is_some(),
+            "Should detect BPM for 174 drum-and-bass tempo"
         );
+        let bpm = bpm.unwrap();
+        assert!((bpm - 174.0).abs() < 8.0, "Expected ~174 BPM, got {bpm}");
 
         let _ = fs::remove_file(&tmp);
     }
@@ -529,14 +534,21 @@ mod tests {
     fn test_decode_pcm_empty() {
         let data: [u8; 0] = [];
         let samples = decode_pcm(&data, 16, 1, true);
-        assert!(samples.is_empty(), "Empty input should produce empty output");
+        assert!(
+            samples.is_empty(),
+            "Empty input should produce empty output"
+        );
     }
 
     #[test]
     fn test_read_wav_invalid_header() {
         let tmp = std::env::temp_dir().join("test_bpm_invalid_header.wav");
         // Write data that is NOT a valid RIFF header
-        fs::write(&tmp, b"NOT_RIFF_DATA_HERE_1234567890abcdefghijklmnopqrstuvwx").unwrap();
+        fs::write(
+            &tmp,
+            b"NOT_RIFF_DATA_HERE_1234567890abcdefghijklmnopqrstuvwx",
+        )
+        .unwrap();
 
         let result = read_wav_pcm(&tmp);
         assert!(result.is_none(), "Non-RIFF data should return None");
@@ -560,9 +572,9 @@ mod tests {
         data.extend_from_slice(&1u16.to_be_bytes()); // channels = 1
         data.extend_from_slice(&1000u32.to_be_bytes()); // num sample frames
         data.extend_from_slice(&16u16.to_be_bytes()); // bits per sample
-        // 80-bit extended for 44100 Hz:
-        // exponent = 16383 + 15 = 16398 = 0x400E
-        // mantissa high 32 bits = 44100 << 16 = 0xAC44_0000
+                                                      // 80-bit extended for 44100 Hz:
+                                                      // exponent = 16383 + 15 = 16398 = 0x400E
+                                                      // mantissa high 32 bits = 44100 << 16 = 0xAC44_0000
         data.extend_from_slice(&[0x40, 0x0E, 0xAC, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 
         // SSND chunk: 8 bytes header (offset + blockSize) + PCM data
@@ -572,7 +584,7 @@ mod tests {
         data.extend_from_slice(&(ssnd_size as u32).to_be_bytes());
         data.extend_from_slice(&0u32.to_be_bytes()); // offset
         data.extend_from_slice(&0u32.to_be_bytes()); // blockSize
-        // 1000 frames of silence (big-endian 16-bit zeros)
+                                                     // 1000 frames of silence (big-endian 16-bit zeros)
         data.extend_from_slice(&vec![0u8; pcm_bytes]);
 
         // Fix FORM size
@@ -596,9 +608,7 @@ mod tests {
     fn test_read_wav_with_extra_chunks() {
         // WAV with a LIST chunk before data
         let tmp = std::env::temp_dir().join("test_bpm_extrachunk.wav");
-        let pcm_data: Vec<u8> = (0..4410)
-            .flat_map(|_| 0i16.to_le_bytes())
-            .collect();
+        let pcm_data: Vec<u8> = (0..4410).flat_map(|_| 0i16.to_le_bytes()).collect();
         let list_chunk = b"LIST\x04\x00\x00\x00INFO";
         let data_size = pcm_data.len() as u32;
         let file_size = 4 + 24 + 8 + list_chunk.len() as u32 + 8 + data_size;

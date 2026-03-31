@@ -43,8 +43,16 @@ const PACKAGE_EXTENSIONS: &[&str] = &[".logicx", ".band"];
 /// be recursed into by the DAW scanner. They contain plugin code and presets,
 /// not DAW projects.
 const PLUGIN_BUNDLE_EXTENSIONS: &[&str] = &[
-    ".vst", ".vst3", ".component", ".aaxplugin", ".app",
-    ".framework", ".bundle", ".plugin", ".dpm", ".clap",
+    ".vst",
+    ".vst3",
+    ".component",
+    ".aaxplugin",
+    ".app",
+    ".framework",
+    ".bundle",
+    ".plugin",
+    ".dpm",
+    ".clap",
 ];
 
 const SKIP_DIRS: &[&str] = &[
@@ -220,7 +228,15 @@ pub fn walk_for_daw(
                 return;
             }
             walk_dir_parallel(
-                root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude, include_backups,
+                root,
+                0,
+                &visited,
+                &tx,
+                &found2,
+                batch_size,
+                &stop2,
+                &exclude,
+                include_backups,
             );
         });
     });
@@ -285,7 +301,10 @@ fn walk_dir_parallel(
         if path.is_dir() {
             // Skip plugin bundles entirely — they contain presets, not DAW projects
             let name_lower = name_str.to_lowercase();
-            if PLUGIN_BUNDLE_EXTENSIONS.iter().any(|ext| name_lower.ends_with(ext)) {
+            if PLUGIN_BUNDLE_EXTENSIONS
+                .iter()
+                .any(|ext| name_lower.ends_with(ext))
+            {
                 continue;
             }
             if is_package_ext(&path) {
@@ -305,10 +324,8 @@ fn walk_dir_parallel(
         }
         if let Some(format) = ext_matches(&path) {
             // .band is ONLY valid as a GarageBand package directory, never as a plain file
-            if format == "BAND" {
-                if !is_pkg || !is_valid_band_package(&path) {
-                    continue;
-                }
+            if format == "BAND" && (!is_pkg || !is_valid_band_package(&path)) {
+                continue;
             }
             let (size, modified) = if is_pkg {
                 let sz = get_directory_size(&path);
@@ -680,13 +697,21 @@ mod tests {
         let mut found = Vec::new();
         walk_for_daw(
             &[tmp.clone()],
-            &mut |batch, _| { found.extend_from_slice(batch); },
+            &mut |batch, _| {
+                found.extend_from_slice(batch);
+            },
             &|| false,
             None,
             false, // include_backups = false
         );
         // Should only find main.als, not backup or crash
-        assert_eq!(found.len(), 1, "Expected 1 (main.als), found {}: {:?}", found.len(), found.iter().map(|f| &f.name).collect::<Vec<_>>());
+        assert_eq!(
+            found.len(),
+            1,
+            "Expected 1 (main.als), found {}: {:?}",
+            found.len(),
+            found.iter().map(|f| &f.name).collect::<Vec<_>>()
+        );
         assert_eq!(found[0].name, "main");
         let _ = fs::remove_dir_all(&tmp);
     }
@@ -702,7 +727,9 @@ mod tests {
         let mut found = Vec::new();
         walk_for_daw(
             &[tmp.clone()],
-            &mut |batch, _| { found.extend_from_slice(batch); },
+            &mut |batch, _| {
+                found.extend_from_slice(batch);
+            },
             &|| false,
             None,
             true, // include_backups = true
@@ -717,14 +744,20 @@ mod tests {
         let _ = fs::remove_dir_all(&tmp);
         // Create a .vst3 directory with .als inside — should NOT be found
         fs::create_dir_all(tmp.join("Plugin.vst3").join("Contents")).unwrap();
-        fs::write(tmp.join("Plugin.vst3").join("Contents").join("fake.als"), b"data").unwrap();
+        fs::write(
+            tmp.join("Plugin.vst3").join("Contents").join("fake.als"),
+            b"data",
+        )
+        .unwrap();
         // Create a real .als outside
         fs::write(tmp.join("real.als"), b"data").unwrap();
 
         let mut found = Vec::new();
         walk_for_daw(
             &[tmp.clone()],
-            &mut |batch, _| { found.extend_from_slice(batch); },
+            &mut |batch, _| {
+                found.extend_from_slice(batch);
+            },
             &|| false,
             None,
             false,
@@ -745,7 +778,9 @@ mod tests {
         let mut found = Vec::new();
         walk_for_daw(
             &[tmp.clone()],
-            &mut |batch, _| { found.extend_from_slice(batch); },
+            &mut |batch, _| {
+                found.extend_from_slice(batch);
+            },
             &|| false,
             None,
             false,
