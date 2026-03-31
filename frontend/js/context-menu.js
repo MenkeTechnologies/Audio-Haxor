@@ -84,6 +84,7 @@ document.addEventListener('contextmenu', (e) => {
     const pluginFav = isFavorite(path);
     items.push({ icon: pluginFav ? '&#9734;' : '&#9733;', label: pluginFav ? 'Remove from Favorites' : 'Add to Favorites',
       action: () => pluginFav ? removeFavorite(path) : addFavorite('plugin', path, name, { format: pluginCard.querySelector('.plugin-type')?.textContent }) });
+    items.push({ icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) });
     showContextMenu(e, items);
     return;
   }
@@ -104,6 +105,7 @@ document.addEventListener('contextmenu', (e) => {
       '---',
       ...[(() => { const f = isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
         action: () => f ? removeFavorite(path) : addFavorite('sample', path, name, { format: audioRow.querySelector('.format-badge')?.textContent }) }; })()],
+      { icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) },
     ];
     showContextMenu(e, items);
     return;
@@ -124,6 +126,7 @@ document.addEventListener('contextmenu', (e) => {
       '---',
       ...[(() => { const f = isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
         action: () => f ? removeFavorite(path) : addFavorite('daw', path, name, { format: dawRow.querySelector('.format-badge:last-of-type')?.textContent, daw: dawName }) }; })()],
+      { icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) },
     ];
     showContextMenu(e, items);
     return;
@@ -301,7 +304,7 @@ document.addEventListener('contextmenu', (e) => {
   const historyTab = e.target.closest('#tabHistory');
   if (historyTab) {
     const items = [
-      { icon: '&#128465;', label: 'Clear All History', action: () => { if (confirm('Clear all scan history?')) settingClearAllHistory(); } },
+      { icon: '&#128465;', label: 'Clear All History', action: () => settingClearAllHistory() },
     ];
     showContextMenu(e, items);
     return;
@@ -375,7 +378,7 @@ document.addEventListener('contextmenu', (e) => {
     const items = [
       { icon: '&#8596;', label: 'Reset Column Widths', action: () => settingResetColumns() },
       { icon: '&#8644;', label: 'Reset Tab Order', action: () => settingResetTabOrder() },
-      { icon: '&#128465;', label: 'Clear All History', action: () => { if (confirm('Clear all scan history?')) settingClearAllHistory(); } },
+      { icon: '&#128465;', label: 'Clear All History', action: () => settingClearAllHistory() },
       '---',
       { icon: '&#128206;', label: 'Open Prefs File', action: () => openPrefsFile() },
     ];

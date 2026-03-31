@@ -568,7 +568,7 @@ async function deleteScanEntry(id) {
 }
 
 async function clearAllHistory() {
-  if (!confirm('Clear all scan history? This cannot be undone.')) return;
+  if (!await confirmAction('Clear all scan history? This cannot be undone.', 'Clear History')) return;
   await Promise.all([
     window.vstUpdater.clearHistory(),
     window.vstUpdater.clearAudioHistory(),

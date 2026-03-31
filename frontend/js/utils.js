@@ -348,6 +348,15 @@ function toggleRegex(btn) {
   }
 }
 
+// ── Confirm dialog (Tauri-safe) ──
+async function confirmAction(message, title = 'Confirm') {
+  const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+  if (dialogApi && dialogApi.ask) {
+    return dialogApi.ask(message, { title, kind: 'warning' });
+  }
+  return Promise.resolve(confirm(message));
+}
+
 // ── Loading helpers ──
 function showGlobalProgress() {
   document.getElementById('globalProgress')?.classList.add('active');
@@ -374,6 +383,31 @@ function skeletonRows(container, count = 5) {
       <div class="skeleton skeleton-bar" style="width: 80px;"></div>
     </div>`
   ).join('');
+}
+
+// ── ETA calculator ──
+function createETA() {
+  let startTime = 0;
+  return {
+    start() { startTime = performance.now(); },
+    estimate(processed, total) {
+      if (!startTime || processed <= 0 || total <= 0) return '';
+      const elapsed = (performance.now() - startTime) / 1000;
+      const rate = processed / elapsed;
+      const remaining = (total - processed) / rate;
+      if (remaining < 1) return '< 1s';
+      if (remaining < 60) return `~${Math.ceil(remaining)}s`;
+      const mins = Math.floor(remaining / 60);
+      const secs = Math.ceil(remaining % 60);
+      return `~${mins}m ${secs}s`;
+    },
+    elapsed() {
+      if (!startTime) return '';
+      const secs = Math.floor((performance.now() - startTime) / 1000);
+      if (secs < 60) return `${secs}s`;
+      return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+    }
+  };
 }
 
 function escapePath(str) {

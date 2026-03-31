@@ -31,8 +31,8 @@ function removeFavorite(path) {
   renderFavorites();
 }
 
-function clearFavorites() {
-  if (!confirm('Remove all favorites?')) return;
+async function clearFavorites() {
+  if (!await confirmAction('Remove all favorites?', 'Clear Favorites')) return;
   saveFavorites([]);
   showToast('All favorites cleared');
   renderFavorites();

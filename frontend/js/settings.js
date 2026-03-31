@@ -341,8 +341,8 @@ function loadCustomPreset(idx) {
   refreshCustomPresetUI();
 }
 
-function deleteCustomSchemes() {
-  if (!confirm('Delete all saved custom color schemes?')) return;
+async function deleteCustomSchemes() {
+  if (!await confirmAction('Delete all saved custom color schemes?', 'Delete Schemes')) return;
   prefs.removeItem('customSchemePresets');
   refreshCustomPresetUI();
 }
@@ -428,7 +428,7 @@ function settingResetColumns() {
 }
 
 async function settingClearAllHistory() {
-  if (!confirm('Clear all plugin, audio, DAW, and preset scan history? This cannot be undone.')) return;
+  if (!await confirmAction('Clear all plugin, audio, DAW, and preset scan history? This cannot be undone.', 'Clear History')) return;
   showGlobalProgress();
   try {
     await Promise.all([
@@ -444,7 +444,7 @@ async function settingClearAllHistory() {
 }
 
 async function settingClearKvrCache() {
-  if (!confirm('Clear all cached KVR version lookups? Next update check will re-fetch everything.')) return;
+  if (!await confirmAction('Clear all cached KVR version lookups? Next update check will re-fetch everything.', 'Clear KVR Cache')) return;
   showGlobalProgress();
   try {
     await window.vstUpdater.updateKvrCache([]);
