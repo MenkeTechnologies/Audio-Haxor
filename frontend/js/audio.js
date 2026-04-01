@@ -1469,6 +1469,8 @@ function updateMetaLine() {
     np.style.top = '';
     np.style.right = '';
     np.style.bottom = '';
+    np.style.width = '';
+    np.style.height = '';
 
     const dock = nearestDock(e.clientX, e.clientY);
     np.classList.add('snapping');
