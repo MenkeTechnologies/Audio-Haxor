@@ -905,6 +905,17 @@ async fn extract_project_plugins(file_path: String) -> Result<Vec<xref::PluginRe
 }
 
 #[tauri::command]
+fn read_als_xml(file_path: String) -> Result<String, String> {
+    use flate2::read::GzDecoder;
+    use std::io::Read;
+    let data = std::fs::read(&file_path).map_err(|e| e.to_string())?;
+    let mut decoder = GzDecoder::new(&data[..]);
+    let mut xml = String::new();
+    decoder.read_to_string(&mut xml).map_err(|e| format!("Not a valid gzip file: {}", e))?;
+    Ok(xml)
+}
+
+#[tauri::command]
 async fn estimate_bpm(file_path: String) -> Result<Option<f64>, String> {
     Ok(bpm::estimate_bpm(&file_path))
 }
@@ -2794,6 +2805,7 @@ pub fn run() {
             open_daw_folder,
             open_daw_project,
             extract_project_plugins,
+            read_als_xml,
             estimate_bpm,
             open_update_url,
             open_plugin_folder,

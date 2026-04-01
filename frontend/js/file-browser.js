@@ -260,6 +260,12 @@ document.addEventListener('contextmenu', (e) => {
   items.push({ icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name.replace(/^[\u{1F4DD}]/u, '').trim()) });
   items.push('---');
 
+  // ALS XML viewer
+  if (ext === 'als' && typeof showAlsViewer === 'function') {
+    items.push({ icon: '&#128196;', label: 'Explore XML Contents', action: () => showAlsViewer(path, name) });
+    items.push('---');
+  }
+
   // Tags & notes
   const note = getNote(path);
   items.push({ icon: '&#128221;', label: note ? 'Edit Note' : 'Add Note', action: () => showNoteEditor(path, name) });

@@ -410,6 +410,7 @@ window.vstUpdater = {
   deleteFile: (filePath) => invoke('delete_file', { filePath }),
   renameFile: (oldPath, newPath) => invoke('rename_file', { oldPath, newPath }),
   getHomeDir: () => invoke('get_home_dir'),
+  readAlsXml: (filePath) => invoke('read_als_xml', { filePath }),
   // Preferences (file-backed)
   getProcessStats: () => invoke('get_process_stats'),
   openPrefsFile: () => invoke('open_prefs_file'),

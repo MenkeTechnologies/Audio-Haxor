@@ -207,4 +207,90 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && document.getElementById('xrefModal')) {
     closeXrefModal();
   }
+  if (e.key === 'Escape' && document.getElementById('alsViewerModal')) {
+    closeAlsViewer();
+  }
+});
+
+// ── ALS XML Viewer ──
+async function showAlsViewer(filePath, projectName) {
+  let existing = document.getElementById('alsViewerModal');
+  if (existing) existing.remove();
+
+  const loadHtml = `<div class="modal-overlay" id="alsViewerModal" data-action-modal="closeAlsViewer">
+    <div class="modal-content" style="max-width:90vw;max-height:90vh;width:900px;">
+      <div class="modal-header">
+        <h2>${escapeHtml(projectName)} — XML</h2>
+        <button class="modal-close" data-action-modal="closeAlsViewer" title="Close">&#10005;</button>
+      </div>
+      <div class="modal-body" style="padding:0;">
+        <div style="text-align:center;padding:32px;"><div class="spinner" style="width:20px;height:20px;margin:0 auto 12px;"></div>Decompressing...</div>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', loadHtml);
+
+  try {
+    const xml = await window.vstUpdater.readAlsXml(filePath);
+    const modal = document.getElementById('alsViewerModal');
+    if (!modal) return;
+    const body = modal.querySelector('.modal-body');
+
+    // Format XML with indentation highlighting
+    const escaped = escapeHtml(xml);
+    const lines = escaped.split('\n');
+    const lineCount = lines.length;
+
+    body.innerHTML = `<div style="display:flex;flex-direction:column;height:calc(90vh - 80px);">
+      <div style="padding:8px 12px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center;flex-shrink:0;">
+        <span style="font-size:11px;color:var(--text-muted);">${lineCount.toLocaleString()} lines | ${formatAudioSize(xml.length)} uncompressed</span>
+        <input type="text" class="np-search-input" id="alsSearchInput" placeholder="Search XML..." style="flex:1;max-width:300px;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Search within XML content">
+        <button class="btn btn-secondary" id="alsExportBtn" style="padding:4px 10px;font-size:10px;" title="Save decompressed XML to file">&#8615; Export XML</button>
+      </div>
+      <pre id="alsXmlContent" style="flex:1;overflow:auto;margin:0;padding:12px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.5;color:var(--text);background:var(--bg-primary);white-space:pre-wrap;word-break:break-all;tab-size:2;">${escaped}</pre>
+    </div>`;
+
+    // Search
+    document.getElementById('alsSearchInput')?.addEventListener('input', (e) => {
+      const q = e.target.value.trim();
+      const pre = document.getElementById('alsXmlContent');
+      if (!pre) return;
+      if (!q) { pre.innerHTML = escaped; return; }
+      pre.innerHTML = typeof highlightMatch === 'function' ? escaped.replace(new RegExp(escapeHtml(q).replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&'), 'gi'), m => '<mark style="background:var(--yellow);color:#000;">' + m + '</mark>') : escaped;
+    });
+
+    // Export
+    document.getElementById('alsExportBtn')?.addEventListener('click', async () => {
+      const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+      if (!dialogApi) return;
+      const savePath = await dialogApi.save({
+        title: 'Save Decompressed XML',
+        defaultPath: projectName.replace(/\\.als$/i, '') + '.xml',
+        filters: [{ name: 'XML', extensions: ['xml'] }],
+      });
+      if (savePath) {
+        await window.__TAURI__.core.invoke('write_text_file', { filePath: savePath, contents: xml });
+        showToast('XML exported');
+      }
+    });
+  } catch (err) {
+    const modal = document.getElementById('alsViewerModal');
+    if (modal) {
+      modal.querySelector('.modal-body').innerHTML = `<div style="padding:24px;color:var(--red);">Failed to read: ${escapeHtml(err.message || String(err))}</div>`;
+    }
+  }
+}
+
+function closeAlsViewer() {
+  const modal = document.getElementById('alsViewerModal');
+  if (modal) modal.remove();
+}
+
+document.addEventListener('click', (e) => {
+  const action = e.target.closest('[data-action-modal="closeAlsViewer"]');
+  if (action) {
+    if (e.target === action || action.classList.contains('modal-close')) {
+      closeAlsViewer();
+    }
+  }
 });
