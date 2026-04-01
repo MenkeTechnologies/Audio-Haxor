@@ -731,17 +731,35 @@ function refreshSettingsUI() {
     batchSzValEl.textContent = batchSz;
   }
 
-  // System perf info — get real core count from Rust backend
+  // System perf info — get real stats from Rust backend
   const perfInfo = document.getElementById('settingPerfInfo');
   if (perfInfo) {
     window.vstUpdater.getProcessStats().then(stats => {
       const cpus = stats.numCpus || navigator.hardwareConcurrency || '?';
-      const threads = parseInt(threadMult) * parseInt(cpus);
-      perfInfo.textContent = `${cpus} cores | ${threads} threads | buf ${chanBuf} | batch ${batchSz}`;
+      const scanThreads = parseInt(threadMult) * parseInt(cpus);
+      const fmtMem = (bytes) => {
+        if (!bytes || bytes === 0) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+      };
+      const fmtUptime = (secs) => {
+        if (!secs) return '0s';
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        return (h ? h + 'h ' : '') + (m ? m + 'm ' : '') + s + 's';
+      };
+      perfInfo.innerHTML = [
+        `<b>CPU:</b> ${cpus} cores | ${scanThreads} scan threads | rayon pool: ${stats.rayonThreads}`,
+        `<b>Memory:</b> RSS ${fmtMem(stats.rssBytes)} | Virtual ${fmtMem(stats.virtualBytes)}`,
+        `<b>Process:</b> PID ${stats.pid} | ${stats.threads} threads | ${stats.openFds} open FDs | CPU ${(stats.cpuPercent || 0).toFixed(1)}%`,
+        `<b>Uptime:</b> ${fmtUptime(stats.uptimeSecs)}`,
+        `<b>Scan:</b> buf ${chanBuf} | batch ${batchSz} | multiplier ${threadMult}x`,
+      ].join('<br>');
     }).catch(() => {
       const cpus = navigator.hardwareConcurrency || '?';
-      const threads = parseInt(threadMult) * parseInt(cpus);
-      perfInfo.textContent = `${cpus} cores | ${threads} threads | buf ${chanBuf} | batch ${batchSz}`;
+      perfInfo.textContent = `${cpus} cores | buf ${chanBuf} | batch ${batchSz}`;
     });
   }
 
