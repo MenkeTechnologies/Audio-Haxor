@@ -656,6 +656,11 @@ function buildAudioRow(s) {
 
 // ── Audio Preview / Playback ──
 async function previewAudio(filePath) {
+  // Always resume suspended audio context
+  if (_playbackCtx && _playbackCtx.state === 'suspended') {
+    await _playbackCtx.resume().catch(() => {});
+  }
+
   if (audioPlayerPath === filePath && !audioPlayer.paused) {
     // Pause current
     audioPlayer.pause();
@@ -666,7 +671,7 @@ async function previewAudio(filePath) {
 
   if (audioPlayerPath === filePath && audioPlayer.paused) {
     // Resume current
-    audioPlayer.play();
+    await audioPlayer.play().catch(() => {});
     updatePlayBtnStates();
     updateNowPlayingBtn();
     return;
@@ -675,11 +680,11 @@ async function previewAudio(filePath) {
   // New file
   try {
     ensureAudioGraph();
-    if (_playbackCtx.state === 'suspended') _playbackCtx.resume();
+    if (_playbackCtx.state === 'suspended') await _playbackCtx.resume().catch(() => {});
     audioPlayer.src = convertFileSrc(filePath);
     audioPlayer.loop = audioLooping;
     audioPlayerPath = filePath;
-    audioPlayer.play();
+    await audioPlayer.play();
 
     // Show now-playing bar, restore expanded state from prefs
     const np = document.getElementById('audioNowPlaying');
