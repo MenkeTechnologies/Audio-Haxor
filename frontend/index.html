@@ -4054,7 +4054,7 @@
       <div class="now-playing-transport">
         <div class="now-playing-volume">
           <button class="btn-small" id="npBtnMute" data-action="toggleMute" title="Mute/Unmute (M)" style="padding:3px 5px;font-size:12px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;">&#128264;</button>
-          <input type="range" class="volume-slider" id="npVolume" min="0" max="100" value="100" data-action="setVolume">
+          <input type="range" class="volume-slider" id="npVolume" min="0" max="100" value="100" data-action="setVolume" title="Volume (Cmd+Up/Down)">
           <span class="volume-pct" id="npVolumePct">100%</span>
         </div>
         <div class="now-playing-speed">
@@ -4070,7 +4070,7 @@
           </select>
         </div>
       </div>
-      <input type="text" class="np-search-input" id="npSearchInput" placeholder="Search songs..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <input type="text" class="np-search-input" id="npSearchInput" placeholder="Search songs..." title="Search recently played and sample library" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <div class="np-search-results" id="npSearchResults"></div>
       <div class="np-expand-hint">double-click to expand</div>
       <div class="np-history" id="npHistory">
@@ -4092,31 +4092,31 @@
         <div class="np-eq-controls">
           <div class="np-eq-band">
             <label>Low</label>
-            <input type="range" class="eq-slider" id="npEqLow" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqLow">
+            <input type="range" class="eq-slider" id="npEqLow" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqLow" title="Low EQ (200 Hz, -12 to +12 dB)">
             <span class="eq-val" id="npEqLowVal">0 dB</span>
             <span class="eq-freq">200 Hz</span>
           </div>
           <div class="np-eq-band">
             <label>Mid</label>
-            <input type="range" class="eq-slider" id="npEqMid" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqMid">
+            <input type="range" class="eq-slider" id="npEqMid" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqMid" title="Mid EQ (1 kHz, -12 to +12 dB)">
             <span class="eq-val" id="npEqMidVal">0 dB</span>
             <span class="eq-freq">1 kHz</span>
           </div>
           <div class="np-eq-band">
             <label>High</label>
-            <input type="range" class="eq-slider" id="npEqHigh" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqHigh">
+            <input type="range" class="eq-slider" id="npEqHigh" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqHigh" title="High EQ (8 kHz, -12 to +12 dB)">
             <span class="eq-val" id="npEqHighVal">0 dB</span>
             <span class="eq-freq">8 kHz</span>
           </div>
           <div class="np-eq-divider"></div>
           <div class="np-eq-band">
             <label>Gain</label>
-            <input type="range" class="eq-slider" id="npGainSlider" min="0" max="2" value="1" step="0.05" orient="vertical" data-action="setGain">
+            <input type="range" class="eq-slider" id="npGainSlider" min="0" max="2" value="1" step="0.05" orient="vertical" data-action="setGain" title="Preamp gain (0-200%)">
             <span class="eq-val" id="npGainVal">100%</span>
           </div>
           <div class="np-eq-band">
             <label>Pan</label>
-            <input type="range" class="eq-slider" id="npPanSlider" min="-1" max="1" value="0" step="0.05" orient="vertical" data-action="setPan">
+            <input type="range" class="eq-slider" id="npPanSlider" min="-1" max="1" value="0" step="0.05" orient="vertical" data-action="setPan" title="Stereo pan (L-C-R)">
             <span class="eq-val" id="npPanVal">C</span>
           </div>
           <div class="np-eq-divider"></div>
@@ -4245,7 +4245,7 @@
         <button class="btn btn-secondary" id="btnImport" data-action="importPlugins" title="Import plugin list from JSON">&#8613; Import</button>
         <div class="search-box" style="flex: 1;">
           <span class="search-icon">&#128269;</span>
-          <input type="text" id="searchInput" placeholder="Fuzzy search plugins..." data-action="filterPlugins" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <input type="text" id="searchInput" placeholder="Fuzzy search plugins..." title="Search plugins (Cmd+F)" data-action="filterPlugins" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           <button class="btn-regex" id="regexPlugins" data-action="toggleRegex" data-target="filterPlugins" title="Toggle regex search">.*</button>
         </div>
         <select class="filter-select" id="typeFilter" data-action="filterPlugins" title="Filter by plugin format">
@@ -4302,7 +4302,7 @@
         <div class="audio-toolbar">
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="favSearchInput" placeholder="Search favorites..." data-action="filterFavorites" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="favSearchInput" placeholder="Search favorites..." title="Search favorites" data-action="filterFavorites" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </div>
           <select class="filter-select" id="favTypeFilter" data-action="filterFavorites" title="Filter by item type">
             <option value="all">All Types</option>
@@ -4332,7 +4332,7 @@
         <div class="audio-toolbar">
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="tagSearchInput" placeholder="Search tags..." data-action="filterTags" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="tagSearchInput" placeholder="Search tags..." title="Search tags" data-action="filterTags" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </div>
           <button class="btn btn-primary" data-action="createTag" title="Create a new tag">+ New Tag</button>
         </div>
@@ -4360,7 +4360,7 @@
           <div class="file-breadcrumb" id="fileBreadcrumb"></div>
           <div class="search-box" style="flex: 1; max-width: 300px;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="fileSearchInput" placeholder="Filter files..." data-action="filterFiles" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="fileSearchInput" placeholder="Filter files..." title="Filter files in current directory" data-action="filterFiles" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </div>
         </div>
         <div class="file-favs" id="fileFavs" style="display:none;">
@@ -4382,7 +4382,7 @@
         <div class="audio-toolbar">
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="noteSearchInput" placeholder="Search notes and tags..." data-action="filterNotes" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="noteSearchInput" placeholder="Search notes and tags..." title="Search notes and tags" data-action="filterNotes" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </div>
           <button class="btn btn-secondary" data-action="exportNotes" title="Export notes and tags">&#8615; Export</button>
           <button class="btn btn-secondary" data-action="importNotes" title="Import notes and tags">&#8613; Import</button>
@@ -4431,7 +4431,7 @@
           <button class="btn btn-secondary" id="btnImportAudio" data-action="importAudio" title="Import samples from JSON">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="audioSearchInput" placeholder="Fuzzy search samples..." data-action="filterAudioSamples" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="audioSearchInput" placeholder="Fuzzy search samples..." title="Search audio samples (Cmd+F)" data-action="filterAudioSamples" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <button class="btn-regex" id="regexAudio" data-action="toggleRegex" data-target="filterAudioSamples" title="Toggle regex search">.*</button>
           </div>
           <select class="filter-select" id="audioFormatFilter" data-action="filterAudioSamples" title="Filter by audio format">
@@ -4481,7 +4481,7 @@
           <button class="btn btn-secondary" data-action="showDepGraph" title="Show plugin dependency graph (run Plugin Index first)">&#128200; Dep Graph</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="dawSearchInput" placeholder="Fuzzy search projects..." data-action="filterDawProjects" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="dawSearchInput" placeholder="Fuzzy search projects..." title="Search DAW projects (Cmd+F)" data-action="filterDawProjects" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <button class="btn-regex" id="regexDaw" data-action="toggleRegex" data-target="filterDawProjects" title="Toggle regex search">.*</button>
           </div>
           <select class="filter-select" id="dawDawFilter" data-action="filterDawProjects" title="Filter by DAW application">
@@ -4532,7 +4532,7 @@
           <button class="btn btn-secondary" id="btnImportPresets" data-action="importPresets" title="Import presets from JSON">&#8613; Import</button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="presetSearchInput" placeholder="Fuzzy search presets..." data-action="filterPresets" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="presetSearchInput" placeholder="Fuzzy search presets..." title="Search presets (Cmd+F)" data-action="filterPresets" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             <button class="btn-regex" id="regexPresets" data-action="toggleRegex" data-target="filterPresets" title="Toggle regex search">.*</button>
           </div>
           <select class="filter-select" id="presetFormatFilter" data-action="filterPresets" title="Filter by preset format">
@@ -4825,7 +4825,7 @@
             </div>
             <div class="settings-control">
               <div class="settings-range-wrap">
-                <input type="range" class="settings-range" id="settingPageSize" min="100" max="2000" step="100" value="500" data-action="settingPageSize">
+                <input type="range" class="settings-range" id="settingPageSize" min="100" max="2000" step="100" value="500" data-action="settingPageSize" title="Number of items per page in tables">
                 <span class="settings-range-value" id="settingPageSizeValue">500</span>
               </div>
             </div>
@@ -4837,7 +4837,7 @@
             </div>
             <div class="settings-control">
               <div class="settings-range-wrap">
-                <input type="range" class="settings-range" id="settingFlushInterval" min="50" max="1000" step="50" value="100" data-action="settingFlushInterval">
+                <input type="range" class="settings-range" id="settingFlushInterval" min="50" max="1000" step="50" value="100" data-action="settingFlushInterval" title="UI update frequency during scans (ms)">
                 <span class="settings-range-value" id="settingFlushIntervalValue">100</span>
               </div>
             </div>
@@ -4849,7 +4849,7 @@
             </div>
             <div class="settings-control">
               <div class="settings-range-wrap">
-                <input type="range" class="settings-range" id="settingThreadMultiplier" min="1" max="8" step="1" value="4" data-action="settingThreadMultiplier">
+                <input type="range" class="settings-range" id="settingThreadMultiplier" min="1" max="8" step="1" value="4" data-action="settingThreadMultiplier" title="Thread pool multiplier (cores x N)">
                 <span class="settings-range-value" id="settingThreadMultiplierValue">4x</span>
               </div>
             </div>
@@ -4861,7 +4861,7 @@
             </div>
             <div class="settings-control">
               <div class="settings-range-wrap">
-                <input type="range" class="settings-range" id="settingChannelBuffer" min="64" max="2048" step="64" value="512" data-action="settingChannelBuffer">
+                <input type="range" class="settings-range" id="settingChannelBuffer" min="64" max="2048" step="64" value="512" data-action="settingChannelBuffer" title="Channel buffer size for scan results">
                 <span class="settings-range-value" id="settingChannelBufferValue">512</span>
               </div>
             </div>
@@ -4873,7 +4873,7 @@
             </div>
             <div class="settings-control">
               <div class="settings-range-wrap">
-                <input type="range" class="settings-range" id="settingBatchSize" min="10" max="200" step="10" value="100" data-action="settingBatchSize">
+                <input type="range" class="settings-range" id="settingBatchSize" min="10" max="200" step="10" value="100" data-action="settingBatchSize" title="Batch size for streaming scan results to UI">
                 <span class="settings-range-value" id="settingBatchSizeValue">100</span>
               </div>
             </div>

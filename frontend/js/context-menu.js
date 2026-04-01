@@ -606,5 +606,84 @@ document.addEventListener('contextmenu', (e) => {
     return;
   }
 
+  // ── File browser breadcrumbs ──
+  const crumb = e.target.closest('.file-crumb');
+  if (crumb) {
+    const crumbPath = crumb.dataset.fileNav || '';
+    const items = [
+      { icon: '&#128193;', label: 'Open in Finder', action: () => typeof openFolder === 'function' && openFolder(crumbPath) },
+      { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(crumbPath) },
+      { icon: '&#9733;', label: 'Bookmark This Directory', action: () => typeof addFavDir === 'function' && addFavDir(crumbPath) },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
+  // ── Disk usage segments ──
+  const diskSeg = e.target.closest('.disk-segment, .disk-legend-item');
+  if (diskSeg) {
+    const label = diskSeg.getAttribute('title') || diskSeg.textContent.trim();
+    const items = [
+      { icon: '&#128203;', label: 'Copy', action: () => copyToClipboard(label) },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
+  // ── EQ/Gain/Pan sliders ──
+  const eqSlider = e.target.closest('.eq-slider, .volume-slider');
+  if (eqSlider) {
+    const items = [
+      { icon: '&#8634;', label: 'Reset to Default', action: () => { if (typeof resetEq === 'function') resetEq(); } },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
+  // ── Waveform ──
+  const waveform = e.target.closest('.now-playing-waveform, .meta-waveform');
+  if (waveform) {
+    const items = [];
+    if (typeof audioPlayerPath !== 'undefined' && audioPlayerPath) {
+      items.push({ icon: '&#128203;', label: 'Copy File Path', action: () => copyToClipboard(audioPlayerPath) });
+      items.push({ icon: '&#128193;', label: 'Reveal in Finder', action: () => typeof openAudioFolder === 'function' && openAudioFolder(audioPlayerPath) });
+    }
+    if (items.length > 0) { showContextMenu(e, items); return; }
+  }
+
+  // ── Shortcut keys ──
+  const shortcutKey = e.target.closest('.shortcut-key');
+  if (shortcutKey) {
+    const scId = shortcutKey.dataset.shortcutId;
+    const items = [
+      { icon: '&#9881;', label: 'Rebind This Shortcut', action: () => shortcutKey.click() },
+      { icon: '&#8634;', label: 'Reset All Shortcuts', action: () => typeof resetShortcuts === 'function' && resetShortcuts() },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
+  // ── Color scheme buttons ──
+  const schemeBtn = e.target.closest('.scheme-btn');
+  if (schemeBtn) {
+    const scheme = schemeBtn.dataset.scheme;
+    const items = [
+      { icon: '&#127912;', label: `Apply ${scheme || 'scheme'}`, action: () => schemeBtn.click() },
+      { icon: '&#128203;', label: 'Copy Scheme Name', action: () => copyToClipboard(scheme || '') },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
+  // ── Progress bars ──
+  const progressBar = e.target.closest('.audio-progress-bar, .global-progress, .progress-bar');
+  if (progressBar) {
+    const items = [
+      { icon: '&#9632;', label: 'Stop All Scans', action: () => typeof stopAll === 'function' && stopAll() },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
   } catch (err) { console.error('Context menu error:', err, err.stack); showToast('Context menu error: ' + (err.message || err), 4000, 'error'); }
 });
