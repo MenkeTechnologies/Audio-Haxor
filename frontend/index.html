@@ -385,11 +385,16 @@
     }
     .settings-heading:active { cursor: grabbing; }
     .settings-section.section-dragging {
-      opacity: 0.4;
+      opacity: 0.5;
+      transform: scale(0.97);
+      border: 2px dashed var(--cyan);
+      border-radius: 4px;
+      box-shadow: 0 0 20px var(--cyan-glow);
     }
     .settings-section.section-drag-over {
-      border-top: 2px solid var(--cyan);
-      margin-top: -2px;
+      border-top: 3px solid var(--cyan);
+      margin-top: -3px;
+      box-shadow: 0 -4px 12px var(--cyan-glow);
     }
 
     .settings-row {
@@ -1495,11 +1500,16 @@
       text-shadow: 0 0 10px var(--cyan-glow);
     }
     .tab-btn.tab-dragging {
-      opacity: 0.4;
+      opacity: 0.5;
       cursor: grabbing;
+      transform: scale(1.1);
+      box-shadow: 0 0 16px var(--cyan-glow);
+      border: 1px solid var(--cyan);
+      z-index: 100;
     }
     .tab-btn.tab-drag-over {
-      border-left: 2px solid var(--cyan);
+      border-left: 3px solid var(--cyan);
+      box-shadow: -4px 0 12px var(--cyan-glow);
     }
 
     .tab-content { display: none; flex: 1 1 0; overflow-y: auto; overflow-x: hidden; flex-direction: column; min-height: 200px; }
@@ -3098,6 +3108,9 @@
       opacity: 0.85;
       cursor: grabbing;
       transition: none;
+      transform: scale(1.03);
+      box-shadow: 0 0 30px var(--cyan-glow), 0 8px 40px rgba(0,0,0,0.6);
+      border: 2px solid var(--cyan);
     }
 
     /* Dock zone preview overlay */
