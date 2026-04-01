@@ -3057,7 +3057,8 @@
     .audio-now-playing.expanded .np-body {
       padding: 14px 20px 16px;
     }
-    .audio-now-playing.expanded #npCloseBtn {
+    .audio-now-playing.expanded #npCloseBtn,
+    .audio-now-playing.expanded #npHideBtn {
       display: none;
     }
     .audio-now-playing.expanded .now-playing-name {
@@ -3830,7 +3831,8 @@
     <div class="np-body">
       <div class="now-playing-header">
         <span class="now-playing-name" id="npName"></span>
-        <button class="btn-small btn-stop" id="npCloseBtn" data-action="hidePlayer" style="font-size: 10px; padding: 4px 8px;" title="Hide player">&#10005;</button>
+        <button class="btn-small btn-secondary" id="npHideBtn" data-action="hidePlayer" style="font-size: 10px; padding: 4px 8px;" title="Hide player">&#9868;</button>
+        <button class="btn-small btn-stop" id="npCloseBtn" data-action="stopAudioPlayback" style="font-size: 10px; padding: 4px 8px;" title="Stop &amp; close">&#10005;</button>
       </div>
       <div class="now-playing-transport">
         <div class="now-playing-controls">
