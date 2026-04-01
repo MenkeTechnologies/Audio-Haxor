@@ -360,11 +360,39 @@ async function confirmAction(message, title = 'Confirm') {
 }
 
 // ── Loading helpers ──
-function showGlobalProgress() {
+let _globalProgressCount = 0;
+const _activeScans = new Set();
+
+function showGlobalProgress(scanId) {
+  _globalProgressCount++;
+  if (scanId) _activeScans.add(scanId);
   document.getElementById('globalProgress')?.classList.add('active');
+  _updateScanBadge();
 }
-function hideGlobalProgress() {
-  document.getElementById('globalProgress')?.classList.remove('active');
+function hideGlobalProgress(scanId) {
+  _globalProgressCount = Math.max(0, _globalProgressCount - 1);
+  if (scanId) _activeScans.delete(scanId);
+  if (_globalProgressCount === 0) {
+    document.getElementById('globalProgress')?.classList.remove('active');
+  }
+  _updateScanBadge();
+}
+
+function _updateScanBadge() {
+  let badge = document.getElementById('scanStatusBadge');
+  if (_activeScans.size === 0) {
+    if (badge) badge.style.display = 'none';
+    return;
+  }
+  if (!badge) {
+    document.body.insertAdjacentHTML('beforeend',
+      '<div class="scan-status-badge" id="scanStatusBadge"></div>');
+    badge = document.getElementById('scanStatusBadge');
+  }
+  badge.style.display = '';
+  badge.innerHTML = [..._activeScans].map(s =>
+    `<span class="scan-status-item"><span class="spinner" style="width:8px;height:8px;"></span> ${s}</span>`
+  ).join('');
 }
 function btnLoading(btn, loading) {
   if (!btn) return;

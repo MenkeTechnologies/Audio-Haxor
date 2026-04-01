@@ -247,7 +247,7 @@ function getFormatClass(format) {
 }
 
 async function scanAudioSamples(resume = false) {
-  showGlobalProgress();
+  showGlobalProgress('Samples');
   const btn = document.getElementById('btnScanAudio');
   const resumeBtn = document.getElementById('btnResumeAudio');
   const stopBtn = document.getElementById('btnStopAudio');
@@ -372,7 +372,7 @@ async function scanAudioSamples(resume = false) {
     showToast(`Audio scan failed — ${errMsg}`, 4000, 'error');
   }
 
-  hideGlobalProgress();
+  hideGlobalProgress('Samples');
   btn.disabled = false;
   btn.innerHTML = '&#127925; Scan Samples';
   stopBtn.style.display = 'none';
