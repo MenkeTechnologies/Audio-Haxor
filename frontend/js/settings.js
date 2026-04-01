@@ -520,6 +520,26 @@ function showSavedMsg(id) {
   setTimeout(() => el.classList.remove('visible'), 2000);
 }
 
+async function browseDir(targetId) {
+  const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+  if (!dialogApi || !dialogApi.open) {
+    showToast('Dialog API not available', 3000, 'error');
+    return;
+  }
+  const selected = await dialogApi.open({ directory: true, multiple: false, title: 'Select folder to scan' });
+  if (!selected) return;
+  const textarea = document.getElementById(targetId);
+  if (!textarea) return;
+  const existing = textarea.value.trim();
+  // Append if not already present
+  const lines = existing ? existing.split('\n').map(s => s.trim()).filter(Boolean) : [];
+  if (!lines.includes(selected)) {
+    lines.push(selected);
+    textarea.value = lines.join('\n');
+  }
+  showToast(`Added: ${selected}`);
+}
+
 function saveCustomDirs() {
   const val = document.getElementById('settingCustomDirs').value.trim();
   prefs.setItem('customDirs', val);

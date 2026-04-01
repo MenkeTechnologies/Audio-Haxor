@@ -155,6 +155,7 @@ document.addEventListener('click', (e) => {
     case 'cancelSavePreset': cancelSavePreset(); break;
     case 'deleteCustomSchemes': deleteCustomSchemes(); break;
     case 'loadCustomPreset': loadCustomPreset(el.dataset.idx); break;
+    case 'browseDir': browseDir(el.dataset.target); break;
     case 'saveCustomDirs': saveCustomDirs(); break;
     case 'saveAudioScanDirs': saveAudioScanDirs(); break;
     case 'saveDawScanDirs': saveDawScanDirs(); break;
