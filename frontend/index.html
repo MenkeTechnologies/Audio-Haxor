@@ -3100,24 +3100,36 @@
       flex-direction: column;
       font-size: 11px;
       -webkit-app-region: no-drag;
-      overflow: auto;
+      overflow: visible;
     }
     .audio-now-playing.active { display: flex; }
 
     /* Resize handles on all 4 corners */
     .np-resize {
       position: absolute;
-      width: 14px;
-      height: 14px;
-      z-index: 10;
+      width: 18px;
+      height: 18px;
+      z-index: 100;
     }
-    .np-resize:hover, .np-resize:active {
-      background: rgba(5,217,232,0.15);
+    .np-resize::after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-color: var(--cyan);
+      border-style: solid;
+      opacity: 0.3;
+      transition: opacity 0.15s;
     }
-    .np-resize-tl { top: 0; left: 0; cursor: nwse-resize; }
-    .np-resize-tr { top: 0; right: 0; cursor: nesw-resize; }
-    .np-resize-bl { bottom: 0; left: 0; cursor: nesw-resize; }
-    .np-resize-br { bottom: 0; right: 0; cursor: nwse-resize; }
+    .np-resize:hover::after { opacity: 1; }
+    .np-resize-tl { top: -2px; left: -2px; cursor: nwse-resize; }
+    .np-resize-tl::after { top: 2px; left: 2px; border-width: 2px 0 0 2px; }
+    .np-resize-tr { top: -2px; right: -2px; cursor: nesw-resize; }
+    .np-resize-tr::after { top: 2px; right: 2px; border-width: 2px 2px 0 0; }
+    .np-resize-bl { bottom: -2px; left: -2px; cursor: nesw-resize; }
+    .np-resize-bl::after { bottom: 2px; left: 2px; border-width: 0 0 2px 2px; }
+    .np-resize-br { bottom: -2px; right: -2px; cursor: nwse-resize; }
+    .np-resize-br::after { bottom: 2px; right: 2px; border-width: 0 2px 2px 0; }
 
     /* Dock positions */
     .audio-now-playing.dock-br { bottom: 24px; right: 24px; top: auto; left: auto; }
@@ -3259,6 +3271,10 @@
       flex-direction: column;
       gap: 10px;
       padding: 14px 16px 12px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      flex: 1;
+      min-height: 0;
     }
 
     /* EQ section — only visible when expanded */
