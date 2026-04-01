@@ -1553,10 +1553,10 @@ fn export_pdf(
 
     let page_w = Mm(297.0); // A4 landscape
     let page_h = Mm(210.0);
-    let margin_x = 18.0_f32;
-    let _margin_top = 15.0_f32;
-    let margin_bottom = 18.0_f32;
-    let row_height = 5.2_f32;
+    let margin_x = 10.0_f32;
+    let _margin_top = 12.0_f32;
+    let margin_bottom = 12.0_f32;
+    let row_height = 4.5_f32;
     let header_row_h = 7.0_f32;
     let col_count = headers.len();
     let usable_w = page_w.0 - margin_x * 2.0;
@@ -1573,9 +1573,9 @@ fn export_pdf(
             }
         }
         // Cap individual column widths so very long paths don't dominate
-        let max_lens: Vec<usize> = max_lens.iter().map(|&l| l.min(80)).collect();
+        let max_lens: Vec<usize> = max_lens.iter().map(|&l| l.min(150)).collect();
         let total_len: usize = max_lens.iter().sum::<usize>().max(1);
-        let min_col = 15.0_f32; // minimum column width in mm
+        let min_col = 10.0_f32; // minimum column width in mm
         let mut widths: Vec<f32> = max_lens
             .iter()
             .map(|&l| (l as f32 / total_len as f32 * usable_w).max(min_col))
@@ -1591,7 +1591,10 @@ fn export_pdf(
         vec![usable_w]
     };
     let version = env!("CARGO_PKG_VERSION");
-    let total_pages = 1 + (rows.len() as f32 / 32.0).ceil() as usize;
+    // Calculate usable rows per page: (page height - header - footer - margins) / row height
+    let header_h = 22.0 + 6.0 + 7.0 + 1.0; // header bar + subtitle + col headers + gap
+    let rows_per_page = ((page_h.0 - header_h - margin_bottom - 5.0) / row_height) as usize;
+    let total_pages = if rows.is_empty() { 1 } else { ((rows.len() as f32) / rows_per_page as f32).ceil() as usize };
 
     let (doc, page1, layer1) = PdfDocument::new(&title, page_w, page_h, "Layer 1");
     let font = doc
@@ -1850,16 +1853,17 @@ fn export_pdf(
         }
 
         layer!().set_fill_color(rgb(0.12, 0.12, 0.12));
-        let mut x = margin_x + 1.0;
+        let mut x = margin_x + 0.5;
         for (i, cell) in row.iter().enumerate() {
             let w = if i < col_widths.len() { col_widths[i] } else { 30.0 };
-            let max_chars = (w / 1.8) as usize;
+            // At 7pt Helvetica, avg char width ~1.2mm
+            let max_chars = (w / 1.2) as usize;
             let text = if cell.len() > max_chars && max_chars > 3 {
                 format!("{}...", &cell[..max_chars - 3])
             } else {
                 cell.clone()
             };
-            layer!().use_text(&text, 8.0, Mm(x), Mm(y), &font);
+            layer!().use_text(&text, 7.0, Mm(x), Mm(y), &font);
             x += w;
         }
 
