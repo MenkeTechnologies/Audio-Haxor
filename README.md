@@ -165,6 +165,32 @@ node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 
 ---
 
+## // BENCHMARKS //
+
+Criterion micro-benchmarks on Apple M5 Max (18 cores, 64 GB):
+
+| Operation | Time |
+|-----------|------|
+| `parse_version("1.2.3")` | 25 ns |
+| `compare_versions` | 46 ns |
+| `extract_version` (HTML) | 211 ns |
+| `extract_version` (7KB HTML) | 2.5 µs |
+| `extract_download_url` | 778 ns |
+| `format_size` | 80 ns |
+| `daw_ext_matches` | 38 ns |
+| `daw_name_for_format` | 1.1 ns |
+| `get_plugin_type` | 25 ns |
+| `get_audio_metadata` (WAV) | 4.8 µs |
+| `gen_id` | 42 ns |
+
+Scanner architecture: each scanner (plugins, audio, DAW, presets) runs on its own dedicated rayon thread pool (`num_cpus × 2` threads, min 4) with `sync_channel(2048)` buffering and non-blocking `try_recv` drain loops. All 4 scanners run fully in parallel via `Promise.all`. Optimized for I/O-bound workloads including SMB/NFS network mounts where high thread counts overlap network round-trip latency.
+
+```bash
+cargo bench --manifest-path src-tauri/Cargo.toml
+```
+
+---
+
 ## // BUILD & DISTRIBUTE //
 
 ```bash
