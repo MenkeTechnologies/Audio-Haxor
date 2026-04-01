@@ -1263,29 +1263,30 @@
     .global-progress.active { display: block; }
     .scan-status-badge {
       position: fixed;
-      top: 8px;
+      top: 12px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 30001;
       display: none;
-      gap: 12px;
-      padding: 4px 14px;
+      gap: 16px;
+      padding: 8px 20px;
       background: var(--bg-primary);
       border: 1px solid var(--cyan);
       border-radius: 20px;
-      box-shadow: 0 0 12px var(--cyan-glow), 0 2px 8px rgba(0,0,0,0.4);
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 1px;
+      box-shadow: 0 0 16px var(--cyan-glow), 0 4px 12px rgba(0,0,0,0.5);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
       text-transform: uppercase;
       color: var(--cyan);
+      font-family: 'Orbitron', sans-serif;
     }
     .scan-status-badge[style*="display: none"] { display: none !important; }
     .scan-status-badge:not([style*="display: none"]) { display: flex; }
     .scan-status-item {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 8px;
     }
     .global-progress-fill {
       height: 100%;
