@@ -41,6 +41,7 @@
   initSettingsSectionDrag();
   loadRecentlyPlayed();
   renderGlobalTagBar();
+  if (typeof loadXrefCache === 'function') loadXrefCache();
 
   try {
     const latest = await window.vstUpdater.getLatestScan();

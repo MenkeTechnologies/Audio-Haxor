@@ -5,13 +5,13 @@ const XREF_FORMATS = new Set(['ALS', 'RPP', 'RPP-BAK']);
 // Cache: project path → PluginRef[]
 const _xrefCache = {};
 
-// Load persisted xref cache from prefs on startup
-(function loadXrefCache() {
+// Load persisted xref cache after prefs are loaded (called from app.js)
+function loadXrefCache() {
   const saved = prefs.getObject('xrefCache', null);
   if (saved && typeof saved === 'object') {
     Object.assign(_xrefCache, saved);
   }
-})();
+}
 
 function saveXrefCache() {
   prefs.setItem('xrefCache', _xrefCache);
