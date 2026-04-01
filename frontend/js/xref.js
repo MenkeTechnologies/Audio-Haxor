@@ -250,13 +250,25 @@ async function showAlsViewer(filePath, projectName) {
       <pre id="alsXmlContent" style="flex:1;overflow:auto;margin:0;padding:12px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.5;color:var(--text);background:var(--bg-primary);white-space:pre-wrap;word-break:break-all;tab-size:2;">${escaped}</pre>
     </div>`;
 
-    // Search
+    // Search — fzf fuzzy match with highlighted characters, show only matching lines
+    const rawLines = xml.split('\n');
     document.getElementById('alsSearchInput')?.addEventListener('input', (e) => {
       const q = e.target.value.trim();
       const pre = document.getElementById('alsXmlContent');
       if (!pre) return;
       if (!q) { pre.innerHTML = escaped; return; }
-      pre.innerHTML = typeof highlightMatch === 'function' ? escaped.replace(new RegExp(escapeHtml(q).replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&'), 'gi'), m => '<mark style="background:var(--yellow);color:#000;">' + m + '</mark>') : escaped;
+      const matched = [];
+      for (let i = 0; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        const score = typeof searchScore === 'function' ? searchScore(q, [line], 'fuzzy') : (line.toLowerCase().includes(q.toLowerCase()) ? 1 : 0);
+        if (score > 0) {
+          const highlighted = typeof highlightMatch === 'function' ? highlightMatch(line, q, 'fuzzy') : escapeHtml(line);
+          matched.push(`<span style="color:var(--text-dim);user-select:none;">${String(i + 1).padStart(5)}</span>  ${highlighted}`);
+        }
+      }
+      pre.innerHTML = matched.length > 0
+        ? matched.join('\n')
+        : '<span style="color:var(--text-dim);">No matches</span>';
     });
 
     // Export
