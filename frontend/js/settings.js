@@ -529,6 +529,12 @@ function settingToggleSingleClickPlay() {
   refreshSettingsUI();
 }
 
+function settingToggleExpandOnClick() {
+  const current = prefs.getItem('expandOnClick');
+  prefs.setItem('expandOnClick', current === 'off' ? 'on' : 'off');
+  refreshSettingsUI();
+}
+
 function settingToggleIncludeBackups() {
   const current = prefs.getItem('includeAbletonBackups') === 'on';
   prefs.setItem('includeAbletonBackups', current ? 'off' : 'on');
@@ -675,6 +681,15 @@ function refreshSettingsUI() {
   if (singleClickBtn) {
     singleClickBtn.classList.toggle('active', singleClick);
     singleClickLabel.textContent = singleClick ? 'On' : 'Off';
+  }
+
+  // Expand on click
+  const expandOnClick = prefs.getItem('expandOnClick') !== 'off';
+  const expandBtn = document.getElementById('settingExpandOnClick');
+  const expandLabel = document.getElementById('settingExpandOnClickLabel');
+  if (expandBtn) {
+    expandBtn.classList.toggle('active', expandOnClick);
+    expandLabel.textContent = expandOnClick ? 'On' : 'Off';
   }
 
   // Include Ableton backups

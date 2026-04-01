@@ -153,6 +153,7 @@ document.addEventListener('click', (e) => {
     case 'settingToggleAutoScan': settingToggleAutoScan(); break;
     case 'settingToggleAutoUpdate': settingToggleAutoUpdate(); break;
     case 'settingToggleSingleClickPlay': settingToggleSingleClickPlay(); break;
+    case 'settingToggleExpandOnClick': settingToggleExpandOnClick(); break;
     case 'settingToggleIncludeBackups': settingToggleIncludeBackups(); break;
     case 'applyCustomScheme': applyCustomScheme(); break;
     case 'showSavePreset': showSavePreset(); break;

@@ -838,6 +838,9 @@ async function toggleMetadata(filePath, event) {
   // Single-click starts playback
   previewAudio(filePath);
 
+  // If expand-on-click is disabled, stop here (play only, no metadata)
+  if (prefs.getItem('expandOnClick') === 'off') return;
+
   const tbody = document.getElementById('audioTableBody');
   if (!tbody) return;
 
