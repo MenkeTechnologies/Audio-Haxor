@@ -1492,10 +1492,35 @@ fn export_pdf(
     let header_row_h = 7.0_f32;
     let col_count = headers.len();
     let usable_w = page_w.0 - margin_x * 2.0;
-    let col_w = if col_count > 0 {
-        usable_w / col_count as f32
+
+    // Calculate column widths proportional to content length
+    let col_widths: Vec<f32> = if col_count > 0 {
+        // Measure max char length per column (header + data), approximate width
+        let mut max_lens: Vec<usize> = headers.iter().map(|h| h.len()).collect();
+        for row in &rows {
+            for (i, cell) in row.iter().enumerate() {
+                if i < max_lens.len() {
+                    max_lens[i] = max_lens[i].max(cell.len());
+                }
+            }
+        }
+        // Cap individual column widths so very long paths don't dominate
+        let max_lens: Vec<usize> = max_lens.iter().map(|&l| l.min(80)).collect();
+        let total_len: usize = max_lens.iter().sum::<usize>().max(1);
+        let min_col = 15.0_f32; // minimum column width in mm
+        let mut widths: Vec<f32> = max_lens
+            .iter()
+            .map(|&l| (l as f32 / total_len as f32 * usable_w).max(min_col))
+            .collect();
+        // Normalize to fit usable_w exactly
+        let sum: f32 = widths.iter().sum();
+        let scale = usable_w / sum;
+        for w in &mut widths {
+            *w *= scale;
+        }
+        widths
     } else {
-        usable_w
+        vec![usable_w]
     };
     let version = env!("CARGO_PKG_VERSION");
     let total_pages = 1 + (rows.len() as f32 / 32.0).ceil() as usize;
@@ -1665,9 +1690,10 @@ fn export_pdf(
         );
 
         layer_ref.set_fill_color(rgb(0.15, 0.15, 0.15));
+        let mut x = margin_x + 1.0;
         for (i, h) in headers.iter().enumerate() {
-            let x = margin_x + col_w * i as f32 + 1.0;
             layer_ref.use_text(h, 9.0, Mm(x), Mm(*y), &font_bold);
+            x += col_widths[i];
         }
         *y -= header_row_h;
 
@@ -1756,15 +1782,17 @@ fn export_pdf(
         }
 
         layer!().set_fill_color(rgb(0.12, 0.12, 0.12));
+        let mut x = margin_x + 1.0;
         for (i, cell) in row.iter().enumerate() {
-            let x = margin_x + col_w * i as f32 + 1.0;
-            let max_chars = (col_w / 1.8) as usize;
+            let w = if i < col_widths.len() { col_widths[i] } else { 30.0 };
+            let max_chars = (w / 1.8) as usize;
             let text = if cell.len() > max_chars && max_chars > 3 {
                 format!("{}...", &cell[..max_chars - 3])
             } else {
                 cell.clone()
             };
             layer!().use_text(&text, 8.0, Mm(x), Mm(y), &font);
+            x += w;
         }
 
         y -= row_height;
