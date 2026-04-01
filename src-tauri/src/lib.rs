@@ -189,22 +189,15 @@ async fn scan_plugins(
         let stop_flag = std::sync::Arc::new(AtomicBool::new(false));
         let stop_flag2 = stop_flag.clone();
 
-        // Dedicated thread pool so plugin scanning doesn't starve other scanners
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads((num_cpus::get() * 2).max(4))
-            .build()
-            .unwrap();
         std::thread::spawn(move || {
-            pool.install(|| {
-                unique_paths.par_iter().for_each(|p| {
-                    if stop_flag2.load(Ordering::Relaxed) {
-                        return;
-                    }
-                    if let Some(info) = scanner::get_plugin_info(p) {
-                        if stop_flag2.load(Ordering::Relaxed) { return; }
-                        let _ = tx.send(info);
-                    }
-                });
+            unique_paths.par_iter().for_each(|p| {
+                if stop_flag2.load(Ordering::Relaxed) {
+                    return;
+                }
+                if let Some(info) = scanner::get_plugin_info(p) {
+                    if stop_flag2.load(Ordering::Relaxed) { return; }
+                    let _ = tx.send(info);
+                }
             });
         });
 
@@ -212,11 +205,16 @@ async fn scan_plugins(
         let mut batch = Vec::new();
         let mut processed = 0usize;
 
-        for info in rx {
+        loop {
             if scan_state.stop_scan.load(Ordering::Relaxed) {
                 stop_flag.store(true, Ordering::Relaxed);
                 break;
             }
+            let info = match rx.recv_timeout(std::time::Duration::from_millis(100)) {
+                Ok(info) => info,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            };
             batch.push(info);
             processed += 1;
             if batch.len() >= batch_size || processed == total {

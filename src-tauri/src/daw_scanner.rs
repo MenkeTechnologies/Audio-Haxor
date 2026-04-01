@@ -222,39 +222,39 @@ pub fn walk_for_daw(
     let roots_owned: Vec<PathBuf> = roots.to_vec();
     let stop2 = stop.clone();
     let found2 = found.clone();
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads((num_cpus::get() * 2).max(4))
-        .build()
-        .unwrap();
     std::thread::spawn(move || {
-        pool.install(|| {
-            roots_owned.par_iter().for_each(|root| {
-                if stop2.load(Ordering::Relaxed) {
-                    return;
-                }
-                walk_dir_parallel(
-                    root,
-                    0,
-                    &visited,
-                    &tx,
-                    &found2,
-                    batch_size,
-                    &stop2,
-                    &exclude,
-                    include_backups,
-                );
-            });
+        roots_owned.par_iter().for_each(|root| {
+            if stop2.load(Ordering::Relaxed) {
+                return;
+            }
+            walk_dir_parallel(
+                root,
+                0,
+                &visited,
+                &tx,
+                &found2,
+                batch_size,
+                &stop2,
+                &exclude,
+                include_backups,
+            );
         });
     });
 
     let mut total_found = 0usize;
-    for projects in rx {
+    loop {
         if should_stop() {
             stop.store(true, Ordering::Relaxed);
             break;
         }
-        total_found += projects.len();
-        on_batch(&projects, total_found);
+        match rx.recv_timeout(std::time::Duration::from_millis(100)) {
+            Ok(projects) => {
+                total_found += projects.len();
+                on_batch(&projects, total_found);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        }
     }
 }
 

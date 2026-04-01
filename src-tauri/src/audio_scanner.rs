@@ -100,36 +100,35 @@ pub fn walk_for_audio(
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let exclude = Arc::new(exclude.unwrap_or_default());
 
-    // Dedicated pool so scanners don't starve each other (~quarter of cores each)
     let roots_owned: Vec<PathBuf> = roots.to_vec();
     let stop2 = stop.clone();
     let found2 = found.clone();
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads((num_cpus::get() * 2).max(4))
-        .build()
-        .unwrap();
     std::thread::spawn(move || {
-        pool.install(|| {
-            roots_owned.par_iter().for_each(|root| {
-                if stop2.load(Ordering::Relaxed) {
-                    return;
-                }
-                walk_dir_parallel(
-                    root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
-                );
-            });
+        roots_owned.par_iter().for_each(|root| {
+            if stop2.load(Ordering::Relaxed) {
+                return;
+            }
+            walk_dir_parallel(
+                root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
+            );
         });
     });
 
-    // Stream results to callback as they arrive
+    // Stream results to callback, checking stop every 100ms
     let mut total_found = 0usize;
-    for samples in rx {
+    loop {
         if should_stop() {
             stop.store(true, Ordering::Relaxed);
             break;
         }
-        total_found += samples.len();
-        on_batch(&samples, total_found);
+        match rx.recv_timeout(std::time::Duration::from_millis(100)) {
+            Ok(samples) => {
+                total_found += samples.len();
+                on_batch(&samples, total_found);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        }
     }
 }
 
