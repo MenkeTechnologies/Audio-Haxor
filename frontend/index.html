@@ -385,16 +385,23 @@
     }
     .settings-heading:active { cursor: grabbing; }
     .settings-section.section-dragging {
-      opacity: 0.5;
-      transform: scale(0.97);
+      opacity: 0.4;
+      transform: scale(0.95);
       border: 2px dashed var(--cyan);
       border-radius: 4px;
       box-shadow: 0 0 20px var(--cyan-glow);
     }
+    /* Show all non-dragged sections as drop targets when a drag is active */
+    .settings-container.dragging-active .settings-section:not(.section-dragging) {
+      border: 2px dashed var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
     .settings-section.section-drag-over {
-      border-top: 3px solid var(--cyan);
-      margin-top: -3px;
-      box-shadow: 0 -4px 12px var(--cyan-glow);
+      border: 2px solid var(--cyan) !important;
+      box-shadow: 0 0 16px var(--cyan-glow), inset 0 0 12px rgba(5,217,232,0.06);
+      background: rgba(5,217,232,0.03);
     }
 
     .settings-row {

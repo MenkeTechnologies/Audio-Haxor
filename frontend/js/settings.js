@@ -848,6 +848,7 @@ function initSettingsSectionDrag() {
     if (!isDragging && Math.abs(e.clientY - startY) > 8) {
       isDragging = true;
       dragged.classList.add('section-dragging');
+      container.classList.add('dragging-active');
     }
     if (!isDragging) return;
     const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.settings-section');
@@ -863,6 +864,7 @@ function initSettingsSectionDrag() {
       const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.settings-section');
       container.querySelectorAll('.settings-section').forEach(s => s.classList.remove('section-drag-over'));
       dragged.classList.remove('section-dragging');
+      container.classList.remove('dragging-active');
       if (target && target !== dragged) {
         const sections = [...container.querySelectorAll('.settings-section')];
         const dragIdx = sections.indexOf(dragged);
@@ -880,6 +882,7 @@ function initSettingsSectionDrag() {
     }
     dragged = null;
     isDragging = false;
+    container.classList.remove('dragging-active');
   });
 
   restoreSettingsSectionOrder();
