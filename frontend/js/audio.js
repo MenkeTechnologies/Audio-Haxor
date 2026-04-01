@@ -1763,16 +1763,18 @@ function updateMetaLine() {
     requestAnimationFrame(draw);
   }
 
-  // Start drawing when EQ section is visible
-  const observer = new MutationObserver(() => {
-    const section = document.getElementById('npEqSection');
-    if (section && section.classList.contains('visible')) {
-      ensureAudioGraph();
-      draw();
-      observer.disconnect();
-    }
-  });
-  observer.observe(document.getElementById('npEqSection') || document.body, { attributes: true, attributeFilter: ['class'] });
+  // Start drawing when player becomes active/expanded
+  const np = document.getElementById('audioNowPlaying');
+  if (np) {
+    const observer = new MutationObserver(() => {
+      if (np.classList.contains('active')) {
+        ensureAudioGraph();
+        draw();
+        observer.disconnect();
+      }
+    });
+    observer.observe(np, { attributes: true, attributeFilter: ['class'] });
+  }
 
   // Drag bands
   let _dragBand = null;
