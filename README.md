@@ -90,8 +90,8 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **Batch Selection** | Checkbox column in all tables for multi-item operations. Select all/deselect, batch favorite, copy paths, export selected as JSON |
 | **Duplicate Detection** | Find duplicate files by name+size across plugins, samples, DAW projects, and presets. Modal report grouped by type with full paths |
 | **Notes & Tags** | Add notes and comma-separated tags to any item via right-click. Notes persisted in preferences with note indicator icon on tagged items |
-| **Keyboard Navigation** | Arrow keys/j/k to navigate table rows, Enter to activate, Space to play samples, Home/End to jump. Visual selection highlight |
-| **Help Overlay** | Press <kbd>?</kbd> to show a keyboard shortcuts reference overlay covering navigation, actions, search operators, and mouse interactions |
+| **Keyboard Navigation** | Arrow keys/j/k to navigate table rows, Enter to activate, Space to play samples, Home/End to jump. Visual selection highlight. 30+ customizable keybindings |
+| **Help Overlay** | Press <kbd>?</kbd> to show keyboard shortcuts reference. Covers navigation, playback (loop, mute, volume), actions (scan, reveal, copy, favorite, note, delete), search operators, and mouse interactions |
 | **Sort Persistence** | Last-used sort column and direction saved per tab, restored on app restart |
 | **Multi-Select Filters** | All filter dropdowns support multiple selections (e.g. VST2 + AU, WAV + FLAC). Checkbox-based custom dropdown with "All" toggle |
 | **Native Menu Bar** | Full menu bar with File, Edit, Scan, View, Playback, Data, Window, Help menus. All functionality accessible from menus with keyboard accelerators |

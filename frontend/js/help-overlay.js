@@ -15,18 +15,36 @@ function toggleHelpOverlay() {
         <div class="help-grid">
           <div class="help-section">
             <h3>Navigation</h3>
-            <div class="help-row"><kbd>&#8984;1</kbd>-<kbd>&#8984;7</kbd> <span>Switch tabs</span></div>
+            <div class="help-row"><kbd>&#8984;1</kbd>-<kbd>&#8984;8</kbd> <span>Switch tabs</span></div>
+            <div class="help-row"><kbd>&#8984;K</kbd> <span>Command palette</span></div>
             <div class="help-row"><kbd>&#8984;F</kbd> <span>Focus search</span></div>
             <div class="help-row"><kbd>&#8593;</kbd> / <kbd>k</kbd> <span>Previous item</span></div>
             <div class="help-row"><kbd>&#8595;</kbd> / <kbd>j</kbd> <span>Next item</span></div>
             <div class="help-row"><kbd>Home</kbd> <span>First item</span></div>
             <div class="help-row"><kbd>End</kbd> <span>Last item</span></div>
             <div class="help-row"><kbd>Enter</kbd> <span>Open / activate item</span></div>
-            <div class="help-row"><kbd>Space</kbd> <span>Play / pause sample</span></div>
+          </div>
+          <div class="help-section">
+            <h3>Playback</h3>
+            <div class="help-row"><kbd>Space</kbd> <span>Play / pause</span></div>
+            <div class="help-row"><kbd>&#8984;&#8594;</kbd> <span>Next track</span></div>
+            <div class="help-row"><kbd>&#8984;&#8592;</kbd> <span>Previous track</span></div>
+            <div class="help-row"><kbd>L</kbd> <span>Toggle loop</span></div>
+            <div class="help-row"><kbd>M</kbd> <span>Mute / unmute</span></div>
+            <div class="help-row"><kbd>&#8984;&#8593;</kbd> <span>Volume up</span></div>
+            <div class="help-row"><kbd>&#8984;&#8595;</kbd> <span>Volume down</span></div>
           </div>
           <div class="help-section">
             <h3>Actions</h3>
-            <div class="help-row"><kbd>Esc</kbd> <span>Clear search / close / stop</span></div>
+            <div class="help-row"><kbd>&#8984;S</kbd> <span>Scan all</span></div>
+            <div class="help-row"><kbd>&#8984;.</kbd> <span>Stop all scans</span></div>
+            <div class="help-row"><kbd>&#8984;A</kbd> <span>Select all visible</span></div>
+            <div class="help-row"><kbd>R</kbd> <span>Reveal selected in Finder</span></div>
+            <div class="help-row"><kbd>C</kbd> <span>Copy selected path</span></div>
+            <div class="help-row"><kbd>F</kbd> <span>Toggle favorite</span></div>
+            <div class="help-row"><kbd>N</kbd> <span>Add note to selected</span></div>
+            <div class="help-row"><kbd>Del</kbd> <span>Delete selected file</span></div>
+            <div class="help-row"><kbd>Esc</kbd> <span>Close / clear / stop</span></div>
             <div class="help-row"><kbd>?</kbd> <span>Toggle this help</span></div>
           </div>
           <div class="help-section">

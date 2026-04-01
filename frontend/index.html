@@ -3859,7 +3859,7 @@
         </div>
         <div class="now-playing-speed">
           <label>Speed</label>
-          <select class="speed-select" id="npSpeed" data-action="setPlaybackSpeed">
+          <select class="speed-select" id="npSpeed" data-action="setPlaybackSpeed" title="Playback speed">
             <option value="0.25">0.25x</option>
             <option value="0.5">0.5x</option>
             <option value="0.75">0.75x</option>
@@ -3876,12 +3876,12 @@
         <div id="npHistoryList"></div>
       </div>
       <div style="text-align: center; padding: 6px 0;">
-        <button class="np-eq-toggle" id="npEqToggle" data-action="toggleEqSection">EQ &amp; FX</button>
+        <button class="np-eq-toggle" id="npEqToggle" data-action="toggleEqSection" title="Toggle EQ and effects panel">EQ &amp; FX</button>
       </div>
       <div class="np-eq-section" id="npEqSection">
         <div class="np-eq-header">
           <span class="np-eq-title">EQ &amp; Processing</span>
-          <button class="btn-small btn-secondary" data-action="resetEq" style="padding:2px 8px;font-size:9px;">Reset</button>
+          <button class="btn-small btn-secondary" data-action="resetEq" style="padding:2px 8px;font-size:9px;" title="Reset all EQ bands and effects to defaults">Reset</button>
         </div>
         <div class="np-eq-controls">
           <div class="np-eq-band">
@@ -4061,8 +4061,8 @@
       </div>
       <div class="batch-controls">
         <span class="batch-progress" id="batchProgress"></span>
-        <button class="btn-skip" id="btnSkip" data-action="skipUpdate">Skip</button>
-        <button class="btn-next" id="btnNext" data-action="openNextUpdate">Open Next Update</button>
+        <button class="btn-skip" id="btnSkip" data-action="skipUpdate" title="Skip this plugin update">Skip</button>
+        <button class="btn-next" id="btnNext" data-action="openNextUpdate" title="Open the next available update">Open Next Update</button>
       </div>
     </div>
 
@@ -4181,7 +4181,7 @@
         <div class="history-sidebar">
           <div class="history-sidebar-header">
             <span>Scan History</span>
-            <button class="btn-danger" data-action="clearAllHistory">Clear All</button>
+            <button class="btn-danger" data-action="clearAllHistory" title="Delete all scan history entries">Clear All</button>
           </div>
           <div class="history-list" id="historyList">
             <div class="empty-history">
@@ -4353,7 +4353,7 @@
               <span class="settings-desc">Switch between dark cyberpunk and clean light mode</span>
             </div>
             <div class="settings-control">
-              <button class="settings-toggle" id="settingTheme" data-action="settingToggleTheme">
+              <button class="settings-toggle" id="settingTheme" data-action="settingToggleTheme" title="Switch between dark and light theme">
                 <span class="settings-toggle-label" id="settingThemeLabel">Dark</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
@@ -4365,7 +4365,7 @@
               <span class="settings-desc">Animated scanline overlays and vignette</span>
             </div>
             <div class="settings-control">
-              <button class="settings-toggle" id="settingCrt" data-action="settingToggleCrt">
+              <button class="settings-toggle" id="settingCrt" data-action="settingToggleCrt" title="Toggle CRT scanline overlay effect">
                 <span class="settings-toggle-label" id="settingCrtLabel">On</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
@@ -4453,14 +4453,14 @@
                 </label>
               </div>
               <div class="custom-scheme-actions">
-                <button class="btn btn-secondary btn-settings-action" data-action="applyCustomScheme">Apply</button>
-                <button class="btn btn-secondary btn-settings-action" id="btnShowSavePreset" data-action="showSavePreset">Save as Preset</button>
-                <button class="btn btn-stop btn-settings-action" data-action="deleteCustomSchemes" id="btnDeleteCustom" style="display: none;">Delete Saved</button>
+                <button class="btn btn-secondary btn-settings-action" data-action="applyCustomScheme" title="Apply current color selections">Apply</button>
+                <button class="btn btn-secondary btn-settings-action" id="btnShowSavePreset" data-action="showSavePreset" title="Save current colors as a reusable preset">Save as Preset</button>
+                <button class="btn btn-stop btn-settings-action" data-action="deleteCustomSchemes" id="btnDeleteCustom" style="display: none;" title="Delete all saved custom color presets">Delete Saved</button>
               </div>
               <div class="save-preset-row" id="savePresetRow" style="display: none;">
                 <input type="text" class="settings-input" id="savePresetName" placeholder="Preset name">
-                <button class="btn btn-secondary btn-settings-action" data-action="confirmSavePreset">Save</button>
-                <button class="btn btn-secondary btn-settings-action" data-action="cancelSavePreset">Cancel</button>
+                <button class="btn btn-secondary btn-settings-action" data-action="confirmSavePreset" title="Save this color preset">Save</button>
+                <button class="btn btn-secondary btn-settings-action" data-action="cancelSavePreset" title="Cancel saving preset">Cancel</button>
               </div>
               <div class="custom-scheme-saved" id="customSchemeSaved"></div>
             </div>
@@ -4476,7 +4476,7 @@
             </div>
             <div class="settings-control">
               <textarea class="settings-textarea" id="settingCustomDirs" rows="3" placeholder="/path/to/plugins&#10;/another/path"></textarea>
-              <button class="btn btn-secondary btn-settings-action" data-action="saveCustomDirs" style="margin-top: 6px;">Save</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="saveCustomDirs" style="margin-top: 6px;" title="Save custom plugin scan directories">Save</button>
               <span class="settings-saved-msg" id="savedMsgCustomDirs"></span>
             </div>
           </div>
@@ -4487,7 +4487,7 @@
             </div>
             <div class="settings-control">
               <textarea class="settings-textarea" id="settingAudioScanDirs" rows="3" placeholder="/path/to/samples&#10;/another/path"></textarea>
-              <button class="btn btn-secondary btn-settings-action" data-action="saveAudioScanDirs" style="margin-top: 6px;">Save</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="saveAudioScanDirs" style="margin-top: 6px;" title="Save custom audio sample scan directories">Save</button>
               <span class="settings-saved-msg" id="savedMsgAudioScanDirs"></span>
             </div>
           </div>
@@ -4498,7 +4498,7 @@
             </div>
             <div class="settings-control">
               <textarea class="settings-textarea" id="settingDawScanDirs" rows="3" placeholder="/path/to/projects&#10;/another/path"></textarea>
-              <button class="btn btn-secondary btn-settings-action" data-action="saveDawScanDirs" style="margin-top: 6px;">Save</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="saveDawScanDirs" style="margin-top: 6px;" title="Save custom DAW project scan directories">Save</button>
               <span class="settings-saved-msg" id="savedMsgDawScanDirs"></span>
             </div>
           </div>
@@ -4509,7 +4509,7 @@
             </div>
             <div class="settings-control">
               <textarea class="settings-textarea" id="settingPresetScanDirs" rows="3" placeholder="/path/to/presets&#10;/another/path"></textarea>
-              <button class="btn btn-secondary btn-settings-action" data-action="savePresetScanDirs" style="margin-top: 6px;">Save</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="savePresetScanDirs" style="margin-top: 6px;" title="Save custom preset scan directories">Save</button>
               <span class="settings-saved-msg" id="savedMsgPresetScanDirs"></span>
             </div>
           </div>
@@ -4519,7 +4519,7 @@
               <span class="settings-desc">Plugin type to show by default after scanning</span>
             </div>
             <div class="settings-control">
-              <select class="settings-select" id="settingDefaultTypeFilter" data-action="settingDefaultTypeFilter">
+              <select class="settings-select" id="settingDefaultTypeFilter" data-action="settingDefaultTypeFilter" title="Default plugin type filter on launch">
                 <option value="all">All Types</option>
                 <option value="VST2">VST2</option>
                 <option value="VST3">VST3</option>
@@ -4533,7 +4533,7 @@
               <span class="settings-desc">Automatically scan for plugins when the app starts</span>
             </div>
             <div class="settings-control">
-              <button class="settings-toggle" id="settingAutoScan" data-action="settingToggleAutoScan">
+              <button class="settings-toggle" id="settingAutoScan" data-action="settingToggleAutoScan" title="Automatically scan on app launch">
                 <span class="settings-toggle-label" id="settingAutoScanLabel">Off</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
@@ -4545,7 +4545,7 @@
               <span class="settings-desc">Automatically check for plugin updates after scanning</span>
             </div>
             <div class="settings-control">
-              <button class="settings-toggle" id="settingAutoUpdate" data-action="settingToggleAutoUpdate">
+              <button class="settings-toggle" id="settingAutoUpdate" data-action="settingToggleAutoUpdate" title="Automatically check KVR for updates after scanning">
                 <span class="settings-toggle-label" id="settingAutoUpdateLabel">Off</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
@@ -4557,7 +4557,7 @@
               <span class="settings-desc">Click a sample row to start playback instead of requiring double-click</span>
             </div>
             <div class="settings-control">
-              <button class="settings-toggle" id="settingSingleClickPlay" data-action="settingToggleSingleClickPlay">
+              <button class="settings-toggle" id="settingSingleClickPlay" data-action="settingToggleSingleClickPlay" title="Play audio samples on single click instead of double-click">
                 <span class="settings-toggle-label" id="settingSingleClickPlayLabel">Off</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
@@ -4569,7 +4569,7 @@
               <span class="settings-desc">Include .als files from Ableton's Backup and Crash directories in DAW scan results</span>
             </div>
             <div class="settings-control">
-              <button class="settings-toggle" id="settingIncludeBackups" data-action="settingToggleIncludeBackups">
+              <button class="settings-toggle" id="settingIncludeBackups" data-action="settingToggleIncludeBackups" title="Include backup files (e.g. .rpp-bak) in scans">
                 <span class="settings-toggle-label" id="settingIncludeBackupsLabel">Off</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
@@ -4659,7 +4659,7 @@
               <span class="settings-desc">Restore default keyboard shortcuts</span>
             </div>
             <div class="settings-control">
-              <button class="btn btn-secondary btn-settings-action" data-action="resetShortcuts">Reset</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="resetShortcuts" title="Reset all keyboard shortcuts to defaults">Reset</button>
             </div>
           </div>
         </div>
@@ -4672,7 +4672,7 @@
               <span class="settings-desc">How plugins are ordered after scanning</span>
             </div>
             <div class="settings-control">
-              <select class="settings-select" id="settingPluginSort" data-action="settingPluginSort">
+              <select class="settings-select" id="settingPluginSort" data-action="settingPluginSort" title="Default sort order for plugins">
                 <option value="name-asc">Name A-Z</option>
                 <option value="name-desc">Name Z-A</option>
                 <option value="type">By Type</option>
@@ -4686,7 +4686,7 @@
               <span class="settings-desc">How audio samples are ordered after scanning</span>
             </div>
             <div class="settings-control">
-              <select class="settings-select" id="settingAudioSort" data-action="settingAudioSort">
+              <select class="settings-select" id="settingAudioSort" data-action="settingAudioSort" title="Default sort order for audio samples">
                 <option value="name">Name</option>
                 <option value="format">Format</option>
                 <option value="size">Size</option>
@@ -4701,7 +4701,7 @@
               <span class="settings-desc">How DAW projects are ordered after scanning</span>
             </div>
             <div class="settings-control">
-              <select class="settings-select" id="settingDawSort" data-action="settingDawSort">
+              <select class="settings-select" id="settingDawSort" data-action="settingDawSort" title="Default sort order for DAW projects">
                 <option value="name">Name</option>
                 <option value="daw">DAW</option>
                 <option value="format">Format</option>
@@ -4721,7 +4721,7 @@
               <span class="settings-desc">Restore the default tab order (drag tabs to rearrange)</span>
             </div>
             <div class="settings-control">
-              <button class="btn btn-secondary btn-settings-action" data-action="settingResetTabOrder">Reset</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="settingResetTabOrder" title="Reset tab order to default">Reset</button>
             </div>
           </div>
           <div class="settings-row">
@@ -4730,7 +4730,7 @@
               <span class="settings-desc">Restore default settings section order (drag headings to rearrange)</span>
             </div>
             <div class="settings-control">
-              <button class="btn btn-secondary btn-settings-action" data-action="settingResetSectionOrder">Reset</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="settingResetSectionOrder" title="Reset settings section order to default">Reset</button>
             </div>
           </div>
           <div class="settings-row">
@@ -4739,7 +4739,7 @@
               <span class="settings-desc">Clear saved table column sizes and restore defaults</span>
             </div>
             <div class="settings-control">
-              <button class="btn btn-secondary btn-settings-action" data-action="settingResetColumns">Reset</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="settingResetColumns" title="Reset all column widths to default">Reset</button>
             </div>
           </div>
           <div class="settings-row">
@@ -4748,7 +4748,7 @@
               <span class="settings-desc">Remove all plugin, audio, and DAW scan history</span>
             </div>
             <div class="settings-control">
-              <button class="btn btn-stop btn-settings-action" data-action="settingClearAllHistory">Clear</button>
+              <button class="btn btn-stop btn-settings-action" data-action="settingClearAllHistory" title="Delete all scan history data">Clear</button>
             </div>
           </div>
           <div class="settings-row">
@@ -4757,7 +4757,7 @@
               <span class="settings-desc">Remove cached version lookups — next check will re-fetch all</span>
             </div>
             <div class="settings-control">
-              <button class="btn btn-stop btn-settings-action" data-action="settingClearKvrCache">Clear</button>
+              <button class="btn btn-stop btn-settings-action" data-action="settingClearKvrCache" title="Clear cached KVR plugin version data">Clear</button>
             </div>
           </div>
           <div class="settings-row">
@@ -4766,7 +4766,7 @@
               <span class="settings-desc">Open the preferences TOML file in your default editor</span>
             </div>
             <div class="settings-control" style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-              <button class="btn btn-secondary btn-settings-action" data-action="openPrefsFile" style="flex-shrink: 0;">Open</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="openPrefsFile" style="flex-shrink: 0;" title="Open preferences file in external editor">Open</button>
               <code class="root-path" id="prefsFilePath" style="font-size: 11px; word-break: break-all; overflow-wrap: anywhere; min-width: 0;"></code>
             </div>
           </div>

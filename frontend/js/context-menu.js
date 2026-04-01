@@ -384,6 +384,67 @@ document.addEventListener('contextmenu', (e) => {
     return;
   }
 
+  // ── Favorite items ──
+  const favItem = e.target.closest('.fav-item');
+  if (favItem) {
+    const path = favItem.dataset.path || '';
+    const name = favItem.querySelector('.fav-name')?.textContent?.trim() || '';
+    const type = favItem.dataset.type || '';
+    const items = [
+      { icon: '&#128193;', label: 'Reveal in Finder', action: () => openFolder(path) },
+      { icon: '&#128194;', label: 'Show in File Browser', action: () => { switchTab('files'); loadDirectory(path.replace(/\/[^/]+$/, '')); } },
+      '---',
+      { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
+      { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+      '---',
+      { icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) },
+      { icon: '&#9734;', label: 'Remove from Favorites', action: () => { removeFavorite(path); if (typeof renderFavorites === 'function') renderFavorites(); } },
+    ];
+    if (type === 'sample') {
+      items.unshift(
+        { icon: '&#9654;', label: 'Play', action: () => previewAudio(path) },
+        '---'
+      );
+    }
+    showContextMenu(e, items);
+    return;
+  }
+
+  // ── Note items ──
+  const noteItem = e.target.closest('.note-item');
+  if (noteItem) {
+    const path = noteItem.dataset.path || '';
+    const name = noteItem.querySelector('.note-item-name')?.textContent?.trim() || '';
+    const items = [
+      { icon: '&#128221;', label: 'Edit Note', action: () => showNoteEditor(path, name) },
+      { icon: '&#128193;', label: 'Reveal in Finder', action: () => openFolder(path) },
+      { icon: '&#128194;', label: 'Show in File Browser', action: () => { switchTab('files'); loadDirectory(path.replace(/\/[^/]+$/, '')); } },
+      '---',
+      { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
+      { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+      '---',
+      { icon: '&#9733;', label: isFavorite(path) ? 'Remove from Favorites' : 'Add to Favorites',
+        action: () => isFavorite(path) ? removeFavorite(path) : addFavorite('item', path, name) },
+      { icon: '&#128465;', label: 'Delete Note', action: () => { if (typeof deleteNote === 'function') { deleteNote(path); if (typeof renderNotesTab === 'function') renderNotesTab(); } } },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
+  // ── Tag items ──
+  const tagItem = e.target.closest('.tag-badge[data-tag]');
+  if (tagItem) {
+    const tag = tagItem.dataset.tag || '';
+    const items = [
+      { icon: '&#128269;', label: 'Filter by This Tag', action: () => { if (typeof setGlobalTag === 'function') setGlobalTag(tag); } },
+      { icon: '&#128203;', label: 'Copy Tag Name', action: () => copyToClipboard(tag) },
+      '---',
+      { icon: '&#128465;', label: 'Delete Tag from All Items', action: () => { if (typeof deleteTagGlobally === 'function' && confirm(`Delete tag "${tag}" from all items?`)) { deleteTagGlobally(tag); } } },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
   // ── Tab buttons ──
   const tabBtn = e.target.closest('.tab-btn');
   if (tabBtn) {

@@ -14,6 +14,20 @@ const DEFAULT_SHORTCUTS = {
   'playPause': { key: ' ', mod: false, label: 'Play / Pause' },
   'nextTrack': { key: 'ArrowRight', mod: true, label: 'Next track' },
   'prevTrack': { key: 'ArrowLeft', mod: true, label: 'Previous track' },
+  'scanAll': { key: 's', mod: true, label: 'Scan all' },
+  'stopAll': { key: '.', mod: true, label: 'Stop all scans' },
+  'commandPalette': { key: 'k', mod: true, label: 'Command palette' },
+  'toggleLoop': { key: 'l', mod: false, label: 'Toggle loop' },
+  'toggleMute': { key: 'm', mod: false, label: 'Mute / Unmute' },
+  'volumeUp': { key: 'ArrowUp', mod: true, label: 'Volume up' },
+  'volumeDown': { key: 'ArrowDown', mod: true, label: 'Volume down' },
+  'revealFile': { key: 'r', mod: false, label: 'Reveal selected in Finder' },
+  'copyPath': { key: 'c', mod: false, label: 'Copy selected path' },
+  'toggleFavorite': { key: 'f', mod: false, label: 'Toggle favorite' },
+  'addNote': { key: 'n', mod: false, label: 'Add note to selected' },
+  'deleteItem': { key: 'Backspace', mod: false, label: 'Delete selected' },
+  'selectAll': { key: 'a', mod: true, label: 'Select all visible' },
+  'escape': { key: 'Escape', mod: false, label: 'Close / clear / stop' },
 };
 
 const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'history', 'settings'];
@@ -149,5 +163,85 @@ function executeShortcut(id) {
     nextTrack();
   } else if (id === 'prevTrack') {
     prevTrack();
+  } else if (id === 'scanAll') {
+    if (typeof scanAll === 'function') scanAll();
+  } else if (id === 'stopAll') {
+    if (typeof stopAll === 'function') stopAll();
+  } else if (id === 'commandPalette') {
+    if (typeof toggleCommandPalette === 'function') toggleCommandPalette();
+  } else if (id === 'toggleLoop') {
+    if (typeof toggleAudioLoop === 'function') toggleAudioLoop();
+  } else if (id === 'toggleMute') {
+    if (typeof toggleMute === 'function') toggleMute();
+  } else if (id === 'volumeUp') {
+    _adjustVolume(5);
+  } else if (id === 'volumeDown') {
+    _adjustVolume(-5);
+  } else if (id === 'revealFile') {
+    _actionOnSelected('reveal');
+  } else if (id === 'copyPath') {
+    _actionOnSelected('copy');
+  } else if (id === 'toggleFavorite') {
+    _actionOnSelected('favorite');
+  } else if (id === 'addNote') {
+    _actionOnSelected('note');
+  } else if (id === 'deleteItem') {
+    _actionOnSelected('delete');
+  } else if (id === 'selectAll') {
+    if (typeof batchSelectAll === 'function') batchSelectAll();
+  } else if (id === 'escape') {
+    _handleEscape();
   }
+}
+
+function _adjustVolume(delta) {
+  const slider = document.getElementById('npVolume');
+  if (!slider) return;
+  const val = Math.max(0, Math.min(100, parseInt(slider.value) + delta));
+  slider.value = val;
+  slider.dispatchEvent(new Event('input'));
+}
+
+function _actionOnSelected(action) {
+  const items = getNavigableItems();
+  if (_navIndex < 0 || _navIndex >= items.length) return;
+  const item = items[_navIndex];
+  const path = item.getAttribute('data-audio-path') || item.dataset.dawPath || item.dataset.presetPath || item.dataset.path || '';
+  const name = item.querySelector('.col-name,.plugin-name')?.textContent?.trim() || '';
+  if (!path) return;
+
+  if (action === 'reveal') {
+    if (typeof openFolder === 'function') openFolder(path);
+    else if (typeof openAudioFolder === 'function') openAudioFolder(path);
+  } else if (action === 'copy') {
+    if (typeof copyToClipboard === 'function') copyToClipboard(path);
+  } else if (action === 'favorite') {
+    if (typeof isFavorite === 'function' && typeof addFavorite === 'function' && typeof removeFavorite === 'function') {
+      isFavorite(path) ? removeFavorite(path) : addFavorite('item', path, name);
+    }
+  } else if (action === 'note') {
+    if (typeof showNoteEditor === 'function') showNoteEditor(path, name);
+  } else if (action === 'delete') {
+    if (typeof deleteFile === 'function') {
+      if (confirm(`Delete "${name || path}"?`)) deleteFile(path);
+    }
+  }
+}
+
+function _handleEscape() {
+  // Close modals first
+  const modal = document.querySelector('.modal-overlay');
+  if (modal) { modal.remove(); return; }
+  // Close context menu
+  const ctx = document.querySelector('.ctx-menu.visible');
+  if (ctx) { ctx.classList.remove('visible'); return; }
+  // Close command palette
+  const palette = document.getElementById('commandPalette');
+  if (palette) { palette.remove(); return; }
+  // Clear search in active tab
+  const activeTab = document.querySelector('.tab-content.active');
+  const input = activeTab?.querySelector('input[type="text"]');
+  if (input && input.value) { input.value = ''; input.dispatchEvent(new Event('input')); return; }
+  // Stop current operation
+  if (typeof stopAll === 'function') stopAll();
 }
