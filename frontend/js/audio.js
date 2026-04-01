@@ -1644,6 +1644,15 @@ function updateMetaLine() {
   }
 
   function draw() {
+    // Check if container width changed (player resized)
+    const wrap = canvas.parentElement;
+    if (wrap) {
+      const cw = wrap.offsetWidth;
+      if (cw > 0 && Math.abs(cw - canvas.width) > 2) {
+        canvas.width = cw;
+        canvas.height = 120;
+      }
+    }
     const w = canvas.width || 800;
     const h = canvas.height || 120;
     ctx.clearRect(0, 0, w, h);
