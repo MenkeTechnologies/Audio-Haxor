@@ -120,20 +120,83 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 
 ```bash
 # Clone the repo
-git clone https://github.com/MenkeTechnologies/universal-plugin-update-manager.git
-cd universal-plugin-update-manager
+git clone https://github.com/MenkeTechnologies/Audio-Haxor.git
+cd Audio-Haxor
 
 # Install dependencies
 pnpm install
 
 # Run in development mode
-pnpm tauri:dev
+pnpm tauri dev
 
 # Build for distribution
-pnpm tauri:build
+pnpm tauri build
 ```
 
 Requires [Node.js](https://nodejs.org/), [pnpm](https://pnpm.io/), and [Rust](https://rustup.rs/). The Tauri CLI is pulled in as a dev dependency.
+
+---
+
+## // DEV vs BUILD — IMPORTANT //
+
+**Dev (`pnpm tauri dev`) and Build (`pnpm tauri build`) behave differently.** Always verify in the build before shipping.
+
+### Differences
+
+| | Dev | Build |
+|---|---|---|
+| URL scheme | `http://localhost` | `tauri://localhost` |
+| CSP | Relaxed | Strict (no inline JS) |
+| Frontend | Served from disk (live) | Embedded in binary |
+| WebView cache | None (dev server) | Aggressive (survives app restart) |
+| CSS layout | Standard web | Slightly different height inheritance |
+| Canvas | `clientWidth` stable | `clientWidth` can fluctuate |
+
+### Rules
+
+1. **Never use inline `onclick`/`onchange`** — blocked by CSP in build. Always use `addEventListener` in JS files.
+2. **Never set `canvas.width`/`canvas.height` in a render loop** — causes infinite resize loops in build. Set once, or use fixed HTML attributes with CSS `width:100%;height:100%`.
+3. **Never rely on `height: 100%` cascading** — use explicit pixel values.
+4. **Guard cross-file function calls** with `typeof fn === 'function'` — script load order differs.
+5. **Don't use CSS classes on dynamically created elements** if the class has layout-affecting styles — use inline styles or dedicated CSS classes that only set visual properties.
+
+### Cache Busting
+
+Build looks different from dev? Clear **all 4** WebView cache directories:
+
+```bash
+find ~/Library/WebKit/audio-haxor \
+     ~/Library/WebKit/com.menketechnologies.audio-haxor \
+     ~/Library/Caches/audio-haxor \
+     ~/Library/Caches/com.menketechnologies.audio-haxor \
+     -delete 2>/dev/null
+```
+
+Also bump the `?v=XXX` query strings on all `<script>` tags in `index.html` to bust compiled JS bytecode cache.
+
+### Build Commands
+
+```bash
+# Normal build (~14s)
+pnpm tauri build
+
+# Clean build (when frontend changes aren't picked up, ~40s)
+cargo clean --manifest-path src-tauri/Cargo.toml --release && pnpm tauri build
+
+# Nuclear option: clear caches + clean build
+find ~/Library/WebKit/audio-haxor ~/Library/WebKit/com.menketechnologies.audio-haxor \
+     ~/Library/Caches/audio-haxor ~/Library/Caches/com.menketechnologies.audio-haxor \
+     -delete 2>/dev/null
+cargo clean --manifest-path src-tauri/Cargo.toml --release && pnpm tauri build
+```
+
+### Data Location
+
+All preferences, scan history, and KVR cache persist at:
+```
+~/Library/Application Support/com.menketechnologies.audio-haxor/
+```
+This directory survives app reinstalls. Never deleted by builds.
 
 ---
 
