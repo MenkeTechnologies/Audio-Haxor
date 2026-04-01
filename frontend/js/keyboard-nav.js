@@ -177,9 +177,11 @@ document.addEventListener('keydown', (e) => {
     }
 
   } else if (e.key === 'V') {
-    // V = select all visible (visual line mode)
+    // V = select all visible (visual line mode) — toggle header checkbox
     e.preventDefault();
-    if (typeof batchSelectAll === 'function') batchSelectAll();
+    const activeContent = document.querySelector('.tab-content.active');
+    const headerCb = activeContent?.querySelector('.batch-cb-all');
+    if (headerCb) { headerCb.checked = !headerCb.checked; headerCb.dispatchEvent(new Event('change', { bubbles: true })); }
 
   } else if (e.key === 'd' && !e.ctrlKey) {
     // dd would be handled by g-prefix pattern, single d = delete

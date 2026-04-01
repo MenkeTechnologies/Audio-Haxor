@@ -25,6 +25,7 @@ let _eqMid = null;
 let _eqHigh = null;
 let _gainNode = null;
 let _panNode = null;
+let _analyser = null;
 let _monoMode = false;
 let _abLoop = null; // { start, end } in seconds, or null
 
@@ -58,12 +59,18 @@ function ensureAudioGraph() {
   _panNode = _playbackCtx.createStereoPanner();
   _panNode.pan.value = 0;
 
-  // Chain: source → eqLow → eqMid → eqHigh → gain → pan → destination
+  // FFT analyser for parametric EQ visualization
+  _analyser = _playbackCtx.createAnalyser();
+  _analyser.fftSize = 4096;
+  _analyser.smoothingTimeConstant = 0.8;
+
+  // Chain: source → eqLow → eqMid → eqHigh → gain → analyser → pan → destination
   _sourceNode.connect(_eqLow);
   _eqLow.connect(_eqMid);
   _eqMid.connect(_eqHigh);
   _eqHigh.connect(_gainNode);
-  _gainNode.connect(_panNode);
+  _gainNode.connect(_analyser);
+  _analyser.connect(_panNode);
   _panNode.connect(_playbackCtx.destination);
 }
 
@@ -1661,6 +1668,33 @@ function updateMetaLine() {
     const zeroY = gainToY(0, h);
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.beginPath(); ctx.moveTo(0, zeroY); ctx.lineTo(w, zeroY); ctx.stroke();
+
+    // Draw FFT spectrum (behind EQ curve)
+    if (_analyser && typeof audioPlayer !== 'undefined' && !audioPlayer.paused) {
+      const bufLen = _analyser.frequencyBinCount;
+      const dataArr = new Uint8Array(bufLen);
+      _analyser.getByteFrequencyData(dataArr);
+      const sampleRate = _playbackCtx.sampleRate;
+
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      for (let i = 1; i < bufLen; i++) {
+        const freq = (i * sampleRate) / (_analyser.fftSize);
+        if (freq < FREQ_MIN || freq > FREQ_MAX) continue;
+        const x = freqToX(freq, w);
+        const magnitude = dataArr[i] / 255;
+        const y = h - magnitude * (h - 20);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, 'rgba(211,0,197,0.25)');
+      grad.addColorStop(0.5, 'rgba(5,217,232,0.12)');
+      grad.addColorStop(1, 'rgba(5,217,232,0.02)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
 
     // Draw frequency response curve
     if (_eqLow && _eqMid && _eqHigh) {
