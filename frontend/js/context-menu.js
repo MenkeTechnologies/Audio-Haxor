@@ -89,6 +89,21 @@ document.addEventListener('contextmenu', (e) => {
       '---',
       { icon: '&#128193;', label: 'Reveal in Finder', action: () => typeof openAudioFolder === 'function' && openAudioFolder(path) },
       { icon: '&#128194;', label: 'Show in File Browser', action: () => { switchTab('files'); typeof loadDirectory === 'function' && loadDirectory(path.replace(/\/[^/]+$/, '')); } },
+      { icon: '&#127925;', label: 'Show in Samples Tab', action: () => {
+        switchTab('samples');
+        setTimeout(() => {
+          const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(path)}"]`);
+          if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.classList.add('row-playing');
+            setTimeout(() => row.classList.remove('row-playing'), 2000);
+          } else {
+            // Try searching for it
+            const input = document.getElementById('audioSearchInput');
+            if (input) { input.value = name; input.dispatchEvent(new Event('input')); }
+          }
+        }, 200);
+      }},
       '---',
       { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
       { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
