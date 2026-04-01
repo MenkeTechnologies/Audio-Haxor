@@ -154,6 +154,7 @@ document.addEventListener('click', (e) => {
     case 'settingToggleAutoUpdate': settingToggleAutoUpdate(); break;
     case 'settingToggleSingleClickPlay': settingToggleSingleClickPlay(); break;
     case 'settingToggleExpandOnClick': settingToggleExpandOnClick(); break;
+    case 'settingToggleShowPlayerOnStartup': settingToggleShowPlayerOnStartup(); break;
     case 'resetFzfParams': resetFzfParams(); break;
     case 'settingToggleIncludeBackups': settingToggleIncludeBackups(); break;
     case 'applyCustomScheme': applyCustomScheme(); break;

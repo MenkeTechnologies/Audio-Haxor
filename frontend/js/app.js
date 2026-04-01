@@ -44,6 +44,18 @@
   if (typeof loadXrefCache === 'function') loadXrefCache();
   if (typeof restoreFilterStates === 'function') restoreFilterStates();
   if (typeof loadFzfParams === 'function') loadFzfParams();
+
+  // Show player on startup if enabled and there's play history
+  if (prefs.getItem('showPlayerOnStartup') === 'on' && typeof recentlyPlayed !== 'undefined' && recentlyPlayed.length > 0) {
+    const np = document.getElementById('audioNowPlaying');
+    if (np) {
+      np.classList.add('active');
+      if (prefs.getItem('playerExpanded') === 'on') {
+        np.classList.add('expanded');
+        if (typeof renderRecentlyPlayed === 'function') renderRecentlyPlayed();
+      }
+    }
+  }
   if (typeof renderFzfSettings === 'function') renderFzfSettings();
 
   try {

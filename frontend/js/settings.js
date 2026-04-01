@@ -529,6 +529,12 @@ function settingToggleSingleClickPlay() {
   refreshSettingsUI();
 }
 
+function settingToggleShowPlayerOnStartup() {
+  const current = prefs.getItem('showPlayerOnStartup') === 'on';
+  prefs.setItem('showPlayerOnStartup', current ? 'off' : 'on');
+  refreshSettingsUI();
+}
+
 function settingToggleExpandOnClick() {
   const current = prefs.getItem('expandOnClick');
   prefs.setItem('expandOnClick', current === 'off' ? 'on' : 'off');
@@ -690,6 +696,15 @@ function refreshSettingsUI() {
   if (expandBtn) {
     expandBtn.classList.toggle('active', expandOnClick);
     expandLabel.textContent = expandOnClick ? 'On' : 'Off';
+  }
+
+  // Show player on startup
+  const showPlayer = prefs.getItem('showPlayerOnStartup') === 'on';
+  const showPlayerBtn = document.getElementById('settingShowPlayerOnStartup');
+  const showPlayerLabel = document.getElementById('settingShowPlayerOnStartupLabel');
+  if (showPlayerBtn) {
+    showPlayerBtn.classList.toggle('active', showPlayer);
+    showPlayerLabel.textContent = showPlayer ? 'On' : 'Off';
   }
 
   // Include Ableton backups
