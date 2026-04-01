@@ -177,11 +177,10 @@ document.addEventListener('keydown', (e) => {
     }
 
   } else if (e.key === 'V') {
-    // V = select all visible (visual line mode) — toggle header checkbox
+    // V = select all visible (visual line mode)
     e.preventDefault();
-    const activeContent = document.querySelector('.tab-content.active');
-    const headerCb = activeContent?.querySelector('.batch-cb-all');
-    if (headerCb) { headerCb.checked = !headerCb.checked; headerCb.dispatchEvent(new Event('change', { bubbles: true })); }
+    if (batchSelected.size > 0) deselectAll();
+    else selectAllVisible();
 
   } else if (e.key === 'd' && !e.ctrlKey) {
     // dd would be handled by g-prefix pattern, single d = delete

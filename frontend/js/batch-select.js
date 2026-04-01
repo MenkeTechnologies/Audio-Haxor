@@ -120,6 +120,14 @@ document.addEventListener('change', (e) => {
 });
 
 document.addEventListener('click', (e) => {
+  // Header "select all" checkbox — must check before batch-cb
+  if (e.target.classList.contains('batch-cb-all')) {
+    e.stopPropagation();
+    if (e.target.checked) selectAllVisible();
+    else deselectAll();
+    return;
+  }
+
   // Prevent row click-through on checkbox cell
   if (e.target.classList.contains('batch-cb')) {
     e.stopPropagation();
@@ -135,9 +143,5 @@ document.addEventListener('click', (e) => {
     else if (act === 'copyPaths') batchCopyPaths();
     else if (act === 'exportJson') batchExportSelected();
     else if (act === 'reveal') batchRevealAll();
-    else if (act === 'toggleAll') {
-      if (action.checked) selectAllVisible();
-      else deselectAll();
-    }
   }
 });
