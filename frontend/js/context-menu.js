@@ -73,6 +73,40 @@ document.addEventListener('contextmenu', (e) => {
 
   try {
 
+  // ── Audio player song rows (recently played / search results) ──
+  const npItem = e.target.closest('.np-history-item');
+  if (npItem) {
+    const path = npItem.dataset.path || '';
+    const name = npItem.querySelector('.np-h-name')?.textContent?.trim() || '';
+    const isPlaying = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === path && typeof audioPlayer !== 'undefined' && !audioPlayer.paused;
+    const items = [
+      { icon: isPlaying ? '&#9646;&#9646;' : '&#9654;', label: isPlaying ? 'Pause' : 'Play', action: () => typeof previewAudio === 'function' && previewAudio(path) },
+      { icon: '&#8634;', label: 'Loop', action: () => typeof toggleRowLoop === 'function' && toggleRowLoop(path, new MouseEvent('click')) },
+      '---',
+      { icon: '&#127926;', label: 'Open in Music', action: () => typeof openWithApp === 'function' && openWithApp(path, 'Music') },
+      { icon: '&#127911;', label: 'Open in QuickTime', action: () => typeof openWithApp === 'function' && openWithApp(path, 'QuickTime Player') },
+      { icon: '&#127908;', label: 'Open in Audacity', action: () => typeof openWithApp === 'function' && openWithApp(path, 'Audacity') },
+      '---',
+      { icon: '&#128193;', label: 'Reveal in Finder', action: () => typeof openAudioFolder === 'function' && openAudioFolder(path) },
+      { icon: '&#128194;', label: 'Show in File Browser', action: () => { switchTab('files'); typeof loadDirectory === 'function' && loadDirectory(path.replace(/\/[^/]+$/, '')); } },
+      '---',
+      { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
+      { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+      '---',
+    ];
+    if (typeof isFavorite === 'function') {
+      const fav = isFavorite(path);
+      items.push({ icon: fav ? '&#9734;' : '&#9733;', label: fav ? 'Remove from Favorites' : 'Add to Favorites',
+        action: () => fav ? removeFavorite(path) : addFavorite('sample', path, name) });
+    }
+    if (typeof showNoteEditor === 'function') {
+      items.push({ icon: '&#128221;', label: 'Add Note / Tags', action: () => showNoteEditor(path, name) });
+    }
+    items.push(...quickTagItems(path, name));
+    showContextMenu(e, items);
+    return;
+  }
+
   // ── Plugin cards ──
   const pluginCard = e.target.closest('#pluginList .plugin-card');
   // Helper: build quick-tag menu items for a path
@@ -390,40 +424,6 @@ document.addEventListener('contextmenu', (e) => {
     items.push({ icon: isExpanded ? '&#9660;' : '&#9650;', label: isExpanded ? 'Collapse Player' : 'Expand Player', action: () => togglePlayerExpanded() });
     items.push({ icon: '&#9868;', label: 'Hide Player', action: () => hidePlayer() });
     items.push({ icon: '&#10005;', label: 'Stop &amp; Close', action: () => stopAudioPlayback() });
-    showContextMenu(e, items);
-    return;
-  }
-
-  // ── Audio player song rows (recently played / search results) ──
-  const npItem = e.target.closest('.np-history-item');
-  if (npItem) {
-    const path = npItem.dataset.path || '';
-    const name = npItem.querySelector('.np-h-name')?.textContent?.trim() || '';
-    const isPlaying = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === path && !audioPlayer.paused;
-    const items = [
-      { icon: isPlaying ? '&#9646;&#9646;' : '&#9654;', label: isPlaying ? 'Pause' : 'Play', action: () => typeof previewAudio === 'function' && previewAudio(path) },
-      { icon: '&#8634;', label: 'Loop', action: () => typeof toggleRowLoop === 'function' && toggleRowLoop(path, new MouseEvent('click')) },
-      '---',
-      { icon: '&#127926;', label: 'Open in Music', action: () => typeof openWithApp === 'function' && openWithApp(path, 'Music') },
-      { icon: '&#127911;', label: 'Open in QuickTime', action: () => typeof openWithApp === 'function' && openWithApp(path, 'QuickTime Player') },
-      { icon: '&#127908;', label: 'Open in Audacity', action: () => typeof openWithApp === 'function' && openWithApp(path, 'Audacity') },
-      '---',
-      { icon: '&#128193;', label: 'Reveal in Finder', action: () => typeof openAudioFolder === 'function' && openAudioFolder(path) },
-      { icon: '&#128194;', label: 'Show in File Browser', action: () => { switchTab('files'); typeof loadDirectory === 'function' && loadDirectory(path.replace(/\/[^/]+$/, '')); } },
-      '---',
-      { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
-      { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
-      '---',
-    ];
-    if (typeof isFavorite === 'function') {
-      const fav = isFavorite(path);
-      items.push({ icon: fav ? '&#9734;' : '&#9733;', label: fav ? 'Remove from Favorites' : 'Add to Favorites',
-        action: () => fav ? removeFavorite(path) : addFavorite('sample', path, name) });
-    }
-    if (typeof showNoteEditor === 'function') {
-      items.push({ icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) });
-    }
-    items.push(...quickTagItems(path, name));
     showContextMenu(e, items);
     return;
   }
