@@ -264,7 +264,7 @@ function _adjustVolume(delta) {
   if (!slider) return;
   const val = Math.max(0, Math.min(100, parseInt(slider.value) + delta));
   slider.value = val;
-  slider.dispatchEvent(new Event('input'));
+  if (typeof setAudioVolume === 'function') setAudioVolume(val);
 }
 
 function _actionOnSelected(action) {
