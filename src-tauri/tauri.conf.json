@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost; media-src 'self' asset: https://asset.localhost",
+      "csp": "default-src 'self' asset: https://asset.localhost tauri:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-eval'; connect-src 'self' ipc: http://ipc.localhost asset: https://asset.localhost tauri:; media-src 'self' asset: https://asset.localhost tauri: blob:; img-src 'self' asset: https://asset.localhost tauri: data: blob:",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]
