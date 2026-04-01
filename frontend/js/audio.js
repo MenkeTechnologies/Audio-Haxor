@@ -815,9 +815,10 @@ async function toggleMetadata(filePath, event) {
     // BPM placeholder — filled async
     items += `<div class="meta-item" id="metaBpmItem"><span class="meta-label">BPM</span><span class="meta-value" id="metaBpmValue" style="display:flex;align-items:center;gap:6px;"><span class="spinner" style="width:10px;height:10px;"></span></span></div>`;
 
-    items += metaItem('Created', new Date(meta.created).toLocaleString());
-    items += metaItem('Modified', new Date(meta.modified).toLocaleString());
-    items += metaItem('Accessed', new Date(meta.accessed).toLocaleString());
+    const fmtDate = (v) => { if (!v) return '—'; const d = new Date(v); return isNaN(d) ? '—' : d.toLocaleString(); };
+    items += metaItem('Created', fmtDate(meta.created));
+    items += metaItem('Modified', fmtDate(meta.modified));
+    items += metaItem('Accessed', fmtDate(meta.accessed));
     items += metaItem('Permissions', meta.permissions);
 
     // Waveform preview with seek support
