@@ -131,8 +131,8 @@ function renderFavorites() {
   if (empty) empty.style.display = 'none';
 
   list.innerHTML = filtered.map(f => {
-    const typeLabel = { plugin: 'Plugin', sample: 'Sample', daw: 'DAW Project', preset: 'Preset' }[f.type] || f.type;
-    const typeClass = { plugin: 'type-vst3', sample: 'format-wav', daw: 'daw-ableton-live', preset: 'format-default' }[f.type] || 'format-default';
+    const typeLabel = { plugin: 'Plugin', sample: 'Sample', daw: 'DAW Project', preset: 'Preset', folder: 'Folder', file: 'File' }[f.type] || f.type;
+    const typeClass = { plugin: 'type-vst3', sample: 'format-wav', daw: 'daw-ableton-live', preset: 'format-default', folder: 'format-default', file: 'format-default' }[f.type] || 'format-default';
     const extra = f.format ? `<span class="format-badge format-default">${escapeHtml(f.format)}</span>` : '';
     const daw = f.daw ? `<span class="format-badge ${getDawBadgeClass ? getDawBadgeClass(f.daw) : 'format-default'}">${escapeHtml(f.daw)}</span>` : '';
     const hp = escapeHtml(f.path);

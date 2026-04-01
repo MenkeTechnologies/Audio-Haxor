@@ -279,7 +279,7 @@ document.addEventListener('contextmenu', (e) => {
   items.push('---');
   const fav = isFavorite(path);
   items.push({ icon: fav ? '&#9734;' : '&#9733;', label: fav ? 'Remove from Favorites' : 'Add to Favorites',
-    action: () => fav ? removeFavorite(path) : addFavorite(isDir ? 'daw' : 'sample', path, name, { format: ext.toUpperCase() })
+    action: () => fav ? removeFavorite(path) : addFavorite(isDir ? 'folder' : (AUDIO_EXTS.includes(ext) ? 'sample' : 'file'), path, name, { format: ext.toUpperCase() })
   });
 
   items.push('---');
