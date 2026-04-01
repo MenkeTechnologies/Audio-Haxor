@@ -297,7 +297,22 @@ audioPlayer.addEventListener('ended', () => {
     }
   }
 });
-audioPlayer.addEventListener('timeupdate', updatePlaybackTime);
+// Use rAF loop instead of timeupdate for smooth 60fps playhead
+let _playbackRafId = null;
+function _playbackRafLoop() {
+  updatePlaybackTime();
+  if (!audioPlayer.paused) {
+    _playbackRafId = requestAnimationFrame(_playbackRafLoop);
+  }
+}
+audioPlayer.addEventListener('play', () => {
+  if (!_playbackRafId) _playbackRafId = requestAnimationFrame(_playbackRafLoop);
+});
+audioPlayer.addEventListener('pause', () => {
+  if (_playbackRafId) { cancelAnimationFrame(_playbackRafId); _playbackRafId = null; }
+  updatePlaybackTime(); // final position
+});
+audioPlayer.addEventListener('seeked', updatePlaybackTime);
 
 // formatAudioSize and formatTime moved to utils.js
 
