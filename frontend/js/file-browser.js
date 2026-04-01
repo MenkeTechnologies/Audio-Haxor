@@ -195,6 +195,13 @@ document.addEventListener('click', (e) => {
     }
   } else if (action.dataset.action === 'fileHome') {
     window.vstUpdater.getHomeDir().then(h => loadDirectory(h)).catch(() => {});
+  } else if (action.dataset.action === 'fileQuickNav') {
+    const dir = action.dataset.dir;
+    if (dir === '/') {
+      loadDirectory('/');
+    } else {
+      window.vstUpdater.getHomeDir().then(h => loadDirectory(h + '/' + dir)).catch(() => {});
+    }
   } else if (action.dataset.action === 'fileFav') {
     if (_fileBrowserPath) {
       if (isFavDir(_fileBrowserPath)) removeFavDir(_fileBrowserPath);
