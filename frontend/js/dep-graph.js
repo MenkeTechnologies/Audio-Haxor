@@ -168,11 +168,11 @@ function showDepGraph() {
       tmp.innerHTML = panel._fullHtml;
       const rows = tmp.querySelectorAll('.dep-plugin-row, .dep-project-row, .dep-orphan');
       rows.forEach(row => {
-        const text = row.textContent.toLowerCase();
-        if (!text.includes(ql)) {
+        const fields = [...row.querySelectorAll('.dep-plugin-name, .dep-plugin-mfg, .dep-project-name')].map(s => s.textContent);
+        const score = typeof searchScore === 'function' ? searchScore(q, fields, 'fuzzy') : (row.textContent.toLowerCase().includes(ql) ? 1 : 0);
+        if (score <= 0) {
           row.style.display = 'none';
         } else {
-          // Highlight matches in name/mfg spans
           row.querySelectorAll('.dep-plugin-name, .dep-plugin-mfg, .dep-project-name').forEach(span => {
             if (typeof highlightMatch === 'function') {
               span.innerHTML = highlightMatch(span.textContent, q, 'fuzzy');
