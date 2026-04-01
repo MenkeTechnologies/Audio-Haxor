@@ -154,13 +154,13 @@ function closeDepGraph() {
 
 // Event delegation
 document.addEventListener('click', (e) => {
-  // Close
+  // Close — only if clicking the overlay background or the X button
   const closeAction = e.target.closest('[data-action-modal="closeDepGraph"]');
   if (closeAction) {
     if (e.target === closeAction || closeAction.classList.contains('modal-close')) {
       closeDepGraph();
+      return;
     }
-    return;
   }
 
   // Tab switching
