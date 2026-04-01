@@ -1501,6 +1501,18 @@ function updateMetaLine() {
       const newH = Math.max(minH, startH - dy);
       np.style.height = newH + 'px';
       np.style.top = (startTop + startH - newH) + 'px';
+    } else if (corner === 'r') {
+      np.style.width = Math.max(minW, startW + dx) + 'px';
+    } else if (corner === 'l') {
+      const newW = Math.max(minW, startW - dx);
+      np.style.width = newW + 'px';
+      np.style.left = (startLeft + startW - newW) + 'px';
+    } else if (corner === 'b') {
+      np.style.height = Math.max(minH, startH + dy) + 'px';
+    } else if (corner === 't') {
+      const newH = Math.max(minH, startH - dy);
+      np.style.height = newH + 'px';
+      np.style.top = (startTop + startH - newH) + 'px';
     }
   });
 

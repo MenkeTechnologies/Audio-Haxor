@@ -3104,32 +3104,34 @@
     }
     .audio-now-playing.active { display: flex; }
 
-    /* Resize handles on all 4 corners */
+    /* Resize handles: 4 corners + 4 edges */
     .np-resize {
       position: absolute;
-      width: 18px;
-      height: 18px;
       z-index: 100;
     }
     .np-resize::after {
       content: '';
       position: absolute;
-      width: 8px;
-      height: 8px;
       border-color: var(--cyan);
       border-style: solid;
       opacity: 0.3;
       transition: opacity 0.15s;
     }
     .np-resize:hover::after { opacity: 1; }
-    .np-resize-tl { top: -2px; left: -2px; cursor: nwse-resize; }
-    .np-resize-tl::after { top: 2px; left: 2px; border-width: 2px 0 0 2px; }
-    .np-resize-tr { top: -2px; right: -2px; cursor: nesw-resize; }
-    .np-resize-tr::after { top: 2px; right: 2px; border-width: 2px 2px 0 0; }
-    .np-resize-bl { bottom: -2px; left: -2px; cursor: nesw-resize; }
-    .np-resize-bl::after { bottom: 2px; left: 2px; border-width: 0 0 2px 2px; }
-    .np-resize-br { bottom: -2px; right: -2px; cursor: nwse-resize; }
-    .np-resize-br::after { bottom: 2px; right: 2px; border-width: 0 2px 2px 0; }
+    /* Corners */
+    .np-resize-tl { top: -2px; left: -2px; width: 18px; height: 18px; cursor: nwse-resize; }
+    .np-resize-tl::after { top: 2px; left: 2px; width: 8px; height: 8px; border-width: 2px 0 0 2px; }
+    .np-resize-tr { top: -2px; right: -2px; width: 18px; height: 18px; cursor: nesw-resize; }
+    .np-resize-tr::after { top: 2px; right: 2px; width: 8px; height: 8px; border-width: 2px 2px 0 0; }
+    .np-resize-bl { bottom: -2px; left: -2px; width: 18px; height: 18px; cursor: nesw-resize; }
+    .np-resize-bl::after { bottom: 2px; left: 2px; width: 8px; height: 8px; border-width: 0 0 2px 2px; }
+    .np-resize-br { bottom: -2px; right: -2px; width: 18px; height: 18px; cursor: nwse-resize; }
+    .np-resize-br::after { bottom: 2px; right: 2px; width: 8px; height: 8px; border-width: 0 2px 2px 0; }
+    /* Edges */
+    .np-resize-t { top: -3px; left: 18px; right: 18px; height: 6px; cursor: ns-resize; }
+    .np-resize-b { bottom: -3px; left: 18px; right: 18px; height: 6px; cursor: ns-resize; }
+    .np-resize-l { left: -3px; top: 18px; bottom: 18px; width: 6px; cursor: ew-resize; }
+    .np-resize-r { right: -3px; top: 18px; bottom: 18px; width: 6px; cursor: ew-resize; }
 
     /* Dock positions */
     .audio-now-playing.dock-br { bottom: 24px; right: 24px; top: auto; left: auto; }
@@ -4005,6 +4007,10 @@
     <div class="np-resize np-resize-tr" data-resize="tr"></div>
     <div class="np-resize np-resize-bl" data-resize="bl"></div>
     <div class="np-resize np-resize-br" data-resize="br"></div>
+    <div class="np-resize np-resize-t" data-resize="t"></div>
+    <div class="np-resize np-resize-b" data-resize="b"></div>
+    <div class="np-resize np-resize-l" data-resize="l"></div>
+    <div class="np-resize np-resize-r" data-resize="r"></div>
     <div class="np-drag-handle" id="npDragHandle"><span class="np-drag-dots"></span></div>
     <div class="np-toolbar">
       <span class="np-toolbar-title">&#9835; Audio Player</span>
