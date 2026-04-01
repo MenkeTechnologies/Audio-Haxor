@@ -208,19 +208,16 @@ async function updateHeaderInfo() {
     if (sc.dawScanning) active.push('DAW');
     if (sc.presetScanning) active.push('Presets');
     if (sc.updateChecking) active.push('Updates');
-    let badge = document.getElementById('scanStatusBadge');
-    if (active.length > 0) {
-      if (!badge) {
-        document.body.insertAdjacentHTML('beforeend',
-          '<div class="scan-status-badge" id="scanStatusBadge"></div>');
-        badge = document.getElementById('scanStatusBadge');
+    const badge = document.getElementById('scanStatusBadge');
+    if (badge) {
+      if (active.length > 0) {
+        badge.style.display = 'flex';
+        badge.innerHTML = active.map(s =>
+          `<span class="scan-status-item"><span class="spinner" style="width:12px;height:12px;"></span> ${s}</span>`
+        ).join('');
+      } else {
+        badge.style.display = 'none';
       }
-      badge.style.display = '';
-      badge.innerHTML = active.map(s =>
-        `<span class="scan-status-item"><span class="spinner" style="width:14px;height:14px;"></span> ${s}</span>`
-      ).join('');
-    } else if (badge) {
-      badge.style.display = 'none';
     }
   } catch (err) { console.error('updateHeaderInfo:', err); }
 }

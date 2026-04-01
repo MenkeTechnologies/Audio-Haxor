@@ -1262,24 +1262,16 @@
     }
     .global-progress.active { display: block; }
     .scan-status-badge {
-      position: fixed;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 30001;
       display: none;
-      gap: 16px;
-      padding: 8px 20px;
-      background: var(--bg-primary);
-      border: 1px solid var(--cyan);
-      border-radius: 20px;
-      box-shadow: 0 0 16px var(--cyan-glow), 0 4px 12px rgba(0,0,0,0.5);
-      font-size: 12px;
+      gap: 14px;
+      font-size: 11px;
       font-weight: 700;
       letter-spacing: 1.5px;
       text-transform: uppercase;
       color: var(--cyan);
       font-family: 'Orbitron', sans-serif;
+      margin-left: 16px;
+      align-self: center;
     }
     .scan-status-badge[style*="display: none"] { display: none !important; }
     .scan-status-badge:not([style*="display: none"]) { display: flex; }
@@ -4183,6 +4175,7 @@
             <span class="logo-version" id="appVersion"></span>
           </div>
         </div>
+        <div class="scan-status-badge" id="scanStatusBadge"></div>
         <div class="header-actions">
           <div class="header-info" id="headerStats" onclick="event.stopPropagation()">
             <div class="header-info-item" title="CPU cores">CORES <span class="header-info-value" id="headerCores">--</span></div>
