@@ -51,7 +51,15 @@ function showDepGraph() {
   if (existing) existing.remove();
 
   if (data.pluginsByUsage.length === 0 && data.orphaned.length === 0) {
-    showToast('No plugin index data. Build the plugin index first (DAW tab).', 4000);
+    if (typeof tauriConfirm === 'function') {
+      tauriConfirm('No plugin index data.\n\nYou must run "Plugin Index" first to scan DAW projects for plugin references.\n\nBuild the index now?', 'Plugin Dependency Graph').then(ok => {
+        if (ok && typeof buildXrefIndex === 'function') {
+          buildXrefIndex().then(() => { filterDawProjects(); showDepGraph(); });
+        }
+      });
+    } else {
+      showToast('Run "Plugin Index" on the DAW tab first.', 4000);
+    }
     return;
   }
 
