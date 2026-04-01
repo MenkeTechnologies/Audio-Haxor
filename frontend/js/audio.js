@@ -662,9 +662,13 @@ async function previewAudio(filePath) {
     audioPlayerPath = filePath;
     audioPlayer.play();
 
-    // Show now-playing bar
+    // Show now-playing bar, restore expanded state from prefs
     const np = document.getElementById('audioNowPlaying');
     np.classList.add('active');
+    if (prefs.getItem('playerExpanded') === 'on') {
+      np.classList.add('expanded');
+      renderRecentlyPlayed();
+    }
     const sample = allAudioSamples.find(s => s.path === filePath);
     const displayName = sample ? `${sample.name}.${sample.format.toLowerCase()}` : filePath.split('/').pop();
     document.getElementById('npName').textContent = displayName;
@@ -1087,6 +1091,7 @@ function renderMiniSearchResults() {
 function togglePlayerExpanded() {
   const np = document.getElementById('audioNowPlaying');
   np.classList.toggle('expanded');
+  prefs.setItem('playerExpanded', np.classList.contains('expanded') ? 'on' : 'off');
   if (np.classList.contains('expanded')) {
     renderRecentlyPlayed();
   }
@@ -1094,15 +1099,13 @@ function togglePlayerExpanded() {
 
 function collapsePlayer() {
   document.getElementById('audioNowPlaying').classList.remove('expanded');
+  prefs.setItem('playerExpanded', 'off');
 }
-
-let _playerWasExpanded = false;
 
 function hidePlayer() {
   const np = document.getElementById('audioNowPlaying');
-  _playerWasExpanded = np.classList.contains('expanded');
+  prefs.setItem('playerExpanded', np.classList.contains('expanded') ? 'on' : 'off');
   np.classList.remove('active');
-  // Don't remove 'expanded' — preserve state for restore
   const pill = document.getElementById('audioRestorePill');
   if (pill && audioPlayerPath && !audioPlayer.paused) {
     pill.classList.add('active');
@@ -1115,7 +1118,7 @@ function showPlayer() {
   if (audioPlayerPath) {
     const np = document.getElementById('audioNowPlaying');
     np.classList.add('active');
-    if (_playerWasExpanded) np.classList.add('expanded');
+    if (prefs.getItem('playerExpanded') === 'on') np.classList.add('expanded');
   }
 }
 
