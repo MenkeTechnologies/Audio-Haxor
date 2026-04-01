@@ -257,7 +257,7 @@ thread_local! {
     static TEST_DATA_DIR: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
 }
 
-fn get_data_dir() -> PathBuf {
+pub fn get_data_dir() -> PathBuf {
     #[cfg(test)]
     {
         if let Some(dir) = TEST_DATA_DIR.with(|d| d.borrow().clone()) {

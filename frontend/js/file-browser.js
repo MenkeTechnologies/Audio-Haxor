@@ -140,7 +140,7 @@ function renderFileList() {
   }
 
   list.innerHTML = filtered.map(e => {
-    const note = noteIndicator(e.path);
+    const note = typeof noteIndicator === 'function' ? noteIndicator(e.path) : '';
     const cls = e.isDir ? ' file-dir' : '';
     return `<div class="file-row${cls}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}">
       <span class="file-icon">${fileIcon(e)}</span>

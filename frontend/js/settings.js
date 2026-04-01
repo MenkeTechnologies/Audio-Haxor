@@ -765,24 +765,28 @@ function refreshSettingsUI() {
         const s = secs % 60;
         return (h ? h + 'h ' : '') + (m ? m + 'm ' : '') + s + 's';
       };
-      const perScannerThreads = parseInt(cpus) * 2;
-      const flushInt = getSettingValue('flushInterval', '100');
+      const sc = stats.scanner || {};
+      const cfg = stats.config || {};
+      const df = stats.dataFiles || {};
       const pluginCount = typeof allPlugins !== 'undefined' ? allPlugins.length : 0;
       const sampleCount = typeof allAudioSamples !== 'undefined' ? allAudioSamples.length : 0;
       const dawCount = typeof allDawProjects !== 'undefined' ? allDawProjects.length : 0;
       const presetCount = typeof allPresets !== 'undefined' ? allPresets.length : 0;
+      const dot = (on) => on ? '<span style="color:var(--green);">&#9679;</span>' : '<span style="color:var(--text-dim);">&#9675;</span>';
       perfInfo.innerHTML = [
-        `<b>CPU:</b> ${cpus} cores | CPU ${(stats.cpuPercent || 0).toFixed(1)}%`,
+        `<b>CPU:</b> ${cpus} cores | ${(stats.cpuPercent || 0).toFixed(1)}% usage`,
         `<b>Memory:</b> RSS ${fmtMem(stats.rssBytes)} | Virtual ${fmtMem(stats.virtualBytes)}`,
-        `<b>Process:</b> PID ${stats.pid} | ${stats.threads} threads | ${stats.openFds} open FDs`,
-        `<b>Uptime:</b> ${fmtUptime(stats.uptimeSecs)}`,
-        `<b>Thread Pools:</b> global rayon: ${stats.rayonThreads} | per-scanner: ${perScannerThreads} | multiplier: ${threadMult}x`,
-        `<b>Scanner Config:</b> channel buf: ${chanBuf} | batch size: ${batchSz} | flush: ${flushInt}ms`,
+        `<b>Process:</b> PID ${stats.pid} | ${stats.threads} threads | ${stats.openFds} FDs | uptime ${fmtUptime(stats.uptimeSecs)}`,
+        `<b>Thread Pools:</b> global rayon ${stats.rayonThreads} | per-scanner ${cfg.perScannerThreads || '?'} | multiplier ${cfg.threadMultiplier || '?'}x | total pool ${cfg.globalPoolSize || '?'}`,
+        `<b>Scanner Config:</b> channel buf ${cfg.channelBuffer || '?'} | batch ${cfg.batchSize || '?'} | flush ${cfg.flushInterval || '?'}ms | page ${cfg.pageSize || '?'}`,
+        `<b>Scanner State:</b> ${dot(sc.pluginScanning)} Plugins ${dot(sc.audioScanning)} Samples ${dot(sc.dawScanning)} DAW ${dot(sc.presetScanning)} Presets ${dot(sc.updateChecking)} Updates`,
         `<b>Scan Results:</b> ${pluginCount} plugins | ${sampleCount} samples | ${dawCount} DAW projects | ${presetCount} presets`,
+        `<b>Data Files:</b> prefs ${fmtMem(df.preferencesBytes)} | KVR cache ${fmtMem(df.kvrCacheBytes)} | history ${fmtMem((df.scanHistoryBytes||0) + (df.audioHistoryBytes||0) + (df.dawHistoryBytes||0) + (df.presetHistoryBytes||0))}`,
+        `<b>Data Dir:</b> <code style="font-size:10px;word-break:break-all;">${escapeHtml(stats.dataDir || '?')}</code>`,
       ].join('<br>');
-    }).catch(() => {
+    }).catch((err) => {
       const cpus = navigator.hardwareConcurrency || '?';
-      perfInfo.textContent = `${cpus} cores | buf ${chanBuf} | batch ${batchSz}`;
+      perfInfo.textContent = `${cpus} cores | error: ${err}`;
     });
   }
 

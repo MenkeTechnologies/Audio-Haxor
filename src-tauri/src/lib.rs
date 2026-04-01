@@ -1209,7 +1209,7 @@ static LAST_CPU_TIME: AtomicU64 = AtomicU64::new(0);
 static LAST_WALL_TIME: AtomicU64 = AtomicU64::new(0);
 
 #[tauri::command]
-fn get_process_stats() -> serde_json::Value {
+fn get_process_stats(app: AppHandle) -> serde_json::Value {
     let rss = get_rss_bytes();
     let virt = get_virtual_bytes();
     let threads = get_thread_count();
@@ -1218,6 +1218,38 @@ fn get_process_stats() -> serde_json::Value {
     let uptime_secs = get_uptime_secs();
     let pid = std::process::id();
     let open_fds = get_open_fd_count();
+    let ncpus = num_cpus::get();
+
+    // Scanner states
+    let scan_state = app.state::<ScanState>();
+    let update_state = app.state::<UpdateState>();
+    let audio_state = app.state::<AudioScanState>();
+    let daw_state = app.state::<DawScanState>();
+    let preset_state = app.state::<PresetScanState>();
+
+    // Preferences for scanner config
+    let prefs = history::load_preferences();
+    let thread_mult = prefs.get("threadMultiplier")
+        .and_then(|v| v.as_str().and_then(|s| s.parse::<usize>().ok()).or(v.as_u64().map(|n| n as usize)))
+        .unwrap_or(4);
+    let batch_size = prefs.get("batchSize")
+        .and_then(|v| v.as_str().and_then(|s| s.parse::<usize>().ok()).or(v.as_u64().map(|n| n as usize)))
+        .unwrap_or(100);
+    let chan_buf = prefs.get("channelBuffer")
+        .and_then(|v| v.as_str().and_then(|s| s.parse::<usize>().ok()).or(v.as_u64().map(|n| n as usize)))
+        .unwrap_or(512);
+    let flush_interval = prefs.get("flushInterval")
+        .and_then(|v| v.as_str().and_then(|s| s.parse::<usize>().ok()).or(v.as_u64().map(|n| n as usize)))
+        .unwrap_or(100);
+    let page_size = prefs.get("pageSize")
+        .and_then(|v| v.as_str().and_then(|s| s.parse::<usize>().ok()).or(v.as_u64().map(|n| n as usize)))
+        .unwrap_or(500);
+
+    // Data file sizes
+    let data_dir = history::get_data_dir();
+    let file_size = |name: &str| -> u64 {
+        std::fs::metadata(data_dir.join(name)).map(|m| m.len()).unwrap_or(0)
+    };
 
     serde_json::json!({
         "pid": pid,
@@ -1226,9 +1258,39 @@ fn get_process_stats() -> serde_json::Value {
         "threads": threads,
         "cpuPercent": cpu_pct,
         "rayonThreads": rayon_threads,
-        "numCpus": num_cpus::get(),
+        "numCpus": ncpus,
         "uptimeSecs": uptime_secs,
         "openFds": open_fds,
+        "scanner": {
+            "pluginScanning": scan_state.scanning.load(Ordering::Relaxed),
+            "pluginStopped": scan_state.stop_scan.load(Ordering::Relaxed),
+            "updateChecking": update_state.checking.load(Ordering::Relaxed),
+            "updateStopped": update_state.stop_updates.load(Ordering::Relaxed),
+            "audioScanning": audio_state.scanning.load(Ordering::Relaxed),
+            "audioStopped": audio_state.stop_scan.load(Ordering::Relaxed),
+            "dawScanning": daw_state.scanning.load(Ordering::Relaxed),
+            "dawStopped": daw_state.stop_scan.load(Ordering::Relaxed),
+            "presetScanning": preset_state.scanning.load(Ordering::Relaxed),
+            "presetStopped": preset_state.stop_scan.load(Ordering::Relaxed),
+        },
+        "config": {
+            "threadMultiplier": thread_mult,
+            "globalPoolSize": ncpus * thread_mult,
+            "perScannerThreads": ncpus * 2,
+            "batchSize": batch_size,
+            "channelBuffer": chan_buf,
+            "flushInterval": flush_interval,
+            "pageSize": page_size,
+        },
+        "dataFiles": {
+            "preferencesBytes": file_size("preferences.toml"),
+            "scanHistoryBytes": file_size("scan-history.json"),
+            "audioHistoryBytes": file_size("audio-scan-history.json"),
+            "dawHistoryBytes": file_size("daw-scan-history.json"),
+            "presetHistoryBytes": file_size("preset-scan-history.json"),
+            "kvrCacheBytes": file_size("kvr-cache.json"),
+        },
+        "dataDir": data_dir.to_string_lossy(),
     })
 }
 
