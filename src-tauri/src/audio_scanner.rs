@@ -115,15 +115,22 @@ pub fn walk_for_audio(
         });
     });
 
-    // Stream results to callback as they arrive
+    // Stream results to callback as they arrive, checking stop frequently
     let mut total_found = 0usize;
-    for samples in rx {
+    loop {
         if should_stop() {
             stop.store(true, Ordering::Relaxed);
+            while rx.try_recv().is_ok() {}
             break;
         }
-        total_found += samples.len();
-        on_batch(&samples, total_found);
+        match rx.recv_timeout(std::time::Duration::from_millis(10)) {
+            Ok(samples) => {
+                total_found += samples.len();
+                on_batch(&samples, total_found);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        }
     }
 }
 

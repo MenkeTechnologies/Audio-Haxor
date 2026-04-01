@@ -241,13 +241,19 @@ pub fn walk_for_daw(
         });
     });
 
-    // Stream results to callback as they arrive
+    // Stream results to callback as they arrive, checking stop frequently
     let mut total_found = 0usize;
-    for projects in rx {
+    loop {
         if should_stop() {
             stop.store(true, Ordering::Relaxed);
+            while rx.try_recv().is_ok() {}
             break;
         }
+        let projects = match rx.recv_timeout(std::time::Duration::from_millis(10)) {
+            Ok(p) => p,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        };
         total_found += projects.len();
         on_batch(&projects, total_found);
     }

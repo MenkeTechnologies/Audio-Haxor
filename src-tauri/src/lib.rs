@@ -185,6 +185,7 @@ async fn scan_plugins(
             .unwrap_or(512)
             .clamp(64, 2048);
         let (tx, rx) = std::sync::mpsc::sync_channel::<scanner::PluginInfo>(chan_buf);
+        // Share stop flag directly with rayon workers for immediate cancellation
         let stop_flag = std::sync::Arc::new(AtomicBool::new(false));
         let stop_flag2 = stop_flag.clone();
 
@@ -194,6 +195,7 @@ async fn scan_plugins(
                     return;
                 }
                 if let Some(info) = scanner::get_plugin_info(p) {
+                    if stop_flag2.load(Ordering::Relaxed) { return; }
                     let _ = tx.send(info);
                 }
             });
@@ -202,11 +204,20 @@ async fn scan_plugins(
         let mut all_plugins = Vec::new();
         let mut batch = Vec::new();
         let mut processed = 0usize;
-        for info in rx {
+
+        // Use try_recv with short timeout so stop signal is checked frequently
+        loop {
             if scan_state.stop_scan.load(Ordering::Relaxed) {
                 stop_flag.store(true, Ordering::Relaxed);
+                // Drain channel to unblock workers
+                while rx.try_recv().is_ok() {}
                 break;
             }
+            let info = match rx.recv_timeout(std::time::Duration::from_millis(10)) {
+                Ok(info) => info,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            };
             batch.push(info);
             processed += 1;
             if batch.len() >= batch_size || processed == total {
