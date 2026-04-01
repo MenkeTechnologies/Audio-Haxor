@@ -1591,19 +1591,6 @@ fn export_pdf(
         vec![usable_w]
     };
     let version = env!("CARGO_PKG_VERSION");
-    // Simulate layout to count pages accurately
-    let total_pages = {
-        let header_base = 22.0 + 7.0 + 1.0; // header bar + col headers + gap
-        let subtitle_h = 6.0; // only on first page
-        let footer_h = margin_bottom + 5.0;
-        let first_page_rows = ((page_h.0 - header_base - subtitle_h - footer_h) / row_height) as usize;
-        let other_page_rows = ((page_h.0 - header_base - footer_h) / row_height) as usize;
-        if rows.len() <= first_page_rows {
-            1
-        } else {
-            1 + ((rows.len() - first_page_rows) as f32 / other_page_rows as f32).ceil() as usize
-        }
-    };
 
     let (doc, page1, layer1) = PdfDocument::new(&title, page_w, page_h, "Layer 1");
     let font = doc
@@ -1816,7 +1803,7 @@ fn export_pdf(
             &font,
         );
 
-        let page_str = format!("Page {} of {}", page, total_pages);
+        let page_str = format!("Page {}", page);
         layer_ref.use_text(
             &page_str,
             7.0,
