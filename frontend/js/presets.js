@@ -278,6 +278,7 @@ async function scanPresets(resume = false) {
   btn.disabled = false;
   btn.innerHTML = '&#127924; Scan Presets';
   stopBtn.style.display = 'none';
+  document.getElementById('btnExportPresets').style.display = allPresets.length > 0 ? '' : 'none';
   progressBar.classList.remove('active');
   progressFill.style.width = '0%';
 }

@@ -112,6 +112,7 @@
       allPresets = latestPresets.presets;
       rebuildPresetStats();
       filterPresets();
+      document.getElementById('btnExportPresets').style.display = '';
     }
   } catch (err) {
     showToast(`Failed to load preset scan — ${err.message || err}`, 4000, 'error');
