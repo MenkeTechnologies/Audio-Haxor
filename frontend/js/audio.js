@@ -934,7 +934,7 @@ async function toggleMetadata(filePath, event) {
       <div class="waveform-time-label">${meta.duration ? formatTime(meta.duration) : ''}</div>
     </div>`;
 
-    metaRow.innerHTML = `<td colspan="7"><div style="position:relative;"><span data-action="closeMetaRow" style="position:absolute;top:10px;right:10px;font-size:13px;padding:3px 8px;z-index:10;background:var(--bg-secondary);color:var(--red);border:1px solid var(--border);border-radius:2px;cursor:pointer;line-height:1;display:block;width:fit-content;" title="Close metadata panel">&#10005;</span><div class="audio-meta-panel">${waveformHtml}${items}</div></div></td>`;
+    metaRow.innerHTML = `<td colspan="7"><div style="position:relative;"><span class="meta-close-btn" data-action="closeMetaRow" title="Close metadata panel">&#10005;</span><div class="audio-meta-panel">${waveformHtml}${items}</div></div></td>`;
 
     // Draw waveform on the meta canvas
     drawMetaWaveform(filePath);
