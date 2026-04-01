@@ -96,7 +96,7 @@ pub fn walk_for_audio(
     let batch_size = 100;
     let stop = Arc::new(AtomicBool::new(false));
     let found = Arc::new(AtomicUsize::new(0));
-    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<AudioSample>>(512);
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<AudioSample>>(2048);
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let exclude = Arc::new(exclude.unwrap_or_default());
 
@@ -105,7 +105,7 @@ pub fn walk_for_audio(
     let stop2 = stop.clone();
     let found2 = found.clone();
     let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(num_cpus::get().max(2))
+        .num_threads((num_cpus::get() * 2).max(4))
         .build()
         .unwrap();
     std::thread::spawn(move || {

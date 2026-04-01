@@ -182,8 +182,8 @@ async fn scan_plugins(
                     .and_then(|s| s.parse::<usize>().ok())
                     .or(v.as_u64().map(|n| n as usize))
             })
-            .unwrap_or(512)
-            .clamp(64, 2048);
+            .unwrap_or(2048)
+            .clamp(64, 8192);
         let (tx, rx) = std::sync::mpsc::sync_channel::<scanner::PluginInfo>(chan_buf);
         // Share stop flag directly with rayon workers for immediate cancellation
         let stop_flag = std::sync::Arc::new(AtomicBool::new(false));
@@ -191,7 +191,7 @@ async fn scan_plugins(
 
         // Dedicated thread pool so plugin scanning doesn't starve other scanners
         let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_cpus::get().max(2))
+            .num_threads((num_cpus::get() * 2).max(4))
             .build()
             .unwrap();
         std::thread::spawn(move || {
@@ -2618,8 +2618,8 @@ pub fn run() {
                 .get("threadMultiplier")
                 .and_then(|v| v.as_u64().map(|n| n as usize))
         })
-        .unwrap_or(4)
-        .clamp(1, 8);
+        .unwrap_or(8)
+        .clamp(1, 16);
     let pool_size = num_cpus::get() * multiplier;
     rayon::ThreadPoolBuilder::new()
         .num_threads(pool_size)
