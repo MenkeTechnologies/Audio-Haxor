@@ -378,7 +378,8 @@ document.addEventListener('contextmenu', (e) => {
       items.push('---');
     }
     items.push({ icon: isExpanded ? '&#9660;' : '&#9650;', label: isExpanded ? 'Collapse Player' : 'Expand Player', action: () => togglePlayerExpanded() });
-    items.push({ icon: '&#10005;', label: 'Close Player', action: () => stopAudioPlayback() });
+    items.push({ icon: '&#9868;', label: 'Hide Player', action: () => hidePlayer() });
+    items.push({ icon: '&#10005;', label: 'Stop &amp; Close', action: () => stopAudioPlayback() });
     showContextMenu(e, items);
     return;
   }

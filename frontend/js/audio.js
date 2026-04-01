@@ -668,6 +668,8 @@ function clearAudioPlaybackUI() {
   document.getElementById('npTime').textContent = '0:00 / 0:00';
   const npCursor = document.getElementById('npCursor');
   if (npCursor) npCursor.style.display = 'none';
+  const pill = document.getElementById('audioRestorePill');
+  if (pill) pill.classList.remove('active');
   updatePlayBtnStates();
 }
 
@@ -934,6 +936,26 @@ function togglePlayerExpanded() {
 
 function collapsePlayer() {
   document.getElementById('audioNowPlaying').classList.remove('expanded');
+}
+
+function hidePlayer() {
+  const np = document.getElementById('audioNowPlaying');
+  np.classList.remove('active');
+  np.classList.remove('expanded');
+  // Show restore pill if audio is still playing
+  const pill = document.getElementById('audioRestorePill');
+  if (pill && audioPlayerPath && !audioPlayer.paused) {
+    pill.classList.add('active');
+  }
+}
+
+function showPlayer() {
+  const pill = document.getElementById('audioRestorePill');
+  if (pill) pill.classList.remove('active');
+  if (audioPlayerPath) {
+    const np = document.getElementById('audioNowPlaying');
+    np.classList.add('active');
+  }
 }
 
 // Double-click to expand/collapse player

@@ -2843,6 +2843,9 @@
     .audio-table .col-name {
       color: var(--text);
       font-weight: 600;
+      word-break: break-all;
+      white-space: normal;
+      max-width: 300px;
     }
 
     .audio-table .col-format {
@@ -2862,6 +2865,9 @@
     .audio-table .col-path {
       color: var(--text-muted);
       font-size: 11px;
+      word-break: break-all;
+      white-space: normal;
+      max-width: 400px;
     }
 
     .audio-table .col-actions {
@@ -3405,6 +3411,35 @@
       max-width: 8px;
     }
 
+    /* Restore pill — shown when player is hidden but audio is playing */
+    .audio-restore-pill {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9998;
+      background: var(--bg-primary);
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      box-shadow: 0 0 12px var(--cyan-glow), 0 2px 8px rgba(0,0,0,0.4);
+      animation: pill-pulse 2s ease-in-out infinite;
+      -webkit-app-region: no-drag;
+    }
+    .audio-restore-pill.active { display: block; }
+    .audio-restore-pill:hover {
+      background: rgba(5,217,232,0.1);
+      box-shadow: 0 0 20px var(--cyan-glow), 0 2px 12px rgba(0,0,0,0.5);
+    }
+    @keyframes pill-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
     .now-playing-header {
       display: flex;
       align-items: center;
@@ -3781,13 +3816,14 @@
       <span class="np-toolbar-title">&#9835; Audio Player</span>
       <div class="np-toolbar-actions">
         <button class="np-toolbar-btn" data-action="collapsePlayer" title="Minimize">&#9866;</button>
-        <button class="np-toolbar-btn btn-close" data-action="stopAudioPlayback" title="Close">&#10005;</button>
+        <button class="np-toolbar-btn" data-action="hidePlayer" title="Hide player">&#9868;</button>
+        <button class="np-toolbar-btn btn-close" data-action="stopAudioPlayback" title="Stop &amp; close">&#10005;</button>
       </div>
     </div>
     <div class="np-body">
       <div class="now-playing-header">
         <span class="now-playing-name" id="npName"></span>
-        <button class="btn-small btn-stop" id="npCloseBtn" data-action="stopAudioPlayback" style="font-size: 10px; padding: 4px 8px;" title="Close">&#10005;</button>
+        <button class="btn-small btn-stop" id="npCloseBtn" data-action="hidePlayer" style="font-size: 10px; padding: 4px 8px;" title="Hide player">&#10005;</button>
       </div>
       <div class="now-playing-transport">
         <div class="now-playing-controls">
@@ -3879,6 +3915,7 @@
       </div>
     </div>
   </div>
+  <div class="audio-restore-pill" id="audioRestorePill" data-action="showPlayer" title="Show audio player">&#9835; Playing</div>
   <div class="batch-action-bar" id="batchActionBar">
     <span class="batch-count" id="batchCount">0 selected</span>
     <div class="batch-sep"></div>
