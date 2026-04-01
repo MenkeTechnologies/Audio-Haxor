@@ -174,6 +174,7 @@ document.addEventListener('click', (e) => {
     case 'prevTrack': prevTrack(); break;
     case 'nextTrack': nextTrack(); break;
     case 'toggleShuffle': toggleShuffle(); break;
+    case 'favCurrentTrack': favCurrentTrack(); break;
     case 'toggleMute': toggleMute(); break;
     case 'resetEq': resetEq(); break;
     case 'clearRecentlyPlayed': clearRecentlyPlayed(); break;

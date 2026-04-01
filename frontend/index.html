@@ -4034,11 +4034,12 @@
       </div>
       <div class="now-playing-transport">
         <div class="now-playing-controls">
-          <button class="btn-small btn-secondary" id="npBtnPrev" data-action="prevTrack" title="Previous track" style="padding:4px 6px;font-size:10px;">&#9198;</button>
-          <button class="btn-small btn-play" id="npBtnPlay" data-action="toggleAudioPlayback" title="Play/Pause">&#9654;</button>
-          <button class="btn-small btn-secondary" id="npBtnNext" data-action="nextTrack" title="Next track" style="padding:4px 6px;font-size:10px;">&#9197;</button>
-          <button class="btn-small btn-loop" id="npBtnLoop" data-action="toggleAudioLoop" title="Loop">&#8634;</button>
+          <button class="btn-small btn-secondary" id="npBtnPrev" data-action="prevTrack" title="Previous track (Cmd+Left)" style="padding:4px 6px;font-size:10px;">&#9198;</button>
+          <button class="btn-small btn-play" id="npBtnPlay" data-action="toggleAudioPlayback" title="Play/Pause (Space)">&#9654;</button>
+          <button class="btn-small btn-secondary" id="npBtnNext" data-action="nextTrack" title="Next track (Cmd+Right)" style="padding:4px 6px;font-size:10px;">&#9197;</button>
+          <button class="btn-small btn-loop" id="npBtnLoop" data-action="toggleAudioLoop" title="Toggle loop (L)">&#8634;</button>
           <button class="btn-small btn-loop" id="npBtnShuffle" data-action="toggleShuffle" title="Shuffle">&#128256;</button>
+          <button class="btn-small btn-secondary" id="npBtnFav" data-action="favCurrentTrack" title="Add/remove current track from favorites (F)" style="padding:4px 6px;font-size:10px;">&#9733;</button>
         </div>
         <div class="now-playing-waveform" id="npWaveform" data-action="seekAudio">
           <canvas class="waveform-canvas" id="npWaveformCanvas"></canvas>
@@ -4051,7 +4052,7 @@
       <div class="np-visualizer" id="npVisualizer"></div>
       <div class="now-playing-transport">
         <div class="now-playing-volume">
-          <button class="btn-small" id="npBtnMute" data-action="toggleMute" title="Mute/Unmute" style="padding:3px 5px;font-size:12px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;">&#128264;</button>
+          <button class="btn-small" id="npBtnMute" data-action="toggleMute" title="Mute/Unmute (M)" style="padding:3px 5px;font-size:12px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;">&#128264;</button>
           <input type="range" class="volume-slider" id="npVolume" min="0" max="100" value="100" data-action="setVolume">
           <span class="volume-pct" id="npVolumePct">100%</span>
         </div>

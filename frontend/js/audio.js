@@ -678,6 +678,7 @@ async function previewAudio(filePath) {
 
     updatePlayBtnStates();
     updateNowPlayingBtn();
+    updateFavBtn();
     updateMetaLine();
     drawWaveform(filePath);
   } catch (err) {
@@ -1098,6 +1099,26 @@ function togglePlayerExpanded() {
   if (np.classList.contains('expanded')) {
     renderRecentlyPlayed();
   }
+}
+
+function favCurrentTrack() {
+  if (!audioPlayerPath) return;
+  const btn = document.getElementById('npBtnFav');
+  if (isFavorite(audioPlayerPath)) {
+    removeFavorite(audioPlayerPath);
+    if (btn) btn.style.color = '';
+  } else {
+    const sample = allAudioSamples.find(s => s.path === audioPlayerPath);
+    const name = sample ? sample.name : audioPlayerPath.split('/').pop().replace(/\.[^.]+$/, '');
+    addFavorite('sample', audioPlayerPath, name, { format: sample ? sample.format : '' });
+    if (btn) btn.style.color = 'var(--yellow)';
+  }
+}
+
+// Update favorite button state when track changes
+function updateFavBtn() {
+  const btn = document.getElementById('npBtnFav');
+  if (btn) btn.style.color = audioPlayerPath && isFavorite(audioPlayerPath) ? 'var(--yellow)' : '';
 }
 
 function collapsePlayer() {
