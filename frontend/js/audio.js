@@ -541,23 +541,23 @@ function loadMoreAudio() {
 
 function buildAudioRow(s) {
   const fmtClass = getFormatClass(s.format);
-  const ep = escapePath(s.path);
+  const hp = escapeHtml(s.path);
   const isPlaying = audioPlayerPath === s.path;
   const rowClass = isPlaying ? ' class="row-playing"' : '';
   const checked = batchSelected.has(s.path) ? ' checked' : '';
-  return `<tr${rowClass} data-audio-path="${ep}" data-action="toggleMetadata" data-path="${ep}">
+  return `<tr${rowClass} data-audio-path="${hp}" data-action="toggleMetadata" data-path="${hp}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
     <td class="col-name" title="${escapeHtml(s.name)}">${noteIndicator(s.path)}${highlightMatch(s.name, _lastAudioSearch, _lastAudioMode)}</td>
     <td class="col-format"><span class="format-badge ${fmtClass}">${s.format}</span></td>
     <td class="col-size">${s.sizeFormatted}</td>
     <td class="col-date">${s.modified}</td>
-    <td class="col-path" title="${escapeHtml(s.path)}">${escapeHtml(s.directory)}</td>
+    <td class="col-path" title="${hp}">${escapeHtml(s.directory)}</td>
     <td class="col-actions" data-action-stop>
-      <button class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-action="previewAudio" data-path="${ep}" title="Preview">
+      <button class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-action="previewAudio" data-path="${hp}" title="Preview">
         ${isPlaying && !audioPlayer.paused ? '&#9646;&#9646;' : '&#9654;'}
       </button>
-      <button class="btn-small btn-loop${isPlaying && audioLooping ? ' active' : ''}" data-action="toggleRowLoop" data-path="${ep}" title="Loop">&#8634;</button>
-      <button class="btn-small btn-folder" data-action="openAudioFolder" data-path="${ep}" title="Reveal in Finder">&#128193;</button>
+      <button class="btn-small btn-loop${isPlaying && audioLooping ? ' active' : ''}" data-action="toggleRowLoop" data-path="${hp}" title="Loop">&#8634;</button>
+      <button class="btn-small btn-folder" data-action="openAudioFolder" data-path="${hp}" title="Reveal in Finder">&#128193;</button>
     </td>
   </tr>`;
 }

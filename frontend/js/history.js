@@ -160,7 +160,7 @@ async function selectScan(id, type) {
             </div>
             <div></div><div></div>
             <div class="plugin-actions">
-              <button class="btn-small btn-folder" data-action="openFolder" data-path="${escapePath(p.path)}" title="${escapePath(p.path)}">&#128193;</button>
+              <button class="btn-small btn-folder" data-action="openFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}">&#128193;</button>
             </div>
           </div>`;
       }).join('')}
@@ -231,7 +231,7 @@ async function selectAudioScan(id) {
             </div>
             <div></div><div></div>
             <div class="plugin-actions">
-              <button class="btn-small btn-folder" data-action="openAudioFolder" data-path="${escapePath(s.path)}" title="${escapePath(s.path)}">&#128193;</button>
+              <button class="btn-small btn-folder" data-action="openAudioFolder" data-path="${escapeHtml(s.path)}" title="${escapeHtml(s.path)}">&#128193;</button>
             </div>
           </div>`;
       }).join('')}
@@ -337,7 +337,7 @@ async function selectDawScan(id) {
             </div>
             <div></div><div></div>
             <div class="plugin-actions">
-              <button class="btn-small btn-folder" data-action="openDawFolder" data-path="${escapePath(p.path)}" title="${escapePath(p.path)}">&#128193;</button>
+              <button class="btn-small btn-folder" data-action="openDawFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}">&#128193;</button>
             </div>
           </div>`;
       }).join('')}
@@ -450,7 +450,7 @@ async function selectPresetScan(id) {
             </div>
             <div></div><div></div>
             <div class="plugin-actions">
-              <button class="btn-small btn-folder" data-action="openPresetFolder" data-path="${escapePath(p.path)}" title="${escapePath(p.path)}">&#128193;</button>
+              <button class="btn-small btn-folder" data-action="openPresetFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}">&#128193;</button>
             </div>
           </div>`;
       }).join('')}

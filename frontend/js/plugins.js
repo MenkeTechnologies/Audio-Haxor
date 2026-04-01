@@ -105,13 +105,13 @@ function buildPluginCardHtml(p) {
     ? `<button class="btn-small btn-mfg" data-action="openUpdate" data-url="${mfgUrl}" title="${mfgUrl}">&#127760;</button>`
     : `<button class="btn-small btn-no-web" disabled title="No manufacturer website">&#128683;</button>`;
   const kvrUrl = p.kvrUrl || buildKvrUrl(p.name, p.manufacturer);
-  const kvrBtn = `<button class="btn-small btn-kvr" data-action="openKvr" data-url="${kvrUrl.replace(/'/g, '&apos;')}" data-name="${escapePath(p.name)}" title="${escapeHtml(kvrUrl)}">KVR</button>`;
+  const kvrBtn = `<button class="btn-small btn-kvr" data-action="openKvr" data-url="${kvrUrl.replace(/'/g, '&apos;')}" data-name="${escapeHtml(p.name)}" title="${escapeHtml(kvrUrl)}">KVR</button>`;
   // Show download button only if plugin has an update available
   const dlUrl = (p.hasUpdate && p.updateUrl) ? p.updateUrl : null;
   const dlBtn = dlUrl
     ? `<button class="btn-small btn-download btn-dl-kvr" data-action="openUpdate" data-url="${dlUrl.replace(/'/g, '&apos;')}" title="${escapeHtml(dlUrl)}">&#11015; Download</button>`
     : '';
-  let actionsHtml = dlBtn + kvrBtn + mfgBtn + `<button class="btn-small btn-folder" data-action="openFolder" data-path="${escapePath(p.path)}" title="${escapePath(p.path)}">&#128193;</button>`;
+  let actionsHtml = dlBtn + kvrBtn + mfgBtn + `<button class="btn-small btn-folder" data-action="openFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}">&#128193;</button>`;
 
   if (p.hasUpdate !== undefined) {
     if (p.hasUpdate) {
@@ -127,7 +127,7 @@ function buildPluginCardHtml(p) {
   }
 
   return `
-    <div class="plugin-card" data-path="${escapePath(p.path)}">
+    <div class="plugin-card" data-path="${escapeHtml(p.path)}">
       <div class="plugin-info">
         ${noteIndicator(p.path)}
         <h3>${highlightMatch(p.name, _lastPluginSearch, _lastPluginMode)}</h3>
@@ -211,8 +211,8 @@ async function checkUpdates() {
           });
         }
         // Find and replace the card in the DOM
-        const escapedPath = escapePath(p.path);
-        const card = document.querySelector(`.plugin-card[data-path="${CSS.escape(escapedPath)}"]`);
+        const htmlPath = escapeHtml(p.path);
+        const card = document.querySelector(`.plugin-card[data-path="${CSS.escape(htmlPath)}"]`);
         if (card) {
           const temp = document.createElement('div');
           temp.innerHTML = buildPluginCardHtml(p);
@@ -383,7 +383,7 @@ async function openKvr(btn, directUrl, pluginName) {
     if (result.downloadUrl) {
       const card = btn.closest('.plugin-card');
       const pluginPath = card ? card.dataset.path : null;
-      const plugin = pluginPath && allPlugins.find(p => escapePath(p.path) === pluginPath);
+      const plugin = pluginPath && allPlugins.find(p => p.path === pluginPath);
       if (plugin && plugin.hasUpdate && card && !card.querySelector('.btn-dl-kvr')) {
         const dlBtn = document.createElement('button');
         dlBtn.className = 'btn-small btn-download btn-dl-kvr';

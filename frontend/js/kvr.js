@@ -59,8 +59,8 @@ async function resolveKvrDownloads() {
           p.kvrUrl = productUrl;
           if (downloadUrl && p.hasUpdate) p.updateUrl = downloadUrl;
 
-          const escapedPath = escapePath(p.path);
-          const card = document.querySelector(`.plugin-card[data-path="${CSS.escape(escapedPath)}"]`);
+          const htmlPath = escapeHtml(p.path);
+          const card = document.querySelector(`.plugin-card[data-path="${CSS.escape(htmlPath)}"]`);
           if (card) {
             const temp = document.createElement('div');
             temp.innerHTML = buildPluginCardHtml(p);
