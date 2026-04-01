@@ -189,15 +189,22 @@ async fn scan_plugins(
         let stop_flag = std::sync::Arc::new(AtomicBool::new(false));
         let stop_flag2 = stop_flag.clone();
 
+        // Dedicated thread pool so plugin scanning doesn't starve other scanners
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_cpus::get().max(2))
+            .build()
+            .unwrap();
         std::thread::spawn(move || {
-            unique_paths.par_iter().for_each(|p| {
-                if stop_flag2.load(Ordering::Relaxed) {
-                    return;
-                }
-                if let Some(info) = scanner::get_plugin_info(p) {
-                    if stop_flag2.load(Ordering::Relaxed) { return; }
-                    let _ = tx.send(info);
-                }
+            pool.install(|| {
+                unique_paths.par_iter().for_each(|p| {
+                    if stop_flag2.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    if let Some(info) = scanner::get_plugin_info(p) {
+                        if stop_flag2.load(Ordering::Relaxed) { return; }
+                        let _ = tx.send(info);
+                    }
+                });
             });
         });
 

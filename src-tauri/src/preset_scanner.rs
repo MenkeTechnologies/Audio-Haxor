@@ -101,14 +101,20 @@ pub fn walk_for_presets(
     let roots_owned: Vec<PathBuf> = roots.to_vec();
     let stop2 = stop.clone();
     let found2 = found.clone();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(num_cpus::get().max(2))
+        .build()
+        .unwrap();
     std::thread::spawn(move || {
-        roots_owned.par_iter().for_each(|root| {
-            if stop2.load(Ordering::Relaxed) {
-                return;
-            }
-            walk_dir_parallel(
-                root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
-            );
+        pool.install(|| {
+            roots_owned.par_iter().for_each(|root| {
+                if stop2.load(Ordering::Relaxed) {
+                    return;
+                }
+                walk_dir_parallel(
+                    root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
+                );
+            });
         });
     });
 

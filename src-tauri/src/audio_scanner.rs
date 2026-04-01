@@ -100,18 +100,24 @@ pub fn walk_for_audio(
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let exclude = Arc::new(exclude.unwrap_or_default());
 
-    // Spawn parallel walkers on a separate thread so we can drain results here
+    // Spawn parallel walkers with dedicated pool so scanners don't starve each other
     let roots_owned: Vec<PathBuf> = roots.to_vec();
     let stop2 = stop.clone();
     let found2 = found.clone();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(num_cpus::get().max(2))
+        .build()
+        .unwrap();
     std::thread::spawn(move || {
-        roots_owned.par_iter().for_each(|root| {
-            if stop2.load(Ordering::Relaxed) {
-                return;
-            }
-            walk_dir_parallel(
-                root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
-            );
+        pool.install(|| {
+            roots_owned.par_iter().for_each(|root| {
+                if stop2.load(Ordering::Relaxed) {
+                    return;
+                }
+                walk_dir_parallel(
+                    root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
+                );
+            });
         });
     });
 
