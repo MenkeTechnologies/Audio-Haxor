@@ -4155,7 +4155,8 @@
           </div>
         </div>
         <div class="header-actions">
-          <div class="header-info" id="headerStats">
+          <div class="header-info" id="headerStats" onclick="event.stopPropagation()">
+            <div class="header-info-item" title="CPU cores">CORES <span class="header-info-value" id="headerCores">--</span></div>
             <div class="header-info-item" title="CPU usage (%)">CPU <span class="header-info-value" id="headerCpu">--</span></div>
             <div class="header-info-item" title="Resident memory (RSS)">RSS <span class="header-info-value" id="headerMem">--</span></div>
             <div class="header-info-item" title="Virtual memory">VIRT <span class="header-info-value" id="headerVirt">--</span></div>
@@ -4164,6 +4165,10 @@
             <div class="header-info-item" title="Open file descriptors">FD <span class="header-info-value" id="headerFds">--</span></div>
             <div class="header-info-item" title="Process uptime">UP <span class="header-info-value" id="headerUptime">--</span></div>
             <div class="header-info-item" title="Process ID">PID <span class="header-info-value" id="headerPid">--</span></div>
+            <div class="header-info-item" title="Plugins scanned">PLG <span class="header-info-value" id="headerPlugins">0</span></div>
+            <div class="header-info-item" title="Audio samples scanned">SMP <span class="header-info-value" id="headerSamples">0</span></div>
+            <div class="header-info-item" title="DAW projects scanned">DAW <span class="header-info-value" id="headerDaw">0</span></div>
+            <div class="header-info-item" title="Presets scanned">PRE <span class="header-info-value" id="headerPresets">0</span></div>
           </div>
           <button class="btn btn-primary" id="btnScanAll" data-action="scanAll" title="Scan all plugins, samples, DAW projects, and presets">&#9889; Scan All</button>
           <button class="btn btn-stop" id="btnStopAll" data-action="stopAll" style="display:none;" title="Stop all running scans">&#9632; Stop All</button>

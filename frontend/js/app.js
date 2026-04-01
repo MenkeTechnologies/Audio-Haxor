@@ -182,7 +182,8 @@ async function updateHeaderInfo() {
   try {
     const s = await window.vstUpdater.getProcessStats();
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    set('headerCpu', s.cpuPercent + '%');
+    set('headerCores', s.numCpus || navigator.hardwareConcurrency || '?');
+    set('headerCpu', (s.cpuPercent || 0).toFixed(1) + '%');
     set('headerMem', formatBytes(s.rssBytes));
     set('headerVirt', formatBytes(s.virtualBytes));
     set('headerThreads', s.threads);
@@ -190,6 +191,11 @@ async function updateHeaderInfo() {
     set('headerFds', s.openFds);
     set('headerUptime', formatUptime(s.uptimeSecs));
     set('headerPid', s.pid);
+    // Scan counts
+    set('headerPlugins', typeof allPlugins !== 'undefined' ? allPlugins.length : 0);
+    set('headerSamples', typeof allAudioSamples !== 'undefined' ? allAudioSamples.length : 0);
+    set('headerDaw', typeof allDawProjects !== 'undefined' ? allDawProjects.length : 0);
+    set('headerPresets', typeof allPresets !== 'undefined' ? allPresets.length : 0);
   } catch {}
 }
 
