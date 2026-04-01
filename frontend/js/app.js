@@ -200,13 +200,26 @@ async function updateHeaderInfo() {
     set('headerDaw', typeof allDawProjects !== 'undefined' ? allDawProjects.length : 0);
     set('headerPresets', typeof allPresets !== 'undefined' ? allPresets.length : 0);
 
-    // Scan status badge
+    // Scan status badge with live counts
     const sc = s.scanner || {};
     const active = [];
-    if (sc.pluginScanning) active.push('Plugins');
-    if (sc.audioScanning) active.push('Samples');
-    if (sc.dawScanning) active.push('DAW');
-    if (sc.presetScanning) active.push('Presets');
+    if (sc.pluginScanning) {
+      const btn = document.getElementById('btnScan');
+      const pct = btn?.textContent?.match(/(\d+)\s*\/\s*(\d+)/);
+      active.push(pct ? `Plugins ${pct[1]}/${pct[2]}` : 'Plugins');
+    }
+    if (sc.audioScanning) {
+      const c = typeof allAudioSamples !== 'undefined' ? allAudioSamples.length : 0;
+      active.push(`Samples ${c}`);
+    }
+    if (sc.dawScanning) {
+      const c = typeof allDawProjects !== 'undefined' ? allDawProjects.length : 0;
+      active.push(`DAW ${c}`);
+    }
+    if (sc.presetScanning) {
+      const c = typeof allPresets !== 'undefined' ? allPresets.length : 0;
+      active.push(`Presets ${c}`);
+    }
     if (sc.updateChecking) active.push('Updates');
     const badge = document.getElementById('scanStatusBadge');
     if (badge) {
