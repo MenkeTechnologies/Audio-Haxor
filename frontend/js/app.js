@@ -30,6 +30,16 @@
 })();
 
 // Auto-load last scan on startup
+// Logo click → GitHub (no inline onclick for CSP compliance)
+document.getElementById('appLogo')?.addEventListener('click', () => {
+  const shell = window.__TAURI_PLUGIN_SHELL__;
+  if (shell && shell.open) shell.open('https://github.com/MenkeTechnologies/Audio-Haxor');
+  else if (typeof openUpdate === 'function') openUpdate('https://github.com/MenkeTechnologies/Audio-Haxor');
+});
+
+// Prevent header stats clicks from bubbling
+document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopPropagation());
+
 (async function loadLastScan() {
   showGlobalProgress();
   // Load file-backed preferences before anything else

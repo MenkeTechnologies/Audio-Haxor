@@ -4425,7 +4425,7 @@
   <div class="app">
     <div class="header">
       <div class="header-top">
-        <div class="logo" style="cursor:pointer;" onclick="window.__TAURI_PLUGIN_SHELL__?.open('https://github.com/MenkeTechnologies/Audio-Haxor')" title="Open GitHub repository">
+        <div class="logo" id="appLogo" style="cursor:pointer;" title="Open GitHub repository">
           <div class="logo-icon">&#9835;</div>
           <div class="logo-text">
             <h1>AUDIO_HAXOR</h1>
@@ -4435,7 +4435,7 @@
         </div>
         <div class="scan-status-badge" id="scanStatusBadge"></div>
         <div class="header-actions">
-          <div class="header-info" id="headerStats" onclick="event.stopPropagation()">
+          <div class="header-info" id="headerStats">
             <div class="header-info-item" title="CPU cores">CORES <span class="header-info-value" id="headerCores">--</span></div>
             <div class="header-info-item" title="CPU usage (%)">CPU <span class="header-info-value" id="headerCpu">--</span></div>
             <div class="header-info-item" title="Resident memory (RSS)">RSS <span class="header-info-value" id="headerMem">--</span></div>
