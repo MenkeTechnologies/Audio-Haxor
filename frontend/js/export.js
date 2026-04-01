@@ -122,20 +122,19 @@ async function doExport() {
   if (fill) { fill.style.width = '0%'; fill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite'; }
   if (text) text.textContent = `Exporting as ${ext.toUpperCase()}...`;
 
+  // Close modal immediately and run export in background
+  const title = _exportCtx.title;
+  const exportFn = _exportCtx.exportFn;
+  closeExportModal();
+  showToast(`Exporting ${title} as ${ext.toUpperCase()}...`);
   showGlobalProgress();
-  try {
-    await _exportCtx.exportFn(fmt, filePath);
-    if (fill) { fill.style.animation = 'none'; fill.style.width = '100%'; }
-    if (text) text.textContent = 'Export complete!';
-    showToast(`${_exportCtx.title} exported as ${ext.toUpperCase()}`);
-    setTimeout(closeExportModal, 800);
-  } catch (err) {
+  exportFn(fmt, filePath).then(() => {
+    showToast(`${title} exported as ${ext.toUpperCase()}`);
+  }).catch(err => {
     showToast(`Export failed — ${err.message || err || 'Unknown error'}`, 4000, 'error');
-    if (progress) progress.style.display = 'none';
-    if (actions) actions.style.display = '';
-  } finally {
+  }).finally(() => {
     hideGlobalProgress();
-  }
+  });
 }
 
 // Event delegation for export modal
