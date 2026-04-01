@@ -4363,8 +4363,8 @@
           <span class="np-eq-title">EQ &amp; Processing</span>
           <button class="btn-small btn-secondary" data-action="resetEq" style="padding:2px 8px;font-size:9px;" title="Reset all EQ bands and effects to defaults">Reset</button>
         </div>
-        <div class="np-eq-canvas-wrap" style="position:relative;height:120px;margin-bottom:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;">
-          <canvas id="npEqCanvas" style="display:block;cursor:crosshair;" title="Drag band nodes to adjust frequency and gain"></canvas>
+        <div class="np-eq-canvas-wrap" style="position:relative;height:120px;margin-bottom:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;overflow:hidden;">
+          <canvas id="npEqCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair;" title="Drag band nodes to adjust frequency and gain"></canvas>
         </div>
         <div class="np-eq-controls">
           <div class="np-eq-band">

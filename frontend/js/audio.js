@@ -1648,10 +1648,11 @@ function updateMetaLine() {
     const w = wrap.clientWidth;
     const h = wrap.clientHeight;
     if (w === 0 || h === 0) { requestAnimationFrame(draw); return; }
-    canvas.width = w;
-    canvas.height = h;
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
+    // Only resize canvas bitmap when container size actually changes
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
     ctx.clearRect(0, 0, w, h);
 
     // Grid lines
