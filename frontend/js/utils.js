@@ -422,17 +422,38 @@ const _filterIds = ['typeFilter', 'statusFilter', 'favTypeFilter', 'audioFormatF
 
 function saveFilterState(id) {
   const el = document.getElementById(id);
-  if (el) {
+  if (!el) return;
+  // Check for multi-filter (custom dropdown widget)
+  const wrapper = el.nextElementSibling;
+  if (wrapper && wrapper.classList.contains('multi-filter') && wrapper._selected) {
+    const vals = [...wrapper._selected];
+    prefs.setItem('filter_' + id, vals.length > 0 ? vals : 'all');
+  } else {
     prefs.setItem('filter_' + id, el.value);
-    console.log('Saved filter:', id, '=', el.value);
   }
 }
 
 function restoreFilterStates() {
   for (const id of _filterIds) {
     const saved = prefs.getItem('filter_' + id);
+    if (!saved) continue;
     const el = document.getElementById(id);
-    if (saved && el) {
+    if (!el) continue;
+    // Check for multi-filter
+    const wrapper = el.nextElementSibling;
+    if (wrapper && wrapper.classList.contains('multi-filter') && typeof setMultiFilterValue === 'function') {
+      if (Array.isArray(saved)) {
+        // Clear all first, then set each value
+        if (wrapper._selected) wrapper._selected.clear();
+        for (const v of saved) {
+          setMultiFilterValue(id, v);
+        }
+        if (typeof updateMultiFilterLabel === 'function') {
+          const allLabel = wrapper.querySelector('.multi-filter-item.multi-filter-all label')?.textContent?.trim() || 'All';
+          updateMultiFilterLabel(wrapper, allLabel);
+        }
+      }
+    } else if (typeof saved === 'string') {
       el.value = saved;
     }
   }
