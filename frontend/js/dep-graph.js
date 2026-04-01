@@ -133,6 +133,9 @@ function showDepGraph() {
       </div>
       <div class="modal-body">
         ${statsHtml}
+        <div style="margin-bottom:10px;">
+          <input type="text" class="np-search-input" id="depSearchInput" placeholder="Search plugins and projects..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Filter dependency graph results" style="width:100%;box-sizing:border-box;">
+        </div>
         <div class="dep-tabs">
           <button class="dep-tab active" data-dep-tab="usage" title="Plugins ranked by how many projects use them">Most Used</button>
           <button class="dep-tab" data-dep-tab="projects" title="Projects ranked by plugin count">By Project</button>
@@ -145,6 +148,31 @@ function showDepGraph() {
     </div>
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+
+  // Store full HTML for search filtering
+  const usagePanel = document.getElementById('depPanelUsage');
+  const projPanel = document.getElementById('depPanelProjects');
+  const orphPanel = document.getElementById('depPanelOrphaned');
+  if (usagePanel) usagePanel._fullHtml = usagePanel.innerHTML;
+  if (projPanel) projPanel._fullHtml = projPanel.innerHTML;
+  if (orphPanel) orphPanel._fullHtml = orphPanel.innerHTML;
+
+  // Search filtering
+  document.getElementById('depSearchInput')?.addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    [usagePanel, projPanel, orphPanel].forEach(panel => {
+      if (!panel || !panel._fullHtml) return;
+      if (!q) { panel.innerHTML = panel._fullHtml; return; }
+      const tmp = document.createElement('div');
+      tmp.innerHTML = panel._fullHtml;
+      const rows = tmp.querySelectorAll('.dep-plugin-row, .dep-project-row, .dep-orphan');
+      rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+      });
+      panel.innerHTML = tmp.innerHTML;
+    });
+  });
 }
 
 function closeDepGraph() {

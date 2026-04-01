@@ -525,6 +525,37 @@ document.addEventListener('contextmenu', (e) => {
     return;
   }
 
+  // ── Dep graph project rows ──
+  const depProject = e.target.closest('.dep-project-row');
+  if (depProject) {
+    const path = depProject.dataset.depProject || '';
+    const name = depProject.querySelector('.dep-project-name')?.textContent?.trim() || '';
+    const daw = depProject.querySelector('.format-badge')?.textContent?.trim() || '';
+    const items = [
+      { icon: '&#9654;', label: `Open in ${daw || 'DAW'}`, action: () => { showToast(`Opening "${name}"...`); window.vstUpdater.openDawProject(path).catch(err => showToast(`Failed — ${err}`, 4000, 'error')); } },
+      { icon: '&#128193;', label: 'Reveal in Finder', action: () => typeof openDawFolder === 'function' && openDawFolder(path) },
+      '---',
+      { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
+      { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
+  // ── Dep graph orphaned plugin rows ──
+  const depOrphan = e.target.closest('.dep-orphan');
+  if (depOrphan) {
+    const name = depOrphan.querySelector('.dep-plugin-name')?.textContent?.trim() || '';
+    const path = depOrphan.getAttribute('title') || '';
+    const items = [
+      { icon: '&#128203;', label: 'Copy Plugin Name', action: () => copyToClipboard(name) },
+      { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+      { icon: '&#128193;', label: 'Reveal in Finder', action: () => typeof openFolder === 'function' && openFolder(path) },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
   // ── Tab buttons ──
   const tabBtn = e.target.closest('.tab-btn');
   if (tabBtn) {
