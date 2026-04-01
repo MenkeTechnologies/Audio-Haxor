@@ -388,17 +388,19 @@ fn walk_dir_parallel(
     }
 
     subdirs.par_iter().for_each(|subdir| {
-        walk_dir_parallel(
-            subdir,
-            depth + 1,
-            visited,
-            tx,
-            found,
-            batch_size,
-            stop,
-            exclude,
-            include_backups,
-        );
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            walk_dir_parallel(
+                subdir,
+                depth + 1,
+                visited,
+                tx,
+                found,
+                batch_size,
+                stop,
+                exclude,
+                include_backups,
+            );
+        }));
     });
 }
 

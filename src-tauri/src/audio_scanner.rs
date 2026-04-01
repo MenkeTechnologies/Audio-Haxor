@@ -233,16 +233,18 @@ fn walk_dir_parallel(
 
     // Recurse into subdirectories in parallel
     subdirs.par_iter().for_each(|subdir| {
-        walk_dir_parallel(
-            subdir,
-            depth + 1,
-            visited,
-            tx,
-            found,
-            batch_size,
-            stop,
-            exclude,
-        );
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            walk_dir_parallel(
+                subdir,
+                depth + 1,
+                visited,
+                tx,
+                found,
+                batch_size,
+                stop,
+                exclude,
+            );
+        }));
     });
 }
 
