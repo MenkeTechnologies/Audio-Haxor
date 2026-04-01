@@ -134,9 +134,9 @@ function showDepGraph() {
       <div class="modal-body">
         ${statsHtml}
         <div class="dep-tabs">
-          <button class="dep-tab active" data-dep-tab="usage">Most Used</button>
-          <button class="dep-tab" data-dep-tab="projects">By Project</button>
-          <button class="dep-tab" data-dep-tab="orphaned">Orphaned (${data.orphaned.length})</button>
+          <button class="dep-tab active" data-dep-tab="usage" title="Plugins ranked by how many projects use them">Most Used</button>
+          <button class="dep-tab" data-dep-tab="projects" title="Projects ranked by plugin count">By Project</button>
+          <button class="dep-tab" data-dep-tab="orphaned" title="Installed plugins not used in any scanned project">Orphaned (${data.orphaned.length})</button>
         </div>
         <div class="dep-panel active" id="depPanelUsage">${topPlugins || '<div class="dep-empty">No plugin references found.</div>'}</div>
         <div class="dep-panel" id="depPanelProjects">${topProjects || '<div class="dep-empty">No projects indexed.</div>'}</div>

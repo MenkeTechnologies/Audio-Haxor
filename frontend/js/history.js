@@ -116,7 +116,7 @@ async function selectScan(id, type) {
           <option value="">Select a scan...</option>
           ${options}
         </select>
-        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runDiff" data-id="${id}">Compare</button>
+        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runDiff" data-id="${id}" title="Compare with selected scan">Compare</button>
       </div>`;
   }
 
@@ -196,7 +196,7 @@ async function selectAudioScan(id) {
           <option value="">Select a scan...</option>
           ${options}
         </select>
-        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runAudioDiff" data-id="${id}">Compare</button>
+        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runAudioDiff" data-id="${id}" title="Compare with selected scan">Compare</button>
       </div>`;
   }
 
@@ -302,7 +302,7 @@ async function selectDawScan(id) {
           <option value="">Select a scan...</option>
           ${options}
         </select>
-        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runDawDiff" data-id="${id}">Compare</button>
+        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runDawDiff" data-id="${id}" title="Compare with selected scan">Compare</button>
       </div>`;
   }
 
@@ -420,7 +420,7 @@ async function selectPresetScan(id) {
           <option value="">Select a scan...</option>
           ${options}
         </select>
-        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runPresetDiff" data-id="${id}">Compare</button>
+        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runPresetDiff" data-id="${id}" title="Compare with selected scan">Compare</button>
       </div>`;
   }
 

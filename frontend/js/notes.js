@@ -425,16 +425,16 @@ function renderTagsManager() {
       <div class="tag-manager-header">
         <span class="tag-manager-name">${escapeHtml(tag)}</span>
         <span class="tag-manager-count">${count} item${count !== 1 ? 's' : ''}</span>
-        <button class="btn-small btn-secondary" data-tag-action="rename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;">Rename</button>
-        <button class="btn-small btn-secondary" data-tag-action="filter" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;">Filter All Tabs</button>
-        <button class="btn-small btn-stop" data-tag-action="delete" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;">&#10005;</button>
+        <button class="btn-small btn-secondary" data-tag-action="rename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Rename this tag">Rename</button>
+        <button class="btn-small btn-secondary" data-tag-action="filter" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Filter all tabs by this tag">Filter All Tabs</button>
+        <button class="btn-small btn-stop" data-tag-action="delete" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Delete this tag from all items">&#10005;</button>
       </div>
       <div class="tag-manager-items">
         ${items.slice(0, 20).map(item => {
           const name = item.path.split('/').pop().replace(/\.[^.]+$/, '');
           return `<div class="tag-manager-item">
             <span class="tag-manager-item-name" title="${escapeHtml(item.path)}">${escapeHtml(name)}</span>
-            <button class="btn-small" data-tag-action="remove-from" data-tag="${escapeHtml(tag)}" data-path="${escapeHtml(item.path)}" style="padding:2px 6px;font-size:9px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;">&#10005;</button>
+            <button class="btn-small" data-tag-action="remove-from" data-tag="${escapeHtml(tag)}" data-path="${escapeHtml(item.path)}" style="padding:2px 6px;font-size:9px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;" title="Remove this tag from item">&#10005;</button>
           </div>`;
         }).join('')}
         ${items.length > 20 ? `<div style="color:var(--text-muted);font-size:11px;padding:4px 8px;">...and ${items.length - 20} more</div>` : ''}
@@ -509,10 +509,10 @@ function renderTagWizardList() {
       <span class="tag-wizard-count">${count} item${count !== 1 ? 's' : ''}</span>
       <div class="tag-wizard-actions">
         ${isRenaming
-          ? `<button class="btn-small btn-primary" data-action-tw="confirmRename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;">Save</button>
-             <button class="btn-small btn-secondary" data-action-tw="cancelRename" style="padding:3px 8px;font-size:10px;">Cancel</button>`
-          : `<button class="btn-small btn-secondary" data-action-tw="startRename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;">Rename</button>
-             <button class="btn-small btn-stop" data-action-tw="delete" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;">Delete</button>`
+          ? `<button class="btn-small btn-primary" data-action-tw="confirmRename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Save new tag name">Save</button>
+             <button class="btn-small btn-secondary" data-action-tw="cancelRename" style="padding:3px 8px;font-size:10px;" title="Cancel rename">Cancel</button>`
+          : `<button class="btn-small btn-secondary" data-action-tw="startRename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Rename this tag">Rename</button>
+             <button class="btn-small btn-stop" data-action-tw="delete" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Delete this tag permanently">Delete</button>`
         }
       </div>
     </div>`;

@@ -126,7 +126,7 @@ function filterPresets() {
   if (filteredPresets.length > PRESET_PAGE_SIZE) {
     tbody.insertAdjacentHTML('beforeend',
       `<tr><td colspan="7" style="text-align:center; padding: 12px;">
-        <button class="btn btn-secondary" data-action="loadMorePresets">Load more (${filteredPresets.length - PRESET_PAGE_SIZE} remaining)</button>
+        <button class="btn btn-secondary" data-action="loadMorePresets" title="Load next batch of presets">Load more (${filteredPresets.length - PRESET_PAGE_SIZE} remaining)</button>
       </td></tr>`);
   }
 
@@ -146,7 +146,7 @@ function loadMorePresets() {
   if (presetRenderCount < filteredPresets.length) {
     tbody.insertAdjacentHTML('beforeend',
       `<tr><td colspan="7" style="text-align:center; padding: 12px;">
-        <button class="btn btn-secondary" data-action="loadMorePresets">Load more (${filteredPresets.length - presetRenderCount} remaining)</button>
+        <button class="btn btn-secondary" data-action="loadMorePresets" title="Load next batch of presets">Load more (${filteredPresets.length - presetRenderCount} remaining)</button>
       </td></tr>`);
   }
 }

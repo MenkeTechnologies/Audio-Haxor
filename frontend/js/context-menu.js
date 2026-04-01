@@ -470,6 +470,51 @@ document.addEventListener('contextmenu', (e) => {
     return;
   }
 
+  // ── Note cards ──
+  const noteCard = e.target.closest('.note-card');
+  if (noteCard) {
+    const pathEl = noteCard.querySelector('.note-card-path');
+    const nameEl = noteCard.querySelector('.note-card-name');
+    const path = pathEl?.textContent?.trim() || '';
+    const name = nameEl?.textContent?.trim() || '';
+    const editBtn = noteCard.querySelector('[data-action-note="edit"]');
+    const items = [
+      { icon: '&#128221;', label: 'Edit Note', action: () => { if (editBtn) editBtn.click(); else if (typeof showNoteEditor === 'function') showNoteEditor(path, name); } },
+      { icon: '&#128193;', label: 'Reveal in Finder', action: () => openFolder(path) },
+      { icon: '&#128194;', label: 'Show in File Browser', action: () => { switchTab('files'); loadDirectory(path.replace(/\/[^/]+$/, '')); } },
+      '---',
+      { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
+      { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+      '---',
+      { icon: '&#128465;', label: 'Delete Note', action: () => { if (typeof deleteNote === 'function') { deleteNote(path); if (typeof renderNotesTab === 'function') renderNotesTab(); } } },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
+  // ── Dep graph plugin rows ──
+  const depRow = e.target.closest('.dep-plugin-row');
+  if (depRow) {
+    const name = depRow.querySelector('.dep-plugin-name')?.textContent?.trim() || '';
+    const mfg = depRow.querySelector('.dep-plugin-mfg')?.textContent?.trim() || '';
+    const items = [
+      { icon: '&#128203;', label: 'Copy Plugin Name', action: () => copyToClipboard(name) },
+      { icon: '&#128203;', label: 'Copy Manufacturer', action: () => copyToClipboard(mfg) },
+    ];
+    if (typeof findProjectsUsingPlugin === 'function') {
+      items.push('---');
+      items.push({ icon: '&#9889;', label: 'Find Projects Using This', action: () => { const projects = findProjectsUsingPlugin(name); showReverseXrefModal(name, projects); } });
+    }
+    const plugin = typeof allPlugins !== 'undefined' && allPlugins.find(p => p.name === name);
+    if (plugin) {
+      const kvrUrl = plugin.kvrUrl || buildKvrUrl(plugin.name, plugin.manufacturer);
+      items.push({ icon: '&#127760;', label: 'Open on KVR', action: () => window.vstUpdater.openUpdate(kvrUrl) });
+      items.push({ icon: '&#128193;', label: 'Reveal in Finder', action: () => openFolder(plugin.path) });
+    }
+    showContextMenu(e, items);
+    return;
+  }
+
   // ── Tab buttons ──
   const tabBtn = e.target.closest('.tab-btn');
   if (tabBtn) {
