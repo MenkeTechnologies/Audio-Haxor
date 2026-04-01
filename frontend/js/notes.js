@@ -136,7 +136,7 @@ function showNoteEditor(path, name) {
     <div class="modal-content modal-small">
       <div class="modal-header">
         <h2>Notes: ${escapeHtml(name)}</h2>
-        <button class="modal-close" data-action-modal="closeNote">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeNote" title="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <label class="note-label">Note</label>
@@ -145,9 +145,9 @@ function showNoteEditor(path, name) {
         <input type="text" class="note-input" id="noteTags" placeholder="kick, bass, favorite" value="${escapeHtml(tags)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         ${suggestions}
         <div class="note-actions">
-          <button class="btn btn-primary" data-action-modal="saveNote">Save</button>
-          <button class="btn btn-secondary" data-action-modal="closeNote">Cancel</button>
-          ${current ? '<button class="btn btn-stop" data-action-modal="deleteNote">Delete Note</button>' : ''}
+          <button class="btn btn-primary" data-action-modal="saveNote" title="Save note and tags">Save</button>
+          <button class="btn btn-secondary" data-action-modal="closeNote" title="Cancel without saving">Cancel</button>
+          ${current ? '<button class="btn btn-stop" data-action-modal="deleteNote" title="Delete this note permanently">Delete Note</button>' : ''}
         </div>
       </div>
     </div>
@@ -462,12 +462,12 @@ function showTagWizard() {
     <div class="modal-content modal-wide">
       <div class="modal-header">
         <h2>Tag Manager</h2>
-        <button class="modal-close" data-action-modal="closeTagWizard">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeTagWizard" title="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <div class="tag-wizard-add">
           <input type="text" id="tagWizardInput" placeholder="New tag name..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-          <button class="btn btn-primary" id="tagWizardAddBtn" data-action-tw="add">+ Add</button>
+          <button class="btn btn-primary" id="tagWizardAddBtn" data-action-tw="add" title="Create a new tag">+ Add</button>
         </div>
         <div class="tag-wizard-list" id="tagWizardList"></div>
       </div>

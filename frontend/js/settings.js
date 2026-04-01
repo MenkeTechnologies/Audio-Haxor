@@ -203,7 +203,7 @@ const ROOT_DEFAULTS = {};
   for (const [key, scheme] of Object.entries(COLOR_SCHEMES)) {
     const dots = dotKeys.map(k => `<span class="scheme-dot" style="background: ${scheme.vars[k]};"></span>`).join('');
     grid.insertAdjacentHTML('beforeend',
-      `<button class="scheme-btn" data-action="settingColorScheme" data-scheme="${key}">` +
+      `<button class="scheme-btn" data-action="settingColorScheme" data-scheme="${key}" title="Apply ${scheme.label} color scheme">` +
         `<div class="scheme-btn-name">${scheme.label}</div>` +
         `<div class="scheme-btn-desc">${scheme.desc}</div>` +
         `<div class="scheme-btn-preview">${dots}</div>` +
@@ -365,7 +365,7 @@ function refreshCustomPresetUI() {
     const accent = p.vars['--accent'] || '#ff2a6d';
     const cyan = p.vars['--cyan'] || '#05d9e8';
     const magenta = p.vars['--magenta'] || '#d300c5';
-    return `<button class="custom-preset-chip${active}" data-action="loadCustomPreset" data-idx="${i}">
+    return `<button class="custom-preset-chip${active}" data-action="loadCustomPreset" data-idx="${i}" title="Load custom preset: ${escapeHtml(p.name || 'Preset ' + (i+1))}">
       <span class="custom-preset-chip-dots">
         <span class="custom-preset-chip-dot" style="background:${accent}"></span>
         <span class="custom-preset-chip-dot" style="background:${cyan}"></span>

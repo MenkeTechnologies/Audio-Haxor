@@ -140,7 +140,7 @@ async function selectScan(id, type) {
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${timeStr} &middot; ${detail.pluginCount} plugins &middot; ${typeBreakdown}</div>
         ${rootsHtml}
       </div>
-      <button class="btn-danger" data-action="deleteScanEntry" data-id="${id}">Delete</button>
+      <button class="btn-danger" data-action="deleteScanEntry" data-id="${id}" title="Delete this scan entry">Delete</button>
     </div>
     ${compareHtml}
     <div id="diffResults"></div>
@@ -212,7 +212,7 @@ async function selectAudioScan(id) {
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${timeStr} &middot; ${detail.sampleCount} samples &middot; ${formatAudioSize(detail.totalBytes)} &middot; ${fmtBreakdown}</div>
         ${audioRootsHtml}
       </div>
-      <button class="btn-danger" data-action="deleteAudioScanEntry" data-id="${id}">Delete</button>
+      <button class="btn-danger" data-action="deleteAudioScanEntry" data-id="${id}" title="Delete this scan entry">Delete</button>
     </div>
     ${compareHtml}
     <div id="diffResults"></div>
@@ -318,7 +318,7 @@ async function selectDawScan(id) {
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${timeStr} &middot; ${detail.projectCount} projects &middot; ${formatAudioSize(detail.totalBytes)} &middot; ${dawBreakdown}</div>
         ${dawRootsHtml}
       </div>
-      <button class="btn-danger" data-action="deleteDawScanEntry" data-id="${id}">Delete</button>
+      <button class="btn-danger" data-action="deleteDawScanEntry" data-id="${id}" title="Delete this scan entry">Delete</button>
     </div>
     ${compareHtml}
     <div id="diffResults"></div>
@@ -432,7 +432,7 @@ async function selectPresetScan(id) {
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${timeStr} &middot; ${detail.presetCount} presets &middot; ${formatAudioSize(detail.totalBytes)} &middot; ${fmtBreakdown}</div>
         ${presetRootsHtml}
       </div>
-      <button class="btn-danger" data-action="deletePresetScanEntry" data-id="${id}">Delete</button>
+      <button class="btn-danger" data-action="deletePresetScanEntry" data-id="${id}" title="Delete this scan entry">Delete</button>
     </div>
     ${compareHtml}
     <div id="diffResults"></div>

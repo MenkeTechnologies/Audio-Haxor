@@ -46,7 +46,7 @@ function showExportModal(type, title, itemCount) {
     <div class="modal-content modal-small">
       <div class="modal-header">
         <h2>Export ${escapeHtml(title)}</h2>
-        <button class="modal-close" data-action-modal="closeExport">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeExport" title="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <div class="export-info">
@@ -71,8 +71,8 @@ function showExportModal(type, title, itemCount) {
           <span class="export-progress-text" id="exportProgressText">Exporting...</span>
         </div>
         <div class="export-actions" id="exportActions">
-          <button class="btn btn-primary" data-action-modal="confirmExport">&#8615; Export</button>
-          <button class="btn btn-secondary" data-action-modal="closeExport">Cancel</button>
+          <button class="btn btn-primary" data-action-modal="confirmExport" title="Export to selected format">&#8615; Export</button>
+          <button class="btn btn-secondary" data-action-modal="closeExport" title="Cancel export">Cancel</button>
         </div>
       </div>
     </div>

@@ -64,7 +64,7 @@ function renderDuplicateModal(results) {
     <div class="modal-content">
       <div class="modal-header">
         <h2>Duplicate Detection</h2>
-        <button class="modal-close" data-action-modal="closeDup">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeDup" title="Close">&#10005;</button>
       </div>
       <div class="modal-body">`;
 

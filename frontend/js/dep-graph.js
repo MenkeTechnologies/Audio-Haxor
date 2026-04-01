@@ -129,7 +129,7 @@ function showDepGraph() {
     <div class="modal-content modal-wide dep-graph-modal">
       <div class="modal-header">
         <h2>Plugin Dependency Graph</h2>
-        <button class="modal-close" data-action-modal="closeDepGraph">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeDepGraph" title="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         ${statsHtml}

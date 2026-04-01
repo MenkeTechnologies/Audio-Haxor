@@ -9,7 +9,7 @@ function toggleHelpOverlay() {
     <div class="modal-content">
       <div class="modal-header">
         <h2>Keyboard Shortcuts</h2>
-        <button class="modal-close" data-action-modal="closeHelp">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeHelp" title="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <div class="help-grid">

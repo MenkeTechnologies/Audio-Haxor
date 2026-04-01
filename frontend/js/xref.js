@@ -56,7 +56,7 @@ function showXrefModal(projectName, plugins) {
     <div class="modal-content modal-wide">
       <div class="modal-header">
         <h2>Plugins in ${escapeHtml(projectName)}</h2>
-        <button class="modal-close" data-action-modal="closeXref">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeXref" title="Close">&#10005;</button>
       </div>
       <div class="modal-body">${body}</div>
     </div>
@@ -77,7 +77,7 @@ async function showProjectPlugins(projectPath, projectName) {
     <div class="modal-content modal-wide">
       <div class="modal-header">
         <h2>Plugins in ${escapeHtml(projectName)}</h2>
-        <button class="modal-close" data-action-modal="closeXref">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeXref" title="Close">&#10005;</button>
       </div>
       <div class="modal-body" style="text-align:center;padding:32px;">
         <div class="spinner" style="width:20px;height:20px;margin:0 auto 12px;"></div>
@@ -140,7 +140,7 @@ function showReverseXrefModal(pluginName, projects) {
     <div class="modal-content modal-wide">
       <div class="modal-header">
         <h2>Projects using ${escapeHtml(pluginName)}</h2>
-        <button class="modal-close" data-action-modal="closeXref">&#10005;</button>
+        <button class="modal-close" data-action-modal="closeXref" title="Close">&#10005;</button>
       </div>
       <div class="modal-body">${body}</div>
     </div>
