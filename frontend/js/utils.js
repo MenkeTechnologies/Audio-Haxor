@@ -443,7 +443,6 @@ function restoreFilterStates() {
     const wrapper = el.nextElementSibling;
     if (wrapper && wrapper.classList.contains('multi-filter') && typeof setMultiFilterValue === 'function') {
       if (Array.isArray(saved)) {
-        // Clear all first, then set each value
         if (wrapper._selected) wrapper._selected.clear();
         for (const v of saved) {
           setMultiFilterValue(id, v);
@@ -457,10 +456,13 @@ function restoreFilterStates() {
       el.value = saved;
     }
   }
+  _filtersRestored = true;
 }
 
 // Save all filter states (called from filter functions)
+let _filtersRestored = false;
 function saveAllFilterStates() {
+  if (!_filtersRestored) return; // don't overwrite prefs during initial load
   for (const id of _filterIds) {
     saveFilterState(id);
   }
