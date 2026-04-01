@@ -174,14 +174,45 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  // Click project row → show plugins in that project
+  // Click project row → show plugins inline with back button
   const projRow = e.target.closest('[data-dep-project]');
   if (projRow) {
     const path = projRow.dataset.depProject;
-    const project = allDawProjects.find(d => d.path === path);
-    if (project) {
-      closeDepGraph();
-      showProjectPlugins(path, project.name);
+    const plugins = typeof _xrefCache !== 'undefined' ? (_xrefCache[path] || []) : [];
+    const project = typeof allDawProjects !== 'undefined' && allDawProjects.find(d => d.path === path);
+    const name = project ? project.name : path.split('/').pop();
+    const panel = document.getElementById('depPanelProjects');
+    if (panel) {
+      panel._prevHtml = panel.innerHTML;
+      let body;
+      if (plugins.length === 0) {
+        body = '<div class="dep-empty">No plugins found in this project.</div>';
+      } else {
+        body = plugins.map(p => {
+          const typeCls = 'xref-type-' + p.pluginType.toLowerCase();
+          return `<div class="dep-plugin-row">
+            <span class="xref-item-type ${typeCls}">${escapeHtml(p.pluginType)}</span>
+            <span class="dep-plugin-name">${escapeHtml(p.name)}</span>
+            <span class="dep-plugin-mfg">${escapeHtml(p.manufacturer)}</span>
+          </div>`;
+        }).join('');
+      }
+      panel.innerHTML = `<div style="margin-bottom:8px;">
+        <button class="btn btn-secondary" data-dep-back title="Back to project list" style="padding:4px 12px;font-size:11px;">&#8592; Back</button>
+        <span style="margin-left:8px;font-weight:600;color:var(--cyan);">${escapeHtml(name)}</span>
+        <span style="margin-left:8px;color:var(--text-muted);font-size:11px;">${plugins.length} plugin${plugins.length !== 1 ? 's' : ''}</span>
+      </div>${body}`;
+    }
+    return;
+  }
+
+  // Back button in project detail view
+  const backBtn = e.target.closest('[data-dep-back]');
+  if (backBtn) {
+    const panel = document.getElementById('depPanelProjects');
+    if (panel && panel._prevHtml) {
+      panel.innerHTML = panel._prevHtml;
+      panel._prevHtml = null;
     }
     return;
   }
