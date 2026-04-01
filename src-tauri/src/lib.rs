@@ -182,41 +182,31 @@ async fn scan_plugins(
                     .and_then(|s| s.parse::<usize>().ok())
                     .or(v.as_u64().map(|n| n as usize))
             })
-            .unwrap_or(2048)
-            .clamp(64, 8192);
+            .unwrap_or(512)
+            .clamp(64, 2048);
         let (tx, rx) = std::sync::mpsc::sync_channel::<scanner::PluginInfo>(chan_buf);
-        // Share stop flag directly with rayon workers for immediate cancellation
         let stop_flag = std::sync::Arc::new(AtomicBool::new(false));
         let stop_flag2 = stop_flag.clone();
 
         std::thread::spawn(move || {
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                unique_paths.par_iter().for_each(|p| {
-                    if stop_flag2.load(Ordering::Relaxed) {
-                        return;
-                    }
-                    if let Some(info) = scanner::get_plugin_info(p) {
-                        if stop_flag2.load(Ordering::Relaxed) { return; }
-                        let _ = tx.send(info);
-                    }
-                });
-            }));
+            unique_paths.par_iter().for_each(|p| {
+                if stop_flag2.load(Ordering::Relaxed) {
+                    return;
+                }
+                if let Some(info) = scanner::get_plugin_info(p) {
+                    let _ = tx.send(info);
+                }
+            });
         });
 
         let mut all_plugins = Vec::new();
         let mut batch = Vec::new();
         let mut processed = 0usize;
-
-        loop {
+        for info in rx {
             if scan_state.stop_scan.load(Ordering::Relaxed) {
                 stop_flag.store(true, Ordering::Relaxed);
                 break;
             }
-            let info = match rx.recv_timeout(std::time::Duration::from_millis(100)) {
-                Ok(info) => info,
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
-            };
             batch.push(info);
             processed += 1;
             if batch.len() >= batch_size || processed == total {
@@ -1218,7 +1208,6 @@ fn get_process_stats() -> serde_json::Value {
         "threads": threads,
         "cpuPercent": cpu_pct,
         "rayonThreads": rayon_threads,
-        "numCpus": num_cpus::get(),
         "uptimeSecs": uptime_secs,
         "openFds": open_fds,
     })
@@ -2611,8 +2600,8 @@ pub fn run() {
                 .get("threadMultiplier")
                 .and_then(|v| v.as_u64().map(|n| n as usize))
         })
-        .unwrap_or(8)
-        .clamp(1, 16);
+        .unwrap_or(4)
+        .clamp(1, 8);
     let pool_size = num_cpus::get() * multiplier;
     rayon::ThreadPoolBuilder::new()
         .num_threads(pool_size)

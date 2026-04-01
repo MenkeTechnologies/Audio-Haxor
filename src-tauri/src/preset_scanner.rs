@@ -94,7 +94,7 @@ pub fn walk_for_presets(
     let batch_size = 100;
     let stop = Arc::new(AtomicBool::new(false));
     let found = Arc::new(AtomicUsize::new(0));
-    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<PresetFile>>(2048);
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<PresetFile>>(512);
     let visited = Arc::new(Mutex::new(HashSet::new()));
     let exclude = Arc::new(exclude.unwrap_or_default());
 
@@ -102,32 +102,24 @@ pub fn walk_for_presets(
     let stop2 = stop.clone();
     let found2 = found.clone();
     std::thread::spawn(move || {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            roots_owned.par_iter().for_each(|root| {
-                if stop2.load(Ordering::Relaxed) {
-                    return;
-                }
-                walk_dir_parallel(
-                    root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
-                );
-            });
-        }));
+        roots_owned.par_iter().for_each(|root| {
+            if stop2.load(Ordering::Relaxed) {
+                return;
+            }
+            walk_dir_parallel(
+                root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude,
+            );
+        });
     });
 
     let mut total_found = 0usize;
-    loop {
+    for presets in rx {
         if should_stop() {
             stop.store(true, Ordering::Relaxed);
             break;
         }
-        match rx.recv_timeout(std::time::Duration::from_millis(100)) {
-            Ok(presets) => {
-                total_found += presets.len();
-                on_batch(&presets, total_found);
-            }
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
-        }
+        total_found += presets.len();
+        on_batch(&presets, total_found);
     }
 }
 
@@ -142,7 +134,7 @@ fn walk_dir_parallel(
     stop: &Arc<AtomicBool>,
     exclude: &Arc<HashSet<String>>,
 ) {
-    if depth > 50 || stop.load(Ordering::Relaxed) {
+    if depth > 30 || stop.load(Ordering::Relaxed) {
         return;
     }
 
@@ -151,7 +143,7 @@ fn walk_dir_parallel(
         Err(_) => return,
     };
     {
-        let mut vis = visited.lock().unwrap_or_else(|e| e.into_inner());
+        let mut vis = visited.lock().unwrap();
         if !vis.insert(real_dir) {
             return;
         }
@@ -228,18 +220,16 @@ fn walk_dir_parallel(
     }
 
     subdirs.par_iter().for_each(|subdir| {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            walk_dir_parallel(
-                subdir,
-                depth + 1,
-                visited,
-                tx,
-                found,
-                batch_size,
-                stop,
-                exclude,
-            );
-        }));
+        walk_dir_parallel(
+            subdir,
+            depth + 1,
+            visited,
+            tx,
+            found,
+            batch_size,
+            stop,
+            exclude,
+        );
     });
 }
 
