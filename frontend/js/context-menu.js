@@ -117,10 +117,12 @@ document.addEventListener('contextmenu', (e) => {
       items.push({ icon: '&#128203;', label: 'Copy Architecture', action: () => copyToClipboard(archBadges) });
     }
     items.push('---');
-    const pluginFav = isFavorite(path);
-    items.push({ icon: pluginFav ? '&#9734;' : '&#9733;', label: pluginFav ? 'Remove from Favorites' : 'Add to Favorites',
-      action: () => pluginFav ? removeFavorite(path) : addFavorite('plugin', path, name, { format: pluginCard.querySelector('.plugin-type')?.textContent }) });
-    items.push({ icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) });
+    if (typeof isFavorite === 'function') {
+      const pluginFav = isFavorite(path);
+      items.push({ icon: pluginFav ? '&#9734;' : '&#9733;', label: pluginFav ? 'Remove from Favorites' : 'Add to Favorites',
+        action: () => pluginFav ? removeFavorite(path) : addFavorite('plugin', path, name, { format: pluginCard.querySelector('.plugin-type')?.textContent }) });
+    }
+    if (typeof showNoteEditor === 'function') items.push({ icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) });
     if (typeof findProjectsUsingPlugin === 'function') {
       items.push({ icon: '&#9889;', label: 'Find Projects Using This', action: () => {
         const projects = findProjectsUsingPlugin(name);
@@ -153,7 +155,7 @@ document.addEventListener('contextmenu', (e) => {
       { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
       { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
       '---',
-      ...[(() => { const f = isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
+      ...[(() => { const f = typeof isFavorite === 'function' && isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
         action: () => f ? removeFavorite(path) : addFavorite('sample', path, name, { format: audioRow.querySelector('.format-badge')?.textContent }) }; })()],
       { icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) },
       ...quickTagItems(path, name),
@@ -179,7 +181,7 @@ document.addEventListener('contextmenu', (e) => {
       { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
       { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
       '---',
-      ...[(() => { const f = isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
+      ...[(() => { const f = typeof isFavorite === 'function' && isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
         action: () => f ? removeFavorite(path) : addFavorite('daw', path, name, { format: dawRow.querySelector('.format-badge:last-of-type')?.textContent, daw: dawName }) }; })()],
       { icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) },
       ...quickTagItems(path, name),
@@ -200,7 +202,7 @@ document.addEventListener('contextmenu', (e) => {
       { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
       { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
       '---',
-      ...[(() => { const f = isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
+      ...[(() => { const f = typeof isFavorite === 'function' && isFavorite(path); return { icon: f ? '&#9734;' : '&#9733;', label: f ? 'Remove from Favorites' : 'Add to Favorites',
         action: () => f ? removeFavorite(path) : addFavorite('preset', path, name, { format: presetRow.querySelector('.format-badge')?.textContent }) }; })()],
       { icon: '&#128221;', label: 'Add Note', action: () => showNoteEditor(path, name) },
       ...quickTagItems(path, name),
