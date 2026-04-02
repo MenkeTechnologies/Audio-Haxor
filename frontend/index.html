@@ -5665,13 +5665,15 @@
               <button class="btn btn-stop btn-settings-action" data-action="settingClearKvrCache" title="Clear cached KVR plugin version data">Clear</button>
             </div>
           </div>
-          <div class="settings-row">
-            <div class="settings-label">
-              <span class="settings-title">Clear Analysis Cache</span>
-              <span class="settings-desc">Delete cached BPM, Key, LUFS, waveform, and spectrogram data (5 files). Will re-analyze on next scan.</span>
+          <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+            <div class="settings-label" style="margin-bottom:8px;">
+              <span class="settings-title">Cache Files</span>
+              <span class="settings-desc">Analysis and index caches stored in the data directory. Click a row to reveal in Finder, or delete individual files.</span>
             </div>
-            <div class="settings-control">
-              <button class="btn btn-stop btn-settings-action" data-action="settingClearAnalysisCache" title="Clear all analysis cache files">Clear</button>
+            <div id="cacheFilesList" style="font-size:11px;"></div>
+            <div style="margin-top:8px;display:flex;gap:6px;">
+              <button class="btn btn-stop btn-settings-action" data-action="settingClearAnalysisCache" title="Clear all analysis cache files" style="font-size:10px;">Clear All Caches</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="refreshCacheList" title="Refresh cache file list" style="font-size:10px;">Refresh</button>
             </div>
           </div>
           <div class="settings-row">

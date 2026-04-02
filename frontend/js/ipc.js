@@ -165,6 +165,9 @@ document.addEventListener('click', (e) => {
     case 'exportSettingsPdf': if (typeof exportSettingsPdf === 'function') exportSettingsPdf(); break;
     case 'exportLogPdf': if (typeof exportLogPdf === 'function') exportLogPdf(); break;
     case 'clearAppLog': window.vstUpdater.clearLog().then(() => showToast('Log cleared')).catch(() => {}); break;
+    case 'refreshCacheList': if (typeof renderCacheFilesList === 'function') renderCacheFilesList(); break;
+    case 'revealDataFile': if (el.dataset.path) { const dir = el.dataset.path.replace(/\/[^/]+$/, ''); window.vstUpdater.openAudioFolder(el.dataset.path).catch(() => {}); } break;
+    case 'deleteDataFile': if (el.dataset.name && confirm(`Delete ${el.dataset.name}?`)) { window.vstUpdater.deleteDataFile(el.dataset.name).then(() => { showToast(`Deleted ${el.dataset.name}`); if (typeof renderCacheFilesList === 'function') renderCacheFilesList(); }).catch(e => showToast('Delete failed: ' + e, 4000, 'error')); } break;
     case 'resetAllScans': resetAllScans(); break;
     case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;
     case 'settingToggleAutoScan': settingToggleAutoScan(); break;
@@ -408,6 +411,8 @@ window.vstUpdater = {
   appendLog: (msg) => invoke('append_log', { msg }).catch(() => {}),
   readLog: () => invoke('read_log'),
   clearLog: () => invoke('clear_log'),
+  listDataFiles: () => invoke('list_data_files'),
+  deleteDataFile: (name) => invoke('delete_data_file', { name }),
   // DAW history
   saveDawScan: (projects, roots) => invoke('daw_history_save', { projects, roots: roots || null }),
   getDawScans: () => invoke('daw_history_get_scans'),

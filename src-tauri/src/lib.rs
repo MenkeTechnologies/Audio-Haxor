@@ -1544,6 +1544,41 @@ fn get_process_stats(app: AppHandle) -> serde_json::Value {
     })
 }
 
+#[tauri::command]
+fn list_data_files() -> Vec<serde_json::Value> {
+    let data_dir = history::get_data_dir();
+    let mut files = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&data_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() { continue; }
+            let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            let meta = std::fs::metadata(&path).ok();
+            let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+            let modified = meta.and_then(|m| m.modified().ok()).map(|t| {
+                let dt: chrono::DateTime<chrono::Utc> = t.into();
+                dt.format("%Y-%m-%d %H:%M:%S").to_string()
+            }).unwrap_or_default();
+            files.push(serde_json::json!({
+                "name": name,
+                "path": path.to_string_lossy(),
+                "size": size,
+                "sizeFormatted": format_size(size),
+                "modified": modified,
+            }));
+        }
+    }
+    files.sort_by(|a, b| a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or("")));
+    files
+}
+
+#[tauri::command]
+fn delete_data_file(name: String) -> Result<(), String> {
+    let path = history::get_data_dir().join(&name);
+    if !path.exists() { return Ok(()); }
+    std::fs::remove_file(&path).map_err(|e| e.to_string())
+}
+
 static APP_START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
 
 fn get_uptime_secs() -> u64 {
@@ -3123,6 +3158,8 @@ pub fn run() {
             append_log,
             read_log,
             clear_log,
+            list_data_files,
+            delete_data_file,
             compute_fingerprint,
             find_similar_samples,
             open_update_url,

@@ -765,5 +765,5 @@ function switchTab(tab) {
   if (tab === 'notes') renderNotesTab();
   if (tab === 'tags') renderTagsManager();
   if (tab === 'files') initFileBrowser();
-  if (tab === 'settings') refreshSettingsUI();
+  if (tab === 'settings') { refreshSettingsUI(); if (typeof renderCacheFilesList === 'function') renderCacheFilesList(); }
 }

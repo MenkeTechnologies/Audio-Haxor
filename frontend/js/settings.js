@@ -511,6 +511,36 @@ async function exportLogPdf() {
   }
 }
 
+async function renderCacheFilesList() {
+  const container = document.getElementById('cacheFilesList');
+  if (!container) return;
+  try {
+    const files = await window.vstUpdater.listDataFiles();
+    if (files.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-dim);padding:8px;">No data files found</div>';
+      return;
+    }
+    const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
+    container.innerHTML = `<div style="margin-bottom:6px;color:var(--text-muted);font-size:10px;">${files.length} files — ${typeof formatAudioSize === 'function' ? formatAudioSize(totalSize) : Math.round(totalSize / 1024) + ' KB'} total</div>` +
+      `<table style="width:100%;border-collapse:collapse;font-size:10px;">
+        <tr style="color:var(--text-dim);border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:3px 6px;">File</th>
+          <th style="text-align:right;padding:3px 6px;">Size</th>
+          <th style="text-align:left;padding:3px 6px;">Modified</th>
+          <th style="padding:3px 6px;"></th>
+        </tr>
+        ${files.map(f => `<tr style="border-bottom:1px solid rgba(26,26,62,0.2);" title="${escapeHtml(f.path)}">
+          <td style="padding:3px 6px;color:var(--text);cursor:pointer;" data-action="revealDataFile" data-path="${escapeHtml(f.path)}">${escapeHtml(f.name)}</td>
+          <td style="padding:3px 6px;text-align:right;color:var(--cyan);font-family:Orbitron,sans-serif;">${f.sizeFormatted}</td>
+          <td style="padding:3px 6px;color:var(--text-muted);">${f.modified}</td>
+          <td style="padding:3px 6px;"><button class="btn-small btn-stop" data-action="deleteDataFile" data-name="${escapeHtml(f.name)}" title="Delete ${escapeHtml(f.name)}" style="padding:1px 6px;font-size:9px;">&#10005;</button></td>
+        </tr>`).join('')}
+      </table>`;
+  } catch (e) {
+    container.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${e.message || e}</div>`;
+  }
+}
+
 async function settingClearAnalysisCache() {
   // Delete separate cache files
   const files = ['bpm-cache.json', 'key-cache.json', 'lufs-cache.json', 'waveform-cache.json', 'spectrogram-cache.json', 'xref-cache.json'];
