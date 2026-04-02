@@ -1094,6 +1094,16 @@ function initSettingsSectionDrag() {
   });
 
   restoreSettingsSectionOrder();
+
+  // Make individual settings rows draggable within each section
+  if (typeof initDragReorder === 'function') {
+    container.querySelectorAll('.settings-section[data-section]').forEach(section => {
+      initDragReorder(section, '.settings-row', 'settingsRows_' + section.dataset.section, {
+        getKey: (el) => el.querySelector('.settings-title')?.textContent?.trim() || '',
+        handleSelector: '.settings-label',
+      });
+    });
+  }
 }
 
 function saveSettingsSectionOrder() {

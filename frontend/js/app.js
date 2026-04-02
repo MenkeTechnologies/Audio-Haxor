@@ -152,6 +152,18 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   }
 
   hideGlobalProgress();
+
+  // Dismiss splash screen
+  const splash = document.getElementById('splashScreen');
+  if (splash) {
+    const ver = document.getElementById('splashVersion');
+    try { if (ver) ver.textContent = 'v' + await window.vstUpdater.getVersion(); } catch { if (ver) ver.textContent = 'Ready'; }
+    setTimeout(() => {
+      splash.classList.add('fade-out');
+      setTimeout(() => splash.remove(), 600);
+    }, 400);
+  }
+
   renderWelcomeDashboard();
   renderShortcutSettings();
   updateHeaderInfo();

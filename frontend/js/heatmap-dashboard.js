@@ -77,6 +77,13 @@ function renderDashboard(samples, plugins, projects, presets) {
 
   grid.innerHTML = cards;
 
+  // Make dashboard cards draggable to reorder
+  if (typeof initDragReorder === 'function') {
+    initDragReorder(grid, '.hm-card', 'hmCardOrder', {
+      getKey: (el) => el.dataset.hmCard || '',
+    });
+  }
+
   // Render canvases after DOM insertion
   renderBpmHistogram();
   renderKeyWheel();
@@ -102,7 +109,7 @@ function buildFormatCard(samples) {
     </div>`;
   }).join('');
 
-  return `<div class="hm-card"><h3 class="hm-card-title">Format Distribution</h3>${bars || '<span class="hm-empty">No samples</span>'}</div>`;
+  return `<div class="hm-card" data-hm-card="format"><h3 class="hm-card-title">Format Distribution</h3>${bars || '<span class="hm-empty">No samples</span>'}</div>`;
 }
 
 function buildSizeCard(samples) {
@@ -133,7 +140,7 @@ function buildSizeCard(samples) {
     </div>`;
   }).join('');
 
-  return `<div class="hm-card"><h3 class="hm-card-title">Size Distribution</h3>${bars}</div>`;
+  return `<div class="hm-card" data-hm-card="size"><h3 class="hm-card-title">Size Distribution</h3>${bars}</div>`;
 }
 
 function buildFolderCard(samples) {
@@ -160,28 +167,28 @@ function buildFolderCard(samples) {
     </div>`;
   }).join('');
 
-  return `<div class="hm-card"><h3 class="hm-card-title">Top Folders</h3>${bars || '<span class="hm-empty">No data</span>'}</div>`;
+  return `<div class="hm-card" data-hm-card="folders"><h3 class="hm-card-title">Top Folders</h3>${bars || '<span class="hm-empty">No data</span>'}</div>`;
 }
 
 function buildBpmCard() {
   const bpms = typeof _bpmCache !== 'undefined' ? Object.values(_bpmCache).filter(v => v && v > 0) : [];
   if (bpms.length === 0) {
-    return `<div class="hm-card"><h3 class="hm-card-title">BPM Distribution</h3><span class="hm-empty">Expand sample rows to populate BPM data</span></div>`;
+    return `<div class="hm-card" data-hm-card="bpm"><h3 class="hm-card-title">BPM Distribution</h3><span class="hm-empty">Expand sample rows to populate BPM data</span></div>`;
   }
-  return `<div class="hm-card"><h3 class="hm-card-title">BPM Distribution (${bpms.length} analyzed)</h3><canvas id="hmBpmCanvas" width="400" height="120" style="width:100%;height:120px;" title="BPM histogram — expand sample rows to populate more data"></canvas></div>`;
+  return `<div class="hm-card" data-hm-card="bpm"><h3 class="hm-card-title">BPM Distribution (${bpms.length} analyzed)</h3><canvas id="hmBpmCanvas" width="400" height="120" style="width:100%;height:120px;" title="BPM histogram — expand sample rows to populate more data"></canvas></div>`;
 }
 
 function buildKeyCard() {
   const keys = typeof _keyCache !== 'undefined' ? Object.values(_keyCache).filter(Boolean) : [];
   if (keys.length === 0) {
-    return `<div class="hm-card"><h3 class="hm-card-title">Key Distribution</h3><span class="hm-empty">Expand sample rows to populate key data</span></div>`;
+    return `<div class="hm-card" data-hm-card="key"><h3 class="hm-card-title">Key Distribution</h3><span class="hm-empty">Expand sample rows to populate key data</span></div>`;
   }
-  return `<div class="hm-card"><h3 class="hm-card-title">Key Distribution (${keys.length} analyzed)</h3><canvas id="hmKeyCanvas" width="400" height="200" style="width:100%;height:200px;" title="Musical key distribution — major (cyan) vs minor (magenta)"></canvas></div>`;
+  return `<div class="hm-card" data-hm-card="key"><h3 class="hm-card-title">Key Distribution (${keys.length} analyzed)</h3><canvas id="hmKeyCanvas" width="400" height="200" style="width:100%;height:200px;" title="Musical key distribution — major (cyan) vs minor (magenta)"></canvas></div>`;
 }
 
 function buildTimelineCard(samples) {
   if (samples.length === 0) return '';
-  return `<div class="hm-card hm-card-wide"><h3 class="hm-card-title">Activity Timeline</h3><canvas id="hmTimelineCanvas" width="800" height="100" style="width:100%;height:100px;" title="Files modified per month over the last 24 months"></canvas></div>`;
+  return `<div class="hm-card hm-card-wide" data-hm-card="timeline"><h3 class="hm-card-title">Activity Timeline</h3><canvas id="hmTimelineCanvas" width="800" height="100" style="width:100%;height:100px;" title="Files modified per month over the last 24 months"></canvas></div>`;
 }
 
 function buildPluginTypeCard(plugins) {
@@ -200,7 +207,7 @@ function buildPluginTypeCard(plugins) {
       <span class="hm-bar-val">${count.toLocaleString()} (${share}%)</span>
     </div>`;
   }).join('');
-  return `<div class="hm-card"><h3 class="hm-card-title">Plugin Types</h3>${bars}</div>`;
+  return `<div class="hm-card" data-hm-card="pluginTypes"><h3 class="hm-card-title">Plugin Types</h3>${bars}</div>`;
 }
 
 function buildDawFormatCard(projects) {
@@ -222,7 +229,7 @@ function buildDawFormatCard(projects) {
       <span class="hm-bar-val">${count.toLocaleString()} (${share}%)</span>
     </div>`;
   }).join('');
-  return `<div class="hm-card"><h3 class="hm-card-title">DAW Formats</h3>${bars}</div>`;
+  return `<div class="hm-card" data-hm-card="dawFormats"><h3 class="hm-card-title">DAW Formats</h3>${bars}</div>`;
 }
 
 // ── Canvas Renderers ──

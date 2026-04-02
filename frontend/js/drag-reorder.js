@@ -122,6 +122,38 @@
   };
 })();
 
+// Reorder cells in new tbody rows to match current thead column order
+function reorderNewTableRows(tableId) {
+  const table = document.getElementById(tableId);
+  if (!table || !table._colOrder) return;
+  const thead = table.querySelector('thead tr');
+  if (!thead) return;
+  const getColKey = table._getColKey;
+  const currentOrder = [...thead.children].map(th => getColKey(th));
+  // Build index map: original position → current position
+  const defaultOrder = ['col-cb', 'name', 'format', 'col-size', 'col-bpm', 'col-key', 'col-dur', 'col-ch', 'modified', 'directory', 'col-actions'];
+  if (currentOrder.length === 0) return;
+  const indexMap = [];
+  for (const key of currentOrder) {
+    const origIdx = defaultOrder.indexOf(key);
+    indexMap.push(origIdx >= 0 ? origIdx : indexMap.length);
+  }
+  // Only reorder if order differs from default
+  const isDefault = indexMap.every((v, i) => v === i);
+  if (isDefault) return;
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  for (const row of tbody.rows) {
+    if (row._colReordered) continue;
+    row._colReordered = true;
+    const cells = [...row.cells];
+    if (cells.length !== indexMap.length) continue;
+    const frag = document.createDocumentFragment();
+    for (const idx of indexMap) { if (cells[idx]) frag.appendChild(cells[idx]); }
+    row.appendChild(frag);
+  }
+}
+
 // ── Auto-init common reorderable areas ──
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -140,7 +172,92 @@ document.addEventListener('DOMContentLoaded', () => {
     const favGrid = document.getElementById('fileFavsGrid');
     if (favGrid) initDragReorder(favGrid, '.file-fav-chip', 'fileFavOrder', { direction: 'horizontal', getKey: (el) => el.dataset.fileNav || el.textContent.trim() });
   }, 1000);
+
+  // Scan buttons and dashboard — draggable between header-actions and stats-bar
+  initFloatingElement('scanBtnsGroup', 'scanBtnsParent');
+  initFloatingElement('dashBtnGroup', 'dashBtnParent');
+
+  // All toolbar buttons — reorderable within their toolbar
+  document.querySelectorAll('.audio-toolbar').forEach((toolbar, i) => {
+    const tabContent = toolbar.closest('.tab-content');
+    const tabId = tabContent?.id || 'toolbar' + i;
+    initDragReorder(toolbar, '.btn, .search-box, .filter-select, select', tabId + 'BtnOrder', {
+      direction: 'horizontal',
+      getKey: (el) => el.dataset.action || el.id || el.textContent.trim().slice(0, 20),
+    });
+  });
 });
+
+// ── Floating element drag (move between containers) ──
+function initFloatingElement(elementId, prefsKey) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+
+  // Restore saved parent
+  if (typeof prefs !== 'undefined') {
+    const savedParent = prefs.getItem(prefsKey);
+    if (savedParent) {
+      const target = document.getElementById(savedParent) || document.querySelector(savedParent);
+      if (target && target !== el.parentElement) target.appendChild(el);
+    }
+  }
+
+  let dragging = false, ghost = null, startX = 0, startY = 0, offsetX = 0, offsetY = 0;
+
+  el.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.target.closest('input, select, textarea')) return;
+    const rect = el.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
+    dragging = false;
+
+    const onMove = (ev) => {
+      if (!dragging && (Math.abs(ev.clientX - startX) > 5 || Math.abs(ev.clientY - startY) > 5)) {
+        dragging = true;
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'grabbing';
+        ghost = el.cloneNode(true);
+        ghost.classList.add('trello-ghost');
+        ghost.style.cssText = `position:fixed;z-index:20000;width:${rect.width}px;left:${rect.left}px;top:${rect.top}px;pointer-events:none;opacity:0.9;transform:scale(1.05);box-shadow:0 4px 16px rgba(0,0,0,0.5);border:2px solid var(--cyan);border-radius:4px;background:var(--bg-primary);padding:4px 8px;`;
+        document.body.appendChild(ghost);
+        el.style.opacity = '0.3';
+      }
+      if (!dragging) return;
+      ghost.style.left = (ev.clientX - offsetX) + 'px';
+      ghost.style.top = (ev.clientY - offsetY) + 'px';
+
+      // Highlight potential drop targets
+      ghost.style.display = 'none';
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      ghost.style.display = '';
+      const dropTarget = under?.closest('.header-actions, .stats-bar, .tab-nav, .audio-toolbar');
+      document.querySelectorAll('.header-actions, .stats-bar, .tab-nav').forEach(c => c.style.outline = '');
+      if (dropTarget) dropTarget.style.outline = '2px dashed var(--cyan)';
+    };
+
+    const onUp = (ev) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (!dragging) return;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      el.style.opacity = '';
+      if (ghost) { ghost.remove(); ghost = null; }
+      document.querySelectorAll('.header-actions, .stats-bar, .tab-nav').forEach(c => c.style.outline = '');
+
+      // Find drop target
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      const dropTarget = under?.closest('.header-actions, .stats-bar, .tab-nav');
+      if (dropTarget && dropTarget !== el.parentElement) {
+        dropTarget.appendChild(el);
+        if (typeof prefs !== 'undefined') prefs.setItem(prefsKey, dropTarget.id || dropTarget.className.split(' ')[0]);
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
 
 function initFavDragReorder() {
   const favList = document.getElementById('favList');
@@ -167,47 +284,9 @@ function initRecentlyPlayedDragReorder() {
   });
 }
 
-function initTableColumnReorder(tableId, prefsKey) {
-  const table = document.getElementById(tableId);
-  if (!table) return;
-  const thead = table.querySelector('thead tr');
-  if (!thead || thead._colDragInit) return;
-  thead._colDragInit = true;
-
-  const getColKey = (th) => th.dataset.key || th.className.split(' ').find(c => c.startsWith('col-')) || th.textContent.trim().split(/\s/)[0];
-
-  // Restore saved column order
-  const saved = typeof prefs !== 'undefined' ? prefs.getObject(prefsKey, null) : null;
-  if (saved && Array.isArray(saved)) {
-    const ths = [...thead.children];
-    const thMap = {};
-    ths.forEach(th => { thMap[getColKey(th)] = th; });
-    const newOrder = [];
-    for (const key of saved) { if (thMap[key]) { newOrder.push(ths.indexOf(thMap[key])); thead.appendChild(thMap[key]); } }
-    ths.forEach(th => { if (!saved.includes(getColKey(th))) { newOrder.push(ths.indexOf(th)); thead.appendChild(th); } });
-    const tbody = table.querySelector('tbody');
-    if (tbody && newOrder.length > 0) {
-      for (const row of tbody.rows) {
-        const cells = [...row.cells];
-        const frag = document.createDocumentFragment();
-        for (const idx of newOrder) { if (cells[idx]) frag.appendChild(cells[idx]); }
-        for (const cell of cells) { if (!frag.contains(cell)) frag.appendChild(cell); }
-        row.appendChild(frag);
-      }
-    }
-  }
-
-  // Use the global Trello drag system for column headers
-  let _colDrag = null;
-
-  thead.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return;
-    const th = e.target.closest('th');
-    if (!th || e.target.closest('.col-resize, input, button')) return;
-    e.preventDefault();
-    const rect = th.getBoundingClientRect();
-    _colDrag = { th, origIdx: [...thead.children].indexOf(th), startX: e.clientX, offsetX: e.clientX - rect.left, isDragging: false, ghost: null, placeholder: null };
-  });
+// ── Table column reorder (single global listener pair) ──
+(function () {
+  let _colDrag = null; // { table, thead, prefsKey, getColKey, th, origIdx, ... }
 
   document.addEventListener('mousemove', (e) => {
     if (!_colDrag) return;
@@ -233,9 +312,9 @@ function initTableColumnReorder(tableId, prefsKey) {
     const el = document.elementFromPoint(e.clientX, e.clientY);
     c.ghost.style.display = '';
     const target = el?.closest('th');
-    if (target && target !== c.th && target !== c.placeholder && thead.contains(target)) {
+    if (target && target !== c.th && target !== c.placeholder && c.thead.contains(target)) {
       const r = target.getBoundingClientRect();
-      thead.insertBefore(c.placeholder, e.clientX < r.left + r.width / 2 ? target : target.nextSibling);
+      c.thead.insertBefore(c.placeholder, e.clientX < r.left + r.width / 2 ? target : target.nextSibling);
     }
   });
 
@@ -245,12 +324,12 @@ function initTableColumnReorder(tableId, prefsKey) {
     if (c.isDragging) {
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
-      const newIdx = [...thead.children].indexOf(c.placeholder);
+      const newIdx = [...c.thead.children].indexOf(c.placeholder);
       if (c.placeholder?.parentNode) { c.placeholder.parentNode.insertBefore(c.th, c.placeholder); c.placeholder.remove(); }
       c.th.style.display = '';
       if (c.ghost) c.ghost.remove();
       if (c.origIdx !== newIdx && newIdx >= 0) {
-        const tbody = table.querySelector('tbody');
+        const tbody = c.table.querySelector('tbody');
         if (tbody) {
           for (const row of tbody.rows) {
             const cells = [...row.cells];
@@ -262,8 +341,52 @@ function initTableColumnReorder(tableId, prefsKey) {
           }
         }
       }
-      if (typeof prefs !== 'undefined') prefs.setItem(prefsKey, [...thead.children].map(th => getColKey(th)));
+      if (typeof prefs !== 'undefined') prefs.setItem(c.prefsKey, [...c.thead.children].map(th => c.getColKey(th)));
     }
     _colDrag = null;
   });
-}
+
+  window.initTableColumnReorder = function (tableId, prefsKey) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    const thead = table.querySelector('thead tr');
+    if (!thead || thead._colDragInit) return;
+    thead._colDragInit = true;
+
+    const getColKey = (th) => th.dataset.key || th.className.split(' ').find(c => c.startsWith('col-')) || th.textContent.trim().split(/\s/)[0];
+
+    // Restore saved column order
+    const saved = typeof prefs !== 'undefined' ? prefs.getObject(prefsKey, null) : null;
+    if (saved && Array.isArray(saved)) {
+      const ths = [...thead.children];
+      const thMap = {};
+      ths.forEach(th => { thMap[getColKey(th)] = th; });
+      const newOrder = [];
+      for (const key of saved) { if (thMap[key]) { newOrder.push(ths.indexOf(thMap[key])); thead.appendChild(thMap[key]); } }
+      ths.forEach(th => { if (!saved.includes(getColKey(th))) { newOrder.push(ths.indexOf(th)); thead.appendChild(th); } });
+      const tbody = table.querySelector('tbody');
+      if (tbody && newOrder.length > 0) {
+        for (const row of tbody.rows) {
+          const cells = [...row.cells];
+          const frag = document.createDocumentFragment();
+          for (const idx of newOrder) { if (cells[idx]) frag.appendChild(cells[idx]); }
+          for (const cell of cells) { if (!frag.contains(cell)) frag.appendChild(cell); }
+          row.appendChild(frag);
+        }
+      }
+    }
+
+    // Store column order for reordering new rows
+    table._colOrder = saved || null;
+    table._getColKey = getColKey;
+
+    thead.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || _colDrag) return;
+      const th = e.target.closest('th');
+      if (!th || e.target.closest('.col-resize, input, button')) return;
+      e.preventDefault();
+      const rect = th.getBoundingClientRect();
+      _colDrag = { table, thead, prefsKey, getColKey, th, origIdx: [...thead.children].indexOf(th), startX: e.clientX, offsetX: e.clientX - rect.left, isDragging: false, ghost: null, placeholder: null };
+    });
+  };
+})();

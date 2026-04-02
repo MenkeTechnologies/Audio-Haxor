@@ -620,6 +620,7 @@ async function scanAudioSamples(resume = false) {
         if (loadMore) loadMore.remove();
         const toRender = matching.slice(0, 2000 - audioRenderCount);
         tbody.insertAdjacentHTML('beforeend', toRender.map(buildAudioRow).join(''));
+        if (typeof reorderNewTableRows === 'function') reorderNewTableRows('audioTable');
         audioRenderCount += toRender.length;
       }
     }
@@ -821,6 +822,7 @@ function renderAudioTable() {
   if (!tbody) return;
   audioRenderCount = Math.min(AUDIO_PAGE_SIZE, filteredAudioSamples.length);
   tbody.innerHTML = filteredAudioSamples.slice(0, audioRenderCount).map(buildAudioRow).join('');
+  if (typeof reorderNewTableRows === 'function') reorderNewTableRows('audioTable');
 
   if (audioRenderCount < filteredAudioSamples.length) {
     appendLoadMore(tbody);
@@ -841,6 +843,7 @@ function loadMoreAudio() {
   const nextBatch = filteredAudioSamples.slice(audioRenderCount, audioRenderCount + AUDIO_PAGE_SIZE);
   audioRenderCount += nextBatch.length;
   tbody.insertAdjacentHTML('beforeend', nextBatch.map(buildAudioRow).join(''));
+  if (typeof reorderNewTableRows === 'function') reorderNewTableRows('audioTable');
   if (audioRenderCount < filteredAudioSamples.length) {
     appendLoadMore(tbody);
   }

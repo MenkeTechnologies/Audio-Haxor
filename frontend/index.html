@@ -3838,6 +3838,9 @@
       color: var(--text-muted);
       margin-bottom: 6px;
     }
+    .scan-btns-group { display: inline-flex; gap: 6px; align-items: center; cursor: grab; border: 1px solid transparent; border-radius: 4px; padding: 2px 4px; transition: border-color 0.15s; }
+    .scan-btns-group:hover { border-color: rgba(5,217,232,0.2); }
+
     /* Trello-style drag-reorder */
     .trello-placeholder { border: 2px dashed var(--cyan) !important; border-radius: 4px; background: rgba(5,217,232,0.04); box-sizing: border-box; }
     .trello-ghost { transition: none !important; }
@@ -4421,9 +4424,51 @@
       background: var(--border);
       margin: 4px 8px;
     }
+    /* Splash screen */
+    .splash-screen {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 99999;
+      background: #05050a;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: opacity 0.6s ease-out;
+    }
+    .splash-screen.fade-out { opacity: 0; pointer-events: none; }
+    .splash-title {
+      font-family: 'Orbitron', sans-serif; font-size: 36px; font-weight: 900;
+      letter-spacing: 8px; text-transform: uppercase;
+      background: linear-gradient(90deg, var(--cyan), var(--magenta), var(--cyan));
+      background-size: 200% 100%;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      animation: splashGradient 2s linear infinite;
+      text-shadow: none;
+    }
+    .splash-sub {
+      font-size: 11px; letter-spacing: 6px; text-transform: uppercase;
+      color: var(--text-dim); margin-top: 12px;
+    }
+    .splash-bar-wrap {
+      width: 200px; height: 3px; background: rgba(26,26,62,0.5);
+      border-radius: 2px; margin-top: 24px; overflow: hidden;
+    }
+    .splash-bar {
+      height: 100%; width: 30%; border-radius: 2px;
+      background: linear-gradient(90deg, var(--cyan), var(--magenta));
+      animation: splashProgress 1.2s ease-in-out infinite;
+    }
+    .splash-version {
+      font-family: 'Share Tech Mono', monospace; font-size: 10px;
+      color: var(--text-muted); margin-top: 16px; letter-spacing: 2px;
+    }
+    @keyframes splashGradient { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+    @keyframes splashProgress { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
   </style>
 </head>
 <body>
+  <div class="splash-screen" id="splashScreen">
+    <div class="splash-title">AUDIO HAXOR</div>
+    <div class="splash-sub">Audio Plugin Manager</div>
+    <div class="splash-bar-wrap"><div class="splash-bar"></div></div>
+    <div class="splash-version" id="splashVersion">Loading...</div>
+  </div>
   <div class="ctx-menu" id="ctxMenu"></div>
   <div class="dock-zone-overlay" id="dockOverlay">
     <div class="dock-zone" id="dockTL" style="top:4px;left:4px;width:calc(50% - 6px);height:calc(50% - 6px);">&#8598; TOP LEFT</div>
@@ -4625,10 +4670,11 @@
             <div class="header-info-item" title="DAW projects scanned">DAW <span class="header-info-value" id="headerDaw">0</span></div>
             <div class="header-info-item" title="Presets scanned">PRE <span class="header-info-value" id="headerPresets">0</span></div>
           </div>
-          <button class="btn btn-secondary" data-action="showHeatmapDash" title="Audio heatmap dashboard — overview of your entire library">&#128202; Dashboard</button>
-          <button class="btn btn-primary" id="btnScanAll" data-action="scanAll" title="Scan all plugins, samples, DAW projects, and presets">&#9889; Scan All</button>
-          <button class="btn btn-stop" id="btnStopAll" data-action="stopAll" style="display:none;" title="Stop all running scans">&#9632; Stop All</button>
-          <button class="btn btn-secondary" id="btnResumeAll" data-action="resumeAll" style="display:none;" title="Resume all paused scans">&#9654; Resume All</button>
+          <span class="scan-btns-group" id="scanBtnsGroup">
+            <button class="btn btn-primary" id="btnScanAll" data-action="scanAll" title="Scan all plugins, samples, DAW projects, and presets">&#9889; Scan All</button>
+            <button class="btn btn-stop" id="btnStopAll" data-action="stopAll" style="display:none;" title="Stop all running scans">&#9632; Stop All</button>
+            <button class="btn btn-secondary" id="btnResumeAll" data-action="resumeAll" style="display:none;" title="Resume all paused scans">&#9654; Resume All</button>
+          </span>
         </div>
       </div>
       <div class="stats-bar" id="statsBar">
@@ -4667,6 +4713,7 @@
           <span class="stat-value" id="presetCountHeader">0</span>
           <span>Presets</span>
         </div>
+        <span class="scan-btns-group" id="dashBtnGroup"><button class="btn btn-secondary" data-action="showHeatmapDash" title="Audio heatmap dashboard (D)" style="padding:4px 10px;font-size:10px;">&#128202; Dashboard</button></span>
       </div>
     </div>
 
@@ -5555,23 +5602,23 @@
   <script src="js/audio.js?v=153"></script>
   <script src="js/daw.js?v=153"></script>
   <script src="js/presets.js?v=153"></script>
-  <script src="js/disk-usage.js"></script>
-  <script src="js/batch-select.js"></script>
-  <script src="js/sort-persist.js"></script>
-  <script src="js/multi-filter.js"></script>
-  <script src="js/file-browser.js"></script>
+  <script src="js/disk-usage.js?v=153"></script>
+  <script src="js/batch-select.js?v=153"></script>
+  <script src="js/sort-persist.js?v=153"></script>
+  <script src="js/multi-filter.js?v=153"></script>
+  <script src="js/file-browser.js?v=153"></script>
   <script src="js/duplicates.js?v=153"></script>
-  <script src="js/command-palette.js"></script>
+  <script src="js/command-palette.js?v=153"></script>
   <script src="js/xref.js?v=153"></script>
-  <script src="js/dep-graph.js"></script>
+  <script src="js/dep-graph.js?v=153"></script>
   <script src="js/drag-reorder.js?v=153"></script>
   <script src="js/modal-drag.js?v=153"></script>
   <script src="js/smart-playlists.js?v=153"></script>
   <script src="js/heatmap-dashboard.js?v=153"></script>
-  <script src="js/context-menu.js"></script>
-  <script src="js/help-overlay.js"></script>
+  <script src="js/context-menu.js?v=153"></script>
+  <script src="js/help-overlay.js?v=153"></script>
   <script src="js/shortcuts.js?v=153"></script>
-  <script src="js/keyboard-nav.js"></script>
+  <script src="js/keyboard-nav.js?v=153"></script>
   <script src="js/columns.js?v=153"></script>
   <script src="js/app.js?v=153"></script>
 </body>
