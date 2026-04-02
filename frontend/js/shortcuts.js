@@ -50,7 +50,7 @@ const DEFAULT_SHORTCUTS = {
   'heatmapDash': { key: 'd', mod: false, label: 'Heatmap dashboard' },
 };
 
-const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'settings'];
+const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'visualizer', 'settings'];
 
 function getShortcuts() {
   const saved = prefs.getObject('customShortcuts', null);

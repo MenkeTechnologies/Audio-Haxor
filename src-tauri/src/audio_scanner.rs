@@ -244,8 +244,15 @@ fn walk_dir_parallel(
                     })
                     .unwrap_or_default();
 
-                // Read audio header for duration/channels (fast — no full decode)
-                let audio_meta = get_audio_metadata(path.to_str().unwrap_or(""));
+                // Only read headers for formats with fast native parsers (WAV/AIFF/FLAC)
+                // Skip symphonia probe for MP3/OGG/etc during scan — too slow for bulk
+                let fast_fmt = matches!(ext.as_str(), ".wav" | ".aiff" | ".aif" | ".flac");
+                let (dur, ch, sr, bps) = if fast_fmt {
+                    let am = get_audio_metadata(path.to_str().unwrap_or(""));
+                    (am.duration, am.channels, am.sample_rate, am.bits_per_sample)
+                } else {
+                    (None, None, None, None)
+                };
                 batch.push(AudioSample {
                     name: sample_name,
                     path: path.to_string_lossy().to_string(),
@@ -254,10 +261,10 @@ fn walk_dir_parallel(
                     size: meta.len(),
                     size_formatted: format_size(meta.len()),
                     modified,
-                    duration: audio_meta.duration,
-                    channels: audio_meta.channels,
-                    sample_rate: audio_meta.sample_rate,
-                    bits_per_sample: audio_meta.bits_per_sample,
+                    duration: dur,
+                    channels: ch,
+                    sample_rate: sr,
+                    bits_per_sample: bps,
                 });
                 found.fetch_add(1, Ordering::Relaxed);
 

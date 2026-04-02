@@ -82,10 +82,10 @@ function _resizeCanvases() {
 
 // ── Start/Stop ──
 function startVisualizer() {
+  _resizeCanvases();
   if (_vizRAF) return;
   const empty = document.getElementById('vizEmpty');
   if (empty) empty.style.display = 'none';
-  _resizeCanvases();
   _vizLoop();
 }
 
@@ -111,12 +111,13 @@ function _vizLoop(timestamp) {
 
   if (!analyser || !isPlaying) return;
 
-  // Ensure pre-allocated buffers match analyser + set smoothing
+  // Ensure pre-allocated buffers match analyser
   if (!_vizFreqData || _vizFreqData.length !== analyser.frequencyBinCount) {
     _vizFreqData = new Uint8Array(analyser.frequencyBinCount);
     _vizTimeData = new Float32Array(analyser.fftSize);
-    analyser.smoothingTimeConstant = _vizParams.fftSmoothing;
   }
+  // Smoothing only affects frequency data, not time domain — set for FFT/bands
+  analyser.smoothingTimeConstant = _vizParams.fftSmoothing;
 
   if (_vizMode === 'all') {
     // Read data once, share across all tiles

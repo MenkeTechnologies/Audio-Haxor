@@ -6,15 +6,19 @@ const XREF_FORMATS = new Set(['ALS', 'RPP', 'RPP-BAK']);
 const _xrefCache = {};
 
 // Load persisted xref cache after prefs are loaded (called from app.js)
-function loadXrefCache() {
-  const saved = prefs.getObject('xrefCache', null);
+async function loadXrefCache() {
+  let saved = null;
+  try { saved = await window.vstUpdater.readCacheFile('xref-cache.json'); } catch {}
+  if (!saved || Object.keys(saved).length === 0) saved = prefs.getObject('xrefCache', null);
   if (saved && typeof saved === 'object') {
     Object.assign(_xrefCache, saved);
   }
+  // Clean old prefs key
+  prefs.removeItem('xrefCache');
 }
 
 function saveXrefCache() {
-  prefs.setItem('xrefCache', _xrefCache);
+  window.vstUpdater.writeCacheFile('xref-cache.json', _xrefCache).catch(() => {});
 }
 
 function isXrefSupported(format) {

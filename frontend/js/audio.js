@@ -612,7 +612,7 @@ async function scanAudioSamples(resume = false) {
 
     allAudioSamples.push(...toAdd);
     accumulateAudioStats(toAdd);
-    // Queue for background BPM/Key analysis
+    // Queue for background BPM/Key/LUFS analysis (runs sequentially with pauses)
     _bgQueue.push(...toAdd);
     if (!_bgAnalysisRunning) startBackgroundAnalysis();
     const audioElapsed = audioEta.elapsed();
@@ -1255,20 +1255,20 @@ async function toggleMetadata(filePath, event) {
 let _bpmCache = {};
 let _bpmCacheDirty = false;
 
-function loadBpmKeyCache() {
-  _bpmCache = prefs.getObject('bpmCache', {});
-  _keyCache = prefs.getObject('keyCache', {});
-  _lufsCache = prefs.getObject('lufsCache', {});
+async function loadBpmKeyCache() {
+  try { _bpmCache = await window.vstUpdater.readCacheFile('bpm-cache.json'); } catch { _bpmCache = {}; }
+  try { _keyCache = await window.vstUpdater.readCacheFile('key-cache.json'); } catch { _keyCache = {}; }
+  try { _lufsCache = await window.vstUpdater.readCacheFile('lufs-cache.json'); } catch { _lufsCache = {}; }
 }
 
 function _saveBpmCache() {
   if (!_bpmCacheDirty) return;
   _bpmCacheDirty = false;
-  prefs.setItem('bpmCache', _bpmCache);
+  window.vstUpdater.writeCacheFile('bpm-cache.json', _bpmCache).catch(() => {});
 }
 
 function _saveKeyCache() {
-  prefs.setItem('keyCache', _keyCache);
+  window.vstUpdater.writeCacheFile('key-cache.json', _keyCache).catch(() => {});
 }
 
 // Debounce cache saves — batch writes every 5 seconds
@@ -1317,7 +1317,7 @@ let _keyCache = {};
 let _lufsCache = {};
 function _debounceLufsSave() {
   clearTimeout(_lufsSaveTimer);
-  _lufsSaveTimer = setTimeout(() => prefs.setItem('lufsCache', _lufsCache), 5000);
+  _lufsSaveTimer = setTimeout(() => window.vstUpdater.writeCacheFile('lufs-cache.json', _lufsCache).catch(() => {}), 5000);
 }
 let _lufsSaveTimer = null;
 
@@ -1377,6 +1377,12 @@ let _bgAnalysisRunning = false;
 let _bgAnalysisAbort = false;
 let _bgQueue = [];
 let _bgDone = 0;
+let _bgPaused = false;
+
+// Pause bg analysis when user interacts (resume after 3s idle)
+let _bgIdleTimer = null;
+document.addEventListener('mousedown', () => { _bgPaused = true; clearTimeout(_bgIdleTimer); _bgIdleTimer = setTimeout(() => { _bgPaused = false; }, 3000); }, true);
+document.addEventListener('keydown', () => { _bgPaused = true; clearTimeout(_bgIdleTimer); _bgIdleTimer = setTimeout(() => { _bgPaused = false; }, 3000); }, true);
 
 async function startBackgroundAnalysis() {
   if (_bgAnalysisRunning) return;
@@ -1385,7 +1391,6 @@ async function startBackgroundAnalysis() {
 
   const bpmFormats = new Set(['WAV', 'AIFF', 'AIF', 'MP3', 'FLAC', 'OGG', 'M4A', 'AAC', 'OPUS']);
   const badge = document.getElementById('bgAnalysisBadge');
-  const BATCH = 4;
 
   while (!_bgAnalysisAbort) {
     // Drain queue — filter to supported formats not yet cached
@@ -1401,50 +1406,62 @@ async function startBackgroundAnalysis() {
       continue;
     }
 
-    for (let i = 0; i < todo.length; i += BATCH) {
+    for (const s of todo) {
       if (_bgAnalysisAbort) break;
-      const batch = todo.slice(i, i + BATCH);
 
-      await Promise.all(batch.map(async (s) => {
-        if (_bgAnalysisAbort) return;
-        if (_bpmCache[s.path] === undefined) {
-          try {
-            const bpm = await window.vstUpdater.estimateBpm(s.path);
-            _bpmCache[s.path] = bpm;
-            const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
-            if (row) { const cell = row.querySelector('.col-bpm'); if (cell) cell.textContent = bpm || ''; }
-          } catch { _bpmCache[s.path] = null; }
-        }
-        if (_keyCache[s.path] === undefined) {
-          try {
-            const key = await window.vstUpdater.detectAudioKey(s.path);
-            _keyCache[s.path] = key;
-            const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
-            if (row) { const cell = row.querySelector('.col-key'); if (cell) cell.textContent = key || ''; }
-          } catch { _keyCache[s.path] = null; }
-        }
-        if (_lufsCache[s.path] === undefined) {
-          try {
-            const lufs = await window.vstUpdater.measureLufs(s.path);
-            _lufsCache[s.path] = lufs;
-            const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
-            if (row) { const cell = row.querySelector('.col-lufs'); if (cell) cell.textContent = lufs != null ? lufs : ''; }
-          } catch { _lufsCache[s.path] = null; }
-        }
-      }));
+      // Pause while user is interacting
+      while (_bgPaused && !_bgAnalysisAbort) await new Promise(r => setTimeout(r, 200));
+      if (_bgAnalysisAbort) break;
 
-      _bgDone += batch.length;
-      _debounceBpmSave();
-      _debounceKeySave();
-      _debounceLufsSave();
-      if (badge) badge.innerHTML = `<span style="font-size:10px;color:var(--cyan);">BPM/Key/LUFS: ${_bgDone} analyzed</span>`;
+      // Fill in missing duration/channels/sampleRate from metadata probe
+      if (!s.duration || !s.channels) {
+        try {
+          const meta = await window.vstUpdater.getAudioMetadata(s.path);
+          if (meta.duration) s.duration = meta.duration;
+          if (meta.channels) s.channels = meta.channels;
+          if (meta.sampleRate) s.sampleRate = meta.sampleRate;
+          if (meta.bitsPerSample) s.bitsPerSample = meta.bitsPerSample;
+          const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
+          if (row) {
+            const durCell = row.querySelector('.col-dur');
+            const chCell = row.querySelector('.col-ch');
+            if (durCell && s.duration) durCell.textContent = typeof formatTime === 'function' ? formatTime(s.duration) : s.duration.toFixed(1);
+            if (chCell && s.channels) chCell.textContent = s.channels === 1 ? 'M' : s.channels === 2 ? 'S' : s.channels + 'ch';
+          }
+        } catch {}
+      }
+
+      // BPM/Key/LUFS analysis
+      if (_bpmCache[s.path] === undefined) {
+        try { _bpmCache[s.path] = await window.vstUpdater.estimateBpm(s.path); } catch { _bpmCache[s.path] = null; }
+        const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
+        if (row) { const cell = row.querySelector('.col-bpm'); if (cell) cell.textContent = _bpmCache[s.path] || ''; }
+      }
+      if (_keyCache[s.path] === undefined) {
+        try { _keyCache[s.path] = await window.vstUpdater.detectAudioKey(s.path); } catch { _keyCache[s.path] = null; }
+        const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
+        if (row) { const cell = row.querySelector('.col-key'); if (cell) cell.textContent = _keyCache[s.path] || ''; }
+      }
+      if (_lufsCache[s.path] === undefined) {
+        try { _lufsCache[s.path] = await window.vstUpdater.measureLufs(s.path); } catch { _lufsCache[s.path] = null; }
+        const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
+        if (row) { const cell = row.querySelector('.col-lufs'); if (cell) cell.textContent = _lufsCache[s.path] != null ? _lufsCache[s.path] : ''; }
+      }
+
+      _bgDone++;
+      // Save every 20 samples instead of every 4
+      if (_bgDone % 20 === 0) { _debounceBpmSave(); _debounceKeySave(); _debounceLufsSave(); }
+      if (badge) badge.textContent = `BPM/Key/LUFS: ${_bgDone} analyzed`;
+
+      // Yield to UI — 50ms pause between samples
+      await new Promise(r => setTimeout(r, 50));
     }
   }
 
   // Final save
   _saveBpmCache();
   _saveKeyCache();
-  prefs.setItem('lufsCache', _lufsCache);
+  window.vstUpdater.writeCacheFile('lufs-cache.json', _lufsCache).catch(() => {});
   _bgAnalysisRunning = false;
   if (badge) badge.innerHTML = '';
 }
@@ -1713,13 +1730,12 @@ let _spectrogramCache = {};
 const _WF_CACHE_MAX = 500;
 let _wfCacheDirtyTimer = null;
 
-function loadWaveformCache() {
-  _waveformCache = prefs.getObject('waveformCache', {});
-  _spectrogramCache = prefs.getObject('spectrogramCache', {});
+async function loadWaveformCache() {
+  try { _waveformCache = await window.vstUpdater.readCacheFile('waveform-cache.json'); } catch { _waveformCache = {}; }
+  try { _spectrogramCache = await window.vstUpdater.readCacheFile('spectrogram-cache.json'); } catch { _spectrogramCache = {}; }
 }
 
 function _saveWaveformCache() {
-  // Evict oldest entries if over limit
   const wfKeys = Object.keys(_waveformCache);
   if (wfKeys.length > _WF_CACHE_MAX) {
     for (const k of wfKeys.slice(0, wfKeys.length - _WF_CACHE_MAX)) delete _waveformCache[k];
@@ -1728,8 +1744,8 @@ function _saveWaveformCache() {
   if (sgKeys.length > _WF_CACHE_MAX) {
     for (const k of sgKeys.slice(0, sgKeys.length - _WF_CACHE_MAX)) delete _spectrogramCache[k];
   }
-  prefs.setItem('waveformCache', _waveformCache);
-  prefs.setItem('spectrogramCache', _spectrogramCache);
+  window.vstUpdater.writeCacheFile('waveform-cache.json', _waveformCache).catch(() => {});
+  window.vstUpdater.writeCacheFile('spectrogram-cache.json', _spectrogramCache).catch(() => {});
 }
 
 function _debounceWfSave() {

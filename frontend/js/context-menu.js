@@ -994,5 +994,17 @@ document.addEventListener('contextmenu', (e) => {
     return;
   }
 
+  // ── Walker tiles ──
+  const walkerTile = e.target.closest('.walker-tile');
+  if (walkerTile) {
+    const body = walkerTile.querySelector('.walker-tile-body');
+    const dirs = body ? [...body.querySelectorAll('.walker-dir')].map(d => d.textContent).join('\n') : '';
+    const items = [
+      { icon: '&#128203;', label: 'Copy All Paths', action: () => copyToClipboard(dirs) },
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
   } catch (err) { console.error('Context menu error:', err, err.stack); showToast('Context menu error: ' + (err.message || err), 4000, 'error'); }
 });

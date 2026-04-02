@@ -55,10 +55,10 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   initSortPersistence();
   initSettingsSectionDrag();
   loadRecentlyPlayed();
-  if (typeof loadBpmKeyCache === 'function') loadBpmKeyCache();
-  if (typeof loadWaveformCache === 'function') loadWaveformCache();
+  if (typeof loadBpmKeyCache === 'function') await loadBpmKeyCache();
+  if (typeof loadWaveformCache === 'function') await loadWaveformCache();
   renderGlobalTagBar();
-  if (typeof loadXrefCache === 'function') loadXrefCache();
+  if (typeof loadXrefCache === 'function') await loadXrefCache();
   if (typeof restoreFilterStates === 'function') restoreFilterStates();
   if (typeof loadFzfParams === 'function') loadFzfParams();
   if (typeof initSmartPlaylists === 'function') initSmartPlaylists();

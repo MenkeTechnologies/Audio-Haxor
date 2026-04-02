@@ -13,7 +13,7 @@
 ░▓████▒   ▓█   ▓██▒▒██▒ ▒██▒░ ████▓▒░░██▓ ▒██▒
 ```
 
-> **// SYSTEM ONLINE -- AUDIO_HAXOR v1.8.0 // by MenkeTechnologies**
+> **// SYSTEM ONLINE -- AUDIO_HAXOR v1.10.0 // by MenkeTechnologies**
 
 A high-voltage **Tauri v2** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
 
@@ -105,7 +105,10 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **PDF Export** | Export any tab to PDF (A4 landscape, auto-sized columns proportional to content, 7pt font for maximum data density, background export with toast notification) |
 | **TOML Export/Import** | Export/import all tabs in TOML format alongside JSON, CSV, TSV |
 | **BPM Estimation** | Estimates tempo for all audio formats (WAV, AIFF, MP3, FLAC, OGG, M4A, AAC, OPUS) using symphonia decoder + onset-strength autocorrelation. Compressed formats decoded to PCM (30s max). Shown in metadata panel and table column. Cached to prefs across reboots. Background batch analysis starts as samples arrive |
-| **LUFS Loudness** | Integrated loudness measurement (dBFS) per sample. Shown in metadata panel, table column (orange), and player meta line. Background analysis alongside BPM/Key, cached to prefs. 8 tests: silence floor, sine wave levels, 6dB amplitude relationship, short files |
+| **LUFS Loudness** | Integrated loudness measurement (dBFS) per sample. Shown in metadata panel, table column (orange), and player meta line. Background analysis alongside BPM/Key. 8 tests: silence floor, sine wave levels, 6dB amplitude relationship, short files |
+| **Visualizer Tab** | 6 real-time audio displays in 3×2 grid or single mode: FFT spectrum (log/linear), oscilloscope waveform (color picker), scrolling spectrogram (speed control), true stereo Lissajous (ChannelSplitter + dual AnalyserNodes), peak/RMS level meters (hold indicator), 10-band octave analyzer. 30fps throttle, pre-allocated buffers, zero CPU when tab hidden. Fullscreen mode (Escape to exit). Trello drag tiles. Context menus for per-tile params |
+| **Separate Cache Files** | BPM, Key, LUFS, waveform, spectrogram, and xref caches stored in individual JSON files in the data directory — not in the prefs TOML. Keeps prefs file small. Clear Analysis Cache button in Settings wipes all 6 files |
+| **Walker Status Tab** | 4-tile live view of scanner threads: Plugin (cyan), Audio (yellow), DAW (magenta), Preset (orange). Shows thread count, dirs in buffer, full directory paths. Polls 500ms, auto-start/stop on tab switch. Right-click to copy paths |
 | **Parametric EQ** | Visual frequency response curve with draggable band nodes (Low/Mid/High). Real-time FFT spectrum overlay at 60fps via Web Audio AnalyserNode. Log frequency axis (20Hz-20kHz), drag to change frequency and gain simultaneously |
 | **Audio Similarity Search** | Right-click any sample → "Find Similar" to find samples that sound alike. Non-blocking floating panel (docked bottom-left, draggable, resizable, minimizable). Spectral fingerprinting: RMS energy, spectral centroid (normalized), zero-crossing rate, 3-band energy split, attack time. Parallel computation via rayon. Click results to play. Shortcut: W key |
 | **Musical Key Detection** | Detects musical key (C Major, F# Minor, etc.) via Goertzel algorithm chromagram analysis across 7 octaves. Krumhansl-Kessler major/minor profile matching via Pearson correlation. Shown in metadata panel and player meta line alongside BPM. Cached per file. Supports all audio formats |
@@ -228,7 +231,7 @@ cd src-tauri && cargo test
 node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 ```
 
-### Rust tests (281 tests)
+### Rust tests (281 tests across 13 modules)
 
 | Module | Tests | Coverage |
 |--------|-------|----------|

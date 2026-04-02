@@ -431,6 +431,24 @@ function applyCrtSetting(on) {
   }
 }
 
+async function settingClearAnalysisCache() {
+  // Delete separate cache files
+  const files = ['bpm-cache.json', 'key-cache.json', 'lufs-cache.json', 'waveform-cache.json', 'spectrogram-cache.json', 'xref-cache.json'];
+  for (const f of files) {
+    try { await window.vstUpdater.writeCacheFile(f, {}); } catch {}
+  }
+  // Also remove old cache keys from prefs if they exist
+  prefs.removeItem('bpmCache');
+  prefs.removeItem('keyCache');
+  prefs.removeItem('lufsCache');
+  prefs.removeItem('waveformCache');
+  prefs.removeItem('spectrogramCache');
+  // Clear in-memory caches
+  if (typeof _bpmCache !== 'undefined') { _bpmCache = {}; _keyCache = {}; _lufsCache = {}; }
+  if (typeof _waveformCache !== 'undefined') { _waveformCache = {}; _spectrogramCache = {}; }
+  showToast('Analysis cache cleared — BPM/Key/LUFS/waveform/spectrogram');
+}
+
 function settingResetAllUI() {
   // All layout/ordering/sizing prefs keys
   const uiKeys = [
@@ -439,7 +457,7 @@ function settingResetAllUI() {
     'headerStatsOrder', 'statsBarOrder', 'audioStatsOrder', 'dawStatsOrder', 'presetStatsOrder',
     'audioColumnOrder', 'dawColumnOrder', 'presetColumnOrder',
     'favItemOrder', 'fileFavOrder', 'noteCardOrder', 'tagCardOrder', 'presetChipOrder',
-    'hmCardOrder', 'fzfParamOrder', 'shortcutOrder',
+    'hmCardOrder', 'fzfParamOrder', 'shortcutOrder', 'vizTileOrder',
     'scanBtnsParent', 'dashBtnParent',
     'similarDock', 'similarWidth', 'similarHeight',
     'expandOnClick',

@@ -161,6 +161,7 @@ document.addEventListener('click', (e) => {
     case 'settingResetTabOrder': settingResetTabOrder(); break;
     case 'settingClearAllHistory': settingClearAllHistory(); break;
     case 'settingClearKvrCache': settingClearKvrCache(); break;
+    case 'settingClearAnalysisCache': settingClearAnalysisCache(); break;
     case 'resetAllScans': resetAllScans(); break;
     case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;
     case 'settingToggleAutoScan': settingToggleAutoScan(); break;
@@ -398,6 +399,8 @@ window.vstUpdater = {
   estimateBpm: (path) => invoke('estimate_bpm', { filePath: path }),
   detectAudioKey: (path) => invoke('detect_audio_key', { filePath: path }),
   measureLufs: (path) => invoke('measure_lufs', { filePath: path }),
+  readCacheFile: (name) => invoke('read_cache_file', { name }),
+  writeCacheFile: (name, data) => invoke('write_cache_file', { name, data }),
   getWalkerStatus: () => invoke('get_walker_status'),
   // DAW history
   saveDawScan: (projects, roots) => invoke('daw_history_save', { projects, roots: roots || null }),

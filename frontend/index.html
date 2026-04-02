@@ -5153,22 +5153,22 @@
 
     <div class="tab-content" id="tabWalkers">
       <div class="walker-grid" id="walkerGrid">
-        <div class="walker-tile" id="walkerTilePlugin">
+        <div class="walker-tile" id="walkerTilePlugin" title="Plugin scanner — directories being walked for VST/AU plugins. Right-click to copy paths.">
           <div class="walker-tile-header" style="color:var(--cyan);">&#9889; Plugin Walker</div>
           <div class="walker-tile-status">idle</div>
           <div class="walker-tile-body" id="walkerPluginBody"></div>
         </div>
-        <div class="walker-tile" id="walkerTileAudio">
+        <div class="walker-tile" id="walkerTileAudio" title="Audio scanner — directories being walked for audio samples. Right-click to copy paths.">
           <div class="walker-tile-header" style="color:var(--yellow);">&#127925; Audio Walker</div>
           <div class="walker-tile-status">idle</div>
           <div class="walker-tile-body" id="walkerAudioBody"></div>
         </div>
-        <div class="walker-tile" id="walkerTileDaw">
+        <div class="walker-tile" id="walkerTileDaw" title="DAW scanner — directories being walked for DAW projects. Right-click to copy paths.">
           <div class="walker-tile-header" style="color:var(--magenta);">&#127911; DAW Walker</div>
           <div class="walker-tile-status">idle</div>
           <div class="walker-tile-body" id="walkerDawBody"></div>
         </div>
-        <div class="walker-tile" id="walkerTilePreset">
+        <div class="walker-tile" id="walkerTilePreset" title="Preset scanner — directories being walked for plugin presets. Right-click to copy paths.">
           <div class="walker-tile-header" style="color:var(--orange);">&#127926; Preset Walker</div>
           <div class="walker-tile-status">idle</div>
           <div class="walker-tile-body" id="walkerPresetBody"></div>
@@ -5660,6 +5660,15 @@
             </div>
             <div class="settings-control">
               <button class="btn btn-stop btn-settings-action" data-action="settingClearKvrCache" title="Clear cached KVR plugin version data">Clear</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Clear Analysis Cache</span>
+              <span class="settings-desc">Delete cached BPM, Key, LUFS, waveform, and spectrogram data (5 files). Will re-analyze on next scan.</span>
+            </div>
+            <div class="settings-control">
+              <button class="btn btn-stop btn-settings-action" data-action="settingClearAnalysisCache" title="Clear all analysis cache files">Clear</button>
             </div>
           </div>
           <div class="settings-row">

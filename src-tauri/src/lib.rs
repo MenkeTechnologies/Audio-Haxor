@@ -1207,6 +1207,23 @@ fn get_prefs_path() -> String {
         .to_string()
 }
 
+#[tauri::command]
+fn read_cache_file(name: String) -> Result<serde_json::Value, String> {
+    let path = history::get_data_dir().join(&name);
+    if !path.exists() {
+        return Ok(serde_json::json!({}));
+    }
+    let data = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn write_cache_file(name: String, data: serde_json::Value) -> Result<(), String> {
+    let path = history::get_data_dir().join(&name);
+    let json = serde_json::to_string(&data).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
 // ── Export / Import commands ──
 
 fn plugins_to_export(plugins: &[PluginInfo]) -> Vec<ExportPlugin> {
@@ -3043,6 +3060,8 @@ pub fn run() {
             estimate_bpm,
             detect_audio_key,
             measure_lufs,
+            read_cache_file,
+            write_cache_file,
             compute_fingerprint,
             find_similar_samples,
             open_update_url,
