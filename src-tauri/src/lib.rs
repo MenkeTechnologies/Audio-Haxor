@@ -18,6 +18,7 @@ pub mod bpm;
 pub mod daw_scanner;
 pub mod similarity;
 pub mod history;
+pub mod key_detect;
 pub mod kvr;
 pub mod preset_scanner;
 pub mod scanner;
@@ -205,7 +206,11 @@ async fn scan_plugins(
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads((num_cpus::get() * 2).max(4))
             .build()
-            .unwrap();
+            .unwrap_or_else(|e| {
+                eprintln!("Thread pool creation failed ({e}), retrying with 2 threads");
+                rayon::ThreadPoolBuilder::new().num_threads(2).build()
+                    .expect("fallback 2-thread pool")
+            });
         std::thread::spawn(move || {
             pool.install(|| {
                 unique_paths.par_iter().for_each(|p| {
@@ -934,6 +939,13 @@ fn read_als_xml(file_path: String) -> Result<String, String> {
 #[tauri::command]
 async fn estimate_bpm(file_path: String) -> Result<Option<f64>, String> {
     Ok(bpm::estimate_bpm(&file_path))
+}
+
+#[tauri::command]
+async fn detect_audio_key(file_path: String) -> Result<Option<String>, String> {
+    Ok(tokio::task::spawn_blocking(move || {
+        key_detect::detect_key(&file_path)
+    }).await.map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -2938,6 +2950,7 @@ pub fn run() {
             extract_project_plugins,
             read_als_xml,
             estimate_bpm,
+            detect_audio_key,
             compute_fingerprint,
             find_similar_samples,
             open_update_url,

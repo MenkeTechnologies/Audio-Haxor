@@ -160,16 +160,18 @@ function resetEq() {
 // A-B loop
 function setAbLoopStart() {
   if (!audioPlayerPath || !audioPlayer.duration) return;
-  if (!_abLoop) _abLoop = { start: 0, end: audioPlayer.duration };
-  _abLoop.start = audioPlayer.currentTime;
+  const t = audioPlayer.currentTime;
+  if (!_abLoop) _abLoop = { start: t, end: audioPlayer.duration };
+  else _abLoop.start = Math.min(t, _abLoop.end - 0.05); // keep start < end
   updateAbLoopUI();
   showToast(`A point: ${formatTime(_abLoop.start)}`);
 }
 
 function setAbLoopEnd() {
   if (!audioPlayerPath || !audioPlayer.duration) return;
-  if (!_abLoop) _abLoop = { start: 0, end: audioPlayer.duration };
-  _abLoop.end = audioPlayer.currentTime;
+  const t = audioPlayer.currentTime;
+  if (!_abLoop) _abLoop = { start: 0, end: t };
+  else _abLoop.end = Math.max(t, _abLoop.start + 0.05); // keep end > start
   updateAbLoopUI();
   showToast(`B point: ${formatTime(_abLoop.end)}`);
 }
@@ -1036,8 +1038,9 @@ async function toggleMetadata(filePath, event) {
     if (meta.duration) items += metaItem('Duration', formatTime(meta.duration));
     if (meta.byteRate) items += metaItem('Byte Rate', formatAudioSize(meta.byteRate) + '/s');
 
-    // BPM placeholder — filled async
+    // BPM and Key placeholders — filled async
     items += `<div class="meta-item" id="metaBpmItem"><span class="meta-label">BPM</span><span class="meta-value" id="metaBpmValue" style="display:flex;align-items:center;gap:6px;"><span class="spinner" style="width:10px;height:10px;"></span></span></div>`;
+    items += `<div class="meta-item" id="metaKeyItem"><span class="meta-label">KEY</span><span class="meta-value" id="metaKeyValue" style="display:flex;align-items:center;gap:6px;"><span class="spinner" style="width:10px;height:10px;"></span></span></div>`;
 
     const fmtDate = (v) => { if (!v) return '—'; const d = new Date(v); return isNaN(d) ? '—' : d.toLocaleString(); };
     items += metaItem('Created', fmtDate(meta.created));
@@ -1077,13 +1080,16 @@ async function toggleMetadata(filePath, event) {
       }
     }
 
-    // Estimate BPM async (all playable formats)
+    // Estimate BPM and detect key async (all playable formats)
     const bpmFormats = ['WAV', 'AIFF', 'AIF', 'MP3', 'FLAC', 'OGG', 'M4A', 'AAC', 'OPUS'];
     if (bpmFormats.includes(meta.format)) {
       estimateBpmForMeta(filePath);
+      detectKeyForMeta(filePath);
     } else {
       const bpmEl = document.getElementById('metaBpmValue');
       if (bpmEl) bpmEl.textContent = '—';
+      const keyEl = document.getElementById('metaKeyValue');
+      if (keyEl) keyEl.textContent = '—';
     }
   } catch (err) {
     metaRow.innerHTML = `<td colspan="7"><div class="audio-meta-panel"><span style="color: var(--red);">Failed to load metadata</span></div></td>`;
@@ -1105,7 +1111,6 @@ async function estimateBpmForMeta(filePath) {
   try {
     const bpm = await window.vstUpdater.estimateBpm(filePath);
     _bpmCache[filePath] = bpm;
-    // Check the panel is still showing this file
     const currentBpmEl = document.getElementById('metaBpmValue');
     const metaRow = document.getElementById('audioMetaRow');
     if (currentBpmEl && metaRow && metaRow.getAttribute('data-meta-path') === filePath) {
@@ -1113,6 +1118,31 @@ async function estimateBpmForMeta(filePath) {
     }
   } catch {
     if (bpmEl) bpmEl.textContent = '—';
+  }
+}
+
+// Key detection cache
+const _keyCache = {};
+
+async function detectKeyForMeta(filePath) {
+  const keyEl = document.getElementById('metaKeyValue');
+  if (!keyEl) return;
+
+  if (_keyCache[filePath] !== undefined) {
+    keyEl.textContent = _keyCache[filePath] || '—';
+    return;
+  }
+
+  try {
+    const key = await window.vstUpdater.detectAudioKey(filePath);
+    _keyCache[filePath] = key;
+    const currentKeyEl = document.getElementById('metaKeyValue');
+    const metaRow = document.getElementById('audioMetaRow');
+    if (currentKeyEl && metaRow && metaRow.getAttribute('data-meta-path') === filePath) {
+      currentKeyEl.textContent = key || '—';
+    }
+  } catch {
+    if (keyEl) keyEl.textContent = '—';
   }
 }
 
@@ -1502,61 +1532,101 @@ async function drawSpectrogram(filePath) {
     const buf = await resp.arrayBuffer();
     const audioBuf = await _audioCtx.decodeAudioData(buf);
     const raw = audioBuf.getChannelData(0);
+    const sr = audioBuf.sampleRate;
 
     const fftSize = 1024;
     const hop = fftSize / 2;
-    const numFrames = Math.floor((raw.length - fftSize) / hop);
     const numBins = fftSize / 2;
+    const numFrames = Math.floor((raw.length - fftSize) / hop);
     if (numFrames <= 0) return;
 
-    // Offline analyser
-    const offline = new OfflineAudioContext(1, raw.length, audioBuf.sampleRate);
-    const source = offline.createBufferSource();
-    const offBuf = offline.createBuffer(1, raw.length, audioBuf.sampleRate);
-    offBuf.getChannelData(0).set(raw);
-    source.buffer = offBuf;
-    const analyser = offline.createAnalyser();
-    analyser.fftSize = fftSize;
-    analyser.smoothingTimeConstant = 0;
-    source.connect(analyser);
-    analyser.connect(offline.destination);
-    source.start();
-
-    // Can't use OfflineAudioContext with getByteFrequencyData in real-time
-    // So compute a simple DFT manually for the spectrogram
+    // Real DFT spectrogram via manual FFT (Cooley-Tukey radix-2)
     const cols = Math.min(w, numFrames);
     const frameStep = Math.max(1, Math.floor(numFrames / cols));
-    const freqBins = 64; // vertical resolution
+    const freqBins = 64; // display resolution (log-scaled from numBins)
+
+    // Precompute Hann window
+    const hannWindow = new Float32Array(fftSize);
+    for (let i = 0; i < fftSize; i++) {
+      hannWindow[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (fftSize - 1)));
+    }
+
+    // Bit-reversal permutation table
+    const bitRev = new Uint32Array(fftSize);
+    const bits = Math.log2(fftSize);
+    for (let i = 0; i < fftSize; i++) {
+      let reversed = 0;
+      for (let b = 0; b < bits; b++) {
+        reversed = (reversed << 1) | ((i >> b) & 1);
+      }
+      bitRev[i] = reversed;
+    }
+
+    // Precompute twiddle factors
+    const twiddleRe = new Float64Array(fftSize / 2);
+    const twiddleIm = new Float64Array(fftSize / 2);
+    for (let i = 0; i < fftSize / 2; i++) {
+      const angle = -2 * Math.PI * i / fftSize;
+      twiddleRe[i] = Math.cos(angle);
+      twiddleIm[i] = Math.sin(angle);
+    }
+
+    // Reusable FFT buffers
+    const re = new Float64Array(fftSize);
+    const im = new Float64Array(fftSize);
 
     for (let col = 0; col < cols; col++) {
       const frameIdx = col * frameStep;
       const offset = frameIdx * hop;
       if (offset + fftSize > raw.length) break;
 
-      // Compute magnitude spectrum for this frame (simplified — use energy in frequency bands)
-      const magnitudes = new Float32Array(freqBins);
-      for (let bin = 0; bin < freqBins; bin++) {
-        const lo = Math.floor(bin * (fftSize / 2) / freqBins);
-        const hi = Math.floor((bin + 1) * (fftSize / 2) / freqBins);
-        let energy = 0;
-        for (let k = lo; k < hi && k < fftSize / 2; k++) {
-          // Quick energy estimate: sum of squared samples in band
-          const centerSample = offset + k;
-          if (centerSample < raw.length) {
-            energy += raw[centerSample] * raw[centerSample];
+      // Apply window and bit-reverse into FFT buffer
+      for (let i = 0; i < fftSize; i++) {
+        re[bitRev[i]] = raw[offset + i] * hannWindow[i];
+        im[bitRev[i]] = 0;
+      }
+
+      // In-place Cooley-Tukey FFT
+      for (let size = 2; size <= fftSize; size *= 2) {
+        const halfSize = size / 2;
+        const step = fftSize / size;
+        for (let i = 0; i < fftSize; i += size) {
+          for (let j = 0; j < halfSize; j++) {
+            const idx = j * step;
+            const tRe = twiddleRe[idx] * re[i + j + halfSize] - twiddleIm[idx] * im[i + j + halfSize];
+            const tIm = twiddleRe[idx] * im[i + j + halfSize] + twiddleIm[idx] * re[i + j + halfSize];
+            re[i + j + halfSize] = re[i + j] - tRe;
+            im[i + j + halfSize] = im[i + j] - tIm;
+            re[i + j] += tRe;
+            im[i + j] += tIm;
           }
         }
-        magnitudes[bin] = Math.sqrt(energy / Math.max(1, hi - lo));
+      }
+
+      // Compute magnitude spectrum and map to log-frequency display bins
+      const magnitudes = new Float32Array(freqBins);
+      for (let bin = 0; bin < freqBins; bin++) {
+        // Log-frequency mapping: lower bins get more resolution for bass
+        const freqLo = Math.pow(bin / freqBins, 2) * numBins;
+        const freqHi = Math.pow((bin + 1) / freqBins, 2) * numBins;
+        const lo = Math.floor(freqLo);
+        const hi = Math.max(lo + 1, Math.floor(freqHi));
+        let energy = 0;
+        for (let k = lo; k < hi && k < numBins; k++) {
+          energy += Math.sqrt(re[k] * re[k] + im[k] * im[k]);
+        }
+        magnitudes[bin] = energy / Math.max(1, hi - lo);
       }
 
       // Draw column
       const x = (col / cols) * w;
       const colWidth = Math.ceil(w / cols);
       for (let bin = 0; bin < freqBins; bin++) {
-        const mag = Math.min(1, magnitudes[bin] * 8); // amplify
+        // Normalize: log scale for better dynamic range
+        const mag = Math.min(1, Math.log1p(magnitudes[bin] * 4) / 3);
         const y = h - (bin / freqBins) * h;
         const binH = Math.ceil(h / freqBins);
-        // Cyan → magenta → white color map
+        // Cyan → magenta color map
         const r = Math.floor(mag * 211 + (1 - mag) * 5);
         const g = Math.floor(mag * mag * 50);
         const b = Math.floor(mag * 197 + (1 - mag) * 20);
@@ -1588,6 +1658,7 @@ function updateMetaLine() {
   if (!sample) { el.textContent = audioPlayerPath.split('/').pop(); return; }
   const parts = [sample.format, sample.sizeFormatted];
   if (_bpmCache[audioPlayerPath]) parts.push(_bpmCache[audioPlayerPath] + ' BPM');
+  if (_keyCache[audioPlayerPath]) parts.push(_keyCache[audioPlayerPath]);
   if (sample.directory) parts.push(sample.directory);
   el.textContent = parts.join(' \u2022 ');
 }

@@ -56,9 +56,9 @@ pub fn compute_fingerprint(file_path: &str) -> Option<AudioFingerprint> {
     }
     let zero_crossing_rate = zc as f64 / n;
 
-    // Spectral centroid approximation via zero-crossing rate
-    // ZCR is proportional to spectral centroid for many signals
-    let spectral_centroid = zero_crossing_rate * sr / 2.0;
+    // Spectral centroid approximation via zero-crossing rate (normalized to [0, 1])
+    // ZCR × sr/2 gives Hz estimate; divide by Nyquist to normalize across sample rates
+    let spectral_centroid = zero_crossing_rate;
 
     // Energy in 3 frequency bands using bandpass via averaging
     // Low: 0-300Hz, Mid: 300-3000Hz, High: 3000Hz+
@@ -150,7 +150,7 @@ pub fn fingerprint_distance(a: &AudioFingerprint, b: &AudioFingerprint) -> f64 {
     };
 
     let d = norm(a.rms, b.rms, 1.0)
-        + norm(a.spectral_centroid, b.spectral_centroid, 10000.0)
+        + norm(a.spectral_centroid, b.spectral_centroid, 0.5)
         + norm(a.zero_crossing_rate, b.zero_crossing_rate, 0.5)
         + norm(a.low_band_energy, b.low_band_energy, 1.0)
         + norm(a.mid_band_energy, b.mid_band_energy, 1.0)
@@ -198,25 +198,25 @@ mod tests {
 
     #[test]
     fn test_identical_fingerprints_zero_distance() {
-        let a = make_fp("a.wav", 0.5, 2000.0, 0.1, 0.6, 0.3, 0.1);
-        let b = make_fp("b.wav", 0.5, 2000.0, 0.1, 0.6, 0.3, 0.1);
+        let a = make_fp("a.wav", 0.5, 0.1, 0.1, 0.6, 0.3, 0.1);
+        let b = make_fp("b.wav", 0.5, 0.1, 0.1, 0.6, 0.3, 0.1);
         let d = fingerprint_distance(&a, &b);
         assert!(d < 0.001, "identical fingerprints should have ~0 distance, got {}", d);
     }
 
     #[test]
     fn test_different_fingerprints_nonzero_distance() {
-        let kick = make_fp("kick.wav", 0.8, 200.0, 0.05, 0.9, 0.08, 0.02);
-        let hihat = make_fp("hihat.wav", 0.3, 8000.0, 0.4, 0.05, 0.15, 0.8);
+        let kick = make_fp("kick.wav", 0.8, 0.02, 0.05, 0.9, 0.08, 0.02);
+        let hihat = make_fp("hihat.wav", 0.3, 0.4, 0.4, 0.05, 0.15, 0.8);
         let d = fingerprint_distance(&kick, &hihat);
         assert!(d > 0.5, "kick and hihat should be very different, got {}", d);
     }
 
     #[test]
     fn test_similar_kicks_closer_than_kick_hihat() {
-        let kick1 = make_fp("kick1.wav", 0.8, 200.0, 0.05, 0.9, 0.08, 0.02);
-        let kick2 = make_fp("kick2.wav", 0.75, 250.0, 0.06, 0.85, 0.1, 0.05);
-        let hihat = make_fp("hihat.wav", 0.3, 8000.0, 0.4, 0.05, 0.15, 0.8);
+        let kick1 = make_fp("kick1.wav", 0.8, 0.02, 0.05, 0.9, 0.08, 0.02);
+        let kick2 = make_fp("kick2.wav", 0.75, 0.03, 0.06, 0.85, 0.1, 0.05);
+        let hihat = make_fp("hihat.wav", 0.3, 0.4, 0.4, 0.05, 0.15, 0.8);
 
         let d_kicks = fingerprint_distance(&kick1, &kick2);
         let d_kick_hihat = fingerprint_distance(&kick1, &hihat);
@@ -225,10 +225,10 @@ mod tests {
 
     #[test]
     fn test_find_similar_returns_sorted() {
-        let reference = make_fp("ref.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
-        let close = make_fp("close.wav", 0.48, 1050.0, 0.11, 0.48, 0.32, 0.2);
-        let far = make_fp("far.wav", 0.1, 8000.0, 0.4, 0.05, 0.15, 0.8);
-        let medium = make_fp("medium.wav", 0.6, 2000.0, 0.15, 0.4, 0.35, 0.25);
+        let reference = make_fp("ref.wav", 0.5, 0.1, 0.1, 0.5, 0.3, 0.2);
+        let close = make_fp("close.wav", 0.48, 0.11, 0.11, 0.48, 0.32, 0.2);
+        let far = make_fp("far.wav", 0.1, 0.4, 0.4, 0.05, 0.15, 0.8);
+        let medium = make_fp("medium.wav", 0.6, 0.15, 0.15, 0.4, 0.35, 0.25);
 
         let results = find_similar(&reference, &[close, far, medium], 10);
         assert_eq!(results.len(), 3);
@@ -238,17 +238,17 @@ mod tests {
 
     #[test]
     fn test_find_similar_excludes_self() {
-        let a = make_fp("a.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
-        let same = make_fp("a.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
+        let a = make_fp("a.wav", 0.5, 0.1, 0.1, 0.5, 0.3, 0.2);
+        let same = make_fp("a.wav", 0.5, 0.1, 0.1, 0.5, 0.3, 0.2);
         let results = find_similar(&a, &[same], 10);
         assert_eq!(results.len(), 0, "should exclude self from results");
     }
 
     #[test]
     fn test_find_similar_max_results() {
-        let reference = make_fp("ref.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
+        let reference = make_fp("ref.wav", 0.5, 0.1, 0.1, 0.5, 0.3, 0.2);
         let candidates: Vec<_> = (0..50).map(|i| {
-            make_fp(&format!("s{}.wav", i), 0.5 + i as f64 * 0.01, 1000.0, 0.1, 0.5, 0.3, 0.2)
+            make_fp(&format!("s{}.wav", i), 0.5 + i as f64 * 0.01, 0.1, 0.1, 0.5, 0.3, 0.2)
         }).collect();
         let results = find_similar(&reference, &candidates, 5);
         assert_eq!(results.len(), 5);
@@ -317,8 +317,8 @@ mod tests {
 
     #[test]
     fn test_fingerprint_distance_symmetric() {
-        let a = make_fp("a.wav", 0.8, 200.0, 0.05, 0.9, 0.08, 0.02);
-        let b = make_fp("b.wav", 0.3, 8000.0, 0.4, 0.05, 0.15, 0.8);
+        let a = make_fp("a.wav", 0.8, 0.02, 0.05, 0.9, 0.08, 0.02);
+        let b = make_fp("b.wav", 0.3, 0.4, 0.4, 0.05, 0.15, 0.8);
         let d_ab = fingerprint_distance(&a, &b);
         let d_ba = fingerprint_distance(&b, &a);
         assert!((d_ab - d_ba).abs() < 1e-10, "distance should be symmetric");
@@ -326,15 +326,15 @@ mod tests {
 
     #[test]
     fn test_find_similar_empty_candidates() {
-        let reference = make_fp("ref.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
+        let reference = make_fp("ref.wav", 0.5, 0.1, 0.1, 0.5, 0.3, 0.2);
         let results = find_similar(&reference, &[], 10);
         assert!(results.is_empty());
     }
 
     #[test]
     fn test_find_similar_single_candidate() {
-        let reference = make_fp("ref.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
-        let candidate = make_fp("c.wav", 0.6, 1200.0, 0.12, 0.45, 0.35, 0.2);
+        let reference = make_fp("ref.wav", 0.5, 0.1, 0.1, 0.5, 0.3, 0.2);
+        let candidate = make_fp("c.wav", 0.6, 0.12, 0.12, 0.45, 0.35, 0.2);
         let results = find_similar(&reference, &[candidate], 10);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].0, "c.wav");

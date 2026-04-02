@@ -149,6 +149,7 @@ document.addEventListener('keydown', (e) => {
 
   // Don't handle shortcuts when typing in inputs
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (e.target.isContentEditable || e.target.closest('[contenteditable]')) return;
   if (e.target.closest('.ctx-menu')) return;
 
   const isMac = navigator.platform.includes('Mac');

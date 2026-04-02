@@ -45,10 +45,16 @@ pub fn normalize_plugin_name(name: &str) -> String {
         LazyLock::new(|| Regex::new(r"(?i)\s+(x64|x86_64|x86|64bit|32bit)$").unwrap());
     s = BARE_SUFFIX_RE.replace(&s, "").to_string();
     // Collapse internal whitespace and lowercase
-    s.split_whitespace()
+    let result = s.split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
-        .to_lowercase()
+        .to_lowercase();
+    // If stripping removed everything, fall back to original lowercased name
+    if result.is_empty() {
+        name.trim().to_lowercase()
+    } else {
+        result
+    }
 }
 
 /// Extract plugin references from a DAW project file.
@@ -641,6 +647,16 @@ mod tests {
     #[test]
     fn test_normalize_collapses_whitespace() {
         assert_eq!(normalize_plugin_name("Pro   Q  3"), "pro q 3");
+    }
+
+    #[test]
+    fn test_normalize_all_suffix_fallback() {
+        // If stripping arch suffixes removes everything, fall back to original
+        assert_eq!(normalize_plugin_name("(x64)"), "(x64)");
+        assert_eq!(normalize_plugin_name("(x64) (VST3)"), "(x64) (vst3)");
+        // Empty/whitespace input
+        assert_eq!(normalize_plugin_name(""), "");
+        assert_eq!(normalize_plugin_name("   "), "");
     }
 
     #[test]

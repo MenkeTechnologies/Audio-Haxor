@@ -2357,9 +2357,17 @@
       height: 14px; background: linear-gradient(90deg, var(--cyan), rgba(5,217,232,0.4));
       border-radius: 1px; transition: width 0.3s ease;
     }
-    .dep-bar-magenta {
-      background: linear-gradient(90deg, var(--magenta), rgba(211,0,197,0.4));
-    }
+    .dep-bar-magenta { background: linear-gradient(90deg, var(--magenta), rgba(211,0,197,0.4)); }
+    .dep-bar-cyan { background: linear-gradient(90deg, var(--cyan), rgba(5,217,232,0.4)); }
+    .dep-bar-green { background: linear-gradient(90deg, var(--green), rgba(57,255,20,0.4)); }
+    .dep-bar-yellow { background: linear-gradient(90deg, var(--yellow), rgba(249,240,2,0.4)); }
+    .dep-analytics-section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .dep-analytics-section:last-child { border-bottom: none; }
+    .dep-analytics-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--cyan); margin: 0 0 8px 0; font-weight: 600; }
+    .dep-analytics-insights { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+    .dep-insight { display: flex; flex-direction: column; align-items: center; padding: 8px 14px; background: var(--bg-hover); border-radius: 6px; border: 1px solid var(--border); min-width: 80px; }
+    .dep-insight-val { font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 700; color: var(--cyan); }
+    .dep-insight-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-top: 2px; text-align: center; }
     .dep-bar-count {
       font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 600;
       color: var(--cyan); min-width: 24px; text-align: right;

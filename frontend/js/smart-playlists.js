@@ -75,6 +75,11 @@ function matchesSmartRule(sample, rule) {
       const minBytes = parseFloat(rule.value || '0') * 1024 * 1024;
       return sample.sizeBytes >= minBytes;
     }
+    case 'key': {
+      const key = typeof _keyCache !== 'undefined' ? _keyCache[sample.path] : null;
+      if (!key) return false;
+      return key.toLowerCase().includes((rule.value || '').toLowerCase());
+    }
     case 'duration_max': {
       if (typeof _bpmCache === 'undefined') return true;
       // Duration not directly on sample object; skip if no data
@@ -127,13 +132,16 @@ function loadSmartPlaylistIntoPlayer(id) {
   }
 
   _activeSmartPlaylist = id;
-  // Replace recently played with smart playlist results
-  recentlyPlayed = matches.map(s => ({
+  // Prepend smart playlist results to recently played (don't destroy history)
+  const newItems = matches.map(s => ({
     path: s.path,
     name: s.name,
     format: s.format,
     size: s.sizeFormatted || '',
   }));
+  const existingPaths = new Set(newItems.map(i => i.path));
+  const kept = recentlyPlayed.filter(r => !existingPaths.has(r.path));
+  recentlyPlayed = [...newItems, ...kept].slice(0, typeof MAX_RECENT !== 'undefined' ? MAX_RECENT : 50);
   if (typeof saveRecentlyPlayed === 'function') saveRecentlyPlayed();
   if (typeof renderRecentlyPlayed === 'function') renderRecentlyPlayed();
   renderSmartPlaylists();
@@ -162,6 +170,7 @@ function showSmartPlaylistEditor(existingId) {
     { value: 'path_contains', label: 'Path Contains' },
     { value: 'size_max', label: 'Max Size (MB)' },
     { value: 'size_min', label: 'Min Size (MB)' },
+    { value: 'key', label: 'Musical Key (e.g. C Major)' },
   ];
 
   function buildRuleRow(rule, idx) {

@@ -45,6 +45,133 @@ function buildDepGraphData() {
   return { pluginsByUsage: sorted, projectsByCount: projectsSorted, orphaned, totalProjects: Object.keys(projectPlugins).length };
 }
 
+function buildAnalyticsHtml(data) {
+  const plugins = data.pluginsByUsage;
+  const projects = data.projectsByCount;
+  if (plugins.length === 0) return '<div class="dep-empty">No data to analyze. Build the plugin index first.</div>';
+
+  // 1. Plugin type breakdown (VST2 vs VST3 vs AU vs CLAP)
+  const typeCounts = {};
+  for (const p of plugins) {
+    const t = p.type || 'Unknown';
+    typeCounts[t] = (typeCounts[t] || 0) + p.count;
+  }
+  const typeTotal = Object.values(typeCounts).reduce((a, b) => a + b, 0);
+  const typeRows = Object.entries(typeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => {
+      const pct = Math.round((count / typeTotal) * 100);
+      const typeCls = 'xref-type-' + type.toLowerCase();
+      return `<div class="dep-plugin-row">
+        <div class="dep-plugin-info">
+          <span class="xref-item-type ${typeCls}">${escapeHtml(type)}</span>
+          <span class="dep-plugin-name">${count} references (${pct}%)</span>
+        </div>
+        <div class="dep-bar-wrap">
+          <div class="dep-bar dep-bar-cyan" style="width:${pct}%"></div>
+          <span class="dep-bar-count">${pct}%</span>
+        </div>
+      </div>`;
+    }).join('');
+
+  // 2. Manufacturer rankings
+  const mfgCounts = {};
+  for (const p of plugins) {
+    const m = p.manufacturer || 'Unknown';
+    mfgCounts[m] = (mfgCounts[m] || 0) + p.count;
+  }
+  const mfgVals = Object.values(mfgCounts);
+  const mfgMax = mfgVals.length > 0 ? Math.max(...mfgVals) : 1;
+  const mfgRows = Object.entries(mfgCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([mfg, count]) => {
+      const pct = Math.round((count / mfgMax) * 100);
+      return `<div class="dep-plugin-row">
+        <div class="dep-plugin-info">
+          <span class="dep-plugin-name">${escapeHtml(mfg)}</span>
+        </div>
+        <div class="dep-bar-wrap">
+          <div class="dep-bar dep-bar-green" style="width:${pct}%"></div>
+          <span class="dep-bar-count">${count}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+  // 3. Single-use plugins (used in only 1 project)
+  const singleUse = plugins.filter(p => p.count === 1);
+
+  // 4. Most versatile plugins (used across most projects)
+  const versatile = plugins.slice(0, 10);
+
+  // 5. Average plugins per project
+  const avgPlugins = projects.length > 0
+    ? (projects.reduce((sum, p) => sum + p.count, 0) / projects.length).toFixed(1)
+    : 0;
+
+  // 6. Projects with most unique plugin diversity
+  const heaviestProject = projects.length > 0 ? projects[0] : null;
+  const lightestProject = projects.length > 0 ? projects[projects.length - 1] : null;
+
+  // 7. Plugin adoption — how many plugins are used in >50% of projects
+  const widelyUsed = plugins.filter(p => p.count > data.totalProjects / 2);
+
+  return `
+    <div class="dep-analytics">
+      <div class="dep-analytics-section">
+        <h3 class="dep-analytics-title">Plugin Format Breakdown</h3>
+        ${typeRows}
+      </div>
+      <div class="dep-analytics-section">
+        <h3 class="dep-analytics-title">Top Manufacturers</h3>
+        ${mfgRows}
+      </div>
+      <div class="dep-analytics-section">
+        <h3 class="dep-analytics-title">Key Insights</h3>
+        <div class="dep-analytics-insights">
+          <div class="dep-insight"><span class="dep-insight-val">${avgPlugins}</span><span class="dep-insight-label">Avg plugins per project</span></div>
+          <div class="dep-insight"><span class="dep-insight-val">${widelyUsed.length}</span><span class="dep-insight-label">Used in >50% of projects</span></div>
+          <div class="dep-insight"><span class="dep-insight-val">${singleUse.length}</span><span class="dep-insight-label">Single-use plugins</span></div>
+          <div class="dep-insight"><span class="dep-insight-val">${data.orphaned.length}</span><span class="dep-insight-label">Unused installed plugins</span></div>
+        </div>
+      </div>
+      ${heaviestProject ? `<div class="dep-analytics-section">
+        <h3 class="dep-analytics-title">Project Extremes</h3>
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.8;">
+          <div><span style="color:var(--cyan);">Most complex:</span> ${escapeHtml(heaviestProject.name)} (${heaviestProject.count} plugins)</div>
+          <div><span style="color:var(--green);">Most minimal:</span> ${escapeHtml(lightestProject.name)} (${lightestProject.count} plugin${lightestProject.count !== 1 ? 's' : ''})</div>
+        </div>
+      </div>` : ''}
+      ${widelyUsed.length > 0 ? `<div class="dep-analytics-section">
+        <h3 class="dep-analytics-title">Your Go-To Plugins (>50% of projects)</h3>
+        ${widelyUsed.map(p => `<div class="dep-plugin-row">
+          <div class="dep-plugin-info">
+            <span class="xref-item-type xref-type-${p.type.toLowerCase()}">${escapeHtml(p.type)}</span>
+            <span class="dep-plugin-name">${escapeHtml(p.name)}</span>
+            <span class="dep-plugin-mfg">${escapeHtml(p.manufacturer)}</span>
+          </div>
+          <div class="dep-bar-wrap">
+            <div class="dep-bar dep-bar-yellow" style="width:${Math.round((p.count / data.totalProjects) * 100)}%"></div>
+            <span class="dep-bar-count">${p.count}/${data.totalProjects}</span>
+          </div>
+        </div>`).join('')}
+      </div>` : ''}
+      ${singleUse.length > 0 ? `<div class="dep-analytics-section">
+        <h3 class="dep-analytics-title">Single-Use Plugins (only 1 project)</h3>
+        <div style="max-height:200px;overflow-y:auto;">
+        ${singleUse.slice(0, 30).map(p => `<div class="dep-plugin-row" style="opacity:0.7;">
+          <div class="dep-plugin-info">
+            <span class="xref-item-type xref-type-${p.type.toLowerCase()}">${escapeHtml(p.type)}</span>
+            <span class="dep-plugin-name">${escapeHtml(p.name)}</span>
+            <span class="dep-plugin-mfg">${escapeHtml(p.manufacturer)}</span>
+          </div>
+        </div>`).join('')}
+        ${singleUse.length > 30 ? `<div style="text-align:center;padding:6px;color:var(--text-dim);font-size:10px;">...and ${singleUse.length - 30} more</div>` : ''}
+        </div>
+      </div>` : ''}
+    </div>`;
+}
+
 function showDepGraph() {
   const data = buildDepGraphData();
   let existing = document.getElementById('depGraphModal');
@@ -125,6 +252,9 @@ function showDepGraph() {
     <div class="dep-stat"><span class="dep-stat-val">${data.orphaned.length}</span><span class="dep-stat-label">Orphaned Plugins</span></div>
   </div>`;
 
+  // ── Analytics tab content ──
+  const analyticsHtml = buildAnalyticsHtml(data);
+
   const html = `<div class="modal-overlay" id="depGraphModal" data-action-modal="closeDepGraph">
     <div class="modal-content modal-wide dep-graph-modal">
       <div class="modal-header">
@@ -140,10 +270,12 @@ function showDepGraph() {
           <button class="dep-tab active" data-dep-tab="usage" title="Plugins ranked by how many projects use them">Most Used</button>
           <button class="dep-tab" data-dep-tab="projects" title="Projects ranked by plugin count">By Project</button>
           <button class="dep-tab" data-dep-tab="orphaned" title="Installed plugins not used in any scanned project">Orphaned (${data.orphaned.length})</button>
+          <button class="dep-tab" data-dep-tab="analytics" title="Plugin usage analytics and insights">Analytics</button>
         </div>
         <div class="dep-panel active" id="depPanelUsage">${topPlugins || '<div class="dep-empty">No plugin references found.</div>'}</div>
         <div class="dep-panel" id="depPanelProjects">${topProjects || '<div class="dep-empty">No projects indexed.</div>'}</div>
         <div class="dep-panel" id="depPanelOrphaned">${orphanedHtml}</div>
+        <div class="dep-panel" id="depPanelAnalytics">${analyticsHtml}</div>
       </div>
     </div>
   </div>`;
@@ -153,15 +285,17 @@ function showDepGraph() {
   const usagePanel = document.getElementById('depPanelUsage');
   const projPanel = document.getElementById('depPanelProjects');
   const orphPanel = document.getElementById('depPanelOrphaned');
+  const analyticsPanel = document.getElementById('depPanelAnalytics');
   if (usagePanel) usagePanel._fullHtml = usagePanel.innerHTML;
   if (projPanel) projPanel._fullHtml = projPanel.innerHTML;
   if (orphPanel) orphPanel._fullHtml = orphPanel.innerHTML;
+  if (analyticsPanel) analyticsPanel._fullHtml = analyticsPanel.innerHTML;
 
   // Search filtering with match highlighting
   document.getElementById('depSearchInput')?.addEventListener('input', (e) => {
     const q = e.target.value.trim();
     const ql = q.toLowerCase();
-    [usagePanel, projPanel, orphPanel].forEach(panel => {
+    [usagePanel, projPanel, orphPanel, analyticsPanel].forEach(panel => {
       if (!panel || !panel._fullHtml) return;
       if (!q) { panel.innerHTML = panel._fullHtml; return; }
       const tmp = document.createElement('div');

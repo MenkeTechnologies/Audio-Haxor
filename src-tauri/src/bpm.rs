@@ -248,7 +248,7 @@ fn decode_with_symphonia(path: &Path) -> Option<(Vec<f32>, u32)> {
         let buf = sample_buf.samples();
         // Mix to mono
         if channels > 1 {
-            for chunk in buf.chunks(channels) {
+            for chunk in buf.chunks_exact(channels) {
                 let mono: f32 = chunk.iter().sum::<f32>() / channels as f32;
                 all_samples.push(mono);
             }

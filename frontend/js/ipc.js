@@ -393,6 +393,7 @@ window.vstUpdater = {
   openDawProject: (path) => invoke('open_daw_project', { filePath: path }),
   extractProjectPlugins: (path) => invoke('extract_project_plugins', { filePath: path }),
   estimateBpm: (path) => invoke('estimate_bpm', { filePath: path }),
+  detectAudioKey: (path) => invoke('detect_audio_key', { filePath: path }),
   // DAW history
   saveDawScan: (projects, roots) => invoke('daw_history_save', { projects, roots: roots || null }),
   getDawScans: () => invoke('daw_history_get_scans'),
