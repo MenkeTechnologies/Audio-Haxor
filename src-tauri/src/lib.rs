@@ -2973,6 +2973,7 @@ mod tests {
 
     #[test]
     fn test_cache_file_roundtrip() {
+        let _ = std::fs::create_dir_all(history::get_data_dir());
         let data = serde_json::json!({"hello": "world", "count": 42});
         write_cache_file("test-cache-roundtrip.json".into(), data.clone()).unwrap();
         let result = read_cache_file("test-cache-roundtrip.json".into()).unwrap();
@@ -2989,6 +2990,7 @@ mod tests {
 
     #[test]
     fn test_append_and_read_log() {
+        let _ = std::fs::create_dir_all(history::get_data_dir());
         append_log("test log entry 1".into());
         append_log("test log entry 2".into());
         let log = read_log().unwrap();
@@ -2998,6 +3000,7 @@ mod tests {
 
     #[test]
     fn test_clear_log() {
+        let _ = std::fs::create_dir_all(history::get_data_dir());
         append_log("before clear".into());
         clear_log().unwrap();
         let log = read_log().unwrap();
