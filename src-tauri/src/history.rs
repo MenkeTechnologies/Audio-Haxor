@@ -149,13 +149,13 @@ pub struct AudioSample {
     #[serde(rename = "sizeFormatted")]
     pub size_formatted: String,
     pub modified: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub channels: Option<u16>,
-    #[serde(rename = "sampleRate", skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "sampleRate", skip_serializing_if = "Option::is_none")]
     pub sample_rate: Option<u32>,
-    #[serde(rename = "bitsPerSample", skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "bitsPerSample", skip_serializing_if = "Option::is_none")]
     pub bits_per_sample: Option<u16>,
 }
 

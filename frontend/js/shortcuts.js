@@ -96,11 +96,17 @@ function renderShortcutSettings() {
   if (!list) return;
   const shortcuts = getShortcuts();
   list.innerHTML = Object.entries(shortcuts).map(([id, sc]) =>
-    `<div class="shortcut-row">
+    `<div class="shortcut-row" data-sc-id="${id}">
       <span class="shortcut-name">${sc.label}</span>
       <span class="shortcut-key" data-shortcut-id="${id}" title="Click to rebind">${formatKey(sc)}</span>
     </div>`
   ).join('');
+  if (typeof initDragReorder === 'function') {
+    initDragReorder(list, '.shortcut-row', 'shortcutOrder', {
+      getKey: (el) => el.dataset.scId || '',
+      handleSelector: '.shortcut-name',
+    });
+  }
 }
 
 // Recording state

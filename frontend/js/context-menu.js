@@ -815,15 +815,14 @@ document.addEventListener('contextmenu', (e) => {
     }});
     items.push({ icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) });
     items.push({ icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) });
-    if (!isDir) {
-      items.push('---');
-      if (typeof isFavorite === 'function') {
-        const fav = isFavorite(path);
-        items.push({ icon: fav ? '&#9734;' : '&#9733;', label: fav ? 'Remove from Favorites' : 'Add to Favorites',
-          action: () => { fav ? removeFavorite(path) : addFavorite('file', path, name); if (typeof renderFileList === 'function') renderFileList(); } });
-      }
-      items.push({ icon: '&#128221;', label: 'Add Note', action: () => { if (typeof showNoteEditor === 'function') showNoteEditor(path, name); } });
+    items.push('---');
+    if (typeof isFavorite === 'function') {
+      const fav = isFavorite(path);
+      const favType = isDir ? 'folder' : 'file';
+      items.push({ icon: fav ? '&#9734;' : '&#9733;', label: fav ? 'Remove from Favorites' : 'Add to Favorites',
+        action: () => { fav ? removeFavorite(path) : addFavorite(favType, path, name); if (typeof renderFileList === 'function') renderFileList(); } });
     }
+    items.push({ icon: '&#128221;', label: 'Add Note / Tags', action: () => { if (typeof showNoteEditor === 'function') showNoteEditor(path, name); } });
     if (isAudio) {
       items.push('---');
       const ap = prefs.getItem('autoplayNext') !== 'off';

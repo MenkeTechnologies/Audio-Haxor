@@ -861,7 +861,7 @@ function buildAudioRow(s) {
   const ch = s.channels ? (s.channels === 1 ? 'M' : s.channels === 2 ? 'S' : s.channels + 'ch') : (s.sampleRate ? '?' : '');
   return `<tr${rowClass} data-audio-path="${hp}" data-action="toggleMetadata" data-path="${hp}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
-    <td class="col-name" title="${escapeHtml(s.name)}">${typeof noteIndicator === 'function' ? noteIndicator(s.path) : ''}${highlightMatch(s.name, _lastAudioSearch, _lastAudioMode)}</td>
+    <td class="col-name" title="${escapeHtml(s.name)}">${highlightMatch(s.name, _lastAudioSearch, _lastAudioMode)}${typeof rowBadges === 'function' ? rowBadges(s.path) : ''}</td>
     <td class="col-format"><span class="format-badge ${fmtClass}">${s.format}</span></td>
     <td class="col-size">${s.sizeFormatted}</td>
     <td class="col-bpm" title="${bpm ? bpm + ' BPM' : 'Click to analyze'}">${bpm}</td>
@@ -1871,7 +1871,7 @@ function updateMetaLine() {
   if (!body) return;
   initDragReorder(body, '.np-section', 'playerSectionOrder', {
     getKey: (el) => el.dataset.npSection,
-    handleSelector: '.np-history-title, .np-meta-line, .np-expand-hint, .np-eq-toggle, .now-playing-header',
+    handleSelector: '.np-history-title, .np-expand-hint, .np-eq-toggle',
     onReorder: () => {
       const eqPanel = document.getElementById('npEqSection');
       if (eqPanel) body.appendChild(eqPanel);
@@ -1884,6 +1884,7 @@ function updateMetaLine() {
   const np = document.getElementById('audioNowPlaying');
   const handle = document.getElementById('npDragHandle');
   const overlay = document.getElementById('dockOverlay');
+  if (!np || !handle || !overlay) return;
   const zones = { tl: 'dockTL', tr: 'dockTR', bl: 'dockBL', br: 'dockBR' };
   let dragging = false, startX, startY, origX, origY;
 
@@ -1929,6 +1930,7 @@ function updateMetaLine() {
     // Don't drag if clicking toolbar buttons
     if (e.target.closest('.np-toolbar-actions')) return;
     e.preventDefault();
+    e.stopPropagation(); // prevent generic drag-reorder from intercepting
     dragging = true;
     startX = e.clientX;
     startY = e.clientY;
@@ -1946,8 +1948,8 @@ function updateMetaLine() {
     overlay.classList.add('visible');
   }
 
-  handle.addEventListener('mousedown', onDragStart);
-  toolbar.addEventListener('mousedown', onDragStart);
+  handle.addEventListener('mousedown', onDragStart, true);
+  toolbar.addEventListener('mousedown', onDragStart, true);
 
   document.addEventListener('mousemove', (e) => {
     if (!dragging) return;

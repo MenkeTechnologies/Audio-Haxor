@@ -2401,8 +2401,8 @@
     .hm-card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--cyan); margin: 0 0 10px 0; font-weight: 600; }
     .hm-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: 11px; }
     .hm-bar-label { min-width: 70px; color: var(--text-muted); text-align: right; font-size: 10px; }
-    .hm-bar-track { flex: 1; height: 10px; background: rgba(26,26,62,0.4); border-radius: 2px; overflow: hidden; }
-    .hm-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+    .hm-bar-track { flex: 1; height: 10px; background: rgba(10,10,20,0.3); border-radius: 2px; overflow: hidden; }
+    .hm-bar-fill { height: 100%; border-radius: 2px; min-width: 2px; }
     .hm-bar-cyan { background: linear-gradient(90deg, var(--cyan), rgba(5,217,232,0.3)); }
     .hm-bar-magenta { background: linear-gradient(90deg, var(--magenta), rgba(211,0,197,0.3)); }
     .hm-bar-green { background: linear-gradient(90deg, var(--green), rgba(57,255,20,0.3)); }
@@ -3017,6 +3017,10 @@
       opacity: 0.7;
     }
     .note-icon:hover { opacity: 1; }
+    .row-badge { font-size: 9px; padding: 0 4px; border-radius: 3px; margin-right: 2px; vertical-align: middle; white-space: nowrap; }
+    .row-badge-fav { color: var(--yellow); font-size: 11px; }
+    .row-badge-note { font-size: 10px; opacity: 0.7; }
+    .row-badge-tag { background: rgba(57,255,20,0.12); color: var(--green); font-size: 8px; padding: 1px 4px; }
 
     /* Duplicate detection */
     .dup-summary {
@@ -3564,8 +3568,9 @@
     /* Drag handle */
     .np-drag-handle {
       cursor: grab;
-      padding: 4px 0;
+      padding: 8px 0;
       text-align: center;
+      background: rgba(5,217,232,0.08);
     }
     .np-drag-handle:active { cursor: grabbing; }
     .np-drag-dots {
@@ -3842,7 +3847,7 @@
     .scan-btns-group:hover { border-color: rgba(5,217,232,0.2); }
 
     /* Trello-style drag-reorder */
-    .trello-placeholder { border: 2px dashed var(--cyan) !important; border-radius: 4px; background: rgba(5,217,232,0.04); box-sizing: border-box; }
+    .trello-placeholder { border: 2px dashed var(--cyan) !important; border-radius: 4px; background: rgba(5,217,232,0.08); box-sizing: border-box; min-height: 20px; }
     .trello-ghost { transition: none !important; }
 
     .np-section { position: relative; cursor: grab; border: 1px solid transparent; border-radius: 2px; transition: border-color 0.15s; }
@@ -4713,7 +4718,7 @@
           <span class="stat-value" id="presetCountHeader">0</span>
           <span>Presets</span>
         </div>
-        <span class="scan-btns-group" id="dashBtnGroup"><button class="btn btn-secondary" data-action="showHeatmapDash" title="Audio heatmap dashboard (D)" style="padding:4px 10px;font-size:10px;">&#128202; Dashboard</button></span>
+        <div class="stat" id="dashBtnGroup"><button class="btn btn-secondary" data-action="showHeatmapDash" title="Audio heatmap dashboard (D)" style="padding:4px 10px;font-size:10px;">&#128202; Dashboard</button></div>
       </div>
     </div>
 
@@ -5592,6 +5597,8 @@
 
   <script src="js/ipc.js?v=153"></script>
   <script src="js/utils.js?v=153"></script>
+  <script src="js/drag-reorder.js?v=153"></script>
+  <script src="js/modal-drag.js?v=153"></script>
   <script src="js/notes.js?v=153"></script>
   <script src="js/favorites.js?v=153"></script>
   <script src="js/export.js?v=153"></script>
@@ -5611,8 +5618,6 @@
   <script src="js/command-palette.js?v=153"></script>
   <script src="js/xref.js?v=153"></script>
   <script src="js/dep-graph.js?v=153"></script>
-  <script src="js/drag-reorder.js?v=153"></script>
-  <script src="js/modal-drag.js?v=153"></script>
   <script src="js/smart-playlists.js?v=153"></script>
   <script src="js/heatmap-dashboard.js?v=153"></script>
   <script src="js/context-menu.js?v=153"></script>

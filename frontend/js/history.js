@@ -144,27 +144,29 @@ async function selectScan(id, type) {
     </div>
     ${compareHtml}
     <div id="diffResults"></div>
-    <div style="margin-top: 8px;">
-      ${detail.plugins.map(p => {
-        const typeClass = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : 'type-au';
-        return `
-          <div class="plugin-card">
-            <div class="plugin-info">
-              <h3>${escapeHtml(p.name)}</h3>
-              <div class="plugin-meta">
-                <span class="plugin-type ${typeClass}">${p.type}</span>
-                <span>${escapeHtml(p.manufacturer)}</span>
-                <span>v${p.version}</span>
-                <span>${p.size}</span>
-              </div>
-            </div>
-            <div></div><div></div>
-            <div class="plugin-actions">
-              <button class="btn-small btn-folder" data-action="openFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}">&#128193;</button>
-            </div>
-          </div>`;
-      }).join('')}
-    </div>`;
+    <div style="margin-top:8px;color:var(--text-muted);font-size:11px;">${detail.plugins.length.toLocaleString()} plugins in this scan</div>
+    <div id="pluginScanDetailList" style="margin-top:8px;max-height:400px;overflow-y:auto;"></div>`;
+  const plugListEl = document.getElementById('pluginScanDetailList');
+  if (plugListEl) {
+    let _r = 0;
+    plugListEl._items = detail.plugins;
+    function _renderPlugBatch() {
+      const batch = plugListEl._items.slice(_r, _r + 200);
+      plugListEl.insertAdjacentHTML('beforeend', batch.map(p => {
+        const tc = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : 'type-au';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;">
+          <span class="plugin-type ${tc}" style="font-size:9px;">${p.type}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name)}</span>
+          <span style="color:var(--text-dim);font-size:10px;">${escapeHtml(p.manufacturer)}</span>
+          <span style="color:var(--text-dim);font-size:10px;">${p.size}</span>
+          <button class="btn-small btn-folder" data-action="openFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}" style="padding:2px 4px;">&#128193;</button>
+        </div>`;
+      }).join(''));
+      _r += batch.length;
+    }
+    _renderPlugBatch();
+    plugListEl.addEventListener('scroll', () => { if (plugListEl.scrollTop + plugListEl.clientHeight >= plugListEl.scrollHeight - 50) _renderPlugBatch(); });
+  }
 }
 
 async function selectAudioScan(id) {
@@ -216,26 +218,38 @@ async function selectAudioScan(id) {
     </div>
     ${compareHtml}
     <div id="diffResults"></div>
-    <div style="margin-top: 8px;">
-      ${detail.samples.map(s => {
-        const fmtClass = getFormatClass(s.format);
-        return `
-          <div class="plugin-card">
-            <div class="plugin-info">
-              <h3>${escapeHtml(s.name)}</h3>
-              <div class="plugin-meta">
-                <span class="format-badge ${fmtClass}">${s.format}</span>
-                <span>${s.sizeFormatted || formatAudioSize(s.size)}</span>
-                <span>${escapeHtml(s.directory || '')}</span>
-              </div>
-            </div>
-            <div></div><div></div>
-            <div class="plugin-actions">
-              <button class="btn-small btn-folder" data-action="openAudioFolder" data-path="${escapeHtml(s.path)}" title="${escapeHtml(s.path)}">&#128193;</button>
-            </div>
-          </div>`;
-      }).join('')}
-    </div>`;
+    <div style="margin-top: 8px;color:var(--text-muted);font-size:11px;">${detail.samples.length.toLocaleString()} samples in this scan</div>
+    <div id="audioScanDetailList" style="margin-top: 8px;max-height:400px;overflow-y:auto;"></div>`;
+
+  // Render first 200 samples only, load more on scroll
+  const listEl = document.getElementById('audioScanDetailList');
+  if (listEl) {
+    let _audioDetailRendered = 0;
+    const PAGE = 200;
+    listEl._detailSamples = detail.samples;
+    function _renderAudioBatch() {
+      const samples = listEl._detailSamples;
+      if (!samples || _audioDetailRendered >= samples.length) return;
+      const batch = samples.slice(_audioDetailRendered, _audioDetailRendered + PAGE);
+      listEl.insertAdjacentHTML('beforeend', batch.map(s => {
+        const fmtClass = typeof getFormatClass === 'function' ? getFormatClass(s.format) : 'format-default';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;">
+          <span class="format-badge ${fmtClass}" style="font-size:9px;">${s.format}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.name)}</span>
+          <span style="color:var(--text-dim);font-size:10px;">${s.sizeFormatted || ''}</span>
+          <button class="btn-small btn-folder" data-action="openAudioFolder" data-path="${escapeHtml(s.path)}" title="${escapeHtml(s.path)}" style="padding:2px 4px;">&#128193;</button>
+        </div>`;
+      }).join(''));
+      _audioDetailRendered += batch.length;
+    }
+    _renderAudioBatch();
+    // Load more on scroll to bottom
+    listEl.addEventListener('scroll', () => {
+      if (listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 50) {
+        _renderAudioBatch();
+      }
+    });
+  }
 }
 
 async function runAudioDiff(currentId) {
@@ -322,26 +336,27 @@ async function selectDawScan(id) {
     </div>
     ${compareHtml}
     <div id="diffResults"></div>
-    <div style="margin-top: 8px;">
-      ${detail.projects.map(p => {
-        return `
-          <div class="plugin-card">
-            <div class="plugin-info">
-              <h3>${escapeHtml(p.name)}</h3>
-              <div class="plugin-meta">
-                <span class="format-badge format-default">${escapeHtml(p.daw)}</span>
-                <span>${p.format}</span>
-                <span>${p.sizeFormatted || formatAudioSize(p.size)}</span>
-                <span>${escapeHtml(p.directory || '')}</span>
-              </div>
-            </div>
-            <div></div><div></div>
-            <div class="plugin-actions">
-              <button class="btn-small btn-folder" data-action="openDawFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}">&#128193;</button>
-            </div>
-          </div>`;
-      }).join('')}
-    </div>`;
+    <div style="margin-top:8px;color:var(--text-muted);font-size:11px;">${detail.projects.length.toLocaleString()} projects in this scan</div>
+    <div id="dawScanDetailList" style="margin-top:8px;max-height:400px;overflow-y:auto;"></div>`;
+  const dawListEl = document.getElementById('dawScanDetailList');
+  if (dawListEl) {
+    let _r = 0;
+    dawListEl._items = detail.projects;
+    function _renderDawBatch() {
+      const batch = dawListEl._items.slice(_r, _r + 200);
+      dawListEl.insertAdjacentHTML('beforeend', batch.map(p =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;">
+          <span class="format-badge format-default" style="font-size:9px;">${escapeHtml(p.daw)}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name)}</span>
+          <span style="color:var(--text-dim);font-size:10px;">${p.sizeFormatted || ''}</span>
+          <button class="btn-small btn-folder" data-action="openDawFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}" style="padding:2px 4px;">&#128193;</button>
+        </div>`
+      ).join(''));
+      _r += batch.length;
+    }
+    _renderDawBatch();
+    dawListEl.addEventListener('scroll', () => { if (dawListEl.scrollTop + dawListEl.clientHeight >= dawListEl.scrollHeight - 50) _renderDawBatch(); });
+  }
 }
 
 async function runDawDiff(currentId) {
@@ -436,25 +451,27 @@ async function selectPresetScan(id) {
     </div>
     ${compareHtml}
     <div id="diffResults"></div>
-    <div style="margin-top: 8px;">
-      ${detail.presets.map(p => {
-        return `
-          <div class="plugin-card">
-            <div class="plugin-info">
-              <h3>${escapeHtml(p.name)}</h3>
-              <div class="plugin-meta">
-                <span class="format-badge format-default">${p.format}</span>
-                <span>${p.sizeFormatted || formatAudioSize(p.size)}</span>
-                <span>${escapeHtml(p.directory || '')}</span>
-              </div>
-            </div>
-            <div></div><div></div>
-            <div class="plugin-actions">
-              <button class="btn-small btn-folder" data-action="openPresetFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}">&#128193;</button>
-            </div>
-          </div>`;
-      }).join('')}
-    </div>`;
+    <div style="margin-top:8px;color:var(--text-muted);font-size:11px;">${detail.presets.length.toLocaleString()} presets in this scan</div>
+    <div id="presetScanDetailList" style="margin-top:8px;max-height:400px;overflow-y:auto;"></div>`;
+  const presetListEl = document.getElementById('presetScanDetailList');
+  if (presetListEl) {
+    let _r = 0;
+    presetListEl._items = detail.presets;
+    function _renderPresetBatch() {
+      const batch = presetListEl._items.slice(_r, _r + 200);
+      presetListEl.insertAdjacentHTML('beforeend', batch.map(p =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;">
+          <span class="format-badge format-default" style="font-size:9px;">${p.format}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name)}</span>
+          <span style="color:var(--text-dim);font-size:10px;">${p.sizeFormatted || ''}</span>
+          <button class="btn-small btn-folder" data-action="openPresetFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}" style="padding:2px 4px;">&#128193;</button>
+        </div>`
+      ).join(''));
+      _r += batch.length;
+    }
+    _renderPresetBatch();
+    presetListEl.addEventListener('scroll', () => { if (presetListEl.scrollTop + presetListEl.clientHeight >= presetListEl.scrollHeight - 50) _renderPresetBatch(); });
+  }
 }
 
 async function runPresetDiff(currentId) {

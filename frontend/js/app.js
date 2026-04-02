@@ -44,6 +44,11 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   showGlobalProgress();
   // Load file-backed preferences before anything else
   await prefs.load();
+  // Ensure stop/resume buttons are hidden on fresh start
+  const _stopAll = document.getElementById('btnStopAll');
+  const _resumeAll = document.getElementById('btnResumeAll');
+  if (_stopAll) _stopAll.style.display = 'none';
+  if (_resumeAll) _resumeAll.style.display = 'none';
   restoreSettings();
   initTabDragReorder();
   initMultiFilters();
@@ -68,6 +73,15 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
     }
   }
   if (typeof renderFzfSettings === 'function') renderFzfSettings();
+
+  // Dismiss splash screen before loading data so errors are visible
+  const splash = document.getElementById('splashScreen');
+  if (splash) {
+    const ver = document.getElementById('splashVersion');
+    try { if (ver) ver.textContent = 'v' + await window.vstUpdater.getVersion(); } catch { if (ver) ver.textContent = 'Ready'; }
+    splash.classList.add('fade-out');
+    setTimeout(() => splash.remove(), 600);
+  }
 
   try {
     const latest = await window.vstUpdater.getLatestScan();
@@ -152,18 +166,6 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   }
 
   hideGlobalProgress();
-
-  // Dismiss splash screen
-  const splash = document.getElementById('splashScreen');
-  if (splash) {
-    const ver = document.getElementById('splashVersion');
-    try { if (ver) ver.textContent = 'v' + await window.vstUpdater.getVersion(); } catch { if (ver) ver.textContent = 'Ready'; }
-    setTimeout(() => {
-      splash.classList.add('fade-out');
-      setTimeout(() => splash.remove(), 600);
-    }, 400);
-  }
-
   renderWelcomeDashboard();
   renderShortcutSettings();
   updateHeaderInfo();
@@ -288,16 +290,12 @@ async function scanAll(resume = false) {
   btn.innerHTML = '&#9889; Scan All';
   stopBtn.style.display = 'none';
 
-  // Show resume if any scan was stopped with partial results
-  const hasPartial = allPlugins.length > 0 || allAudioSamples.length > 0 ||
-    allDawProjects.length > 0 || allPresets.length > 0;
-  const anyResumeVisible = document.getElementById('btnResumeScan')?.style.display !== 'none' ||
-    document.getElementById('btnResumeAudio')?.style.display !== 'none' ||
-    document.getElementById('btnResumeDaw')?.style.display !== 'none' ||
-    document.getElementById('btnResumePresets')?.style.display !== 'none';
-  if (anyResumeVisible && hasPartial) {
-    resumeBtn.style.display = '';
-  }
+  // Show resume only if any per-tab resume button is visible (scan was stopped)
+  const anyResumeVisible = document.getElementById('btnResumeScan')?.style.display === '' ||
+    document.getElementById('btnResumeAudio')?.style.display === '' ||
+    document.getElementById('btnResumeDaw')?.style.display === '' ||
+    document.getElementById('btnResumePresets')?.style.display === '';
+  resumeBtn.style.display = anyResumeVisible ? '' : 'none';
 }
 
 async function stopAll() {

@@ -965,6 +965,12 @@ function renderFzfSettings() {
       </div>
     </div>`;
   }).join('');
+  if (typeof initDragReorder === 'function') {
+    initDragReorder(grid, '.settings-row', 'fzfParamOrder', {
+      getKey: (el) => el.querySelector('[data-fzf-param]')?.dataset.fzfParam || '',
+      handleSelector: '.settings-label',
+    });
+  }
 }
 
 document.addEventListener('input', (e) => {

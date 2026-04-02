@@ -22,12 +22,14 @@ function addFavorite(type, path, name, extra) {
   favs.unshift({ type, path, name, ...extra, addedAt: new Date().toISOString() });
   saveFavorites(favs);
   showToast(`Added "${name}" to favorites`);
+  if (typeof refreshRowBadges === 'function') refreshRowBadges(path);
 }
 
 function removeFavorite(path) {
   const favs = getFavorites().filter(f => f.path !== path);
   saveFavorites(favs);
   showToast('Removed from favorites');
+  if (typeof refreshRowBadges === 'function') refreshRowBadges(path);
   renderFavorites();
 }
 

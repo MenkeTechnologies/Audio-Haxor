@@ -25,7 +25,10 @@ function showHeatmapDashboard() {
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
 
-  renderDashboard(samples, plugins, projects, presets);
+  // Delay render to next frame so modal is visible and sized
+  requestAnimationFrame(() => {
+    renderDashboard(samples, plugins, projects, presets);
+  });
 }
 
 function closeHeatmapDash() {

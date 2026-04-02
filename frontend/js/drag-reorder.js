@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (favGrid) initDragReorder(favGrid, '.file-fav-chip', 'fileFavOrder', { direction: 'horizontal', getKey: (el) => el.dataset.fileNav || el.textContent.trim() });
   }, 1000);
 
-  // Scan buttons and dashboard — draggable between header-actions and stats-bar
+  // Scan buttons and dashboard — draggable between containers
   initFloatingElement('scanBtnsGroup', 'scanBtnsParent');
   initFloatingElement('dashBtnGroup', 'dashBtnParent');
 
@@ -245,11 +245,19 @@ function initFloatingElement(elementId, prefsKey) {
       if (ghost) { ghost.remove(); ghost = null; }
       document.querySelectorAll('.header-actions, .stats-bar, .tab-nav').forEach(c => c.style.outline = '');
 
-      // Find drop target
+      // Find drop target and insert at cursor position
       const under = document.elementFromPoint(ev.clientX, ev.clientY);
       const dropTarget = under?.closest('.header-actions, .stats-bar, .tab-nav');
-      if (dropTarget && dropTarget !== el.parentElement) {
-        dropTarget.appendChild(el);
+      if (dropTarget) {
+        // Find the sibling element nearest to cursor for position-aware insertion
+        const sibling = under?.closest('.stat, .header-info-item, .tab-btn, .btn, .scan-btns-group');
+        if (sibling && sibling !== el && dropTarget.contains(sibling)) {
+          const r = sibling.getBoundingClientRect();
+          const mid = r.left + r.width / 2;
+          dropTarget.insertBefore(el, ev.clientX < mid ? sibling : sibling.nextSibling);
+        } else {
+          dropTarget.appendChild(el);
+        }
         if (typeof prefs !== 'undefined') prefs.setItem(prefsKey, dropTarget.id || dropTarget.className.split(' ')[0]);
       }
     };

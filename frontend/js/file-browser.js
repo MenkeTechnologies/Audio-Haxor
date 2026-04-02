@@ -156,44 +156,41 @@ function renderFileList() {
     const cls = e.isDir ? ' file-dir' : '';
     const isAudio = !e.isDir && AUDIO_EXTS.includes(e.ext);
 
-    // Extra metadata for audio files
-    let extras = '';
+    // Metadata badges — favorites/tags for ALL files and dirs, audio-specific for audio
+    const parts = [];
+    // Favorite (all files and dirs)
+    if (typeof isFavorite === 'function' && isFavorite(e.path)) {
+      parts.push('<span class="file-meta-tag file-meta-fav" title="Favorited">&#9733;</span>');
+    }
+    // Tags from notes (all files and dirs)
+    if (typeof getNote === 'function') {
+      const n = getNote(e.path);
+      if (n && n.tags && n.tags.length > 0) {
+        parts.push(`<span class="file-meta-tag file-meta-tags" title="Tags: ${escapeHtml(n.tags.join(', '))}">${escapeHtml(n.tags.slice(0, 2).join(', '))}${n.tags.length > 2 ? '…' : ''}</span>`);
+      }
+    }
+    // Audio-specific metadata
     if (isAudio) {
-      const parts = [];
-      // BPM from cache
       if (typeof _bpmCache !== 'undefined' && _bpmCache[e.path]) {
         parts.push(`<span class="file-meta-tag file-meta-bpm" title="BPM">${_bpmCache[e.path]}</span>`);
       }
-      // Key from cache
       if (typeof _keyCache !== 'undefined' && _keyCache[e.path]) {
         parts.push(`<span class="file-meta-tag file-meta-key" title="Musical key">${escapeHtml(_keyCache[e.path])}</span>`);
       }
-      // Favorite
-      if (typeof isFavorite === 'function' && isFavorite(e.path)) {
-        parts.push('<span class="file-meta-tag file-meta-fav" title="Favorited">&#9733;</span>');
-      }
-      // Tags from notes
-      if (typeof getNote === 'function') {
-        const n = getNote(e.path);
-        if (n && n.tags && n.tags.length > 0) {
-          parts.push(`<span class="file-meta-tag file-meta-tags" title="Tags: ${escapeHtml(n.tags.join(', '))}">${escapeHtml(n.tags.slice(0, 2).join(', '))}${n.tags.length > 2 ? '…' : ''}</span>`);
-        }
-      }
-      // Duration from sample data
       if (typeof allAudioSamples !== 'undefined') {
         const sample = allAudioSamples.find(s => s.path === e.path);
         if (sample && sample.duration) {
           parts.push(`<span class="file-meta-tag file-meta-dur" title="Duration">${typeof formatTime === 'function' ? formatTime(sample.duration) : sample.duration.toFixed(1) + 's'}</span>`);
         }
       }
-      if (parts.length > 0) extras = `<span class="file-meta-tags-row">${parts.join('')}</span>`;
     }
+    const extras = parts.length > 0 ? `<span class="file-meta-tags-row">${parts.join('')}</span>` : '';
 
     const wfBg = isAudio ? `<canvas class="file-waveform" data-wf-path="${escapeHtml(e.path)}" height="36" title="Waveform"></canvas><span class="file-wf-cursor"></span>` : '';
     return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
       ${wfBg}
       <span class="file-icon">${fileIcon(e)}</span>
-      <span class="file-name">${note}${search && typeof highlightMatch === 'function' ? highlightMatch(e.name, search, 'fuzzy') : escapeHtml(e.name)}${extras}</span>
+      <span class="file-name">${search && typeof highlightMatch === 'function' ? highlightMatch(e.name, search, 'fuzzy') : escapeHtml(e.name)}${extras}${note}</span>
       <span class="file-ext">${e.isDir ? 'DIR' : e.ext}</span>
       <span class="file-size">${e.isDir ? '' : e.sizeFormatted}</span>
       <span class="file-date">${e.modified}</span>

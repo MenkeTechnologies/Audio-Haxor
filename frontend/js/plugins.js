@@ -129,8 +129,7 @@ function buildPluginCardHtml(p) {
   return `
     <div class="plugin-card" data-path="${escapeHtml(p.path)}">
       <div class="plugin-info">
-        ${typeof noteIndicator === 'function' ? noteIndicator(p.path) : ''}
-        <h3>${highlightMatch(p.name, _lastPluginSearch, _lastPluginMode)}</h3>
+        <h3>${highlightMatch(p.name, _lastPluginSearch, _lastPluginMode)}${typeof rowBadges === 'function' ? ' ' + rowBadges(p.path) : ''}</h3>
         <div class="plugin-meta">
           <span class="plugin-type ${typeClass}">${p.type}</span>
           <span>${escapeHtml(p.manufacturer)}</span>

@@ -63,6 +63,7 @@ function addTagToItem(path, tag) {
   if (!note.tags.includes(tag)) {
     note.tags.push(tag);
     setNote(path, note.note, note.tags);
+    refreshRowBadges(path);
   }
 }
 
@@ -71,6 +72,7 @@ function removeTagFromItem(path, tag) {
   if (!note) return;
   note.tags = note.tags.filter(t => t !== tag);
   setNote(path, note.note, note.tags);
+  refreshRowBadges(path);
 }
 
 function renameTag(oldTag, newTag) {
@@ -164,21 +166,24 @@ function closeNoteModal() {
 
 function saveNoteFromModal() {
   if (!_noteModalPath) return;
+  const path = _noteModalPath;
   const note = document.getElementById('noteText').value;
   const tagsStr = document.getElementById('noteTags').value;
   const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
-  setNote(_noteModalPath, note, tags);
+  setNote(path, note, tags);
   closeNoteModal();
   showToast('Note saved');
-  // Refresh notes tab if visible
+  refreshRowBadges(path);
   if (document.getElementById('tabNotes')?.classList.contains('active')) renderNotesTab();
 }
 
 function deleteNoteFromModal() {
   if (!_noteModalPath) return;
-  setNote(_noteModalPath, '', []);
+  const path = _noteModalPath;
+  setNote(path, '', []);
   closeNoteModal();
   showToast('Note deleted');
+  refreshRowBadges(path);
   if (document.getElementById('tabNotes')?.classList.contains('active')) renderNotesTab();
 }
 
@@ -225,6 +230,67 @@ function noteIndicator(path) {
   if (!note) return '';
   const tagHtml = note.tags?.length ? ` [${note.tags.join(', ')}]` : '';
   return `<span class="note-icon" title="${escapeHtml(note.note + tagHtml)}">&#128221;</span>`;
+}
+
+// Rich badge: star + tags + note icon for any path
+function rowBadges(path) {
+  let html = '';
+  if (typeof isFavorite === 'function' && isFavorite(path)) {
+    html += '<span class="row-badge row-badge-fav" title="Favorited">&#9733;</span>';
+  }
+  const note = typeof getNote === 'function' ? getNote(path) : null;
+  if (note) {
+    if (note.note) html += '<span class="row-badge row-badge-note" title="Has note">&#128221;</span>';
+    if (note.tags?.length) {
+      html += note.tags.slice(0, 3).map(t => `<span class="row-badge row-badge-tag" title="Tag: ${escapeHtml(t)}">${escapeHtml(t)}</span>`).join('');
+      if (note.tags.length > 3) html += `<span class="row-badge row-badge-tag" title="${escapeHtml(note.tags.join(', '))}">+${note.tags.length - 3}</span>`;
+    }
+  }
+  return html;
+}
+
+// Update badges on all visible rows for a given path
+function refreshRowBadges(path) {
+  if (!path) return;
+  const badges = rowBadges(path);
+  // Audio table
+  const audioRow = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(path)}"]`);
+  if (audioRow) {
+    const nameCell = audioRow.querySelector('.col-name');
+    if (nameCell) {
+      nameCell.querySelectorAll('.row-badge').forEach(b => b.remove());
+      nameCell.insertAdjacentHTML('beforeend', badges);
+    }
+  }
+  // DAW table
+  const dawRow = document.querySelector(`#dawTableBody tr[data-daw-path="${CSS.escape(path)}"]`);
+  if (dawRow) {
+    const nameCell = dawRow.querySelector('.col-name') || dawRow.cells[1];
+    if (nameCell) {
+      nameCell.querySelectorAll('.row-badge').forEach(b => b.remove());
+      nameCell.insertAdjacentHTML('beforeend', badges);
+    }
+  }
+  // Preset table
+  const presetRow = document.querySelector(`#presetTableBody tr[data-preset-path="${CSS.escape(path)}"]`);
+  if (presetRow) {
+    const nameCell = presetRow.cells[1];
+    if (nameCell) {
+      nameCell.querySelectorAll('.row-badge').forEach(b => b.remove());
+      nameCell.insertAdjacentHTML('beforeend', badges);
+    }
+  }
+  // Plugin card — update badges after name in h3
+  const pluginCard = document.querySelector(`.plugin-card[data-path="${CSS.escape(path)}"]`);
+  if (pluginCard) {
+    const h3 = pluginCard.querySelector('h3');
+    if (h3) {
+      h3.querySelectorAll('.row-badge').forEach(b => b.remove());
+      h3.insertAdjacentHTML('beforeend', ' ' + badges);
+    }
+  }
+  // File browser
+  if (typeof renderFileList === 'function') renderFileList();
 }
 
 // ── Notes Tab ──
