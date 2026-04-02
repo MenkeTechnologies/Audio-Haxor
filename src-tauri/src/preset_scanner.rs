@@ -49,13 +49,7 @@ const SKIP_DIRS: &[&str] = &[
 ];
 
 fn format_size(bytes: u64) -> String {
-    if bytes == 0 {
-        return "0 B".into();
-    }
-    let units = ["B", "KB", "MB", "GB"];
-    let i = (bytes as f64).log(1024.0).floor() as usize;
-    let i = i.min(units.len() - 1);
-    format!("{:.1} {}", bytes as f64 / 1024f64.powi(i as i32), units[i])
+    crate::format_size(bytes)
 }
 
 pub fn get_preset_roots() -> Vec<PathBuf> {
