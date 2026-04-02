@@ -1,6 +1,6 @@
 // ── Plugin ↔ DAW Cross-Reference ──
 
-const XREF_FORMATS = new Set(['ALS', 'RPP', 'RPP-BAK']);
+const XREF_FORMATS = new Set(['ALS', 'RPP', 'RPP-BAK', 'BWPROJECT']);
 
 // Cache: project path → PluginRef[]
 const _xrefCache = {};

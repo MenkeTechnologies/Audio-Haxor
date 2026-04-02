@@ -79,6 +79,7 @@ pub fn extract_plugins(project_path: &str) -> Vec<PluginRef> {
     let mut plugins = match ext.as_str() {
         "als" => parse_ableton(path),
         "rpp" | "rpp-bak" => parse_reaper(path),
+        "bwproject" => parse_bitwig(path),
         _ => vec![],
     };
 
@@ -247,6 +248,122 @@ fn parse_reaper(path: &Path) -> Vec<PluginRef> {
     }
 
     plugins
+}
+
+/// Parse Bitwig Studio .bwproject file (binary with embedded strings).
+///
+/// Bitwig files have a `BtWg` magic header followed by binary-serialized
+/// project data. Plugin references are stored as DLL/VST3/component paths
+/// in plain text within the binary. We extract them via string scanning.
+fn parse_bitwig(path: &Path) -> Vec<PluginRef> {
+    let data = match fs::read(path) {
+        Ok(d) => d,
+        Err(_) => return vec![],
+    };
+
+    let mut plugins = Vec::new();
+
+    // Extract all printable ASCII strings >= 8 chars from the binary
+    let mut current = Vec::new();
+    for &byte in &data {
+        if byte >= 0x20 && byte <= 0x7E {
+            current.push(byte);
+        } else {
+            if current.len() >= 8 {
+                let s = String::from_utf8_lossy(&current).to_string();
+                // Match plugin DLL/VST3/component paths
+                if let Some(plugin) = extract_bitwig_plugin(&s) {
+                    plugins.push(plugin);
+                }
+            }
+            current.clear();
+        }
+    }
+    // Final string
+    if current.len() >= 8 {
+        let s = String::from_utf8_lossy(&current).to_string();
+        if let Some(plugin) = extract_bitwig_plugin(&s) {
+            plugins.push(plugin);
+        }
+    }
+
+    plugins
+}
+
+fn extract_bitwig_plugin(s: &str) -> Option<PluginRef> {
+    // Match DLL paths (VST2): "Name.dll" or "path\to\Name.dll"
+    if s.ends_with(".dll") {
+        let name = s
+            .rsplit(['\\', '/'])
+            .next()?
+            .trim_end_matches(".dll")
+            .trim();
+        if name.is_empty() || name.contains("VstPlugins") { return None; }
+        let normalized_name = normalize_plugin_name(name);
+        if normalized_name.is_empty() { return None; }
+        return Some(PluginRef {
+            name: name.to_string(),
+            normalized_name,
+            manufacturer: String::new(),
+            plugin_type: "VST2".into(),
+        });
+    }
+
+    // Match VST3 paths: "Name.vst3"
+    if s.ends_with(".vst3") {
+        let name = s
+            .rsplit(['\\', '/'])
+            .next()?
+            .trim_end_matches(".vst3")
+            .trim();
+        if name.is_empty() { return None; }
+        let normalized_name = normalize_plugin_name(name);
+        if normalized_name.is_empty() { return None; }
+        return Some(PluginRef {
+            name: name.to_string(),
+            normalized_name,
+            manufacturer: String::new(),
+            plugin_type: "VST3".into(),
+        });
+    }
+
+    // Match AU paths: "Name.component"
+    if s.ends_with(".component") {
+        let name = s
+            .rsplit(['\\', '/'])
+            .next()?
+            .trim_end_matches(".component")
+            .trim();
+        if name.is_empty() { return None; }
+        let normalized_name = normalize_plugin_name(name);
+        if normalized_name.is_empty() { return None; }
+        return Some(PluginRef {
+            name: name.to_string(),
+            normalized_name,
+            manufacturer: String::new(),
+            plugin_type: "AU".into(),
+        });
+    }
+
+    // Match CLAP: "Name.clap"
+    if s.ends_with(".clap") {
+        let name = s
+            .rsplit(['\\', '/'])
+            .next()?
+            .trim_end_matches(".clap")
+            .trim();
+        if name.is_empty() { return None; }
+        let normalized_name = normalize_plugin_name(name);
+        if normalized_name.is_empty() { return None; }
+        return Some(PluginRef {
+            name: name.to_string(),
+            normalized_name,
+            manufacturer: String::new(),
+            plugin_type: "CLAP".into(),
+        });
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -727,6 +844,79 @@ mod tests {
         assert_eq!(result[0].name, "Ace");
         assert_eq!(result[1].name, "Diva");
         assert_eq!(result[2].name, "Zebra2");
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_extract_bitwig_plugin_dll() {
+        let p = extract_bitwig_plugin(r"C:\Program Files\Steinberg\VstPlugins\Serum.dll");
+        assert!(p.is_some());
+        let p = p.unwrap();
+        assert_eq!(p.name, "Serum");
+        assert_eq!(p.plugin_type, "VST2");
+    }
+
+    #[test]
+    fn test_extract_bitwig_plugin_vst3() {
+        let p = extract_bitwig_plugin("/Library/Audio/Plug-Ins/VST3/FabFilter Pro-Q 3.vst3");
+        assert!(p.is_some());
+        let p = p.unwrap();
+        assert_eq!(p.name, "FabFilter Pro-Q 3");
+        assert_eq!(p.plugin_type, "VST3");
+    }
+
+    #[test]
+    fn test_extract_bitwig_plugin_au() {
+        let p = extract_bitwig_plugin("/Library/Audio/Plug-Ins/Components/Massive.component");
+        assert!(p.is_some());
+        let p = p.unwrap();
+        assert_eq!(p.name, "Massive");
+        assert_eq!(p.plugin_type, "AU");
+    }
+
+    #[test]
+    fn test_extract_bitwig_plugin_clap() {
+        let p = extract_bitwig_plugin("/Library/Audio/Plug-Ins/CLAP/Vital.clap");
+        assert!(p.is_some());
+        let p = p.unwrap();
+        assert_eq!(p.name, "Vital");
+        assert_eq!(p.plugin_type, "CLAP");
+    }
+
+    #[test]
+    fn test_extract_bitwig_plugin_rejects_dir() {
+        // VstPlugins directory path should not be extracted as a plugin
+        assert!(extract_bitwig_plugin(r"C:\Program Files\Steinberg\VstPlugins").is_none());
+    }
+
+    #[test]
+    fn test_extract_bitwig_plugin_strips_path() {
+        let p = extract_bitwig_plugin(r"MeldaProduction\Modulation\MFlanger.dll");
+        assert!(p.is_some());
+        assert_eq!(p.unwrap().name, "MFlanger");
+    }
+
+    #[test]
+    fn test_parse_bitwig_synthetic() {
+        // Create a fake bwproject with embedded plugin strings
+        let tmp = std::env::temp_dir().join("test_bitwig.bwproject");
+        let mut data = b"BtWg0003".to_vec();
+        data.extend_from_slice(&[0u8; 100]); // padding
+        data.extend_from_slice(b"C:\\VstPlugins\\Serum.dll");
+        data.extend_from_slice(&[0u8; 20]);
+        data.extend_from_slice(b"/Library/Audio/Plug-Ins/VST3/Pro-Q 3.vst3");
+        data.extend_from_slice(&[0u8; 20]);
+        data.extend_from_slice(b"/Library/Audio/Plug-Ins/Components/Kontakt.component");
+        data.extend_from_slice(&[0u8; 20]);
+        fs::write(&tmp, &data).unwrap();
+
+        let result = extract_plugins(tmp.to_str().unwrap());
+        assert!(result.len() >= 3, "should find at least 3 plugins, got {}", result.len());
+        let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
+        assert!(names.contains(&"Serum"), "should find Serum, got {:?}", names);
+        assert!(names.contains(&"Pro-Q 3"), "should find Pro-Q 3, got {:?}", names);
+        assert!(names.contains(&"Kontakt"), "should find Kontakt, got {:?}", names);
 
         let _ = fs::remove_file(&tmp);
     }
