@@ -752,16 +752,16 @@ function initAudioTable() {
     <thead>
       <tr>
         <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="Select all"></th>
-        <th data-action="sortAudio" data-key="name" style="width: 22%;">Name <span class="sort-arrow" id="sortArrowName">&#9660;</span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="format" class="col-format" style="width: 60px;">Format <span class="sort-arrow" id="sortArrowFormat"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="size" class="col-size" style="width: 75px;">Size <span class="sort-arrow" id="sortArrowSize"></span><span class="col-resize"></span></th>
-        <th class="col-bpm" style="width: 55px;" title="BPM — click a row to analyze">BPM<span class="col-resize"></span></th>
-        <th class="col-key" style="width: 75px;" title="Musical key — click a row to analyze">Key<span class="col-resize"></span></th>
-        <th class="col-dur" style="width: 55px;" title="Duration">Dur<span class="col-resize"></span></th>
-        <th class="col-ch" style="width: 40px;" title="Channels">Ch<span class="col-resize"></span></th>
-        <th class="col-lufs" style="width: 55px;" title="Integrated loudness (LUFS)">LUFS<span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="modified" class="col-date" style="width: 90px;">Modified <span class="sort-arrow" id="sortArrowModified"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="directory" style="width: 22%;">Path <span class="sort-arrow" id="sortArrowDirectory"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="name" style="width: 22%;" title="File name — click to sort">Name <span class="sort-arrow" id="sortArrowName">&#9660;</span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="format" class="col-format" style="width: 60px;" title="Audio format — click to sort">Format <span class="sort-arrow" id="sortArrowFormat"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="size" class="col-size" style="width: 75px;" title="File size — click to sort">Size <span class="sort-arrow" id="sortArrowSize"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="bpm" class="col-bpm" style="width: 55px;" title="Estimated BPM — click to sort">BPM <span class="sort-arrow" id="sortArrowBpm"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="key" class="col-key" style="width: 75px;" title="Musical key — click to sort">Key <span class="sort-arrow" id="sortArrowKey"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="duration" class="col-dur" style="width: 55px;" title="Duration — click to sort">Dur <span class="sort-arrow" id="sortArrowDuration"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="channels" class="col-ch" style="width: 40px;" title="Channels — click to sort">Ch <span class="sort-arrow" id="sortArrowChannels"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="lufs" class="col-lufs" style="width: 55px;" title="Integrated loudness (LUFS) — click to sort">LUFS <span class="sort-arrow" id="sortArrowLufs"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="modified" class="col-date" style="width: 90px;" title="Last modified date — click to sort">Modified <span class="sort-arrow" id="sortArrowModified"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="directory" style="width: 22%;" title="Directory path — click to sort">Path <span class="sort-arrow" id="sortArrowDirectory"></span><span class="col-resize"></span></th>
         <th class="col-actions" style="width: 130px;"></th>
       </tr>
     </thead>
@@ -812,12 +812,12 @@ function sortAudio(key) {
     audioSortKey = key;
     audioSortAsc = true;
   }
-  ['Name', 'Format', 'Size', 'Modified', 'Directory'].forEach(k => {
+  ['Name', 'Format', 'Size', 'Bpm', 'Key', 'Duration', 'Channels', 'Lufs', 'Modified', 'Directory'].forEach(k => {
     const el = document.getElementById('sortArrow' + k);
     if (el) {
       const isActive = k.toLowerCase() === audioSortKey;
       el.innerHTML = isActive ? (audioSortAsc ? '&#9650;' : '&#9660;') : '';
-      el.closest('th').classList.toggle('sort-active', isActive);
+      el.closest('th')?.classList.toggle('sort-active', isActive);
     }
   });
   sortAudioArray();
@@ -828,9 +828,33 @@ function sortAudioArray() {
   const key = audioSortKey;
   const dir = audioSortAsc ? 1 : -1;
   filteredAudioSamples.sort((a, b) => {
-    let va = a[key], vb = b[key];
-    if (key === 'size') return (va - vb) * dir;
-    if (typeof va === 'string') return va.localeCompare(vb) * dir;
+    let va, vb;
+    if (key === 'bpm') {
+      va = (typeof _bpmCache !== 'undefined' && _bpmCache[a.path]) || 0;
+      vb = (typeof _bpmCache !== 'undefined' && _bpmCache[b.path]) || 0;
+      return (va - vb) * dir;
+    }
+    if (key === 'key') {
+      va = (typeof _keyCache !== 'undefined' && _keyCache[a.path]) || '';
+      vb = (typeof _keyCache !== 'undefined' && _keyCache[b.path]) || '';
+      return va.localeCompare(vb) * dir;
+    }
+    if (key === 'lufs') {
+      va = (typeof _lufsCache !== 'undefined' && _lufsCache[a.path] != null) ? _lufsCache[a.path] : -999;
+      vb = (typeof _lufsCache !== 'undefined' && _lufsCache[b.path] != null) ? _lufsCache[b.path] : -999;
+      return (va - vb) * dir;
+    }
+    if (key === 'duration') {
+      va = a.duration || 0; vb = b.duration || 0;
+      return (va - vb) * dir;
+    }
+    if (key === 'channels') {
+      va = a.channels || 0; vb = b.channels || 0;
+      return (va - vb) * dir;
+    }
+    va = a[key]; vb = b[key];
+    if (key === 'size') return ((va || 0) - (vb || 0)) * dir;
+    if (typeof va === 'string') return (va || '').localeCompare(vb || '') * dir;
     return 0;
   });
 }

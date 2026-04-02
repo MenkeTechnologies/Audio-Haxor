@@ -162,6 +162,9 @@ document.addEventListener('click', (e) => {
     case 'settingClearAllHistory': settingClearAllHistory(); break;
     case 'settingClearKvrCache': settingClearKvrCache(); break;
     case 'settingClearAnalysisCache': settingClearAnalysisCache(); break;
+    case 'exportSettingsPdf': if (typeof exportSettingsPdf === 'function') exportSettingsPdf(); break;
+    case 'exportLogPdf': if (typeof exportLogPdf === 'function') exportLogPdf(); break;
+    case 'clearAppLog': window.vstUpdater.clearLog().then(() => showToast('Log cleared')).catch(() => {}); break;
     case 'resetAllScans': resetAllScans(); break;
     case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;
     case 'settingToggleAutoScan': settingToggleAutoScan(); break;
@@ -402,6 +405,9 @@ window.vstUpdater = {
   readCacheFile: (name) => invoke('read_cache_file', { name }),
   writeCacheFile: (name, data) => invoke('write_cache_file', { name, data }),
   getWalkerStatus: () => invoke('get_walker_status'),
+  appendLog: (msg) => invoke('append_log', { msg }).catch(() => {}),
+  readLog: () => invoke('read_log'),
+  clearLog: () => invoke('clear_log'),
   // DAW history
   saveDawScan: (projects, roots) => invoke('daw_history_save', { projects, roots: roots || null }),
   getDawScans: () => invoke('daw_history_get_scans'),
@@ -529,3 +535,13 @@ async function stopCurrentOperation() {
     await window.vstUpdater.stopPresetScan();
   }
 }
+
+// ── Global error logging ──
+window.addEventListener('error', (e) => {
+  const msg = `ERROR: ${e.message} at ${e.filename}:${e.lineno}:${e.colno}`;
+  window.vstUpdater?.appendLog(msg);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = `UNHANDLED_REJECTION: ${e.reason?.message || e.reason || 'unknown'}`;
+  window.vstUpdater?.appendLog(msg);
+});

@@ -7,8 +7,8 @@ let _vizRAF = null;
 let _vizSpectrogramData = [];
 let _vizSpectrogramIdx = 0; // ring buffer write index
 let _vizLastFrame = 0;
-const _VIZ_FPS = 30;
-const _VIZ_INTERVAL = 1000 / _VIZ_FPS;
+const _VIZ_FPS_SINGLE = 30;
+const _VIZ_FPS_ALL = 20;
 // Pre-allocated buffers (set once when analyser is available)
 let _vizFreqData = null;
 let _vizTimeData = null;
@@ -101,8 +101,9 @@ function _vizLoop(timestamp) {
 
   _vizRAF = requestAnimationFrame(_vizLoop);
 
-  // Throttle to target FPS
-  if (timestamp - _vizLastFrame < _VIZ_INTERVAL) return;
+  // Throttle: 20fps in grid, 30fps in single
+  const interval = _vizMode === 'all' ? (1000 / _VIZ_FPS_ALL) : (1000 / _VIZ_FPS_SINGLE);
+  if (timestamp - _vizLastFrame < interval) return;
   _vizLastFrame = timestamp;
 
   const analyser = typeof _analyser !== 'undefined' ? _analyser : null;

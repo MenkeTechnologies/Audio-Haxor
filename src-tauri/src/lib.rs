@@ -1224,6 +1224,29 @@ fn write_cache_file(name: String, data: serde_json::Value) -> Result<(), String>
     std::fs::write(&path, json).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn append_log(msg: String) {
+    let path = history::get_data_dir().join("app.log");
+    let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let line = format!("[{}] {}\n", timestamp, msg);
+    let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path).and_then(|mut f| {
+        use std::io::Write;
+        f.write_all(line.as_bytes())
+    });
+}
+
+#[tauri::command]
+fn read_log() -> Result<String, String> {
+    let path = history::get_data_dir().join("app.log");
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_log() -> Result<(), String> {
+    let path = history::get_data_dir().join("app.log");
+    std::fs::write(&path, "").map_err(|e| e.to_string())
+}
+
 // ── Export / Import commands ──
 
 fn plugins_to_export(plugins: &[PluginInfo]) -> Vec<ExportPlugin> {
@@ -3062,6 +3085,9 @@ pub fn run() {
             measure_lufs,
             read_cache_file,
             write_cache_file,
+            append_log,
+            read_log,
+            clear_log,
             compute_fingerprint,
             find_similar_samples,
             open_update_url,

@@ -13,7 +13,7 @@
 ░▓████▒   ▓█   ▓██▒▒██▒ ▒██▒░ ████▓▒░░██▓ ▒██▒
 ```
 
-> **// SYSTEM ONLINE -- AUDIO_HAXOR v1.10.0 // by MenkeTechnologies**
+> **// SYSTEM ONLINE -- AUDIO_HAXOR v1.11.0 // by MenkeTechnologies**
 
 A high-voltage **Tauri v2** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
 
@@ -128,6 +128,9 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **Plugin Name Normalization** | Cross-reference matching normalizes plugin names: strips arch suffixes (x64, ARM64, Stereo), case-folds, collapses whitespace. "Serum", "SERUM (x64)", "serum" all match |
 | **macOS Firmlink Dedup** | Scanners normalize /System/Volumes/Data paths to prevent duplicate file discovery when scanning / |
 | **Browse Button** | Native folder picker in scan directory settings to grant macOS TCC permissions for mounted volumes |
+| **Error Logging** | Global JS error handler logs uncaught errors and unhandled rejections to `app.log` in the data directory. Export/clear via Settings → Data. Includes timestamps |
+| **Sortable Analysis Columns** | BPM, Key, Duration, Channels, LUFS columns in sample table are all clickable to sort ascending/descending. All column headers have tooltips |
+| **Settings Export** | Export all preferences and keyboard shortcuts to a text file. Export app error log for debugging. Clear log button |
 | **Sample Table Columns** | 11 columns: checkbox, Name, Format, Size, BPM, Key, Duration, Channels, Modified, Path, Actions. BPM/Key from cache, Duration/Channels from scan headers. All columns draggable to reorder |
 | **Paginated History** | Scan detail views render in batches of 200 with scroll-to-load-more. No more UI freeze on 40,000+ sample scans |
 | **Scan Button Mobility** | Scan All/Stop/Resume button group draggable between header, stats bar, and tab nav. Dashboard button same. Position persisted |

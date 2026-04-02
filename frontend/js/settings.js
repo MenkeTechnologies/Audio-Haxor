@@ -431,6 +431,59 @@ function applyCrtSetting(on) {
   }
 }
 
+async function exportSettingsPdf() {
+  const shortcuts = typeof getShortcuts === 'function' ? getShortcuts() : {};
+  const allPrefs = prefs._cache || {};
+
+  let text = 'AUDIO_HAXOR — Settings & Keybindings Export\n';
+  text += '='.repeat(50) + '\n\n';
+  text += `Generated: ${new Date().toLocaleString()}\n\n`;
+
+  text += '── KEYBOARD SHORTCUTS ──\n\n';
+  for (const [id, sc] of Object.entries(shortcuts)) {
+    const key = sc.mod ? `Cmd+${sc.key}` : sc.key;
+    text += `  ${sc.label.padEnd(35)} ${key}\n`;
+  }
+
+  text += '\n── PREFERENCES ──\n\n';
+  for (const [k, v] of Object.entries(allPrefs)) {
+    if (typeof v === 'object') continue; // skip large objects
+    text += `  ${k.padEnd(35)} ${v}\n`;
+  }
+
+  // Export as text file (PDF generation would need a library)
+  const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+  if (!dialogApi) return;
+  const savePath = await dialogApi.save({
+    title: 'Export Settings & Keybindings',
+    defaultPath: 'audio-haxor-settings.txt',
+    filters: [{ name: 'Text', extensions: ['txt'] }],
+  });
+  if (savePath) {
+    await window.__TAURI__.core.invoke('write_text_file', { filePath: savePath, contents: text });
+    showToast('Settings exported');
+  }
+}
+
+async function exportLogPdf() {
+  try {
+    const log = await window.vstUpdater.readLog();
+    const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+    if (!dialogApi) return;
+    const savePath = await dialogApi.save({
+      title: 'Export App Log',
+      defaultPath: 'audio-haxor-log.txt',
+      filters: [{ name: 'Text', extensions: ['txt'] }],
+    });
+    if (savePath) {
+      await window.__TAURI__.core.invoke('write_text_file', { filePath: savePath, contents: log || '(empty log)' });
+      showToast('Log exported');
+    }
+  } catch (e) {
+    showToast('No log file found', 3000, 'warning');
+  }
+}
+
 async function settingClearAnalysisCache() {
   // Delete separate cache files
   const files = ['bpm-cache.json', 'key-cache.json', 'lufs-cache.json', 'waveform-cache.json', 'spectrogram-cache.json', 'xref-cache.json'];
