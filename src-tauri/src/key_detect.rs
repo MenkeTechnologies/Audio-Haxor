@@ -501,6 +501,49 @@ mod tests {
         let _ = std::fs::remove_file(&tmp);
     }
 
+    #[test]
+    fn test_detect_key_multi_octave_a() {
+        // A across 3 octaves: A3 (220Hz) + A4 (440Hz) + A5 (880Hz)
+        let tmp = std::env::temp_dir().join("key_test_multi_oct.wav");
+        let sr = 44100u32;
+        let n = sr as usize * 3;
+        let samples: Vec<f32> = (0..n)
+            .map(|i| {
+                let t = i as f32 / sr as f32;
+                let a3 = (2.0 * std::f32::consts::PI * 220.0 * t).sin();
+                let a4 = (2.0 * std::f32::consts::PI * 440.0 * t).sin();
+                let a5 = (2.0 * std::f32::consts::PI * 880.0 * t).sin();
+                (a3 + a4 + a5) * 0.25
+            })
+            .collect();
+        write_test_wav(&tmp, &samples, sr);
+        let key = detect_key(tmp.to_str().unwrap());
+        assert!(key.is_some(), "should detect key for multi-octave A");
+        let key = key.unwrap();
+        assert!(key.contains('A'), "multi-octave A should detect A-related key, got {}", key);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_chromagram_bins_bounded() {
+        // Verify all chroma bins are in [0, 1] after normalization
+        let sr = 44100u32;
+        let n = sr as usize * 2;
+        let samples: Vec<f32> = (0..n)
+            .map(|i| {
+                let t = i as f32 / sr as f32;
+                // White-noise-like signal via mixed frequencies
+                (t * 261.63 * 2.0 * std::f32::consts::PI).sin() * 0.3
+                    + (t * 440.0 * 2.0 * std::f32::consts::PI).sin() * 0.3
+                    + (t * 783.99 * 2.0 * std::f32::consts::PI).sin() * 0.2
+            })
+            .collect();
+        let chroma = compute_chromagram(&samples, sr);
+        for (i, &v) in chroma.iter().enumerate() {
+            assert!(v >= 0.0 && v <= 1.0, "chroma bin {} should be [0,1], got {}", i, v);
+        }
+    }
+
     fn write_test_wav(path: &Path, samples: &[f32], sample_rate: u32) {
         let n = samples.len() as u32;
         let data_size = n * 2;
