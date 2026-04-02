@@ -1262,27 +1262,44 @@ async function loadBpmKeyCache() {
   try { _lufsCache = await window.vstUpdater.readCacheFile('lufs-cache.json'); } catch { _lufsCache = {}; }
 }
 
+let _keyCacheDirty = false;
+let _lufsCacheDirty = false;
+
 function _saveBpmCache() {
   if (!_bpmCacheDirty) return;
   _bpmCacheDirty = false;
-  window.vstUpdater.writeCacheFile('bpm-cache.json', _bpmCache).catch(() => {});
+  // Use requestIdleCallback to avoid blocking animations
+  const doSave = () => window.vstUpdater.writeCacheFile('bpm-cache.json', _bpmCache).catch(() => {});
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(doSave); else setTimeout(doSave, 0);
 }
 
 function _saveKeyCache() {
-  window.vstUpdater.writeCacheFile('key-cache.json', _keyCache).catch(() => {});
+  if (!_keyCacheDirty) return;
+  _keyCacheDirty = false;
+  const doSave = () => window.vstUpdater.writeCacheFile('key-cache.json', _keyCache).catch(() => {});
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(doSave); else setTimeout(doSave, 0);
 }
 
-// Debounce cache saves — batch writes every 5 seconds
+function _saveLufsCache() {
+  if (!_lufsCacheDirty) return;
+  _lufsCacheDirty = false;
+  const doSave = () => window.vstUpdater.writeCacheFile('lufs-cache.json', _lufsCache).catch(() => {});
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(doSave); else setTimeout(doSave, 0);
+}
+
+// Debounce cache saves — 30s during analysis to minimize main thread blocking
 let _bpmSaveTimer = null;
 let _keySaveTimer = null;
+const _CACHE_SAVE_DELAY = 30000;
 function _debounceBpmSave() {
   _bpmCacheDirty = true;
   clearTimeout(_bpmSaveTimer);
-  _bpmSaveTimer = setTimeout(_saveBpmCache, 5000);
+  _bpmSaveTimer = setTimeout(_saveBpmCache, _CACHE_SAVE_DELAY);
 }
 function _debounceKeySave() {
+  _keyCacheDirty = true;
   clearTimeout(_keySaveTimer);
-  _keySaveTimer = setTimeout(_saveKeyCache, 5000);
+  _keySaveTimer = setTimeout(_saveKeyCache, _CACHE_SAVE_DELAY);
 }
 
 async function estimateBpmForMeta(filePath) {
@@ -1317,8 +1334,9 @@ let _keyCache = {};
 // LUFS cache — persisted to prefs
 let _lufsCache = {};
 function _debounceLufsSave() {
+  _lufsCacheDirty = true;
   clearTimeout(_lufsSaveTimer);
-  _lufsSaveTimer = setTimeout(() => window.vstUpdater.writeCacheFile('lufs-cache.json', _lufsCache).catch(() => {}), 5000);
+  _lufsSaveTimer = setTimeout(_saveLufsCache, _CACHE_SAVE_DELAY);
 }
 let _lufsSaveTimer = null;
 
@@ -1457,7 +1475,7 @@ async function startBackgroundAnalysis() {
 
       _bgDone++;
       // Save every 20 samples instead of every 4
-      if (_bgDone % 20 === 0) { _debounceBpmSave(); _debounceKeySave(); _debounceLufsSave(); }
+      if (_bgDone % 50 === 0) { _debounceBpmSave(); _debounceKeySave(); _debounceLufsSave(); }
       if (badge) badge.textContent = `BPM/Key/LUFS: ${_bgDone} analyzed`;
 
       // Yield to UI — 50ms pause between samples
@@ -1465,10 +1483,13 @@ async function startBackgroundAnalysis() {
     }
   }
 
-  // Final save
-  _saveBpmCache();
-  _saveKeyCache();
-  window.vstUpdater.writeCacheFile('lufs-cache.json', _lufsCache).catch(() => {});
+  // Final save — staggered to avoid simultaneous serialization
+  _bpmCacheDirty = true;
+  _keyCacheDirty = true;
+  _lufsCacheDirty = true;
+  setTimeout(_saveBpmCache, 100);
+  setTimeout(_saveKeyCache, 2000);
+  setTimeout(_saveLufsCache, 4000);
   _bgAnalysisRunning = false;
   if (badge) badge.innerHTML = '';
 }
@@ -1752,13 +1773,21 @@ function _evictCache(cache) {
 function _saveWaveformCache() {
   _evictCache(_waveformCache);
   _evictCache(_spectrogramCache);
-  window.vstUpdater.writeCacheFile('waveform-cache.json', _waveformCache).catch(() => {});
-  window.vstUpdater.writeCacheFile('spectrogram-cache.json', _spectrogramCache).catch(() => {});
+  // Stagger to avoid blocking
+  const saveWf = () => window.vstUpdater.writeCacheFile('waveform-cache.json', _waveformCache).catch(() => {});
+  const saveSg = () => window.vstUpdater.writeCacheFile('spectrogram-cache.json', _spectrogramCache).catch(() => {});
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(saveWf);
+    requestIdleCallback(saveSg);
+  } else {
+    setTimeout(saveWf, 0);
+    setTimeout(saveSg, 2000);
+  }
 }
 
 function _debounceWfSave() {
   clearTimeout(_wfCacheDirtyTimer);
-  _wfCacheDirtyTimer = setTimeout(_saveWaveformCache, 10000);
+  _wfCacheDirtyTimer = setTimeout(_saveWaveformCache, 30000);
 }
 
 async function drawWaveform(filePath) {

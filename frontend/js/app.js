@@ -174,7 +174,7 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   renderWelcomeDashboard();
   renderShortcutSettings();
   updateHeaderInfo();
-  setInterval(updateHeaderInfo, 1000); // refresh process stats every 1s
+  setInterval(updateHeaderInfo, 2000); // refresh process stats every 2s
 
   // Auto-scan on launch
   if (prefs.getItem('autoScan') === 'on' && allPlugins.length === 0) {
