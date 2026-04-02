@@ -279,6 +279,9 @@ document.addEventListener('contextmenu', (e) => {
       ...(path.toLowerCase().endsWith('.als') && typeof showAlsViewer === 'function'
         ? [{ icon: '&#128196;', label: 'Explore XML Contents', action: () => showAlsViewer(path, name) }]
         : []),
+      ...(path.toLowerCase().endsWith('.bwproject') && typeof showBwViewer === 'function'
+        ? [{ icon: '&#128196;', label: 'Explore Bitwig Contents', action: () => showBwViewer(path, name) }]
+        : []),
       '---',
       { icon: '&#128203;', label: 'Copy Name', action: () => copyToClipboard(name) },
       { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },

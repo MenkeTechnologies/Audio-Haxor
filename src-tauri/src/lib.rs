@@ -1247,6 +1247,89 @@ fn clear_log() -> Result<(), String> {
     std::fs::write(&path, "").map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn read_bwproject(file_path: String) -> Result<serde_json::Value, String> {
+    let data = std::fs::read(&file_path).map_err(|e| e.to_string())?;
+
+    // Extract metadata key-value pairs from the binary header
+    let mut metadata = serde_json::Map::new();
+    let mut strings_found = Vec::new();
+    let mut plugins = Vec::new();
+
+    // Parse BtWg header metadata (key-value pairs encoded as length-prefixed strings)
+    let mut i = 0;
+    while i + 4 < data.len() && i < 10000 {
+        // Look for readable key-value patterns
+        if data[i] >= 0x20 && data[i] <= 0x7E {
+            let start = i;
+            while i < data.len() && data[i] >= 0x20 && data[i] <= 0x7E { i += 1; }
+            if i - start >= 3 {
+                let s = String::from_utf8_lossy(&data[start..i]).to_string();
+                strings_found.push(s);
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    // Extract metadata from early strings (artist, genre, version, etc.)
+    let meta_keys = ["album", "application_version_name", "artist", "branch", "comment",
+        "copyright", "creator", "genre", "orig_artist", "producer", "title"];
+    let mut idx = 0;
+    while idx + 1 < strings_found.len() {
+        let key = &strings_found[idx];
+        if meta_keys.contains(&key.as_str()) && idx + 1 < strings_found.len() {
+            let val = &strings_found[idx + 1];
+            if !val.is_empty() && !meta_keys.contains(&val.as_str()) {
+                metadata.insert(key.clone(), serde_json::Value::String(val.clone()));
+                idx += 2;
+                continue;
+            }
+        }
+        idx += 1;
+    }
+
+    // Extract all strings from the full binary for plugin references
+    let mut current = Vec::new();
+    for &byte in &data {
+        if byte >= 0x20 && byte <= 0x7E {
+            current.push(byte);
+        } else {
+            if current.len() >= 6 {
+                let s = String::from_utf8_lossy(&current).to_string();
+                if s.ends_with(".dll") || s.ends_with(".vst3") || s.ends_with(".component") || s.ends_with(".clap") {
+                    plugins.push(s);
+                }
+            }
+            current.clear();
+        }
+    }
+    // Deduplicate plugins
+    plugins.sort();
+    plugins.dedup();
+
+    // Build structured JSON tree
+    let mut tree = serde_json::Map::new();
+    tree.insert("_format".into(), "Bitwig Studio Project (.bwproject)".into());
+    tree.insert("_path".into(), serde_json::Value::String(file_path));
+    tree.insert("_size".into(), serde_json::Value::String(format_size(data.len() as u64)));
+    tree.insert("metadata".into(), serde_json::Value::Object(metadata));
+    tree.insert("plugins".into(), serde_json::Value::Array(
+        plugins.into_iter().map(|p| serde_json::Value::String(p)).collect()
+    ));
+
+    // Count embedded .fxb plugin state files via simple ZIP signature scan
+    let mut fxb_count = 0usize;
+    for window in data.windows(4) {
+        if window == b".fxb" { fxb_count += 1; }
+    }
+    if fxb_count > 0 {
+        tree.insert("pluginStateCount".into(), serde_json::Value::Number(fxb_count.into()));
+    }
+
+    Ok(serde_json::Value::Object(tree))
+}
+
 // ── Export / Import commands ──
 
 fn plugins_to_export(plugins: &[PluginInfo]) -> Vec<ExportPlugin> {
@@ -3160,6 +3243,7 @@ pub fn run() {
             clear_log,
             list_data_files,
             delete_data_file,
+            read_bwproject,
             compute_fingerprint,
             find_similar_samples,
             open_update_url,

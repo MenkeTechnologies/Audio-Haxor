@@ -412,6 +412,7 @@ window.vstUpdater = {
   readLog: () => invoke('read_log'),
   clearLog: () => invoke('clear_log'),
   listDataFiles: () => invoke('list_data_files'),
+  readBwproject: (path) => invoke('read_bwproject', { filePath: path }),
   deleteDataFile: (name) => invoke('delete_data_file', { name }),
   // DAW history
   saveDawScan: (projects, roots) => invoke('daw_history_save', { projects, roots: roots || null }),

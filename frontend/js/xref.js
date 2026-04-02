@@ -422,4 +422,197 @@ document.addEventListener('click', (e) => {
       closeAlsViewer();
     }
   }
+  const bwAction = e.target.closest('[data-action-modal="closeBwViewer"]');
+  if (bwAction) {
+    if (e.target === bwAction || bwAction.classList.contains('modal-close')) {
+      const modal = document.getElementById('bwViewerModal');
+      if (modal) modal.remove();
+    }
+  }
 });
+
+// ── JSON Tree Builder (for Bitwig and other structured data) ──
+function buildJsonTree(data, depth) {
+  const el = document.createElement('div');
+  el.className = 'xml-node';
+  el.style.paddingLeft = (depth * 16) + 'px';
+
+  if (data === null || data === undefined) {
+    el.innerHTML = `<span style="display:inline-block;width:14px;"></span><span class="xml-text" style="color:var(--text-dim);">null</span>`;
+    return el;
+  }
+
+  if (typeof data === 'string') {
+    el.innerHTML = `<span style="display:inline-block;width:14px;"></span><span class="xml-attr-val">"${escapeHtml(data)}"</span>`;
+    return el;
+  }
+
+  if (typeof data === 'number' || typeof data === 'boolean') {
+    el.innerHTML = `<span style="display:inline-block;width:14px;"></span><span class="xml-text" style="color:var(--orange);">${data}</span>`;
+    return el;
+  }
+
+  if (Array.isArray(data)) {
+    const count = data.length;
+    const summary = `<span class="xml-collapsed-summary" style="display:none;color:var(--text-dim);font-size:10px;"> ...${count} items</span>`;
+    el.innerHTML = `<span class="xml-toggle" title="Click to collapse/expand" style="cursor:pointer;color:var(--cyan);display:inline-block;width:14px;text-align:center;user-select:none;">▼</span><span style="color:var(--magenta);">[</span> <span style="color:var(--text-dim);font-size:10px;">${count} items</span>${summary}`;
+    const children = document.createElement('div');
+    children.className = 'xml-children';
+    for (let i = 0; i < data.length; i++) {
+      const row = document.createElement('div');
+      row.className = 'xml-node';
+      row.style.paddingLeft = ((depth + 1) * 16) + 'px';
+      row.innerHTML = `<span style="color:var(--text-dim);font-size:9px;">${i}: </span>`;
+      const val = buildJsonTree(data[i], 0);
+      val.style.paddingLeft = '0';
+      val.style.display = 'inline';
+      row.appendChild(val);
+      children.appendChild(row);
+    }
+    const close = document.createElement('div');
+    close.style.paddingLeft = (depth * 16) + 'px';
+    close.innerHTML = `<span style="display:inline-block;width:14px;"></span><span style="color:var(--magenta);">]</span>`;
+    children.appendChild(close);
+    el.appendChild(children);
+    if (depth > 2) { children.style.display = 'none'; el.querySelector('.xml-toggle').textContent = '▶'; const sm = el.querySelector('.xml-collapsed-summary'); if (sm) sm.style.display = ''; }
+    return el;
+  }
+
+  if (typeof data === 'object') {
+    const keys = Object.keys(data);
+    const summary = `<span class="xml-collapsed-summary" style="display:none;color:var(--text-dim);font-size:10px;"> ...${keys.length} keys</span>`;
+    el.innerHTML = `<span class="xml-toggle" title="Click to collapse/expand" style="cursor:pointer;color:var(--cyan);display:inline-block;width:14px;text-align:center;user-select:none;">▼</span><span style="color:var(--cyan);">{</span> <span style="color:var(--text-dim);font-size:10px;">${keys.length} keys</span>${summary}`;
+    const children = document.createElement('div');
+    children.className = 'xml-children';
+    for (const key of keys) {
+      const row = document.createElement('div');
+      row.className = 'xml-node';
+      row.style.paddingLeft = ((depth + 1) * 16) + 'px';
+      row.innerHTML = `<span class="xml-attr-name">"${escapeHtml(key)}"</span><span style="color:var(--text-muted);">: </span>`;
+      const val = buildJsonTree(data[key], depth + 1);
+      val.style.paddingLeft = '0';
+      val.style.display = 'inline';
+      row.appendChild(val);
+      children.appendChild(row);
+    }
+    const close = document.createElement('div');
+    close.style.paddingLeft = (depth * 16) + 'px';
+    close.innerHTML = `<span style="display:inline-block;width:14px;"></span><span style="color:var(--cyan);">}</span>`;
+    children.appendChild(close);
+    el.appendChild(children);
+    if (depth > 2) { children.style.display = 'none'; el.querySelector('.xml-toggle').textContent = '▶'; const sm = el.querySelector('.xml-collapsed-summary'); if (sm) sm.style.display = ''; }
+    return el;
+  }
+
+  return el;
+}
+
+// ── Bitwig Project Viewer ──
+async function showBwViewer(filePath, projectName) {
+  let existing = document.getElementById('bwViewerModal');
+  if (existing) existing.remove();
+
+  const loadHtml = `<div class="modal-overlay" id="bwViewerModal" data-action-modal="closeBwViewer">
+    <div class="modal-content" style="max-width:90vw;max-height:90vh;width:900px;">
+      <div class="modal-header">
+        <h2>${escapeHtml(projectName)} — Bitwig Project</h2>
+        <button class="modal-close" data-action-modal="closeBwViewer" title="Close">&#10005;</button>
+      </div>
+      <div class="modal-body" style="padding:0;">
+        <div style="text-align:center;padding:32px;"><div class="spinner" style="width:20px;height:20px;margin:0 auto 12px;"></div>Parsing binary data...</div>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', loadHtml);
+
+  try {
+    const data = await window.vstUpdater.readBwproject(filePath);
+    const modal = document.getElementById('bwViewerModal');
+    if (!modal) return;
+    const body = modal.querySelector('.modal-body');
+
+    const jsonStr = JSON.stringify(data, null, 2);
+
+    body.innerHTML = `<div style="display:flex;flex-direction:column;height:calc(90vh - 80px);">
+      <div style="padding:8px 12px;background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center;flex-shrink:0;">
+        <span style="font-size:11px;color:var(--text-muted);">${data.plugins ? data.plugins.length : 0} plugins | ${data.pluginStateCount || 0} preset states | ${data._size || '?'}</span>
+        <input type="text" class="np-search-input" id="bwSearchInput" placeholder="Search..." style="flex:1;max-width:300px;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Search within project data">
+        <button class="btn btn-secondary" id="bwCollapseAllBtn" style="padding:4px 10px;font-size:10px;" title="Collapse all nodes">Collapse All</button>
+        <button class="btn btn-secondary" id="bwExpandAllBtn" style="padding:4px 10px;font-size:10px;" title="Expand all nodes">Expand All</button>
+        <button class="btn btn-secondary" id="bwExportBtn" style="padding:4px 10px;font-size:10px;" title="Export as JSON">&#8615; Export JSON</button>
+      </div>
+      <div id="bwJsonTree" style="flex:1;overflow:auto;padding:8px 12px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.6;color:var(--text);background:var(--bg-primary);"></div>
+    </div>`;
+
+    const treeContainer = document.getElementById('bwJsonTree');
+    treeContainer.appendChild(buildJsonTree(data, 0));
+
+    // Collapse/expand click handler (reuse same pattern as XML)
+    treeContainer.addEventListener('click', (ev) => {
+      const toggle = ev.target.closest('.xml-toggle');
+      if (!toggle) return;
+      const node = toggle.closest('.xml-node');
+      if (!node) return;
+      const children = node.querySelector('.xml-children');
+      if (!children) return;
+      const collapsed = children.style.display === 'none';
+      children.style.display = collapsed ? '' : 'none';
+      toggle.textContent = collapsed ? '▼' : '▶';
+      const summary = node.querySelector('.xml-collapsed-summary');
+      if (summary) summary.style.display = collapsed ? 'none' : '';
+    });
+
+    document.getElementById('bwCollapseAllBtn')?.addEventListener('click', () => {
+      treeContainer.querySelectorAll('.xml-children').forEach(c => c.style.display = 'none');
+      treeContainer.querySelectorAll('.xml-toggle').forEach(t => t.textContent = '▶');
+      treeContainer.querySelectorAll('.xml-collapsed-summary').forEach(s => s.style.display = '');
+    });
+    document.getElementById('bwExpandAllBtn')?.addEventListener('click', () => {
+      treeContainer.querySelectorAll('.xml-children').forEach(c => c.style.display = '');
+      treeContainer.querySelectorAll('.xml-toggle').forEach(t => t.textContent = '▼');
+      treeContainer.querySelectorAll('.xml-collapsed-summary').forEach(s => s.style.display = 'none');
+    });
+
+    // Search
+    document.getElementById('bwSearchInput')?.addEventListener('input', (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      treeContainer.querySelectorAll('.xml-node').forEach(node => {
+        if (!q) { node.style.display = ''; return; }
+        const text = node.textContent.toLowerCase();
+        const match = text.includes(q);
+        node.style.display = match ? '' : 'none';
+        if (match) {
+          let parent = node.parentElement?.closest('.xml-node');
+          while (parent) {
+            parent.style.display = '';
+            const ch = parent.querySelector('.xml-children');
+            if (ch) ch.style.display = '';
+            const tg = parent.querySelector('.xml-toggle');
+            if (tg) tg.textContent = '▼';
+            parent = parent.parentElement?.closest('.xml-node');
+          }
+        }
+      });
+    });
+
+    // Export JSON
+    document.getElementById('bwExportBtn')?.addEventListener('click', async () => {
+      const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+      if (!dialogApi) return;
+      const savePath = await dialogApi.save({
+        title: 'Export Bitwig Project Data',
+        defaultPath: projectName.replace(/\.bwproject$/i, '') + '.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (savePath) {
+        await window.__TAURI__.core.invoke('write_text_file', { filePath: savePath, contents: jsonStr });
+        showToast('JSON exported');
+      }
+    });
+  } catch (err) {
+    const modal = document.getElementById('bwViewerModal');
+    if (modal) {
+      modal.querySelector('.modal-body').innerHTML = `<div style="padding:24px;color:var(--red);">Failed to read: ${escapeHtml(err.message || String(err))}</div>`;
+    }
+  }
+}
