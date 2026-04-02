@@ -99,6 +99,10 @@ async function initFileBrowser() {
 
 async function loadDirectory(dirPath) {
   _fileBrowserPath = dirPath;
+  // Reset cursor cache when directory changes
+  window._fbCursorPath = null;
+  window._fbCursorEl = null;
+  _wfQueue = [];
   showGlobalProgress();
   try {
     const result = await window.vstUpdater.listDirectory(dirPath);
@@ -201,6 +205,21 @@ function renderFileList() {
 }
 
 // ── Lazy waveform rendering for file browser audio rows ──
+let _wfQueue = [];
+let _wfActive = 0;
+const _wfMaxConcurrent = 4;
+
+function _processWfQueue() {
+  while (_wfActive < _wfMaxConcurrent && _wfQueue.length > 0) {
+    const { canvas, path } = _wfQueue.shift();
+    _wfActive++;
+    drawMiniWaveform(canvas, path).finally(() => {
+      _wfActive--;
+      _processWfQueue();
+    });
+  }
+}
+
 function initFileBrowserWaveforms() {
   const container = document.getElementById('fileList');
   if (!container) return;
@@ -214,8 +233,9 @@ function initFileBrowserWaveforms() {
       if (canvas._wfDrawn) continue;
       canvas._wfDrawn = true;
       observer.unobserve(canvas);
-      drawMiniWaveform(canvas, canvas.dataset.wfPath);
+      _wfQueue.push({ canvas, path: canvas.dataset.wfPath });
     }
+    _processWfQueue();
   }, { root: container.closest('.tab-content'), threshold: 0.1 });
 
   canvases.forEach(c => observer.observe(c));

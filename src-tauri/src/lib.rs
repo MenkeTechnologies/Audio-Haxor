@@ -2856,11 +2856,16 @@ mod tests {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize app start time for uptime tracking
+    APP_START.get_or_init(Instant::now);
+
+    // Load preferences once for all startup config
+    let prefs = history::load_preferences();
+
     // Raise file descriptor limit for intensive directory walking
     #[cfg(unix)]
     {
-        let prefs_fd = history::load_preferences();
-        let fd_target: u64 = prefs_fd
+        let fd_target: u64 = prefs
             .get("fdLimit")
             .and_then(|v| v.as_str().and_then(|s| s.parse().ok()).or(v.as_u64()))
             .unwrap_or(10240)
@@ -2877,14 +2882,10 @@ pub fn run() {
         }
     }
 
-    // Initialize app start time for uptime tracking
-    APP_START.get_or_init(Instant::now);
-
     // Initialize rayon thread pool — multiplier read from config (default 4x).
     // Filesystem scanning is heavily I/O-bound: threads spend most time waiting
     // on disk reads, stat calls, and plist parsing. Oversubscription ensures
     // there are always runnable threads when others are blocked on I/O.
-    let prefs = history::load_preferences();
     let multiplier = prefs
         .get("threadMultiplier")
         .and_then(|v| {

@@ -1067,16 +1067,18 @@ function updatePlaybackTime() {
       if (cursor) cursor.style.left = pct + '%';
       if (timeLabel) timeLabel.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
     }
-    // Playback cursor — file browser waveforms
-    const fbRow = document.querySelector(`.file-row[data-wf-file="${CSS.escape(audioPlayerPath)}"]`);
-    if (fbRow) {
-      const fbCursor = fbRow.querySelector('.file-wf-cursor');
-      if (fbCursor) { fbCursor.style.display = ''; fbCursor.style.left = pct + '%'; }
+    // Playback cursor — file browser waveform (cached lookup, not every frame)
+    if (!window._fbCursorPath || window._fbCursorPath !== audioPlayerPath) {
+      // Path changed — hide old cursor, find new one
+      if (window._fbCursorEl) window._fbCursorEl.style.display = 'none';
+      const fbRow = document.querySelector(`.file-row[data-wf-file="${CSS.escape(audioPlayerPath)}"]`);
+      window._fbCursorEl = fbRow?.querySelector('.file-wf-cursor') || null;
+      window._fbCursorPath = audioPlayerPath;
     }
-    // Hide cursors on other file browser rows
-    document.querySelectorAll('.file-row .file-wf-cursor').forEach(c => {
-      if (c.closest('.file-row')?.dataset.wfFile !== audioPlayerPath) c.style.display = 'none';
-    });
+    if (window._fbCursorEl) {
+      window._fbCursorEl.style.display = '';
+      window._fbCursorEl.style.left = pct + '%';
+    }
   }
 }
 

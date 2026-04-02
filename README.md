@@ -13,7 +13,7 @@
 ░▓████▒   ▓█   ▓██▒▒██▒ ▒██▒░ ████▓▒░░██▓ ▒██▒
 ```
 
-> **// SYSTEM ONLINE -- AUDIO_HAXOR v1.3.0 // by MenkeTechnologies**
+> **// SYSTEM ONLINE -- AUDIO_HAXOR v1.6.0 // by MenkeTechnologies**
 
 A high-voltage **Tauri v2** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
 
@@ -83,29 +83,36 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **Favorites** | Right-click any plugin, sample, DAW project, or preset to add/remove from favorites. Dedicated Favorites tab shows all starred items with type filter, search, reveal in Finder, and remove actions. Persisted across sessions |
 | **Resizable Columns** | Drag column borders to resize. Widths persist across sessions |
 | **Floating Player** | Draggable audio player that docks to any corner with quadrant zone UI. Resizable from all 8 edges/corners. Play/pause, loop, shuffle, seek bar, volume, speed (0.25x-2x), recently played (50 tracks), song search with fzf matching, favorite/tag buttons. Expanded mode adds 3-band EQ, preamp gain, stereo pan, mono toggle, A-B loop. 60fps waveform playhead via requestAnimationFrame. Player state/size/dock persisted across sessions |
-| **Waveform Preview** | Full-width waveform rendered in the metadata panel when clicking a sample row. Seekable — click anywhere to jump. 60fps playhead cursor via rAF. Close button on metadata panel. Expand-on-click toggle in settings |
-| **Dependency Graph** | Visual plugin dependency map with search, 3 tabs (Most Used, By Project with inline drill-down + back button, Orphaned), bar charts, context menus on all rows. Prompts to build plugin index if empty. Persisted xref cache |
-| **ALS XML Viewer** | Right-click any .als file to decompress and view raw XML. fzf search with highlighted matches and line numbers. Export decompressed XML to file |
-| **Context Menus** | 36+ right-click context menus on every interactive element — plugins, samples, DAW projects, presets, favorites, notes, tags, history entries, audio player songs, dep graph rows, file browser, breadcrumbs, waveforms, EQ sliders, color schemes, shortcut keys, progress bars |
+| **Waveform Preview** | 800-subdivision min/max envelope waveform with gradient fill (cyan→magenta) and RMS center detail line. Seekable — click anywhere to jump. 60fps playhead cursor. Right-click to toggle expand setting. File browser shows full-width waveform background behind each audio row with live playback cursor |
+| **Dependency Graph** | Visual plugin dependency map with search, 4 tabs (Most Used, By Project with inline drill-down + back button, Orphaned, Analytics). Analytics tab shows format breakdown, top manufacturers, key insights (avg plugins/project, single-use, go-to plugins). Prompts to build plugin index if empty. Persisted xref cache |
+| **ALS XML Viewer** | Right-click any .als file to decompress and view as collapsible XML tree. Click ▼/▶ to collapse/expand nodes. Auto-collapses deep nodes. Collapse All/Expand All buttons. fzf search auto-expands parent chain. Export decompressed XML. Color-coded: tags cyan, attributes yellow, values green |
+| **Context Menus** | 40+ right-click context menus on every interactive element — plugins, samples, DAW projects, presets, favorites, notes, tags, history entries, audio player songs, dep graph rows, file browser rows, breadcrumbs, waveforms, spectrograms, EQ sliders, color schemes, shortcut keys, progress bars, metadata panels, similar panel, heatmap dashboard, header stats |
 | **Toast Notifications** | Slide-in notifications for actions like opening DAW projects or revealing files in Finder |
 | **Disk Usage** | Stacked bar charts showing space breakdown by format/type per tab. Visual representation of storage usage with color-coded legends |
 | **Batch Selection** | Checkbox column in all tables for multi-item operations. Select all/deselect, batch favorite, copy paths, export selected as JSON |
 | **Duplicate Detection** | Find duplicate files by name+size across plugins, samples, DAW projects, and presets. Modal report grouped by type with full paths |
 | **Notes & Tags** | Add notes and comma-separated tags to any item via right-click. Notes persisted in preferences with note indicator icon on tagged items |
-| **Keyboard Navigation** | Arrow keys/j/k to navigate table rows and file browser (Ableton-style: right enters dir, left goes up). 38 customizable keybindings including Cmd+E export, Cmd+I import, Cmd+Tab cycle tabs, Cmd+G dep graph, Cmd+T toggle theme |
-| **Help Overlay** | Press <kbd>?</kbd> to show all 38 keyboard shortcuts. Covers navigation, playback, actions, search operators, and mouse interactions |
+| **Keyboard Navigation** | Arrow keys/j/k to navigate table rows and file browser (Ableton-style: right enters dir, left goes up). 49 customizable keybindings including Cmd+1-9/0 for all 10 tabs, E expand player, Q toggle EQ, U mono, D dashboard, B A-B loop, Cmd+P new playlist |
+| **Help Overlay** | Press <kbd>?</kbd> to show all 49 keyboard shortcuts. Covers navigation, playback, actions, search operators, and mouse interactions |
 | **Sort Persistence** | Last-used sort column and direction saved per tab, restored on app restart |
 | **Multi-Select Filters** | All filter dropdowns support multiple selections (e.g. VST2 + AU, WAV + FLAC). Checkbox-based custom dropdown with "All" toggle |
 | **Native Menu Bar** | Full menu bar with File, Edit, Scan, View, Playback, Data, Window, Help menus. All functionality accessible from menus with keyboard accelerators |
 | **ETA Timers** | Estimated time remaining on plugin scans and update checks. Elapsed time on audio, DAW, and preset scans |
-| **Draggable Tabs** | Trello-style drag and drop for tabs and settings sections. Floating ghost follows cursor with placeholder. Order persisted across sessions |
+| **Trello Drag & Drop** | Unified Trello-style drag and drop everywhere: tabs, settings sections, audio player sections, table columns (audio/DAW/preset), header stats, stats bars, favorites list, recently played queue, file browser bookmarks, tag cards, note cards, plugin cards, color presets. Floating ghost clone + dashed placeholder. All orders persisted |
+| **Draggable/Resizable Modals** | All modal windows (dashboard, dep graph, ALS viewer, duplicate report, similarity, export/import) are draggable via header and resizable from 8 edges/corners. Position/size persisted to prefs per modal |
+| **FD Limit Control** | Configurable file descriptor limit (256-65536) in Settings → Performance. Raised via setrlimit at startup. Prevents scan aborts on large libraries or network shares |
 | **Cyberpunk Visualizer** | Animated equalizer bars in the floating player with cyan-to-magenta gradient. Bars bounce when playing, freeze on pause. Border glow pulse effect |
 | **PDF Export** | Export any tab to PDF (A4 landscape, auto-sized columns proportional to content, 7pt font for maximum data density, background export with toast notification) |
 | **TOML Export/Import** | Export/import all tabs in TOML format alongside JSON, CSV, TSV |
 | **BPM Estimation** | Estimates tempo for all audio formats (WAV, AIFF, MP3, FLAC, OGG, M4A, AAC, OPUS) using symphonia decoder + onset-strength autocorrelation. Compressed formats decoded to PCM (30s max). Shown in metadata panel with spinner. Cached in memory |
 | **Parametric EQ** | Visual frequency response curve with draggable band nodes (Low/Mid/High). Real-time FFT spectrum overlay at 60fps via Web Audio AnalyserNode. Log frequency axis (20Hz-20kHz), drag to change frequency and gain simultaneously |
-| **Audio Similarity Search** | Right-click any sample → "Find Similar" to find samples that sound alike. Spectral fingerprinting: RMS energy, spectral centroid, zero-crossing rate, 3-band energy split, attack time. Parallel computation via rayon. Click results to play. Shortcut: W key |
-| **Full Vim Keybindings** | j/k move, gg top, G bottom, Ctrl+D/U half-page, / search, o reveal, y yank path, p play, x favorite, v select, V select-all, w find-similar. 39 total customizable keybindings including Cmd+E export, Cmd+I import, Cmd+Tab cycle tabs |
+| **Audio Similarity Search** | Right-click any sample → "Find Similar" to find samples that sound alike. Non-blocking floating panel (docked bottom-left, draggable, resizable, minimizable). Spectral fingerprinting: RMS energy, spectral centroid (normalized), zero-crossing rate, 3-band energy split, attack time. Parallel computation via rayon. Click results to play. Shortcut: W key |
+| **Musical Key Detection** | Detects musical key (C Major, F# Minor, etc.) via Goertzel algorithm chromagram analysis across 7 octaves. Krumhansl-Kessler major/minor profile matching via Pearson correlation. Shown in metadata panel and player meta line alongside BPM. Cached per file. Supports all audio formats |
+| **Heatmap Dashboard** | Full-screen analytics modal (95vw×95vh) with 8 cards: format distribution, size histogram, top folders, BPM histogram, key distribution (major cyan/minor magenta), activity timeline (last 24 months), plugin types, DAW formats. Bar widths relative to max, labels show count + percentage. Canvas-rendered histograms. Access via header button, D key, or right-click header |
+| **Smart Playlists** | Rule-based auto-playlists with 10 rule types: format, BPM range, tag, favorite, recently played, name/path contains, min/max size, musical key. AND/OR match modes. Visual editor with live preview. 6 built-in presets. Context menu to add preset templates. Persisted to prefs |
+| **Real FFT Spectrogram** | True frequency-domain spectrogram in metadata panel using Cooley-Tukey radix-2 FFT with Hann window, precomputed twiddle factors, log-frequency display mapping. Cyan→magenta color map. Spans same width as waveform |
+| **File Browser Metadata** | Click any audio file to expand full metadata panel: format, size, sample rate, bit depth, channels, duration, byte rate, BPM, key, created/modified dates, permissions, path, favorite status, tags, notes. Full-width waveform background with playback cursor on each audio row |
+| **Full Vim Keybindings** | j/k move, gg top, G bottom, Ctrl+D/U half-page, / search, o reveal, y yank path, p play, x favorite, v select, V select-all, w find-similar, e expand player, q EQ, u mono, d dashboard, b A-B loop. 49 total customizable keybindings |
 | **Command Palette** | Press <kbd>Cmd+K</kbd> to open a fuzzy search across all items — plugins, samples, DAW projects, presets, bookmarked directories, tags, tabs, and actions. Arrow keys to navigate, Enter to select, Escape to dismiss. Uses the same fzf scoring engine as tab search bars |
 | **Directory Bookmarks** | Bookmark favorite directories in the File Browser for instant navigation. Chips displayed above the file list, persisted across sessions. Right-click any folder to bookmark it |
 | **Quick Nav Buttons** | File browser toolbar has Desktop, Downloads, Music, Documents, and Root (/) buttons for instant navigation |
@@ -216,20 +223,21 @@ cd src-tauri && cargo test
 node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 ```
 
-### Rust tests (234 tests)
+### Rust tests (273 tests)
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
 | **lib** | 51 | Export/import roundtrips (JSON, TOML, CSV, TSV), preset export/import, DAW/audio import, CSV escaping, file ops (list dir, rename, delete), `.band` validation, serde payloads |
 | **history** | 35 | Scan CRUD, 50-scan limit, diff (added/removed/version-changed), KVR cache CRUD, audio history CRUD, audio diff, DAW history CRUD, DAW diff, ID generation, preference storage |
 | **kvr** | 27 | Version parsing, version comparison, HTML version extraction (6 formats), download URL extraction, platform keyword detection, date filtering |
-| **scanner** | 26 | Plugin type mapping, file size formatting, directory size calculation, plugin discovery, VST directory enumeration, architecture detection, edge cases |
-| **audio_scanner** | 28 | Audio file discovery, metadata extraction (WAV/FLAC/AIFF), format size formatting, symlink deduplication, directory walking, stop signal, skip directories, batching, scan completeness (all files found across nested dirs), deep nesting (20 levels), mixed format detection, stop-midway partial results, exclude paths, simulated SMB/NFS (880 files across 3 roots, zero dropped, throughput verified), unreadable file resilience, concurrent scan isolation (4 parallel scans) |
+| **scanner** | 27 | Plugin type mapping, file size formatting, directory size calculation with depth limit, plugin discovery, VST directory enumeration, architecture detection, edge cases |
+| **audio_scanner** | 28 | Audio file discovery, metadata extraction (WAV/FLAC/AIFF), format size formatting, symlink deduplication, directory walking, stop signal, skip directories, batching, scan completeness, deep nesting, simulated SMB/NFS, concurrent scan isolation |
 | **daw_scanner** | 19 | DAW project discovery, extension-to-DAW mapping (14 DAW types), file size formatting, directory walking, stop signal, skip directories |
-| **xref** | 25 | Ableton .als gzip XML parsing (VST2/VST3/AU), REAPER .rpp plaintext parsing (VST/VST3/AU/CLAP), plugin name normalization (arch/platform suffix stripping, case folding, whitespace collapse), case-insensitive deduplication, sorting, error handling, empty projects, .rpp-bak support |
-| **bpm** | 16 | WAV/AIFF PCM reading, onset-strength autocorrelation, click track detection (90/120/140/174 BPM), silence rejection, short file handling, 8/16/24-bit decode, stereo mixdown, extra chunk handling, AIFF parsing |
-| **preset_scanner** | 6 | Preset discovery, directory walking, stop signal, format detection, batching |
-| **similarity** | 9 | Fingerprint distance (identical=0, different>0.5), similar-kicks-closer-than-kick-hihat, sorted results, self-exclusion, max results cap, nonexistent/unsupported file handling, WAV fingerprint computation |
+| **xref** | 26 | Ableton .als gzip XML parsing (VST2/VST3/AU), REAPER .rpp plaintext parsing (VST/VST3/AU/CLAP), plugin name normalization (arch suffix stripping, case folding, whitespace collapse, all-suffix fallback), case-insensitive deduplication, sorting, error handling |
+| **bpm** | 23 | WAV/AIFF PCM reading, onset-strength autocorrelation, click track detection (90/120/140/174 BPM), silence rejection, short file handling, 8/16/24-bit decode, stereo mixdown (chunks_exact), symphonia decoder (invalid data, WAV fallback), BPM rounding (integer snap within 0.15), zero-length WAV, AIFF error handling |
+| **key_detect** | 17 | Goertzel algorithm (440Hz detection, near-zero for absent frequencies), chromagram (pure A, pure C, C major chord, multi-octave A, bins bounded [0,1]), key profile matching (C major triad, A minor triad, perfect correlation, shifted profile), detect_key (WAV, silence, 96kHz, 8kHz, nonexistent, unsupported) |
+| **preset_scanner** | 11 | Preset discovery, directory walking, stop signal, exclude set, hidden/blacklisted dir skip, symlink dedup, format detection, batching |
+| **similarity** | 15 | Fingerprint distance (identical=0, different>0.5, symmetric), similar-kicks-closer-than-kick-hihat, sorted results, self-exclusion, max results, empty/single candidates, nonexistent/unsupported files, WAV fingerprint (centroid bounded [0,1]), silence, very short audio, all-zero features |
 
 ### JavaScript tests (265 tests)
 
