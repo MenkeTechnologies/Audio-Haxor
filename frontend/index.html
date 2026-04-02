@@ -2401,7 +2401,7 @@
     .hm-card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--cyan); margin: 0 0 10px 0; font-weight: 600; }
     .hm-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: 11px; }
     .hm-bar-label { min-width: 70px; color: var(--text-muted); text-align: right; font-size: 10px; }
-    .hm-bar-track { flex: 1; height: 10px; background: rgba(10,10,20,0.3); border-radius: 2px; overflow: hidden; }
+    .hm-bar-track { flex: 1; height: 10px; background: transparent; border-radius: 2px; overflow: hidden; border: 1px solid rgba(26,26,62,0.4); }
     .hm-bar-fill { height: 100%; border-radius: 2px; min-width: 2px; }
     .hm-bar-cyan { background: linear-gradient(90deg, var(--cyan), rgba(5,217,232,0.3)); }
     .hm-bar-magenta { background: linear-gradient(90deg, var(--magenta), rgba(211,0,197,0.3)); }
@@ -4729,6 +4729,7 @@
           <span>Presets</span>
         </div>
         <div class="stat" id="dashBtnGroup"><button class="btn btn-secondary" data-action="showHeatmapDash" title="Audio heatmap dashboard (D)" style="padding:4px 10px;font-size:10px;">&#128202; Dashboard</button></div>
+        <div class="stat" id="bgAnalysisBadge" title="Background BPM/Key analysis progress" style="font-size:10px;color:var(--cyan);"></div>
       </div>
     </div>
 
@@ -5640,37 +5641,37 @@
     </div>
   </div>
 
-  <script src="js/ipc.js?v=153"></script>
-  <script src="js/utils.js?v=153"></script>
-  <script src="js/drag-reorder.js?v=153"></script>
-  <script src="js/modal-drag.js?v=153"></script>
-  <script src="js/columns.js?v=153"></script>
-  <script src="js/notes.js?v=153"></script>
-  <script src="js/favorites.js?v=153"></script>
-  <script src="js/export.js?v=153"></script>
-  <script src="js/plugins.js?v=153"></script>
-  <script src="js/settings.js?v=153"></script>
-  <script src="js/history.js?v=153"></script>
-  <script src="js/kvr.js?v=153"></script>
-  <script src="js/audio.js?v=153"></script>
-  <script src="js/daw.js?v=153"></script>
-  <script src="js/presets.js?v=153"></script>
-  <script src="js/disk-usage.js?v=153"></script>
-  <script src="js/batch-select.js?v=153"></script>
-  <script src="js/sort-persist.js?v=153"></script>
-  <script src="js/multi-filter.js?v=153"></script>
-  <script src="js/file-browser.js?v=153"></script>
-  <script src="js/duplicates.js?v=153"></script>
-  <script src="js/command-palette.js?v=153"></script>
-  <script src="js/xref.js?v=153"></script>
-  <script src="js/dep-graph.js?v=153"></script>
-  <script src="js/smart-playlists.js?v=153"></script>
-  <script src="js/heatmap-dashboard.js?v=153"></script>
-  <script src="js/walker-status.js?v=153"></script>
-  <script src="js/context-menu.js?v=153"></script>
-  <script src="js/help-overlay.js?v=153"></script>
-  <script src="js/shortcuts.js?v=153"></script>
-  <script src="js/keyboard-nav.js?v=153"></script>
-  <script src="js/app.js?v=153"></script>
+  <script src="js/ipc.js?v=154"></script>
+  <script src="js/utils.js?v=154"></script>
+  <script src="js/drag-reorder.js?v=154"></script>
+  <script src="js/modal-drag.js?v=154"></script>
+  <script src="js/columns.js?v=154"></script>
+  <script src="js/notes.js?v=154"></script>
+  <script src="js/favorites.js?v=154"></script>
+  <script src="js/export.js?v=154"></script>
+  <script src="js/plugins.js?v=154"></script>
+  <script src="js/settings.js?v=154"></script>
+  <script src="js/history.js?v=154"></script>
+  <script src="js/kvr.js?v=154"></script>
+  <script src="js/audio.js?v=154"></script>
+  <script src="js/daw.js?v=154"></script>
+  <script src="js/presets.js?v=154"></script>
+  <script src="js/disk-usage.js?v=154"></script>
+  <script src="js/batch-select.js?v=154"></script>
+  <script src="js/sort-persist.js?v=154"></script>
+  <script src="js/multi-filter.js?v=154"></script>
+  <script src="js/file-browser.js?v=154"></script>
+  <script src="js/duplicates.js?v=154"></script>
+  <script src="js/command-palette.js?v=154"></script>
+  <script src="js/xref.js?v=154"></script>
+  <script src="js/dep-graph.js?v=154"></script>
+  <script src="js/smart-playlists.js?v=154"></script>
+  <script src="js/heatmap-dashboard.js?v=154"></script>
+  <script src="js/walker-status.js?v=154"></script>
+  <script src="js/context-menu.js?v=154"></script>
+  <script src="js/help-overlay.js?v=154"></script>
+  <script src="js/shortcuts.js?v=154"></script>
+  <script src="js/keyboard-nav.js?v=154"></script>
+  <script src="js/app.js?v=154"></script>
 </body>
 </html>

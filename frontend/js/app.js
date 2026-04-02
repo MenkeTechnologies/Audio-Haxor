@@ -128,6 +128,9 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
       allAudioSamples = latestAudio.samples;
       rebuildAudioStats();
       filterAudioSamples();
+      // Queue all samples for background BPM/Key analysis
+      if (typeof _bgQueue !== 'undefined') { _bgQueue.push(...allAudioSamples); }
+      if (typeof startBackgroundAnalysis === 'function') startBackgroundAnalysis();
     }
   } catch (err) {
     showToast(`Failed to load audio scan — ${err.message || err}`, 4000, 'error');

@@ -548,6 +548,7 @@ function getFormatClass(format) {
 }
 
 async function scanAudioSamples(resume = false) {
+  stopBackgroundAnalysis();
   showGlobalProgress();
   const btn = document.getElementById('btnScanAudio');
   const resumeBtn = document.getElementById('btnResumeAudio');
@@ -598,6 +599,9 @@ async function scanAudioSamples(resume = false) {
 
     allAudioSamples.push(...toAdd);
     accumulateAudioStats(toAdd);
+    // Queue for background BPM/Key analysis
+    _bgQueue.push(...toAdd);
+    if (!_bgAnalysisRunning) startBackgroundAnalysis();
     const audioElapsed = audioEta.elapsed();
     btn.innerHTML = `&#8635; ${pendingFound} found${audioElapsed ? ' — ' + audioElapsed : ''}`;
     progressFill.style.width = '';
@@ -663,6 +667,8 @@ async function scanAudioSamples(resume = false) {
     rebuildAudioStats();
     filterAudioSamples();
     try { await window.vstUpdater.saveAudioScan(allAudioSamples, result.roots); } catch (e) { showToast(`Failed to save audio history — ${e.message || e}`, 4000, 'error'); }
+    // Start background BPM/Key analysis
+    startBackgroundAnalysis();
     if (result.stopped && allAudioSamples.length > 0) {
       resumeBtn.style.display = '';
     }
@@ -1245,6 +1251,9 @@ async function estimateBpmForMeta(filePath) {
     if (currentBpmEl && metaRow && metaRow.getAttribute('data-meta-path') === filePath) {
       currentBpmEl.textContent = bpm ? bpm + ' BPM' : '—';
     }
+    // Update table row cell
+    const tableRow = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(filePath)}"]`);
+    if (tableRow) { const cell = tableRow.querySelector('.col-bpm'); if (cell) cell.textContent = bpm || ''; }
   } catch {
     if (bpmEl) bpmEl.textContent = '—';
   }
@@ -1270,9 +1279,78 @@ async function detectKeyForMeta(filePath) {
     if (currentKeyEl && metaRow && metaRow.getAttribute('data-meta-path') === filePath) {
       currentKeyEl.textContent = key || '—';
     }
+    // Update table row cell
+    const tableRow2 = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(filePath)}"]`);
+    if (tableRow2) { const cell = tableRow2.querySelector('.col-key'); if (cell) cell.textContent = key || ''; }
   } catch {
     if (keyEl) keyEl.textContent = '—';
   }
+}
+
+// ── Background BPM/Key batch analysis ──
+let _bgAnalysisRunning = false;
+let _bgAnalysisAbort = false;
+let _bgQueue = [];
+let _bgDone = 0;
+
+async function startBackgroundAnalysis() {
+  if (_bgAnalysisRunning) return;
+  _bgAnalysisRunning = true;
+  _bgAnalysisAbort = false;
+
+  const bpmFormats = new Set(['WAV', 'AIFF', 'AIF', 'MP3', 'FLAC', 'OGG', 'M4A', 'AAC', 'OPUS']);
+  const badge = document.getElementById('bgAnalysisBadge');
+  const BATCH = 4;
+
+  while (!_bgAnalysisAbort) {
+    // Drain queue — filter to supported formats not yet cached
+    const todo = [];
+    while (_bgQueue.length > 0) {
+      const s = _bgQueue.shift();
+      if (bpmFormats.has(s.format) && _bpmCache[s.path] === undefined) todo.push(s);
+    }
+    if (todo.length === 0) {
+      // Wait for more items or exit
+      await new Promise(r => setTimeout(r, 500));
+      if (_bgQueue.length === 0) break; // no more items after waiting
+      continue;
+    }
+
+    for (let i = 0; i < todo.length; i += BATCH) {
+      if (_bgAnalysisAbort) break;
+      const batch = todo.slice(i, i + BATCH);
+
+      await Promise.all(batch.map(async (s) => {
+        if (_bgAnalysisAbort) return;
+        if (_bpmCache[s.path] === undefined) {
+          try {
+            const bpm = await window.vstUpdater.estimateBpm(s.path);
+            _bpmCache[s.path] = bpm;
+            const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
+            if (row) { const cell = row.querySelector('.col-bpm'); if (cell) cell.textContent = bpm || ''; }
+          } catch { _bpmCache[s.path] = null; }
+        }
+        if (_keyCache[s.path] === undefined) {
+          try {
+            const key = await window.vstUpdater.detectAudioKey(s.path);
+            _keyCache[s.path] = key;
+            const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
+            if (row) { const cell = row.querySelector('.col-key'); if (cell) cell.textContent = key || ''; }
+          } catch { _keyCache[s.path] = null; }
+        }
+      }));
+
+      _bgDone += batch.length;
+      if (badge) badge.innerHTML = `<span style="font-size:10px;color:var(--cyan);">BPM/Key: ${_bgDone} analyzed</span>`;
+    }
+  }
+
+  _bgAnalysisRunning = false;
+  if (badge) badge.innerHTML = '';
+}
+
+function stopBackgroundAnalysis() {
+  _bgAnalysisAbort = true;
 }
 
 function metaItem(label, value, wide) {
