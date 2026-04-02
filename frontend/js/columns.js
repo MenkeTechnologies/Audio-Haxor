@@ -6,16 +6,18 @@ function initColumnResize(table) {
   requestAnimationFrame(() => {
     const ths = Array.from(table.querySelectorAll('thead th'));
     const tableWidth = table.offsetWidth;
-    if (tableWidth <= 0) return;
 
-    // Restore saved percentage widths or snapshot current layout
-    const saved = loadColumnWidths(tableId);
-    if (saved && saved.length === ths.length && saved.every(w => w > 0)) {
-      ths.forEach((th, i) => { th.style.width = (saved[i] / 100 * tableWidth) + 'px'; });
-    } else {
-      ths.forEach(th => { th.style.width = th.offsetWidth + 'px'; });
+    // Restore saved percentage widths or snapshot current layout (only if visible)
+    if (tableWidth > 0) {
+      const saved = loadColumnWidths(tableId);
+      if (saved && saved.length === ths.length && saved.every(w => w > 0)) {
+        ths.forEach((th, i) => { th.style.width = (saved[i] / 100 * tableWidth) + 'px'; });
+      } else {
+        ths.forEach(th => { th.style.width = th.offsetWidth + 'px'; });
+      }
     }
 
+    // Always register resize handlers regardless of visibility
     table.querySelectorAll('thead .col-resize').forEach(handle => {
       handle.addEventListener('mousedown', (e) => {
         e.preventDefault();

@@ -13,7 +13,7 @@
 ░▓████▒   ▓█   ▓██▒▒██▒ ▒██▒░ ████▓▒░░██▓ ▒██▒
 ```
 
-> **// SYSTEM ONLINE -- AUDIO_HAXOR v1.7.0 // by MenkeTechnologies**
+> **// SYSTEM ONLINE -- AUDIO_HAXOR v1.8.0 // by MenkeTechnologies**
 
 A high-voltage **Tauri v2** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
 
@@ -104,7 +104,8 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **Cyberpunk Visualizer** | Animated equalizer bars in the floating player with cyan-to-magenta gradient. Bars bounce when playing, freeze on pause. Border glow pulse effect |
 | **PDF Export** | Export any tab to PDF (A4 landscape, auto-sized columns proportional to content, 7pt font for maximum data density, background export with toast notification) |
 | **TOML Export/Import** | Export/import all tabs in TOML format alongside JSON, CSV, TSV |
-| **BPM Estimation** | Estimates tempo for all audio formats (WAV, AIFF, MP3, FLAC, OGG, M4A, AAC, OPUS) using symphonia decoder + onset-strength autocorrelation. Compressed formats decoded to PCM (30s max). Shown in metadata panel with spinner. Cached in memory |
+| **BPM Estimation** | Estimates tempo for all audio formats (WAV, AIFF, MP3, FLAC, OGG, M4A, AAC, OPUS) using symphonia decoder + onset-strength autocorrelation. Compressed formats decoded to PCM (30s max). Shown in metadata panel and table column. Cached to prefs across reboots. Background batch analysis starts as samples arrive |
+| **LUFS Loudness** | Integrated loudness measurement (dBFS) per sample. Shown in metadata panel, table column (orange), and player meta line. Background analysis alongside BPM/Key, cached to prefs. 8 tests: silence floor, sine wave levels, 6dB amplitude relationship, short files |
 | **Parametric EQ** | Visual frequency response curve with draggable band nodes (Low/Mid/High). Real-time FFT spectrum overlay at 60fps via Web Audio AnalyserNode. Log frequency axis (20Hz-20kHz), drag to change frequency and gain simultaneously |
 | **Audio Similarity Search** | Right-click any sample → "Find Similar" to find samples that sound alike. Non-blocking floating panel (docked bottom-left, draggable, resizable, minimizable). Spectral fingerprinting: RMS energy, spectral centroid (normalized), zero-crossing rate, 3-band energy split, attack time. Parallel computation via rayon. Click results to play. Shortcut: W key |
 | **Musical Key Detection** | Detects musical key (C Major, F# Minor, etc.) via Goertzel algorithm chromagram analysis across 7 octaves. Krumhansl-Kessler major/minor profile matching via Pearson correlation. Shown in metadata panel and player meta line alongside BPM. Cached per file. Supports all audio formats |
@@ -227,7 +228,7 @@ cd src-tauri && cargo test
 node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 ```
 
-### Rust tests (273 tests)
+### Rust tests (281 tests)
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
@@ -240,6 +241,7 @@ node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 | **xref** | 26 | Ableton .als gzip XML parsing (VST2/VST3/AU), REAPER .rpp plaintext parsing (VST/VST3/AU/CLAP), plugin name normalization (arch suffix stripping, case folding, whitespace collapse, all-suffix fallback), case-insensitive deduplication, sorting, error handling |
 | **bpm** | 23 | WAV/AIFF PCM reading, onset-strength autocorrelation, click track detection (90/120/140/174 BPM), silence rejection, short file handling, 8/16/24-bit decode, stereo mixdown (chunks_exact), symphonia decoder (invalid data, WAV fallback), BPM rounding (integer snap within 0.15), zero-length WAV, AIFF error handling |
 | **key_detect** | 17 | Goertzel algorithm (440Hz detection, near-zero for absent frequencies), chromagram (pure A, pure C, C major chord, multi-octave A, bins bounded [0,1]), key profile matching (C major triad, A minor triad, perfect correlation, shifted profile), detect_key (WAV, silence, 96kHz, 8kHz, nonexistent, unsupported) |
+| **lufs** | 8 | Silence floor (-70 LUFS), sine wave levels, full-scale loudness, 6dB amplitude relationship, short file handling, louder-is-higher ordering, nonexistent/unsupported file handling |
 | **preset_scanner** | 11 | Preset discovery, directory walking, stop signal, exclude set, hidden/blacklisted dir skip, symlink dedup, format detection, batching |
 | **similarity** | 15 | Fingerprint distance (identical=0, different>0.5, symmetric), similar-kicks-closer-than-kick-hihat, sorted results, self-exclusion, max results, empty/single candidates, nonexistent/unsupported files, WAV fingerprint (centroid bounded [0,1]), silence, very short audio, all-zero features |
 

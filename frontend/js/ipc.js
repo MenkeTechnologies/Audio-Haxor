@@ -397,6 +397,7 @@ window.vstUpdater = {
   extractProjectPlugins: (path) => invoke('extract_project_plugins', { filePath: path }),
   estimateBpm: (path) => invoke('estimate_bpm', { filePath: path }),
   detectAudioKey: (path) => invoke('detect_audio_key', { filePath: path }),
+  measureLufs: (path) => invoke('measure_lufs', { filePath: path }),
   getWalkerStatus: () => invoke('get_walker_status'),
   // DAW history
   saveDawScan: (projects, roots) => invoke('daw_history_save', { projects, roots: roots || null }),

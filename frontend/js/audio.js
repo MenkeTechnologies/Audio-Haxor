@@ -745,6 +745,7 @@ function initAudioTable() {
         <th class="col-key" style="width: 75px;" title="Musical key — click a row to analyze">Key<span class="col-resize"></span></th>
         <th class="col-dur" style="width: 55px;" title="Duration">Dur<span class="col-resize"></span></th>
         <th class="col-ch" style="width: 40px;" title="Channels">Ch<span class="col-resize"></span></th>
+        <th class="col-lufs" style="width: 55px;" title="Integrated loudness (LUFS)">LUFS<span class="col-resize"></span></th>
         <th data-action="sortAudio" data-key="modified" class="col-date" style="width: 90px;">Modified <span class="sort-arrow" id="sortArrowModified"></span><span class="col-resize"></span></th>
         <th data-action="sortAudio" data-key="directory" style="width: 22%;">Path <span class="sort-arrow" id="sortArrowDirectory"></span><span class="col-resize"></span></th>
         <th class="col-actions" style="width: 130px;"></th>
@@ -837,7 +838,7 @@ function renderAudioTable() {
 
 function appendLoadMore(tbody) {
   tbody.insertAdjacentHTML('beforeend',
-    `<tr id="audioLoadMore"><td colspan="11" style="text-align: center; padding: 12px; color: var(--text-muted); cursor: pointer;" data-action="loadMoreAudio">
+    `<tr id="audioLoadMore"><td colspan="12" style="text-align: center; padding: 12px; color: var(--text-muted); cursor: pointer;" data-action="loadMoreAudio">
       Showing ${audioRenderCount} of ${filteredAudioSamples.length} &#8212; click to load more
     </td></tr>`);
 }
@@ -865,6 +866,7 @@ function buildAudioRow(s) {
   const key = (typeof _keyCache !== 'undefined' && _keyCache[s.path]) ? _keyCache[s.path] : '';
   const dur = s.duration ? (typeof formatTime === 'function' ? formatTime(s.duration) : s.duration.toFixed(1) + 's') : '';
   const ch = s.channels ? (s.channels === 1 ? 'M' : s.channels === 2 ? 'S' : s.channels + 'ch') : (s.sampleRate ? '?' : '');
+  const lufs = (typeof _lufsCache !== 'undefined' && _lufsCache[s.path] != null) ? _lufsCache[s.path] : '';
   return `<tr${rowClass} data-audio-path="${hp}" data-action="toggleMetadata" data-path="${hp}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
     <td class="col-name" title="${escapeHtml(s.name)}">${highlightMatch(s.name, _lastAudioSearch, _lastAudioMode)}${typeof rowBadges === 'function' ? rowBadges(s.path) : ''}</td>
@@ -874,6 +876,7 @@ function buildAudioRow(s) {
     <td class="col-key" title="${key || 'Click to analyze'}">${escapeHtml(key)}</td>
     <td class="col-dur" title="${dur || ''}">${dur}</td>
     <td class="col-ch" title="${ch === 'M' ? 'Mono' : ch === 'S' ? 'Stereo' : ch}">${ch}</td>
+    <td class="col-lufs" title="${lufs ? lufs + ' LUFS' : 'Click to analyze'}">${lufs}</td>
     <td class="col-date">${s.modified}</td>
     <td class="col-path" title="${hp}">${escapeHtml(s.directory)}</td>
     <td class="col-actions" data-action-stop>
@@ -1153,7 +1156,7 @@ async function toggleMetadata(filePath, event) {
   metaRow.id = 'audioMetaRow';
   metaRow.className = 'audio-meta-row';
   metaRow.setAttribute('data-meta-path', filePath);
-  metaRow.innerHTML = `<td colspan="11"><div class="audio-meta-panel" style="justify-items: center;"><div class="spinner" style="width: 18px; height: 18px;"></div></div></td>`;
+  metaRow.innerHTML = `<td colspan="12"><div class="audio-meta-panel" style="justify-items: center;"><div class="spinner" style="width: 18px; height: 18px;"></div></div></td>`;
   row.after(metaRow);
 
   // Fetch metadata
@@ -1176,6 +1179,7 @@ async function toggleMetadata(filePath, event) {
     // BPM and Key placeholders — filled async
     items += `<div class="meta-item" id="metaBpmItem" title="Estimated tempo via onset-strength autocorrelation"><span class="meta-label">BPM</span><span class="meta-value" id="metaBpmValue" style="display:flex;align-items:center;gap:6px;"><span class="spinner" style="width:10px;height:10px;"></span></span></div>`;
     items += `<div class="meta-item" id="metaKeyItem" title="Musical key detected via chromagram analysis"><span class="meta-label">KEY</span><span class="meta-value" id="metaKeyValue" style="display:flex;align-items:center;gap:6px;"><span class="spinner" style="width:10px;height:10px;"></span></span></div>`;
+    items += `<div class="meta-item" id="metaLufsItem" title="Integrated loudness (ITU-R BS.1770 K-weighted)"><span class="meta-label">LUFS</span><span class="meta-value" id="metaLufsValue" style="display:flex;align-items:center;gap:6px;"><span class="spinner" style="width:10px;height:10px;"></span></span></div>`;
 
     const fmtDate = (v) => { if (!v) return '—'; const d = new Date(v); return isNaN(d) ? '—' : d.toLocaleString(); };
     items += metaItem('Created', fmtDate(meta.created));
@@ -1195,7 +1199,7 @@ async function toggleMetadata(filePath, event) {
       <span style="position:absolute;top:2px;left:4px;font-size:8px;color:var(--text-dim);pointer-events:none;">SPECTROGRAM</span>
     </div>`;
 
-    metaRow.innerHTML = `<td colspan="11"><div class="audio-meta-panel"><span class="meta-close-btn" data-action="closeMetaRow" title="Close metadata panel">&#10005;</span>${waveformHtml}${items}</div></td>`;
+    metaRow.innerHTML = `<td colspan="12"><div class="audio-meta-panel"><span class="meta-close-btn" data-action="closeMetaRow" title="Close metadata panel">&#10005;</span>${waveformHtml}${items}</div></td>`;
 
     // Draw waveform and spectrogram on the meta canvases
     drawMetaWaveform(filePath);
@@ -1220,19 +1224,52 @@ async function toggleMetadata(filePath, event) {
     if (bpmFormats.includes(meta.format)) {
       estimateBpmForMeta(filePath);
       detectKeyForMeta(filePath);
+      measureLufsForMeta(filePath);
     } else {
       const bpmEl = document.getElementById('metaBpmValue');
       if (bpmEl) bpmEl.textContent = '—';
       const keyEl = document.getElementById('metaKeyValue');
       if (keyEl) keyEl.textContent = '—';
+      const lufsEl = document.getElementById('metaLufsValue');
+      if (lufsEl) lufsEl.textContent = '—';
     }
   } catch (err) {
-    metaRow.innerHTML = `<td colspan="11"><div class="audio-meta-panel"><span style="color: var(--red);">Failed to load metadata</span></div></td>`;
+    metaRow.innerHTML = `<td colspan="12"><div class="audio-meta-panel"><span style="color: var(--red);">Failed to load metadata</span></div></td>`;
   }
 }
 
-// BPM cache
-const _bpmCache = {};
+// BPM cache — persisted to prefs
+let _bpmCache = {};
+let _bpmCacheDirty = false;
+
+function loadBpmKeyCache() {
+  _bpmCache = prefs.getObject('bpmCache', {});
+  _keyCache = prefs.getObject('keyCache', {});
+  _lufsCache = prefs.getObject('lufsCache', {});
+}
+
+function _saveBpmCache() {
+  if (!_bpmCacheDirty) return;
+  _bpmCacheDirty = false;
+  prefs.setItem('bpmCache', _bpmCache);
+}
+
+function _saveKeyCache() {
+  prefs.setItem('keyCache', _keyCache);
+}
+
+// Debounce cache saves — batch writes every 5 seconds
+let _bpmSaveTimer = null;
+let _keySaveTimer = null;
+function _debounceBpmSave() {
+  _bpmCacheDirty = true;
+  clearTimeout(_bpmSaveTimer);
+  _bpmSaveTimer = setTimeout(_saveBpmCache, 5000);
+}
+function _debounceKeySave() {
+  clearTimeout(_keySaveTimer);
+  _keySaveTimer = setTimeout(_saveKeyCache, 5000);
+}
 
 async function estimateBpmForMeta(filePath) {
   const bpmEl = document.getElementById('metaBpmValue');
@@ -1246,6 +1283,7 @@ async function estimateBpmForMeta(filePath) {
   try {
     const bpm = await window.vstUpdater.estimateBpm(filePath);
     _bpmCache[filePath] = bpm;
+    _debounceBpmSave();
     const currentBpmEl = document.getElementById('metaBpmValue');
     const metaRow = document.getElementById('audioMetaRow');
     if (currentBpmEl && metaRow && metaRow.getAttribute('data-meta-path') === filePath) {
@@ -1259,8 +1297,16 @@ async function estimateBpmForMeta(filePath) {
   }
 }
 
-// Key detection cache
-const _keyCache = {};
+// Key detection cache — persisted to prefs
+let _keyCache = {};
+
+// LUFS cache — persisted to prefs
+let _lufsCache = {};
+function _debounceLufsSave() {
+  clearTimeout(_lufsSaveTimer);
+  _lufsSaveTimer = setTimeout(() => prefs.setItem('lufsCache', _lufsCache), 5000);
+}
+let _lufsSaveTimer = null;
 
 async function detectKeyForMeta(filePath) {
   const keyEl = document.getElementById('metaKeyValue');
@@ -1274,6 +1320,7 @@ async function detectKeyForMeta(filePath) {
   try {
     const key = await window.vstUpdater.detectAudioKey(filePath);
     _keyCache[filePath] = key;
+    _debounceKeySave();
     const currentKeyEl = document.getElementById('metaKeyValue');
     const metaRow = document.getElementById('audioMetaRow');
     if (currentKeyEl && metaRow && metaRow.getAttribute('data-meta-path') === filePath) {
@@ -1287,7 +1334,32 @@ async function detectKeyForMeta(filePath) {
   }
 }
 
-// ── Background BPM/Key batch analysis ──
+async function measureLufsForMeta(filePath) {
+  const lufsEl = document.getElementById('metaLufsValue');
+  if (!lufsEl) return;
+
+  if (_lufsCache[filePath] !== undefined) {
+    lufsEl.textContent = _lufsCache[filePath] != null ? _lufsCache[filePath] + ' LUFS' : '—';
+    return;
+  }
+
+  try {
+    const lufs = await window.vstUpdater.measureLufs(filePath);
+    _lufsCache[filePath] = lufs;
+    _debounceLufsSave();
+    const currentEl = document.getElementById('metaLufsValue');
+    const metaRow = document.getElementById('audioMetaRow');
+    if (currentEl && metaRow && metaRow.getAttribute('data-meta-path') === filePath) {
+      currentEl.textContent = lufs != null ? lufs + ' LUFS' : '—';
+    }
+    const tableRow = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(filePath)}"]`);
+    if (tableRow) { const cell = tableRow.querySelector('.col-lufs'); if (cell) cell.textContent = lufs != null ? lufs : ''; }
+  } catch {
+    if (lufsEl) lufsEl.textContent = '—';
+  }
+}
+
+// ── Background BPM/Key/LUFS batch analysis ──
 let _bgAnalysisRunning = false;
 let _bgAnalysisAbort = false;
 let _bgQueue = [];
@@ -1307,7 +1379,7 @@ async function startBackgroundAnalysis() {
     const todo = [];
     while (_bgQueue.length > 0) {
       const s = _bgQueue.shift();
-      if (bpmFormats.has(s.format) && _bpmCache[s.path] === undefined) todo.push(s);
+      if (bpmFormats.has(s.format) && (_bpmCache[s.path] === undefined || _keyCache[s.path] === undefined || _lufsCache[s.path] === undefined)) todo.push(s);
     }
     if (todo.length === 0) {
       // Wait for more items or exit
@@ -1338,13 +1410,28 @@ async function startBackgroundAnalysis() {
             if (row) { const cell = row.querySelector('.col-key'); if (cell) cell.textContent = key || ''; }
           } catch { _keyCache[s.path] = null; }
         }
+        if (_lufsCache[s.path] === undefined) {
+          try {
+            const lufs = await window.vstUpdater.measureLufs(s.path);
+            _lufsCache[s.path] = lufs;
+            const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(s.path)}"]`);
+            if (row) { const cell = row.querySelector('.col-lufs'); if (cell) cell.textContent = lufs != null ? lufs : ''; }
+          } catch { _lufsCache[s.path] = null; }
+        }
       }));
 
       _bgDone += batch.length;
-      if (badge) badge.innerHTML = `<span style="font-size:10px;color:var(--cyan);">BPM/Key: ${_bgDone} analyzed</span>`;
+      _debounceBpmSave();
+      _debounceKeySave();
+      _debounceLufsSave();
+      if (badge) badge.innerHTML = `<span style="font-size:10px;color:var(--cyan);">BPM/Key/LUFS: ${_bgDone} analyzed</span>`;
     }
   }
 
+  // Final save
+  _saveBpmCache();
+  _saveKeyCache();
+  prefs.setItem('lufsCache', _lufsCache);
   _bgAnalysisRunning = false;
   if (badge) badge.innerHTML = '';
 }
@@ -1609,6 +1696,33 @@ function toggleMute() {
 // ── Waveform rendering ──
 let _audioCtx = null;
 let _waveformCache = {};
+let _spectrogramCache = {};
+const _WF_CACHE_MAX = 500;
+let _wfCacheDirtyTimer = null;
+
+function loadWaveformCache() {
+  _waveformCache = prefs.getObject('waveformCache', {});
+  _spectrogramCache = prefs.getObject('spectrogramCache', {});
+}
+
+function _saveWaveformCache() {
+  // Evict oldest entries if over limit
+  const wfKeys = Object.keys(_waveformCache);
+  if (wfKeys.length > _WF_CACHE_MAX) {
+    for (const k of wfKeys.slice(0, wfKeys.length - _WF_CACHE_MAX)) delete _waveformCache[k];
+  }
+  const sgKeys = Object.keys(_spectrogramCache);
+  if (sgKeys.length > _WF_CACHE_MAX) {
+    for (const k of sgKeys.slice(0, sgKeys.length - _WF_CACHE_MAX)) delete _spectrogramCache[k];
+  }
+  prefs.setItem('waveformCache', _waveformCache);
+  prefs.setItem('spectrogramCache', _spectrogramCache);
+}
+
+function _debounceWfSave() {
+  clearTimeout(_wfCacheDirtyTimer);
+  _wfCacheDirtyTimer = setTimeout(_saveWaveformCache, 10000);
+}
 
 async function drawWaveform(filePath) {
   const canvas = document.getElementById('npWaveformCanvas');
@@ -1648,6 +1762,7 @@ async function drawWaveform(filePath) {
     }
 
     _waveformCache[filePath] = peaks;
+    _debounceWfSave();
     renderWaveformData(ctx, canvas, peaks);
   } catch {
     // Fallback: draw a simple centered line
@@ -1766,6 +1881,7 @@ async function drawMetaWaveform(filePath) {
     }
 
     _waveformCache[filePath] = peaks;
+    _debounceWfSave();
     renderWaveformData(ctx, canvas, peaks);
   } catch {
     ctx.strokeStyle = 'rgba(5,217,232,0.3)';
@@ -1783,6 +1899,12 @@ async function drawSpectrogram(filePath) {
   const ctx = canvas.getContext('2d');
   const w = 800, h = 80;
   ctx.clearRect(0, 0, w, h);
+
+  // Check cache
+  if (_spectrogramCache[filePath]) {
+    renderSpectrogramData(ctx, w, h, _spectrogramCache[filePath]);
+    return;
+  }
 
   try {
     if (!_audioCtx) _audioCtx = new AudioContext();
@@ -1833,19 +1955,18 @@ async function drawSpectrogram(filePath) {
     // Reusable FFT buffers
     const re = new Float64Array(fftSize);
     const im = new Float64Array(fftSize);
+    const sgData = []; // cols × freqBins magnitudes for caching
 
     for (let col = 0; col < cols; col++) {
       const frameIdx = col * frameStep;
       const offset = frameIdx * hop;
       if (offset + fftSize > raw.length) break;
 
-      // Apply window and bit-reverse into FFT buffer
       for (let i = 0; i < fftSize; i++) {
         re[bitRev[i]] = raw[offset + i] * hannWindow[i];
         im[bitRev[i]] = 0;
       }
 
-      // In-place Cooley-Tukey FFT
       for (let size = 2; size <= fftSize; size *= 2) {
         const halfSize = size / 2;
         const step = fftSize / size;
@@ -1862,10 +1983,8 @@ async function drawSpectrogram(filePath) {
         }
       }
 
-      // Compute magnitude spectrum and map to log-frequency display bins
-      const magnitudes = new Float32Array(freqBins);
+      const mags = new Array(freqBins);
       for (let bin = 0; bin < freqBins; bin++) {
-        // Log-frequency mapping: lower bins get more resolution for bass
         const freqLo = Math.pow(bin / freqBins, 2) * numBins;
         const freqHi = Math.pow((bin + 1) / freqBins, 2) * numBins;
         const lo = Math.floor(freqLo);
@@ -1874,30 +1993,39 @@ async function drawSpectrogram(filePath) {
         for (let k = lo; k < hi && k < numBins; k++) {
           energy += Math.sqrt(re[k] * re[k] + im[k] * im[k]);
         }
-        magnitudes[bin] = energy / Math.max(1, hi - lo);
+        mags[bin] = Math.round((energy / Math.max(1, hi - lo)) * 100) / 100; // reduce precision for cache
       }
-
-      // Draw column
-      const x = (col / cols) * w;
-      const colWidth = Math.ceil(w / cols);
-      for (let bin = 0; bin < freqBins; bin++) {
-        // Normalize: log scale for better dynamic range
-        const mag = Math.min(1, Math.log1p(magnitudes[bin] * 4) / 3);
-        const y = h - (bin / freqBins) * h;
-        const binH = Math.ceil(h / freqBins);
-        // Cyan → magenta color map
-        const r = Math.floor(mag * 211 + (1 - mag) * 5);
-        const g = Math.floor(mag * mag * 50);
-        const b = Math.floor(mag * 197 + (1 - mag) * 20);
-        const a = mag * 0.9 + 0.05;
-        ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
-        ctx.fillRect(x, y - binH, colWidth, binH);
-      }
+      sgData.push(mags);
     }
+
+    _spectrogramCache[filePath] = sgData;
+    _debounceWfSave();
+    renderSpectrogramData(ctx, w, h, sgData);
   } catch {
     ctx.fillStyle = 'var(--text-dim)';
     ctx.font = '9px sans-serif';
     ctx.fillText('Spectrogram unavailable', 10, 40);
+  }
+}
+
+function renderSpectrogramData(ctx, w, h, sgData) {
+  const cols = sgData.length;
+  if (cols === 0) return;
+  const freqBins = sgData[0].length;
+  for (let col = 0; col < cols; col++) {
+    const x = (col / cols) * w;
+    const colWidth = Math.ceil(w / cols);
+    for (let bin = 0; bin < freqBins; bin++) {
+      const mag = Math.min(1, Math.log1p(sgData[col][bin] * 4) / 3);
+      const y = h - (bin / freqBins) * h;
+      const binH = Math.ceil(h / freqBins);
+      const r = Math.floor(mag * 211 + (1 - mag) * 5);
+      const g = Math.floor(mag * mag * 50);
+      const b = Math.floor(mag * 197 + (1 - mag) * 20);
+      const a = mag * 0.9 + 0.05;
+      ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+      ctx.fillRect(x, y - binH, colWidth, binH);
+    }
   }
 }
 
@@ -1918,6 +2046,7 @@ function updateMetaLine() {
   const parts = [sample.format, sample.sizeFormatted];
   if (_bpmCache[audioPlayerPath]) parts.push(_bpmCache[audioPlayerPath] + ' BPM');
   if (_keyCache[audioPlayerPath]) parts.push(_keyCache[audioPlayerPath]);
+  if (_lufsCache[audioPlayerPath] != null) parts.push(_lufsCache[audioPlayerPath] + ' LUFS');
   if (sample.directory) parts.push(sample.directory);
   el.textContent = parts.join(' \u2022 ');
 }

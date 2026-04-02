@@ -19,6 +19,7 @@ pub mod daw_scanner;
 pub mod similarity;
 pub mod history;
 pub mod key_detect;
+pub mod lufs;
 pub mod kvr;
 pub mod preset_scanner;
 pub mod scanner;
@@ -139,11 +140,21 @@ fn get_walker_status(app: AppHandle) -> serde_json::Value {
     let audio = ws.audio_dirs.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let daw = ws.daw_dirs.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let preset = ws.preset_dirs.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let pool_threads = num_cpus::get().max(4);
+    let plugin_scanning = app.state::<ScanState>().scanning.load(Ordering::Relaxed);
+    let audio_scanning = app.state::<AudioScanState>().scanning.load(Ordering::Relaxed);
+    let daw_scanning = app.state::<DawScanState>().scanning.load(Ordering::Relaxed);
+    let preset_scanning = app.state::<PresetScanState>().scanning.load(Ordering::Relaxed);
     serde_json::json!({
         "plugin": plugin,
         "audio": audio,
         "daw": daw,
         "preset": preset,
+        "poolThreads": pool_threads,
+        "pluginScanning": plugin_scanning,
+        "audioScanning": audio_scanning,
+        "dawScanning": daw_scanning,
+        "presetScanning": preset_scanning,
     })
 }
 
@@ -985,6 +996,13 @@ async fn estimate_bpm(file_path: String) -> Result<Option<f64>, String> {
 async fn detect_audio_key(file_path: String) -> Result<Option<String>, String> {
     Ok(tokio::task::spawn_blocking(move || {
         key_detect::detect_key(&file_path)
+    }).await.map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+async fn measure_lufs(file_path: String) -> Result<Option<f64>, String> {
+    Ok(tokio::task::spawn_blocking(move || {
+        lufs::measure_lufs(&file_path)
     }).await.map_err(|e| e.to_string())?)
 }
 
@@ -3024,6 +3042,7 @@ pub fn run() {
             read_als_xml,
             estimate_bpm,
             detect_audio_key,
+            measure_lufs,
             compute_fingerprint,
             find_similar_samples,
             open_update_url,

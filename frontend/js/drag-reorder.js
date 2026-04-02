@@ -131,7 +131,7 @@ function reorderNewTableRows(tableId) {
   const getColKey = table._getColKey;
   const currentOrder = [...thead.children].map(th => getColKey(th));
   // Build index map: original position → current position
-  const defaultOrder = ['col-cb', 'name', 'format', 'col-size', 'col-bpm', 'col-key', 'col-dur', 'col-ch', 'modified', 'directory', 'col-actions'];
+  const defaultOrder = ['col-cb', 'name', 'format', 'col-size', 'col-bpm', 'col-key', 'col-dur', 'col-ch', 'col-lufs', 'modified', 'directory', 'col-actions'];
   if (currentOrder.length === 0) return;
   const indexMap = [];
   for (const key of currentOrder) {

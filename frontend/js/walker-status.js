@@ -29,31 +29,33 @@ async function _updateWalkerTiles() {
 
   try {
     const status = await window.vstUpdater.getWalkerStatus();
-    _renderTile('walkerPluginBody', 'walkerTilePlugin', status.plugin, 'var(--cyan)');
-    _renderTile('walkerAudioBody', 'walkerTileAudio', status.audio, 'var(--yellow)');
-    _renderTile('walkerDawBody', 'walkerTileDaw', status.daw, 'var(--magenta)');
-    _renderTile('walkerPresetBody', 'walkerTilePreset', status.preset, 'var(--orange)');
+    _renderTile('walkerPluginBody', 'walkerTilePlugin', status.plugin, 'var(--cyan)', status.poolThreads, status.pluginScanning);
+    _renderTile('walkerAudioBody', 'walkerTileAudio', status.audio, 'var(--yellow)', status.poolThreads, status.audioScanning);
+    _renderTile('walkerDawBody', 'walkerTileDaw', status.daw, 'var(--magenta)', status.poolThreads, status.dawScanning);
+    _renderTile('walkerPresetBody', 'walkerTilePreset', status.preset, 'var(--orange)', status.poolThreads, status.presetScanning);
   } catch (err) {
     const body = document.getElementById('walkerAudioBody');
     if (body) body.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${err?.message || err}</div>`;
   }
 }
 
-function _renderTile(bodyId, tileId, dirs, color) {
+function _renderTile(bodyId, tileId, dirs, color, poolThreads, isScanning) {
   const body = document.getElementById(bodyId);
   const tile = document.getElementById(tileId);
   if (!body || !tile) return;
 
   const statusEl = tile.querySelector('.walker-tile-status');
-  if (!dirs || dirs.length === 0) {
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--text-dim);">idle — no active threads</span>`;
-    body.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:24px;font-size:11px;">Waiting for scan to start...</div>';
+  if (!isScanning) {
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--text-dim);">idle — ${poolThreads} threads in pool</span>`;
+    if (!dirs || dirs.length === 0) {
+      body.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:24px;font-size:11px;">Waiting for scan to start...</div>';
+    }
     tile.style.borderColor = 'var(--border)';
     return;
   }
 
   tile.style.borderColor = color;
-  if (statusEl) statusEl.innerHTML = `<span style="color:${color};font-weight:600;">${dirs.length} active thread${dirs.length !== 1 ? 's' : ''}</span>`;
+  if (statusEl) statusEl.innerHTML = `<span style="color:${color};font-weight:600;">scanning — ${poolThreads} threads</span> <span style="color:var(--text-dim);">| ${dirs.length} dirs in buffer</span>`;
 
   // Build dir list — show newest at top, truncate path for readability
   const html = dirs.map(d => {
