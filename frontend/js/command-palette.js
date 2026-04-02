@@ -21,6 +21,8 @@ function collectPaletteItems() {
     { type: 'tab', name: 'Tags', icon: '&#127991;', action: () => switchTab('tags') },
     { type: 'tab', name: 'History', icon: '&#128197;', action: () => switchTab('history') },
     { type: 'tab', name: 'Files', icon: '&#128193;', action: () => switchTab('files') },
+    { type: 'tab', name: 'Visualizer', icon: '&#127911;', action: () => switchTab('visualizer') },
+    { type: 'tab', name: 'Walkers', icon: '&#128270;', action: () => switchTab('walkers') },
     { type: 'tab', name: 'Settings', icon: '&#9881;', action: () => switchTab('settings') },
   ];
   items.push(...tabs);
@@ -42,6 +44,26 @@ function collectPaletteItems() {
   if (typeof findSimilarSamples === 'function' && typeof audioPlayerPath !== 'undefined' && audioPlayerPath) {
     items.push({ type: 'action', name: 'Find Similar to Current Track', icon: '&#128270;', action: () => findSimilarSamples(audioPlayerPath) });
   }
+  if (typeof showHeatmapDashboard === 'function') {
+    items.push({ type: 'action', name: 'Heatmap Dashboard', icon: '&#128202;', action: () => showHeatmapDashboard() });
+  }
+  if (typeof showSmartPlaylistEditor === 'function') {
+    items.push({ type: 'action', name: 'New Smart Playlist', icon: '&#127926;', action: () => showSmartPlaylistEditor(null) });
+  }
+  if (typeof exportSettingsPdf === 'function') {
+    items.push({ type: 'action', name: 'Export Settings & Keybindings', icon: '&#128196;', action: () => exportSettingsPdf() });
+  }
+  if (typeof exportLogPdf === 'function') {
+    items.push({ type: 'action', name: 'Export App Log', icon: '&#128196;', action: () => exportLogPdf() });
+  }
+  if (typeof settingClearAnalysisCache === 'function') {
+    items.push({ type: 'action', name: 'Clear Analysis Cache', icon: '&#128465;', action: () => settingClearAnalysisCache() });
+  }
+  if (typeof settingToggleTheme === 'function') {
+    items.push({ type: 'action', name: 'Toggle Dark/Light Theme', icon: '&#127912;', action: () => settingToggleTheme() });
+  }
+  items.push({ type: 'action', name: 'Scan All', icon: '&#9889;', action: () => typeof scanAll === 'function' && scanAll() });
+  items.push({ type: 'action', name: 'Stop All Scans', icon: '&#9632;', action: () => typeof stopAll === 'function' && stopAll() });
 
   // Plugins
   if (typeof allPlugins !== 'undefined') {
