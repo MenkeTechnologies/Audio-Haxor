@@ -61,6 +61,7 @@ function toggleHelpOverlay() {
             <div class="help-row"><kbd>F</kbd> <span>Toggle favorite</span></div>
             <div class="help-row"><kbd>N</kbd> <span>Add note</span></div>
             <div class="help-row"><kbd>S</kbd> <span>Toggle shuffle</span></div>
+            <div class="help-row"><kbd>W</kbd> <span>Find similar samples</span></div>
             <div class="help-row"><kbd>Del</kbd> <span>Delete selected</span></div>
             <div class="help-row"><kbd>Esc</kbd> <span>Close / clear / stop</span></div>
             <div class="help-row"><kbd>?</kbd> <span>Toggle this help</span></div>

@@ -39,6 +39,9 @@ function collectPaletteItems() {
   if (typeof showDepGraph === 'function') {
     items.push({ type: 'action', name: 'Plugin Dependency Graph', icon: '&#128200;', action: () => showDepGraph() });
   }
+  if (typeof findSimilarSamples === 'function' && typeof audioPlayerPath !== 'undefined' && audioPlayerPath) {
+    items.push({ type: 'action', name: 'Find Similar to Current Track', icon: '&#128270;', action: () => findSimilarSamples(audioPlayerPath) });
+  }
 
   // Plugins
   if (typeof allPlugins !== 'undefined') {

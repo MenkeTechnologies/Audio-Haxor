@@ -38,6 +38,7 @@ const DEFAULT_SHORTCUTS = {
   'openPrefs': { key: ',', mod: true, label: 'Settings' },
   'nextTab': { key: 'Tab', mod: true, label: 'Next tab' },
   'prevTab': { key: 'Tab', mod: false, label: 'Previous tab (Shift held)' },
+  'findSimilar': { key: 'w', mod: false, label: 'Find similar samples' },
 };
 
 const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'history', 'settings'];
@@ -228,6 +229,9 @@ function executeShortcut(id) {
     _cycleTab(1);
   } else if (id === 'prevTab') {
     _cycleTab(-1);
+  } else if (id === 'findSimilar') {
+    const path = _getSelectedPath();
+    if (path && typeof findSimilarSamples === 'function') findSimilarSamples(path);
   }
 }
 

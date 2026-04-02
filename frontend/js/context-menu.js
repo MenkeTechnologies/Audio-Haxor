@@ -124,6 +124,30 @@ document.addEventListener('contextmenu', (e) => {
     return;
   }
 
+  // ── Similarity result rows ──
+  const simRow = e.target.closest('[data-similar-path]');
+  if (simRow) {
+    const path = simRow.dataset.similarPath || '';
+    const name = path.split('/').pop().replace(/\.[^.]+$/, '');
+    const items = [
+      { icon: '&#9654;', label: 'Play', action: () => typeof previewAudio === 'function' && previewAudio(path) },
+      { icon: '&#8634;', label: 'Loop', action: () => typeof toggleRowLoop === 'function' && toggleRowLoop(path, new MouseEvent('click')) },
+      '---',
+      { icon: '&#128193;', label: 'Reveal in Finder', action: () => typeof openAudioFolder === 'function' && openAudioFolder(path) },
+      { icon: '&#128194;', label: 'Show in File Browser', action: () => { switchTab('files'); typeof loadDirectory === 'function' && loadDirectory(path.replace(/\/[^/]+$/, '')); } },
+      '---',
+      { icon: '&#128203;', label: 'Copy Path', action: () => copyToClipboard(path) },
+      { icon: '&#128270;', label: 'Find Similar to This', action: () => { typeof closeSimilarModal === 'function' && closeSimilarModal(); typeof findSimilarSamples === 'function' && findSimilarSamples(path); } },
+    ];
+    if (typeof isFavorite === 'function') {
+      const fav = isFavorite(path);
+      items.push({ icon: fav ? '&#9734;' : '&#9733;', label: fav ? 'Remove from Favorites' : 'Add to Favorites',
+        action: () => fav ? removeFavorite(path) : addFavorite('sample', path, name) });
+    }
+    showContextMenu(e, items);
+    return;
+  }
+
   // ── Plugin cards ──
   const pluginCard = e.target.closest('#pluginList .plugin-card');
   // Helper: build quick-tag menu items for a path

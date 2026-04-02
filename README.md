@@ -104,7 +104,8 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **TOML Export/Import** | Export/import all tabs in TOML format alongside JSON, CSV, TSV |
 | **BPM Estimation** | Estimates tempo for all audio formats (WAV, AIFF, MP3, FLAC, OGG, M4A, AAC, OPUS) using symphonia decoder + onset-strength autocorrelation. Compressed formats decoded to PCM (30s max). Shown in metadata panel with spinner. Cached in memory |
 | **Parametric EQ** | Visual frequency response curve with draggable band nodes (Low/Mid/High). Real-time FFT spectrum overlay at 60fps via Web Audio AnalyserNode. Log frequency axis (20Hz-20kHz), drag to change frequency and gain simultaneously |
-| **Full Vim Keybindings** | j/k move, gg top, G bottom, Ctrl+D/U half-page, / search, o reveal, y yank path, p play, x favorite, v select, V select-all. 38 total customizable keybindings including Cmd+E export, Cmd+I import, Cmd+Tab cycle tabs |
+| **Audio Similarity Search** | Right-click any sample → "Find Similar" to find samples that sound alike. Spectral fingerprinting: RMS energy, spectral centroid, zero-crossing rate, 3-band energy split, attack time. Parallel computation via rayon. Click results to play. Shortcut: W key |
+| **Full Vim Keybindings** | j/k move, gg top, G bottom, Ctrl+D/U half-page, / search, o reveal, y yank path, p play, x favorite, v select, V select-all, w find-similar. 39 total customizable keybindings including Cmd+E export, Cmd+I import, Cmd+Tab cycle tabs |
 | **Command Palette** | Press <kbd>Cmd+K</kbd> to open a fuzzy search across all items — plugins, samples, DAW projects, presets, bookmarked directories, tags, tabs, and actions. Arrow keys to navigate, Enter to select, Escape to dismiss. Uses the same fzf scoring engine as tab search bars |
 | **Directory Bookmarks** | Bookmark favorite directories in the File Browser for instant navigation. Chips displayed above the file list, persisted across sessions. Right-click any folder to bookmark it |
 | **Quick Nav Buttons** | File browser toolbar has Desktop, Downloads, Music, Documents, and Root (/) buttons for instant navigation |
@@ -215,7 +216,7 @@ cd src-tauri && cargo test
 node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 ```
 
-### Rust tests (225 tests)
+### Rust tests (234 tests)
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
@@ -228,6 +229,7 @@ node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 | **xref** | 25 | Ableton .als gzip XML parsing (VST2/VST3/AU), REAPER .rpp plaintext parsing (VST/VST3/AU/CLAP), plugin name normalization (arch/platform suffix stripping, case folding, whitespace collapse), case-insensitive deduplication, sorting, error handling, empty projects, .rpp-bak support |
 | **bpm** | 16 | WAV/AIFF PCM reading, onset-strength autocorrelation, click track detection (90/120/140/174 BPM), silence rejection, short file handling, 8/16/24-bit decode, stereo mixdown, extra chunk handling, AIFF parsing |
 | **preset_scanner** | 6 | Preset discovery, directory walking, stop signal, format detection, batching |
+| **similarity** | 9 | Fingerprint distance (identical=0, different>0.5), similar-kicks-closer-than-kick-hihat, sorted results, self-exclusion, max results cap, nonexistent/unsupported file handling, WAV fingerprint computation |
 
 ### JavaScript tests (265 tests)
 
@@ -356,6 +358,7 @@ src-tauri/
     audio_scanner.rs   -- Audio sample discovery + metadata extraction
     daw_scanner.rs     -- DAW project scanner (14+ formats)
     preset_scanner.rs  -- Plugin preset discovery
+    similarity.rs      -- Audio similarity search via spectral fingerprinting
     xref.rs            -- Plugin ↔ DAW cross-reference engine
     history.rs         -- Scan history persistence + diff engine
     kvr.rs             -- KVR Audio scraper + version checker

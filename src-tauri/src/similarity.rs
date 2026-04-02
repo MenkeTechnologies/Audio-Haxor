@@ -177,3 +177,132 @@ pub fn find_similar(
     scored.truncate(max_results);
     scored
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_fp(path: &str, rms: f64, centroid: f64, zcr: f64, low: f64, mid: f64, high: f64) -> AudioFingerprint {
+        AudioFingerprint {
+            path: path.to_string(),
+            rms,
+            spectral_centroid: centroid,
+            zero_crossing_rate: zcr,
+            low_band_energy: low,
+            mid_band_energy: mid,
+            high_band_energy: high,
+            low_energy_ratio: 0.5,
+            attack_time: 0.1,
+        }
+    }
+
+    #[test]
+    fn test_identical_fingerprints_zero_distance() {
+        let a = make_fp("a.wav", 0.5, 2000.0, 0.1, 0.6, 0.3, 0.1);
+        let b = make_fp("b.wav", 0.5, 2000.0, 0.1, 0.6, 0.3, 0.1);
+        let d = fingerprint_distance(&a, &b);
+        assert!(d < 0.001, "identical fingerprints should have ~0 distance, got {}", d);
+    }
+
+    #[test]
+    fn test_different_fingerprints_nonzero_distance() {
+        let kick = make_fp("kick.wav", 0.8, 200.0, 0.05, 0.9, 0.08, 0.02);
+        let hihat = make_fp("hihat.wav", 0.3, 8000.0, 0.4, 0.05, 0.15, 0.8);
+        let d = fingerprint_distance(&kick, &hihat);
+        assert!(d > 0.5, "kick and hihat should be very different, got {}", d);
+    }
+
+    #[test]
+    fn test_similar_kicks_closer_than_kick_hihat() {
+        let kick1 = make_fp("kick1.wav", 0.8, 200.0, 0.05, 0.9, 0.08, 0.02);
+        let kick2 = make_fp("kick2.wav", 0.75, 250.0, 0.06, 0.85, 0.1, 0.05);
+        let hihat = make_fp("hihat.wav", 0.3, 8000.0, 0.4, 0.05, 0.15, 0.8);
+
+        let d_kicks = fingerprint_distance(&kick1, &kick2);
+        let d_kick_hihat = fingerprint_distance(&kick1, &hihat);
+        assert!(d_kicks < d_kick_hihat, "similar kicks ({}) should be closer than kick-hihat ({})", d_kicks, d_kick_hihat);
+    }
+
+    #[test]
+    fn test_find_similar_returns_sorted() {
+        let reference = make_fp("ref.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
+        let close = make_fp("close.wav", 0.48, 1050.0, 0.11, 0.48, 0.32, 0.2);
+        let far = make_fp("far.wav", 0.1, 8000.0, 0.4, 0.05, 0.15, 0.8);
+        let medium = make_fp("medium.wav", 0.6, 2000.0, 0.15, 0.4, 0.35, 0.25);
+
+        let results = find_similar(&reference, &[close, far, medium], 10);
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].0, "close.wav");
+        assert_eq!(results[2].0, "far.wav");
+    }
+
+    #[test]
+    fn test_find_similar_excludes_self() {
+        let a = make_fp("a.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
+        let same = make_fp("a.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
+        let results = find_similar(&a, &[same], 10);
+        assert_eq!(results.len(), 0, "should exclude self from results");
+    }
+
+    #[test]
+    fn test_find_similar_max_results() {
+        let reference = make_fp("ref.wav", 0.5, 1000.0, 0.1, 0.5, 0.3, 0.2);
+        let candidates: Vec<_> = (0..50).map(|i| {
+            make_fp(&format!("s{}.wav", i), 0.5 + i as f64 * 0.01, 1000.0, 0.1, 0.5, 0.3, 0.2)
+        }).collect();
+        let results = find_similar(&reference, &candidates, 5);
+        assert_eq!(results.len(), 5);
+    }
+
+    #[test]
+    fn test_compute_fingerprint_nonexistent_file() {
+        let fp = compute_fingerprint("/nonexistent/file.wav");
+        assert!(fp.is_none());
+    }
+
+    #[test]
+    fn test_compute_fingerprint_unsupported_format() {
+        let fp = compute_fingerprint("/some/file.txt");
+        assert!(fp.is_none());
+    }
+
+    #[test]
+    fn test_compute_fingerprint_wav() {
+        // Create a minimal WAV with a sine wave
+        let tmp = std::env::temp_dir().join("sim_test.wav");
+        let sample_rate = 44100u32;
+        let num_samples = sample_rate as usize; // 1 second
+        let mut data = vec![0u8; 44 + num_samples * 2];
+        data[0..4].copy_from_slice(b"RIFF");
+        let file_size = (36 + num_samples * 2) as u32;
+        data[4..8].copy_from_slice(&file_size.to_le_bytes());
+        data[8..12].copy_from_slice(b"WAVE");
+        data[12..16].copy_from_slice(b"fmt ");
+        data[16..20].copy_from_slice(&16u32.to_le_bytes());
+        data[20..22].copy_from_slice(&1u16.to_le_bytes()); // PCM
+        data[22..24].copy_from_slice(&1u16.to_le_bytes()); // mono
+        data[24..28].copy_from_slice(&sample_rate.to_le_bytes());
+        data[28..32].copy_from_slice(&(sample_rate * 2).to_le_bytes());
+        data[32..34].copy_from_slice(&2u16.to_le_bytes());
+        data[34..36].copy_from_slice(&16u16.to_le_bytes());
+        data[36..40].copy_from_slice(b"data");
+        data[40..44].copy_from_slice(&(num_samples as u32 * 2).to_le_bytes());
+        // 440Hz sine wave
+        for i in 0..num_samples {
+            let t = i as f64 / sample_rate as f64;
+            let sample = (t * 440.0 * 2.0 * std::f64::consts::PI).sin() * 16000.0;
+            let s = sample as i16;
+            let offset = 44 + i * 2;
+            data[offset..offset + 2].copy_from_slice(&s.to_le_bytes());
+        }
+        std::fs::write(&tmp, &data).unwrap();
+
+        let fp = compute_fingerprint(tmp.to_str().unwrap());
+        assert!(fp.is_some(), "should compute fingerprint for valid WAV");
+        let fp = fp.unwrap();
+        assert!(fp.rms > 0.0, "RMS should be positive");
+        assert!(fp.spectral_centroid > 0.0, "centroid should be positive");
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+}

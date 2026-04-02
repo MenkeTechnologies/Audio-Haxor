@@ -338,16 +338,31 @@ async function findSimilarSamples(filePath) {
       </div>
       <div class="modal-body" style="text-align:center;padding:32px;">
         <div class="spinner" style="width:24px;height:24px;margin:0 auto 12px;"></div>
-        <div style="color:var(--text-muted);font-size:12px;">Analyzing audio fingerprints...</div>
-        <div style="color:var(--text-dim);font-size:10px;margin-top:6px;">This may take a moment for large libraries</div>
+        <div id="similarStatusText" style="color:var(--text-muted);font-size:12px;">Analyzing audio fingerprints...</div>
+        <div id="similarStatusDetail" style="color:var(--text-dim);font-size:10px;margin-top:6px;">Checking fingerprint cache...</div>
       </div>
     </div>
   </div>`;
   document.body.insertAdjacentHTML('beforeend', loadHtml);
 
+  // Listen for progress events
+  let progressCleanup = null;
+  if (window.__TAURI__?.event?.listen) {
+    window.__TAURI__.event.listen('similarity-progress', (event) => {
+      const d = event.payload;
+      const statusText = document.getElementById('similarStatusText');
+      const statusDetail = document.getElementById('similarStatusDetail');
+      if (d.phase === 'computing' && statusText && statusDetail) {
+        statusText.textContent = `Computing fingerprints for ${d.total} samples...`;
+        statusDetail.textContent = `${d.cached} already cached — ${d.total} remaining. First run is slow, subsequent searches are instant.`;
+      }
+    }).then(fn => { progressCleanup = fn; });
+  }
+
   try {
     const candidates = (typeof allAudioSamples !== 'undefined' ? allAudioSamples : []).map(s => s.path);
     const results = await window.vstUpdater.findSimilarSamples(filePath, candidates, 20);
+    if (progressCleanup) progressCleanup();
 
     const modal = document.getElementById('similarModal');
     if (!modal) return;
@@ -378,6 +393,7 @@ async function findSimilarSamples(filePath) {
         </div>`;
       }).join('');
   } catch (err) {
+    if (progressCleanup) progressCleanup();
     const modal = document.getElementById('similarModal');
     if (modal) {
       modal.querySelector('.modal-body').innerHTML = `<div style="padding:24px;color:var(--red);">Error: ${escapeHtml(err.message || String(err))}</div>`;
