@@ -110,43 +110,9 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
     setTimeout(() => splash.remove(), 600);
   }
 
-  try {
-    const latest = await window.vstUpdater.getLatestScan();
-    if (latest && latest.plugins && latest.plugins.length > 0) {
-      allPlugins = latest.plugins;
+  // Load plugins lazily on first tab view to avoid blocking startup
+  loadPluginsFromDb();
 
-      // Restore cached KVR results
-      try {
-        const kvrCache = await window.vstUpdater.getKvrCache();
-        applyKvrCache(allPlugins, kvrCache);
-      } catch {}
-
-      document.getElementById('totalCount').textContent = allPlugins.length;
-      document.getElementById('btnCheckUpdates').disabled = false;
-      const toolbar = document.getElementById('toolbar');
-      if (toolbar) toolbar.style.display = 'flex';
-
-      // Update stat counters from cached data
-      const withUpdates = allPlugins.filter(p => p.hasUpdate).length;
-      const unknown = allPlugins.filter(p => p.source === 'not-found').length;
-      const upToDate = allPlugins.filter(p => !p.hasUpdate && p.source && p.source !== 'not-found').length;
-      if (withUpdates || unknown || upToDate) {
-        document.getElementById('updateCount').textContent = withUpdates;
-        document.getElementById('unknownCount').textContent = unknown;
-        document.getElementById('upToDateCount').textContent = upToDate;
-      }
-
-      const dirsSection = document.getElementById('dirsSection');
-      dirsSection.style.display = 'block';
-      document.getElementById('dirsList').innerHTML = buildDirsTable(latest.directories || [], allPlugins);
-
-      renderPlugins(allPlugins);
-      // Resume resolving KVR links for plugins not yet cached
-      resolveKvrDownloads();
-    }
-  } catch (err) {
-    showToast(`Failed to load plugin scan — ${err.message || err}`, 4000, 'error');
-  }
 
   // Auto-load last audio scan from SQLite (paginated — no full array in memory)
   try {

@@ -1,4 +1,46 @@
 let scanProgressCleanup = null;
+let _pluginsLoaded = false;
+
+async function loadPluginsFromDb() {
+  if (_pluginsLoaded) return;
+  try {
+    const latest = await window.vstUpdater.getLatestScan();
+    if (latest && latest.plugins && latest.plugins.length > 0) {
+      allPlugins = latest.plugins;
+      _pluginsLoaded = true;
+
+      try {
+        const kvrCache = await window.vstUpdater.getKvrCache();
+        applyKvrCache(allPlugins, kvrCache);
+      } catch {}
+
+      document.getElementById('totalCount').textContent = allPlugins.length;
+      document.getElementById('btnCheckUpdates').disabled = false;
+      const toolbar = document.getElementById('toolbar');
+      if (toolbar) toolbar.style.display = 'flex';
+
+      const withUpdates = allPlugins.filter(p => p.hasUpdate).length;
+      const unknown = allPlugins.filter(p => p.source === 'not-found').length;
+      const upToDate = allPlugins.filter(p => !p.hasUpdate && p.source && p.source !== 'not-found').length;
+      if (withUpdates || unknown || upToDate) {
+        document.getElementById('updateCount').textContent = withUpdates;
+        document.getElementById('unknownCount').textContent = unknown;
+        document.getElementById('upToDateCount').textContent = upToDate;
+      }
+
+      const dirsSection = document.getElementById('dirsSection');
+      if (dirsSection) {
+        dirsSection.style.display = 'block';
+        document.getElementById('dirsList').innerHTML = buildDirsTable(latest.directories || [], allPlugins);
+      }
+
+      renderPlugins(allPlugins);
+      resolveKvrDownloads();
+    }
+  } catch (err) {
+    showToast(`Failed to load plugin scan — ${err.message || err}`, 4000, 'error');
+  }
+}
 
 async function scanPlugins(resume = false) {
   showGlobalProgress();
