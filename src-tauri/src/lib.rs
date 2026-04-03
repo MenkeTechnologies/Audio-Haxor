@@ -3191,6 +3191,16 @@ fn db_migrate_json() -> Result<usize, String> {
     db::global().migrate_from_json()
 }
 
+#[tauri::command]
+fn db_clear_caches() -> Result<(), String> {
+    db::global().clear_all_caches()
+}
+
+#[tauri::command]
+fn db_clear_cache_table(table: String) -> Result<(), String> {
+    db::global().clear_cache_table(&table)
+}
+
 // ── App setup ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -3385,6 +3395,8 @@ pub fn run() {
             db_get_analysis,
             db_unanalyzed_paths,
             db_migrate_json,
+            db_clear_caches,
+            db_clear_cache_table,
         ])
         .setup(|app| {
             // Restore window size/position

@@ -1240,6 +1240,35 @@ impl Database {
         tx.commit().map_err(|e| e.to_string())
     }
 
+    /// Clear a specific cache table.
+    pub fn clear_cache_table(&self, table: &str) -> Result<(), String> {
+        let conn = self.conn.lock().unwrap();
+        let sql = match table {
+            "bpm" => "UPDATE audio_samples SET bpm = NULL",
+            "key" => "UPDATE audio_samples SET key_name = NULL",
+            "lufs" => "UPDATE audio_samples SET lufs = NULL",
+            "waveform" => "DELETE FROM waveform_cache",
+            "spectrogram" => "DELETE FROM spectrogram_cache",
+            "xref" => "DELETE FROM xref_cache",
+            "fingerprint" => "DELETE FROM fingerprint_cache",
+            "kvr" => "DELETE FROM kvr_cache",
+            _ => return Err(format!("Unknown cache: {table}")),
+        };
+        conn.execute_batch(sql).map_err(|e| e.to_string())
+    }
+
+    /// Clear all analysis and cache data from SQLite.
+    pub fn clear_all_caches(&self) -> Result<(), String> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute_batch(
+            "UPDATE audio_samples SET bpm = NULL, key_name = NULL, lufs = NULL;
+             DELETE FROM waveform_cache;
+             DELETE FROM spectrogram_cache;
+             DELETE FROM xref_cache;
+             DELETE FROM fingerprint_cache;"
+        ).map_err(|e| e.to_string())
+    }
+
     fn cache_table_for(&self, name: &str) -> (&str, &str, &str) {
         match name {
             "waveform-cache.json" => ("waveform_cache", "path", "data"),

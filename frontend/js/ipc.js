@@ -162,7 +162,8 @@ document.addEventListener('click', (e) => {
     case 'settingResetTabOrder': settingResetTabOrder(); break;
     case 'settingClearAllHistory': settingClearAllHistory(); break;
     case 'settingClearKvrCache': settingClearKvrCache(); break;
-    case 'settingClearAnalysisCache': settingClearAnalysisCache(); break;
+    case 'settingClearAnalysisCache': window.vstUpdater.dbClearCaches().then(() => { if (typeof _bpmCache !== 'undefined') { _bpmCache = {}; _keyCache = {}; _lufsCache = {}; } if (typeof _waveformCache !== 'undefined') { _waveformCache = {}; _spectrogramCache = {}; } showToast('All caches cleared'); }).catch(e => showToast('Failed: ' + e, 4000, 'error')); break;
+    case 'clearCacheTable': { const c = el.dataset.cache; if (c) window.vstUpdater.dbClearCacheTable(c).then(() => { if (c === 'bpm' && typeof _bpmCache !== 'undefined') _bpmCache = {}; if (c === 'key' && typeof _keyCache !== 'undefined') _keyCache = {}; if (c === 'lufs' && typeof _lufsCache !== 'undefined') _lufsCache = {}; if (c === 'waveform' && typeof _waveformCache !== 'undefined') _waveformCache = {}; if (c === 'spectrogram' && typeof _spectrogramCache !== 'undefined') _spectrogramCache = {}; showToast(`${c.toUpperCase()} cache cleared`); }).catch(e => showToast('Failed: ' + e, 4000, 'error')); } break;
     case 'exportSettingsPdf': if (typeof exportSettingsPdf === 'function') exportSettingsPdf(); break;
     case 'exportLogPdf': if (typeof exportLogPdf === 'function') exportLogPdf(); break;
     case 'clearAppLog': window.vstUpdater.clearLog().then(() => showToast('Log cleared')).catch(() => {}); break;
@@ -465,6 +466,8 @@ window.vstUpdater = {
   dbGetAnalysis: (path) => invoke('db_get_analysis', { path }),
   dbUnanalyzedPaths: (limit) => invoke('db_unanalyzed_paths', { limit: limit || 100 }),
   dbMigrateJson: () => invoke('db_migrate_json'),
+  dbClearCaches: () => invoke('db_clear_caches'),
+  dbClearCacheTable: (table) => invoke('db_clear_cache_table', { table }),
 };
 
 // ── Preferences layer (file-backed, survives reboots) ──
