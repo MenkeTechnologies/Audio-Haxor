@@ -30,7 +30,7 @@ use std::sync::{Arc, Mutex};
 
 const AUDIO_EXTENSIONS: &[&str] = &[
     ".wav", ".mp3", ".aiff", ".aif", ".flac", ".ogg", ".m4a", ".wma", ".aac", ".opus", ".rex",
-    ".rx2", ".sf2", ".sfz",
+    ".rx2", ".sf2", ".sfz", ".mid", ".midi",
 ];
 
 const SKIP_DIRS: &[&str] = &[

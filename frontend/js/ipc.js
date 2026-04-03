@@ -481,6 +481,8 @@ window.vstUpdater = {
   startFileWatcher: (dirs) => invoke('start_file_watcher', { dirs }),
   stopFileWatcher: () => invoke('stop_file_watcher'),
   getFileWatcherStatus: () => invoke('get_file_watcher_status'),
+  // MIDI
+  getMidiInfo: (filePath) => invoke('get_midi_info', { filePath }),
 };
 
 // ── Preferences layer (file-backed, survives reboots) ──
