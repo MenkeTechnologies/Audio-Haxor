@@ -2635,3 +2635,108 @@ fn compute_audio_diff_identical_snapshots_empty_diff() {
     assert!(d.added.is_empty());
     assert!(d.removed.is_empty());
 }
+
+#[test]
+fn format_size_1024_bytes_is_one_kb() {
+    assert_eq!(app_lib::format_size(1024), "1.0 KB");
+}
+
+#[test]
+fn find_similar_max_larger_than_candidate_count_returns_all_scored() {
+    let r = fp("/ref.wav");
+    let cands: Vec<_> = (0..3).map(|i| fp(&format!("/c{i}.wav"))).collect();
+    let out = find_similar(&r, &cands, 100);
+    assert_eq!(out.len(), 3);
+}
+
+#[test]
+fn ext_matches_rpp_uppercase_extension() {
+    assert_eq!(
+        ext_matches(Path::new("C:/Projects/SESSION.RPP")).as_deref(),
+        Some("RPP")
+    );
+}
+
+#[test]
+fn kvr_compare_versions_both_unknown_equal() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("Unknown", "Unknown"),
+        Ordering::Equal
+    );
+}
+
+#[test]
+fn compute_plugin_diff_unknown_to_known_same_path_not_version_changed() {
+    let old = build_plugin_snapshot(&[plug("/p.vst3", "Unknown")], &[], &[]);
+    let new = build_plugin_snapshot(&[plug("/p.vst3", "2.0")], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert!(d.added.is_empty());
+    assert!(d.removed.is_empty());
+    assert!(
+        d.version_changed.is_empty(),
+        "Unknown→known is not listed as version_changed per diff rules"
+    );
+}
+
+#[test]
+fn plugin_ref_serde_roundtrip_empty_manufacturer() {
+    let p = PluginRef {
+        name: "X".into(),
+        normalized_name: "x".into(),
+        manufacturer: "".into(),
+        plugin_type: "VST3".into(),
+    };
+    let j = serde_json::to_string(&p).unwrap();
+    let back: PluginRef = serde_json::from_str(&j).unwrap();
+    assert_eq!(back.manufacturer, "");
+}
+
+#[test]
+fn kvr_extract_version_plain_version_colon_line() {
+    let html = r#"Release notes — Version: 9.8.7 — stable"#;
+    assert_eq!(
+        app_lib::kvr::extract_version(html).as_deref(),
+        Some("9.8.7")
+    );
+}
+
+#[test]
+fn radix_string_pow2_256_base16() {
+    assert_eq!(radix_string(256, 16), "100");
+}
+
+#[test]
+fn fingerprint_distance_commutative_explicit() {
+    let a = fp("/a.wav");
+    let mut b = fp("/b.wav");
+    b.rms = 0.11;
+    let d1 = fingerprint_distance(&a, &b);
+    let d2 = fingerprint_distance(&b, &a);
+    assert!((d1 - d2).abs() < 1e-9);
+}
+
+#[test]
+fn compute_preset_diff_one_added_two_removed_net() {
+    let old = build_preset_snapshot(
+        &[preset("/a.fxp"), preset("/b.fxp"), preset("/c.fxp")],
+        &[],
+    );
+    let new = build_preset_snapshot(&[preset("/new.fxp")], &[]);
+    let d = compute_preset_diff(&old, &new);
+    assert_eq!(d.added.len(), 1);
+    assert_eq!(d.removed.len(), 3);
+}
+
+#[test]
+fn compute_audio_diff_both_empty_snapshots() {
+    let a = build_audio_snapshot(&[], &[]);
+    let b = build_audio_snapshot(&[], &[]);
+    let d = compute_audio_diff(&a, &b);
+    assert!(d.added.is_empty());
+    assert!(d.removed.is_empty());
+}
+
+#[test]
+fn get_plugin_type_dot_bundle_unknown() {
+    assert_eq!(get_plugin_type(".bundle"), "Unknown");
+}
