@@ -1240,3 +1240,250 @@ fn kvr_extract_version_from_td_cell() {
         Some("12.34.56")
     );
 }
+
+// ── Wave 4: DAW suffix matrix + diff/serde stress ─────────────────────────────
+
+#[test]
+fn ext_matches_ardour() {
+    assert_eq!(
+        ext_matches(Path::new("/session.ardour")).as_deref(),
+        Some("ARDOUR")
+    );
+}
+
+#[test]
+fn daw_name_ardour_token() {
+    assert_eq!(daw_name_for_format("ARDOUR"), "Ardour");
+}
+
+#[test]
+fn ext_matches_reason() {
+    assert_eq!(
+        ext_matches(Path::new("/rack.reason")).as_deref(),
+        Some("REASON")
+    );
+}
+
+#[test]
+fn daw_name_reason_token() {
+    assert_eq!(daw_name_for_format("REASON"), "Reason");
+}
+
+#[test]
+fn ext_matches_ptf_legacy() {
+    assert_eq!(
+        ext_matches(Path::new("/oldsong.ptf")).as_deref(),
+        Some("PTF")
+    );
+}
+
+#[test]
+fn daw_name_ptf_pro_tools() {
+    assert_eq!(daw_name_for_format("PTF"), "Pro Tools");
+}
+
+#[test]
+fn ext_matches_aup_legacy() {
+    assert_eq!(
+        ext_matches(Path::new("/legacy.aup")).as_deref(),
+        Some("AUP")
+    );
+}
+
+#[test]
+fn daw_name_aup_audacity() {
+    assert_eq!(daw_name_for_format("AUP"), "Audacity");
+}
+
+#[test]
+fn compute_audio_diff_one_removed_sample() {
+    let old = build_audio_snapshot(&[sample("/gone.wav")], &[]);
+    let new = build_audio_snapshot(&[], &[]);
+    let d = compute_audio_diff(&old, &new);
+    assert_eq!(d.removed.len(), 1);
+}
+
+#[test]
+fn compute_plugin_diff_one_removed_only() {
+    let old = build_plugin_snapshot(&[plug("/bye.vst3", "1")], &[], &[]);
+    let new = build_plugin_snapshot(&[], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert_eq!(d.removed.len(), 1);
+}
+
+#[test]
+fn compute_daw_diff_two_formats() {
+    let a = dawproj("/a.dawproject");
+    let mut b = dawproj("/b.dawproject");
+    b.path = "/other/x.dawproject".into();
+    let old = build_daw_snapshot(&[a], &[]);
+    let new = build_daw_snapshot(&[b], &[]);
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.added.len() + d.removed.len(), 2);
+}
+
+#[test]
+fn kvr_cmp_major_only_vs_patch() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("2", "1.9.9"),
+        Ordering::Greater
+    );
+}
+
+#[test]
+fn kvr_parse_mixed_numeric_text_segments() {
+    let v = app_lib::kvr::parse_version("1.x.3");
+    assert_eq!(v, vec![1, 0, 3]);
+}
+
+#[test]
+fn format_size_two_bytes() {
+    let s = app_lib::format_size(2);
+    assert!(s.contains('2'), "{s}");
+}
+
+#[test]
+fn radix_base_7_forty_nine() {
+    assert_eq!(radix_string(49, 7), "100");
+}
+
+#[test]
+fn radix_base_11_small() {
+    assert_eq!(radix_string(120, 11), "aa");
+}
+
+#[test]
+fn normalize_strips_au_bracket() {
+    let n = normalize_plugin_name("Synth (AU)");
+    assert!(!n.contains("(au)"));
+}
+
+#[test]
+fn plugin_ref_type_vst2_roundtrip() {
+    let p = PluginRef {
+        name: "Old".into(),
+        normalized_name: "old".into(),
+        manufacturer: "M".into(),
+        plugin_type: "VST2".into(),
+    };
+    let j = serde_json::to_string(&p).unwrap();
+    let back: PluginRef = serde_json::from_str(&j).unwrap();
+    assert_eq!(back.plugin_type, "VST2");
+}
+
+#[test]
+fn export_plugin_with_manufacturer_url_some() {
+    let p = ExportPlugin {
+        name: "n".into(),
+        plugin_type: "VST3".into(),
+        version: "1".into(),
+        manufacturer: "m".into(),
+        manufacturer_url: Some("https://m.example".into()),
+        path: "/p.vst3".into(),
+        size: "1 B".into(),
+        size_bytes: 1,
+        modified: "t".into(),
+        architectures: vec![],
+    };
+    let v = serde_json::to_value(&p).unwrap();
+    assert!(v["manufacturer_url"].is_string());
+}
+
+#[test]
+fn preset_file_serde_roundtrip() {
+    let p = preset("/presets/p.h2p");
+    let j = serde_json::to_string(&p).unwrap();
+    let back: PresetFile = serde_json::from_str(&j).unwrap();
+    assert_eq!(back.path, "/presets/p.h2p");
+}
+
+#[test]
+fn fingerprint_spectral_centroid_delta_distance() {
+    let mut a = fp("/a.wav");
+    let mut b = fp("/b.wav");
+    a.spectral_centroid = 0.1;
+    b.spectral_centroid = 0.9;
+    assert!(fingerprint_distance(&a, &b) > 0.05);
+}
+
+#[test]
+fn fingerprint_zero_crossing_delta() {
+    let mut a = fp("/a.wav");
+    let mut b = fp("/b.wav");
+    a.zero_crossing_rate = 0.01;
+    b.zero_crossing_rate = 0.5;
+    assert!(fingerprint_distance(&a, &b) > 0.01);
+}
+
+#[test]
+fn find_similar_truncates_to_max() {
+    let r = fp("/r.wav");
+    let c: Vec<_> = (0..20)
+        .map(|i| {
+            let mut x = fp(&format!("/c{i}.wav"));
+            x.rms = r.rms + (i as f64) * 0.001;
+            x
+        })
+        .collect();
+    let out = find_similar(&r, &c, 3);
+    assert_eq!(out.len(), 3);
+}
+
+#[test]
+fn kvr_extract_version_software_keyword_line() {
+    let html = r#"Software version 5.4.3 available"#;
+    assert_eq!(
+        app_lib::kvr::extract_version(html).as_deref(),
+        Some("5.4.3")
+    );
+}
+
+#[test]
+fn ext_matches_reason_uppercase() {
+    assert_eq!(
+        ext_matches(Path::new("/X.REASON")).as_deref(),
+        Some("REASON")
+    );
+}
+
+#[test]
+fn is_package_ext_band_still_true() {
+    assert!(is_package_ext(Path::new("/Music/MySong.band")));
+}
+
+#[test]
+fn compute_preset_diff_two_added() {
+    let old = build_preset_snapshot(&[preset("/a.fxp")], &[]);
+    let new = build_preset_snapshot(&[preset("/a.fxp"), preset("/b.fxp")], &[]);
+    let d = compute_preset_diff(&old, &new);
+    assert_eq!(d.added.len(), 1);
+}
+
+#[test]
+fn kvr_cmp_zero_vs_one() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("0.0.1", "0.0.0"),
+        Ordering::Greater
+    );
+}
+
+#[test]
+fn radix_string_base_9_eighty_one() {
+    assert_eq!(radix_string(81, 9), "100");
+}
+
+#[test]
+fn format_size_megabytes_not_zero() {
+    let s = app_lib::format_size(5 * 1024 * 1024 + 1);
+    assert!(s.contains("MB") || s.contains("MiB"), "{s}");
+}
+
+#[test]
+fn compute_plugin_diff_version_and_path_change() {
+    let old = build_plugin_snapshot(&[plug("/p.vst3", "1.0")], &[], &[]);
+    let mut q = plug("/other.vst3", "2.0");
+    q.path = "/other.vst3".into();
+    let new = build_plugin_snapshot(&[q], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert!(!d.added.is_empty() || !d.removed.is_empty() || !d.version_changed.is_empty());
+}
