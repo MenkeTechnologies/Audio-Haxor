@@ -449,7 +449,7 @@ impl Database {
     pub fn latest_scan_id(&self) -> Result<Option<String>, String> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
-            "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
+            "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
             [],
             |row| row.get(0),
         )
@@ -493,7 +493,7 @@ impl Database {
             Some(id) => id.clone(),
             None => conn
                 .query_row(
-                    "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
+                    "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
                     [],
                     |row| row.get::<_, String>(0),
                 )
@@ -659,7 +659,7 @@ impl Database {
             Some(id) => id.to_string(),
             None => conn
                 .query_row(
-                    "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
+                    "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
                     [],
                     |row| row.get::<_, String>(0),
                 )
@@ -729,7 +729,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET bpm = ?1 WHERE path = ?2 AND scan_id = (
-                SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
+                SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
             )",
             params![bpm, path],
         )
@@ -742,7 +742,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET key_name = ?1 WHERE path = ?2 AND scan_id = (
-                SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
+                SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
             )",
             params![key, path],
         )
@@ -755,7 +755,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET lufs = ?1 WHERE path = ?2 AND scan_id = (
-                SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
+                SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
             )",
             params![lufs, path],
         )
@@ -770,7 +770,7 @@ impl Database {
             .query_row(
                 "SELECT bpm, key_name, lufs, duration, channels, sample_rate, bits_per_sample
                  FROM audio_samples WHERE path = ?1 AND scan_id = (
-                    SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
+                    SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
                  )",
                 params![path],
                 |row| {
@@ -797,7 +797,7 @@ impl Database {
             .prepare(
                 "SELECT path FROM audio_samples
                  WHERE bpm IS NULL AND scan_id = (
-                    SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
+                    SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
                  )
                  LIMIT ?1",
             )
@@ -959,7 +959,7 @@ impl Database {
 
     pub fn get_latest_audio_scan(&self) -> Result<Option<AudioScanSnapshot>, String> {
         let conn = self.conn.lock().unwrap();
-        let id: Option<String> = conn.query_row("SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1", [], |r| r.get(0)).optional().map_err(|e| e.to_string())?;
+        let id: Option<String> = conn.query_row("SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1", [], |r| r.get(0)).optional().map_err(|e| e.to_string())?;
         drop(conn);
         match id { Some(id) => self.get_audio_scan_detail(&id).map(Some), None => Ok(None) }
     }
@@ -1178,7 +1178,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let col = match field { "bpm" => "bpm", "key" => "key_name", "lufs" => "lufs", _ => return Ok(serde_json::json!({})) };
         // Pre-resolve scan_id to avoid subquery on every row
-        let sid: String = conn.query_row("SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1", [], |r| r.get(0))
+        let sid: String = conn.query_row("SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1", [], |r| r.get(0))
             .unwrap_or_default();
         if sid.is_empty() { return Ok(serde_json::json!({})); }
         let sql = format!("SELECT path, {col} FROM audio_samples WHERE {col} IS NOT NULL AND scan_id = ?1");
@@ -1203,7 +1203,7 @@ impl Database {
         if obj.is_empty() { return Ok(()); }
         let conn = self.conn.lock().unwrap();
         let col = match field { "bpm" => "bpm", "key" => "key_name", "lufs" => "lufs", _ => return Ok(()) };
-        let sid: String = conn.query_row("SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1", [], |r| r.get(0)).unwrap_or_default();
+        let sid: String = conn.query_row("SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1", [], |r| r.get(0)).unwrap_or_default();
         if sid.is_empty() { return Ok(()); }
         let sql = format!("UPDATE audio_samples SET {col} = ?1 WHERE path = ?2 AND scan_id = ?3");
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
@@ -1275,12 +1275,12 @@ impl Database {
 
         // Analysis caches (columns on audio_samples)
         let total_samples: u64 = conn.query_row(
-            "SELECT COUNT(*) FROM audio_samples WHERE scan_id = (SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1)",
+            "SELECT COUNT(*) FROM audio_samples WHERE scan_id = (SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1)",
             [], |r| r.get(0),
         ).unwrap_or(0);
         for (label, col, key) in [("BPM", "bpm", "bpm"), ("Key", "key_name", "key"), ("LUFS", "lufs", "lufs")] {
             let count: u64 = conn.query_row(
-                &format!("SELECT COUNT(*) FROM audio_samples WHERE {col} IS NOT NULL AND scan_id = (SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1)"),
+                &format!("SELECT COUNT(*) FROM audio_samples WHERE {col} IS NOT NULL AND scan_id = (SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1)"),
                 [], |r| r.get(0),
             ).unwrap_or(0);
             stats.push(CacheStat { key: key.into(), label: label.into(), count, total: total_samples, size_bytes: count * 8 });

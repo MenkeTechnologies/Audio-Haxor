@@ -997,10 +997,16 @@ fn read_als_xml(file_path: String) -> Result<String, String> {
     use std::io::Read;
     let data = std::fs::read(&file_path).map_err(|e| e.to_string())?;
     let mut decoder = GzDecoder::new(&data[..]);
+    const MAX_XML_SIZE: usize = 20_000_000; // 20MB cap to prevent WebView OOM
     let mut xml = String::new();
     decoder
         .read_to_string(&mut xml)
         .map_err(|e| format!("Not a valid gzip file: {}", e))?;
+    if xml.len() > MAX_XML_SIZE {
+        xml.truncate(MAX_XML_SIZE);
+        // Close any open tags to prevent parse errors
+        xml.push_str("\n<!-- TRUNCATED: file too large for viewer -->");
+    }
     Ok(xml)
 }
 

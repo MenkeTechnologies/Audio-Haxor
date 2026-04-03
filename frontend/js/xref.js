@@ -379,14 +379,18 @@ async function showXmlProjectViewer(filePath, projectName) {
       </div>
       <div id="projXmlTree" style="flex:1;overflow:auto;padding:8px 12px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.6;color:var(--text);background:var(--bg-primary);"></div>
     </div>`;
-    // Parse XML and render collapsible tree
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xml, 'text/xml');
+    // Parse XML and render collapsible tree (cap at 10MB to prevent OOM)
     const treeContainer = document.getElementById('projXmlTree');
-    if (xmlDoc.documentElement && typeof buildXmlTree === 'function') {
-      treeContainer.appendChild(buildXmlTree(xmlDoc.documentElement, 0));
+    if (xml.length > 10_000_000) {
+      treeContainer.innerHTML = `<pre style="white-space:pre-wrap;word-break:break-all;">${escapeHtml(xml.slice(0, 500_000))}\n\n<!-- File too large for tree view (${Math.round(xml.length/1024/1024)}MB). Showing first 500KB as text. --></pre>`;
     } else {
-      treeContainer.textContent = xml; // fallback to raw text
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xml, 'text/xml');
+      if (xmlDoc.documentElement && typeof buildXmlTree === 'function') {
+        treeContainer.appendChild(buildXmlTree(xmlDoc.documentElement, 0));
+      } else {
+        treeContainer.textContent = xml;
+      }
     }
     // Collapse/expand click handler
     treeContainer.addEventListener('click', (ev) => {
@@ -530,10 +534,13 @@ async function showAlsViewer(filePath, projectName) {
       <div id="alsXmlTree" style="flex:1;overflow:auto;margin:0;padding:8px 12px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.6;color:var(--text);background:var(--bg-primary);"></div>
     </div>`;
 
-    // Parse XML to DOM and render collapsible tree
+    // Parse XML to DOM and render collapsible tree (cap at 10MB)
+    const treeContainer = document.getElementById('alsXmlTree');
+    if (xml.length > 10_000_000) {
+      treeContainer.innerHTML = `<pre style="white-space:pre-wrap;word-break:break-all;">${escapeHtml(xml.slice(0, 500_000))}\n\n<!-- File too large for tree view (${Math.round(xml.length/1024/1024)}MB). Showing first 500KB. Use Export to save full XML. --></pre>`;
+    } else {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xml, 'text/xml');
-    const treeContainer = document.getElementById('alsXmlTree');
     if (doc.documentElement) {
       treeContainer.appendChild(buildXmlTree(doc.documentElement, 0));
     }
@@ -586,6 +593,7 @@ async function showAlsViewer(filePath, projectName) {
         showToast('XML exported');
       }
     });
+    } // end else (not too large)
   } catch (err) {
     const modal = document.getElementById('alsViewerModal');
     if (modal) {
