@@ -255,7 +255,7 @@ function exportMidi() {
       });
       if (fmt === 'pdf') {
         const headers = ['Name', 'Tracks', 'BPM', 'Time Sig', 'Key', 'Notes', 'Ch', 'Duration', 'Size', 'Path'];
-        const rows = data.map(m => [m.name, m.tracks || '', m.tempo || '', m.timeSignature || '', m.keySignature || '', m.noteCount || '', m.channelsUsed || '', m.duration ? (typeof formatTime === 'function' ? formatTime(m.duration) : m.duration + 's') : '', m.sizeFormatted, m.directory]);
+        const rows = data.map(m => [m.name, String(m.tracks ?? ''), String(m.tempo ?? ''), m.timeSignature || '', m.keySignature || '', String(m.noteCount ?? ''), String(m.channelsUsed ?? ''), m.duration ? (typeof formatTime === 'function' ? formatTime(m.duration) : m.duration + 's') : '', m.sizeFormatted, m.directory].map(v => String(v)));
         await window.vstUpdater.exportPdf('MIDI Files', headers, rows, filePath);
       } else if (fmt === 'csv' || fmt === 'tsv') {
         const sep = fmt === 'tsv' ? '\t' : ',';

@@ -459,6 +459,7 @@ window.vstUpdater = {
   exportToml: (data, filePath) => invoke('export_toml', { data, filePath }),
   importToml: (filePath) => invoke('import_toml', { filePath }),
   exportPdf: (title, headers, rows, filePath) => invoke('export_pdf', { title, headers, rows, filePath }),
+  writeTextFile: (filePath, contents) => invoke('write_text_file', { filePath, contents }),
   openWithApp: (filePath, appName) => invoke('open_with_app', { filePath, appName }),
   // File browser
   listDirectory: (dirPath) => invoke('fs_list_dir', { dirPath }),

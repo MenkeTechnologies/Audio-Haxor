@@ -31,7 +31,7 @@
 
       d.ghost = d.dragged.cloneNode(true);
       d.ghost.classList.add('trello-ghost');
-      d.ghost.style.cssText = `position:fixed;z-index:20000;width:${rect.width}px;height:${rect.height}px;left:${rect.left}px;top:${rect.top}px;pointer-events:none;opacity:0.9;transform:${d.direction === 'horizontal' ? 'scale(1.05)' : 'rotate(1deg)'};box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 20px rgba(5,217,232,0.3);border:2px solid var(--cyan);border-radius:4px;background:var(--bg-primary);transition:none;`;
+      d.ghost.style.cssText = `position:fixed;z-index:20000;width:${rect.width}px;height:${rect.height}px;left:${rect.left}px;top:${rect.top}px;pointer-events:none;opacity:0.9;transform:rotate(${d.direction === 'horizontal' ? '0.5' : '1'}deg) scale(1.02);box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 20px rgba(5,217,232,0.3);border:2px solid var(--cyan);border-radius:4px;background:var(--bg-primary);transition:none;`;
       document.body.appendChild(d.ghost);
       d.dragged.style.display = 'none';
     }
@@ -218,7 +218,7 @@ function initFloatingElement(elementId, prefsKey) {
         document.body.style.cursor = 'grabbing';
         ghost = el.cloneNode(true);
         ghost.classList.add('trello-ghost');
-        ghost.style.cssText = `position:fixed;z-index:20000;width:${rect.width}px;left:${rect.left}px;top:${rect.top}px;pointer-events:none;opacity:0.9;transform:scale(1.05);box-shadow:0 4px 16px rgba(0,0,0,0.5);border:2px solid var(--cyan);border-radius:4px;background:var(--bg-primary);padding:4px 8px;`;
+        ghost.style.cssText = `position:fixed;z-index:20000;width:${rect.width}px;left:${rect.left}px;top:${rect.top}px;pointer-events:none;opacity:0.9;transform:rotate(0.5deg) scale(1.02);box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 20px rgba(5,217,232,0.3);border:2px solid var(--cyan);border-radius:4px;background:var(--bg-primary);padding:4px 8px;`;
         document.body.appendChild(ghost);
         el.style.opacity = '0.3';
       }
@@ -318,7 +318,7 @@ function initRecentlyPlayedDragReorder() {
       c.th.parentNode.insertBefore(c.placeholder, c.th);
       c.ghost = c.th.cloneNode(true);
       c.ghost.classList.add('trello-ghost');
-      c.ghost.style.cssText = `position:fixed;z-index:20000;width:${rect.width}px;height:${rect.height}px;left:${rect.left}px;top:${rect.top}px;pointer-events:none;opacity:0.9;transform:scale(1.05);box-shadow:0 4px 16px rgba(0,0,0,0.5);border:2px solid var(--cyan);border-radius:2px;background:var(--bg-primary);`;
+      c.ghost.style.cssText = `position:fixed;z-index:20000;width:${rect.width}px;height:${rect.height}px;left:${rect.left}px;top:${rect.top}px;pointer-events:none;opacity:0.9;transform:rotate(0.5deg) scale(1.02);box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 20px rgba(5,217,232,0.3);border:2px solid var(--cyan);border-radius:2px;background:var(--bg-primary);`;
       document.body.appendChild(c.ghost);
       c.th.style.display = 'none';
     }

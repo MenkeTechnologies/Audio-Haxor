@@ -72,3 +72,14 @@ function _renderTile(bodyId, tileId, dirs, color, poolThreads, isScanning) {
 
   body.innerHTML = html;
 }
+
+// Make walker tiles draggable (Trello-style reorder)
+(function initWalkerDrag() {
+  const grid = document.getElementById('walkerGrid');
+  if (grid && typeof initDragReorder === 'function') {
+    initDragReorder(grid, '.walker-tile', 'walkerTileOrder', {
+      getKey: (el) => el.id || '',
+      handleSelector: '.walker-tile-header',
+    });
+  }
+})();
