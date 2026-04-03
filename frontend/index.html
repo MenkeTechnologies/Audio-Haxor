@@ -491,7 +491,9 @@
       color: var(--text-dim);
       font-family: 'Share Tech Mono', monospace;
       font-size: 12px;
+      transition: transform 0.15s, filter 0.15s;
     }
+    .settings-toggle:hover { transform: scale(1.05); filter: brightness(1.2); }
 
     .settings-toggle-label {
       text-transform: uppercase;
@@ -2422,7 +2424,8 @@
     .hm-stat-val { font-family: 'Orbitron', sans-serif; font-size: 20px; font-weight: 700; color: var(--cyan); }
     .hm-stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-top: 3px; }
     .hm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .hm-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; animation: neon-border-glow 3s ease-in-out infinite; }
+    .hm-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; animation: neon-border-glow 3s ease-in-out infinite; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    .hm-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4), 0 0 12px var(--cyan-glow); }
     .hm-card-wide { grid-column: 1 / -1; }
     .hm-card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--cyan); margin: 0 0 10px 0; font-weight: 600; }
     .hm-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: 11px; }
@@ -2503,6 +2506,7 @@
     }
     .palette-row:hover, .palette-selected {
       background: rgba(5,217,232,0.08);
+      box-shadow: inset 0 0 12px rgba(5,217,232,0.06);
     }
     .palette-icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
     .palette-name {
@@ -2873,8 +2877,10 @@
       background: var(--bg-card);
       border: 1px solid var(--border);
       margin-bottom: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
     }
-    .shortcut-row:hover { border-left: 3px solid var(--cyan); }
+    .shortcut-row:hover { border-left: 3px solid var(--cyan); transform: translateX(2px); box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 6px var(--cyan-glow); }
     .shortcut-name {
       font-size: 13px;
       color: var(--text);
@@ -3892,13 +3898,15 @@
     .viz-grid.viz-single { grid-template-columns: 1fr; }
     .viz-grid.viz-single .viz-tile { display: none; }
     .viz-grid.viz-single .viz-tile.viz-tile-active { display: flex; }
-    .viz-tile { display: flex; flex-direction: column; background: #05050a; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; position: relative; min-height: 0; animation: neon-border-glow 3s ease-in-out infinite; }
+    .viz-tile { display: flex; flex-direction: column; background: #05050a; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; position: relative; min-height: 0; animation: neon-border-glow 3s ease-in-out infinite; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: transform 0.15s, box-shadow 0.15s; }
+    .viz-tile:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.4), 0 0 10px var(--cyan-glow); }
     .viz-tile-label { font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 2px; color: var(--cyan); padding: 4px 8px; flex-shrink: 0; opacity: 0.6; cursor: grab; }
     .viz-tile-canvas { flex: 1; width: 100%; min-height: 0; }
 
     /* Walker status tab */
     .walker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; height: 100%; }
-    .walker-tile { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; animation: neon-border-glow 3s ease-in-out infinite; }
+    .walker-tile { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; animation: neon-border-glow 3s ease-in-out infinite; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: transform 0.15s, box-shadow 0.15s; }
+    .walker-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4), 0 0 12px var(--cyan-glow); }
     .walker-tile-header { font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 10px 14px; border-bottom: 1px solid var(--border); }
     .walker-tile-status { font-size: 10px; color: var(--text-dim); padding: 4px 14px; border-bottom: 1px solid rgba(26,26,62,0.3); }
     .walker-tile-body { flex: 1; overflow-y: auto; padding: 6px 10px; font-family: 'Share Tech Mono', monospace; font-size: 10px; line-height: 1.6; }
