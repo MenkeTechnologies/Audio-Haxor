@@ -120,6 +120,22 @@ function renderSmartPlaylists() {
       <span class="sp-count">${count}</span>
     </div>`;
   }).join('');
+
+  // Drag reorder smart playlists
+  if (typeof initDragReorder === 'function') {
+    initDragReorder(container, '.sp-item', 'smartPlaylistOrder', {
+      getKey: (el) => el.dataset.spId || '',
+      handleSelector: '.sp-icon',
+      onReorder: (keys) => {
+        const reordered = keys.map(k => _smartPlaylists.find(p => p.id === k)).filter(Boolean);
+        if (reordered.length === _smartPlaylists.length) {
+          _smartPlaylists.length = 0;
+          _smartPlaylists.push(...reordered);
+          saveSmartPlaylists();
+        }
+      },
+    });
+  }
 }
 
 function loadSmartPlaylistIntoPlayer(id) {
@@ -306,12 +322,25 @@ document.addEventListener('contextmenu', (e) => {
   const pl = _smartPlaylists.find(p => p.id === id);
   if (!pl) return;
 
+  const matchCount = typeof evaluateSmartPlaylist === 'function' ? evaluateSmartPlaylist(pl).length : 0;
   const items = [
-    { icon: '&#9654;', label: 'Load Playlist', action: () => loadSmartPlaylistIntoPlayer(id) },
+    { icon: '&#9654;', label: `Load Playlist (${matchCount} tracks)`, action: () => loadSmartPlaylistIntoPlayer(id) },
     { icon: '&#9998;', label: 'Edit Rules', action: () => showSmartPlaylistEditor(id) },
     { icon: '&#128221;', label: 'Rename', action: () => {
       const newName = prompt('Rename playlist:', pl.name);
       if (newName) renameSmartPlaylist(id, newName.trim());
+    }},
+    { icon: '&#128203;', label: 'Clone', action: () => {
+      const clone = JSON.parse(JSON.stringify(pl));
+      clone.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      clone.name = pl.name + ' (copy)';
+      _smartPlaylists.push(clone);
+      saveSmartPlaylists();
+      renderSmartPlaylists();
+      showToast(`Cloned "${pl.name}"`);
+    }},
+    { icon: '&#128203;', label: 'Copy Rules as JSON', action: () => {
+      if (typeof copyToClipboard === 'function') copyToClipboard(JSON.stringify(pl.rules, null, 2));
     }},
     '---',
     { icon: '&#128465;', label: 'Delete', action: () => {

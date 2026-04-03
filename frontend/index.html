@@ -367,7 +367,13 @@
       overflow: hidden;
       transition: opacity 0.2s;
       break-inside: avoid;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      animation: neon-border-glow 3.5s ease-in-out infinite;
     }
+    .settings-section:nth-child(2n) { animation-delay: 0.7s; }
+    .settings-section:nth-child(3n) { animation-delay: 1.4s; }
 
     .settings-heading {
       font-family: 'Orbitron', sans-serif;
@@ -3042,7 +3048,11 @@
       border-left: 3px solid var(--yellow);
       margin-bottom: 8px;
       padding: 10px 14px;
+      border-radius: 4px;
+      animation: neon-border-glow 3s ease-in-out infinite;
     }
+    .dup-group:nth-child(2n) { animation-delay: 0.5s; }
+    .dup-group:nth-child(3n) { animation-delay: 1.0s; }
     .dup-group-key {
       font-weight: 600;
       color: var(--text);

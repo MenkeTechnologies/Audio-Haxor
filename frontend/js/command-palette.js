@@ -61,9 +61,13 @@ function collectPaletteItems() {
   if (typeof exportLogPdf === 'function') {
     items.push({ type: 'action', name: 'Export App Log', icon: '&#128196;', action: () => exportLogPdf() });
   }
-  if (typeof settingClearAnalysisCache === 'function') {
-    items.push({ type: 'action', name: 'Clear Analysis Cache', icon: '&#128465;', action: () => settingClearAnalysisCache() });
-  }
+  items.push({ type: 'action', name: 'Clear All Caches', icon: '&#128465;', action: () => {
+    window.vstUpdater.dbClearCaches().then(() => {
+      if (typeof _bpmCache !== 'undefined') { _bpmCache = {}; _keyCache = {}; _lufsCache = {}; }
+      if (typeof _waveformCache !== 'undefined') { _waveformCache = {}; _spectrogramCache = {}; }
+      showToast('All caches cleared');
+    }).catch(e => showToast('Failed: ' + e, 4000, 'error'));
+  }});
   if (typeof settingToggleTheme === 'function') {
     items.push({ type: 'action', name: 'Toggle Dark/Light Theme', icon: '&#127912;', action: () => settingToggleTheme() });
   }

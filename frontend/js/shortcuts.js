@@ -10,7 +10,9 @@ const DEFAULT_SHORTCUTS = {
   'tab7': { key: '7', mod: true, label: 'Tags tab' },
   'tab8': { key: '8', mod: true, label: 'Files tab' },
   'tab9': { key: '9', mod: true, label: 'History tab' },
-  'tab10': { key: '0', mod: true, label: 'Settings tab' },
+  'tab10': { key: '0', mod: true, label: 'Visualizer tab' },
+  'tab11': { key: 'F3', mod: false, label: 'Walkers tab' },
+  'tab12': { key: 'F4', mod: false, label: 'Settings tab' },
   'search': { key: 'f', mod: true, label: 'Focus search' },
   'help': { key: '?', mod: false, label: 'Help overlay' },
   'playPause': { key: ' ', mod: false, label: 'Play / Pause' },
@@ -217,7 +219,7 @@ document.addEventListener('keydown', (e) => {
 function executeShortcut(id) {
   if (id.startsWith('tab') && id.length >= 4 && id.length <= 5) {
     const num = parseInt(id.slice(3));
-    const idx = (num === 10 ? 9 : num - 1);
+    const idx = num - 1;
     if (idx >= 0 && idx < TAB_MAP.length) switchTab(TAB_MAP[idx]);
   } else if (id === 'search') {
     const activeTab = document.querySelector('.tab-content.active');
