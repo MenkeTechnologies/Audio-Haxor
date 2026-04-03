@@ -2,7 +2,8 @@
 //! and scan metadata. Replaces JSON file persistence for data that can grow to
 //! millions of rows.
 
-use crate::history::{self, AudioHistory, AudioSample, AudioScanSnapshot};
+use crate::history::{self, AudioHistory, AudioSample,
+    DawHistory, KvrCacheEntry, PresetHistory, ScanHistory};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -108,7 +109,7 @@ pub struct ScanInfo {
 
 /// Current schema version — bump when adding migrations.
 #[allow(dead_code)]
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 impl Database {
     /// Open or create the database in the app data directory.
@@ -213,6 +214,114 @@ impl Database {
                 INSERT INTO schema_version (version) VALUES (1);",
             )
             .map_err(|e| format!("Migration v1 failed: {e}"))?;
+        }
+
+        if current < 2 {
+            conn.execute_batch(
+                "-- Plugin scan history
+                CREATE TABLE IF NOT EXISTS plugins (
+                    id              INTEGER PRIMARY KEY,
+                    name            TEXT NOT NULL,
+                    path            TEXT NOT NULL,
+                    plugin_type     TEXT NOT NULL,
+                    version         TEXT NOT NULL,
+                    manufacturer    TEXT NOT NULL,
+                    manufacturer_url TEXT,
+                    size            TEXT NOT NULL,
+                    size_bytes      INTEGER NOT NULL DEFAULT 0,
+                    modified        TEXT NOT NULL,
+                    architectures   TEXT NOT NULL DEFAULT '[]',
+                    scan_id         TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_plugins_path_scan ON plugins(path, scan_id);
+                CREATE INDEX IF NOT EXISTS idx_plugins_name ON plugins(name COLLATE NOCASE);
+                CREATE INDEX IF NOT EXISTS idx_plugins_scan_id ON plugins(scan_id);
+
+                CREATE TABLE IF NOT EXISTS plugin_scans (
+                    id              TEXT PRIMARY KEY,
+                    timestamp       TEXT NOT NULL,
+                    plugin_count    INTEGER NOT NULL,
+                    directories     TEXT NOT NULL,
+                    roots           TEXT NOT NULL
+                );
+
+                -- DAW project history
+                CREATE TABLE IF NOT EXISTS daw_projects (
+                    id              INTEGER PRIMARY KEY,
+                    name            TEXT NOT NULL,
+                    path            TEXT NOT NULL,
+                    directory       TEXT NOT NULL,
+                    format          TEXT NOT NULL,
+                    daw             TEXT NOT NULL,
+                    size            INTEGER NOT NULL,
+                    size_formatted  TEXT NOT NULL,
+                    modified        TEXT NOT NULL,
+                    scan_id         TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_daw_path_scan ON daw_projects(path, scan_id);
+                CREATE INDEX IF NOT EXISTS idx_daw_name ON daw_projects(name COLLATE NOCASE);
+                CREATE INDEX IF NOT EXISTS idx_daw_scan_id ON daw_projects(scan_id);
+
+                CREATE TABLE IF NOT EXISTS daw_scans (
+                    id              TEXT PRIMARY KEY,
+                    timestamp       TEXT NOT NULL,
+                    project_count   INTEGER NOT NULL,
+                    total_bytes     INTEGER NOT NULL,
+                    daw_counts      TEXT NOT NULL,
+                    roots           TEXT NOT NULL
+                );
+
+                -- Preset history
+                CREATE TABLE IF NOT EXISTS presets (
+                    id              INTEGER PRIMARY KEY,
+                    name            TEXT NOT NULL,
+                    path            TEXT NOT NULL,
+                    directory       TEXT NOT NULL,
+                    format          TEXT NOT NULL,
+                    size            INTEGER NOT NULL,
+                    size_formatted  TEXT NOT NULL,
+                    modified        TEXT NOT NULL,
+                    scan_id         TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_presets_path_scan ON presets(path, scan_id);
+                CREATE INDEX IF NOT EXISTS idx_presets_name ON presets(name COLLATE NOCASE);
+                CREATE INDEX IF NOT EXISTS idx_presets_scan_id ON presets(scan_id);
+
+                CREATE TABLE IF NOT EXISTS preset_scans (
+                    id              TEXT PRIMARY KEY,
+                    timestamp       TEXT NOT NULL,
+                    preset_count    INTEGER NOT NULL,
+                    total_bytes     INTEGER NOT NULL,
+                    format_counts   TEXT NOT NULL,
+                    roots           TEXT NOT NULL
+                );
+
+                -- KVR version cache
+                CREATE TABLE IF NOT EXISTS kvr_cache (
+                    plugin_key      TEXT PRIMARY KEY,
+                    kvr_url         TEXT,
+                    update_url      TEXT,
+                    latest_version  TEXT,
+                    has_update      INTEGER NOT NULL DEFAULT 0,
+                    source          TEXT NOT NULL DEFAULT '',
+                    timestamp       TEXT NOT NULL DEFAULT ''
+                );
+
+                -- Plugin cross-reference cache
+                CREATE TABLE IF NOT EXISTS xref_cache (
+                    project_path    TEXT PRIMARY KEY,
+                    plugins_json    TEXT NOT NULL
+                );
+
+                -- Fingerprint cache
+                CREATE TABLE IF NOT EXISTS fingerprint_cache (
+                    path            TEXT PRIMARY KEY,
+                    fingerprint     TEXT NOT NULL
+                );
+
+                INSERT INTO schema_version (version) VALUES (2);",
+            )
+            .map_err(|e| format!("Migration v2 failed: {e}"))?;
         }
 
         Ok(())
@@ -694,57 +803,56 @@ impl Database {
         Ok(())
     }
 
-    /// One-time migration from JSON history files to SQLite.
+    /// One-time migration of ALL JSON history/cache files to SQLite.
     pub fn migrate_from_json(&self) -> Result<usize, String> {
         let data_dir = history::get_data_dir();
-        let audio_history_path = data_dir.join("audio-scan-history.json");
-        if !audio_history_path.exists() {
-            return Ok(0);
-        }
+        let mut total = 0;
 
-        // Check if we already have data
+        // Check if already migrated (any scan table has data)
         {
             let conn = self.conn.lock().unwrap();
             let count: u64 = conn
-                .query_row("SELECT COUNT(*) FROM audio_scans", [], |row| row.get(0))
+                .query_row(
+                    "SELECT (SELECT COUNT(*) FROM audio_scans) +
+                            (SELECT COUNT(*) FROM plugin_scans) +
+                            (SELECT COUNT(*) FROM daw_scans) +
+                            (SELECT COUNT(*) FROM preset_scans)",
+                    [],
+                    |row| row.get(0),
+                )
                 .unwrap_or(0);
             if count > 0 {
-                return Ok(0); // Already migrated
+                return Ok(0);
             }
         }
 
-        // Read JSON history — format is {"scans": [...]}
-        let json_data =
-            std::fs::read_to_string(&audio_history_path).map_err(|e| e.to_string())?;
-        let history: AudioHistory =
-            serde_json::from_str(&json_data).map_err(|e| format!("JSON parse error: {e}"))?;
-        let snapshots = history.scans;
+        // ── Audio samples ──
+        total += self.migrate_audio_json(&data_dir)?;
 
-        let mut total_migrated = 0;
-        for snap in &snapshots {
-            self.save_scan(
-                &snap.id,
-                &snap.timestamp,
-                snap.sample_count as u64,
-                snap.total_bytes,
-                &snap.format_counts,
-                &snap.roots,
-            )?;
-            self.insert_audio_batch(&snap.id, &snap.samples)?;
-            total_migrated += snap.samples.len();
-        }
+        // ── Plugin scans ──
+        total += self.migrate_plugin_json(&data_dir)?;
 
-        // Migrate BPM/key/LUFS caches
-        self.migrate_analysis_cache(&data_dir, "bpm-cache.json", "bpm")?;
-        self.migrate_analysis_cache(&data_dir, "key-cache.json", "key")?;
-        self.migrate_analysis_cache(&data_dir, "lufs-cache.json", "lufs")?;
+        // ── DAW projects ──
+        total += self.migrate_daw_json(&data_dir)?;
 
-        // Rename old files as backup
+        // ── Presets ──
+        total += self.migrate_preset_json(&data_dir)?;
+
+        // ── KVR cache ──
+        total += self.migrate_kvr_json(&data_dir)?;
+
+        // ── Frontend caches (xref, waveform, spectrogram, fingerprint) ──
+        total += self.migrate_kv_cache(&data_dir, "xref-cache.json", "xref_cache", "project_path", "plugins_json")?;
+        total += self.migrate_kv_cache(&data_dir, "waveform-cache.json", "waveform_cache", "path", "data")?;
+        total += self.migrate_kv_cache(&data_dir, "spectrogram-cache.json", "spectrogram_cache", "path", "data")?;
+        total += self.migrate_kv_cache(&data_dir, "fingerprint-cache.json", "fingerprint_cache", "path", "fingerprint")?;
+
+        // Rename all migrated JSON files to .bak
         for name in &[
-            "audio-scan-history.json",
-            "bpm-cache.json",
-            "key-cache.json",
-            "lufs-cache.json",
+            "audio-scan-history.json", "bpm-cache.json", "key-cache.json", "lufs-cache.json",
+            "scan-history.json", "daw-scan-history.json", "preset-scan-history.json",
+            "kvr-cache.json", "xref-cache.json", "waveform-cache.json",
+            "spectrogram-cache.json", "fingerprint-cache.json",
         ] {
             let p = data_dir.join(name);
             if p.exists() {
@@ -752,7 +860,171 @@ impl Database {
             }
         }
 
-        Ok(total_migrated)
+        Ok(total)
+    }
+
+    fn migrate_audio_json(&self, data_dir: &std::path::Path) -> Result<usize, String> {
+        let path = data_dir.join("audio-scan-history.json");
+        if !path.exists() { return Ok(0); }
+        let data = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let history: AudioHistory = serde_json::from_str(&data).map_err(|e| format!("audio JSON: {e}"))?;
+        let mut count = 0;
+        for snap in &history.scans {
+            self.save_scan(&snap.id, &snap.timestamp, snap.sample_count as u64, snap.total_bytes, &snap.format_counts, &snap.roots)?;
+            self.insert_audio_batch(&snap.id, &snap.samples)?;
+            count += snap.samples.len();
+        }
+        self.migrate_analysis_cache(data_dir, "bpm-cache.json", "bpm")?;
+        self.migrate_analysis_cache(data_dir, "key-cache.json", "key")?;
+        self.migrate_analysis_cache(data_dir, "lufs-cache.json", "lufs")?;
+        Ok(count)
+    }
+
+    fn migrate_plugin_json(&self, data_dir: &std::path::Path) -> Result<usize, String> {
+        let path = data_dir.join("scan-history.json");
+        if !path.exists() { return Ok(0); }
+        let data = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let history: ScanHistory = serde_json::from_str(&data).map_err(|e| format!("plugin JSON: {e}"))?;
+        let conn = self.conn.lock().unwrap();
+        let mut count = 0;
+        for snap in &history.scans {
+            let dirs_json = serde_json::to_string(&snap.directories).unwrap_or_default();
+            let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+            conn.execute(
+                "INSERT OR REPLACE INTO plugin_scans (id, timestamp, plugin_count, directories, roots) VALUES (?1,?2,?3,?4,?5)",
+                params![snap.id, snap.timestamp, snap.plugin_count, dirs_json, roots_json],
+            ).map_err(|e| e.to_string())?;
+
+            let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+            {
+                let mut stmt = tx.prepare_cached(
+                    "INSERT OR REPLACE INTO plugins (name, path, plugin_type, version, manufacturer, manufacturer_url, size, size_bytes, modified, architectures, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)"
+                ).map_err(|e| e.to_string())?;
+                for p in &snap.plugins {
+                    let arch_json = serde_json::to_string(&p.architectures).unwrap_or_default();
+                    stmt.execute(params![
+                        p.name, p.path, p.plugin_type, p.version, p.manufacturer,
+                        p.manufacturer_url, p.size, p.size_bytes, p.modified, arch_json, snap.id
+                    ]).map_err(|e| e.to_string())?;
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+            count += snap.plugins.len();
+        }
+        Ok(count)
+    }
+
+    fn migrate_daw_json(&self, data_dir: &std::path::Path) -> Result<usize, String> {
+        let path = data_dir.join("daw-scan-history.json");
+        if !path.exists() { return Ok(0); }
+        let data = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let history: DawHistory = serde_json::from_str(&data).map_err(|e| format!("daw JSON: {e}"))?;
+        let conn = self.conn.lock().unwrap();
+        let mut count = 0;
+        for snap in &history.scans {
+            let daw_json = serde_json::to_string(&snap.daw_counts).unwrap_or_default();
+            let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+            conn.execute(
+                "INSERT OR REPLACE INTO daw_scans (id, timestamp, project_count, total_bytes, daw_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
+                params![snap.id, snap.timestamp, snap.project_count, snap.total_bytes, daw_json, roots_json],
+            ).map_err(|e| e.to_string())?;
+
+            let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+            {
+                let mut stmt = tx.prepare_cached(
+                    "INSERT OR REPLACE INTO daw_projects (name, path, directory, format, daw, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)"
+                ).map_err(|e| e.to_string())?;
+                for p in &snap.projects {
+                    stmt.execute(params![
+                        p.name, p.path, p.directory, p.format, p.daw, p.size, p.size_formatted, p.modified, snap.id
+                    ]).map_err(|e| e.to_string())?;
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+            count += snap.projects.len();
+        }
+        Ok(count)
+    }
+
+    fn migrate_preset_json(&self, data_dir: &std::path::Path) -> Result<usize, String> {
+        let path = data_dir.join("preset-scan-history.json");
+        if !path.exists() { return Ok(0); }
+        let data = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let history: PresetHistory = serde_json::from_str(&data).map_err(|e| format!("preset JSON: {e}"))?;
+        let conn = self.conn.lock().unwrap();
+        let mut count = 0;
+        for snap in &history.scans {
+            let fc_json = serde_json::to_string(&snap.format_counts).unwrap_or_default();
+            let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+            conn.execute(
+                "INSERT OR REPLACE INTO preset_scans (id, timestamp, preset_count, total_bytes, format_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
+                params![snap.id, snap.timestamp, snap.preset_count, snap.total_bytes, fc_json, roots_json],
+            ).map_err(|e| e.to_string())?;
+
+            let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+            {
+                let mut stmt = tx.prepare_cached(
+                    "INSERT OR REPLACE INTO presets (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)"
+                ).map_err(|e| e.to_string())?;
+                for p in &snap.presets {
+                    stmt.execute(params![
+                        p.name, p.path, p.directory, p.format, p.size, p.size_formatted, p.modified, snap.id
+                    ]).map_err(|e| e.to_string())?;
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+            count += snap.presets.len();
+        }
+        Ok(count)
+    }
+
+    fn migrate_kvr_json(&self, data_dir: &std::path::Path) -> Result<usize, String> {
+        let path = data_dir.join("kvr-cache.json");
+        if !path.exists() { return Ok(0); }
+        let data = std::fs::read_to_string(&path).unwrap_or_default();
+        let cache: HashMap<String, KvrCacheEntry> = serde_json::from_str(&data).unwrap_or_default();
+        if cache.is_empty() { return Ok(0); }
+        let conn = self.conn.lock().unwrap();
+        let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        let count = cache.len();
+        {
+            let mut stmt = tx.prepare_cached(
+                "INSERT OR REPLACE INTO kvr_cache (plugin_key, kvr_url, update_url, latest_version, has_update, source, timestamp) VALUES (?1,?2,?3,?4,?5,?6,?7)"
+            ).map_err(|e| e.to_string())?;
+            for (key, entry) in &cache {
+                stmt.execute(params![
+                    key, entry.kvr_url, entry.update_url, entry.latest_version,
+                    entry.has_update as i32, entry.source, entry.timestamp
+                ]).map_err(|e| e.to_string())?;
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(count)
+    }
+
+    /// Generic key→value JSON cache migration (xref, waveform, spectrogram, fingerprint).
+    fn migrate_kv_cache(
+        &self, data_dir: &std::path::Path, filename: &str,
+        table: &str, key_col: &str, val_col: &str,
+    ) -> Result<usize, String> {
+        let path = data_dir.join(filename);
+        if !path.exists() { return Ok(0); }
+        let data = std::fs::read_to_string(&path).unwrap_or_default();
+        let cache: HashMap<String, serde_json::Value> = serde_json::from_str(&data).unwrap_or_default();
+        if cache.is_empty() { return Ok(0); }
+        let conn = self.conn.lock().unwrap();
+        let sql = format!("INSERT OR REPLACE INTO {table} ({key_col}, {val_col}) VALUES (?1, ?2)");
+        let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        let count = cache.len();
+        {
+            let mut stmt = tx.prepare_cached(&sql).map_err(|e| e.to_string())?;
+            for (k, v) in &cache {
+                let val_str = if v.is_string() { v.as_str().unwrap_or("").to_string() } else { v.to_string() };
+                stmt.execute(params![k, val_str]).map_err(|e| e.to_string())?;
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(count)
     }
 
     fn migrate_analysis_cache(
