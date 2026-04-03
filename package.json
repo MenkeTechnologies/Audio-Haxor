@@ -8,7 +8,9 @@
     "tauri:build": "tauri build",
     "test": "node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js && cargo test --manifest-path src-tauri/Cargo.toml",
     "clean": "rm -rf src-tauri/target dist node_modules/.cache && echo 'Cleaned build caches'",
-    "rebuild": "pnpm run clean && pnpm run tauri:build"
+    "bust": "node -e \"const f=require('fs'),p='frontend/index.html';let h=f.readFileSync(p,'utf8');const v=Date.now()%100000;h=h.replace(/\\?v=\\d+/g,'?v='+v);f.writeFileSync(p,h);console.log('Cache busted to v'+v)\"",
+    "rebuild": "pnpm run bust && pnpm run clean && pnpm run tauri:build",
+    "nuke": "find ~/Library/WebKit/audio-haxor ~/Library/WebKit/com.menketechnologies.audio-haxor ~/Library/Caches/audio-haxor ~/Library/Caches/com.menketechnologies.audio-haxor -delete 2>/dev/null; pnpm run rebuild"
   },
   "keywords": [
     "vst",
