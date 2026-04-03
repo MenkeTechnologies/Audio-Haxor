@@ -263,12 +263,21 @@ impl Database {
     /// VACUUM if >20% of pages are free (dead space from deleted rows).
     pub fn vacuum_if_needed(&self) {
         let conn = self.conn.lock().unwrap();
+        let page_size: u64 = conn.query_row("PRAGMA page_size", [], |r| r.get(0)).unwrap_or(4096);
         let page_count: u64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0)).unwrap_or(0);
         let free_count: u64 = conn.query_row("PRAGMA freelist_count", [], |r| r.get(0)).unwrap_or(0);
-        if page_count > 0 && free_count * 100 / page_count > 20 {
-            drop(conn); // release lock before VACUUM (it needs exclusive access)
+        let pct = if page_count > 0 { free_count * 100 / page_count } else { 0 };
+        if pct > 20 {
+            let before = page_count * page_size;
+            crate::append_log(format!(
+                "DB VACUUM — {}% free ({} / {} pages) | before: {}",
+                pct, free_count, page_count, crate::format_size(before),
+            ));
+            drop(conn);
             let conn = self.conn.lock().unwrap();
             let _ = conn.execute_batch("VACUUM;");
+            let after: u64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0)).unwrap_or(0) * page_size;
+            crate::append_log(format!("DB VACUUM DONE — after: {}", crate::format_size(after)));
         }
     }
 
