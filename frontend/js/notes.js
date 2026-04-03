@@ -285,6 +285,13 @@ function refreshRowBadges(path) {
 }
 
 // ── Notes Tab ──
+let _notesSearch = '';
+
+registerFilter('filterNotes', {
+  inputId: 'noteSearchInput',
+  fetchFn() { _notesSearch = this.lastSearch || ''; renderNotesTab(); },
+});
+
 function renderNotesTab() {
   const list = document.getElementById('notesList');
   const empty = document.getElementById('notesEmptyState');
@@ -292,7 +299,7 @@ function renderNotesTab() {
 
   const notes = getNotes();
   const entries = Object.entries(notes);
-  const search = (document.getElementById('noteSearchInput')?.value || '').toLowerCase();
+  const search = _notesSearch || (document.getElementById('noteSearchInput')?.value || '').trim();
   const activeTag = list._activeTag || null;
 
   let filtered = entries.filter(([path, n]) => {
@@ -345,7 +352,7 @@ function renderNotesTab() {
     const date = n.updatedAt ? new Date(n.updatedAt).toLocaleString() : '';
     return `<div class="note-card">
       <div class="note-card-header">
-        <span class="note-card-name" title="${escapeHtml(path)}">${escapeHtml(name)}</span>
+        <span class="note-card-name" title="${escapeHtml(path)}">${_notesSearch ? highlightMatch(name, _notesSearch, 'fuzzy') : escapeHtml(name)}</span>
         <span class="note-card-date">${date}</span>
         <div class="note-card-actions">
           <button class="btn-small btn-secondary" data-action-note="edit" data-path="${escapeHtml(path)}" data-name="${escapeHtml(name)}" title="Edit note" style="padding:3px 8px;font-size:10px;">Edit</button>
@@ -450,6 +457,13 @@ function clearAllNotes() {
 }
 
 // ── Tags Manager Tab ──
+let _tagsSearch = '';
+
+registerFilter('filterTags', {
+  inputId: 'tagSearchInput',
+  fetchFn() { _tagsSearch = this.lastSearch || ''; renderTagsManager(); },
+});
+
 function renderTagsManager() {
   const container = document.getElementById('tagsManager');
   const empty = document.getElementById('tagsEmptyState');
@@ -457,7 +471,7 @@ function renderTagsManager() {
 
   const tagCounts = getTagCounts();
   const allTags = Object.keys(tagCounts).sort();
-  const search = (document.getElementById('tagSearchInput')?.value || '').toLowerCase();
+  const search = _tagsSearch || (document.getElementById('tagSearchInput')?.value || '').trim();
   let filtered;
   if (search) {
     const scored = allTags.map(t => ({ t, score: searchScore(search, [t], 'fuzzy') })).filter(s => s.score > 0);
@@ -487,7 +501,7 @@ function renderTagsManager() {
     const items = getItemsWithTag(tag);
     return `<div class="tag-manager-card">
       <div class="tag-manager-header">
-        <span class="tag-manager-name">${escapeHtml(tag)}</span>
+        <span class="tag-manager-name">${_tagsSearch ? highlightMatch(tag, _tagsSearch, 'fuzzy') : escapeHtml(tag)}</span>
         <span class="tag-manager-count">${count} item${count !== 1 ? 's' : ''}</span>
         <button class="btn-small btn-secondary" data-tag-action="rename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Rename this tag">Rename</button>
         <button class="btn-small btn-secondary" data-tag-action="filter" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Filter all tabs by this tag">Filter All Tabs</button>

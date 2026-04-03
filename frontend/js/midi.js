@@ -56,23 +56,32 @@ function updateMidiHeaderCount() {
   if (el) el.textContent = allMidiFiles.length;
 }
 
-function filterMidi() {
-  const input = document.getElementById('midiSearchInput');
-  const q = input ? input.value.trim() : '';
-  if (!q) {
-    filteredMidi = allMidiFiles.slice();
-  } else if (typeof fzfFilter === 'function') {
-    filteredMidi = fzfFilter(allMidiFiles, q, ['name', 'directory'], 'fuzzy');
-  } else {
-    const ql = q.toLowerCase();
-    filteredMidi = allMidiFiles.filter(s => s.name.toLowerCase().includes(ql) || s.directory.toLowerCase().includes(ql));
-  }
-  sortMidiArray();
-  _midiTableInit = false;
-  _midiRenderCount = 0;
-  renderMidiTable();
-  updateMidiCount();
-}
+let _midiSearch = '';
+
+registerFilter('filterMidi', {
+  inputId: 'midiSearchInput',
+  regexToggleId: 'regexMidi',
+  resetOffset() { _midiRenderCount = 0; },
+  fetchFn() {
+    const q = this.lastSearch || '';
+    const mode = this.lastMode || 'fuzzy';
+    _midiSearch = q;
+    if (!q) {
+      filteredMidi = allMidiFiles.slice();
+    } else {
+      const scored = allMidiFiles
+        .map(s => ({ s, score: searchScore(q, [s.name, s.directory || ''], mode) }))
+        .filter(x => x.score > 0);
+      scored.sort((a, b) => b.score - a.score);
+      filteredMidi = scored.map(x => x.s);
+    }
+    sortMidiArray();
+    _midiTableInit = false;
+    renderMidiTable();
+    updateMidiCount();
+  },
+});
+function filterMidi() { applyFilter('filterMidi'); }
 
 function sortMidi(key) {
   if (midiSortKey === key) { midiSortAsc = !midiSortAsc; } else { midiSortKey = key; midiSortAsc = true; }
@@ -188,7 +197,7 @@ function buildMidiRow(s) {
   const checked = typeof batchSelected !== 'undefined' && batchSelected.has(s.path) ? ' checked' : '';
   return `<tr data-midi-path="${hp}" title="${trackNames ? 'Tracks: ' + (typeof escapeHtml === 'function' ? escapeHtml(trackNames) : trackNames) : ''}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
-    <td class="col-name" title="${hn}">${hn}${typeof rowBadges === 'function' ? rowBadges(s.path) : ''}</td>
+    <td class="col-name" title="${hn}">${_midiSearch && typeof highlightMatch === 'function' ? highlightMatch(s.name, _midiSearch, 'fuzzy') : hn}${typeof rowBadges === 'function' ? rowBadges(s.path) : ''}</td>
     <td style="text-align:center;">${info ? info.trackCount : ''}</td>
     <td style="text-align:center;color:var(--cyan);">${info ? info.tempo : ''}</td>
     <td style="text-align:center;">${info ? info.timeSignature : ''}</td>
@@ -243,10 +252,7 @@ function restoreMidiSortState() {
 }
 restoreMidiSortState();
 
-// Event handlers
-document.addEventListener('input', (e) => {
-  if (e.target.id === 'midiSearchInput') filterMidi();
-});
+// Event handlers — input handled by delegated handler in ipc.js via data-action="filterMidi"
 document.addEventListener('click', (e) => {
   const sortBtn = e.target.closest('[data-action="sortMidi"]');
   if (sortBtn && sortBtn.dataset.key) {

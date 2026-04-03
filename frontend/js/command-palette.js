@@ -221,10 +221,12 @@ function openPalette() {
   input.focus();
   renderPaletteResults();
 
+  let _palTimer;
   input.addEventListener('input', () => {
     _paletteQuery = input.value;
     _paletteSelected = 0;
-    renderPaletteResults();
+    clearTimeout(_palTimer);
+    _palTimer = setTimeout(renderPaletteResults, 150);
   });
 }
 

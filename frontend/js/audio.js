@@ -813,18 +813,18 @@ function initAudioTable() {
 let _lastAudioSearch = '';
 let _lastAudioMode = 'fuzzy';
 
-function filterAudioSamples() {
-  if (typeof saveAllFilterStates === 'function') saveAllFilterStates();
-  const search = document.getElementById('audioSearchInput')?.value || '';
-  const formatEl = document.getElementById('audioFormatFilter');
-  if (formatEl) autoSelectDropdown(formatEl, search);
-  const fmtSet = getMultiFilterValues('audioFormatFilter');
-  const mode = getSearchMode('regexAudio');
-  _lastAudioSearch = search;
-  _lastAudioMode = mode;
-  audioCurrentOffset = 0;
-  fetchAudioPage();
-}
+registerFilter('filterAudioSamples', {
+  inputId: 'audioSearchInput',
+  regexToggleId: 'regexAudio',
+  formatDropdownId: 'audioFormatFilter',
+  resetOffset() { audioCurrentOffset = 0; },
+  fetchFn() {
+    _lastAudioSearch = this.lastSearch || '';
+    _lastAudioMode = this.lastMode || 'fuzzy';
+    fetchAudioPage();
+  },
+});
+function filterAudioSamples() { applyFilter('filterAudioSamples'); }
 
 async function fetchAudioPage() {
   const search = _lastAudioSearch || '';
@@ -842,6 +842,12 @@ async function fetchAudioPage() {
     filteredAudioSamples = result.samples || [];
     audioTotalCount = result.totalCount || 0;
     audioTotalUnfiltered = result.totalUnfiltered || 0;
+    // Re-sort by fzf relevance score
+    if (search && filteredAudioSamples.length > 1) {
+      const scored = filteredAudioSamples.map(s => ({ s, score: searchScore(search, [s.name], _lastAudioMode) }));
+      scored.sort((a, b) => b.score - a.score);
+      filteredAudioSamples = scored.map(x => x.s);
+    }
     renderAudioTable();
     // Update stats from DB
     rebuildAudioStats();
@@ -964,7 +970,7 @@ async function previewAudio(filePath) {
 
   // Non-playable formats — skip silently
   const ext = filePath.split('.').pop().toLowerCase();
-  const UNPLAYABLE = ['sf2', 'sfz', 'rex', 'rx2', 'wma'];
+  const UNPLAYABLE = ['sf2', 'sfz', 'rex', 'rx2', 'wma', 'ape', 'opus', 'mid', 'midi'];
   if (UNPLAYABLE.includes(ext)) {
     showToast(`${ext.toUpperCase()} format is not playable in browser`, 3000);
     return;
@@ -1005,7 +1011,7 @@ async function previewAudio(filePath) {
     updateMetaLine();
     drawWaveform(filePath);
   } catch (err) {
-    showToast(`Playback failed — ${err.message || err || 'Unknown error'}`, 4000, 'error');
+    showToast(`Playback failed (${ext.toUpperCase()}) — ${err.message || err || 'Unknown error'}`, 4000, 'error');
   }
 }
 
@@ -1588,14 +1594,17 @@ function renderRecentlyPlayed() {
   if (typeof initRecentlyPlayedDragReorder === 'function') requestAnimationFrame(initRecentlyPlayedDragReorder);
 }
 
-// Search input in player — renders to mini search results or expanded history list
-document.getElementById('npSearchInput')?.addEventListener('input', () => {
-  const np = document.getElementById('audioNowPlaying');
-  if (np && np.classList.contains('expanded')) {
-    renderRecentlyPlayed();
-  } else {
-    renderMiniSearchResults();
-  }
+// Search input in player — uses unified filter system
+registerFilter('filterNowPlaying', {
+  inputId: 'npSearchInput',
+  fetchFn() {
+    const np = document.getElementById('audioNowPlaying');
+    if (np && np.classList.contains('expanded')) {
+      renderRecentlyPlayed();
+    } else {
+      renderMiniSearchResults();
+    }
+  },
 });
 
 function renderMiniSearchResults() {
@@ -2245,6 +2254,23 @@ function updateMetaLine() {
     np.style.right = 'auto';
     np.style.bottom = 'auto';
     np.classList.add('dragging');
+
+    // Position dock zones with pixel values — CSS % doesn't resolve in release WebView
+    const vw = window.innerWidth, vh = window.innerHeight, gap = 4;
+    const zw = Math.floor(vw / 2 - gap * 1.5) + 'px';
+    const zh = Math.floor(vh / 2 - gap * 1.5) + 'px';
+    const mid = Math.ceil(vw / 2 + gap / 2) + 'px';
+    const midY = Math.ceil(vh / 2 + gap / 2) + 'px';
+    const g = gap + 'px';
+    const tl = document.getElementById('dockTL');
+    const tr = document.getElementById('dockTR');
+    const bl = document.getElementById('dockBL');
+    const br = document.getElementById('dockBR');
+    tl.style.cssText = `top:${g};left:${g};width:${zw};height:${zh}`;
+    tr.style.cssText = `top:${g};left:${mid};width:${zw};height:${zh}`;
+    bl.style.cssText = `top:${midY};left:${g};width:${zw};height:${zh}`;
+    br.style.cssText = `top:${midY};left:${mid};width:${zw};height:${zh}`;
+
     overlay.classList.add('visible');
   }
 
@@ -2286,15 +2312,8 @@ function updateMetaLine() {
 // Use the same drag/resize system as all modals
 (function initPlayerResize() {
   const np = document.getElementById('audioNowPlaying');
-  // Set default width if no saved geometry
-  const savedGeo = prefs.getItem('modal_audioNowPlaying');
-  if (!savedGeo) {
-    np.style.width = '360px';
-    np.style.right = '24px';
-    np.style.bottom = '24px';
-  } else {
-    np.classList.remove('dock-tl', 'dock-tr', 'dock-bl', 'dock-br');
-  }
+  // Set default size — dock position is handled by CSS classes, not saved geometry
+  if (!np.style.width) np.style.width = '360px';
   if (typeof initModalDragResize === 'function') {
     initModalDragResize(np);
   }

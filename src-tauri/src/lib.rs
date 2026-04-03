@@ -1877,10 +1877,17 @@ fn get_uptime_secs() -> u64 {
 fn get_process_info() -> (u64, u64, f32) {
     use sysinfo::{Pid, System};
     use std::sync::{Mutex, OnceLock};
+    use std::sync::atomic::{AtomicBool, Ordering};
     static SYS: OnceLock<Mutex<System>> = OnceLock::new();
+    static PRIMED: AtomicBool = AtomicBool::new(false);
     let sys_mutex = SYS.get_or_init(|| Mutex::new(System::new()));
     let mut sys = sys_mutex.lock().unwrap();
     let pid = Pid::from_u32(std::process::id());
+    // First call: prime with an initial refresh so cpu_usage() has a baseline
+    if !PRIMED.swap(true, Ordering::Relaxed) {
+        sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
     sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
     if let Some(proc_info) = sys.process(pid) {
         (proc_info.memory(), proc_info.virtual_memory(), proc_info.cpu_usage())
@@ -1915,7 +1922,82 @@ fn get_thread_count() -> u32 {
 }
 
 fn get_cpu_percent() -> f64 {
-    get_process_info().2 as f64
+    use std::sync::{Mutex, OnceLock};
+    use std::time::Instant;
+
+    struct CpuSample {
+        wall: Instant,
+        user_us: i64,
+        sys_us: i64,
+    }
+
+    static PREV: OnceLock<Mutex<Option<CpuSample>>> = OnceLock::new();
+    let prev_lock = PREV.get_or_init(|| Mutex::new(None));
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
+        let ret = unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut usage) };
+        if ret != 0 { return get_process_info().2 as f64; }
+
+        let now = Instant::now();
+        let user_us = usage.ru_utime.tv_sec as i64 * 1_000_000 + usage.ru_utime.tv_usec as i64;
+        let sys_us = usage.ru_stime.tv_sec as i64 * 1_000_000 + usage.ru_stime.tv_usec as i64;
+
+        let mut prev = prev_lock.lock().unwrap();
+        let pct = if let Some(ref p) = *prev {
+            let wall_us = now.duration_since(p.wall).as_micros() as f64;
+            if wall_us > 0.0 {
+                let cpu_us = ((user_us - p.user_us) + (sys_us - p.sys_us)) as f64;
+                (cpu_us / wall_us) * 100.0
+            } else { 0.0 }
+        } else { 0.0 };
+        *prev = Some(CpuSample { wall: now, user_us, sys_us });
+        pct
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::mem::MaybeUninit;
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GetCurrentProcess() -> isize;
+            fn GetProcessTimes(h: isize, creation: *mut [u32; 2], exit: *mut [u32; 2], kernel: *mut [u32; 2], user: *mut [u32; 2]) -> i32;
+        }
+        let mut creation = MaybeUninit::<[u32; 2]>::uninit();
+        let mut exit = MaybeUninit::<[u32; 2]>::uninit();
+        let mut kernel = MaybeUninit::<[u32; 2]>::uninit();
+        let mut user = MaybeUninit::<[u32; 2]>::uninit();
+        let ok = unsafe {
+            GetProcessTimes(
+                GetCurrentProcess(),
+                creation.as_mut_ptr(), exit.as_mut_ptr(),
+                kernel.as_mut_ptr(), user.as_mut_ptr(),
+            )
+        };
+        if ok == 0 { return get_process_info().2 as f64; }
+        let ft_to_us = |ft: [u32; 2]| -> i64 {
+            let ticks = (ft[1] as i64) << 32 | ft[0] as i64; // 100ns ticks
+            ticks / 10 // to microseconds
+        };
+        let now = Instant::now();
+        let user_us = ft_to_us(unsafe { user.assume_init() });
+        let sys_us = ft_to_us(unsafe { kernel.assume_init() });
+
+        let mut prev = prev_lock.lock().unwrap();
+        let pct = if let Some(ref p) = *prev {
+            let wall_us = now.duration_since(p.wall).as_micros() as f64;
+            if wall_us > 0.0 {
+                let cpu_us = ((user_us - p.user_us) + (sys_us - p.sys_us)) as f64;
+                (cpu_us / wall_us) * 100.0
+            } else { 0.0 }
+        } else { 0.0 };
+        *prev = Some(CpuSample { wall: now, user_us, sys_us });
+        pct
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        get_process_info().2 as f64
+    }
 }
 
 fn get_open_fd_count() -> u32 {

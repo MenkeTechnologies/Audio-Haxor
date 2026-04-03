@@ -323,14 +323,8 @@ document.addEventListener('dblclick', (e) => {
 });
 document.addEventListener('input', (e) => {
   const action = e.target.dataset.action;
-  if (action === 'filterPlugins') filterPlugins();
-  else if (action === 'filterAudioSamples') filterAudioSamples();
-  else if (action === 'filterDawProjects') filterDawProjects();
-  else if (action === 'filterPresets') filterPresets();
-  else if (action === 'filterFavorites') renderFavorites();
-  else if (action === 'filterNotes') renderNotesTab();
-  else if (action === 'filterTags') renderTagsManager();
-  else if (action === 'setVolume') setAudioVolume(e.target.value);
+  if (_filterRegistry[action]) { applyFilterDebounced(action); return; }
+  if (action === 'setVolume') setAudioVolume(e.target.value);
   else if (action === 'setEqLow') setEqBand('low', e.target.value);
   else if (action === 'setEqMid') setEqBand('mid', e.target.value);
   else if (action === 'setEqHigh') setEqBand('high', e.target.value);
@@ -349,11 +343,8 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const action = e.target.dataset.action;
-  if (action === 'filterPlugins') filterPlugins();
-  else if (action === 'filterAudioSamples') filterAudioSamples();
-  else if (action === 'filterDawProjects') filterDawProjects();
-  else if (action === 'filterPresets') filterPresets();
-  else if (action === 'setPlaybackSpeed') setPlaybackSpeed(e.target.value);
+  if (_filterRegistry[action]) { applyFilter(action); return; }
+  if (action === 'setPlaybackSpeed') setPlaybackSpeed(e.target.value);
   else if (action === 'settingDefaultTypeFilter') settingSaveSelect('defaultTypeFilter', e.target.value);
   else if (action === 'settingPluginSort') settingSaveSelect('pluginSort', e.target.value);
   else if (action === 'settingAudioSort') settingSaveSelect('audioSort', e.target.value);

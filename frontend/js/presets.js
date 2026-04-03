@@ -22,13 +22,19 @@ async function fetchPresetPage() {
       offset: _presetOffset,
       limit: PRESET_PAGE_SIZE,
     });
+    let presets = result.presets || [];
+    // Re-sort by fzf relevance score
+    if (search && presets.length > 1) {
+      const scored = presets.map(p => ({ p, score: searchScore(search, [p.name], _lastPresetMode) }));
+      scored.sort((a, b) => b.score - a.score);
+      presets = scored.map(x => x.p);
+    }
     if (_presetOffset === 0) {
-      filteredPresets = result.presets || [];
+      filteredPresets = presets;
       allPresets = filteredPresets;
     } else {
-      const batch = result.presets || [];
-      filteredPresets.push(...batch);
-      allPresets.push(...batch);
+      filteredPresets.push(...presets);
+      allPresets.push(...presets);
     }
     _presetTotalCount = result.totalCount || 0;
     renderPresetTable();
@@ -109,15 +115,18 @@ function sortPreset(key) {
 let _lastPresetSearch = '';
 let _lastPresetMode = 'fuzzy';
 
-function filterPresets() {
-  if (typeof saveAllFilterStates === 'function') saveAllFilterStates();
-  _lastPresetSearch = document.getElementById('presetSearchInput')?.value || '';
-  _lastPresetMode = typeof getSearchMode === 'function' ? getSearchMode('regexPresets') : 'fuzzy';
-  _presetOffset = 0;
-  fetchPresetPage();
-  // Also reload MIDI tab from preset data
-  if (typeof loadMidiFiles === 'function') { _midiLoaded = false; loadMidiFiles(); }
-}
+registerFilter('filterPresets', {
+  inputId: 'presetSearchInput',
+  regexToggleId: 'regexPresets',
+  resetOffset() { _presetOffset = 0; },
+  fetchFn() {
+    _lastPresetSearch = this.lastSearch || '';
+    _lastPresetMode = this.lastMode || 'fuzzy';
+    fetchPresetPage();
+    if (typeof loadMidiFiles === 'function') { _midiLoaded = false; loadMidiFiles(); }
+  },
+});
+function filterPresets() { applyFilter('filterPresets'); }
 
 function _legacyFilterPresets() {
   // Kept for scan streaming — not used for user-initiated filter

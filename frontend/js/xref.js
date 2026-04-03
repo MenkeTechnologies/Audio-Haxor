@@ -13,18 +13,10 @@ function _searchTreeNodes(container, query) {
     });
     return;
   }
-  // Use fzf scoring if available, fall back to includes
-  const useFzf = typeof fzfMatch === 'function';
   nodes.forEach(node => {
     const textEls = node.querySelectorAll('.xml-tag, .xml-attrs, .xml-text, .json-key, .json-string, .json-number');
     const directText = textEls.length > 0 ? [...textEls].map(e => e.textContent).join(' ') : node.firstChild?.textContent || '';
-    let match = false;
-    if (useFzf) {
-      const m = fzfMatch(query, directText);
-      match = m && m.score > 0;
-    } else {
-      match = directText.toLowerCase().includes(query.toLowerCase());
-    }
+    const match = searchScore(query, [directText], 'fuzzy') > 0;
     node.style.display = match ? '' : 'none';
     // Highlight matching text
     if (match && textEls.length > 0) {
@@ -418,8 +410,10 @@ async function showXmlProjectViewer(filePath, projectName) {
       treeContainer.querySelectorAll('.xml-collapsed-summary').forEach(s => { s.style.display = 'none'; });
     });
     // Search
+    let _projSearchTimer;
     document.getElementById('projSearchInput')?.addEventListener('input', (e) => {
-      _searchTreeNodes(treeContainer, e.target.value.trim());
+      clearTimeout(_projSearchTimer);
+      _projSearchTimer = setTimeout(() => _searchTreeNodes(treeContainer, e.target.value.trim()), 200);
     });
     // Export
     document.getElementById('projExportBtn')?.addEventListener('click', async () => {
@@ -575,8 +569,10 @@ async function showAlsViewer(filePath, projectName) {
 
     // Search — filter tree nodes
     const rawLines = xml.split('\n');
+    let _alsSearchTimer;
     document.getElementById('alsSearchInput')?.addEventListener('input', (e) => {
-      _searchTreeNodes(treeContainer, e.target.value.trim());
+      clearTimeout(_alsSearchTimer);
+      _alsSearchTimer = setTimeout(() => _searchTreeNodes(treeContainer, e.target.value.trim()), 200);
     });
 
     // Export
@@ -773,8 +769,10 @@ async function showBwViewer(filePath, projectName) {
     });
 
     // Search
+    let _bwSearchTimer;
     document.getElementById('bwSearchInput')?.addEventListener('input', (e) => {
-      _searchTreeNodes(treeContainer, e.target.value.trim());
+      clearTimeout(_bwSearchTimer);
+      _bwSearchTimer = setTimeout(() => _searchTreeNodes(treeContainer, e.target.value.trim()), 200);
     });
 
     // Export JSON

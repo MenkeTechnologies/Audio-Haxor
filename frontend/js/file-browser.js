@@ -500,9 +500,10 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Filter
-document.addEventListener('input', (e) => {
-  if (e.target.dataset.action === 'filterFiles') renderFileList();
+// Filter — uses unified filter system
+registerFilter('filterFiles', {
+  inputId: 'fileSearchInput',
+  fetchFn() { renderFileList(); },
 });
 
 // Right-click context menu

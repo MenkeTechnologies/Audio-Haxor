@@ -86,11 +86,14 @@
       modal.appendChild(handle);
     }
 
-    // Restore saved geometry
-    restoreGeometry(modal);
+    // Audio player has its own dock drag system — skip modal drag & geometry restore
+    const isPlayer = modal.id === 'audioNowPlaying';
 
-    // Drag via modal header
-    const header = modal.querySelector('.modal-header');
+    // Restore saved geometry (skip for audio player — dock position managed separately)
+    if (!isPlayer) restoreGeometry(modal);
+
+    // Drag via modal header (skip for audio player — has custom dock drag)
+    const header = !isPlayer ? modal.querySelector('.modal-header') : null;
     if (header) {
       header.style.cursor = 'move';
       header.addEventListener('mousedown', (e) => {

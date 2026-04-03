@@ -23,13 +23,19 @@ async function fetchDawPage() {
       offset: _dawOffset,
       limit: typeof DAW_PAGE_SIZE !== 'undefined' ? DAW_PAGE_SIZE : 200,
     });
+    let projects = result.projects || [];
+    // Re-sort by fzf relevance score
+    if (search && projects.length > 1) {
+      const scored = projects.map(p => ({ p, score: searchScore(search, [p.name], _lastDawMode) }));
+      scored.sort((a, b) => b.score - a.score);
+      projects = scored.map(x => x.p);
+    }
     if (_dawOffset === 0) {
-      filteredDawProjects = result.projects || [];
+      filteredDawProjects = projects;
       allDawProjects = filteredDawProjects;
     } else {
-      const batch = result.projects || [];
-      filteredDawProjects.push(...batch);
-      allDawProjects.push(...batch);
+      filteredDawProjects.push(...projects);
+      allDawProjects.push(...projects);
     }
     _dawTotalCount = result.totalCount || 0;
     renderDawTable();
@@ -125,19 +131,18 @@ function buildDawRow(p) {
 let _lastDawSearch = '';
 let _lastDawMode = 'fuzzy';
 
-function filterDawProjects() {
-  if (typeof saveAllFilterStates === 'function') saveAllFilterStates();
-  const search = document.getElementById('dawSearchInput').value || '';
-  const dawEl = document.getElementById('dawDawFilter');
-  autoSelectDropdown(dawEl, search);
-  const dawSet = getMultiFilterValues('dawDawFilter');
-  const mode = getSearchMode('regexDaw');
-  _lastDawSearch = search;
-  _lastDawMode = mode;
-
-  _dawOffset = 0;
-  fetchDawPage();
-}
+registerFilter('filterDawProjects', {
+  inputId: 'dawSearchInput',
+  regexToggleId: 'regexDaw',
+  formatDropdownId: 'dawDawFilter',
+  resetOffset() { _dawOffset = 0; },
+  fetchFn() {
+    _lastDawSearch = this.lastSearch || '';
+    _lastDawMode = this.lastMode || 'fuzzy';
+    fetchDawPage();
+  },
+});
+function filterDawProjects() { applyFilter('filterDawProjects'); }
 
 function sortDaw(key) {
   if (dawSortKey === key) {

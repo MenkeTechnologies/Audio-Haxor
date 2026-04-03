@@ -39,7 +39,9 @@
     ],
     "category": "Music",
     "macOS": {
-      "minimumSystemVersion": "10.15"
+      "minimumSystemVersion": "10.15",
+      "entitlements": "Entitlements.plist",
+      "signingIdentity": "-"
     }
   },
   "plugins": {

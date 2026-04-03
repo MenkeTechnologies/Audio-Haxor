@@ -291,8 +291,11 @@ function showDepGraph() {
   if (orphPanel) orphPanel._fullHtml = orphPanel.innerHTML;
   if (analyticsPanel) analyticsPanel._fullHtml = analyticsPanel.innerHTML;
 
-  // Search filtering with match highlighting
+  // Search filtering with match highlighting (debounced)
+  let _depTimer;
   document.getElementById('depSearchInput')?.addEventListener('input', (e) => {
+    clearTimeout(_depTimer);
+    _depTimer = setTimeout(() => {
     const q = e.target.value.trim();
     const ql = q.toLowerCase();
     [usagePanel, projPanel, orphPanel, analyticsPanel].forEach(panel => {
@@ -316,6 +319,7 @@ function showDepGraph() {
       });
       panel.innerHTML = tmp.innerHTML;
     });
+    }, 200);
   });
 }
 

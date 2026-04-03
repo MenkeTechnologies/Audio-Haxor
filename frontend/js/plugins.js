@@ -46,8 +46,15 @@ async function fetchPluginPage() {
       offset: _pluginOffset,
       limit: AUDIO_PAGE_SIZE,
     });
-    const plugins = result.plugins || [];
+    let plugins = result.plugins || [];
     _pluginTotalCount = result.totalCount || 0;
+
+    // Re-sort by fzf relevance score on the frontend (SQL can only do subsequence LIKE)
+    if (search && plugins.length > 1) {
+      const scored = plugins.map(p => ({ p, score: searchScore(search, [p.name, p.manufacturer || ''], _lastPluginMode) }));
+      scored.sort((a, b) => b.score - a.score);
+      plugins = scored.map(s => s.p);
+    }
 
     // Keep allPlugins in sync for KVR/export compat
     if (_pluginOffset === 0) {
@@ -386,48 +393,21 @@ function loadMorePlugins() {
   fetchPluginPage();
 }
 
-// Debounce helper — fires immediately on first call, then debounces
-function debounce(fn, ms) {
-  let timer;
-  let lastCall = 0;
-  return function(...args) {
-    clearTimeout(timer);
-    const now = performance.now();
-    if (now - lastCall >= ms) {
-      lastCall = now;
-      fn.apply(this, args);
-    } else {
-      timer = setTimeout(() => {
-        lastCall = performance.now();
-        fn.apply(this, args);
-      }, ms);
-    }
-  };
-}
-
-// Cache lowercased names to avoid repeated allocations during filtering
-function ensureSearchCache(plugins) {
-  for (const p of plugins) {
-    if (p._nameLower === undefined) {
-      p._nameLower = p.name.toLowerCase();
-      p._mfgLower = (p.manufacturer || '').toLowerCase();
-    }
-  }
-}
 
 let _lastPluginSearch = '';
 let _lastPluginMode = 'fuzzy';
 
-const _filterPluginsImmediate = function() {
-  if (typeof saveAllFilterStates === 'function') saveAllFilterStates();
-  const search = document.getElementById('searchInput').value;
-  _lastPluginSearch = search;
-  _lastPluginMode = getSearchMode('regexPlugins');
-  _pluginOffset = 0;
-  fetchPluginPage();
-};
-
-const filterPlugins = debounce(_filterPluginsImmediate, 120);
+registerFilter('filterPlugins', {
+  inputId: 'searchInput',
+  regexToggleId: 'regexPlugins',
+  resetOffset() { _pluginOffset = 0; },
+  fetchFn() {
+    _lastPluginSearch = this.lastSearch || '';
+    _lastPluginMode = this.lastMode || 'fuzzy';
+    fetchPluginPage();
+  },
+});
+function filterPlugins() { applyFilter('filterPlugins'); }
 
 function openUpdate(url) {
   window.vstUpdater.openUpdateUrl(url);

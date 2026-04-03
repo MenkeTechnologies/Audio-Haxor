@@ -105,20 +105,13 @@ function renderShortcutSettings(filter) {
   let entries;
   if (!q) {
     entries = Object.entries(shortcuts).map(([id, sc]) => [id, sc, 0]);
-  } else if (typeof fzfMatch === 'function') {
+  } else {
     entries = [];
     for (const [id, sc] of Object.entries(shortcuts)) {
-      const labelMatch = fzfMatch(q, sc.label);
-      const keyMatch = fzfMatch(q, formatKey(sc));
-      const best = Math.max(labelMatch ? labelMatch.score : 0, keyMatch ? keyMatch.score : 0);
-      if (best > 0) entries.push([id, sc, best]);
+      const score = searchScore(q, [sc.label, formatKey(sc)], 'fuzzy');
+      if (score > 0) entries.push([id, sc, score]);
     }
     entries.sort((a, b) => b[2] - a[2]);
-  } else {
-    const ql = q.toLowerCase();
-    entries = Object.entries(shortcuts)
-      .filter(([id, sc]) => sc.label.toLowerCase().includes(ql) || formatKey(sc).toLowerCase().includes(ql))
-      .map(([id, sc]) => [id, sc, 0]);
   }
   const hl = typeof highlightMatch === 'function' && q
     ? (text) => highlightMatch(text, q, 'fuzzy')
@@ -137,11 +130,10 @@ function renderShortcutSettings(filter) {
   }
 }
 
-// Filter input for keybindings
-document.addEventListener('input', (e) => {
-  if (e.target.id === 'shortcutsFilter') {
-    renderShortcutSettings(e.target.value);
-  }
+// Filter input — uses unified filter system
+registerFilter('filterShortcuts', {
+  inputId: 'shortcutsFilter',
+  fetchFn() { renderShortcutSettings(this.lastSearch || ''); },
 });
 
 // Recording state

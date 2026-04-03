@@ -3643,11 +3643,11 @@
 
     /* Dragging state */
     .audio-now-playing.dragging {
-      opacity: 0.85;
+      opacity: 0.9;
       cursor: grabbing;
       transition: none;
-      transform: scale(1.03);
-      box-shadow: 0 0 30px var(--cyan-glow), 0 8px 40px rgba(0,0,0,0.6);
+      transform: rotate(2deg) scale(1.05);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(5,217,232,0.3);
       border: 2px solid var(--cyan);
     }
 
@@ -3655,17 +3655,18 @@
     .dock-zone-overlay {
       display: none;
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
       z-index: 9998;
       pointer-events: none;
     }
     .dock-zone-overlay.visible { display: block; }
     .dock-zone {
-      position: fixed;
+      position: absolute;
       border: 2px dashed var(--border);
       border-radius: 8px;
       opacity: 0;
-      transition: all 0.2s;
+      transition: opacity 0.2s, border-color 0.2s, background 0.2s, color 0.2s, box-shadow 0.2s;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -3676,12 +3677,16 @@
       text-transform: uppercase;
       color: var(--text-dim);
     }
-    .dock-zone.active {
+    .dock-zone-overlay.visible .dock-zone {
+      opacity: 0.5;
+      border: 2px dashed var(--cyan);
+      background: rgba(5,217,232,0.08);
+    }
+    .dock-zone-overlay.visible .dock-zone.active {
       opacity: 1;
-      border-color: var(--cyan);
-      background: rgba(5,217,232,0.06);
+      border: 2px dashed var(--cyan);
+      background: rgba(5,217,232,0.08);
       color: var(--cyan);
-      box-shadow: inset 0 0 30px rgba(5,217,232,0.05), 0 0 12px var(--cyan-dim);
     }
 
     /* Drag handle */
@@ -4654,10 +4659,10 @@
   </div>
   <div class="ctx-menu" id="ctxMenu"></div>
   <div class="dock-zone-overlay" id="dockOverlay">
-    <div class="dock-zone" id="dockTL" style="top:4px;left:4px;width:calc(50% - 6px);height:calc(50% - 6px);">&#8598; TOP LEFT</div>
-    <div class="dock-zone" id="dockTR" style="top:4px;right:4px;width:calc(50% - 6px);height:calc(50% - 6px);">TOP RIGHT &#8599;</div>
-    <div class="dock-zone" id="dockBL" style="bottom:4px;left:4px;width:calc(50% - 6px);height:calc(50% - 6px);">&#8601; BOTTOM LEFT</div>
-    <div class="dock-zone" id="dockBR" style="bottom:4px;right:4px;width:calc(50% - 6px);height:calc(50% - 6px);">BOTTOM RIGHT &#8600;</div>
+    <div class="dock-zone" id="dockTL">&#8598; TOP LEFT</div>
+    <div class="dock-zone" id="dockTR">TOP RIGHT &#8599;</div>
+    <div class="dock-zone" id="dockBL">&#8601; BOTTOM LEFT</div>
+    <div class="dock-zone" id="dockBR">BOTTOM RIGHT &#8600;</div>
   </div>
   <div class="audio-now-playing dock-br" id="audioNowPlaying">
     <div class="np-drag-handle" id="npDragHandle"><span class="np-drag-dots"></span></div>
@@ -4724,7 +4729,7 @@
         </div>
       </div>
       <div class="np-section" data-np-section="search">
-        <input type="text" class="np-search-input" id="npSearchInput" placeholder="Search songs..." title="Search recently played and sample library" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <input type="text" class="np-search-input" id="npSearchInput" data-action="filterNowPlaying" placeholder="Search songs..." title="Search recently played and sample library" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         <div class="np-search-results" id="npSearchResults"></div>
       </div>
       <div class="np-section" data-np-section="hint">
@@ -5842,7 +5847,7 @@
           <h2 class="settings-heading">&#9776; Keyboard Shortcuts</h2>
           <div class="search-box" style="max-width:400px;margin-bottom:8px;">
             <span class="search-icon">&#128269;</span>
-            <input type="text" id="shortcutsFilter" placeholder="Filter shortcuts..." title="Fuzzy filter keyboard shortcuts by name or key" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="shortcutsFilter" placeholder="Fuzzy search shortcuts..." data-action="filterShortcuts" title="Fuzzy filter keyboard shortcuts by name or key" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
           </div>
           <div id="shortcutsList"></div>
           <div class="settings-row">
@@ -6038,39 +6043,39 @@
     </div>
   </div>
 
-  <script src="js/ipc.js?v=500"></script>
-  <script src="js/utils.js?v=500"></script>
-  <script src="js/drag-reorder.js?v=500"></script>
-  <script src="js/modal-drag.js?v=500"></script>
-  <script src="js/columns.js?v=500"></script>
-  <script src="js/notes.js?v=500"></script>
-  <script src="js/favorites.js?v=500"></script>
-  <script src="js/export.js?v=500"></script>
-  <script src="js/plugins.js?v=500"></script>
-  <script src="js/settings.js?v=500"></script>
-  <script src="js/history.js?v=500"></script>
-  <script src="js/kvr.js?v=500"></script>
-  <script src="js/audio.js?v=500"></script>
-  <script src="js/daw.js?v=500"></script>
-  <script src="js/presets.js?v=500"></script>
-  <script src="js/disk-usage.js?v=500"></script>
-  <script src="js/batch-select.js?v=500"></script>
-  <script src="js/sort-persist.js?v=500"></script>
-  <script src="js/multi-filter.js?v=500"></script>
-  <script src="js/file-browser.js?v=500"></script>
-  <script src="js/duplicates.js?v=500"></script>
-  <script src="js/command-palette.js?v=500"></script>
-  <script src="js/xref.js?v=500"></script>
-  <script src="js/dep-graph.js?v=500"></script>
-  <script src="js/smart-playlists.js?v=500"></script>
-  <script src="js/heatmap-dashboard.js?v=500"></script>
-  <script src="js/midi.js?v=500"></script>
-  <script src="js/visualizer.js?v=500"></script>
-  <script src="js/walker-status.js?v=500"></script>
-  <script src="js/context-menu.js?v=500"></script>
-  <script src="js/help-overlay.js?v=500"></script>
-  <script src="js/shortcuts.js?v=500"></script>
-  <script src="js/keyboard-nav.js?v=500"></script>
-  <script src="js/app.js?v=500"></script>
+  <script src="js/ipc.js?v=44577"></script>
+  <script src="js/utils.js?v=44577"></script>
+  <script src="js/drag-reorder.js?v=44577"></script>
+  <script src="js/modal-drag.js?v=44577"></script>
+  <script src="js/columns.js?v=44577"></script>
+  <script src="js/notes.js?v=44577"></script>
+  <script src="js/favorites.js?v=44577"></script>
+  <script src="js/export.js?v=44577"></script>
+  <script src="js/plugins.js?v=44577"></script>
+  <script src="js/settings.js?v=44577"></script>
+  <script src="js/history.js?v=44577"></script>
+  <script src="js/kvr.js?v=44577"></script>
+  <script src="js/audio.js?v=44577"></script>
+  <script src="js/daw.js?v=44577"></script>
+  <script src="js/presets.js?v=44577"></script>
+  <script src="js/disk-usage.js?v=44577"></script>
+  <script src="js/batch-select.js?v=44577"></script>
+  <script src="js/sort-persist.js?v=44577"></script>
+  <script src="js/multi-filter.js?v=44577"></script>
+  <script src="js/file-browser.js?v=44577"></script>
+  <script src="js/duplicates.js?v=44577"></script>
+  <script src="js/command-palette.js?v=44577"></script>
+  <script src="js/xref.js?v=44577"></script>
+  <script src="js/dep-graph.js?v=44577"></script>
+  <script src="js/smart-playlists.js?v=44577"></script>
+  <script src="js/heatmap-dashboard.js?v=44577"></script>
+  <script src="js/midi.js?v=44577"></script>
+  <script src="js/visualizer.js?v=44577"></script>
+  <script src="js/walker-status.js?v=44577"></script>
+  <script src="js/context-menu.js?v=44577"></script>
+  <script src="js/help-overlay.js?v=44577"></script>
+  <script src="js/shortcuts.js?v=44577"></script>
+  <script src="js/keyboard-nav.js?v=44577"></script>
+  <script src="js/app.js?v=44577"></script>
 </body>
 </html>

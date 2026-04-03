@@ -362,10 +362,41 @@ function autoSelectDropdown(selectEl, search) {
   }
 }
 
-// Get search mode for a tab's regex toggle
+// ── Unified Filter System ──
+// Single filter implementation for all tabs. Register once, use everywhere.
+const _filterRegistry = {};
+let _filterDebounceTimers = {};
+
+function registerFilter(action, config) {
+  // config: { inputId, regexToggleId, formatDropdownId, resetOffset, fetchFn, clientFilter }
+  _filterRegistry[action] = config;
+}
+
 function getSearchMode(toggleId) {
   const btn = document.getElementById(toggleId);
   return btn && btn.classList.contains('active') ? 'regex' : 'fuzzy';
+}
+
+function applyFilter(action) {
+  const cfg = _filterRegistry[action];
+  if (!cfg) return;
+  if (typeof saveAllFilterStates === 'function') saveAllFilterStates();
+  const input = document.getElementById(cfg.inputId);
+  const search = input ? input.value.trim() : '';
+  const mode = cfg.regexToggleId ? getSearchMode(cfg.regexToggleId) : 'fuzzy';
+  if (cfg.formatDropdownId) {
+    const el = document.getElementById(cfg.formatDropdownId);
+    if (el && typeof autoSelectDropdown === 'function') autoSelectDropdown(el, search);
+  }
+  cfg.lastSearch = search;
+  cfg.lastMode = mode;
+  if (cfg.resetOffset) cfg.resetOffset();
+  if (cfg.fetchFn) cfg.fetchFn();
+}
+
+function applyFilterDebounced(action) {
+  clearTimeout(_filterDebounceTimers[action]);
+  _filterDebounceTimers[action] = setTimeout(() => applyFilter(action), 200);
 }
 
 function toggleRegex(btn) {
@@ -375,12 +406,8 @@ function toggleRegex(btn) {
   if (input) {
     const base = input.placeholder.replace(/^(Fuzzy|Regex) /, '');
     input.placeholder = (isRegex ? 'Regex ' : 'Fuzzy ') + base;
-    // Re-trigger the filter
     const action = btn.dataset.target;
-    if (action === 'filterPlugins') filterPlugins();
-    else if (action === 'filterAudioSamples') filterAudioSamples();
-    else if (action === 'filterDawProjects') filterDawProjects();
-    else if (action === 'filterPresets') filterPresets();
+    applyFilter(action);
   }
 }
 

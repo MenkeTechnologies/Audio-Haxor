@@ -622,9 +622,8 @@ impl Database {
         });
 
         if search_pattern.is_some() {
-            conditions.push(format!(
-                "(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"
-            ));
+            // Only match against name (short) — path LIKE is too slow at millions of rows
+            conditions.push(format!("name LIKE ?{bind_idx} ESCAPE '\\'"));
             bind_idx += 1;
         }
 
