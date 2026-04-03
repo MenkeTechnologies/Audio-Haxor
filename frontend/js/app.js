@@ -55,10 +55,12 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   initSortPersistence();
   initSettingsSectionDrag();
   loadRecentlyPlayed();
-  if (typeof loadBpmKeyCache === 'function') await loadBpmKeyCache();
-  if (typeof loadWaveformCache === 'function') await loadWaveformCache();
+  // BPM/Key/LUFS and waveform/spectrogram caches are now in SQLite —
+  // skip eager bulk load (was causing startup hang on large DBs).
+  // Data is fetched per-file on demand or via paginated queries.
   renderGlobalTagBar();
-  if (typeof loadXrefCache === 'function') await loadXrefCache();
+  // Xref cache is in SQLite — load lazily when xref tab is used
+  if (typeof loadXrefCache === 'function') loadXrefCache().catch(() => {});
   if (typeof restoreFilterStates === 'function') restoreFilterStates();
   if (typeof loadFzfParams === 'function') loadFzfParams();
   if (typeof initSmartPlaylists === 'function') initSmartPlaylists();
