@@ -5,7 +5,7 @@ const batchSelected = new Set();
 
 function getRowPath(tr) {
   if (!tr) return null;
-  return tr.dataset.audioPath || tr.dataset.dawPath || tr.dataset.presetPath || null;
+  return tr.dataset.audioPath || tr.dataset.dawPath || tr.dataset.presetPath || tr.dataset.midiPath || null;
 }
 
 function toggleBatchSelect(path, checked) {
@@ -59,9 +59,10 @@ function updateBatchBar() {
 function batchFavoriteAll() {
   const activeTab = document.querySelector('.tab-content.active');
   if (!activeTab) return;
-  let type = 'sample', items = allAudioSamples;
-  if (activeTab.id === 'tabDaw') { type = 'daw'; items = allDawProjects; }
-  else if (activeTab.id === 'tabPresets') { type = 'preset'; items = allPresets; }
+  let type = 'sample', items = typeof allAudioSamples !== 'undefined' ? allAudioSamples : [];
+  if (activeTab.id === 'tabDaw') { type = 'daw'; items = typeof allDawProjects !== 'undefined' ? allDawProjects : []; }
+  else if (activeTab.id === 'tabPresets') { type = 'preset'; items = typeof allPresets !== 'undefined' ? allPresets : []; }
+  else if (activeTab.id === 'tabMidi') { type = 'midi'; items = typeof allMidiFiles !== 'undefined' ? allMidiFiles : []; }
 
   let added = 0;
   for (const path of batchSelected) {
