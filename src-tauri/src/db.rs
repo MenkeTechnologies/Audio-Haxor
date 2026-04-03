@@ -152,9 +152,13 @@ impl Database {
              PRAGMA synchronous=NORMAL;
              PRAGMA cache_size=-65536;
              PRAGMA foreign_keys=ON;
-             PRAGMA temp_store=MEMORY;",
+             PRAGMA temp_store=MEMORY;
+             PRAGMA wal_autocheckpoint=1000;",
         )
         .map_err(|e| format!("Failed to set pragmas: {e}"))?;
+
+        // Checkpoint WAL to keep it small (prevents startup lag from huge WAL)
+        let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
 
         let db = Self {
             conn: Mutex::new(conn),

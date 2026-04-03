@@ -1127,10 +1127,10 @@ function refreshSettingsUI() {
   if (maxRecEl) { maxRecEl.value = maxRec; maxRecValEl.textContent = maxRec; }
 
   // File watcher
-  const fwOn = prefs.getItem('fileWatcher') === 'on';
-  const fwBtn = document.getElementById('settingFileWatcher');
-  const fwLabel = document.getElementById('settingFileWatcherLabel');
-  if (fwBtn) { fwBtn.classList.toggle('active', fwOn); fwLabel.textContent = fwOn ? 'On' : 'Off'; }
+  const fwOn2 = prefs.getItem('fileWatcher') === 'on';
+  const fwBtn2 = document.getElementById('settingFileWatcher');
+  const fwLabel2 = document.getElementById('settingFileWatcherLabel');
+  if (fwBtn2) { fwBtn2.classList.toggle('active', fwOn2); if (fwLabel2) fwLabel2.textContent = fwOn2 ? 'On' : 'Off'; }
 
   // System perf info — get real stats from Rust backend
   const perfInfo = document.getElementById('settingPerfInfo');
