@@ -54,8 +54,8 @@ function toggleHelpOverlay() {
             <div class="help-row"><kbd>&#8984;G</kbd> <span>Dependency graph</span></div>
             <div class="help-row"><kbd>&#8984;T</kbd> <span>Toggle theme</span></div>
             <div class="help-row"><kbd>&#8984;,</kbd> <span>Open preferences file</span></div>
-            <div class="help-row"><kbd>&#8984;Tab</kbd> <span>Next tab</span></div>
-            <div class="help-row"><kbd>&#8984;&#8679;Tab</kbd> <span>Previous tab</span></div>
+            <div class="help-row"><kbd>Tab</kbd> <span>Next tab</span></div>
+            <div class="help-row"><kbd>Shift+Tab</kbd> <span>Previous tab</span></div>
             <div class="help-row"><kbd>R</kbd> <span>Reveal in Finder</span></div>
             <div class="help-row"><kbd>C</kbd> <span>Copy path</span></div>
             <div class="help-row"><kbd>F</kbd> <span>Toggle favorite</span></div>

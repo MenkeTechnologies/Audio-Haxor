@@ -40,8 +40,8 @@ const DEFAULT_SHORTCUTS = {
   'resetAllScans': { key: 'Backspace', mod: true, label: 'Reset all scans' },
   'toggleTheme': { key: 't', mod: true, label: 'Toggle light/dark theme' },
   'openPrefs': { key: ',', mod: true, label: 'Settings' },
-  'nextTab': { key: 'Tab', mod: true, label: 'Next tab' },
-  'prevTab': { key: 'Tab', mod: false, label: 'Previous tab (Shift held)' },
+  'nextTab': { key: 'Tab', mod: false, label: 'Next tab (Tab)' },
+  'prevTab': { key: 'Tab', mod: false, label: 'Previous tab (Shift+Tab)' },
   'findSimilar': { key: 'w', mod: false, label: 'Find similar samples' },
   'togglePlayerExpand': { key: 'e', mod: false, label: 'Expand / collapse player' },
   'toggleEq': { key: 'q', mod: false, label: 'Toggle EQ panel' },
@@ -192,8 +192,9 @@ document.addEventListener('keydown', (e) => {
   const mod = isMac ? e.metaKey : e.ctrlKey;
   const shortcuts = getShortcuts();
 
-  // Special: Cmd+Tab / Cmd+Shift+Tab for tab cycling
-  if (mod && e.key === 'Tab') {
+  // Tab bar: Tab = next, Shift+Tab = previous. (Plain Tab used to hit prevTab in the loop because
+  // prevTab was { Tab, mod:false } while nextTab required mod:true — so Tab alone went backward.)
+  if (e.key === 'Tab') {
     e.preventDefault();
     _cycleTab(e.shiftKey ? -1 : 1);
     return;
