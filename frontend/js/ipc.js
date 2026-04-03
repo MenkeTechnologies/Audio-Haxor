@@ -394,16 +394,14 @@ window.vstUpdater = {
   scanPlugins: (customRoots, excludePaths) => invoke('scan_plugins', { customRoots: customRoots || null, excludePaths: excludePaths || null }),
   stopScan: () => invoke('stop_scan'),
   onScanProgress: (callback) => {
-    let unlisten = null;
-    listen('scan-progress', (event) => callback(event.payload)).then(fn => unlisten = fn);
-    return () => { if (unlisten) unlisten(); };
+    const p = listen('scan-progress', (event) => callback(event.payload));
+    return () => { p.then(fn => fn()); };
   },
   checkUpdates: (plugins) => invoke('check_updates', { plugins }),
   stopUpdates: () => invoke('stop_updates'),
   onUpdateProgress: (callback) => {
-    let unlisten = null;
-    listen('update-progress', (event) => callback(event.payload)).then(fn => unlisten = fn);
-    return () => { if (unlisten) unlisten(); };
+    const p = listen('update-progress', (event) => callback(event.payload));
+    return () => { p.then(fn => fn()); };
   },
   resolveKvr: (directUrl, pluginName) => invoke('resolve_kvr', { directUrl, pluginName }),
   openUpdateUrl: (url) => invoke('open_update_url', { url }),
@@ -419,9 +417,8 @@ window.vstUpdater = {
   scanAudioSamples: (customRoots, excludePaths) => invoke('scan_audio_samples', { customRoots: customRoots || null, excludePaths: excludePaths || null }),
   stopAudioScan: () => invoke('stop_audio_scan'),
   onAudioScanProgress: (callback) => {
-    let unlisten = null;
-    listen('audio-scan-progress', (event) => callback(event.payload)).then(fn => unlisten = fn);
-    return () => { if (unlisten) unlisten(); };
+    const p = listen('audio-scan-progress', (event) => callback(event.payload));
+    return () => { p.then(fn => fn()); };
   },
   openAudioFolder: (path) => invoke('open_audio_folder', { filePath: path }),
   getAudioMetadata: (filePath) => invoke('get_audio_metadata', { filePath }),
@@ -439,9 +436,8 @@ window.vstUpdater = {
   scanPresets: (customRoots, excludePaths) => invoke('scan_presets', { customRoots: customRoots || null, excludePaths: excludePaths || null }),
   stopPresetScan: () => invoke('stop_preset_scan'),
   onPresetScanProgress: (callback) => {
-    let unlisten = null;
-    listen('preset-scan-progress', (event) => callback(event.payload)).then(fn => unlisten = fn);
-    return () => { if (unlisten) unlisten(); };
+    const p = listen('preset-scan-progress', (event) => callback(event.payload));
+    return () => { p.then(fn => fn()); };
   },
   openPresetFolder: (path) => invoke('open_preset_folder', { filePath: path }),
   savePresetScan: (presets, roots) => invoke('preset_history_save', { presets, roots: roots || null }),
@@ -457,9 +453,8 @@ window.vstUpdater = {
   importDawJson: (filePath) => invoke('import_daw_json', { filePath }),
   stopDawScan: () => invoke('stop_daw_scan'),
   onDawScanProgress: (callback) => {
-    let unlisten = null;
-    listen('daw-scan-progress', (event) => callback(event.payload)).then(fn => unlisten = fn);
-    return () => { if (unlisten) unlisten(); };
+    const p = listen('daw-scan-progress', (event) => callback(event.payload));
+    return () => { p.then(fn => fn()); };
   },
   openDawFolder: (path) => invoke('open_daw_folder', { filePath: path }),
   openDawProject: (path) => invoke('open_daw_project', { filePath: path }),

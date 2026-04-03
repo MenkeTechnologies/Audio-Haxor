@@ -1119,6 +1119,7 @@ function updatePlayBtnStates() {
 function updateNowPlayingBtn() {
   const btn = document.getElementById('npBtnPlay');
   const np = document.getElementById('audioNowPlaying');
+  if (!btn || !np) return;
   if (audioPlayer.paused) {
     btn.innerHTML = '&#9654;';
     btn.classList.remove('playing');
@@ -1130,6 +1131,14 @@ function updateNowPlayingBtn() {
   }
 }
 
+// Cache DOM elements used every animation frame
+let _npTimeEl, _npProgressEl, _npCursorEl;
+function _cachePlaybackEls() {
+  _npTimeEl = document.getElementById('npTime');
+  _npProgressEl = document.getElementById('npProgress');
+  _npCursorEl = document.getElementById('npCursor');
+}
+
 function updatePlaybackTime() {
   const cur = audioPlayer.currentTime;
   const dur = audioPlayer.duration;
@@ -1137,15 +1146,14 @@ function updatePlaybackTime() {
   if (_abLoop && dur > 0 && cur >= _abLoop.end) {
     audioPlayer.currentTime = _abLoop.start;
   }
-  document.getElementById('npTime').textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+  if (!_npTimeEl) _cachePlaybackEls();
+  if (_npTimeEl) _npTimeEl.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
   if (dur > 0) {
     const pct = (cur / dur) * 100;
-    document.getElementById('npProgress').style.width = pct + '%';
-    // Playback cursor — floating player
-    const npCursor = document.getElementById('npCursor');
-    if (npCursor) {
-      npCursor.style.display = '';
-      npCursor.style.left = pct + '%';
+    if (_npProgressEl) _npProgressEl.style.width = pct + '%';
+    if (_npCursorEl) {
+      _npCursorEl.style.display = '';
+      _npCursorEl.style.left = pct + '%';
     }
     // Playback cursor — metadata panel
     const metaWaveform = document.getElementById('metaWaveformBox');
