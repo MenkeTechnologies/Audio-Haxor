@@ -1867,7 +1867,8 @@
     }
 
     .tab-content { display: none; flex: 1 1 0; overflow-y: auto; overflow-x: hidden; flex-direction: column; min-height: 200px; contain: layout style; }
-    .tab-content.active { /* no animation — prevents reflow lag on heavy tabs */ }
+    .tab-content.active { animation: tabFadeIn 0.15s ease-out; }
+    @keyframes tabFadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes tabSlideIn {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
