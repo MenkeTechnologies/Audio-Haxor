@@ -7,7 +7,8 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "test": "node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js && cargo test --manifest-path src-tauri/Cargo.toml",
-    "clean": "rm -rf src-tauri/target dist node_modules/.cache && echo 'Cleaned build caches'"
+    "clean": "rm -rf src-tauri/target dist node_modules/.cache && echo 'Cleaned build caches'",
+    "rebuild": "pnpm run clean && pnpm run tauri:build"
   },
   "keywords": [
     "vst",
