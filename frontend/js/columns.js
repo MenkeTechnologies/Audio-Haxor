@@ -61,7 +61,7 @@ function initColumnResize(table) {
 }
 
 // Column layout version — bump when columns change to discard stale saved widths
-const COL_LAYOUT_VERSION = 2;
+const COL_LAYOUT_VERSION = 3;
 
 function saveColumnWidths(tableId) {
   const table = document.getElementById(tableId);

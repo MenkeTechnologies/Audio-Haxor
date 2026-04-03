@@ -1327,11 +1327,26 @@ async function estimateBpmForMeta(filePath) {
   const bpmEl = document.getElementById('metaBpmValue');
   if (!bpmEl) return;
 
+  // Check in-memory cache
   if (_bpmCache[filePath] !== undefined) {
     bpmEl.textContent = _bpmCache[filePath] ? _bpmCache[filePath] + ' BPM' : '—';
     return;
   }
 
+  // Check SQLite (analysis data stored on audio_samples row)
+  try {
+    const analysis = await window.vstUpdater.dbGetAnalysis(filePath);
+    if (analysis && analysis.bpm) {
+      _bpmCache[filePath] = analysis.bpm;
+      bpmEl.textContent = analysis.bpm + ' BPM';
+      // Also fill key and LUFS from same query
+      if (analysis.key) { _keyCache[filePath] = analysis.key; const keyEl = document.getElementById('metaKeyValue'); if (keyEl) keyEl.textContent = analysis.key; }
+      if (analysis.lufs != null) { _lufsCache[filePath] = analysis.lufs; const lufsEl = document.getElementById('metaLufsValue'); if (lufsEl) lufsEl.textContent = analysis.lufs + ' LUFS'; }
+      return;
+    }
+  } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
+
+  // Not in DB either — compute it
   try {
     const bpm = await window.vstUpdater.estimateBpm(filePath);
     _bpmCache[filePath] = bpm;

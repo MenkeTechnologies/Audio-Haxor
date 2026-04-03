@@ -378,7 +378,7 @@ function initRecentlyPlayedDragReorder() {
     const getColKey = (th) => th.dataset.key || th.className.split(' ').find(c => c.startsWith('col-')) || th.textContent.trim().split(/\s/)[0];
 
     // Restore saved column order (versioned to discard stale layouts)
-    const COL_ORDER_VERSION = 2;
+    const COL_ORDER_VERSION = 3;
     const savedRaw = typeof prefs !== 'undefined' ? prefs.getObject(prefsKey, null) : null;
     // Support versioned format {v, order} and discard old flat arrays
     const saved = (savedRaw && typeof savedRaw === 'object' && !Array.isArray(savedRaw) && savedRaw.v === COL_ORDER_VERSION) ? savedRaw.order : null;
