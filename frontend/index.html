@@ -9,6 +9,16 @@
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
+    body {
+      background: var(--bg-primary);
+      background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(5,217,232,0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(211,0,197,0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(255,42,109,0.02) 0%, transparent 50%);
+    }
+
+    ::selection { background: rgba(5,217,232,0.3); color: #fff; }
+
     :root {
       --bg-primary: #05050a;
       --bg-secondary: #0a0a14;
@@ -195,6 +205,37 @@
       background: linear-gradient(180deg, #0d0d1f 0%, var(--bg-secondary) 100%);
       position: relative;
       -webkit-app-region: drag;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 1px 0 rgba(5,217,232,0.08);
+    }
+
+    /* Frosted glass effect for overlays */
+    .modal-content, .ctx-menu, .palette-box {
+      backdrop-filter: blur(12px) saturate(1.4);
+      -webkit-backdrop-filter: blur(12px) saturate(1.4);
+      background: rgba(10, 10, 20, 0.92) !important;
+    }
+
+    /* Neon bloom on focused inputs */
+    input:focus, select:focus, textarea:focus {
+      box-shadow: 0 0 12px var(--cyan-glow), 0 0 4px var(--cyan-glow), inset 0 0 4px rgba(5,217,232,0.05) !important;
+    }
+
+    /* Richer neon scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(5,5,10,0.5); }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, var(--cyan) 0%, var(--magenta) 100%);
+      border-radius: 4px;
+      box-shadow: 0 0 6px var(--cyan-glow);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, var(--accent) 0%, var(--cyan) 100%);
+      box-shadow: 0 0 12px var(--cyan-glow);
+    }
+
+    /* Deeper tab active indicator */
+    .tab-btn.active {
+      box-shadow: 0 2px 0 var(--cyan), 0 4px 12px var(--cyan-glow) !important;
     }
 
     .header::after {
@@ -328,6 +369,7 @@
       box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(255,42,109,0.2);
       transform: translateY(-1px);
     }
+    .btn-primary:active { transform: translateY(1px) scale(0.98); box-shadow: 0 0 6px var(--accent-glow); }
     .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
 
     .btn-secondary {
@@ -339,7 +381,9 @@
     .btn-secondary:hover {
       background: rgba(5, 217, 232, 0.08);
       box-shadow: 0 0 15px var(--cyan-glow);
+      transform: translateY(-1px);
     }
+    .btn-secondary:active { transform: translateY(1px) scale(0.98); }
 
     .btn-stop {
       background: transparent;
@@ -350,7 +394,9 @@
     .btn-stop:hover {
       background: rgba(255, 7, 58, 0.1);
       box-shadow: 0 0 15px rgba(255, 7, 58, 0.4);
+      transform: translateY(-1px);
     }
+    .btn-stop:active { transform: translateY(1px) scale(0.98); }
 
     /* Settings page — masonry/Tetris layout via CSS columns */
     .settings-container {
