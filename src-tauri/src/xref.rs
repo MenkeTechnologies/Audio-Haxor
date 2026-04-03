@@ -318,63 +318,48 @@ fn parse_dawproject(path: &Path) -> Vec<PluginRef> {
 }
 
 /// Parse FL Studio .flp file (binary chunk format).
-/// Plugin names appear as UTF-16LE or ASCII strings in specific event types.
+/// Uses binary string extraction + UTF-16LE scanning for plugin paths.
 fn parse_flp(path: &Path) -> Vec<PluginRef> {
     let data = match fs::read(path) {
         Ok(d) => d,
         Err(_) => return vec![],
     };
-    // Verify FLP header: "FLhd"
-    if data.len() < 16 || &data[0..4] != b"FLhd" {
-        return vec![];
-    }
-    // Skip to data chunk "FLdt"
-    let dt_pos = data.windows(4).position(|w| w == b"FLdt");
-    let start = match dt_pos {
-        Some(p) => p + 8, // skip "FLdt" + 4-byte size
-        None => return vec![],
-    };
+    let mut plugins = extract_plugins_from_binary(&data);
+    // FL Studio stores many strings as UTF-16LE — scan for plugin paths in UTF-16
+    plugins.extend(extract_plugins_utf16le(&data));
+    plugins
+}
+
+/// Extract plugin references from UTF-16LE encoded strings in binary data.
+/// FL Studio and some other DAWs use UTF-16LE for internal strings.
+fn extract_plugins_utf16le(data: &[u8]) -> Vec<PluginRef> {
     let mut plugins = Vec::new();
-    let mut i = start;
-    while i < data.len() {
-        if i + 1 >= data.len() { break; }
-        let event_id = data[i];
-        i += 1;
-        if event_id < 192 {
-            // Simple events: 1-4 bytes of data
-            let skip = if event_id < 64 { 1 } else if event_id < 128 { 2 } else { 4 };
-            i += skip;
-        } else {
-            // Text/data events: variable length
-            if i >= data.len() { break; }
-            let mut len = 0usize;
-            let mut shift = 0;
-            loop {
-                if i >= data.len() { break; }
-                let b = data[i] as usize;
-                i += 1;
-                len |= (b & 0x7F) << shift;
-                shift += 7;
-                if b & 0x80 == 0 { break; }
+    if data.len() < 2 { return plugins; }
+    // Scan for runs of valid UTF-16LE characters
+    let mut start = 0;
+    while start + 1 < data.len() {
+        let lo = data[start];
+        let hi = data[start + 1];
+        // Check if this looks like a printable ASCII char in UTF-16LE (lo=printable, hi=0)
+        if hi == 0 && lo >= 0x20 && lo <= 0x7E {
+            let run_start = start;
+            let mut end = start;
+            while end + 1 < data.len() && data[end + 1] == 0 && data[end] >= 0x20 && data[end] <= 0x7E {
+                end += 2;
             }
-            if i + len > data.len() { break; }
-            let chunk = &data[i..i + len];
-            i += len;
-            // Event IDs 201 (plugin name) and 212 (plugin filename) contain plugin references
-            if (event_id == 201 || event_id == 212 || event_id == 203) && len >= 2 {
-                // Try UTF-16LE first, then ASCII
-                let s = if chunk.iter().step_by(2).all(|&b| b >= 0x20 || b == 0) && chunk.len() % 2 == 0 {
-                    let u16s: Vec<u16> = chunk.chunks(2).map(|c| u16::from_le_bytes([c[0], c.get(1).copied().unwrap_or(0)])).collect();
-                    String::from_utf16_lossy(&u16s).trim_matches('\0').to_string()
-                } else {
-                    String::from_utf8_lossy(chunk).trim_matches('\0').to_string()
-                };
-                if !s.is_empty() && s.len() > 2 {
-                    if let Some(p) = extract_plugin_from_string(&s) {
-                        plugins.push(p);
-                    }
+            let char_count = (end - run_start) / 2;
+            if char_count >= 6 {
+                let u16s: Vec<u16> = data[run_start..end].chunks(2)
+                    .map(|c| u16::from_le_bytes([c[0], c.get(1).copied().unwrap_or(0)]))
+                    .collect();
+                let s = String::from_utf16_lossy(&u16s);
+                if let Some(p) = extract_plugin_from_string(&s) {
+                    plugins.push(p);
                 }
             }
+            start = end;
+        } else {
+            start += 1;
         }
     }
     plugins
