@@ -421,10 +421,10 @@
 
     /* Settings page — flexbox wrap for multi-column with consistent drag */
     .settings-container {
-      padding: 24px 16px 160px;
+      padding: 16px 12px 120px;
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 8px;
       align-items: flex-start;
     }
 
@@ -434,35 +434,35 @@
     }
 
     @media (min-width: 600px) {
-      .settings-container { padding: 24px 24px 160px; }
+      .settings-container { padding: 16px 16px 120px; }
     }
 
     @media (min-width: 1100px) {
-      .settings-section { flex: 1 1 calc(50% - 6px); }
+      .settings-section { flex: 1 1 calc(50% - 4px); }
     }
 
     @media (min-width: 1700px) {
-      .settings-section { flex: 1 1 calc(33.33% - 8px); }
+      .settings-section { flex: 1 1 calc(33.33% - 6px); }
     }
 
     .settings-section {
       overflow: hidden;
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 12px;
+      padding: 8px;
       background: var(--bg-card);
     }
 
     .settings-heading {
       font-family: 'Orbitron', sans-serif;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
       letter-spacing: 2px;
       text-transform: uppercase;
       color: var(--cyan);
       text-shadow: 0 0 8px var(--cyan-glow);
-      margin-bottom: 10px;
-      padding-bottom: 6px;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
       border-bottom: 1px solid var(--border);
       cursor: grab;
       user-select: none;
@@ -474,12 +474,12 @@
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      padding: 10px 12px;
+      gap: 6px;
+      padding: 6px 8px;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-left: 3px solid var(--border);
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       transition: border-color 0.2s, transform 0.1s, box-shadow 0.15s;
       cursor: grab;
       box-shadow: 0 1px 4px rgba(0,0,0,0.15);
