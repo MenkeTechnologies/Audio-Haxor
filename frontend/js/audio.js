@@ -921,7 +921,7 @@ function buildAudioRow(s) {
 async function previewAudio(filePath) {
   // Always resume suspended audio context
   if (_playbackCtx && _playbackCtx.state === 'suspended') {
-    await _playbackCtx.resume().catch(() => {});
+    await _playbackCtx.resume().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
   }
 
   if (audioPlayerPath === filePath && !audioPlayer.paused) {
@@ -934,7 +934,7 @@ async function previewAudio(filePath) {
 
   if (audioPlayerPath === filePath && audioPlayer.paused) {
     // Resume current
-    await audioPlayer.play().catch(() => {});
+    await audioPlayer.play().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
     updatePlayBtnStates();
     updateNowPlayingBtn();
     return;
@@ -951,7 +951,7 @@ async function previewAudio(filePath) {
   // New file
   try {
     ensureAudioGraph();
-    if (_playbackCtx.state === 'suspended') await _playbackCtx.resume().catch(() => {});
+    if (_playbackCtx.state === 'suspended') await _playbackCtx.resume().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
     audioPlayer.src = convertFileSrc(filePath);
     audioPlayer.loop = audioLooping;
     audioPlayerPath = filePath;
@@ -959,7 +959,7 @@ async function previewAudio(filePath) {
       await audioPlayer.play();
     } catch (playErr) {
       // Retry once after resuming context
-      if (_playbackCtx.state === 'suspended') await _playbackCtx.resume().catch(() => {});
+      if (_playbackCtx.state === 'suspended') await _playbackCtx.resume().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
       await audioPlayer.play();
     }
 
@@ -1465,7 +1465,7 @@ async function startBackgroundAnalysis() {
           if (bpmCell && a.bpm) bpmCell.textContent = a.bpm;
           if (keyCell && a.key) keyCell.textContent = a.key;
           if (lufsCell && a.lufs != null) { lufsCell.textContent = a.lufs; lufsCell.classList.toggle('lufs-low', a.lufs < -25); }
-        } catch {}
+        } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
       }
 
       _bgDone++;

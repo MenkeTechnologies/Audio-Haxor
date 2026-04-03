@@ -447,7 +447,7 @@ function restoreFilterStates() {
     if (!saved || saved === 'all') continue;
     // Parse JSON array if stored as string
     if (typeof saved === 'string') {
-      try { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) saved = parsed; } catch {}
+      try { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) saved = parsed; } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
     }
     const el = document.getElementById(id);
     if (!el) continue;
@@ -726,7 +726,7 @@ function restoreTabOrder() {
     tabs.forEach(btn => {
       if (!order.includes(btn.dataset.tab)) nav.appendChild(btn);
     });
-  } catch {}
+  } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
 }
 
 function settingResetTabOrder() {

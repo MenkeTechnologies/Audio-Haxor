@@ -5,7 +5,7 @@ async function resolveKvrDownloads() {
 
   // Load existing cache to skip already-resolved plugins
   let kvrCache = {};
-  try { kvrCache = await window.vstUpdater.getKvrCache(); } catch {}
+  try { kvrCache = await window.vstUpdater.getKvrCache(); } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
 
   // Deduplicate by name+manufacturer, skip cached
   const seen = new Map();
@@ -51,7 +51,7 @@ async function resolveKvrDownloads() {
           updateUrl: downloadUrl,
           source: 'kvr',
         }]);
-      } catch {}
+      } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
 
       // Update all matching plugin cards
       for (const p of allPlugins) {
@@ -70,7 +70,7 @@ async function resolveKvrDownloads() {
       }
 
       if (downloadUrl) downloads++;
-    } catch {}
+    } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
 
     resolved++;
     statusStats.innerHTML =

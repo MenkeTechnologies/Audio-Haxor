@@ -75,7 +75,7 @@ function saveColumnWidths(tableId) {
     const allWidths = prefs.getObject('columnWidths', {});
     allWidths[tableId] = { v: COL_LAYOUT_VERSION, keys, pcts };
     prefs.setItem('columnWidths', allWidths);
-  } catch {}
+  } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
 }
 
 function loadColumnWidths(tableId) {

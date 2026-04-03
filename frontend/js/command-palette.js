@@ -86,7 +86,7 @@ function collectPaletteItems() {
   items.push({ type: 'action', name: 'Export Current Tab', icon: '&#8615;', action: () => typeof _exportCurrentTab === 'function' && _exportCurrentTab() });
   items.push({ type: 'action', name: 'Import to Current Tab', icon: '&#8613;', action: () => typeof _importCurrentTab === 'function' && _importCurrentTab() });
   items.push({ type: 'action', name: 'Help / Keyboard Shortcuts', icon: '&#10068;', action: () => typeof toggleHelpOverlay === 'function' && toggleHelpOverlay() });
-  items.push({ type: 'action', name: 'Open Log File', icon: '&#128196;', action: () => window.vstUpdater.getPrefsPath().then(p => { const lp = p.replace(/preferences\.toml$/, 'app.log'); window.vstUpdater.openWithApp(lp, 'TextEdit').catch(() => {}); }) });
+  items.push({ type: 'action', name: 'Open Log File', icon: '&#128196;', action: () => window.vstUpdater.getPrefsPath().then(p => { const lp = p.replace(/preferences\.toml$/, 'app.log'); window.vstUpdater.openWithApp(lp, 'TextEdit').catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }); }) });
   items.push({ type: 'action', name: 'Open Preferences File', icon: '&#128196;', action: () => typeof window.vstUpdater.openPrefsFile === 'function' && window.vstUpdater.openPrefsFile() });
   items.push({ type: 'action', name: 'Focus Search', icon: '&#128269;', action: () => { const tab = document.querySelector('.tab-content.active'); const input = tab?.querySelector('input[type="text"]'); if (input) { input.focus(); input.select(); } } });
 

@@ -54,7 +54,7 @@
         const headerH = modal.querySelector('.modal-header')?.offsetHeight || 50;
         body.style.maxHeight = (geo.height - headerH - 10) + 'px';
       }
-    } catch {}
+    } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
   }
 
   // Observe DOM for new modals

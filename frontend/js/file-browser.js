@@ -470,13 +470,13 @@ document.addEventListener('click', (e) => {
       loadDirectory(parent);
     }
   } else if (action.dataset.action === 'fileHome') {
-    window.vstUpdater.getHomeDir().then(h => loadDirectory(h)).catch(() => {});
+    window.vstUpdater.getHomeDir().then(h => loadDirectory(h)).catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
   } else if (action.dataset.action === 'fileQuickNav') {
     const dir = action.dataset.dir;
     if (dir === '/') {
       loadDirectory('/');
     } else {
-      window.vstUpdater.getHomeDir().then(h => loadDirectory(h + '/' + dir)).catch(() => {});
+      window.vstUpdater.getHomeDir().then(h => loadDirectory(h + '/' + dir)).catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
     }
   } else if (action.dataset.action === 'fileFav') {
     if (_fileBrowserPath) {

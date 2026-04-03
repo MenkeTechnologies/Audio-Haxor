@@ -12,7 +12,7 @@ async function loadPluginsFromDb() {
       try {
         const kvrCache = await window.vstUpdater.getKvrCache();
         applyKvrCache(allPlugins, kvrCache);
-      } catch {}
+      } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
 
       document.getElementById('totalCount').textContent = allPlugins.length;
       document.getElementById('btnCheckUpdates').disabled = false;

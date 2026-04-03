@@ -18,7 +18,7 @@
             width: size.width, height: size.height,
             x: pos.x, y: pos.y,
           });
-        } catch {}
+        } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
       }, 500);
     }
 
@@ -60,7 +60,7 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   // Data is fetched per-file on demand or via paginated queries.
   renderGlobalTagBar();
   // Xref cache is in SQLite — load lazily when xref tab is used
-  if (typeof loadXrefCache === 'function') loadXrefCache().catch(() => {});
+  if (typeof loadXrefCache === 'function') loadXrefCache().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
   if (typeof restoreFilterStates === 'function') restoreFilterStates();
   if (typeof loadFzfParams === 'function') loadFzfParams();
   if (typeof initSmartPlaylists === 'function') initSmartPlaylists();
@@ -99,7 +99,7 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
         }
       });
     }
-  } catch {}
+  } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
 
   // Dismiss splash screen before loading data so errors are visible
   const splash = document.getElementById('splashScreen');
@@ -301,10 +301,10 @@ async function scanAll(resume = false) {
 
 async function stopAll() {
   await Promise.all([
-    window.vstUpdater.stopScan().catch(() => {}),
-    window.vstUpdater.stopAudioScan().catch(() => {}),
-    window.vstUpdater.stopDawScan().catch(() => {}),
-    window.vstUpdater.stopPresetScan().catch(() => {}),
+    window.vstUpdater.stopScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
+    window.vstUpdater.stopAudioScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
+    window.vstUpdater.stopDawScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
+    window.vstUpdater.stopPresetScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
   ]);
 }
 

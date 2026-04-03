@@ -61,7 +61,7 @@ function openWithApp(filePath, appName) {
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text).then(() => {
     showToast('Copied to clipboard');
-  }).catch(() => {});
+  }).catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
 }
 
 // ── Right-click handlers ──
@@ -240,7 +240,7 @@ document.addEventListener('contextmenu', (e) => {
       { icon: '&#127926;', label: 'Open in Music', action: () => openWithApp(path, 'Music') },
       { icon: '&#127911;', label: 'Open in QuickTime', action: () => openWithApp(path, 'QuickTime Player') },
       { icon: '&#127908;', label: 'Open in Audacity', action: () => openWithApp(path, 'Audacity') },
-      { icon: '&#9889;', label: 'Open in Default App', action: () => window.vstUpdater.openDawProject(path).catch(() => {}) },
+      { icon: '&#9889;', label: 'Open in Default App', action: () => window.vstUpdater.openDawProject(path).catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }) },
       '---',
       { icon: '&#128193;', label: 'Reveal in Finder', action: () => openAudioFolder(path) },
       { icon: '&#128194;', label: 'Show in File Browser', action: () => { switchTab('files'); loadDirectory(path.replace(/\/[^/]+$/, '')); } },
@@ -395,7 +395,7 @@ document.addEventListener('contextmenu', (e) => {
             const text = await navigator.clipboard.readText();
             input.value = text;
             input.dispatchEvent(new Event('input', { bubbles: true }));
-          } catch {}
+          } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
         }},
         '---',
         { icon: '.*', label: isRegex ? 'Switch to Fuzzy' : 'Switch to Regex', action: () => regexBtn && toggleRegex(regexBtn) },
@@ -840,7 +840,7 @@ document.addEventListener('contextmenu', (e) => {
               channels: meta.channels || null,
               bitsPerSample: meta.bitsPerSample || null,
             });
-          } catch {}
+          } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
         }
         switchTab('samples');
         // Clear any existing search filter so the row is visible
@@ -1085,9 +1085,9 @@ document.addEventListener('contextmenu', (e) => {
       { icon: '&#128260;', label: 'Toggle Fullscreen', action: () => {
         vizTile.classList.toggle('viz-fullscreen');
         if (vizTile.classList.contains('viz-fullscreen')) {
-          vizTile.requestFullscreen?.().catch(() => {});
+          vizTile.requestFullscreen?.().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
         } else {
-          document.exitFullscreen?.().catch(() => {});
+          document.exitFullscreen?.().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
         }
       }},
     ];

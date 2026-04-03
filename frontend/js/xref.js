@@ -8,7 +8,7 @@ const _xrefCache = {};
 // Load persisted xref cache after prefs are loaded (called from app.js)
 async function loadXrefCache() {
   let saved = null;
-  try { saved = await window.vstUpdater.readCacheFile('xref-cache.json'); } catch {}
+  try { saved = await window.vstUpdater.readCacheFile('xref-cache.json'); } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
   if (!saved || Object.keys(saved).length === 0) saved = prefs.getObject('xrefCache', null);
   if (saved && typeof saved === 'object') {
     Object.assign(_xrefCache, saved);

@@ -593,7 +593,7 @@ async function settingClearAnalysisCache() {
   // Delete separate cache files
   const files = ['bpm-cache.json', 'key-cache.json', 'lufs-cache.json', 'waveform-cache.json', 'spectrogram-cache.json', 'xref-cache.json'];
   for (const f of files) {
-    try { await window.vstUpdater.writeCacheFile(f, {}); } catch {}
+    try { await window.vstUpdater.writeCacheFile(f, {}); } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
   }
   // Also remove old cache keys from prefs if they exist
   prefs.removeItem('bpmCache');
@@ -669,10 +669,10 @@ async function resetAllScans() {
   try {
     // Stop any running scans
     await Promise.all([
-      window.vstUpdater.stopScan().catch(() => {}),
-      window.vstUpdater.stopAudioScan().catch(() => {}),
-      window.vstUpdater.stopDawScan().catch(() => {}),
-      window.vstUpdater.stopPresetScan().catch(() => {}),
+      window.vstUpdater.stopScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
+      window.vstUpdater.stopAudioScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
+      window.vstUpdater.stopDawScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
+      window.vstUpdater.stopPresetScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
     ]);
     // Clear backend history + KVR cache
     await Promise.all([
@@ -881,7 +881,7 @@ async function settingToggleFileWatcher() {
       prefs.setItem('fileWatcher', 'off');
     }
   } else {
-    try { await window.vstUpdater.stopFileWatcher(); } catch {}
+    try { await window.vstUpdater.stopFileWatcher(); } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
     showToast('File watcher stopped');
   }
   refreshSettingsUI();
@@ -1283,7 +1283,7 @@ function refreshSettingsUI() {
   // Prefs file path
   const prefsPathEl = document.getElementById('prefsFilePath');
   if (prefsPathEl && !prefsPathEl.textContent) {
-    window.vstUpdater.getPrefsPath().then(p => { prefsPathEl.textContent = p; }).catch(() => {});
+    window.vstUpdater.getPrefsPath().then(p => { prefsPathEl.textContent = p; }).catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
   }
 }
 
@@ -1512,7 +1512,7 @@ function restoreSettingsSectionOrder() {
     container.querySelectorAll('.settings-section[data-section]').forEach(s => {
       if (!order.includes(s.dataset.section)) container.appendChild(s);
     });
-  } catch {}
+  } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
 }
 
 function resetSettingsSectionOrder() {
