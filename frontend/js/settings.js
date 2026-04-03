@@ -1102,6 +1102,36 @@ function refreshSettingsUI() {
     fdValEl.textContent = fdLimit;
   }
 
+  // Visualizer FPS
+  const vizFps = getSettingValue('vizFps', '30');
+  const vizFpsEl = document.getElementById('settingVizFps');
+  const vizFpsValEl = document.getElementById('settingVizFpsValue');
+  if (vizFpsEl) { vizFpsEl.value = vizFps; vizFpsValEl.textContent = vizFps; }
+
+  // Waveform cache max
+  const wfMax = getSettingValue('wfCacheMax', '500');
+  const wfMaxEl = document.getElementById('settingWfCacheMax');
+  const wfMaxValEl = document.getElementById('settingWfCacheMaxValue');
+  if (wfMaxEl) { wfMaxEl.value = wfMax; wfMaxValEl.textContent = wfMax; }
+
+  // Analysis pause
+  const aPause = getSettingValue('analysisPause', '3');
+  const aPauseEl = document.getElementById('settingAnalysisPause');
+  const aPauseValEl = document.getElementById('settingAnalysisPauseValue');
+  if (aPauseEl) { aPauseEl.value = aPause; aPauseValEl.textContent = aPause; }
+
+  // Max recently played
+  const maxRec = getSettingValue('maxRecent', '50');
+  const maxRecEl = document.getElementById('settingMaxRecent');
+  const maxRecValEl = document.getElementById('settingMaxRecentValue');
+  if (maxRecEl) { maxRecEl.value = maxRec; maxRecValEl.textContent = maxRec; }
+
+  // File watcher
+  const fwOn = prefs.getItem('fileWatcher') === 'on';
+  const fwBtn = document.getElementById('settingFileWatcher');
+  const fwLabel = document.getElementById('settingFileWatcherLabel');
+  if (fwBtn) { fwBtn.classList.toggle('active', fwOn); fwLabel.textContent = fwOn ? 'On' : 'Off'; }
+
   // System perf info — get real stats from Rust backend
   const perfInfo = document.getElementById('settingPerfInfo');
   if (perfInfo) {
