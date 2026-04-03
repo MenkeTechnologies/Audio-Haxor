@@ -25,9 +25,11 @@ function showHeatmapDashboard() {
   </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
 
-  // Delay render to next frame so modal is visible and sized
+  // Double-rAF: first frame makes modal visible, second frame renders with correct widths
   requestAnimationFrame(() => {
-    renderDashboard(samples, plugins, projects, presets);
+    requestAnimationFrame(() => {
+      renderDashboard(samples, plugins, projects, presets);
+    });
   });
 }
 
