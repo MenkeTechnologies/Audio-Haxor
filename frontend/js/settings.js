@@ -431,6 +431,18 @@ function applyCrtSetting(on) {
   }
 }
 
+function settingToggleNeonGlow() {
+  const current = prefs.getItem('neonGlow') !== 'off';
+  const next = !current;
+  prefs.setItem('neonGlow', next ? 'on' : 'off');
+  applyNeonGlowSetting(next);
+  refreshSettingsUI();
+}
+
+function applyNeonGlowSetting(on) {
+  document.body.classList.toggle('no-neon-glow', !on);
+}
+
 async function exportSettingsPdf() {
   const shortcuts = typeof getShortcuts === 'function' ? getShortcuts() : {};
   const allPrefs = prefs._cache || {};
@@ -840,6 +852,13 @@ function refreshSettingsUI() {
   crtBtn.classList.toggle('active', crtOn);
   crtLabel.textContent = crtOn ? 'On' : 'Off';
 
+  // Neon glow
+  const neonOn = prefs.getItem('neonGlow') !== 'off';
+  const neonBtn = document.getElementById('settingNeonGlow');
+  const neonLabel = document.getElementById('settingNeonGlowLabel');
+  if (neonBtn) { neonBtn.classList.toggle('active', neonOn); }
+  if (neonLabel) { neonLabel.textContent = neonOn ? 'On' : 'Off'; }
+
   // Color scheme
   const currentScheme = prefs.getItem('colorScheme') || 'cyberpunk';
   document.querySelectorAll('.scheme-btn').forEach(btn => {
@@ -1078,6 +1097,9 @@ function restoreSettings() {
   const crt = prefs.getItem('crtEffects');
   if (crt === 'off') {
     applyCrtSetting(false);
+  }
+  if (prefs.getItem('neonGlow') === 'off') {
+    applyNeonGlowSetting(false);
   }
   const scheme = prefs.getItem('colorScheme');
   if (scheme && scheme.startsWith('custom')) {

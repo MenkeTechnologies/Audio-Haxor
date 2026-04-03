@@ -4047,6 +4047,20 @@
     .hm-card:nth-child(7) { animation-delay: 1.6s; }
     .hm-card:nth-child(8) { animation-delay: 0.2s; }
 
+    /* Disable all neon glow animations when setting is off */
+    body.no-neon-glow .modal-content,
+    body.no-neon-glow .palette-box,
+    body.no-neon-glow .ctx-menu.visible,
+    body.no-neon-glow .walker-tile,
+    body.no-neon-glow .viz-tile,
+    body.no-neon-glow .hm-card,
+    body.no-neon-glow .audio-now-playing.np-playing,
+    body.no-neon-glow .toast {
+      animation: none !important;
+    }
+    body.no-neon-glow .modal-content { box-shadow: 0 0 20px var(--cyan-glow); }
+    body.no-neon-glow .audio-now-playing.np-playing { box-shadow: 0 0 20px var(--cyan-glow), 0 4px 24px rgba(0,0,0,0.5); }
+
     .audio-now-playing.expanded .np-visualizer {
       height: 48px;
     }
@@ -5218,6 +5232,18 @@
             <div class="settings-control">
               <button class="settings-toggle" id="settingCrt" data-action="settingToggleCrt" title="Toggle CRT scanline overlay effect">
                 <span class="settings-toggle-label" id="settingCrtLabel">On</span>
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+              </button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Neon Glow Animations</span>
+              <span class="settings-desc">Animated pulsing neon borders on panels, modals, and tiles</span>
+            </div>
+            <div class="settings-control">
+              <button class="settings-toggle" id="settingNeonGlow" data-action="settingToggleNeonGlow" title="Toggle neon glow border animations">
+                <span class="settings-toggle-label" id="settingNeonGlowLabel">On</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
             </div>

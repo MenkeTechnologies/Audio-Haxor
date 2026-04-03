@@ -148,6 +148,7 @@ document.addEventListener('click', (e) => {
     case 'importPresets': importPresets(); break;
     case 'settingToggleTheme': settingToggleTheme(); break;
     case 'settingToggleCrt': settingToggleCrt(); break;
+    case 'settingToggleNeonGlow': settingToggleNeonGlow(); break;
     case 'clearFavorites': clearFavorites(); break;
     case 'exportFavorites': exportFavorites(); break;
     case 'importFavorites': importFavorites(); break;
