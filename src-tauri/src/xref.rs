@@ -46,7 +46,8 @@ pub fn normalize_plugin_name(name: &str) -> String {
         LazyLock::new(|| Regex::new(r"(?i)\s+(x64|x86_64|x86|64bit|32bit)$").unwrap());
     s = BARE_SUFFIX_RE.replace(&s, "").to_string();
     // Collapse internal whitespace and lowercase
-    let result = s.split_whitespace()
+    let result = s
+        .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
         .to_lowercase();
@@ -291,11 +292,14 @@ fn parse_studio_one(path: &Path) -> Vec<PluginRef> {
     if all_xml.is_empty() {
         return vec![];
     }
-    extract_plugins_from_xml(&all_xml, &[
-        (r#"plugName="([^"]+)""#, "", "VST"),
-        (r#"deviceName="([^"]+)""#, "", "VST"),
-        (r#"label="([^"]+)""#, "", "VST"),
-    ])
+    extract_plugins_from_xml(
+        &all_xml,
+        &[
+            (r#"plugName="([^"]+)""#, "", "VST"),
+            (r#"deviceName="([^"]+)""#, "", "VST"),
+            (r#"label="([^"]+)""#, "", "VST"),
+        ],
+    )
 }
 
 /// Parse .dawproject file (ZIP containing project.xml — open standard).
@@ -316,10 +320,13 @@ fn parse_dawproject(path: &Path) -> Vec<PluginRef> {
         }
         Err(_) => return vec![],
     };
-    extract_plugins_from_xml(&xml, &[
-        (r#"<Plugin\s+name="([^"]+)""#, "", "VST"),
-        (r#"deviceName="([^"]+)""#, "", "VST"),
-    ])
+    extract_plugins_from_xml(
+        &xml,
+        &[
+            (r#"<Plugin\s+name="([^"]+)""#, "", "VST"),
+            (r#"deviceName="([^"]+)""#, "", "VST"),
+        ],
+    )
 }
 
 /// Parse FL Studio .flp file (binary chunk format).
@@ -339,7 +346,9 @@ fn parse_flp(path: &Path) -> Vec<PluginRef> {
 /// FL Studio and some other DAWs use UTF-16LE for internal strings.
 fn extract_plugins_utf16le(data: &[u8]) -> Vec<PluginRef> {
     let mut plugins = Vec::new();
-    if data.len() < 2 { return plugins; }
+    if data.len() < 2 {
+        return plugins;
+    }
     // Scan for runs of valid UTF-16LE characters
     let mut start = 0;
     while start + 1 < data.len() {
@@ -349,12 +358,17 @@ fn extract_plugins_utf16le(data: &[u8]) -> Vec<PluginRef> {
         if hi == 0 && lo >= 0x20 && lo <= 0x7E {
             let run_start = start;
             let mut end = start;
-            while end + 1 < data.len() && data[end + 1] == 0 && data[end] >= 0x20 && data[end] <= 0x7E {
+            while end + 1 < data.len()
+                && data[end + 1] == 0
+                && data[end] >= 0x20
+                && data[end] <= 0x7E
+            {
                 end += 2;
             }
             let char_count = (end - run_start) / 2;
             if char_count >= 6 {
-                let u16s: Vec<u16> = data[run_start..end].chunks(2)
+                let u16s: Vec<u16> = data[run_start..end]
+                    .chunks(2)
                     .map(|c| u16::from_le_bytes([c[0], c.get(1).copied().unwrap_or(0)]))
                     .collect();
                 let s = String::from_utf16_lossy(&u16s);
@@ -406,12 +420,31 @@ fn extract_logic_plugin_names(data: &[u8]) -> Vec<PluginRef> {
     let mut plugins = Vec::new();
     // Known third-party plugins and Logic stock effects to look for
     let stock_effects = [
-        "Channel EQ", "Compressor", "Adaptive Limiter", "Multipressor",
-        "Space Designer", "Tape Delay", "Stereo Delay", "ChromaVerb",
-        "Exciter", "Overdrive", "AutoFilter", "Direction Mixer",
-        "Gain", "Stereo Spread", "Limiter", "Noise Gate", "DeEsser",
-        "Tremolo", "Phaser", "Flanger", "Chorus", "Ringshifter",
-        "Pitch Correction", "Pitch Shifter", "Vocal Transformer",
+        "Channel EQ",
+        "Compressor",
+        "Adaptive Limiter",
+        "Multipressor",
+        "Space Designer",
+        "Tape Delay",
+        "Stereo Delay",
+        "ChromaVerb",
+        "Exciter",
+        "Overdrive",
+        "AutoFilter",
+        "Direction Mixer",
+        "Gain",
+        "Stereo Spread",
+        "Limiter",
+        "Noise Gate",
+        "DeEsser",
+        "Tremolo",
+        "Phaser",
+        "Flanger",
+        "Chorus",
+        "Ringshifter",
+        "Pitch Correction",
+        "Pitch Shifter",
+        "Vocal Transformer",
     ];
     // Extract all readable strings and check for known plugin names
     let mut current = Vec::new();
@@ -423,32 +456,97 @@ fn extract_logic_plugin_names(data: &[u8]) -> Vec<PluginRef> {
             if current.len() >= 3 && current.len() <= 64 {
                 let s = String::from_utf8_lossy(&current).to_string();
                 // Skip common non-plugin strings
-                if !s.contains('/') && !s.contains('\\') && !s.starts_with("com.")
-                    && !s.starts_with("kD") && !s.starts_with("0x") && !s.starts_with("Aco")
-                    && !s.starts_with("Output ") && !s.starts_with("Input ")
-                    && !s.starts_with("Automatic-") && !s.contains("KeyLab")
-                    && !s.ends_with(".pst") && !s.ends_with(".aif") && !s.ends_with(".wav")
-                    && !s.ends_with(".cst") && !s.ends_with(".exs")
+                if !s.contains('/')
+                    && !s.contains('\\')
+                    && !s.starts_with("com.")
+                    && !s.starts_with("kD")
+                    && !s.starts_with("0x")
+                    && !s.starts_with("Aco")
+                    && !s.starts_with("Output ")
+                    && !s.starts_with("Input ")
+                    && !s.starts_with("Automatic-")
+                    && !s.contains("KeyLab")
+                    && !s.ends_with(".pst")
+                    && !s.ends_with(".aif")
+                    && !s.ends_with(".wav")
+                    && !s.ends_with(".cst")
+                    && !s.ends_with(".exs")
                     && !found_names.contains(&s)
                 {
                     let is_stock = stock_effects.contains(&s.as_str());
-                    let known_third_party = ["Sylenth1", "Spire", "Serum", "Massive", "Kontakt",
-                        "Omnisphere", "Nexus", "Diva", "Hive", "Vital", "Phase Plant",
-                        "Pro-Q", "Pro-L", "Pro-R", "Pro-C", "Pro-G", "Pro-MB",
-                        "Ozone", "Neutron", "Trash", "VocalSynth", "Iris",
-                        "Valhalla", "FabFilter", "iZotope", "Waves", "Soundtoys",
-                        "LFOTool", "CamelCrusher", "OTT", "Sausage Fattener",
-                        "Saturn", "Volcano", "Timeless", "Decapitator", "EchoBoy",
-                        "Radiator", "Devil-Loc", "PanMan", "FilterFreak", "PhaseMistress",
-                        "RC-20", "Kickstart", "Cableguys", "Portal", "Output",
-                        "Arturia", "u-he", "Xfer", "Native Instruments", "Spectrasonics",
-                        "Alchemy", "ES2", "EXS24", "Retro Synth", "Drum Kit Designer"];
-                    let is_known = known_third_party.iter().any(|&kp| s.starts_with(kp) || s == kp);
+                    let known_third_party = [
+                        "Sylenth1",
+                        "Spire",
+                        "Serum",
+                        "Massive",
+                        "Kontakt",
+                        "Omnisphere",
+                        "Nexus",
+                        "Diva",
+                        "Hive",
+                        "Vital",
+                        "Phase Plant",
+                        "Pro-Q",
+                        "Pro-L",
+                        "Pro-R",
+                        "Pro-C",
+                        "Pro-G",
+                        "Pro-MB",
+                        "Ozone",
+                        "Neutron",
+                        "Trash",
+                        "VocalSynth",
+                        "Iris",
+                        "Valhalla",
+                        "FabFilter",
+                        "iZotope",
+                        "Waves",
+                        "Soundtoys",
+                        "LFOTool",
+                        "CamelCrusher",
+                        "OTT",
+                        "Sausage Fattener",
+                        "Saturn",
+                        "Volcano",
+                        "Timeless",
+                        "Decapitator",
+                        "EchoBoy",
+                        "Radiator",
+                        "Devil-Loc",
+                        "PanMan",
+                        "FilterFreak",
+                        "PhaseMistress",
+                        "RC-20",
+                        "Kickstart",
+                        "Cableguys",
+                        "Portal",
+                        "Output",
+                        "Arturia",
+                        "u-he",
+                        "Xfer",
+                        "Native Instruments",
+                        "Spectrasonics",
+                        "Alchemy",
+                        "ES2",
+                        "EXS24",
+                        "Retro Synth",
+                        "Drum Kit Designer",
+                    ];
+                    let is_known = known_third_party
+                        .iter()
+                        .any(|&kp| s.starts_with(kp) || s == kp);
 
                     if is_stock || is_known {
                         // Trim trailing non-alphanumeric junk (binary artifacts)
-                        let s = s.trim_end_matches(|c: char| !c.is_alphanumeric() && c != ')' && c != ']').to_string();
-                        if s.len() < 2 { current.clear(); continue; }
+                        let s = s
+                            .trim_end_matches(|c: char| {
+                                !c.is_alphanumeric() && c != ')' && c != ']'
+                            })
+                            .to_string();
+                        if s.len() < 2 {
+                            current.clear();
+                            continue;
+                        }
                         found_names.insert(s.clone());
                         let normalized = normalize_plugin_name(&s);
                         if !normalized.is_empty() {
@@ -456,7 +554,11 @@ fn extract_logic_plugin_names(data: &[u8]) -> Vec<PluginRef> {
                                 name: s,
                                 normalized_name: normalized,
                                 manufacturer: String::new(),
-                                plugin_type: if is_stock { "AU (Stock)".into() } else { "AU".into() },
+                                plugin_type: if is_stock {
+                                    "AU (Stock)".into()
+                                } else {
+                                    "AU".into()
+                                },
                             });
                         }
                     }
@@ -482,9 +584,14 @@ fn extract_au_identifiers(data: &[u8]) -> Vec<PluginRef> {
                 let s = String::from_utf8_lossy(&current).to_string();
                 // Match common AU plugin name patterns
                 // Logic stores plugin names as readable strings near AU type codes
-                if !s.contains('/') && !s.contains('\\') && !s.contains("com.apple")
-                    && s.len() >= 4 && s.len() <= 64
-                    && (s.ends_with(".component") || s.contains("AUPlugin") || s.contains("AudioUnit"))
+                if !s.contains('/')
+                    && !s.contains('\\')
+                    && !s.contains("com.apple")
+                    && s.len() >= 4
+                    && s.len() <= 64
+                    && (s.ends_with(".component")
+                        || s.contains("AUPlugin")
+                        || s.contains("AudioUnit"))
                 {
                     let name = s.trim_end_matches(".component").trim();
                     if name.len() >= 3 {
@@ -553,9 +660,13 @@ fn extract_plugins_from_xml(xml: &str, patterns: &[(&str, &str, &str)]) -> Vec<P
             for cap in re.captures_iter(xml) {
                 if let Some(name) = cap.get(1) {
                     let n = name.as_str().trim();
-                    if n.is_empty() || n.len() < 2 { continue; }
+                    if n.is_empty() || n.len() < 2 {
+                        continue;
+                    }
                     let normalized = normalize_plugin_name(n);
-                    if normalized.is_empty() { continue; }
+                    if normalized.is_empty() {
+                        continue;
+                    }
                     plugins.push(PluginRef {
                         name: n.to_string(),
                         normalized_name: normalized,
@@ -628,8 +739,16 @@ fn extract_plugins_from_plist(val: &plist::Value, plugins: &mut Vec<PluginRef>) 
                             plugins.push(PluginRef {
                                 name: n.to_string(),
                                 normalized_name: normalized,
-                                manufacturer: dict.get("manufacturer").and_then(|v| v.as_string()).unwrap_or("").to_string(),
-                                plugin_type: dict.get("pluginType").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| "AU".into()),
+                                manufacturer: dict
+                                    .get("manufacturer")
+                                    .and_then(|v| v.as_string())
+                                    .unwrap_or("")
+                                    .to_string(),
+                                plugin_type: dict
+                                    .get("pluginType")
+                                    .and_then(|v| v.as_string())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_else(|| "AU".into()),
                             });
                         }
                     }
@@ -651,17 +770,36 @@ fn extract_plugins_from_plist(val: &plist::Value, plugins: &mut Vec<PluginRef>) 
 /// Try to extract a plugin reference from a single string (path or name).
 /// Handles both exact suffix match and embedded paths (e.g. "Serum.dll8" in FLP chunks).
 fn extract_plugin_from_string(s: &str) -> Option<PluginRef> {
-    let exts = [(".dll", "VST2"), (".vst3", "VST3"), (".component", "AU"), (".clap", "CLAP"), (".aaxplugin", "AAX")];
+    let exts = [
+        (".dll", "VST2"),
+        (".vst3", "VST3"),
+        (".component", "AU"),
+        (".clap", "CLAP"),
+        (".aaxplugin", "AAX"),
+    ];
     for (ext, ptype) in &exts {
         // Find the extension anywhere in the string (not just at the end)
         if let Some(pos) = s.find(ext) {
             // Extract the substring up to and including the extension
             let path_part = &s[..pos + ext.len()];
-            let name = path_part.rsplit(['\\', '/']).next()?.trim_end_matches(ext).trim();
-            if name.is_empty() || name.len() < 2 { continue; }
-            if name.contains("VstPlugins") || name.contains("Program Files") || name.contains("CommonFiles") { continue; }
+            let name = path_part
+                .rsplit(['\\', '/'])
+                .next()?
+                .trim_end_matches(ext)
+                .trim();
+            if name.is_empty() || name.len() < 2 {
+                continue;
+            }
+            if name.contains("VstPlugins")
+                || name.contains("Program Files")
+                || name.contains("CommonFiles")
+            {
+                continue;
+            }
             let normalized = normalize_plugin_name(name);
-            if normalized.is_empty() { continue; }
+            if normalized.is_empty() {
+                continue;
+            }
             return Some(PluginRef {
                 name: name.to_string(),
                 normalized_name: normalized,
@@ -677,7 +815,13 @@ fn extract_plugin_from_string(s: &str) -> Option<PluginRef> {
 /// Used by Cubase (.cpr) where plugins appear as "Plugin Name" followed by the name.
 fn extract_named_plugins(data: &[u8], marker: &[u8]) -> Vec<PluginRef> {
     let mut plugins = Vec::new();
-    let builtin = ["Standard Panner", "Stereo Combined Panner", "Mono", "Stereo", "No Bus"];
+    let builtin = [
+        "Standard Panner",
+        "Stereo Combined Panner",
+        "Mono",
+        "Stereo",
+        "No Bus",
+    ];
     let mut pos = 0;
     while pos + marker.len() < data.len() {
         if let Some(idx) = data[pos..].windows(marker.len()).position(|w| w == marker) {
@@ -694,7 +838,10 @@ fn extract_named_plugins(data: &[u8], marker: &[u8]) -> Vec<PluginRef> {
                 }
                 if end - start >= 3 && end - start <= 100 {
                     let name = String::from_utf8_lossy(&data[start..end]).to_string();
-                    if !builtin.contains(&name.as_str()) && !name.starts_with("VST") && !name.contains("Plugin") {
+                    if !builtin.contains(&name.as_str())
+                        && !name.starts_with("VST")
+                        && !name.contains("Plugin")
+                    {
                         let normalized = normalize_plugin_name(&name);
                         if !normalized.is_empty() {
                             plugins.push(PluginRef {
@@ -1290,11 +1437,27 @@ mod tests {
         fs::write(&tmp, &data).unwrap();
 
         let result = extract_plugins(tmp.to_str().unwrap());
-        assert!(result.len() >= 3, "should find at least 3 plugins, got {}", result.len());
+        assert!(
+            result.len() >= 3,
+            "should find at least 3 plugins, got {}",
+            result.len()
+        );
         let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
-        assert!(names.contains(&"Serum"), "should find Serum, got {:?}", names);
-        assert!(names.contains(&"Pro-Q 3"), "should find Pro-Q 3, got {:?}", names);
-        assert!(names.contains(&"Kontakt"), "should find Kontakt, got {:?}", names);
+        assert!(
+            names.contains(&"Serum"),
+            "should find Serum, got {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"Pro-Q 3"),
+            "should find Pro-Q 3, got {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"Kontakt"),
+            "should find Kontakt, got {:?}",
+            names
+        );
 
         let _ = fs::remove_file(&tmp);
     }
@@ -1351,7 +1514,11 @@ mod tests {
         let result = extract_plugins_from_binary(&data);
         let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"Sylenth1"), "missing Sylenth1: {:?}", names);
-        assert!(names.contains(&"FabFilter Pro-Q 3"), "missing Pro-Q 3: {:?}", names);
+        assert!(
+            names.contains(&"FabFilter Pro-Q 3"),
+            "missing Pro-Q 3: {:?}",
+            names
+        );
     }
 
     #[test]
@@ -1382,8 +1549,16 @@ mod tests {
         fs::write(&tmp, &data).unwrap();
         let result = parse_flp(&tmp);
         let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
-        assert!(names.iter().any(|n| n.contains("OTT")), "missing OTT: {:?}", names);
-        assert!(names.iter().any(|n| n.contains("Massive")), "missing Massive: {:?}", names);
+        assert!(
+            names.iter().any(|n| n.contains("OTT")),
+            "missing OTT: {:?}",
+            names
+        );
+        assert!(
+            names.iter().any(|n| n.contains("Massive")),
+            "missing Massive: {:?}",
+            names
+        );
         let _ = fs::remove_file(&tmp);
     }
 
@@ -1409,7 +1584,10 @@ mod tests {
         let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"Spire-1.5"), "missing Spire: {:?}", names);
         assert!(names.contains(&"LFOTool"), "missing LFOTool: {:?}", names);
-        assert!(!names.contains(&"Standard Panner"), "should filter Standard Panner");
+        assert!(
+            !names.contains(&"Standard Panner"),
+            "should filter Standard Panner"
+        );
     }
 
     #[test]
@@ -1425,8 +1603,16 @@ mod tests {
         fs::write(&tmp, &data).unwrap();
         let result = extract_plugins(tmp.to_str().unwrap());
         let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
-        assert!(names.contains(&"Serum"), "missing Serum from binary: {:?}", names);
-        assert!(names.contains(&"LFOTool"), "missing LFOTool from marker: {:?}", names);
+        assert!(
+            names.contains(&"Serum"),
+            "missing Serum from binary: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"LFOTool"),
+            "missing LFOTool from marker: {:?}",
+            names
+        );
         let _ = fs::remove_file(&tmp);
     }
 
@@ -1443,8 +1629,16 @@ mod tests {
         let result = extract_logic_plugin_names(&data);
         let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"Sylenth1"), "missing Sylenth1: {:?}", names);
-        assert!(names.contains(&"Channel EQ"), "missing Channel EQ: {:?}", names);
-        assert!(names.contains(&"Compressor"), "missing Compressor: {:?}", names);
+        assert!(
+            names.contains(&"Channel EQ"),
+            "missing Channel EQ: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"Compressor"),
+            "missing Compressor: {:?}",
+            names
+        );
         assert!(names.contains(&"Alchemy"), "missing Alchemy: {:?}", names);
         assert!(names.contains(&"Hive"), "missing Hive: {:?}", names);
     }
@@ -1452,12 +1646,21 @@ mod tests {
     #[test]
     fn test_logic_filters_false_positives() {
         let mut data = vec![0u8; 50];
-        for name in ["Output 1", "Output 5-6H", "Automatic-Generic Audio 12", "com.apple.foo"] {
+        for name in [
+            "Output 1",
+            "Output 5-6H",
+            "Automatic-Generic Audio 12",
+            "com.apple.foo",
+        ] {
             data.extend_from_slice(name.as_bytes());
             data.extend_from_slice(&[0; 10]);
         }
         let result = extract_logic_plugin_names(&data);
-        assert!(result.is_empty(), "should filter all false positives, got: {:?}", result.iter().map(|p| &p.name).collect::<Vec<_>>());
+        assert!(
+            result.is_empty(),
+            "should filter all false positives, got: {:?}",
+            result.iter().map(|p| &p.name).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1493,10 +1696,16 @@ mod tests {
         let tmp = std::env::temp_dir().join("test_xref_s1.song");
         let file = fs::File::create(&tmp).unwrap();
         let mut zip = zip::ZipWriter::new(file);
-        zip.start_file::<_, ()>("Song/song.xml", Default::default()).unwrap();
-        zip.write_all(b"<Song><MediaTrack name=\"Bass\"/></Song>").unwrap();
-        zip.start_file::<_, ()>("Devices/audiomixer.xml", Default::default()).unwrap();
-        zip.write_all(b"<AudioMixer><Insert plugName=\"Pro-Q 3\" deviceName=\"FabFilter\"/></AudioMixer>").unwrap();
+        zip.start_file::<_, ()>("Song/song.xml", Default::default())
+            .unwrap();
+        zip.write_all(b"<Song><MediaTrack name=\"Bass\"/></Song>")
+            .unwrap();
+        zip.start_file::<_, ()>("Devices/audiomixer.xml", Default::default())
+            .unwrap();
+        zip.write_all(
+            b"<AudioMixer><Insert plugName=\"Pro-Q 3\" deviceName=\"FabFilter\"/></AudioMixer>",
+        )
+        .unwrap();
         zip.finish().unwrap();
         let result = extract_plugins(tmp.to_str().unwrap());
         let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
@@ -1512,7 +1721,8 @@ mod tests {
         let tmp = std::env::temp_dir().join("test_xref.dawproject");
         let file = fs::File::create(&tmp).unwrap();
         let mut zip = zip::ZipWriter::new(file);
-        zip.start_file::<_, ()>("project.xml", Default::default()).unwrap();
+        zip.start_file::<_, ()>("project.xml", Default::default())
+            .unwrap();
         zip.write_all(b"<Project><Plugin name=\"Serum\" deviceName=\"Xfer Records\"/><Plugin name=\"Diva\" deviceName=\"u-he\"/></Project>").unwrap();
         zip.finish().unwrap();
         let result = extract_plugins(tmp.to_str().unwrap());
@@ -1528,7 +1738,9 @@ mod tests {
     fn test_protools_binary_extraction() {
         // PTX with embedded .aaxplugin paths
         let mut data = vec![0u8; 100];
-        data.extend_from_slice(b"/Library/Application Support/Avid/Audio/Plug-Ins/EQ III.aaxplugin");
+        data.extend_from_slice(
+            b"/Library/Application Support/Avid/Audio/Plug-Ins/EQ III.aaxplugin",
+        );
         data.extend_from_slice(&[0; 50]);
         let result = extract_plugins_from_binary(&data);
         assert!(!result.is_empty(), "should find AAX plugin");
@@ -1549,7 +1761,10 @@ mod tests {
         data.extend_from_slice(&[0; 30]);
         let result = extract_named_plugins(&data, b"PlugIn Name");
         let result2 = extract_named_plugins(&data, b"Insert Name");
-        assert!(!result.is_empty() || !result2.is_empty(), "should find named plugins");
+        assert!(
+            !result.is_empty() || !result2.is_empty(),
+            "should find named plugins"
+        );
     }
 
     // ── Reason tests ──
@@ -1586,7 +1801,11 @@ mod tests {
         data.extend_from_slice(&[0; 20]);
         fs::write(&tmp, &data).unwrap();
         let result = extract_plugins(tmp.to_str().unwrap());
-        assert!(result.len() >= 4, "should find 4+ plugins, got {}", result.len());
+        assert!(
+            result.len() >= 4,
+            "should find 4+ plugins, got {}",
+            result.len()
+        );
         let _ = fs::remove_file(&tmp);
     }
 
@@ -1606,8 +1825,15 @@ mod tests {
         let tmp = std::env::temp_dir().join("test_xref_dedup.flp");
         fs::write(&tmp, &data).unwrap();
         let result = extract_plugins(tmp.to_str().unwrap());
-        let serum_count = result.iter().filter(|p| p.normalized_name == "serum").count();
-        assert_eq!(serum_count, 1, "duplicate Serum should be deduped, got {}", serum_count);
+        let serum_count = result
+            .iter()
+            .filter(|p| p.normalized_name == "serum")
+            .count();
+        assert_eq!(
+            serum_count, 1,
+            "duplicate Serum should be deduped, got {}",
+            serum_count
+        );
         let _ = fs::remove_file(&tmp);
     }
 
@@ -1617,10 +1843,14 @@ mod tests {
     #[ignore]
     fn test_real_flp() {
         let path = "/Users/wizard/mnt/production/MusicProduction/Samples/Producer loops/2021/prototypesamples_RAGE - PROJECT/RAGE PROJECT/_RAGE.flp";
-        if !std::path::Path::new(path).exists() { return; }
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
         let result = extract_plugins(path);
         println!("FLP: {} plugins", result.len());
-        for p in &result { println!("  {} ({})", p.name, p.plugin_type); }
+        for p in &result {
+            println!("  {} ({})", p.name, p.plugin_type);
+        }
         assert!(result.len() >= 5, "Real FLP should have 5+ plugins");
     }
 
@@ -1628,10 +1858,14 @@ mod tests {
     #[ignore]
     fn test_real_cubase() {
         let path = "/Users/wizard/mnt/production/MusicProduction/Samples/Producer loops/2021/OST Audio - Trance Collection/Collection/Powerful Trance For Spire/Templates/Cubase/0_1 By OST_Audio/0_1 By OST_Audio.cpr";
-        if !std::path::Path::new(path).exists() { return; }
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
         let result = extract_plugins(path);
         println!("Cubase: {} plugins", result.len());
-        for p in &result { println!("  {} ({})", p.name, p.plugin_type); }
+        for p in &result {
+            println!("  {} ({})", p.name, p.plugin_type);
+        }
         assert!(result.len() >= 2, "Real Cubase should have 2+ plugins");
     }
 
@@ -1639,10 +1873,14 @@ mod tests {
     #[ignore]
     fn test_real_logic() {
         let path = "/Users/wizard/mnt/production/MusicProduction/Samples/mettaglyde/Alex Di Stefano Logic Pro Tech-Trance Template Vol One/Alex Di Stefano Logic Pro Tech-Trance Template Vol One.logicx";
-        if !std::path::Path::new(path).exists() { return; }
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
         let result = extract_plugins(path);
         println!("Logic: {} plugins", result.len());
-        for p in &result { println!("  {} ({})", p.name, p.plugin_type); }
+        for p in &result {
+            println!("  {} ({})", p.name, p.plugin_type);
+        }
         assert!(result.len() >= 5, "Real Logic should have 5+ plugins");
     }
 }

@@ -25,7 +25,11 @@ pub struct AudioFingerprint {
 /// Compute a fingerprint for an audio file using fast energy-band analysis.
 pub fn compute_fingerprint(file_path: &str) -> Option<AudioFingerprint> {
     let path = Path::new(file_path);
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
 
     let (samples, sample_rate) = match ext.as_str() {
         "wav" => crate::bpm::read_wav_pcm_pub(path)?,
@@ -42,7 +46,11 @@ pub fn compute_fingerprint(file_path: &str) -> Option<AudioFingerprint> {
 
     // Use first 10 seconds max
     let max_samples = (sample_rate as usize) * 10;
-    let s = if samples.len() > max_samples { &samples[..max_samples] } else { &samples };
+    let s = if samples.len() > max_samples {
+        &samples[..max_samples]
+    } else {
+        &samples
+    };
     let n = s.len() as f64;
     let sr = sample_rate as f64;
 
@@ -52,7 +60,9 @@ pub fn compute_fingerprint(file_path: &str) -> Option<AudioFingerprint> {
     // Zero-crossing rate
     let mut zc = 0usize;
     for i in 1..s.len() {
-        if (s[i] >= 0.0) != (s[i - 1] >= 0.0) { zc += 1; }
+        if (s[i] >= 0.0) != (s[i - 1] >= 0.0) {
+            zc += 1;
+        }
     }
     let zero_crossing_rate = zc as f64 / n;
 
@@ -70,22 +80,24 @@ pub fn compute_fingerprint(file_path: &str) -> Option<AudioFingerprint> {
     let mut frame_count = 0usize;
 
     for chunk in s.chunks(frame_size) {
-        if chunk.len() < 4 { continue; }
+        if chunk.len() < 4 {
+            continue;
+        }
         frame_count += 1;
 
         // Simple 3-band energy split using differences
         // Low-pass: running average (smoothed)
         // High-pass: sample - running average
         let mut lp = 0.0f32;
-        let alpha_low = 0.05f32;  // ~300Hz cutoff at 44.1kHz
-        let alpha_high = 0.7f32;  // ~3kHz cutoff
+        let alpha_low = 0.05f32; // ~300Hz cutoff at 44.1kHz
+        let alpha_high = 0.7f32; // ~3kHz cutoff
         let mut low_sum = 0.0f64;
         let mut mid_sum = 0.0f64;
         let mut high_sum = 0.0f64;
 
         let mut lp_slow = 0.0f32;
         for &x in chunk {
-            lp = lp + alpha_low * (x - lp);           // low-pass ~300Hz
+            lp = lp + alpha_low * (x - lp); // low-pass ~300Hz
             lp_slow = lp_slow + alpha_high * (x - lp_slow); // low-pass ~3kHz
             let low = lp as f64;
             let mid = (lp_slow - lp) as f64;
@@ -108,7 +120,8 @@ pub fn compute_fingerprint(file_path: &str) -> Option<AudioFingerprint> {
     // Low energy ratio
     let mut frame_energies = Vec::new();
     for chunk in s.chunks(1024) {
-        let e: f64 = chunk.iter().map(|&x| (x as f64) * (x as f64)).sum::<f64>() / chunk.len() as f64;
+        let e: f64 =
+            chunk.iter().map(|&x| (x as f64) * (x as f64)).sum::<f64>() / chunk.len() as f64;
         frame_energies.push(e);
     }
     let avg_energy = frame_energies.iter().sum::<f64>() / frame_energies.len().max(1) as f64;
@@ -124,7 +137,9 @@ pub fn compute_fingerprint(file_path: &str) -> Option<AudioFingerprint> {
     }
     let peak_val = envelope.iter().cloned().fold(0.0f64, f64::max).max(1e-10);
     let attack_threshold = peak_val * 0.9;
-    let attack_time = envelope.iter().position(|&e| e >= attack_threshold)
+    let attack_time = envelope
+        .iter()
+        .position(|&e| e >= attack_threshold)
         .map(|i| i as f64 * env_size as f64 / sr)
         .unwrap_or(1.0);
 
@@ -182,7 +197,15 @@ pub fn find_similar(
 mod tests {
     use super::*;
 
-    fn make_fp(path: &str, rms: f64, centroid: f64, zcr: f64, low: f64, mid: f64, high: f64) -> AudioFingerprint {
+    fn make_fp(
+        path: &str,
+        rms: f64,
+        centroid: f64,
+        zcr: f64,
+        low: f64,
+        mid: f64,
+        high: f64,
+    ) -> AudioFingerprint {
         AudioFingerprint {
             path: path.to_string(),
             rms,
@@ -201,7 +224,11 @@ mod tests {
         let a = make_fp("a.wav", 0.5, 0.1, 0.1, 0.6, 0.3, 0.1);
         let b = make_fp("b.wav", 0.5, 0.1, 0.1, 0.6, 0.3, 0.1);
         let d = fingerprint_distance(&a, &b);
-        assert!(d < 0.001, "identical fingerprints should have ~0 distance, got {}", d);
+        assert!(
+            d < 0.001,
+            "identical fingerprints should have ~0 distance, got {}",
+            d
+        );
     }
 
     #[test]
@@ -209,7 +236,11 @@ mod tests {
         let kick = make_fp("kick.wav", 0.8, 0.02, 0.05, 0.9, 0.08, 0.02);
         let hihat = make_fp("hihat.wav", 0.3, 0.4, 0.4, 0.05, 0.15, 0.8);
         let d = fingerprint_distance(&kick, &hihat);
-        assert!(d > 0.5, "kick and hihat should be very different, got {}", d);
+        assert!(
+            d > 0.5,
+            "kick and hihat should be very different, got {}",
+            d
+        );
     }
 
     #[test]
@@ -220,7 +251,12 @@ mod tests {
 
         let d_kicks = fingerprint_distance(&kick1, &kick2);
         let d_kick_hihat = fingerprint_distance(&kick1, &hihat);
-        assert!(d_kicks < d_kick_hihat, "similar kicks ({}) should be closer than kick-hihat ({})", d_kicks, d_kick_hihat);
+        assert!(
+            d_kicks < d_kick_hihat,
+            "similar kicks ({}) should be closer than kick-hihat ({})",
+            d_kicks,
+            d_kick_hihat
+        );
     }
 
     #[test]
@@ -247,9 +283,19 @@ mod tests {
     #[test]
     fn test_find_similar_max_results() {
         let reference = make_fp("ref.wav", 0.5, 0.1, 0.1, 0.5, 0.3, 0.2);
-        let candidates: Vec<_> = (0..50).map(|i| {
-            make_fp(&format!("s{}.wav", i), 0.5 + i as f64 * 0.01, 0.1, 0.1, 0.5, 0.3, 0.2)
-        }).collect();
+        let candidates: Vec<_> = (0..50)
+            .map(|i| {
+                make_fp(
+                    &format!("s{}.wav", i),
+                    0.5 + i as f64 * 0.01,
+                    0.1,
+                    0.1,
+                    0.5,
+                    0.3,
+                    0.2,
+                )
+            })
+            .collect();
         let results = find_similar(&reference, &candidates, 5);
         assert_eq!(results.len(), 5);
     }
@@ -302,9 +348,16 @@ mod tests {
         let fp = fp.unwrap();
         assert!(fp.rms > 0.0, "RMS should be positive");
         assert!(fp.spectral_centroid > 0.0, "centroid should be positive");
-        assert!(fp.spectral_centroid <= 1.0, "centroid should be normalized to [0,1], got {}", fp.spectral_centroid);
+        assert!(
+            fp.spectral_centroid <= 1.0,
+            "centroid should be normalized to [0,1], got {}",
+            fp.spectral_centroid
+        );
         assert!(fp.zero_crossing_rate <= 1.0, "ZCR should be <= 1.0");
-        assert!(fp.low_band_energy >= 0.0 && fp.low_band_energy <= 1.0, "band energy should be [0,1]");
+        assert!(
+            fp.low_band_energy >= 0.0 && fp.low_band_energy <= 1.0,
+            "band energy should be [0,1]"
+        );
 
         let _ = std::fs::remove_file(&tmp);
     }
@@ -315,7 +368,11 @@ mod tests {
         let a = make_fp("z.wav", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         let b = make_fp("z2.wav", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         let d = fingerprint_distance(&a, &b);
-        assert!(d < 0.001, "all-zero fingerprints should have ~0 distance, got {}", d);
+        assert!(
+            d < 0.001,
+            "all-zero fingerprints should have ~0 distance, got {}",
+            d
+        );
     }
 
     #[test]

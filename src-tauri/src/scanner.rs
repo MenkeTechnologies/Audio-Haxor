@@ -92,7 +92,9 @@ fn get_directory_size(dir: &Path) -> u64 {
 }
 
 fn get_directory_size_depth(dir: &Path, depth: u32) -> u64 {
-    if depth > 10 { return 0; }
+    if depth > 10 {
+        return 0;
+    }
     let mut size = 0u64;
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -733,7 +735,11 @@ mod tests {
         // Should count shallow.txt but NOT deep.txt (beyond depth 10)
         assert!(size > 0, "should count at least the shallow file");
         // deep.txt is at depth 15, which exceeds limit of 10
-        assert!(size < 100, "should not count the deeply nested file, got {}", size);
+        assert!(
+            size < 100,
+            "should not count the deeply nested file, got {}",
+            size
+        );
 
         let _ = fs::remove_dir_all(&tmp);
     }

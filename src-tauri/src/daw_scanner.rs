@@ -91,7 +91,9 @@ fn get_directory_size(path: &Path) -> u64 {
 }
 
 fn get_directory_size_depth(path: &Path, depth: u32) -> u64 {
-    if depth > 10 { return 0; } // cap recursion to limit FD usage
+    if depth > 10 {
+        return 0;
+    } // cap recursion to limit FD usage
     let mut total = 0u64;
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries.flatten() {
@@ -312,7 +314,10 @@ fn walk_dir_parallel(
     {
         let mut ad = active_dirs.lock().unwrap_or_else(|e| e.into_inner());
         ad.push(dir_str.clone());
-        if ad.len() > 30 { let excess = ad.len() - 30; ad.drain(..excess); }
+        if ad.len() > 30 {
+            let excess = ad.len() - 30;
+            ad.drain(..excess);
+        }
     }
 
     let entries: Vec<_> = match fs::read_dir(dir) {

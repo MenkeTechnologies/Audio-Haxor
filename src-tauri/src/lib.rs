@@ -18,14 +18,14 @@ pub mod bpm;
 pub mod daw_scanner;
 pub mod db;
 pub mod file_watcher;
-pub mod similarity;
 pub mod history;
 pub mod key_detect;
+pub mod kvr;
 pub mod lufs;
 pub mod midi;
-pub mod kvr;
 pub mod preset_scanner;
 pub mod scanner;
+pub mod similarity;
 pub mod xref;
 
 /// Shared utility: format bytes to human-readable string.
@@ -50,28 +50,28 @@ use tauri::{AppHandle, Emitter, Manager};
 // ── Export / Import types ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct ExportPayload {
-    version: String,
-    exported_at: String,
-    plugins: Vec<ExportPlugin>,
+pub struct ExportPayload {
+    pub version: String,
+    pub exported_at: String,
+    pub plugins: Vec<ExportPlugin>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct ExportPlugin {
-    name: String,
+pub struct ExportPlugin {
+    pub name: String,
     #[serde(rename = "type")]
-    plugin_type: String,
-    version: String,
-    manufacturer: String,
+    pub plugin_type: String,
+    pub version: String,
+    pub manufacturer: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    manufacturer_url: Option<String>,
-    path: String,
-    size: String,
+    pub manufacturer_url: Option<String>,
+    pub path: String,
+    pub size: String,
     #[serde(rename = "sizeBytes", default)]
-    size_bytes: u64,
-    modified: String,
+    pub size_bytes: u64,
+    pub modified: String,
     #[serde(default)]
-    architectures: Vec<String>,
+    pub architectures: Vec<String>,
 }
 
 // Shared state for cancellation
@@ -139,15 +139,37 @@ fn get_version(app: AppHandle) -> String {
 #[tauri::command]
 fn get_walker_status(app: AppHandle) -> serde_json::Value {
     let ws = app.state::<WalkerStatus>();
-    let plugin = ws.plugin_dirs.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    let audio = ws.audio_dirs.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    let daw = ws.daw_dirs.lock().unwrap_or_else(|e| e.into_inner()).clone();
-    let preset = ws.preset_dirs.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let plugin = ws
+        .plugin_dirs
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let audio = ws
+        .audio_dirs
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let daw = ws
+        .daw_dirs
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let preset = ws
+        .preset_dirs
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let pool_threads = num_cpus::get().max(4);
     let plugin_scanning = app.state::<ScanState>().scanning.load(Ordering::Relaxed);
-    let audio_scanning = app.state::<AudioScanState>().scanning.load(Ordering::Relaxed);
+    let audio_scanning = app
+        .state::<AudioScanState>()
+        .scanning
+        .load(Ordering::Relaxed);
     let daw_scanning = app.state::<DawScanState>().scanning.load(Ordering::Relaxed);
-    let preset_scanning = app.state::<PresetScanState>().scanning.load(Ordering::Relaxed);
+    let preset_scanning = app
+        .state::<PresetScanState>()
+        .scanning
+        .load(Ordering::Relaxed);
     serde_json::json!({
         "plugin": plugin,
         "audio": audio,
@@ -247,7 +269,9 @@ async fn scan_plugins(
             .build()
             .unwrap_or_else(|e| {
                 eprintln!("Thread pool creation failed ({e}), retrying with 2 threads");
-                rayon::ThreadPoolBuilder::new().num_threads(2).build()
+                rayon::ThreadPoolBuilder::new()
+                    .num_threads(2)
+                    .build()
                     .expect("fallback 2-thread pool")
             });
         std::thread::spawn(move || {
@@ -260,7 +284,10 @@ async fn scan_plugins(
                     {
                         let mut ad = plugin_dirs.lock().unwrap_or_else(|e| e.into_inner());
                         ad.push(p.to_string_lossy().to_string());
-                        if ad.len() > 30 { let excess = ad.len() - 30; ad.drain(..excess); }
+                        if ad.len() > 30 {
+                            let excess = ad.len() - 30;
+                            ad.drain(..excess);
+                        }
                     }
                     if let Some(info) = scanner::get_plugin_info(p) {
                         if stop_flag2.load(Ordering::Relaxed) {
@@ -335,7 +362,11 @@ async fn scan_plugins(
     .await;
 
     state.scanning.store(false, Ordering::SeqCst);
-    { let ws = app.state::<WalkerStatus>(); let mut ad = ws.plugin_dirs.lock().unwrap_or_else(|e| e.into_inner()); ad.clear(); }
+    {
+        let ws = app.state::<WalkerStatus>();
+        let mut ad = ws.plugin_dirs.lock().unwrap_or_else(|e| e.into_inner());
+        ad.clear();
+    }
     result.map_err(|e| e.to_string())
 }
 
@@ -605,7 +636,11 @@ async fn scan_audio_samples(
         );
 
         // Clear walker status
-        { let ws = app_handle.state::<WalkerStatus>(); let mut ad = ws.audio_dirs.lock().unwrap_or_else(|e| e.into_inner()); ad.clear(); }
+        {
+            let ws = app_handle.state::<WalkerStatus>();
+            let mut ad = ws.audio_dirs.lock().unwrap_or_else(|e| e.into_inner());
+            ad.clear();
+        }
 
         let root_strs: Vec<String> = roots
             .iter()
@@ -744,7 +779,11 @@ async fn scan_daw_projects(
             Some(Arc::clone(&app_handle.state::<WalkerStatus>().daw_dirs)),
         );
 
-        { let ws = app_handle.state::<WalkerStatus>(); let mut ad = ws.daw_dirs.lock().unwrap_or_else(|e| e.into_inner()); ad.clear(); }
+        {
+            let ws = app_handle.state::<WalkerStatus>();
+            let mut ad = ws.daw_dirs.lock().unwrap_or_else(|e| e.into_inner());
+            ad.clear();
+        }
         let root_strs: Vec<String> = roots
             .iter()
             .map(|r| r.to_string_lossy().to_string())
@@ -768,7 +807,10 @@ async fn stop_daw_scan(app: AppHandle) -> Result<(), String> {
 
 // DAW history commands — SQLite backed
 #[tauri::command]
-fn daw_history_save(projects: Vec<DawProject>, roots: Option<Vec<String>>) -> Result<history::DawScanSnapshot, String> {
+fn daw_history_save(
+    projects: Vec<DawProject>,
+    roots: Option<Vec<String>>,
+) -> Result<history::DawScanSnapshot, String> {
     let snap = history::build_daw_snapshot(&projects, &roots.unwrap_or_default());
     db::global().save_daw_scan(&snap)?;
     db::global().checkpoint();
@@ -866,7 +908,11 @@ async fn scan_presets(
             Some(Arc::clone(&app_handle.state::<WalkerStatus>().preset_dirs)),
         );
 
-        { let ws = app_handle.state::<WalkerStatus>(); let mut ad = ws.preset_dirs.lock().unwrap_or_else(|e| e.into_inner()); ad.clear(); }
+        {
+            let ws = app_handle.state::<WalkerStatus>();
+            let mut ad = ws.preset_dirs.lock().unwrap_or_else(|e| e.into_inner());
+            ad.clear();
+        }
         let was_stopped = preset_state.stop_scan.load(Ordering::Relaxed);
         let root_strs: Vec<String> = roots
             .iter()
@@ -890,7 +936,10 @@ async fn stop_preset_scan(app: AppHandle) -> Result<(), String> {
 
 // Preset history commands — SQLite backed
 #[tauri::command]
-fn preset_history_save(presets: Vec<PresetFile>, roots: Option<Vec<String>>) -> Result<history::PresetScanSnapshot, String> {
+fn preset_history_save(
+    presets: Vec<PresetFile>,
+    roots: Option<Vec<String>>,
+) -> Result<history::PresetScanSnapshot, String> {
     let snap = history::build_preset_snapshot(&presets, &roots.unwrap_or_default());
     db::global().save_preset_scan(&snap)?;
     db::global().checkpoint();
@@ -1017,16 +1066,16 @@ async fn estimate_bpm(file_path: String) -> Result<Option<f64>, String> {
 
 #[tauri::command]
 async fn detect_audio_key(file_path: String) -> Result<Option<String>, String> {
-    tokio::task::spawn_blocking(move || {
-        key_detect::detect_key(&file_path)
-    }).await.map_err(|e| e.to_string())
+    tokio::task::spawn_blocking(move || key_detect::detect_key(&file_path))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn measure_lufs(file_path: String) -> Result<Option<f64>, String> {
-    tokio::task::spawn_blocking(move || {
-        lufs::measure_lufs(&file_path)
-    }).await.map_err(|e| e.to_string())
+    tokio::task::spawn_blocking(move || lufs::measure_lufs(&file_path))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Batch analyze: BPM + Key + LUFS for multiple files in parallel, save to SQLite.
@@ -1052,10 +1101,12 @@ async fn batch_analyze(paths: Vec<String>) -> Result<u32, String> {
 }
 
 #[tauri::command]
-async fn compute_fingerprint(file_path: String) -> Result<Option<similarity::AudioFingerprint>, String> {
-    tokio::task::spawn_blocking(move || {
-        similarity::compute_fingerprint(&file_path)
-    }).await.map_err(|e| e.to_string())
+async fn compute_fingerprint(
+    file_path: String,
+) -> Result<Option<similarity::AudioFingerprint>, String> {
+    tokio::task::spawn_blocking(move || similarity::compute_fingerprint(&file_path))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1067,7 +1118,9 @@ async fn find_similar_samples(
 ) -> Result<Vec<serde_json::Value>, String> {
     tokio::task::spawn_blocking(move || {
         // Load cached fingerprints from SQLite
-        let fp_json = db::global().read_cache("fingerprint-cache.json").unwrap_or_default();
+        let fp_json = db::global()
+            .read_cache("fingerprint-cache.json")
+            .unwrap_or_default();
         let mut cache: std::collections::HashMap<String, similarity::AudioFingerprint> =
             serde_json::from_value(fp_json).unwrap_or_default();
 
@@ -1076,23 +1129,30 @@ async fn find_similar_samples(
             fp.clone()
         } else {
             match similarity::compute_fingerprint(&file_path) {
-                Some(fp) => { cache.insert(file_path.clone(), fp.clone()); fp }
+                Some(fp) => {
+                    cache.insert(file_path.clone(), fp.clone());
+                    fp
+                }
                 None => return vec![],
             }
         };
 
         // Compute missing fingerprints in parallel
         use rayon::prelude::*;
-        let uncached: Vec<&String> = candidate_paths.iter()
+        let uncached: Vec<&String> = candidate_paths
+            .iter()
             .filter(|p| !cache.contains_key(p.as_str()))
             .collect();
 
         if !uncached.is_empty() {
             // Emit progress
             let total = uncached.len();
-            let _ = app.emit("similarity-progress", serde_json::json!({
-                "phase": "computing", "total": total, "cached": candidate_paths.len() - total
-            }));
+            let _ = app.emit(
+                "similarity-progress",
+                serde_json::json!({
+                    "phase": "computing", "total": total, "cached": candidate_paths.len() - total
+                }),
+            );
 
             let new_fps: Vec<similarity::AudioFingerprint> = uncached
                 .par_iter()
@@ -1125,7 +1185,9 @@ async fn find_similar_samples(
                 })
             })
             .collect()
-    }).await.map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1265,10 +1327,14 @@ fn append_log(msg: String) {
     let path = history::ensure_data_dir().join("app.log");
     let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let line = format!("[{}] {}\n", timestamp, msg);
-    let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path).and_then(|mut f| {
-        use std::io::Write;
-        f.write_all(line.as_bytes())
-    });
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .and_then(|mut f| {
+            use std::io::Write;
+            f.write_all(line.as_bytes())
+        });
 }
 
 #[tauri::command]
@@ -1292,23 +1358,35 @@ fn clear_log() -> Result<(), String> {
 #[tauri::command]
 fn read_project_file(file_path: String) -> Result<serde_json::Value, String> {
     let path = std::path::Path::new(&file_path);
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
     match ext.as_str() {
         "als" => {
             let xml = read_als_xml(file_path.clone())?;
-            Ok(serde_json::json!({"type": "xml", "format": "Ableton Live Set", "content": xml, "path": file_path}))
+            Ok(
+                serde_json::json!({"type": "xml", "format": "Ableton Live Set", "content": xml, "path": file_path}),
+            )
         }
         "song" => {
             let xml = read_zip_xml(&file_path, &["song.xml", "Song/song.xml", "metainfo.xml"])?;
-            Ok(serde_json::json!({"type": "xml", "format": "Studio One Song", "content": xml, "path": file_path}))
+            Ok(
+                serde_json::json!({"type": "xml", "format": "Studio One Song", "content": xml, "path": file_path}),
+            )
         }
         "dawproject" => {
             let xml = read_zip_xml(&file_path, &["project.xml", "metadata.xml"])?;
-            Ok(serde_json::json!({"type": "xml", "format": "DAWproject", "content": xml, "path": file_path}))
+            Ok(
+                serde_json::json!({"type": "xml", "format": "DAWproject", "content": xml, "path": file_path}),
+            )
         }
         "rpp" | "rpp-bak" => {
             let content = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
-            Ok(serde_json::json!({"type": "text", "format": "REAPER Project", "content": content, "path": file_path}))
+            Ok(
+                serde_json::json!({"type": "text", "format": "REAPER Project", "content": content, "path": file_path}),
+            )
         }
         _ => read_binary_project(file_path, &ext),
     }
@@ -1323,7 +1401,9 @@ fn read_zip_xml(file_path: &str, names: &[&str]) -> Result<String, String> {
         if let Ok(mut entry) = archive.by_name(name) {
             let mut s = String::new();
             entry.read_to_string(&mut s).map_err(|e| e.to_string())?;
-            if !s.is_empty() { return Ok(s); }
+            if !s.is_empty() {
+                return Ok(s);
+            }
         }
     }
     // List all files and return the first XML found
@@ -1361,7 +1441,10 @@ fn read_binary_project(file_path: String, ext: &str) -> Result<serde_json::Value
     };
     let mut result = read_binary_project_inner(&file_path)?;
     if let Some(obj) = result.as_object_mut() {
-        obj.insert("_format".into(), serde_json::Value::String(format_name.into()));
+        obj.insert(
+            "_format".into(),
+            serde_json::Value::String(format_name.into()),
+        );
     }
     Ok(result)
 }
@@ -1373,14 +1456,18 @@ fn read_binary_project_inner(file_path: &str) -> Result<serde_json::Value, Strin
         // Read all files in the package and concatenate
         let mut buf = Vec::new();
         fn collect_dir(dir: &std::path::Path, buf: &mut Vec<u8>, limit: usize) {
-            if buf.len() > limit { return; }
+            if buf.len() > limit {
+                return;
+            }
             if let Ok(entries) = std::fs::read_dir(dir) {
                 for entry in entries.flatten() {
                     let p = entry.path();
                     if p.is_file() {
                         if let Ok(data) = std::fs::read(&p) {
                             buf.extend_from_slice(&data);
-                            if buf.len() > limit { return; }
+                            if buf.len() > limit {
+                                return;
+                            }
                         }
                     } else if p.is_dir() {
                         collect_dir(&p, buf, limit);
@@ -1403,7 +1490,9 @@ fn read_binary_project_inner(file_path: &str) -> Result<serde_json::Value, Strin
     while i + 4 < data.len() && i < 10000 {
         if data[i] >= 0x20 && data[i] <= 0x7E {
             let start = i;
-            while i < data.len() && data[i] >= 0x20 && data[i] <= 0x7E { i += 1; }
+            while i < data.len() && data[i] >= 0x20 && data[i] <= 0x7E {
+                i += 1;
+            }
             if i - start >= 3 {
                 let s = String::from_utf8_lossy(&data[start..i]).to_string();
                 strings_found.push(s);
@@ -1413,8 +1502,20 @@ fn read_binary_project_inner(file_path: &str) -> Result<serde_json::Value, Strin
         }
     }
 
-    let meta_keys = ["album", "application_version_name", "artist", "branch", "comment",
-        "copyright", "creator", "genre", "orig_artist", "producer", "title", "version"];
+    let meta_keys = [
+        "album",
+        "application_version_name",
+        "artist",
+        "branch",
+        "comment",
+        "copyright",
+        "creator",
+        "genre",
+        "orig_artist",
+        "producer",
+        "title",
+        "version",
+    ];
     let mut idx = 0;
     while idx + 1 < strings_found.len() {
         let key = &strings_found[idx];
@@ -1437,7 +1538,12 @@ fn read_binary_project_inner(file_path: &str) -> Result<serde_json::Value, Strin
         } else {
             if current.len() >= 6 {
                 let s = String::from_utf8_lossy(&current).to_string();
-                if s.ends_with(".dll") || s.ends_with(".vst3") || s.ends_with(".component") || s.ends_with(".clap") || s.ends_with(".aaxplugin") {
+                if s.ends_with(".dll")
+                    || s.ends_with(".vst3")
+                    || s.ends_with(".component")
+                    || s.ends_with(".clap")
+                    || s.ends_with(".aaxplugin")
+                {
                     plugins.push(s);
                 }
             }
@@ -1448,19 +1554,31 @@ fn read_binary_project_inner(file_path: &str) -> Result<serde_json::Value, Strin
     plugins.dedup();
 
     let mut tree = serde_json::Map::new();
-    tree.insert("_path".into(), serde_json::Value::String(file_path.to_string()));
-    tree.insert("_size".into(), serde_json::Value::String(format_size(data.len() as u64)));
+    tree.insert(
+        "_path".into(),
+        serde_json::Value::String(file_path.to_string()),
+    );
+    tree.insert(
+        "_size".into(),
+        serde_json::Value::String(format_size(data.len() as u64)),
+    );
     tree.insert("metadata".into(), serde_json::Value::Object(metadata));
-    tree.insert("plugins".into(), serde_json::Value::Array(
-        plugins.into_iter().map(serde_json::Value::String).collect()
-    ));
+    tree.insert(
+        "plugins".into(),
+        serde_json::Value::Array(plugins.into_iter().map(serde_json::Value::String).collect()),
+    );
 
     let mut fxb_count = 0usize;
     for window in data.windows(4) {
-        if window == b".fxb" { fxb_count += 1; }
+        if window == b".fxb" {
+            fxb_count += 1;
+        }
     }
     if fxb_count > 0 {
-        tree.insert("pluginStateCount".into(), serde_json::Value::Number(fxb_count.into()));
+        tree.insert(
+            "pluginStateCount".into(),
+            serde_json::Value::Number(fxb_count.into()),
+        );
     }
 
     Ok(serde_json::Value::Object(tree))
@@ -1685,17 +1803,12 @@ fn compute_slow_stats(data_dir: &std::path::Path) -> (u64, u64, u64, u64, serde_
             .map(|d| (d.total_space(), d.available_space()))
             .unwrap_or((0, 0))
     };
-    let db_bytes =
-        file_size("audio_haxor.db") + file_size("audio_haxor.db-wal") + file_size("audio_haxor.db-shm");
+    let db_bytes = file_size("audio_haxor.db")
+        + file_size("audio_haxor.db-wal")
+        + file_size("audio_haxor.db-shm");
     let prefs_bytes = file_size("preferences.toml");
     let table_counts = db::global().table_counts().unwrap_or_default();
-    (
-        disk_total,
-        disk_free,
-        db_bytes,
-        prefs_bytes,
-        table_counts,
-    )
+    (disk_total, disk_free, db_bytes, prefs_bytes, table_counts)
 }
 
 fn cached_slow_stats(data_dir: &std::path::Path) -> (u64, u64, u64, u64, serde_json::Value) {
@@ -1714,8 +1827,7 @@ fn cached_slow_stats(data_dir: &std::path::Path) -> (u64, u64, u64, u64, serde_j
             }
         }
     }
-    let (disk_total, disk_free, db_bytes, prefs_bytes, table_counts) =
-        compute_slow_stats(data_dir);
+    let (disk_total, disk_free, db_bytes, prefs_bytes, table_counts) = compute_slow_stats(data_dir);
     if let Ok(mut guard) = SLOW_STATS_CACHE.lock() {
         *guard = Some(SlowStatsSnapshot {
             at: now,
@@ -1727,13 +1839,7 @@ fn cached_slow_stats(data_dir: &std::path::Path) -> (u64, u64, u64, u64, serde_j
             table_counts: table_counts.clone(),
         });
     }
-    (
-        disk_total,
-        disk_free,
-        db_bytes,
-        prefs_bytes,
-        table_counts,
-    )
+    (disk_total, disk_free, db_bytes, prefs_bytes, table_counts)
 }
 
 #[tauri::command]
@@ -1810,20 +1916,69 @@ fn get_process_stats(app: AppHandle) -> serde_json::Value {
     // FD limits
     #[cfg(unix)]
     let (fd_soft, fd_hard) = {
-        let mut rlim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        let mut rlim = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
         if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut rlim) } == 0 {
             (rlim.rlim_cur, rlim.rlim_max)
-        } else { (0, 0) }
+        } else {
+            (0, 0)
+        }
     };
     #[cfg(not(unix))]
     let (fd_soft, fd_hard) = (0u64, 0u64);
 
     // Supported formats
-    let audio_formats = ["WAV", "FLAC", "MP3", "OGG", "M4A", "AIF", "AIFF", "WMA", "APE", "OPUS"];
+    let audio_formats = [
+        "WAV", "FLAC", "MP3", "OGG", "M4A", "AIF", "AIFF", "WMA", "APE", "OPUS",
+    ];
     let plugin_formats = ["VST2", "VST3", "AU", "CLAP", "AAX"];
-    let daw_formats = ["ALS", "RPP", "BWPROJECT", "FLP", "LOGICX", "CPR", "NPR", "SONG", "DAWPROJECT", "PTX", "PTF", "REASON", "BAND"];
-    let preset_formats = ["fxp", "fxb", "vstpreset", "aupreset", "tfx", "nmsv", "pjunoxl", "h2p", "vital", "nkm", "nki", "adg", "adv", "als"];
-    let xref_formats = ["ALS", "RPP", "BWPROJECT", "FLP", "LOGICX", "CPR", "NPR", "SONG", "DAWPROJECT", "PTX", "PTF", "REASON"];
+    let daw_formats = [
+        "ALS",
+        "RPP",
+        "BWPROJECT",
+        "FLP",
+        "LOGICX",
+        "CPR",
+        "NPR",
+        "SONG",
+        "DAWPROJECT",
+        "PTX",
+        "PTF",
+        "REASON",
+        "BAND",
+    ];
+    let preset_formats = [
+        "fxp",
+        "fxb",
+        "vstpreset",
+        "aupreset",
+        "tfx",
+        "nmsv",
+        "pjunoxl",
+        "h2p",
+        "vital",
+        "nkm",
+        "nki",
+        "adg",
+        "adv",
+        "als",
+    ];
+    let xref_formats = [
+        "ALS",
+        "RPP",
+        "BWPROJECT",
+        "FLP",
+        "LOGICX",
+        "CPR",
+        "NPR",
+        "SONG",
+        "DAWPROJECT",
+        "PTX",
+        "PTF",
+        "REASON",
+    ];
 
     serde_json::json!({
         "pid": pid,
@@ -1904,14 +2059,22 @@ fn list_data_files() -> Vec<serde_json::Value> {
     if let Ok(entries) = std::fs::read_dir(&data_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if !path.is_file() { continue; }
-            let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            if !path.is_file() {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
             let meta = std::fs::metadata(&path).ok();
             let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
-            let modified = meta.and_then(|m| m.modified().ok()).map(|t| {
-                let dt: chrono::DateTime<chrono::Utc> = t.into();
-                dt.format("%Y-%m-%d %H:%M:%S").to_string()
-            }).unwrap_or_default();
+            let modified = meta
+                .and_then(|m| m.modified().ok())
+                .map(|t| {
+                    let dt: chrono::DateTime<chrono::Utc> = t.into();
+                    dt.format("%Y-%m-%d %H:%M:%S").to_string()
+                })
+                .unwrap_or_default();
             files.push(serde_json::json!({
                 "name": name,
                 "path": path.to_string_lossy(),
@@ -1921,14 +2084,21 @@ fn list_data_files() -> Vec<serde_json::Value> {
             }));
         }
     }
-    files.sort_by(|a, b| a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or("")));
+    files.sort_by(|a, b| {
+        a["name"]
+            .as_str()
+            .unwrap_or("")
+            .cmp(b["name"].as_str().unwrap_or(""))
+    });
     files
 }
 
 #[tauri::command]
 fn delete_data_file(name: String) -> Result<(), String> {
     let path = history::get_data_dir().join(&name);
-    if !path.exists() { return Ok(()); }
+    if !path.exists() {
+        return Ok(());
+    }
     std::fs::remove_file(&path).map_err(|e| e.to_string())
 }
 
@@ -1941,9 +2111,9 @@ fn get_uptime_secs() -> u64 {
 // ── Cross-platform process stats via sysinfo ──
 
 fn get_process_info() -> (u64, u64, f32) {
-    use sysinfo::{Pid, System};
-    use std::sync::{Mutex, OnceLock};
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Mutex, OnceLock};
+    use sysinfo::{Pid, System};
     static SYS: OnceLock<Mutex<System>> = OnceLock::new();
     static PRIMED: AtomicBool = AtomicBool::new(false);
     let sys_mutex = SYS.get_or_init(|| Mutex::new(System::new()));
@@ -1956,7 +2126,11 @@ fn get_process_info() -> (u64, u64, f32) {
     }
     sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
     if let Some(proc_info) = sys.process(pid) {
-        (proc_info.memory(), proc_info.virtual_memory(), proc_info.cpu_usage())
+        (
+            proc_info.memory(),
+            proc_info.virtual_memory(),
+            proc_info.cpu_usage(),
+        )
     } else {
         (0, 0, 0.0)
     }
@@ -1975,13 +2149,21 @@ fn get_thread_count() -> u32 {
     #[cfg(target_os = "linux")]
     {
         let n = get_process_info().2;
-        if n > 0 { return n; }
+        if n > 0 {
+            return n;
+        }
     }
     #[cfg(target_os = "macos")]
     {
         let pid = std::process::id();
-        if let Ok(out) = std::process::Command::new("ps").args(["-M", "-p", &pid.to_string()]).output() {
-            return String::from_utf8_lossy(&out.stdout).lines().count().saturating_sub(1) as u32;
+        if let Ok(out) = std::process::Command::new("ps")
+            .args(["-M", "-p", &pid.to_string()])
+            .output()
+        {
+            return String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .count()
+                .saturating_sub(1) as u32;
         }
     }
     0
@@ -2004,7 +2186,9 @@ fn get_cpu_percent() -> f64 {
     {
         let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
         let ret = unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut usage) };
-        if ret != 0 { return get_process_info().2 as f64; }
+        if ret != 0 {
+            return get_process_info().2 as f64;
+        }
 
         let now = Instant::now();
         let user_us = usage.ru_utime.tv_sec as i64 * 1_000_000 + usage.ru_utime.tv_usec as i64;
@@ -2016,9 +2200,17 @@ fn get_cpu_percent() -> f64 {
             if wall_us > 0.0 {
                 let cpu_us = ((user_us - p.user_us) + (sys_us - p.sys_us)) as f64;
                 (cpu_us / wall_us) * 100.0
-            } else { 0.0 }
-        } else { 0.0 };
-        *prev = Some(CpuSample { wall: now, user_us, sys_us });
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+        *prev = Some(CpuSample {
+            wall: now,
+            user_us,
+            sys_us,
+        });
         pct
     }
     #[cfg(target_os = "windows")]
@@ -2027,7 +2219,13 @@ fn get_cpu_percent() -> f64 {
         #[link(name = "kernel32")]
         extern "system" {
             fn GetCurrentProcess() -> isize;
-            fn GetProcessTimes(h: isize, creation: *mut [u32; 2], exit: *mut [u32; 2], kernel: *mut [u32; 2], user: *mut [u32; 2]) -> i32;
+            fn GetProcessTimes(
+                h: isize,
+                creation: *mut [u32; 2],
+                exit: *mut [u32; 2],
+                kernel: *mut [u32; 2],
+                user: *mut [u32; 2],
+            ) -> i32;
         }
         let mut creation = MaybeUninit::<[u32; 2]>::uninit();
         let mut exit = MaybeUninit::<[u32; 2]>::uninit();
@@ -2036,11 +2234,15 @@ fn get_cpu_percent() -> f64 {
         let ok = unsafe {
             GetProcessTimes(
                 GetCurrentProcess(),
-                creation.as_mut_ptr(), exit.as_mut_ptr(),
-                kernel.as_mut_ptr(), user.as_mut_ptr(),
+                creation.as_mut_ptr(),
+                exit.as_mut_ptr(),
+                kernel.as_mut_ptr(),
+                user.as_mut_ptr(),
             )
         };
-        if ok == 0 { return get_process_info().2 as f64; }
+        if ok == 0 {
+            return get_process_info().2 as f64;
+        }
         let ft_to_us = |ft: [u32; 2]| -> i64 {
             let ticks = (ft[1] as i64) << 32 | ft[0] as i64; // 100ns ticks
             ticks / 10 // to microseconds
@@ -2055,9 +2257,17 @@ fn get_cpu_percent() -> f64 {
             if wall_us > 0.0 {
                 let cpu_us = ((user_us - p.user_us) + (sys_us - p.sys_us)) as f64;
                 (cpu_us / wall_us) * 100.0
-            } else { 0.0 }
-        } else { 0.0 };
-        *prev = Some(CpuSample { wall: now, user_us, sys_us });
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+        *prev = Some(CpuSample {
+            wall: now,
+            user_us,
+            sys_us,
+        });
         pct
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
@@ -2158,7 +2368,11 @@ fn export_pdf(
     const MAX_PDF_ROWS: usize = 10_000;
     let total_row_count = rows.len();
     let capped = total_row_count > MAX_PDF_ROWS;
-    let export_rows = if capped { &rows[..MAX_PDF_ROWS] } else { &rows[..] };
+    let export_rows = if capped {
+        &rows[..MAX_PDF_ROWS]
+    } else {
+        &rows[..]
+    };
 
     // Calculate column widths by sampling up to 500 rows (avoids allocating len vectors for all rows)
     let col_widths: Vec<f32> = if col_count > 0 {
@@ -2168,12 +2382,16 @@ fn export_pdf(
         let mut col_sums: Vec<usize> = vec![0; col_count];
         let mut sample_count = 0_usize;
         for (idx, row) in export_rows.iter().enumerate() {
-            if idx % sample_step != 0 { continue; }
+            if idx % sample_step != 0 {
+                continue;
+            }
             sample_count += 1;
             for (i, cell) in row.iter().enumerate() {
                 if i < col_count {
                     let l = cell.len().min(120);
-                    if l > col_maxes[i] { col_maxes[i] = l; }
+                    if l > col_maxes[i] {
+                        col_maxes[i] = l;
+                    }
                     col_sums[i] += l;
                 }
             }
@@ -2183,9 +2401,16 @@ fn export_pdf(
             .iter()
             .enumerate()
             .map(|(i, &s)| {
-                let avg = if sample_count > 0 { s / sample_count } else { 6 };
+                let avg = if sample_count > 0 {
+                    s / sample_count
+                } else {
+                    6
+                };
                 let p90_approx = (avg as f32 * 1.3) as usize;
-                p90_approx.max(headers[i].len() * 2).max(6).min(col_maxes[i])
+                p90_approx
+                    .max(headers[i].len() * 2)
+                    .max(6)
+                    .min(col_maxes[i])
             })
             .collect();
         let total_len: usize = effective.iter().sum::<usize>().max(1);
@@ -2286,7 +2511,9 @@ fn export_pdf(
 
     // ── Decode icon PNG to raw RGB for embedding ──
     let icon_rgb: Option<(Vec<u8>, u32, u32)> = {
-        let dimg = image_crate::load_from_memory_with_format(icon_bytes, image_crate::ImageFormat::Png).ok();
+        let dimg =
+            image_crate::load_from_memory_with_format(icon_bytes, image_crate::ImageFormat::Png)
+                .ok();
         dimg.map(|di| {
             let w = di.width();
             let h = di.height();
@@ -2316,18 +2543,26 @@ fn export_pdf(
                 let w = *iw as usize;
                 let h = *ih as usize;
                 let img = Image::from(ImageXObject {
-                    width: Px(w), height: Px(h),
-                    color_space: ColorSpace::Rgb, bits_per_component: ColorBits::Bit8,
-                    image_data: rgb.to_vec(), image_filter: None, clipping_bbox: None,
-                    interpolate: false, smask: None,
+                    width: Px(w),
+                    height: Px(h),
+                    color_space: ColorSpace::Rgb,
+                    bits_per_component: ColorBits::Bit8,
+                    image_data: rgb.to_vec(),
+                    image_filter: None,
+                    clipping_bbox: None,
+                    interpolate: false,
+                    smask: None,
                 });
-                img.add_to_layer(layer_ref.clone(), ImageTransform {
-                    translate_x: Some(Mm(margin_x)),
-                    translate_y: Some(Mm(page_h.0 - 19.0)),
-                    scale_x: Some(icon_size / w as f32),
-                    scale_y: Some(icon_size / h as f32),
-                    ..Default::default()
-                });
+                img.add_to_layer(
+                    layer_ref.clone(),
+                    ImageTransform {
+                        translate_x: Some(Mm(margin_x)),
+                        translate_y: Some(Mm(page_h.0 - 19.0)),
+                        scale_x: Some(icon_size / w as f32),
+                        scale_y: Some(icon_size / h as f32),
+                        ..Default::default()
+                    },
+                );
                 icon_size + 2.0
             }
             None => 0.0,
@@ -2415,9 +2650,14 @@ fn export_pdf(
         // Cyan bottom accent line
         stroke_line(
             layer_ref,
-            margin_x - 1.0, *y - 1.5,
-            margin_x + usable_w + 1.0, *y - 1.5,
-            0.02, 0.85, 0.91, 0.5,
+            margin_x - 1.0,
+            *y - 1.5,
+            margin_x + usable_w + 1.0,
+            *y - 1.5,
+            0.02,
+            0.85,
+            0.91,
+            0.5,
         );
 
         // Cyan header text
@@ -2434,13 +2674,27 @@ fn export_pdf(
     let render_footer = |layer_ref: &PdfLayerReference, page: usize| {
         let footer_y = 8.0;
         // Dark footer bar
-        fill_rect(layer_ref, 0.0, 0.0, page_w.0, footer_y + 4.0, 0.02, 0.02, 0.04);
+        fill_rect(
+            layer_ref,
+            0.0,
+            0.0,
+            page_w.0,
+            footer_y + 4.0,
+            0.02,
+            0.02,
+            0.04,
+        );
         // Cyan accent line
         stroke_line(
             layer_ref,
-            margin_x, footer_y + 3.0,
-            page_w.0 - margin_x, footer_y + 3.0,
-            0.02, 0.85, 0.91, 0.5,
+            margin_x,
+            footer_y + 3.0,
+            page_w.0 - margin_x,
+            footer_y + 3.0,
+            0.02,
+            0.85,
+            0.91,
+            0.5,
         );
 
         layer_ref.set_fill_color(rgb(0.4, 0.4, 0.45));
@@ -3510,6 +3764,17 @@ mod tests {
             assert!(!s.is_empty(), "format_size({b})");
         }
     }
+
+    #[test]
+    fn test_format_size_one_gb() {
+        assert_eq!(format_size(1024_u64.pow(3)), "1.0 GB");
+    }
+
+    #[test]
+    fn test_detect_separator_unknown_extension_defaults_csv() {
+        assert_eq!(detect_separator("export.data"), ',');
+        assert_eq!(detect_separator("/tmp/no_extension"), ',');
+    }
 }
 
 // ── Database IPC commands ──
@@ -3520,18 +3785,58 @@ fn db_query_audio(params: db::AudioQueryParams) -> Result<db::AudioQueryResult, 
 }
 
 #[tauri::command]
-fn db_query_plugins(search: Option<String>, sort_key: Option<String>, sort_asc: Option<bool>, offset: Option<u64>, limit: Option<u64>) -> Result<db::PluginQueryResult, String> {
-    db::global().query_plugins(search.as_deref(), &sort_key.unwrap_or("name".into()), sort_asc.unwrap_or(true), offset.unwrap_or(0), limit.unwrap_or(200))
+fn db_query_plugins(
+    search: Option<String>,
+    sort_key: Option<String>,
+    sort_asc: Option<bool>,
+    offset: Option<u64>,
+    limit: Option<u64>,
+) -> Result<db::PluginQueryResult, String> {
+    db::global().query_plugins(
+        search.as_deref(),
+        &sort_key.unwrap_or("name".into()),
+        sort_asc.unwrap_or(true),
+        offset.unwrap_or(0),
+        limit.unwrap_or(200),
+    )
 }
 
 #[tauri::command]
-fn db_query_daw(search: Option<String>, daw_filter: Option<String>, sort_key: Option<String>, sort_asc: Option<bool>, offset: Option<u64>, limit: Option<u64>) -> Result<db::DawQueryResult, String> {
-    db::global().query_daw(search.as_deref(), daw_filter.as_deref(), &sort_key.unwrap_or("name".into()), sort_asc.unwrap_or(true), offset.unwrap_or(0), limit.unwrap_or(200))
+fn db_query_daw(
+    search: Option<String>,
+    daw_filter: Option<String>,
+    sort_key: Option<String>,
+    sort_asc: Option<bool>,
+    offset: Option<u64>,
+    limit: Option<u64>,
+) -> Result<db::DawQueryResult, String> {
+    db::global().query_daw(
+        search.as_deref(),
+        daw_filter.as_deref(),
+        &sort_key.unwrap_or("name".into()),
+        sort_asc.unwrap_or(true),
+        offset.unwrap_or(0),
+        limit.unwrap_or(200),
+    )
 }
 
 #[tauri::command]
-fn db_query_presets(search: Option<String>, format_filter: Option<String>, sort_key: Option<String>, sort_asc: Option<bool>, offset: Option<u64>, limit: Option<u64>) -> Result<db::PresetQueryResult, String> {
-    db::global().query_presets(search.as_deref(), format_filter.as_deref(), &sort_key.unwrap_or("name".into()), sort_asc.unwrap_or(true), offset.unwrap_or(0), limit.unwrap_or(200))
+fn db_query_presets(
+    search: Option<String>,
+    format_filter: Option<String>,
+    sort_key: Option<String>,
+    sort_asc: Option<bool>,
+    offset: Option<u64>,
+    limit: Option<u64>,
+) -> Result<db::PresetQueryResult, String> {
+    db::global().query_presets(
+        search.as_deref(),
+        format_filter.as_deref(),
+        &sort_key.unwrap_or("name".into()),
+        sort_asc.unwrap_or(true),
+        offset.unwrap_or(0),
+        limit.unwrap_or(200),
+    )
 }
 
 #[tauri::command]
@@ -3631,7 +3936,10 @@ pub fn run() {
             .and_then(|v| v.as_str().and_then(|s| s.parse().ok()).or(v.as_u64()))
             .unwrap_or(10240)
             .clamp(256, 65536);
-        let mut rlim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        let mut rlim = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
         unsafe {
             if libc::getrlimit(libc::RLIMIT_NOFILE, &mut rlim) == 0 {
                 let target = (rlim.rlim_max).min(fd_target);

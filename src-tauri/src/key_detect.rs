@@ -7,7 +7,9 @@
 use std::path::Path;
 
 /// Note names for display.
-const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTE_NAMES: [&str; 12] = [
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+];
 
 /// Krumhansl-Kessler major key profile (starting from C).
 const MAJOR_PROFILE: [f64; 12] = [
@@ -95,7 +97,9 @@ fn compute_chromagram(samples: &[f32], sample_rate: u32) -> [f64; 12] {
 
     // Precompute Hann window and reuse windowed buffer
     let hann: Vec<f64> = (0..frame_size)
-        .map(|i| 0.5 * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / (frame_size - 1) as f64).cos()))
+        .map(|i| {
+            0.5 * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / (frame_size - 1) as f64).cos())
+        })
         .collect();
     let mut windowed = vec![0.0f64; frame_size];
 
@@ -463,7 +467,8 @@ mod tests {
 
         let chroma = compute_chromagram(&samples, sr);
         // C(0), E(4), G(7) should be the top 3 bins
-        let mut indexed: Vec<(usize, f64)> = chroma.iter().enumerate().map(|(i, &v)| (i, v)).collect();
+        let mut indexed: Vec<(usize, f64)> =
+            chroma.iter().enumerate().map(|(i, &v)| (i, v)).collect();
         indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         let top3: Vec<usize> = indexed[..3].iter().map(|&(i, _)| i).collect();
         assert!(top3.contains(&0), "C should be in top 3, got {:?}", top3);
@@ -520,7 +525,11 @@ mod tests {
         let key = detect_key(tmp.to_str().unwrap());
         assert!(key.is_some(), "should detect key for multi-octave A");
         let key = key.unwrap();
-        assert!(key.contains('A'), "multi-octave A should detect A-related key, got {}", key);
+        assert!(
+            key.contains('A'),
+            "multi-octave A should detect A-related key, got {}",
+            key
+        );
         let _ = std::fs::remove_file(&tmp);
     }
 
@@ -540,7 +549,12 @@ mod tests {
             .collect();
         let chroma = compute_chromagram(&samples, sr);
         for (i, &v) in chroma.iter().enumerate() {
-            assert!(v >= 0.0 && v <= 1.0, "chroma bin {} should be [0,1], got {}", i, v);
+            assert!(
+                v >= 0.0 && v <= 1.0,
+                "chroma bin {} should be [0,1], got {}",
+                i,
+                v
+            );
         }
     }
 

@@ -20,15 +20,42 @@ const AUDIO_EXTS: &[&str] = &[
 
 /// DAW project extensions.
 const DAW_EXTS: &[&str] = &[
-    "als", "rpp", "flp", "cpr", "npr", "song", "dawproject", "bwproject",
-    "logicx", "band", "ptx", "ptf", "reason",
+    "als",
+    "rpp",
+    "flp",
+    "cpr",
+    "npr",
+    "song",
+    "dawproject",
+    "bwproject",
+    "logicx",
+    "band",
+    "ptx",
+    "ptf",
+    "reason",
 ];
 
 /// Preset extensions.
 const PRESET_EXTS: &[&str] = &[
-    "fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nkm", "nki", "adg",
-    "adv", "agr", "als", "fst", "ksd", "pjunoxl", "bwpreset", "clap-preset",
-    "tfx", "h2p", "tfx",
+    "fxp",
+    "fxb",
+    "vstpreset",
+    "aupreset",
+    "nmsv",
+    "nkm",
+    "nki",
+    "adg",
+    "adv",
+    "agr",
+    "als",
+    "fst",
+    "ksd",
+    "pjunoxl",
+    "bwpreset",
+    "clap-preset",
+    "tfx",
+    "h2p",
+    "tfx",
 ];
 
 /// Plugin extensions.
@@ -125,14 +152,16 @@ pub fn start_watching(
                     return;
                 }
                 let categories: Vec<String> = p.drain().collect();
-                let _ = app_ref.emit("file-watcher-change", serde_json::json!({
-                    "categories": categories,
-                    "timestamp": chrono::Utc::now().to_rfc3339(),
-                }));
+                let _ = app_ref.emit(
+                    "file-watcher-change",
+                    serde_json::json!({
+                        "categories": categories,
+                        "timestamp": chrono::Utc::now().to_rfc3339(),
+                    }),
+                );
             });
         },
-        Config::default()
-            .with_poll_interval(Duration::from_secs(5)),
+        Config::default().with_poll_interval(Duration::from_secs(5)),
     )
     .map_err(|e| format!("Failed to create watcher: {e}"))?;
 
@@ -179,28 +208,62 @@ mod tests {
 
     #[test]
     fn test_classify_audio() {
-        for ext in &["wav", "mp3", "flac", "ogg", "aif", "aiff", "m4a", "wma", "opus", "ape"] {
+        for ext in &[
+            "wav", "mp3", "flac", "ogg", "aif", "aiff", "m4a", "wma", "opus", "ape",
+        ] {
             let name = format!("test.{ext}");
-            assert_eq!(classify(Path::new(&name)), Some("audio"), "expected audio for .{ext}");
+            assert_eq!(
+                classify(Path::new(&name)),
+                Some("audio"),
+                "expected audio for .{ext}"
+            );
         }
     }
 
     #[test]
     fn test_classify_daw() {
         for ext in &[
-            "als", "rpp", "flp", "cpr", "npr", "song", "dawproject", "bwproject", "logicx",
-            "band", "ptx", "ptf", "reason",
+            "als",
+            "rpp",
+            "flp",
+            "cpr",
+            "npr",
+            "song",
+            "dawproject",
+            "bwproject",
+            "logicx",
+            "band",
+            "ptx",
+            "ptf",
+            "reason",
         ] {
             let name = format!("project.{ext}");
-            assert_eq!(classify(Path::new(&name)), Some("daw"), "expected daw for .{ext}");
+            assert_eq!(
+                classify(Path::new(&name)),
+                Some("daw"),
+                "expected daw for .{ext}"
+            );
         }
     }
 
     #[test]
     fn test_classify_preset() {
-        for ext in &["fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nki", "adg", "adv"] {
+        for ext in &[
+            "fxp",
+            "fxb",
+            "vstpreset",
+            "aupreset",
+            "nmsv",
+            "nki",
+            "adg",
+            "adv",
+        ] {
             let name = format!("preset.{ext}");
-            assert_eq!(classify(Path::new(&name)), Some("preset"), "expected preset for .{ext}");
+            assert_eq!(
+                classify(Path::new(&name)),
+                Some("preset"),
+                "expected preset for .{ext}"
+            );
         }
     }
 
@@ -208,7 +271,11 @@ mod tests {
     fn test_classify_plugin() {
         for ext in &["dll", "vst3", "component", "clap", "aaxplugin"] {
             let name = format!("plugin.{ext}");
-            assert_eq!(classify(Path::new(&name)), Some("plugin"), "expected plugin for .{ext}");
+            assert_eq!(
+                classify(Path::new(&name)),
+                Some("plugin"),
+                "expected plugin for .{ext}"
+            );
         }
     }
 

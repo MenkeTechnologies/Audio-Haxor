@@ -185,7 +185,10 @@ fn walk_dir_parallel(
     {
         let mut ad = active_dirs.lock().unwrap_or_else(|e| e.into_inner());
         ad.push(dir_str.clone());
-        if ad.len() > 30 { let excess = ad.len() - 30; ad.drain(..excess); }
+        if ad.len() > 30 {
+            let excess = ad.len() - 30;
+            ad.drain(..excess);
+        }
     }
 
     let entries: Vec<_> = match fs::read_dir(dir) {
@@ -258,7 +261,10 @@ fn walk_dir_parallel(
                     name: sample_name,
                     path: path.to_string_lossy().to_string(),
                     directory: parent.to_string_lossy().to_string(),
-                    format: ext[1..].to_uppercase(),
+                    format: ext
+                        .strip_prefix('.')
+                        .unwrap_or("")
+                        .to_uppercase(),
                     size: meta.len(),
                     size_formatted: format_size(meta.len()),
                     modified,
@@ -381,7 +387,10 @@ pub fn get_audio_metadata(file_path: &str) -> AudioMetadata {
             .parent()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default(),
-        format: ext[1..].to_uppercase(),
+        format: ext
+            .strip_prefix('.')
+            .unwrap_or("")
+            .to_uppercase(),
         size_bytes: meta.len(),
         created: fmt_time(meta.created()),
         modified: fmt_time(meta.modified()),
@@ -399,7 +408,9 @@ pub fn get_audio_metadata(file_path: &str) -> AudioMetadata {
         ".wav" => parse_wav(path, &mut result),
         ".aiff" | ".aif" => parse_aiff(path, &mut result),
         ".flac" => parse_flac(path, &mut result),
-        ".mp3" | ".ogg" | ".m4a" | ".aac" | ".opus" | ".wma" => probe_with_symphonia(path, &mut result),
+        ".mp3" | ".ogg" | ".m4a" | ".aac" | ".opus" | ".wma" => {
+            probe_with_symphonia(path, &mut result)
+        }
         _ => {}
     }
 
@@ -424,9 +435,12 @@ fn probe_with_symphonia(path: &Path, meta: &mut AudioMetadata) {
         hint.with_extension(ext);
     }
 
-    let probed = match symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
-    {
+    let probed = match symphonia::default::get_probe().format(
+        &hint,
+        mss,
+        &FormatOptions::default(),
+        &MetadataOptions::default(),
+    ) {
         Ok(p) => p,
         Err(_) => return,
     };
@@ -584,20 +598,8 @@ mod tests {
     #[test]
     fn test_audio_extensions_complete() {
         for ext in &[
-            ".wav",
-            ".mp3",
-            ".flac",
-            ".aiff",
-            ".ogg",
-            ".m4a",
-            ".opus",
-            ".aac",
-            ".wma",
-            ".aif",
-            ".rex",
-            ".rx2",
-            ".sf2",
-            ".sfz",
+            ".wav", ".mp3", ".flac", ".aiff", ".ogg", ".m4a", ".opus", ".aac", ".wma", ".aif",
+            ".rex", ".rx2", ".sf2", ".sfz",
         ] {
             assert!(
                 AUDIO_EXTENSIONS.contains(ext),
@@ -926,7 +928,7 @@ mod tests {
                     found.extend_from_slice(batch);
                 },
                 &|| false,
-            None,
+                None,
                 None,
             );
             let wav_count = found.iter().filter(|s| s.name == "test").count();

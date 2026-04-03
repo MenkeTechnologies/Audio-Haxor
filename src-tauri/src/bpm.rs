@@ -32,9 +32,15 @@ pub fn estimate_bpm(file_path: &str) -> Option<f64> {
 }
 
 // Public wrappers for use by similarity module
-pub fn read_wav_pcm_pub(path: &Path) -> Option<(Vec<f32>, u32)> { read_wav_pcm(path) }
-pub fn read_aiff_pcm_pub(path: &Path) -> Option<(Vec<f32>, u32)> { read_aiff_pcm(path) }
-pub fn decode_with_symphonia_pub(path: &Path) -> Option<(Vec<f32>, u32)> { decode_with_symphonia(path) }
+pub fn read_wav_pcm_pub(path: &Path) -> Option<(Vec<f32>, u32)> {
+    read_wav_pcm(path)
+}
+pub fn read_aiff_pcm_pub(path: &Path) -> Option<(Vec<f32>, u32)> {
+    read_aiff_pcm(path)
+}
+pub fn decode_with_symphonia_pub(path: &Path) -> Option<(Vec<f32>, u32)> {
+    decode_with_symphonia(path)
+}
 
 /// Read WAV file and return mono f32 samples + sample rate.
 fn read_wav_pcm(path: &Path) -> Option<(Vec<f32>, u32)> {
@@ -210,7 +216,12 @@ fn decode_with_symphonia(path: &Path) -> Option<(Vec<f32>, u32)> {
     }
 
     let probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .ok()?;
 
     let mut format = probed.format;
@@ -825,7 +836,11 @@ mod tests {
         let round = |v: f64| -> f64 {
             let rounded = (v * 10.0).round() / 10.0;
             let nearest = rounded.round();
-            if (rounded - nearest).abs() < 0.15 { nearest } else { rounded }
+            if (rounded - nearest).abs() < 0.15 {
+                nearest
+            } else {
+                rounded
+            }
         };
         assert_eq!(round(120.08), 120.0);
         assert_eq!(round(119.92), 120.0);

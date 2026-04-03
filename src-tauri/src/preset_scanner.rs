@@ -178,7 +178,10 @@ fn walk_dir_parallel(
     {
         let mut ad = active_dirs.lock().unwrap_or_else(|e| e.into_inner());
         ad.push(dir_str.clone());
-        if ad.len() > 30 { let excess = ad.len() - 30; ad.drain(..excess); }
+        if ad.len() > 30 {
+            let excess = ad.len() - 30;
+            ad.drain(..excess);
+        }
     }
 
     let entries: Vec<_> = match fs::read_dir(dir) {
@@ -356,7 +359,7 @@ mod tests {
             },
             &|| false,
             None,
-        None,
+            None,
         );
         assert!(found.is_empty());
         let _ = fs::remove_dir_all(&tmp);
@@ -380,7 +383,7 @@ mod tests {
             },
             &|| false,
             None,
-        None,
+            None,
         );
         assert_eq!(found.len(), 3);
         let formats: Vec<&str> = found.iter().map(|p| p.format.as_str()).collect();
@@ -412,7 +415,7 @@ mod tests {
             },
             &|| stop_after.load(std::sync::atomic::Ordering::Relaxed),
             None,
-        None,
+            None,
         );
         // Should have stopped — may have found some but scan should terminate
         let _ = fs::remove_dir_all(&tmp);

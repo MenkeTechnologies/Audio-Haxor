@@ -235,6 +235,9 @@ This directory survives app reinstalls. Never deleted by builds.
 pnpm run clean      # Remove src-tauri/target, dist, node_modules/.cache
 pnpm run rebuild    # Clean + full release build
 pnpm test           # JS + Rust tests
+pnpm run doc        # Rust API docs → src-tauri/target/doc/
+pnpm run doc:open   # Same + open app_lib docs in browser
+pnpm run doc:sync   # Regenerate rustdoc and copy to docs/api/ + use docs/index.html
 ```
 
 ---
@@ -252,7 +255,9 @@ cd src-tauri && cargo test
 node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 ```
 
-### Rust tests (384 tests across 15 modules)
+### Rust tests (477 total: 398 in `app_lib` + 79 integration in `tests/`; 4 `#[ignore]` in `app_lib`)
+
+**`app_lib` unit tests (398) — 15 modules**
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
@@ -269,17 +274,43 @@ node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 | **midi** | 17 | MThd header parsing, MTrk track parsing, variable-length quantity decoding, meta events (tempo, time sig, key sig), note counting, channel detection, duration calculation, multi-track files, format 0/1/2, edge cases |
 | **preset_scanner** | 14 | Preset discovery, directory walking, stop signal, exclude set, hidden/blacklisted dir skip, symlink dedup, format detection, batching |
 | **file_watcher** | 13 | classify audio/daw/preset/plugin extensions, case-insensitive matching, unknown returns None, state lifecycle (new/watching/stop), noop stop on fresh state |
-| **lufs** | 8 | Silence floor (-70 LUFS), sine wave levels, full-scale loudness, 6dB amplitude relationship, short file handling, louder-is-higher ordering, nonexistent/unsupported file handling |
-| **lib** | 2 | Cache file roundtrip, nonexistent cache handling |
+| **lufs** | 16 | Silence floor (-70 LUFS), sine/stereo/AIFF paths, uppercase `.WAV`, minimum sample count, 6dB amplitude relationship, short file handling, louder-is-higher ordering, rounding, nonexistent/unsupported file handling |
+| **lib** | 64 | Export/import roundtrips (JSON/TOML/CSV/TSV), CSV/DSV escaping, `format_size` (incl. GB + unknown-path separator), cache helpers, band validation, file ops, plugin export payloads, preferences merge, and other IPC-adjacent helpers |
 
-### JavaScript tests (995 tests)
+**Integration tests (79)** live under `tests/`. They import the library as `app_lib` (crate name in `Cargo.toml`) and cover smoke coverage for DB (`init_global` + queries), scanners, KVR, xref/similarity, command-layer helpers, DAW/audio/preset scenarios, MIDI/LUFS/key/BPM, and plugin/VST path checks. Run: `cargo test --manifest-path src-tauri/Cargo.toml`.
 
-| Module | Tests | Coverage |
-|--------|-------|----------|
-| **ui** | 208 | `escapeHtml` (null, numeric, double-escaping), `escapePath` (spaces, quotes, unicode), `slugify` (camelCase, numbers, special chars), `buildKvrUrl` (spaces, parens, empty manufacturer), `formatAudioSize`, `formatTime` (0s, 60s, 3661s, negative), `getFormatClass` (all formats), `timeAgo` (seconds, minutes, hours, days), `kvrCacheKey` (special chars, unicode), `buildDirsTable`, `applyKvrCache`, `metaItem`, `buildPluginCardHtml`, `normalizePluginName` (case folding, arch suffix stripping, whitespace collapse, bracket/bare variants) |
-| **scanner** | 110 | Plugin type mapping (`.vst`/`.vst3`/`.component`/`.dll`/`.aaxplugin`/`.clap`), file size formatting (0B, 1B, 1023B, 1TB), DAW type mapping (all 14+ formats), audio format detection (WAV, MP3, FLAC, M4A, AAC, OPUS, REX) |
-| **update-worker** | 27 | Version parsing (pre-release, leading v, multi-part), version comparison (identical, long versions), KVR URL builder (slug generation, manufacturer suffix) |
-| *Additional test suites* | 650 | fzf scoring, search modes, filter logic, format detection, path handling |
+### JavaScript tests (995 tests, `node:test`)
+
+| Suite | Tests | What runs |
+|-------|-------|-----------|
+| **`test/ui.test.js`** | 209 | Pure copies of UI helpers: `escapeHtml`, `escapePath`, `slugify`, `buildKvrUrl`, `formatAudioSize`, `formatTime`, `getFormatClass`, `timeAgo`, `kvrCacheKey`, `buildDirsTable`, `applyKvrCache`, `metaItem`, `buildPluginCardHtml`, `normalizePluginName`, etc. |
+| **`test/scanner.test.js`** | 25 | **In-test replicas** of plugin-type / `formatSize` / DAW+audio extension mapping (not an import of `scanner.js`, which uses macOS `execSync` for plists). |
+| **`test/update-worker.test.js`** | 32 | Version parse/compare and KVR URL patterns (logic duplicated in file). |
+| **`test/*.test.js` (bulk)** | 729 | One small file per concern: fzf-style scoring, string/array/math utilities, formatting — **not** the full `frontend/js/utils.js` module graph. |
+
+**What these tests do *not* cover (by design):**
+
+- **No WebView / DOM** — nothing drives `document`, `applyFilter`, `registerFilter`, multi-filter widgets, or `saveFilterState` / `restoreFilterStates` against real HTML.
+- **No Tauri IPC** — no invoke/events; no live `scanner.js` / `plugins.js` integration.
+- **No E2E** — no Playwright/Cypress; behavior is **shallow unit** checks on isolated or duplicated logic.
+
+So: strong coverage for **formatting, escaping, scoring, and math-style helpers**; **not** a substitute for manual QA or future browser E2E tests for filters, tabs, or stateful UI.
+
+---
+
+## // API DOCUMENTATION (RUST — HTML) //
+
+Rust API docs (rustdoc) are generated for the `app_lib` crate:
+
+```bash
+# Generate HTML under src-tauri/target/doc/ (opens in browser)
+pnpm doc:open
+
+# Regenerate and copy a browsable tree into docs/api/ (for GitHub Pages or offline)
+pnpm doc:sync
+```
+
+After `pnpm doc:sync`, open `docs/index.html` in a browser, or open `docs/api/app_lib/index.html` directly. The canonical build output is always `src-tauri/target/doc/app_lib/index.html`.
 
 ---
 
@@ -407,6 +438,7 @@ src-tauri/
     history.rs         -- Scan history persistence + diff engine
     key_detect.rs      -- Musical key detection via Goertzel chromagram
     lufs.rs            -- LUFS loudness measurement
+    midi.rs            -- MIDI file parsing and metadata
     kvr.rs             -- KVR Audio scraper + version checker
   Cargo.toml           -- Rust dependencies
   tauri.conf.json      -- Tauri app configuration + CSP + bundling
@@ -446,8 +478,6 @@ frontend/
     heatmap-dashboard.js -- 8-card analytics dashboard
     smart-playlists.js -- Rule-based auto-playlists (10 rule types)
     drag-reorder.js    -- Unified Trello-style drag/drop + table column reorder
-    modal-drag.js      -- Modal drag/resize with geometry persistence
-    drag-reorder.js    -- Unified Trello-style drag and drop system
     modal-drag.js      -- Modal drag/resize with geometry persistence
 
 test/

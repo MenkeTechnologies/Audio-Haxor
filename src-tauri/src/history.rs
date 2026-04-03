@@ -155,9 +155,17 @@ pub struct AudioSample {
     pub duration: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub channels: Option<u16>,
-    #[serde(default, rename = "sampleRate", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "sampleRate",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub sample_rate: Option<u32>,
-    #[serde(default, rename = "bitsPerSample", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "bitsPerSample",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub bits_per_sample: Option<u16>,
 }
 
@@ -700,10 +708,18 @@ fn save_history(history: &ScanHistory) {
 }
 
 /// Build a ScanSnapshot without file I/O (for SQLite path).
-pub fn build_plugin_snapshot(plugins: &[PluginInfo], directories: &[String], roots: &[String]) -> ScanSnapshot {
+pub fn build_plugin_snapshot(
+    plugins: &[PluginInfo],
+    directories: &[String],
+    roots: &[String],
+) -> ScanSnapshot {
     ScanSnapshot {
-        id: gen_id(), timestamp: now_iso(), plugin_count: plugins.len(),
-        plugins: plugins.to_vec(), directories: directories.to_vec(), roots: roots.to_vec(),
+        id: gen_id(),
+        timestamp: now_iso(),
+        plugin_count: plugins.len(),
+        plugins: plugins.to_vec(),
+        directories: directories.to_vec(),
+        roots: roots.to_vec(),
     }
 }
 
@@ -826,21 +842,58 @@ pub fn get_latest_scan() -> Option<ScanSnapshot> {
 
 /// Compute diff between two plugin snapshots (no file I/O).
 pub fn compute_plugin_diff(old_scan: &ScanSnapshot, new_scan: &ScanSnapshot) -> ScanDiff {
-    let old_paths: std::collections::HashSet<&str> = old_scan.plugins.iter().map(|p| p.path.as_str()).collect();
-    let new_paths: std::collections::HashSet<&str> = new_scan.plugins.iter().map(|p| p.path.as_str()).collect();
-    let old_by_path: std::collections::HashMap<&str, &PluginInfo> = old_scan.plugins.iter().map(|p| (p.path.as_str(), p)).collect();
-    let added: Vec<PluginInfo> = new_scan.plugins.iter().filter(|p| !old_paths.contains(p.path.as_str())).cloned().collect();
-    let removed: Vec<PluginInfo> = old_scan.plugins.iter().filter(|p| !new_paths.contains(p.path.as_str())).cloned().collect();
-    let version_changed: Vec<VersionChangedPlugin> = new_scan.plugins.iter().filter_map(|p| {
-        let old = old_by_path.get(p.path.as_str())?;
-        if old.version != p.version && p.version != "Unknown" && old.version != "Unknown" {
-            Some(VersionChangedPlugin { plugin: p.clone(), previous_version: old.version.clone() })
-        } else { None }
-    }).collect();
+    let old_paths: std::collections::HashSet<&str> =
+        old_scan.plugins.iter().map(|p| p.path.as_str()).collect();
+    let new_paths: std::collections::HashSet<&str> =
+        new_scan.plugins.iter().map(|p| p.path.as_str()).collect();
+    let old_by_path: std::collections::HashMap<&str, &PluginInfo> = old_scan
+        .plugins
+        .iter()
+        .map(|p| (p.path.as_str(), p))
+        .collect();
+    let added: Vec<PluginInfo> = new_scan
+        .plugins
+        .iter()
+        .filter(|p| !old_paths.contains(p.path.as_str()))
+        .cloned()
+        .collect();
+    let removed: Vec<PluginInfo> = old_scan
+        .plugins
+        .iter()
+        .filter(|p| !new_paths.contains(p.path.as_str()))
+        .cloned()
+        .collect();
+    let version_changed: Vec<VersionChangedPlugin> = new_scan
+        .plugins
+        .iter()
+        .filter_map(|p| {
+            let old = old_by_path.get(p.path.as_str())?;
+            if old.version != p.version && p.version != "Unknown" && old.version != "Unknown" {
+                Some(VersionChangedPlugin {
+                    plugin: p.clone(),
+                    previous_version: old.version.clone(),
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
     ScanDiff {
-        old_scan: ScanSummary { id: old_scan.id.clone(), timestamp: old_scan.timestamp.clone(), plugin_count: old_scan.plugin_count, roots: old_scan.roots.clone() },
-        new_scan: ScanSummary { id: new_scan.id.clone(), timestamp: new_scan.timestamp.clone(), plugin_count: new_scan.plugin_count, roots: new_scan.roots.clone() },
-        added, removed, version_changed,
+        old_scan: ScanSummary {
+            id: old_scan.id.clone(),
+            timestamp: old_scan.timestamp.clone(),
+            plugin_count: old_scan.plugin_count,
+            roots: old_scan.roots.clone(),
+        },
+        new_scan: ScanSummary {
+            id: new_scan.id.clone(),
+            timestamp: new_scan.timestamp.clone(),
+            plugin_count: new_scan.plugin_count,
+            roots: new_scan.roots.clone(),
+        },
+        added,
+        removed,
+        version_changed,
     }
 }
 
@@ -913,21 +966,56 @@ pub fn build_audio_snapshot(samples: &[AudioSample], roots: &[String]) -> AudioS
         total_bytes += s.size;
     }
     AudioScanSnapshot {
-        id: gen_id(), timestamp: now_iso(), sample_count: samples.len(),
-        total_bytes, format_counts, samples: samples.to_vec(), roots: roots.to_vec(),
+        id: gen_id(),
+        timestamp: now_iso(),
+        sample_count: samples.len(),
+        total_bytes,
+        format_counts,
+        samples: samples.to_vec(),
+        roots: roots.to_vec(),
     }
 }
 
 /// Compute diff between two audio snapshots (no file I/O).
-pub fn compute_audio_diff(old_scan: &AudioScanSnapshot, new_scan: &AudioScanSnapshot) -> AudioScanDiff {
-    let old_paths: std::collections::HashSet<&str> = old_scan.samples.iter().map(|s| s.path.as_str()).collect();
-    let new_paths: std::collections::HashSet<&str> = new_scan.samples.iter().map(|s| s.path.as_str()).collect();
-    let added: Vec<AudioSample> = new_scan.samples.iter().filter(|s| !old_paths.contains(s.path.as_str())).cloned().collect();
-    let removed: Vec<AudioSample> = old_scan.samples.iter().filter(|s| !new_paths.contains(s.path.as_str())).cloned().collect();
+pub fn compute_audio_diff(
+    old_scan: &AudioScanSnapshot,
+    new_scan: &AudioScanSnapshot,
+) -> AudioScanDiff {
+    let old_paths: std::collections::HashSet<&str> =
+        old_scan.samples.iter().map(|s| s.path.as_str()).collect();
+    let new_paths: std::collections::HashSet<&str> =
+        new_scan.samples.iter().map(|s| s.path.as_str()).collect();
+    let added: Vec<AudioSample> = new_scan
+        .samples
+        .iter()
+        .filter(|s| !old_paths.contains(s.path.as_str()))
+        .cloned()
+        .collect();
+    let removed: Vec<AudioSample> = old_scan
+        .samples
+        .iter()
+        .filter(|s| !new_paths.contains(s.path.as_str()))
+        .cloned()
+        .collect();
     AudioScanDiff {
-        old_scan: AudioScanSummary { id: old_scan.id.clone(), timestamp: old_scan.timestamp.clone(), sample_count: old_scan.sample_count, total_bytes: old_scan.total_bytes, format_counts: old_scan.format_counts.clone(), roots: old_scan.roots.clone() },
-        new_scan: AudioScanSummary { id: new_scan.id.clone(), timestamp: new_scan.timestamp.clone(), sample_count: new_scan.sample_count, total_bytes: new_scan.total_bytes, format_counts: new_scan.format_counts.clone(), roots: new_scan.roots.clone() },
-        added, removed,
+        old_scan: AudioScanSummary {
+            id: old_scan.id.clone(),
+            timestamp: old_scan.timestamp.clone(),
+            sample_count: old_scan.sample_count,
+            total_bytes: old_scan.total_bytes,
+            format_counts: old_scan.format_counts.clone(),
+            roots: old_scan.roots.clone(),
+        },
+        new_scan: AudioScanSummary {
+            id: new_scan.id.clone(),
+            timestamp: new_scan.timestamp.clone(),
+            sample_count: new_scan.sample_count,
+            total_bytes: new_scan.total_bytes,
+            format_counts: new_scan.format_counts.clone(),
+            roots: new_scan.roots.clone(),
+        },
+        added,
+        removed,
     }
 }
 
@@ -1021,20 +1109,52 @@ pub fn build_daw_snapshot(projects: &[DawProject], roots: &[String]) -> DawScanS
         total_bytes += p.size;
     }
     DawScanSnapshot {
-        id: gen_id(), timestamp: now_iso(), project_count: projects.len(),
-        total_bytes, daw_counts, projects: projects.to_vec(), roots: roots.to_vec(),
+        id: gen_id(),
+        timestamp: now_iso(),
+        project_count: projects.len(),
+        total_bytes,
+        daw_counts,
+        projects: projects.to_vec(),
+        roots: roots.to_vec(),
     }
 }
 
 pub fn compute_daw_diff(old_scan: &DawScanSnapshot, new_scan: &DawScanSnapshot) -> DawScanDiff {
-    let old_paths: std::collections::HashSet<&str> = old_scan.projects.iter().map(|p| p.path.as_str()).collect();
-    let new_paths: std::collections::HashSet<&str> = new_scan.projects.iter().map(|p| p.path.as_str()).collect();
-    let added: Vec<DawProject> = new_scan.projects.iter().filter(|p| !old_paths.contains(p.path.as_str())).cloned().collect();
-    let removed: Vec<DawProject> = old_scan.projects.iter().filter(|p| !new_paths.contains(p.path.as_str())).cloned().collect();
+    let old_paths: std::collections::HashSet<&str> =
+        old_scan.projects.iter().map(|p| p.path.as_str()).collect();
+    let new_paths: std::collections::HashSet<&str> =
+        new_scan.projects.iter().map(|p| p.path.as_str()).collect();
+    let added: Vec<DawProject> = new_scan
+        .projects
+        .iter()
+        .filter(|p| !old_paths.contains(p.path.as_str()))
+        .cloned()
+        .collect();
+    let removed: Vec<DawProject> = old_scan
+        .projects
+        .iter()
+        .filter(|p| !new_paths.contains(p.path.as_str()))
+        .cloned()
+        .collect();
     DawScanDiff {
-        old_scan: DawScanSummary { id: old_scan.id.clone(), timestamp: old_scan.timestamp.clone(), project_count: old_scan.project_count, total_bytes: old_scan.total_bytes, daw_counts: old_scan.daw_counts.clone(), roots: old_scan.roots.clone() },
-        new_scan: DawScanSummary { id: new_scan.id.clone(), timestamp: new_scan.timestamp.clone(), project_count: new_scan.project_count, total_bytes: new_scan.total_bytes, daw_counts: new_scan.daw_counts.clone(), roots: new_scan.roots.clone() },
-        added, removed,
+        old_scan: DawScanSummary {
+            id: old_scan.id.clone(),
+            timestamp: old_scan.timestamp.clone(),
+            project_count: old_scan.project_count,
+            total_bytes: old_scan.total_bytes,
+            daw_counts: old_scan.daw_counts.clone(),
+            roots: old_scan.roots.clone(),
+        },
+        new_scan: DawScanSummary {
+            id: new_scan.id.clone(),
+            timestamp: new_scan.timestamp.clone(),
+            project_count: new_scan.project_count,
+            total_bytes: new_scan.total_bytes,
+            daw_counts: new_scan.daw_counts.clone(),
+            roots: new_scan.roots.clone(),
+        },
+        added,
+        removed,
     }
 }
 
@@ -1224,20 +1344,55 @@ pub fn build_preset_snapshot(presets: &[PresetFile], roots: &[String]) -> Preset
         total_bytes += p.size;
     }
     PresetScanSnapshot {
-        id: gen_id(), timestamp: now_iso(), preset_count: presets.len(),
-        total_bytes, format_counts, presets: presets.to_vec(), roots: roots.to_vec(),
+        id: gen_id(),
+        timestamp: now_iso(),
+        preset_count: presets.len(),
+        total_bytes,
+        format_counts,
+        presets: presets.to_vec(),
+        roots: roots.to_vec(),
     }
 }
 
-pub fn compute_preset_diff(old_scan: &PresetScanSnapshot, new_scan: &PresetScanSnapshot) -> PresetScanDiff {
-    let old_paths: std::collections::HashSet<&str> = old_scan.presets.iter().map(|p| p.path.as_str()).collect();
-    let new_paths: std::collections::HashSet<&str> = new_scan.presets.iter().map(|p| p.path.as_str()).collect();
-    let added: Vec<PresetFile> = new_scan.presets.iter().filter(|p| !old_paths.contains(p.path.as_str())).cloned().collect();
-    let removed: Vec<PresetFile> = old_scan.presets.iter().filter(|p| !new_paths.contains(p.path.as_str())).cloned().collect();
+pub fn compute_preset_diff(
+    old_scan: &PresetScanSnapshot,
+    new_scan: &PresetScanSnapshot,
+) -> PresetScanDiff {
+    let old_paths: std::collections::HashSet<&str> =
+        old_scan.presets.iter().map(|p| p.path.as_str()).collect();
+    let new_paths: std::collections::HashSet<&str> =
+        new_scan.presets.iter().map(|p| p.path.as_str()).collect();
+    let added: Vec<PresetFile> = new_scan
+        .presets
+        .iter()
+        .filter(|p| !old_paths.contains(p.path.as_str()))
+        .cloned()
+        .collect();
+    let removed: Vec<PresetFile> = old_scan
+        .presets
+        .iter()
+        .filter(|p| !new_paths.contains(p.path.as_str()))
+        .cloned()
+        .collect();
     PresetScanDiff {
-        old_scan: PresetScanSummary { id: old_scan.id.clone(), timestamp: old_scan.timestamp.clone(), preset_count: old_scan.preset_count, total_bytes: old_scan.total_bytes, format_counts: old_scan.format_counts.clone(), roots: old_scan.roots.clone() },
-        new_scan: PresetScanSummary { id: new_scan.id.clone(), timestamp: new_scan.timestamp.clone(), preset_count: new_scan.preset_count, total_bytes: new_scan.total_bytes, format_counts: new_scan.format_counts.clone(), roots: new_scan.roots.clone() },
-        added, removed,
+        old_scan: PresetScanSummary {
+            id: old_scan.id.clone(),
+            timestamp: old_scan.timestamp.clone(),
+            preset_count: old_scan.preset_count,
+            total_bytes: old_scan.total_bytes,
+            format_counts: old_scan.format_counts.clone(),
+            roots: old_scan.roots.clone(),
+        },
+        new_scan: PresetScanSummary {
+            id: new_scan.id.clone(),
+            timestamp: new_scan.timestamp.clone(),
+            preset_count: new_scan.preset_count,
+            total_bytes: new_scan.total_bytes,
+            format_counts: new_scan.format_counts.clone(),
+            roots: new_scan.roots.clone(),
+        },
+        added,
+        removed,
     }
 }
 

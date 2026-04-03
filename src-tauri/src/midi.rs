@@ -36,19 +36,29 @@ pub struct MidiInfo {
 /// Parse a MIDI file and return metadata.
 pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
     let data = std::fs::read(path).ok()?;
-    if data.len() < 14 { return None; }
+    if data.len() < 14 {
+        return None;
+    }
 
     // MThd header: "MThd" + 4-byte length + format + tracks + division
-    if &data[0..4] != b"MThd" { return None; }
+    if &data[0..4] != b"MThd" {
+        return None;
+    }
     let header_len = u32::from_be_bytes([data[4], data[5], data[6], data[7]]) as usize;
-    if data.len() < 8 + header_len { return None; }
+    if data.len() < 8 + header_len {
+        return None;
+    }
 
     let format = u16::from_be_bytes([data[8], data[9]]);
     let track_count = u16::from_be_bytes([data[10], data[11]]);
     let division = u16::from_be_bytes([data[12], data[13]]);
 
     // Division: if bit 15 is 0, it's ticks per quarter note (PPQN)
-    let ppqn = if division & 0x8000 == 0 { division } else { 480 }; // default 480 for SMPTE
+    let ppqn = if division & 0x8000 == 0 {
+        division
+    } else {
+        480
+    }; // default 480 for SMPTE
 
     let mut info = MidiInfo {
         format,
@@ -66,9 +76,15 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
     // Parse track chunks
     let mut pos = 8 + header_len;
     for _ in 0..track_count {
-        if pos + 8 > data.len() { break; }
-        if &data[pos..pos + 4] != b"MTrk" { break; }
-        let track_len = u32::from_be_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]]) as usize;
+        if pos + 8 > data.len() {
+            break;
+        }
+        if &data[pos..pos + 4] != b"MTrk" {
+            break;
+        }
+        let track_len =
+            u32::from_be_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]])
+                as usize;
         let track_end = (pos + 8 + track_len).min(data.len());
         let mut tp = pos + 8;
         let mut track_ticks = 0u32;
@@ -80,14 +96,18 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
             tp += bytes_read;
             track_ticks += delta;
 
-            if tp >= track_end { break; }
+            if tp >= track_end {
+                break;
+            }
 
             let status = data[tp];
 
             if status == 0xFF {
                 // Meta event
                 tp += 1;
-                if tp >= track_end { break; }
+                if tp >= track_end {
+                    break;
+                }
                 let meta_type = data[tp];
                 tp += 1;
                 let (meta_len, vl_bytes) = read_var_len(&data, tp);
@@ -107,7 +127,9 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
                     0x51 => {
                         // Tempo: 3 bytes, microseconds per quarter note
                         if meta_end - tp >= 3 {
-                            tempo_us = ((data[tp] as u32) << 16) | ((data[tp + 1] as u32) << 8) | (data[tp + 2] as u32);
+                            tempo_us = ((data[tp] as u32) << 16)
+                                | ((data[tp + 1] as u32) << 8)
+                                | (data[tp + 2] as u32);
                             if tempo_us > 0 {
                                 info.tempo = 60_000_000.0 / tempo_us as f64;
                             }
@@ -127,11 +149,21 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
                         if meta_end - tp >= 2 {
                             let sf = data[tp] as i8;
                             let mi = data[tp + 1];
-                            let key_names_major = ["Cb", "Gb", "Db", "Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#"];
-                            let key_names_minor = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#", "G#", "D#", "A#"];
+                            let key_names_major = [
+                                "Cb", "Gb", "Db", "Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E",
+                                "B", "F#", "C#",
+                            ];
+                            let key_names_minor = [
+                                "Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#",
+                                "G#", "D#", "A#",
+                            ];
                             let idx = (sf + 7) as usize;
                             if idx < 15 {
-                                let name = if mi == 0 { key_names_major[idx] } else { key_names_minor[idx] };
+                                let name = if mi == 0 {
+                                    key_names_major[idx]
+                                } else {
+                                    key_names_minor[idx]
+                                };
                                 let mode = if mi == 0 { "major" } else { "minor" };
                                 info.key_signature = format!("{name} {mode}");
                             }
@@ -153,7 +185,9 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
                 let channel = status & 0x0F;
                 channel_mask |= 1 << channel;
                 match msg {
-                    0x80 | 0xA0 | 0xB0 | 0xE0 => { tp += 2; } // 2 data bytes
+                    0x80 | 0xA0 | 0xB0 | 0xE0 => {
+                        tp += 2;
+                    } // 2 data bytes
                     0x90 => {
                         // Note on
                         if tp + 1 < track_end && data[tp + 1] > 0 {
@@ -161,8 +195,12 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
                         }
                         tp += 2;
                     }
-                    0xC0 | 0xD0 => { tp += 1; } // 1 data byte
-                    _ => { tp += 2; }
+                    0xC0 | 0xD0 => {
+                        tp += 1;
+                    } // 1 data byte
+                    _ => {
+                        tp += 2;
+                    }
                 }
             } else {
                 // Running status
@@ -170,15 +208,21 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
                 let channel = running_status & 0x0F;
                 channel_mask |= 1 << channel;
                 match msg {
-                    0x80 | 0xA0 | 0xB0 | 0xE0 => { tp += 2; }
+                    0x80 | 0xA0 | 0xB0 | 0xE0 => {
+                        tp += 2;
+                    }
                     0x90 => {
                         if tp + 1 < track_end && data[tp + 1] > 0 {
                             info.note_count += 1;
                         }
                         tp += 2;
                     }
-                    0xC0 | 0xD0 => { tp += 1; }
-                    _ => { tp += 1; }
+                    0xC0 | 0xD0 => {
+                        tp += 1;
+                    }
+                    _ => {
+                        tp += 1;
+                    }
                 }
             }
         }
@@ -209,12 +253,18 @@ fn read_var_len(data: &[u8], pos: usize) -> (u32, usize) {
     let mut val = 0u32;
     let mut i = pos;
     loop {
-        if i >= data.len() { return (val, i - pos); }
+        if i >= data.len() {
+            return (val, i - pos);
+        }
         let b = data[i];
         val = (val << 7) | (b & 0x7F) as u32;
         i += 1;
-        if b & 0x80 == 0 { break; }
-        if i - pos > 4 { break; } // safety: max 4 bytes
+        if b & 0x80 == 0 {
+            break;
+        }
+        if i - pos > 4 {
+            break;
+        } // safety: max 4 bytes
     }
     (val, i - pos)
 }
@@ -313,7 +363,11 @@ mod tests {
         let tmp = std::env::temp_dir().join("test_tempo.mid");
         std::fs::write(&tmp, &data).unwrap();
         let info = parse_midi(&tmp).unwrap();
-        assert!((info.tempo - 140.0).abs() < 0.5, "tempo should be ~140, got {}", info.tempo);
+        assert!(
+            (info.tempo - 140.0).abs() < 0.5,
+            "tempo should be ~140, got {}",
+            info.tempo
+        );
         let _ = std::fs::remove_file(&tmp);
     }
 
@@ -335,12 +389,12 @@ mod tests {
     #[test]
     fn test_parse_notes() {
         let track = vec![
-            0x00, 0x90, 60, 100,  // note on C4 vel=100
-            0x60, 0x80, 60, 0,    // note off after 96 ticks
-            0x00, 0x90, 64, 80,   // note on E4
-            0x60, 0x80, 64, 0,    // note off
-            0x00, 0x90, 67, 90,   // note on G4
-            0x60, 0x80, 67, 0,    // note off
+            0x00, 0x90, 60, 100, // note on C4 vel=100
+            0x60, 0x80, 60, 0, // note off after 96 ticks
+            0x00, 0x90, 64, 80, // note on E4
+            0x60, 0x80, 64, 0, // note off
+            0x00, 0x90, 67, 90, // note on G4
+            0x60, 0x80, 67, 0, // note off
             0x00, 0xFF, 0x2F, 0x00,
         ];
         let data = make_midi(0, 1, 480, &track);
@@ -400,15 +454,19 @@ mod tests {
     fn test_parse_duration() {
         // 480 ticks at 120 BPM (500000 µs/beat), ppqn=480 → 1 beat → 0.5 seconds
         let track = vec![
-            0x00, 0x90, 60, 100,       // note on at tick 0
-            0x83, 0x60, 0x80, 60, 0,   // note off at tick 480 (var len: 0x83 0x60 = 480)
+            0x00, 0x90, 60, 100, // note on at tick 0
+            0x83, 0x60, 0x80, 60, 0, // note off at tick 480 (var len: 0x83 0x60 = 480)
             0x00, 0xFF, 0x2F, 0x00,
         ];
         let data = make_midi(0, 1, 480, &track);
         let tmp = std::env::temp_dir().join("test_duration.mid");
         std::fs::write(&tmp, &data).unwrap();
         let info = parse_midi(&tmp).unwrap();
-        assert!((info.duration - 0.5).abs() < 0.1, "duration should be ~0.5s, got {}", info.duration);
+        assert!(
+            (info.duration - 0.5).abs() < 0.1,
+            "duration should be ~0.5s, got {}",
+            info.duration
+        );
         let _ = std::fs::remove_file(&tmp);
     }
 
