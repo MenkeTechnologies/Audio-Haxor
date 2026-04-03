@@ -70,6 +70,60 @@ function collectPaletteItems() {
   items.push({ type: 'action', name: 'Scan All', icon: '&#9889;', action: () => typeof scanAll === 'function' && scanAll() });
   items.push({ type: 'action', name: 'Stop All Scans', icon: '&#9632;', action: () => typeof stopAll === 'function' && stopAll() });
 
+  // Player controls
+  if (typeof toggleAudioPlayback === 'function') {
+    items.push({ type: 'action', name: 'Play / Pause', icon: '&#9654;', action: () => toggleAudioPlayback() });
+  }
+  if (typeof nextTrack === 'function') {
+    items.push({ type: 'action', name: 'Next Track', icon: '&#9193;', action: () => nextTrack() });
+  }
+  if (typeof prevTrack === 'function') {
+    items.push({ type: 'action', name: 'Previous Track', icon: '&#9194;', action: () => prevTrack() });
+  }
+  if (typeof toggleAudioLoop === 'function') {
+    items.push({ type: 'action', name: 'Toggle Loop', icon: '&#128257;', action: () => toggleAudioLoop() });
+  }
+  if (typeof toggleShuffle === 'function') {
+    items.push({ type: 'action', name: 'Toggle Shuffle', icon: '&#128256;', action: () => toggleShuffle() });
+  }
+  if (typeof toggleMute === 'function') {
+    items.push({ type: 'action', name: 'Toggle Mute', icon: '&#128263;', action: () => toggleMute() });
+  }
+  if (typeof toggleMono === 'function') {
+    items.push({ type: 'action', name: 'Toggle Mono', icon: '&#127897;', action: () => toggleMono() });
+  }
+  if (typeof toggleEqSection === 'function') {
+    items.push({ type: 'action', name: 'Toggle EQ Panel', icon: '&#127900;', action: () => toggleEqSection() });
+  }
+  if (typeof togglePlayerExpanded === 'function') {
+    items.push({ type: 'action', name: 'Expand / Collapse Player', icon: '&#9744;', action: () => togglePlayerExpanded() });
+  }
+  if (typeof setAbLoopStart === 'function') {
+    items.push({ type: 'action', name: 'Toggle A-B Loop', icon: '&#128260;', action: () => {
+      if (typeof _abLoop !== 'undefined' && _abLoop) { if (typeof clearAbLoop === 'function') clearAbLoop(); }
+      else { setAbLoopStart(); }
+    }});
+  }
+  if (typeof clearRecentlyPlayed === 'function') {
+    items.push({ type: 'action', name: 'Clear Play History', icon: '&#128465;', action: () => clearRecentlyPlayed() });
+  }
+
+  // Selection
+  if (typeof selectAllVisible === 'function') {
+    items.push({ type: 'action', name: 'Select All Visible', icon: '&#9745;', action: () => selectAllVisible() });
+  }
+  if (typeof deselectAll === 'function') {
+    items.push({ type: 'action', name: 'Deselect All', icon: '&#9744;', action: () => deselectAll() });
+  }
+
+  // Effects toggles
+  if (typeof settingToggleCrt === 'function') {
+    items.push({ type: 'action', name: 'Toggle CRT Effects', icon: '&#128250;', action: () => settingToggleCrt() });
+  }
+  if (typeof settingToggleNeonGlow === 'function') {
+    items.push({ type: 'action', name: 'Toggle Neon Glow', icon: '&#10024;', action: () => settingToggleNeonGlow() });
+  }
+
   // Plugins
   if (typeof allPlugins !== 'undefined') {
     for (const p of allPlugins) {

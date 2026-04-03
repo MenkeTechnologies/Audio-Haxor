@@ -49,9 +49,12 @@ const DEFAULT_SHORTCUTS = {
   'toggleABLoop': { key: 'b', mod: false, label: 'Set / clear A-B loop' },
   'heatmapDash': { key: 'd', mod: false, label: 'Heatmap dashboard' },
   'togglePlayer': { key: 'p', mod: false, label: 'Show / hide player' },
+  'toggleCrt': { key: 'F1', mod: false, label: 'Toggle CRT effects' },
+  'toggleNeonGlow': { key: 'F2', mod: false, label: 'Toggle neon glow' },
+  'clearPlayHistory': { key: 'h', mod: true, label: 'Clear play history' },
 };
 
-const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'visualizer', 'settings'];
+const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'visualizer', 'walkers', 'settings'];
 
 function getShortcuts() {
   const saved = prefs.getObject('customShortcuts', null);
@@ -253,7 +256,7 @@ function executeShortcut(id) {
   } else if (id === 'deleteItem') {
     _actionOnSelected('delete');
   } else if (id === 'selectAll') {
-    if (typeof batchSelectAll === 'function') batchSelectAll();
+    if (typeof selectAllVisible === 'function') selectAllVisible();
   } else if (id === 'escape') {
     _handleEscape();
   } else if (id === 'exportTab') {
@@ -305,6 +308,12 @@ function executeShortcut(id) {
     } else {
       if (typeof showPlayer === 'function') showPlayer();
     }
+  } else if (id === 'toggleCrt') {
+    if (typeof settingToggleCrt === 'function') settingToggleCrt();
+  } else if (id === 'toggleNeonGlow') {
+    if (typeof settingToggleNeonGlow === 'function') settingToggleNeonGlow();
+  } else if (id === 'clearPlayHistory') {
+    if (typeof clearRecentlyPlayed === 'function') clearRecentlyPlayed();
   }
 }
 
