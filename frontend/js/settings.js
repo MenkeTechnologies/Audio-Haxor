@@ -1440,7 +1440,7 @@ function initSettingsSectionDrag() {
 
   // Individual rows within sections are still draggable
   // Skip sections with dynamic JS content that breaks on clone/reinsert
-  const noDragSections = new Set(['colorscheme', 'shortcuts', 'storage', 'files']);
+  const noDragSections = new Set(['colorscheme', 'shortcuts']);
   if (typeof initDragReorder === 'function') {
     container.querySelectorAll('.settings-section[data-section]').forEach(section => {
       if (noDragSections.has(section.dataset.section)) return;

@@ -28,7 +28,7 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
   const segments = data.map(d => {
     const pct = ((d.bytes / totalBytes) * 100).toFixed(1);
     const color = colors[d.label] || defaultColor;
-    return `<div class="disk-segment" style="width: ${pct}%; background: ${color};"
+    return `<div class="disk-segment" data-bar-pct="${pct}" style="width:0; background: ${color};"
       title="${d.label}: ${d.sizeStr} (${pct}%)"></div>`;
   }).join('');
 
@@ -45,6 +45,12 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
     <div class="disk-bar">${segments}</div>
     <div class="disk-legend">${legend}</div>
   `;
+  requestAnimationFrame(() => {
+    el.querySelectorAll('[data-bar-pct]').forEach(s => {
+      s.style.width = s.dataset.barPct + '%';
+      s.style.transition = 'width 0.3s ease-out';
+    });
+  });
 }
 
 // Build disk usage data from audio stats

@@ -68,7 +68,7 @@ function buildAnalyticsHtml(data) {
           <span class="dep-plugin-name">${count} references (${pct}%)</span>
         </div>
         <div class="dep-bar-wrap">
-          <div class="dep-bar dep-bar-cyan" style="width:${pct}%"></div>
+          <div class="dep-bar dep-bar-cyan" data-bar-pct="${pct}" style="width:0"></div>
           <span class="dep-bar-count">${pct}%</span>
         </div>
       </div>`;
@@ -92,7 +92,7 @@ function buildAnalyticsHtml(data) {
           <span class="dep-plugin-name">${escapeHtml(mfg)}</span>
         </div>
         <div class="dep-bar-wrap">
-          <div class="dep-bar dep-bar-green" style="width:${pct}%"></div>
+          <div class="dep-bar dep-bar-green" data-bar-pct="${pct}" style="width:0"></div>
           <span class="dep-bar-count">${count}</span>
         </div>
       </div>`;
@@ -151,7 +151,7 @@ function buildAnalyticsHtml(data) {
             <span class="dep-plugin-mfg">${escapeHtml(p.manufacturer)}</span>
           </div>
           <div class="dep-bar-wrap">
-            <div class="dep-bar dep-bar-yellow" style="width:${Math.round((p.count / data.totalProjects) * 100)}%"></div>
+            <div class="dep-bar dep-bar-yellow" data-bar-pct="${Math.round((p.count / data.totalProjects) * 100)}" style="width:0"></div>
             <span class="dep-bar-count">${p.count}/${data.totalProjects}</span>
           </div>
         </div>`).join('')}
@@ -207,7 +207,7 @@ function showDepGraph() {
         <span class="dep-plugin-mfg">${escapeHtml(p.manufacturer)}</span>
       </div>
       <div class="dep-bar-wrap">
-        <div class="dep-bar" style="width:${pct}%"></div>
+        <div class="dep-bar" data-bar-pct="${pct}" style="width:0"></div>
         <span class="dep-bar-count">${p.count}</span>
       </div>
     </div>`;
@@ -224,7 +224,7 @@ function showDepGraph() {
         <span class="dep-project-name">${escapeHtml(p.name)}</span>
       </div>
       <div class="dep-bar-wrap">
-        <div class="dep-bar dep-bar-magenta" style="width:${pct}%"></div>
+        <div class="dep-bar dep-bar-magenta" data-bar-pct="${pct}" style="width:0"></div>
         <span class="dep-bar-count">${p.count}</span>
       </div>
     </div>`;
@@ -290,6 +290,14 @@ function showDepGraph() {
   if (projPanel) projPanel._fullHtml = projPanel.innerHTML;
   if (orphPanel) orphPanel._fullHtml = orphPanel.innerHTML;
   if (analyticsPanel) analyticsPanel._fullHtml = analyticsPanel.innerHTML;
+
+  // Defer bar widths until flex layout resolves
+  requestAnimationFrame(() => {
+    document.querySelectorAll('#depGraphModal [data-bar-pct]').forEach(el => {
+      el.style.width = el.dataset.barPct + '%';
+      el.style.transition = 'width 0.3s ease-out';
+    });
+  });
 
   // Search filtering with match highlighting (debounced)
   let _depTimer;

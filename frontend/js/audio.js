@@ -455,11 +455,18 @@ async function findSimilarSamples(filePath) {
           <span class="sim-result-name">${escapeHtml(sampleName)}</span>
           <span class="sim-result-ext">${ext}</span>
           <div class="sim-result-bar">
-            <div class="sim-result-bar-fill" style="width:${sim}%;background:${barColor};"></div>
+            <div class="sim-result-bar-fill" data-bar-pct="${sim}" style="width:0;background:${barColor};"></div>
           </div>
           <span class="sim-result-pct" style="color:${barColor};">${sim}%</span>
         </div>`;
       }).join('');
+    // Defer bar widths until layout resolves
+    requestAnimationFrame(() => {
+      body.querySelectorAll('[data-bar-pct]').forEach(el => {
+        el.style.width = el.dataset.barPct + '%';
+        el.style.transition = 'width 0.3s ease-out';
+      });
+    });
   } catch (err) {
     if (progressCleanup) progressCleanup();
     const body = document.getElementById('simBody');
