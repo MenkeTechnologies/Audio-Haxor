@@ -20,12 +20,17 @@
       const rect = d.dragged.getBoundingClientRect();
       d.placeholder = document.createElement(d.dragged.tagName);
       d.placeholder.className = 'trello-placeholder';
+      // Copy grid-spanning classes from dragged element
+      for (const cls of d.dragged.classList) {
+        if (cls.includes('wide') || cls.includes('span')) d.placeholder.classList.add(cls);
+      }
       if (d.direction === 'horizontal') {
         d.placeholder.style.width = rect.width + 'px';
         d.placeholder.style.height = rect.height + 'px';
         d.placeholder.style.display = 'inline-block';
       } else {
         d.placeholder.style.height = rect.height + 'px';
+        d.placeholder.style.width = rect.width + 'px';
       }
       d.dragged.parentNode.insertBefore(d.placeholder, d.dragged);
 
