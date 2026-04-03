@@ -1044,14 +1044,8 @@ async fn batch_analyze(paths: Vec<String>) -> Result<u32, String> {
                 (path.clone(), bpm_val, key_val, lufs_val)
             })
             .collect();
-        let mut count = 0u32;
-        for (path, bpm_val, key_val, lufs_val) in &results {
-            let _ = db::global().update_bpm(path, *bpm_val);
-            let _ = db::global().update_key(path, key_val.as_deref());
-            let _ = db::global().update_lufs(path, *lufs_val);
-            count += 1;
-        }
-        count
+        // Batch all DB writes in a single transaction
+        db::global().batch_update_analysis(&results).unwrap_or(0)
     })
     .await
     .map_err(|e| e.to_string())?)
@@ -1882,10 +1876,13 @@ fn get_uptime_secs() -> u64 {
 
 fn get_process_info() -> (u64, u64, f32) {
     use sysinfo::{Pid, System};
-    let pid = std::process::id();
-    let mut sys = System::new();
-    sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[Pid::from_u32(pid)]), true);
-    if let Some(proc_info) = sys.process(Pid::from_u32(pid)) {
+    use std::sync::{Mutex, OnceLock};
+    static SYS: OnceLock<Mutex<System>> = OnceLock::new();
+    let sys_mutex = SYS.get_or_init(|| Mutex::new(System::new()));
+    let mut sys = sys_mutex.lock().unwrap();
+    let pid = Pid::from_u32(std::process::id());
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+    if let Some(proc_info) = sys.process(pid) {
         (proc_info.memory(), proc_info.virtual_memory(), proc_info.cpu_usage())
     } else {
         (0, 0, 0.0)
