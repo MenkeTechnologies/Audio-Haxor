@@ -1405,9 +1405,13 @@ function initSettingsSectionDrag() {
   const container = document.querySelector('.settings-container');
   if (!container) return;
 
-  // Balance CSS columns — greedy bin-packing into N columns based on viewport
-  requestAnimationFrame(() => {
+  // Balance CSS columns — deferred until settings tab is visible (offsetHeight=0 when hidden)
+  let _columnsBalanced = false;
+  function balanceSettingsColumns() {
+    if (_columnsBalanced) return;
     const sections = [...container.querySelectorAll('.settings-section[data-section]')];
+    if (!sections.length || sections[0].offsetHeight === 0) return; // still hidden
+    _columnsBalanced = true;
     const numCols = window.innerWidth >= 1700 ? 3 : window.innerWidth >= 1100 ? 2 : 1;
     if (numCols < 2) return;
     sections.sort((a, b) => b.offsetHeight - a.offsetHeight);
@@ -1418,7 +1422,15 @@ function initSettingsSectionDrag() {
       shortest.height += s.offsetHeight;
     }
     for (const col of cols) for (const s of col.items) container.appendChild(s);
-  });
+  }
+  // Hook into switchTab — balance when settings becomes visible
+  const _origSwitchTabBalance = window.switchTab;
+  if (_origSwitchTabBalance) {
+    window.switchTab = function(tab) {
+      _origSwitchTabBalance(tab);
+      if (tab === 'settings') requestAnimationFrame(balanceSettingsColumns);
+    };
+  }
 
   // Individual rows within sections are still draggable
   if (typeof initDragReorder === 'function') {
