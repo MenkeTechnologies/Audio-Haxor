@@ -6,12 +6,15 @@
 use std::cmp::Ordering;
 
 use app_lib::history::{
-    build_daw_snapshot, build_plugin_snapshot, compute_daw_diff, compute_plugin_diff,
-    radix_string, AudioSample, DawProject, ScanSnapshot,
+    build_audio_snapshot, build_daw_snapshot, build_plugin_snapshot, build_preset_snapshot,
+    compute_audio_diff, compute_daw_diff, compute_plugin_diff, compute_preset_diff, radix_string,
+    AudioSample, DawProject, KvrCacheEntry, PresetFile, ScanDiff, ScanSnapshot, ScanSummary,
+    VersionChangedPlugin,
 };
 use app_lib::scanner::PluginInfo;
 use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
-use app_lib::xref::extract_plugins;
+use app_lib::xref::{extract_plugins, PluginRef};
+use app_lib::{ExportPayload, ExportPlugin};
 
 fn sample_plugin(path: &str, version: &str) -> PluginInfo {
     PluginInfo {
@@ -278,7 +281,6 @@ fn format_size_one_byte_and_kib_boundary() {
 
 #[test]
 fn compute_audio_diff_empty_scans_from_history_helpers() {
-    use app_lib::history::{build_audio_snapshot, compute_audio_diff};
     let empty = build_audio_snapshot(&[], &[]);
     let one = build_audio_snapshot(&[sample_audio("/x.wav")], &[]);
     let d = compute_audio_diff(&empty, &one);
@@ -288,7 +290,6 @@ fn compute_audio_diff_empty_scans_from_history_helpers() {
 
 #[test]
 fn compute_preset_diff_empty_to_one() {
-    use app_lib::history::{build_preset_snapshot, compute_preset_diff, PresetFile};
     let pf = PresetFile {
         name: "p".into(),
         path: "/Presets/p.h2p".into(),
@@ -342,4 +343,210 @@ fn radix_string_large_value_is_stable_representation() {
     assert_eq!(s, "1000000");
     let hex = radix_string(4_294_967_295, 16);
     assert_eq!(hex, "ffffffff");
+}
+
+#[test]
+fn kvr_parse_version_leading_zero_segments_are_numeric() {
+    assert_eq!(app_lib::kvr::parse_version("01.02.03"), vec![1, 2, 3]);
+}
+
+#[test]
+fn kvr_compare_versions_treats_leading_zeros_as_values() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("01.0", "1.0"),
+        Ordering::Equal
+    );
+}
+
+#[test]
+fn kvr_extract_version_plain_version_colon_line() {
+    let html = "<html><body>Version: 9.8.7</body></html>";
+    assert_eq!(
+        app_lib::kvr::extract_version(html).as_deref(),
+        Some("9.8.7")
+    );
+}
+
+#[test]
+fn kvr_extract_download_url_returns_none_without_candidate_links() {
+    assert!(app_lib::kvr::extract_download_url("<html><body>no links here</body></html>").is_none());
+}
+
+#[test]
+fn kvr_update_result_json_roundtrip_keeps_rename_fields() {
+    let u = app_lib::kvr::UpdateResult {
+        latest_version: "2.1.0".into(),
+        has_update: true,
+        source: "kvr".into(),
+        update_url: Some("https://example.com/dl".into()),
+        kvr_url: Some("https://kvraudio.com/p/x".into()),
+        has_platform_download: true,
+    };
+    let json = serde_json::to_value(&u).expect("serialize");
+    assert!(json.get("latestVersion").is_some());
+    assert!(json.get("hasUpdate").is_some());
+    assert!(json.get("hasPlatformDownload").is_some());
+    let back: app_lib::kvr::UpdateResult = serde_json::from_value(json).expect("deserialize");
+    assert_eq!(back.latest_version, u.latest_version);
+    assert_eq!(back.has_platform_download, u.has_platform_download);
+}
+
+#[test]
+fn export_plugin_json_uses_type_key_for_plugin_type() {
+    let ep = ExportPlugin {
+        name: "N".into(),
+        plugin_type: "VST3".into(),
+        version: "1".into(),
+        manufacturer: "M".into(),
+        manufacturer_url: None,
+        path: "/p".into(),
+        size: "1 B".into(),
+        size_bytes: 1,
+        modified: "t".into(),
+        architectures: vec![],
+    };
+    let v = serde_json::to_value(&ep).expect("to_value");
+    assert_eq!(v.get("type"), Some(&serde_json::json!("VST3")));
+    assert!(v.get("plugin_type").is_none());
+    let back: ExportPlugin = serde_json::from_value(v).expect("from_value");
+    assert_eq!(back.plugin_type, "VST3");
+}
+
+#[test]
+fn export_payload_roundtrip_preserves_plugins_array() {
+    let payload = ExportPayload {
+        version: "1.0.0".into(),
+        exported_at: "2020-01-01T00:00:00Z".into(),
+        plugins: vec![ExportPlugin {
+            name: "A".into(),
+            plugin_type: "AU".into(),
+            version: "3".into(),
+            manufacturer: "Co".into(),
+            manufacturer_url: Some("https://co".into()),
+            path: "/a.component".into(),
+            size: "2 B".into(),
+            size_bytes: 2,
+            modified: "m".into(),
+            architectures: vec!["arm64".into()],
+        }],
+    };
+    let json = serde_json::to_string(&payload).expect("serialize");
+    let back: ExportPayload = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(back.plugins.len(), 1);
+    assert_eq!(back.plugins[0].name, "A");
+    assert_eq!(back.plugins[0].architectures, vec!["arm64"]);
+}
+
+#[test]
+fn xref_plugin_ref_json_roundtrip_normalized_name_camel_case() {
+    let p = PluginRef {
+        name: "Foo (x64)".into(),
+        normalized_name: "foo".into(),
+        manufacturer: "Bar".into(),
+        plugin_type: "VST3".into(),
+    };
+    let v = serde_json::to_value(&p).expect("to_value");
+    assert!(v.get("normalizedName").is_some());
+    assert!(v.get("pluginType").is_some());
+    let back: PluginRef = serde_json::from_value(v).expect("from_value");
+    assert_eq!(back, p);
+}
+
+#[test]
+fn kvr_cache_entry_json_roundtrip() {
+    let e = KvrCacheEntry {
+        kvr_url: Some("https://k".into()),
+        update_url: None,
+        latest_version: Some("1.2".into()),
+        has_update: false,
+        source: "kvraudio".into(),
+        timestamp: "ts".into(),
+    };
+    let json = serde_json::to_string(&e).expect("serialize");
+    let back: KvrCacheEntry = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(back.kvr_url, e.kvr_url);
+    assert_eq!(back.latest_version, e.latest_version);
+}
+
+#[test]
+fn scan_diff_json_roundtrip_version_changed_shape() {
+    let p = sample_plugin("/x.vst3", "2.0");
+    let diff = ScanDiff {
+        old_scan: ScanSummary {
+            id: "old".into(),
+            timestamp: "t1".into(),
+            plugin_count: 1,
+            roots: vec![],
+        },
+        new_scan: ScanSummary {
+            id: "new".into(),
+            timestamp: "t2".into(),
+            plugin_count: 1,
+            roots: vec![],
+        },
+        added: vec![],
+        removed: vec![],
+        version_changed: vec![VersionChangedPlugin {
+            plugin: p.clone(),
+            previous_version: "1.0".into(),
+        }],
+    };
+    let v = serde_json::to_value(&diff).expect("to_value");
+    assert!(v.get("oldScan").is_some());
+    assert!(v.get("versionChanged").is_some());
+    let back: ScanDiff = serde_json::from_value(v).expect("from_value");
+    assert_eq!(back.version_changed[0].previous_version, "1.0");
+    assert_eq!(back.version_changed[0].plugin.path, p.path);
+}
+
+#[test]
+fn compute_plugin_diff_identical_snapshots_no_delta() {
+    let snap = build_plugin_snapshot(&[sample_plugin("/a.vst3", "1.0")], &[], &[]);
+    let d = compute_plugin_diff(&snap, &snap);
+    assert!(d.added.is_empty());
+    assert!(d.removed.is_empty());
+    assert!(d.version_changed.is_empty());
+}
+
+#[test]
+fn compute_daw_diff_identical_snapshots_no_delta() {
+    let projects = vec![sample_daw("/p.als", "P", "Ableton Live")];
+    let snap = build_daw_snapshot(&projects, &["/r".into()]);
+    let d = compute_daw_diff(&snap, &snap);
+    assert!(d.added.is_empty());
+    assert!(d.removed.is_empty());
+}
+
+#[test]
+fn compute_audio_diff_identical_snapshots_no_delta() {
+    let samples = vec![sample_audio("/s.wav")];
+    let snap = build_audio_snapshot(&samples, &[]);
+    let d = compute_audio_diff(&snap, &snap);
+    assert!(d.added.is_empty());
+    assert!(d.removed.is_empty());
+}
+
+#[test]
+fn compute_preset_diff_identical_snapshots_no_delta() {
+    let pf = PresetFile {
+        name: "n".into(),
+        path: "/Presets/x.h2p".into(),
+        directory: "/Presets".into(),
+        format: "h2p".into(),
+        size: 3,
+        size_formatted: "3 B".into(),
+        modified: "t".into(),
+    };
+    let snap = build_preset_snapshot(&[pf], &[]);
+    let d = compute_preset_diff(&snap, &snap);
+    assert!(d.added.is_empty());
+    assert!(d.removed.is_empty());
+}
+
+#[test]
+fn kvr_compare_versions_negative_numeric_components_order_correctly() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("-1.0", "0.0"),
+        Ordering::Less
+    );
 }
