@@ -2267,12 +2267,16 @@ function updateMetaLine() {
 // Use the same drag/resize system as all modals
 (function initPlayerResize() {
   const np = document.getElementById('audioNowPlaying');
+  // Set default width if no saved geometry
+  const savedGeo = prefs.getItem('modal_audioNowPlaying');
+  if (!savedGeo) {
+    np.style.width = '360px';
+    np.style.right = '24px';
+    np.style.bottom = '24px';
+  } else {
+    np.classList.remove('dock-tl', 'dock-tr', 'dock-bl', 'dock-br');
+  }
   if (typeof initModalDragResize === 'function') {
-    // Remove dock classes so modal system controls position
-    const savedGeo = prefs.getItem('modal_audioNowPlaying');
-    if (savedGeo) {
-      np.classList.remove('dock-tl', 'dock-tr', 'dock-bl', 'dock-br');
-    }
     initModalDragResize(np);
   }
 })();
