@@ -1,17 +1,49 @@
 // ── MIDI Tab ──
-// Shows MIDI files from the audio scan with MIDI-specific metadata columns.
+// Shows MIDI files with MIDI-specific metadata (tempo, key, notes, tracks).
+// Queries SQLite directly with format filter for MID/MIDI.
 
 let allMidiFiles = [];
 let filteredMidi = [];
 let _midiInfoCache = {};
+let _midiLoaded = false;
 
-function extractMidiFiles() {
-  if (typeof allAudioSamples === 'undefined') return;
-  allMidiFiles = allAudioSamples.filter(s => s.format === 'MID' || s.format === 'MIDI');
-  filteredMidi = allMidiFiles;
-  renderMidiTable();
+async function loadMidiFiles() {
+  try {
+    // Query all MIDI files from the database
+    const result = await window.vstUpdater.dbQueryAudio({
+      format_filter: 'MID',
+      sort_key: 'name',
+      sort_asc: true,
+      offset: 0,
+      limit: 50000,
+    });
+    allMidiFiles = result.samples || [];
+    // Also try MIDI extension
+    const result2 = await window.vstUpdater.dbQueryAudio({
+      format_filter: 'MIDI',
+      sort_key: 'name',
+      sort_asc: true,
+      offset: 0,
+      limit: 50000,
+    });
+    if (result2.samples && result2.samples.length > 0) {
+      const paths = new Set(allMidiFiles.map(s => s.path));
+      for (const s of result2.samples) {
+        if (!paths.has(s.path)) allMidiFiles.push(s);
+      }
+    }
+    filteredMidi = allMidiFiles;
+    _midiLoaded = true;
+    renderMidiTable();
+    updateMidiCount();
+  } catch (e) {
+    console.warn('MIDI load error:', e);
+  }
+}
+
+function updateMidiCount() {
   const count = document.getElementById('midiCount');
-  if (count) count.textContent = `${allMidiFiles.length} MIDI files`;
+  if (count) count.textContent = `${filteredMidi.length}${filteredMidi.length !== allMidiFiles.length ? ' of ' + allMidiFiles.length : ''} MIDI files`;
 }
 
 function filterMidi() {
@@ -26,8 +58,7 @@ function filterMidi() {
     filteredMidi = allMidiFiles.filter(s => s.name.toLowerCase().includes(ql) || s.directory.toLowerCase().includes(ql));
   }
   renderMidiTable();
-  const count = document.getElementById('midiCount');
-  if (count) count.textContent = `${filteredMidi.length} of ${allMidiFiles.length} MIDI files`;
+  updateMidiCount();
 }
 
 function renderMidiTable() {
@@ -40,46 +71,39 @@ function renderMidiTable() {
   wrap.innerHTML = `<table class="audio-table" id="midiTable">
     <thead>
       <tr>
-        <th style="width:25%;">Name</th>
-        <th style="width:60px;">Tracks</th>
-        <th style="width:70px;">BPM</th>
-        <th style="width:60px;">Time</th>
-        <th style="width:80px;">Key</th>
-        <th style="width:60px;">Notes</th>
-        <th style="width:55px;">Ch</th>
-        <th style="width:70px;">Duration</th>
-        <th style="width:65px;">Size</th>
-        <th style="width:25%;">Path</th>
+        <th style="width:25%;">Name<span class="col-resize"></span></th>
+        <th style="width:55px;">Tracks<span class="col-resize"></span></th>
+        <th style="width:65px;">BPM<span class="col-resize"></span></th>
+        <th style="width:55px;">Time<span class="col-resize"></span></th>
+        <th style="width:80px;">Key<span class="col-resize"></span></th>
+        <th style="width:60px;">Notes<span class="col-resize"></span></th>
+        <th style="width:45px;">Ch<span class="col-resize"></span></th>
+        <th style="width:65px;">Duration<span class="col-resize"></span></th>
+        <th style="width:60px;">Size<span class="col-resize"></span></th>
+        <th style="width:25%;">Path<span class="col-resize"></span></th>
       </tr>
     </thead>
     <tbody id="midiTableBody"></tbody>
   </table>`;
   const tbody = document.getElementById('midiTableBody');
   tbody.innerHTML = filteredMidi.map(buildMidiRow).join('');
-  // Lazy-load MIDI metadata for visible rows
+  if (typeof initColumnResize === 'function') initColumnResize(document.getElementById('midiTable'));
   loadMidiMetadata();
 }
 
 function buildMidiRow(s) {
   const hp = typeof escapeHtml === 'function' ? escapeHtml(s.path) : s.path;
+  const hn = typeof escapeHtml === 'function' ? escapeHtml(s.name) : s.name;
   const info = _midiInfoCache[s.path];
-  const tracks = info ? info.trackCount : '';
-  const bpm = info ? info.tempo : '';
-  const timeSig = info ? info.timeSignature : '';
-  const key = info ? info.keySignature : '';
-  const notes = info ? info.noteCount.toLocaleString() : '';
-  const ch = info ? info.channelsUsed : '';
-  const dur = info && info.duration ? (typeof formatTime === 'function' ? formatTime(info.duration) : info.duration.toFixed(1) + 's') : '';
-  const trackNames = info && info.trackNames && info.trackNames.length > 0 ? info.trackNames.join(', ') : '';
-  return `<tr data-midi-path="${hp}" title="${trackNames ? 'Tracks: ' + (typeof escapeHtml === 'function' ? escapeHtml(trackNames) : trackNames) : ''}">
-    <td class="col-name" title="${typeof escapeHtml === 'function' ? escapeHtml(s.name) : s.name}">${typeof highlightMatch === 'function' ? highlightMatch(s.name, document.getElementById('midiSearchInput')?.value || '', 'fuzzy') : (typeof escapeHtml === 'function' ? escapeHtml(s.name) : s.name)}</td>
-    <td style="text-align:center;">${tracks}</td>
-    <td style="text-align:center;color:var(--cyan);">${bpm}</td>
-    <td style="text-align:center;">${timeSig}</td>
-    <td style="text-align:center;color:var(--accent);">${typeof escapeHtml === 'function' ? escapeHtml(key) : key}</td>
-    <td style="text-align:right;">${notes}</td>
-    <td style="text-align:center;">${ch}</td>
-    <td style="text-align:center;">${dur}</td>
+  return `<tr data-midi-path="${hp}" data-action="openAudioFolder" data-path="${hp}">
+    <td class="col-name" title="${hn}">${hn}${typeof rowBadges === 'function' ? rowBadges(s.path) : ''}</td>
+    <td style="text-align:center;">${info ? info.trackCount : '<span class="spinner" style="width:10px;height:10px;"></span>'}</td>
+    <td style="text-align:center;color:var(--cyan);">${info ? info.tempo : ''}</td>
+    <td style="text-align:center;">${info ? info.timeSignature : ''}</td>
+    <td style="text-align:center;color:var(--accent);">${info ? (typeof escapeHtml === 'function' ? escapeHtml(info.keySignature) : info.keySignature) : ''}</td>
+    <td style="text-align:right;">${info ? info.noteCount.toLocaleString() : ''}</td>
+    <td style="text-align:center;">${info ? info.channelsUsed : ''}</td>
+    <td style="text-align:center;">${info && info.duration ? (typeof formatTime === 'function' ? formatTime(info.duration) : info.duration.toFixed(1) + 's') : ''}</td>
     <td class="col-size">${s.sizeFormatted}</td>
     <td class="col-path" title="${hp}">${typeof escapeHtml === 'function' ? escapeHtml(s.directory) : s.directory}</td>
   </tr>`;
@@ -92,35 +116,27 @@ async function loadMidiMetadata() {
       const info = await window.vstUpdater.getMidiInfo(s.path);
       if (info) {
         _midiInfoCache[s.path] = info;
-        // Update the row in-place
         const row = document.querySelector(`[data-midi-path="${CSS.escape(s.path)}"]`);
         if (row) {
-          const cells = row.cells;
-          cells[1].textContent = info.trackCount;
-          cells[2].textContent = info.tempo;
-          cells[3].textContent = info.timeSignature;
-          cells[4].textContent = info.keySignature;
-          cells[5].textContent = info.noteCount.toLocaleString();
-          cells[6].textContent = info.channelsUsed;
-          cells[7].textContent = info.duration ? (typeof formatTime === 'function' ? formatTime(info.duration) : info.duration.toFixed(1) + 's') : '';
+          const c = row.cells;
+          c[1].textContent = info.trackCount;
+          c[2].textContent = info.tempo;
+          c[3].textContent = info.timeSignature;
+          c[4].textContent = info.keySignature;
+          c[5].textContent = info.noteCount.toLocaleString();
+          c[6].textContent = info.channelsUsed;
+          c[7].textContent = info.duration ? (typeof formatTime === 'function' ? formatTime(info.duration) : info.duration.toFixed(1) + 's') : '';
           if (info.trackNames && info.trackNames.length > 0) {
             row.title = 'Tracks: ' + info.trackNames.join(', ');
           }
         }
       }
     } catch {}
-    // Yield to UI
     await new Promise(r => setTimeout(r, 5));
   }
 }
 
-// Re-extract when audio scan completes
-if (typeof document !== 'undefined') {
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action="filterMidi"]');
-    if (btn || e.target.id === 'midiSearchInput') return;
-  });
-  document.addEventListener('input', (e) => {
-    if (e.target.id === 'midiSearchInput') filterMidi();
-  });
-}
+// Filter input handler
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'midiSearchInput') filterMidi();
+});

@@ -755,6 +755,7 @@ function switchTab(tab) {
   document.getElementById('tabNotes').classList.toggle('active', tab === 'notes');
   document.getElementById('tabTags').classList.toggle('active', tab === 'tags');
   document.getElementById('tabFiles').classList.toggle('active', tab === 'files');
+  document.getElementById('tabMidi')?.classList.toggle('active', tab === 'midi');
   document.getElementById('tabVisualizer')?.classList.toggle('active', tab === 'visualizer');
   if (tab === 'visualizer' && typeof startVisualizer === 'function') startVisualizer();
   document.getElementById('tabWalkers')?.classList.toggle('active', tab === 'walkers');
@@ -765,5 +766,6 @@ function switchTab(tab) {
   if (tab === 'notes') renderNotesTab();
   if (tab === 'tags') renderTagsManager();
   if (tab === 'files') initFileBrowser();
+  if (tab === 'midi' && typeof loadMidiFiles === 'function' && !_midiLoaded) loadMidiFiles();
   if (tab === 'settings') { refreshSettingsUI(); if (typeof renderCacheStats === 'function') renderCacheStats(); }
 }
