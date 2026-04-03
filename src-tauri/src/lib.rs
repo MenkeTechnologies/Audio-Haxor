@@ -3289,6 +3289,21 @@ fn db_query_audio(params: db::AudioQueryParams) -> Result<db::AudioQueryResult, 
 }
 
 #[tauri::command]
+fn db_query_plugins(search: Option<String>, sort_key: Option<String>, sort_asc: Option<bool>, offset: Option<u64>, limit: Option<u64>) -> Result<db::PluginQueryResult, String> {
+    db::global().query_plugins(search.as_deref(), &sort_key.unwrap_or("name".into()), sort_asc.unwrap_or(true), offset.unwrap_or(0), limit.unwrap_or(200))
+}
+
+#[tauri::command]
+fn db_query_daw(search: Option<String>, daw_filter: Option<String>, sort_key: Option<String>, sort_asc: Option<bool>, offset: Option<u64>, limit: Option<u64>) -> Result<db::DawQueryResult, String> {
+    db::global().query_daw(search.as_deref(), daw_filter.as_deref(), &sort_key.unwrap_or("name".into()), sort_asc.unwrap_or(true), offset.unwrap_or(0), limit.unwrap_or(200))
+}
+
+#[tauri::command]
+fn db_query_presets(search: Option<String>, format_filter: Option<String>, sort_key: Option<String>, sort_asc: Option<bool>, offset: Option<u64>, limit: Option<u64>) -> Result<db::PresetQueryResult, String> {
+    db::global().query_presets(search.as_deref(), format_filter.as_deref(), &sort_key.unwrap_or("name".into()), sort_asc.unwrap_or(true), offset.unwrap_or(0), limit.unwrap_or(200))
+}
+
+#[tauri::command]
 fn db_audio_stats(scan_id: Option<String>) -> Result<db::AudioStatsResult, String> {
     db::global().audio_stats(scan_id.as_deref())
 }
@@ -3555,6 +3570,9 @@ pub fn run() {
             open_prefs_file,
             get_prefs_path,
             db_query_audio,
+            db_query_plugins,
+            db_query_daw,
+            db_query_presets,
             db_audio_stats,
             db_list_scans,
             db_update_bpm,

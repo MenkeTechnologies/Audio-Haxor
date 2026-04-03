@@ -1446,7 +1446,7 @@ async function startBackgroundAnalysis() {
   _bgAnalysisAbort = false;
 
   const badge = document.getElementById('bgAnalysisBadge');
-  const BATCH = 10; // 10 files analyzed in parallel per batch via rayon
+  const BATCH = 50; // 50 files analyzed in parallel per batch via rayon
 
   while (!_bgAnalysisAbort) {
     while (_bgPaused && !_bgAnalysisAbort) await new Promise(r => setTimeout(r, 200));

@@ -545,6 +545,9 @@ window.vstUpdater = {
   // MIDI
   getMidiInfo: (filePath) => invoke('get_midi_info', { filePath }),
   batchAnalyze: (paths) => invoke('batch_analyze', { paths }),
+  dbQueryPlugins: (params) => invoke('db_query_plugins', params || {}),
+  dbQueryDaw: (params) => invoke('db_query_daw', params || {}),
+  dbQueryPresets: (params) => invoke('db_query_presets', params || {}),
 };
 
 // ── Preferences layer (file-backed, survives reboots) ──

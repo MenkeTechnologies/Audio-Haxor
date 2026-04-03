@@ -134,6 +134,71 @@ pub struct CacheStat {
     pub size_bytes: u64,
 }
 
+// ── Generic paginated query result for plugins/DAW/presets ──
+
+#[derive(Debug, Serialize)]
+pub struct PluginRow {
+    pub name: String,
+    pub path: String,
+    #[serde(rename = "type")]
+    pub plugin_type: String,
+    pub version: String,
+    pub manufacturer: String,
+    #[serde(rename = "manufacturerUrl", skip_serializing_if = "Option::is_none")]
+    pub manufacturer_url: Option<String>,
+    pub size: String,
+    #[serde(rename = "sizeBytes")]
+    pub size_bytes: u64,
+    pub modified: String,
+    pub architectures: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PluginQueryResult {
+    pub plugins: Vec<PluginRow>,
+    #[serde(rename = "totalCount")]
+    pub total_count: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DawRow {
+    pub name: String,
+    pub path: String,
+    pub directory: String,
+    pub format: String,
+    pub daw: String,
+    pub size: u64,
+    #[serde(rename = "sizeFormatted")]
+    pub size_formatted: String,
+    pub modified: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DawQueryResult {
+    pub projects: Vec<DawRow>,
+    #[serde(rename = "totalCount")]
+    pub total_count: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PresetRow {
+    pub name: String,
+    pub path: String,
+    pub directory: String,
+    pub format: String,
+    pub size: u64,
+    #[serde(rename = "sizeFormatted")]
+    pub size_formatted: String,
+    pub modified: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PresetQueryResult {
+    pub presets: Vec<PresetRow>,
+    #[serde(rename = "totalCount")]
+    pub total_count: u64,
+}
+
 /// Current schema version — bump when adding migrations.
 #[allow(dead_code)]
 const SCHEMA_VERSION: i64 = 3;
@@ -827,6 +892,152 @@ impl Database {
 
     // ── Plugin scan CRUD ──
 
+    // ── Paginated plugin query ──
+    pub fn query_plugins(&self, search: Option<&str>, sort_key: &str, sort_asc: bool, offset: u64, limit: u64) -> Result<PluginQueryResult, String> {
+        let conn = self.conn.lock().unwrap();
+        let scan_id: String = conn.query_row("SELECT id FROM plugin_scans ORDER BY timestamp DESC LIMIT 1", [], |r| r.get(0))
+            .optional().map_err(|e| e.to_string())?.unwrap_or_default();
+        if scan_id.is_empty() { return Ok(PluginQueryResult { plugins: vec![], total_count: 0 }); }
+
+        let mut where_parts = vec!["scan_id = ?1".to_string()];
+        let search_pat = search.and_then(|s| { let t = s.trim(); if t.is_empty() { None } else { Some(format!("%{}%", t.chars().map(|c| c.to_string()).collect::<Vec<_>>().join("%"))) } });
+        if search_pat.is_some() { where_parts.push("(name LIKE ?2 ESCAPE '\\' OR manufacturer LIKE ?2 ESCAPE '\\' OR path LIKE ?2 ESCAPE '\\')".into()); }
+        let where_cl = where_parts.join(" AND ");
+
+        let sort_col = match sort_key { "name" => "name COLLATE NOCASE", "type" => "plugin_type", "version" => "version", "manufacturer" => "manufacturer COLLATE NOCASE", "size" => "size_bytes", "modified" => "modified", _ => "name COLLATE NOCASE" };
+        let dir = if sort_asc { "ASC" } else { "DESC" };
+
+        let total_count: u64 = {
+            let sql = format!("SELECT COUNT(*) FROM plugins WHERE {where_cl}");
+            let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(1, &scan_id).map_err(|e| e.to_string())?;
+            if let Some(ref p) = search_pat { stmt.raw_bind_parameter(2, p).map_err(|e| e.to_string())?; }
+            let mut rows = stmt.raw_query();
+            rows.next().map_err(|e| e.to_string())?.map(|r| r.get::<_, u64>(0).unwrap_or(0)).unwrap_or(0)
+        };
+
+        let bind_offset = if search_pat.is_some() { 3 } else { 2 };
+        let sql = format!("SELECT name, path, plugin_type, version, manufacturer, manufacturer_url, size, size_bytes, modified, architectures FROM plugins WHERE {where_cl} ORDER BY {sort_col} {dir} LIMIT ?{} OFFSET ?{}", bind_offset, bind_offset + 1);
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        stmt.raw_bind_parameter(1, &scan_id).map_err(|e| e.to_string())?;
+        if let Some(ref p) = search_pat { stmt.raw_bind_parameter(2, p).map_err(|e| e.to_string())?; }
+        stmt.raw_bind_parameter(bind_offset as usize, limit as i64).map_err(|e| e.to_string())?;
+        stmt.raw_bind_parameter(bind_offset as usize + 1, offset as i64).map_err(|e| e.to_string())?;
+
+        let mut plugins = Vec::new();
+        let mut rows = stmt.raw_query();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let arch_str: String = row.get(9).unwrap_or_default();
+            plugins.push(PluginRow {
+                name: row.get(0).unwrap_or_default(), path: row.get(1).unwrap_or_default(),
+                plugin_type: row.get(2).unwrap_or_default(), version: row.get(3).unwrap_or_default(),
+                manufacturer: row.get(4).unwrap_or_default(), manufacturer_url: row.get(5).ok(),
+                size: row.get(6).unwrap_or_default(), size_bytes: row.get::<_, i64>(7).unwrap_or(0) as u64,
+                modified: row.get(8).unwrap_or_default(),
+                architectures: serde_json::from_str(&arch_str).unwrap_or_default(),
+            });
+        }
+        Ok(PluginQueryResult { plugins, total_count })
+    }
+
+    // ── Paginated DAW query ──
+    pub fn query_daw(&self, search: Option<&str>, daw_filter: Option<&str>, sort_key: &str, sort_asc: bool, offset: u64, limit: u64) -> Result<DawQueryResult, String> {
+        let conn = self.conn.lock().unwrap();
+        let scan_id: String = conn.query_row("SELECT id FROM daw_scans ORDER BY timestamp DESC LIMIT 1", [], |r| r.get(0))
+            .optional().map_err(|e| e.to_string())?.unwrap_or_default();
+        if scan_id.is_empty() { return Ok(DawQueryResult { projects: vec![], total_count: 0 }); }
+
+        let mut where_parts = vec!["scan_id = ?1".to_string()];
+        let mut bind_idx = 2usize;
+        let search_pat = search.and_then(|s| { let t = s.trim(); if t.is_empty() { None } else { Some(format!("%{}%", t.chars().map(|c| c.to_string()).collect::<Vec<_>>().join("%"))) } });
+        if search_pat.is_some() { where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')")); bind_idx += 1; }
+        if let Some(f) = daw_filter { if !f.is_empty() && f != "all" { where_parts.push(format!("daw = ?{bind_idx}")); bind_idx += 1; } }
+        let where_cl = where_parts.join(" AND ");
+
+        let sort_col = match sort_key { "name" => "name COLLATE NOCASE", "daw" => "daw", "format" => "format", "size" => "size", "modified" => "modified", "directory" => "directory COLLATE NOCASE", _ => "name COLLATE NOCASE" };
+        let dir = if sort_asc { "ASC" } else { "DESC" };
+
+        let total_count: u64 = {
+            let sql = format!("SELECT COUNT(*) FROM daw_projects WHERE {where_cl}");
+            let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+            let mut bi = 1; stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+            if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+            if let Some(f) = daw_filter { if !f.is_empty() && f != "all" { stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?; } }
+            let mut rows = stmt.raw_query();
+            rows.next().map_err(|e| e.to_string())?.map(|r| r.get::<_, u64>(0).unwrap_or(0)).unwrap_or(0)
+        };
+
+        let sql = format!("SELECT name, path, directory, format, daw, size, size_formatted, modified FROM daw_projects WHERE {where_cl} ORDER BY {sort_col} {dir} LIMIT ?{bind_idx} OFFSET ?{}", bind_idx + 1);
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut bi = 1; stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+        if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+        if let Some(f) = daw_filter { if !f.is_empty() && f != "all" { stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?; bi += 1; } }
+        stmt.raw_bind_parameter(bi, limit as i64).map_err(|e| e.to_string())?;
+        stmt.raw_bind_parameter(bi + 1, offset as i64).map_err(|e| e.to_string())?;
+
+        let mut projects = Vec::new();
+        let mut rows = stmt.raw_query();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            projects.push(DawRow {
+                name: row.get(0).unwrap_or_default(), path: row.get(1).unwrap_or_default(),
+                directory: row.get(2).unwrap_or_default(), format: row.get(3).unwrap_or_default(),
+                daw: row.get(4).unwrap_or_default(), size: row.get::<_, i64>(5).unwrap_or(0) as u64,
+                size_formatted: row.get(6).unwrap_or_default(), modified: row.get(7).unwrap_or_default(),
+            });
+        }
+        Ok(DawQueryResult { projects, total_count })
+    }
+
+    // ── Paginated preset query ──
+    pub fn query_presets(&self, search: Option<&str>, format_filter: Option<&str>, sort_key: &str, sort_asc: bool, offset: u64, limit: u64) -> Result<PresetQueryResult, String> {
+        let conn = self.conn.lock().unwrap();
+        let scan_id: String = conn.query_row("SELECT id FROM preset_scans ORDER BY timestamp DESC LIMIT 1", [], |r| r.get(0))
+            .optional().map_err(|e| e.to_string())?.unwrap_or_default();
+        if scan_id.is_empty() { return Ok(PresetQueryResult { presets: vec![], total_count: 0 }); }
+
+        let mut where_parts = vec!["scan_id = ?1".to_string()];
+        let mut bind_idx = 2usize;
+        let search_pat = search.and_then(|s| { let t = s.trim(); if t.is_empty() { None } else { Some(format!("%{}%", t.chars().map(|c| c.to_string()).collect::<Vec<_>>().join("%"))) } });
+        if search_pat.is_some() { where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')")); bind_idx += 1; }
+        // Exclude MIDI files from presets
+        where_parts.push("format NOT IN ('MID', 'MIDI')".into());
+        if let Some(f) = format_filter { if !f.is_empty() && f != "all" { where_parts.push(format!("format = ?{bind_idx}")); bind_idx += 1; } }
+        let where_cl = where_parts.join(" AND ");
+
+        let sort_col = match sort_key { "name" => "name COLLATE NOCASE", "format" => "format", "size" => "size", "modified" => "modified", "directory" => "directory COLLATE NOCASE", _ => "name COLLATE NOCASE" };
+        let dir = if sort_asc { "ASC" } else { "DESC" };
+
+        let total_count: u64 = {
+            let sql = format!("SELECT COUNT(*) FROM presets WHERE {where_cl}");
+            let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+            let mut bi = 1; stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+            if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+            if let Some(f) = format_filter { if !f.is_empty() && f != "all" { stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?; } }
+            let mut rows = stmt.raw_query();
+            rows.next().map_err(|e| e.to_string())?.map(|r| r.get::<_, u64>(0).unwrap_or(0)).unwrap_or(0)
+        };
+
+        let sql = format!("SELECT name, path, directory, format, size, size_formatted, modified FROM presets WHERE {where_cl} ORDER BY {sort_col} {dir} LIMIT ?{bind_idx} OFFSET ?{}", bind_idx + 1);
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut bi = 1; stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+        if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+        if let Some(f) = format_filter { if !f.is_empty() && f != "all" { stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?; bi += 1; } }
+        stmt.raw_bind_parameter(bi, limit as i64).map_err(|e| e.to_string())?;
+        stmt.raw_bind_parameter(bi + 1, offset as i64).map_err(|e| e.to_string())?;
+
+        let mut presets = Vec::new();
+        let mut rows = stmt.raw_query();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            presets.push(PresetRow {
+                name: row.get(0).unwrap_or_default(), path: row.get(1).unwrap_or_default(),
+                directory: row.get(2).unwrap_or_default(), format: row.get(3).unwrap_or_default(),
+                size: row.get::<_, i64>(4).unwrap_or(0) as u64,
+                size_formatted: row.get(5).unwrap_or_default(), modified: row.get(6).unwrap_or_default(),
+            });
+        }
+        Ok(PresetQueryResult { presets, total_count })
+    }
+
     pub fn save_plugin_scan(&self, snap: &ScanSnapshot) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
         let dirs_json = serde_json::to_string(&snap.directories).unwrap_or_default();
@@ -1324,6 +1535,24 @@ impl Database {
         stats.push(CacheStat { key: "database".into(), label: "Total Database".into(), count: 0, total: 0, size_bytes: db_size });
 
         Ok(stats)
+    }
+
+    /// Batch update BPM/Key/LUFS for multiple files in a single transaction.
+    pub fn batch_update_analysis(&self, results: &[(String, Option<f64>, Option<String>, Option<f64>)]) -> Result<u32, String> {
+        let conn = self.conn.lock().unwrap();
+        let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        let mut count = 0u32;
+        {
+            let mut stmt = tx.prepare_cached(
+                "UPDATE audio_samples SET bpm = ?1, key_name = ?2, lufs = ?3 WHERE path = ?4 AND scan_id = (SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1)"
+            ).map_err(|e| e.to_string())?;
+            for (path, bpm, key, lufs) in results {
+                let _ = stmt.execute(params![bpm, key, lufs, path]);
+                count += 1;
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(count)
     }
 
     /// Clear a specific cache table.
