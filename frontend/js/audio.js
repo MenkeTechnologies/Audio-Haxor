@@ -8,6 +8,7 @@ let audioSortKey = 'name';
 let audioSortAsc = true;
 let audioScanProgressCleanup = null;
 let _midiScanCount = 0;
+let _audioScanActive = false;
 
 // Playback state
 let audioPlayer = new Audio();
@@ -596,6 +597,7 @@ async function scanAudioSamples(resume = false) {
   let pendingSamples = [];
   let pendingFound = 0;
   _midiScanCount = 0;
+  _audioScanActive = true;
   let flushScheduled = false;
   const audioEta = createETA();
   audioEta.start();
@@ -695,6 +697,7 @@ async function scanAudioSamples(resume = false) {
     showToast(`Audio scan failed — ${errMsg}`, 4000, 'error');
   }
 
+  _audioScanActive = false;
   hideGlobalProgress();
   btn.disabled = false;
   btn.innerHTML = '&#127925; Scan Samples';
@@ -736,7 +739,10 @@ function updateAudioStats() {
   const mainFormats = (audioStatCounts['WAV'] || 0) + (audioStatCounts['MP3'] || 0) + (audioStatCounts['AIFF'] || 0) + (audioStatCounts['AIF'] || 0) + (audioStatCounts['FLAC'] || 0);
   document.getElementById('audioOtherCount').textContent = (total - mainFormats).toLocaleString();
   document.getElementById('audioTotalSize').textContent = formatAudioSize(audioStatBytes);
-  document.getElementById('sampleCount').textContent = total.toLocaleString();
+  // Don't overwrite live scan counter during active scan
+  if (!_audioScanActive) {
+    document.getElementById('sampleCount').textContent = total.toLocaleString();
+  }
   document.getElementById('btnExportAudio').style.display = total > 0 ? '' : 'none';
   if (typeof updateAudioDiskUsage === 'function') updateAudioDiskUsage();
 }
