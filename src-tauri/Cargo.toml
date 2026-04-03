@@ -31,6 +31,7 @@ symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "ogg", "pcm"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 notify = "7"
+sysinfo = "0.33"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

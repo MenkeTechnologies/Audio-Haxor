@@ -1606,11 +1606,8 @@ fn import_plugins_json(file_path: String) -> Result<Vec<PluginInfo>, String> {
 
 // ── Process stats ──
 
-use std::sync::atomic::AtomicU64;
 use std::time::Instant;
 
-static LAST_CPU_TIME: AtomicU64 = AtomicU64::new(0);
-static LAST_WALL_TIME: AtomicU64 = AtomicU64::new(0);
 
 #[tauri::command]
 fn get_process_stats(app: AppHandle) -> serde_json::Value {
@@ -1687,18 +1684,18 @@ fn get_process_stats(app: AppHandle) -> serde_json::Value {
     let os_arch = std::env::consts::ARCH;
     let hostname = gethostname();
 
-    // Disk space for data dir
-    #[cfg(unix)]
+    // Disk space via sysinfo
     let (disk_total, disk_free) = {
-        use std::ffi::CString;
-        let path_c = CString::new(data_dir.to_string_lossy().as_bytes()).unwrap_or_default();
-        let mut stat: libc::statfs = unsafe { std::mem::zeroed() };
-        if unsafe { libc::statfs(path_c.as_ptr(), &mut stat) } == 0 {
-            (stat.f_blocks as u64 * stat.f_bsize as u64, stat.f_bavail as u64 * stat.f_bsize as u64)
-        } else { (0, 0) }
+        use sysinfo::Disks;
+        let disks = Disks::new_with_refreshed_list();
+        let data_str = data_dir.to_string_lossy().to_string();
+        let data_path = std::path::Path::new(&data_str);
+        disks.iter()
+            .filter(|d| data_path.starts_with(d.mount_point()))
+            .max_by_key(|d| d.mount_point().as_os_str().len())
+            .map(|d| (d.total_space(), d.available_space()))
+            .unwrap_or((0, 0))
     };
-    #[cfg(not(unix))]
-    let (disk_total, disk_free) = (0u64, 0u64);
 
     // SQLite database stats
     let db_bytes = file_size("audio_haxor.db") + file_size("audio_haxor.db-wal") + file_size("audio_haxor.db-shm");
@@ -1813,203 +1810,64 @@ fn get_uptime_secs() -> u64 {
     APP_START.get_or_init(Instant::now).elapsed().as_secs()
 }
 
-fn gethostname() -> String {
-    #[cfg(unix)]
-    {
-        let mut buf = [0u8; 256];
-        if unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) } == 0 {
-            let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-            return String::from_utf8_lossy(&buf[..end]).to_string();
-        }
-    }
-    String::new()
-}
+// ── Cross-platform process stats via sysinfo ──
 
-#[cfg(target_os = "macos")]
-#[allow(deprecated)]
-fn get_rss_bytes() -> u64 {
-    unsafe {
-        let mut info: libc::mach_task_basic_info_data_t = std::mem::zeroed();
-        let mut count = (std::mem::size_of::<libc::mach_task_basic_info_data_t>()
-            / std::mem::size_of::<libc::natural_t>()) as u32;
-        let kr = libc::task_info(
-            libc::mach_task_self(),
-            libc::MACH_TASK_BASIC_INFO,
-            &mut info as *mut _ as *mut i32,
-            &mut count,
-        );
-        if kr == libc::KERN_SUCCESS {
-            info.resident_size as u64
-        } else {
-            0
-        }
+fn get_process_info() -> (u64, u64, f32) {
+    use sysinfo::{Pid, System};
+    let pid = std::process::id();
+    let mut sys = System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[Pid::from_u32(pid)]), true);
+    if let Some(proc_info) = sys.process(Pid::from_u32(pid)) {
+        (proc_info.memory(), proc_info.virtual_memory(), proc_info.cpu_usage())
+    } else {
+        (0, 0, 0.0)
     }
 }
 
-#[cfg(target_os = "linux")]
 fn get_rss_bytes() -> u64 {
-    read_proc_field("VmRSS:").map(|kb| kb * 1024).unwrap_or(0)
+    get_process_info().0
 }
 
-#[cfg(target_os = "windows")]
-fn get_rss_bytes() -> u64 {
-    0
-}
-
-#[cfg(target_os = "macos")]
-#[allow(deprecated)]
 fn get_virtual_bytes() -> u64 {
-    unsafe {
-        let mut info: libc::mach_task_basic_info_data_t = std::mem::zeroed();
-        let mut count = (std::mem::size_of::<libc::mach_task_basic_info_data_t>()
-            / std::mem::size_of::<libc::natural_t>()) as u32;
-        let kr = libc::task_info(
-            libc::mach_task_self(),
-            libc::MACH_TASK_BASIC_INFO,
-            &mut info as *mut _ as *mut i32,
-            &mut count,
-        );
-        if kr == libc::KERN_SUCCESS {
-            info.virtual_size as u64
-        } else {
-            0
-        }
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn get_virtual_bytes() -> u64 {
-    read_proc_field("VmSize:").map(|kb| kb * 1024).unwrap_or(0)
-}
-
-#[cfg(target_os = "windows")]
-fn get_virtual_bytes() -> u64 {
-    0
+    get_process_info().1
 }
 
 fn get_thread_count() -> u32 {
-    #[cfg(target_os = "macos")]
-    {
-        // Read thread count from proc_pidinfo
-        let pid = std::process::id();
-        let output = std::process::Command::new("ps")
-            .args(["-M", "-p", &pid.to_string()])
-            .output();
-        if let Ok(out) = output {
-            let s = String::from_utf8_lossy(&out.stdout);
-            return s.lines().count().saturating_sub(1) as u32;
-        }
-        0
-    }
+    // sysinfo tasks only works on Linux; use platform fallbacks elsewhere
     #[cfg(target_os = "linux")]
     {
-        read_proc_field("Threads:").map(|v| v as u32).unwrap_or(0)
+        let n = get_process_info().2;
+        if n > 0 { return n; }
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(target_os = "macos")]
     {
-        0
-    }
-}
-
-#[cfg(target_os = "macos")]
-#[allow(deprecated)]
-fn get_cpu_percent() -> f64 {
-    unsafe {
-        let mut info: libc::task_thread_times_info_data_t = std::mem::zeroed();
-        let mut count = (std::mem::size_of::<libc::task_thread_times_info_data_t>()
-            / std::mem::size_of::<libc::natural_t>()) as u32;
-        let kr = libc::task_info(
-            libc::mach_task_self(),
-            libc::TASK_THREAD_TIMES_INFO,
-            &mut info as *mut _ as *mut i32,
-            &mut count,
-        );
-        if kr != libc::KERN_SUCCESS {
-            return 0.0;
-        }
-        let user_us =
-            info.user_time.seconds as u64 * 1_000_000 + info.user_time.microseconds as u64;
-        let sys_us =
-            info.system_time.seconds as u64 * 1_000_000 + info.system_time.microseconds as u64;
-        let total_us = user_us + sys_us;
-
-        let prev = LAST_CPU_TIME.swap(total_us, Ordering::Relaxed);
-        let now_ns = Instant::now()
-            .duration_since(*APP_START.get_or_init(Instant::now))
-            .as_micros() as u64;
-        let prev_wall = LAST_WALL_TIME.swap(now_ns, Ordering::Relaxed);
-
-        let wall_delta = now_ns.saturating_sub(prev_wall);
-        let cpu_delta = total_us.saturating_sub(prev);
-
-        if wall_delta == 0 {
-            return 0.0;
-        }
-        let ncpus = num_cpus::get() as f64;
-        let pct = (cpu_delta as f64 / wall_delta as f64) * 100.0 / ncpus;
-        (pct * 10.0).round() / 10.0
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn get_cpu_percent() -> f64 {
-    // Read from /proc/self/stat: utime + stime in clock ticks
-    if let Ok(stat) = std::fs::read_to_string("/proc/self/stat") {
-        let parts: Vec<&str> = stat.split_whitespace().collect();
-        if parts.len() > 14 {
-            let utime = parts[13].parse::<u64>().unwrap_or(0);
-            let stime = parts[14].parse::<u64>().unwrap_or(0);
-            let ticks_per_sec = unsafe { libc::sysconf(libc::_SC_CLK_TCK) } as u64;
-            let total_us = (utime + stime) * 1_000_000 / ticks_per_sec.max(1);
-
-            let prev = LAST_CPU_TIME.swap(total_us, Ordering::Relaxed);
-            let now_ns = Instant::now()
-                .duration_since(*APP_START.get_or_init(Instant::now))
-                .as_micros() as u64;
-            let prev_wall = LAST_WALL_TIME.swap(now_ns, Ordering::Relaxed);
-
-            let wall_delta = now_ns.saturating_sub(prev_wall);
-            let cpu_delta = total_us.saturating_sub(prev);
-
-            if wall_delta > 0 {
-                let ncpus = num_cpus::get() as f64;
-                let pct = (cpu_delta as f64 / wall_delta as f64) * 100.0 / ncpus;
-                return (pct * 10.0).round() / 10.0;
-            }
+        let pid = std::process::id();
+        if let Ok(out) = std::process::Command::new("ps").args(["-M", "-p", &pid.to_string()]).output() {
+            return String::from_utf8_lossy(&out.stdout).lines().count().saturating_sub(1) as u32;
         }
     }
-    0.0
+    0
 }
 
-#[cfg(target_os = "windows")]
 fn get_cpu_percent() -> f64 {
-    0.0
+    get_process_info().2 as f64
 }
 
 fn get_open_fd_count() -> u32 {
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
-        if let Ok(entries) = std::fs::read_dir("/dev/fd") {
-            return entries.count() as u32;
+        // /dev/fd on macOS, /proc/self/fd on Linux
+        for dir in &["/dev/fd", "/proc/self/fd"] {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                return entries.count() as u32;
+            }
         }
-        0
     }
-    #[cfg(target_os = "windows")]
-    {
-        0
-    }
+    0
 }
 
-#[cfg(target_os = "linux")]
-fn read_proc_field(field: &str) -> Option<u64> {
-    std::fs::read_to_string("/proc/self/status")
-        .ok()
-        .and_then(|s| {
-            s.lines()
-                .find(|l| l.starts_with(field))
-                .and_then(|l| l.split_whitespace().nth(1))
-                .and_then(|v| v.parse().ok())
-        })
+fn gethostname() -> String {
+    sysinfo::System::host_name().unwrap_or_default()
 }
 
 // ── Preset export/import ──
