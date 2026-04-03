@@ -2200,7 +2200,7 @@ fn export_pdf(
 
         // Subtitle (only on first page)
         if page == 1 {
-            layer_ref.set_fill_color(rgb(0.55, 0.55, 0.55));
+            layer_ref.set_fill_color(rgb(0.4, 0.4, 0.45));
             let sub = if capped {
                 format!(
                     "Showing {} of {} items (capped)  |  Exported {}  |  by MenkeTechnologies",
@@ -2220,21 +2220,29 @@ fn export_pdf(
         }
     };
 
-    // ── Render column headers ──
+    // ── Render column headers — cyberpunk dark style ──
     let render_col_headers = |layer_ref: &PdfLayerReference, y: &mut f32| {
-        // Header background
+        // Dark header background
         fill_rect(
             layer_ref,
             margin_x - 1.0,
             *y - 1.5,
             usable_w + 2.0,
             header_row_h,
-            0.93,
-            0.93,
-            0.93,
+            0.04,
+            0.04,
+            0.08,
+        );
+        // Cyan bottom accent line
+        stroke_line(
+            layer_ref,
+            margin_x - 1.0, *y - 1.5,
+            margin_x + usable_w + 1.0, *y - 1.5,
+            0.02, 0.85, 0.91, 0.5,
         );
 
-        layer_ref.set_fill_color(rgb(0.15, 0.15, 0.15));
+        // Cyan header text
+        layer_ref.set_fill_color(rgb(0.02, 0.85, 0.91));
         let mut x = margin_x + 1.0;
         for (i, h) in headers.iter().enumerate() {
             layer_ref.use_text(h, 9.0, Mm(x), Mm(*y), &font_bold);
@@ -2246,20 +2254,17 @@ fn export_pdf(
     // ── Render footer ──
     let render_footer = |layer_ref: &PdfLayerReference, page: usize| {
         let footer_y = 8.0;
-        // Thin gray line
+        // Dark footer bar
+        fill_rect(layer_ref, 0.0, 0.0, page_w.0, footer_y + 4.0, 0.02, 0.02, 0.04);
+        // Cyan accent line
         stroke_line(
             layer_ref,
-            margin_x,
-            footer_y + 3.0,
-            page_w.0 - margin_x,
-            footer_y + 3.0,
-            0.8,
-            0.8,
-            0.8,
-            0.3,
+            margin_x, footer_y + 3.0,
+            page_w.0 - margin_x, footer_y + 3.0,
+            0.02, 0.85, 0.91, 0.5,
         );
 
-        layer_ref.set_fill_color(rgb(0.55, 0.55, 0.55));
+        layer_ref.set_fill_color(rgb(0.4, 0.4, 0.45));
         layer_ref.use_text(
             format!("AUDIO_HAXOR v{} — {}", version, title),
             7.0,
@@ -2299,7 +2304,11 @@ fn export_pdf(
             row_idx = 0;
         }
 
-        // Alternating row stripe
+        // Dark page background
+        if row_idx == 0 {
+            fill_rect(&layer!(), 0.0, 0.0, page_w.0, y + 2.0, 0.03, 0.03, 0.06);
+        }
+        // Alternating row stripe — dark cyberpunk
         if row_idx % 2 == 1 {
             fill_rect(
                 &layer!(),
@@ -2307,13 +2316,25 @@ fn export_pdf(
                 y - 1.2,
                 usable_w + 2.0,
                 row_height,
-                0.96,
-                0.96,
-                0.98,
+                0.06,
+                0.06,
+                0.10,
+            );
+        } else {
+            fill_rect(
+                &layer!(),
+                margin_x - 1.0,
+                y - 1.2,
+                usable_w + 2.0,
+                row_height,
+                0.04,
+                0.04,
+                0.08,
             );
         }
 
-        layer!().set_fill_color(rgb(0.12, 0.12, 0.12));
+        // Light text on dark background
+        layer!().set_fill_color(rgb(0.85, 0.85, 0.90));
         let mut x = margin_x + 0.5;
         for (i, cell) in row.iter().enumerate() {
             let w = if i < col_widths.len() {
@@ -2339,7 +2360,7 @@ fn export_pdf(
     // Capped notice
     if capped {
         y -= 3.0;
-        layer!().set_fill_color(rgb(0.85, 0.3, 0.15));
+        layer!().set_fill_color(rgb(0.83, 0.0, 0.77)); // magenta
         layer!().use_text(
             format!(
                 "Export capped at {} of {} rows. Use CSV/JSON for the full dataset.",
