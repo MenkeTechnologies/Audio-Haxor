@@ -4871,9 +4871,12 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                let uptime = APP_START.get().map(|s| s.elapsed().as_secs()).unwrap_or(0);
-                append_log(format!("APP SHUTDOWN — uptime {}m {}s", uptime / 60, uptime % 60));
+            match event {
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+                    let uptime = APP_START.get().map(|s| s.elapsed().as_secs()).unwrap_or(0);
+                    append_log(format!("APP SHUTDOWN — uptime {}m {}s", uptime / 60, uptime % 60));
+                }
+                _ => {}
             }
         });
 }
