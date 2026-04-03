@@ -1324,22 +1324,6 @@ impl Database {
         Ok(stats)
     }
 
-    /// Get row counts for all tables.
-    pub fn table_counts(&self) -> Result<serde_json::Value, String> {
-        let conn = self.conn.lock().unwrap();
-        let tables = [
-            "audio_samples", "audio_scans", "plugins", "plugin_scans",
-            "daw_projects", "daw_scans", "presets", "preset_scans",
-            "kvr_cache", "waveform_cache", "spectrogram_cache", "xref_cache", "fingerprint_cache",
-        ];
-        let mut map = serde_json::Map::new();
-        for table in &tables {
-            let count: u64 = conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0)).unwrap_or(0);
-            map.insert(table.to_string(), serde_json::json!(count));
-        }
-        Ok(serde_json::Value::Object(map))
-    }
-
     /// Clear a specific cache table.
     pub fn clear_cache_table(&self, table: &str) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();

@@ -1045,18 +1045,44 @@ function refreshSettingsUI() {
       const dawCount = typeof allDawProjects !== 'undefined' ? allDawProjects.length : 0;
       const presetCount = typeof allPresets !== 'undefined' ? allPresets.length : 0;
       const dot = (on) => on ? '<span style="color:var(--green);">&#9679;</span>' : '<span style="color:var(--text-dim);">&#9675;</span>';
+      const db = stats.database || {};
+      const tc = db.tables || {};
+      const section = (title, lines) => `<div style="margin-bottom:6px;"><span style="color:var(--cyan);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:1px;">${title}</span><br>${lines.join('<br>')}</div>`;
       perfInfo.innerHTML = [
-        `<b>CPU:</b> ${cpus} cores | ${(stats.cpuPercent || 0).toFixed(1)}% usage`,
-        `<b>Memory:</b> RSS ${fmtMem(stats.rssBytes)} | Virtual ${fmtMem(stats.virtualBytes)}`,
-        `<b>Process:</b> PID ${stats.pid} | ${stats.threads} threads | ${stats.openFds} FDs | uptime ${fmtUptime(stats.uptimeSecs)}`,
-        `<b>Thread Pools:</b> global rayon ${stats.rayonThreads} | per-scanner ${cfg.perScannerThreads || '?'} | multiplier ${cfg.threadMultiplier || '?'}x | total pool ${cfg.globalPoolSize || '?'} | stack ${cfg.stackSize || '?'}`,
-        `<b>Plugin Scanner:</b> channel buf ${cfg.channelBuffer || '?'} (${cfg.pluginChannelMin || '?'}-${cfg.pluginChannelMax || '?'}) | batch ${cfg.batchSize || '?'}`,
-        `<b>Walker Scanners:</b> channel buf ${cfg.walkerChannelBuffer || '?'} | batch ${cfg.walkerBatchSize || '?'} | depth limit ${cfg.depthLimit || '?'} | flush ${cfg.flushInterval || '?'}ms | page ${cfg.pageSize || '?'}`,
-        `<b>Scanner State:</b> ${dot(sc.pluginScanning)} Plugins ${dot(sc.audioScanning)} Samples ${dot(sc.dawScanning)} DAW ${dot(sc.presetScanning)} Presets ${dot(sc.updateChecking)} Updates`,
-        `<b>Scan Results:</b> ${pluginCount} plugins | ${sampleCount} samples | ${dawCount} DAW projects | ${presetCount} presets`,
-        `<b>Data Files:</b> prefs ${fmtMem(df.preferencesBytes)} | KVR cache ${fmtMem(df.kvrCacheBytes)} | history ${fmtMem((df.scanHistoryBytes||0) + (df.audioHistoryBytes||0) + (df.dawHistoryBytes||0) + (df.presetHistoryBytes||0))}`,
-        `<b>Data Dir:</b> <code style="font-size:10px;word-break:break-all;">${escapeHtml(stats.dataDir || '?')}</code>`,
-      ].join('<br>');
+        section('System', [
+          `<b>OS:</b> ${stats.os || '?'} ${stats.arch || '?'} | <b>Host:</b> ${stats.hostname || '?'}`,
+          `<b>CPU:</b> ${cpus} cores | ${(stats.cpuPercent || 0).toFixed(1)}% usage`,
+          `<b>Disk:</b> ${fmtMem(stats.diskFreeBytes)} free / ${fmtMem(stats.diskTotalBytes)} total`,
+        ]),
+        section('Process', [
+          `<b>PID:</b> ${stats.pid} | <b>Version:</b> v${stats.appVersion || '?'}`,
+          `<b>Memory:</b> RSS ${fmtMem(stats.rssBytes)} | Virtual ${fmtMem(stats.virtualBytes)}`,
+          `<b>Threads:</b> ${stats.threads} total | rayon pool ${stats.rayonThreads}`,
+          `<b>File Descriptors:</b> ${stats.openFds} open | limit ${stats.fdSoftLimit}/${stats.fdHardLimit}`,
+          `<b>Uptime:</b> ${fmtUptime(stats.uptimeSecs)}`,
+        ]),
+        section('Thread Pools', [
+          `<b>Global Rayon:</b> ${stats.rayonThreads} threads | multiplier ${cfg.threadMultiplier || '?'}x`,
+          `<b>Per-Scanner:</b> ${cfg.perScannerThreads || '?'} threads | stack ${cfg.stackSize || '?'}`,
+          `<b>Plugin Channel:</b> buf ${cfg.channelBuffer || '?'} (${cfg.pluginChannelMin || '?'}-${cfg.pluginChannelMax || '?'}) | batch ${cfg.batchSize || '?'}`,
+          `<b>Walker Channel:</b> buf ${cfg.walkerChannelBuffer || '?'} | batch ${cfg.walkerBatchSize || '?'} | depth ${cfg.depthLimit || '?'} | flush ${cfg.flushInterval || '?'}ms`,
+        ]),
+        section('Scanner State', [
+          `${dot(sc.pluginScanning)} Plugins  ${dot(sc.audioScanning)} Samples  ${dot(sc.dawScanning)} DAW  ${dot(sc.presetScanning)} Presets  ${dot(sc.updateChecking)} Updates`,
+        ]),
+        section('Scan Results', [
+          `<b>Plugins:</b> ${pluginCount.toLocaleString()} | <b>Samples:</b> ${sampleCount.toLocaleString()} | <b>DAW:</b> ${dawCount.toLocaleString()} | <b>Presets:</b> ${presetCount.toLocaleString()}`,
+        ]),
+        section('Database', [
+          `<b>Size:</b> ${fmtMem(db.sizeBytes || 0)} | <b>Prefs:</b> ${fmtMem((df.preferencesBytes || 0))}`,
+          `<b>Tables:</b> ${(tc.audio_samples||0).toLocaleString()} samples | ${(tc.plugins||0).toLocaleString()} plugins | ${(tc.daw_projects||0).toLocaleString()} DAW | ${(tc.presets||0).toLocaleString()} presets`,
+          `<b>Caches:</b> ${(tc.kvr_cache||0).toLocaleString()} KVR | ${(tc.waveform_cache||0).toLocaleString()} waveforms | ${(tc.spectrogram_cache||0).toLocaleString()} spectrograms | ${(tc.xref_cache||0).toLocaleString()} xref | ${(tc.fingerprint_cache||0).toLocaleString()} fingerprints`,
+          `<b>Scans:</b> ${(tc.plugin_scans||0)} plugin | ${(tc.audio_scans||0)} audio | ${(tc.daw_scans||0)} DAW | ${(tc.preset_scans||0)} preset`,
+        ]),
+        section('Storage', [
+          `<b>Data Dir:</b> <code style="font-size:10px;word-break:break-all;">${escapeHtml(stats.dataDir || '?')}</code>`,
+        ]),
+      ].join('');
     }).catch((err) => {
       const cpus = navigator.hardwareConcurrency || '?';
       perfInfo.textContent = `${cpus} cores | error: ${err}`;
