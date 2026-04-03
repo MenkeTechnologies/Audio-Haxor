@@ -71,11 +71,17 @@ fn midi_parse_counts_note_on_events() {
 
 #[test]
 fn midi_parse_rejects_non_mthd_magic() {
-    let dir = std::env::temp_dir().join("audio_haxor_deep_midi_bad");
+    let dir = std::env::temp_dir().join(format!(
+        "audio_haxor_deep_midi_bad_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("bad.mid");
-    std::fs::write(&path, b"XXXX\x00\x00\x00\x06").unwrap();
+    std::fs::write(&path, b"XXXX\x00\x00\x00\x06").expect("write invalid header fixture");
     assert!(app_lib::midi::parse_midi(&path).is_none());
     let _ = std::fs::remove_dir_all(&dir);
 }
