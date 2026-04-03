@@ -40,8 +40,8 @@ const DEFAULT_SHORTCUTS = {
   'resetAllScans': { key: 'Backspace', mod: true, label: 'Reset all scans' },
   'toggleTheme': { key: 't', mod: true, label: 'Toggle light/dark theme' },
   'openPrefs': { key: ',', mod: true, label: 'Settings' },
-  'nextTab': { key: 'Tab', mod: true, label: 'Next tab' },
-  'prevTab': { key: 'Tab', mod: true, label: 'Previous tab (Shift held)' },
+  'nextTab': { key: ']', mod: true, label: 'Next tab' },
+  'prevTab': { key: '[', mod: true, label: 'Previous tab' },
   'findSimilar': { key: 'w', mod: false, label: 'Find similar samples' },
   'togglePlayerExpand': { key: 'e', mod: false, label: 'Expand / collapse player' },
   'toggleEq': { key: 'q', mod: false, label: 'Toggle EQ panel' },
@@ -191,13 +191,6 @@ document.addEventListener('keydown', (e) => {
   const isMac = navigator.platform.includes('Mac');
   const mod = isMac ? e.metaKey : e.ctrlKey;
   const shortcuts = getShortcuts();
-
-  // Cmd+Tab / Cmd+Shift+Tab for tab cycling
-  if (mod && e.key === 'Tab') {
-    e.preventDefault();
-    _cycleTab(e.shiftKey ? -1 : 1);
-    return;
-  }
 
   for (const [id, sc] of Object.entries(shortcuts)) {
     if (sc.key === e.key && sc.mod === mod) {
