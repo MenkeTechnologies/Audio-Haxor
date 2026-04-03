@@ -5562,14 +5562,12 @@
               </div>
             </div>
           </div>
-          <div class="settings-row">
-            <div class="settings-label">
+          <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+            <div class="settings-label" style="margin-bottom:8px;">
               <span class="settings-title">System Info</span>
-              <span class="settings-desc">Current runtime configuration (read-only)</span>
+              <span class="settings-desc">Runtime, hardware, database, and scanner stats (auto-refreshes)</span>
             </div>
-            <div class="settings-control">
-              <span id="settingPerfInfo" style="font-family: 'Courier New', monospace; font-size: 11px; color: var(--text-dim);"></span>
-            </div>
+            <div id="settingPerfInfo" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);line-height:1.8;"></div>
           </div>
         </div>
 
@@ -5707,20 +5705,12 @@
           <div class="settings-row" style="flex-direction:column;align-items:stretch;">
             <div class="settings-label" style="margin-bottom:8px;">
               <span class="settings-title">Database Caches</span>
-              <span class="settings-desc">All caches stored in SQLite database. Clear individual caches or all at once.</span>
+              <span class="settings-desc">All data stored in SQLite. View stats and clear individual caches.</span>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-              <button class="btn btn-secondary btn-settings-action" data-action="clearCacheTable" data-cache="bpm" title="Clear BPM analysis" style="font-size:10px;">BPM</button>
-              <button class="btn btn-secondary btn-settings-action" data-action="clearCacheTable" data-cache="key" title="Clear key detection" style="font-size:10px;">Key</button>
-              <button class="btn btn-secondary btn-settings-action" data-action="clearCacheTable" data-cache="lufs" title="Clear LUFS measurements" style="font-size:10px;">LUFS</button>
-              <button class="btn btn-secondary btn-settings-action" data-action="clearCacheTable" data-cache="waveform" title="Clear waveform cache" style="font-size:10px;">Waveform</button>
-              <button class="btn btn-secondary btn-settings-action" data-action="clearCacheTable" data-cache="spectrogram" title="Clear spectrogram cache" style="font-size:10px;">Spectrogram</button>
-              <button class="btn btn-secondary btn-settings-action" data-action="clearCacheTable" data-cache="xref" title="Clear plugin cross-reference" style="font-size:10px;">Xref</button>
-              <button class="btn btn-secondary btn-settings-action" data-action="clearCacheTable" data-cache="fingerprint" title="Clear audio fingerprints" style="font-size:10px;">Fingerprint</button>
-              <button class="btn btn-secondary btn-settings-action" data-action="clearCacheTable" data-cache="kvr" title="Clear KVR version cache" style="font-size:10px;">KVR</button>
-            </div>
+            <div id="cacheStatsGrid" style="font-size:11px;margin-bottom:8px;"></div>
             <div style="display:flex;gap:6px;">
               <button class="btn btn-stop btn-settings-action" data-action="settingClearAnalysisCache" title="Clear all caches at once" style="font-size:10px;">Clear All Caches</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="refreshCacheStats" title="Refresh cache stats" style="font-size:10px;">Refresh</button>
             </div>
           </div>
           <div class="settings-row">

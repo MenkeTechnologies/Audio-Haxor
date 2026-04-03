@@ -443,6 +443,42 @@ function applyNeonGlowSetting(on) {
   document.body.classList.toggle('no-neon-glow', !on);
 }
 
+function formatCacheSize(bytes) {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+}
+
+async function renderCacheStats() {
+  const grid = document.getElementById('cacheStatsGrid');
+  if (!grid) return;
+  try {
+    const stats = await window.vstUpdater.dbCacheStats();
+    grid.innerHTML = `<table style="width:100%;border-collapse:collapse;font-family:'Share Tech Mono',monospace;">
+      <thead><tr style="color:var(--cyan);font-size:10px;text-transform:uppercase;letter-spacing:1px;">
+        <th style="text-align:left;padding:4px 8px;">Cache</th>
+        <th style="text-align:right;padding:4px 8px;">Items</th>
+        <th style="text-align:right;padding:4px 8px;">Size</th>
+        <th style="text-align:center;padding:4px 8px;width:60px;"></th>
+      </tr></thead>
+      <tbody>${stats.map(s => {
+        const countStr = s.count > 0 ? s.count.toLocaleString() + (s.total > 0 && s.key !== 'database' && !s.key.includes('_scans') ? ` / ${s.total.toLocaleString()}` : s.key.includes('_scans') ? ` (${s.total} scans)` : '') : (s.key === 'database' ? '' : '0');
+        const sizeStr = formatCacheSize(s.sizeBytes);
+        const canClear = s.key !== 'database' && !s.key.includes('_scans');
+        return `<tr style="border-bottom:1px solid rgba(26,26,62,0.2);">
+          <td style="padding:4px 8px;color:var(--text);">${s.label}</td>
+          <td style="padding:4px 8px;text-align:right;color:var(--text-muted);">${countStr}</td>
+          <td style="padding:4px 8px;text-align:right;color:${s.sizeBytes > 10*1024*1024 ? 'var(--yellow)' : 'var(--text-muted)'};">${sizeStr}</td>
+          <td style="padding:4px 8px;text-align:center;">${canClear && s.count > 0 ? `<button class="btn btn-secondary" data-action="clearCacheTable" data-cache="${s.key}" style="font-size:9px;padding:2px 6px;">Clear</button>` : ''}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  } catch (e) {
+    grid.innerHTML = `<span style="color:var(--red);font-size:11px;">Failed to load stats: ${e}</span>`;
+  }
+}
+
 async function exportSettingsPdf() {
   const shortcuts = typeof getShortcuts === 'function' ? getShortcuts() : {};
   const allPrefs = prefs._cache || {};

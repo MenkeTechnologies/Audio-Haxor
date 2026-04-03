@@ -123,6 +123,17 @@ pub struct ScanInfo {
     pub roots: Vec<String>,
 }
 
+/// Stats for a single cache table.
+#[derive(Debug, Serialize)]
+pub struct CacheStat {
+    pub key: String,
+    pub label: String,
+    pub count: u64,
+    pub total: u64,
+    #[serde(rename = "sizeBytes")]
+    pub size_bytes: u64,
+}
+
 /// Current schema version — bump when adding migrations.
 #[allow(dead_code)]
 const SCHEMA_VERSION: i64 = 2;
@@ -1238,6 +1249,95 @@ impl Database {
             }
         }
         tx.commit().map_err(|e| e.to_string())
+    }
+
+    /// Get row counts for all tables.
+    pub fn table_counts(&self) -> Result<serde_json::Value, String> {
+        let conn = self.conn.lock().unwrap();
+        let tables = ["audio_samples", "audio_scans", "plugins", "plugin_scans",
+            "daw_projects", "daw_scans", "presets", "preset_scans",
+            "kvr_cache", "waveform_cache", "spectrogram_cache", "xref_cache", "fingerprint_cache"];
+        let mut map = serde_json::Map::new();
+        for t in &tables {
+            let count: u64 = conn.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0)).unwrap_or(0);
+            map.insert(t.to_string(), serde_json::json!(count));
+        }
+        Ok(serde_json::Value::Object(map))
+    }
+
+    /// Get stats for all caches: item count and estimated size.
+    pub fn cache_stats(&self) -> Result<Vec<CacheStat>, String> {
+        let conn = self.conn.lock().unwrap();
+        let page_size: u64 = conn.query_row("PRAGMA page_size", [], |r| r.get(0)).unwrap_or(4096);
+        let mut stats = Vec::new();
+
+        // Analysis caches (columns on audio_samples)
+        let total_samples: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM audio_samples WHERE scan_id = (SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1)",
+            [], |r| r.get(0),
+        ).unwrap_or(0);
+        for (label, col, key) in [("BPM", "bpm", "bpm"), ("Key", "key_name", "key"), ("LUFS", "lufs", "lufs")] {
+            let count: u64 = conn.query_row(
+                &format!("SELECT COUNT(*) FROM audio_samples WHERE {col} IS NOT NULL AND scan_id = (SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1)"),
+                [], |r| r.get(0),
+            ).unwrap_or(0);
+            stats.push(CacheStat { key: key.into(), label: label.into(), count, total: total_samples, size_bytes: count * 8 });
+        }
+
+        // KV caches — count rows and estimate size from data length
+        for (label, table, key_col, val_col, key) in [
+            ("Waveform", "waveform_cache", "path", "data", "waveform"),
+            ("Spectrogram", "spectrogram_cache", "path", "data", "spectrogram"),
+            ("Xref", "xref_cache", "project_path", "plugins_json", "xref"),
+            ("Fingerprint", "fingerprint_cache", "path", "fingerprint", "fingerprint"),
+            ("KVR", "kvr_cache", "plugin_key", "kvr_url", "kvr"),
+        ] {
+            let (count, size): (u64, u64) = conn.query_row(
+                &format!("SELECT COUNT(*), COALESCE(SUM(LENGTH({val_col})), 0) FROM {table}"),
+                [], |r| Ok((r.get(0)?, r.get(1)?)),
+            ).unwrap_or((0, 0));
+            stats.push(CacheStat { key: key.into(), label: label.into(), count, total: 0, size_bytes: size });
+        }
+
+        // Scan histories
+        for (label, scan_table, item_table, key) in [
+            ("Plugin Scans", "plugin_scans", "plugins", "plugin_scans"),
+            ("Audio Scans", "audio_scans", "audio_samples", "audio_scans"),
+            ("DAW Scans", "daw_scans", "daw_projects", "daw_scans"),
+            ("Preset Scans", "preset_scans", "presets", "preset_scans"),
+        ] {
+            let scan_count: u64 = conn.query_row(&format!("SELECT COUNT(*) FROM {scan_table}"), [], |r| r.get(0)).unwrap_or(0);
+            let item_count: u64 = conn.query_row(&format!("SELECT COUNT(*) FROM {item_table}"), [], |r| r.get(0)).unwrap_or(0);
+            // Estimate size from number of items * avg row size
+            let avg_row: u64 = if item_count > 0 {
+                let pages: u64 = conn.query_row("SELECT page_count FROM pragma_page_count()", [], |r| r.get(0)).unwrap_or(0);
+                if pages > 0 { (pages * page_size) / item_count.max(1) } else { 200 }
+            } else { 0 };
+            stats.push(CacheStat { key: key.into(), label: label.into(), count: item_count, total: scan_count, size_bytes: item_count * avg_row });
+        }
+
+        // Total DB file size
+        let db_path = history::get_data_dir().join("audio_haxor.db");
+        let db_size = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
+        stats.push(CacheStat { key: "database".into(), label: "Total Database".into(), count: 0, total: 0, size_bytes: db_size });
+
+        Ok(stats)
+    }
+
+    /// Get row counts for all tables.
+    pub fn table_counts(&self) -> Result<serde_json::Value, String> {
+        let conn = self.conn.lock().unwrap();
+        let tables = [
+            "audio_samples", "audio_scans", "plugins", "plugin_scans",
+            "daw_projects", "daw_scans", "presets", "preset_scans",
+            "kvr_cache", "waveform_cache", "spectrogram_cache", "xref_cache", "fingerprint_cache",
+        ];
+        let mut map = serde_json::Map::new();
+        for table in &tables {
+            let count: u64 = conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0)).unwrap_or(0);
+            map.insert(table.to_string(), serde_json::json!(count));
+        }
+        Ok(serde_json::Value::Object(map))
     }
 
     /// Clear a specific cache table.

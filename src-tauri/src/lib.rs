@@ -1638,6 +1638,39 @@ fn get_process_stats(app: AppHandle) -> serde_json::Value {
             .unwrap_or(0)
     };
 
+    // OS info
+    let os_name = std::env::consts::OS;
+    let os_arch = std::env::consts::ARCH;
+    let hostname = gethostname();
+
+    // Disk space for data dir
+    #[cfg(unix)]
+    let (disk_total, disk_free) = {
+        use std::ffi::CString;
+        let path_c = CString::new(data_dir.to_string_lossy().as_bytes()).unwrap_or_default();
+        let mut stat: libc::statfs = unsafe { std::mem::zeroed() };
+        if unsafe { libc::statfs(path_c.as_ptr(), &mut stat) } == 0 {
+            (stat.f_blocks as u64 * stat.f_bsize as u64, stat.f_bavail as u64 * stat.f_bsize as u64)
+        } else { (0, 0) }
+    };
+    #[cfg(not(unix))]
+    let (disk_total, disk_free) = (0u64, 0u64);
+
+    // SQLite database stats
+    let db_bytes = file_size("audio_haxor.db") + file_size("audio_haxor.db-wal") + file_size("audio_haxor.db-shm");
+    let db_table_counts = db::global().table_counts().unwrap_or_default();
+
+    // FD limits
+    #[cfg(unix)]
+    let (fd_soft, fd_hard) = {
+        let mut rlim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut rlim) } == 0 {
+            (rlim.rlim_cur, rlim.rlim_max)
+        } else { (0, 0) }
+    };
+    #[cfg(not(unix))]
+    let (fd_soft, fd_hard) = (0u64, 0u64);
+
     serde_json::json!({
         "pid": pid,
         "rssBytes": rss,
@@ -1648,6 +1681,15 @@ fn get_process_stats(app: AppHandle) -> serde_json::Value {
         "numCpus": ncpus,
         "uptimeSecs": uptime_secs,
         "openFds": open_fds,
+        "fdSoftLimit": fd_soft,
+        "fdHardLimit": fd_hard,
+        "os": os_name,
+        "arch": os_arch,
+        "hostname": hostname,
+        "rustVersion": env!("CARGO_PKG_RUST_VERSION", "unknown"),
+        "appVersion": env!("CARGO_PKG_VERSION"),
+        "diskTotalBytes": disk_total,
+        "diskFreeBytes": disk_free,
         "scanner": {
             "pluginScanning": scan_state.scanning.load(Ordering::Relaxed),
             "pluginStopped": scan_state.stop_scan.load(Ordering::Relaxed),
@@ -1675,13 +1717,12 @@ fn get_process_stats(app: AppHandle) -> serde_json::Value {
             "pluginChannelMin": 64,
             "pluginChannelMax": 8192,
         },
+        "database": {
+            "sizeBytes": db_bytes,
+            "tables": db_table_counts,
+        },
         "dataFiles": {
             "preferencesBytes": file_size("preferences.toml"),
-            "scanHistoryBytes": file_size("scan-history.json"),
-            "audioHistoryBytes": file_size("audio-scan-history.json"),
-            "dawHistoryBytes": file_size("daw-scan-history.json"),
-            "presetHistoryBytes": file_size("preset-scan-history.json"),
-            "kvrCacheBytes": file_size("kvr-cache.json"),
         },
         "dataDir": data_dir.to_string_lossy(),
     })
@@ -1726,6 +1767,18 @@ static APP_START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
 
 fn get_uptime_secs() -> u64 {
     APP_START.get_or_init(Instant::now).elapsed().as_secs()
+}
+
+fn gethostname() -> String {
+    #[cfg(unix)]
+    {
+        let mut buf = [0u8; 256];
+        if unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) } == 0 {
+            let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+            return String::from_utf8_lossy(&buf[..end]).to_string();
+        }
+    }
+    String::new()
 }
 
 #[cfg(target_os = "macos")]
