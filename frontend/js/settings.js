@@ -1533,20 +1533,22 @@ function restoreSettingsSectionOrder() {
     container.querySelectorAll('.settings-section[data-section]').forEach(s => {
       sectionMap[s.dataset.section] = s;
     });
-    for (const key of order) {
+    // Merge: use saved order, but insert any new sections not in saved order
+    const allSections = [...container.querySelectorAll('.settings-section[data-section]')].map(s => s.dataset.section);
+    const merged = [...order];
+    for (const key of allSections) {
+      if (!merged.includes(key)) merged.push(key);
+    }
+    for (const key of merged) {
       if (sectionMap[key]) container.appendChild(sectionMap[key]);
     }
-    // Append any sections not in saved order
-    container.querySelectorAll('.settings-section[data-section]').forEach(s => {
-      if (!order.includes(s.dataset.section)) container.appendChild(s);
-    });
   } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
 }
 
 function resetSettingsSectionOrder() {
   prefs.removeItem('settingsSectionOrder');
   const container = document.querySelector('.settings-container');
-  const defaultOrder = ['appearance', 'colorscheme', 'scanning', 'performance', 'sorting', 'data', 'about'];
+  const defaultOrder = ['appearance', 'colorscheme', 'scanning', 'performance', 'fzf', 'shortcuts', 'sorting', 'data', 'about'];
   const sectionMap = {};
   container.querySelectorAll('.settings-section[data-section]').forEach(s => {
     sectionMap[s.dataset.section] = s;
