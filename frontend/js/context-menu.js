@@ -287,10 +287,10 @@ document.addEventListener('contextmenu', (e) => {
     const path = midiRow.getAttribute('data-midi-path');
     const name = midiRow.querySelector('.col-name')?.textContent || '';
     const items = [
-      { icon: '&#9654;', label: 'Preview with QuickTime', action: () => window.vstUpdater.openWithApp(path, 'QuickTime Player').catch(() => showToast('QuickTime Player not found', 4000, 'error')) },
-      { icon: '&#127926;', label: 'Open in GarageBand', action: () => window.vstUpdater.openWithApp(path, 'GarageBand').catch(() => showToast('GarageBand not found', 4000, 'error')) },
+      { icon: '&#9654;', label: 'Preview in GarageBand', action: () => window.vstUpdater.openWithApp(path, 'GarageBand').catch(() => showToast('GarageBand not found — install from App Store', 4000, 'error')) },
       { icon: '&#127911;', label: 'Open in Logic Pro', action: () => window.vstUpdater.openWithApp(path, 'Logic Pro').catch(() => showToast('Logic Pro not found', 4000, 'error')) },
-      { icon: '&#9889;', label: 'Open with Default App', action: () => window.vstUpdater.openDawProject(path).catch(() => showToast('No MIDI handler found', 4000, 'error')) },
+      { icon: '&#127925;', label: 'Open in Ableton Live', action: () => window.vstUpdater.openWithApp(path, 'Ableton Live 12 Standard').catch(() => window.vstUpdater.openWithApp(path, 'Ableton Live 11 Suite').catch(() => showToast('Ableton Live not found', 4000, 'error'))) },
+      { icon: '&#9889;', label: 'Open with Default App', action: () => window.vstUpdater.openDawProject(path).catch(e => showToast('No MIDI handler: ' + e, 4000, 'error')) },
       '---',
       { icon: '&#128193;', label: 'Reveal in Finder', action: () => typeof openAudioFolder === 'function' && openAudioFolder(path) },
       { icon: '&#128194;', label: 'Show in File Browser', action: () => { switchTab('files'); if (typeof loadDirectory === 'function') loadDirectory(path.replace(/\/[^/]+$/, '')); } },
