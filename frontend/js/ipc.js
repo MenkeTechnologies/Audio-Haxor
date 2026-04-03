@@ -159,6 +159,15 @@ document.addEventListener('click', (e) => {
     case 'importNotes': importNotes(); break;
     case 'clearAllNotes': clearAllNotes(); break;
     case 'clearGlobalTag': clearGlobalTag(); break;
+    case 'toggleTagBar': {
+      const list = document.getElementById('globalTagList');
+      const toggle = document.getElementById('globalTagToggle');
+      if (list) {
+        const collapsed = list.style.display === 'none';
+        list.style.display = collapsed ? '' : 'none';
+        if (toggle) toggle.innerHTML = collapsed ? '&#9660;' : '&#9654;';
+      }
+    } break;
     case 'settingResetAllUI': settingResetAllUI(); break;
     case 'settingResetColumns': settingResetColumns(); break;
     case 'settingResetSectionOrder': resetSettingsSectionOrder(); break;
