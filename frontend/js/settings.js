@@ -1058,6 +1058,10 @@ function refreshSettingsUI() {
     backupsLabel.textContent = includeBackups ? 'On' : 'Off';
   }
 
+  // Blacklist
+  const blacklistEl = document.getElementById('settingBlacklist');
+  if (blacklistEl) blacklistEl.value = prefs.getItem('blacklistDirs') || '';
+
   // Page size
   const pageSize = getSettingValue('pageSize', '500');
   const pageSizeEl = document.getElementById('settingPageSize');
@@ -1366,6 +1370,14 @@ function renderFzfSettings() {
     });
   }
 }
+
+// Blacklist auto-save on change
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'settingBlacklist') {
+    prefs.setItem('blacklistDirs', e.target.value);
+    showToast('Directory blacklist saved');
+  }
+});
 
 document.addEventListener('input', (e) => {
   const input = e.target.closest('[data-fzf-param]');

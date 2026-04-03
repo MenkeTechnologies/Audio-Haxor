@@ -45,6 +45,7 @@ const SKIP_DIRS: &[&str] = &[
     ".git",
     ".Trash",
     "$RECYCLE.BIN",
+    "#recycle",
     "System Volume Information",
     ".cache",
     "__pycache__",

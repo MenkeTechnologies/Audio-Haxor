@@ -238,6 +238,7 @@ document.addEventListener('click', (e) => {
     case 'settingToggleAutoplayNext': settingToggleAutoplayNext(); break;
     case 'resetFzfParams': resetFzfParams(); break;
     case 'settingToggleIncludeBackups': settingToggleIncludeBackups(); break;
+    case 'settingBlacklist': { const el = document.getElementById('settingBlacklist'); if (el) { prefs.setItem('blacklistDirs', el.value); showToast('Blacklist saved'); } } break;
     case 'applyCustomScheme': applyCustomScheme(); break;
     case 'showSavePreset': showSavePreset(); break;
     case 'confirmSavePreset': confirmSavePreset(); break;

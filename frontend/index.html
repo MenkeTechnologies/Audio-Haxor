@@ -5649,6 +5649,13 @@
               </button>
             </div>
           </div>
+          <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">
+            <div class="settings-label">
+              <span class="settings-title">Directory Blacklist</span>
+              <span class="settings-desc">Directory names to skip during scans (one per line). Applies to all scanners.</span>
+            </div>
+            <textarea id="settingBlacklist" rows="3" style="width:100%;max-width:400px;font-family:'Share Tech Mono',monospace;font-size:11px;background:var(--bg-card);color:var(--text);border:1px solid var(--border);padding:6px;resize:vertical;" data-action="settingBlacklist" placeholder="#recycle&#10;@eaDir&#10;.Spotlight-V100" title="Directory names to exclude from scanning"></textarea>
+          </div>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title">File Watcher (Auto-Scan)</span>
