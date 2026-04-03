@@ -251,9 +251,14 @@ pnpm test
 # Run Rust backend tests only
 cd src-tauri && cargo test
 
-# Run JavaScript unit tests only
+# Run all JavaScript tests (`test/*.test.js`; uses `scripts/run-js-tests.mjs` so Windows shells match Unix)
+pnpm run test:js
+
+# Spot-check a few files only
 node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 ```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `pnpm run test:js`, `cargo test --lib` in `src-tauri/`, and `pnpm run tauri:build:ci` (`tauri build --ci --no-sign`) for unsigned release bundles on each OS.
 
 ### Rust tests (`cargo test` from `src-tauri/`)
 
