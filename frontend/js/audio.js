@@ -1102,17 +1102,31 @@ function clearAudioPlaybackUI() {
   updateNowPlayingBtn();
 }
 
+let _prevPlayingRow = null;
 function updatePlayBtnStates() {
-  document.querySelectorAll('.audio-table .btn-play').forEach(btn => {
-    const row = btn.closest('tr');
-    if (!row) return;
-    const rowPath = row.getAttribute('data-audio-path');
-    const isThis = rowPath === audioPlayerPath;
-    btn.classList.toggle('playing', isThis && !audioPlayer.paused);
-    btn.innerHTML = (isThis && !audioPlayer.paused) ? '&#9646;&#9646;' : '&#9654;';
-    row.classList.toggle('row-playing', isThis && !audioPlayer.paused);
-  });
-  updateLoopBtnStates();
+  // Clear previous playing row
+  if (_prevPlayingRow) {
+    const btn = _prevPlayingRow.querySelector('.btn-play');
+    if (btn) { btn.classList.remove('playing'); btn.innerHTML = '&#9654;'; }
+    _prevPlayingRow.classList.remove('row-playing');
+    const loop = _prevPlayingRow.querySelector('.btn-loop');
+    if (loop) loop.classList.remove('active');
+  }
+  // Set current playing row
+  if (audioPlayerPath) {
+    const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(audioPlayerPath)}"]`);
+    if (row) {
+      const btn = row.querySelector('.btn-play');
+      const playing = !audioPlayer.paused;
+      if (btn) { btn.classList.toggle('playing', playing); btn.innerHTML = playing ? '&#9646;&#9646;' : '&#9654;'; }
+      row.classList.toggle('row-playing', playing);
+      const loop = row.querySelector('.btn-loop');
+      if (loop) loop.classList.toggle('active', playing && audioLooping);
+      _prevPlayingRow = row;
+    }
+  } else {
+    _prevPlayingRow = null;
+  }
   renderRecentlyPlayed();
 }
 
