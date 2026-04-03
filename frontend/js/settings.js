@@ -1460,47 +1460,53 @@ function initSettingsSectionDrag() {
     ghost.style.pointerEvents = '';
     const target = el?.closest('.settings-section');
 
-    // Show destination box at drop position — skip if target+side unchanged
+    // Highlight drop target — no DOM insertion (causes column reflow flicker)
     if (target && target !== dragged) {
       const targetRect = target.getBoundingClientRect();
       const before = e.clientY < targetRect.top + targetRect.height / 2;
       const dropKey = target.dataset.section + (before ? ':before' : ':after');
       if (dropKey !== container._lastDropKey) {
         container._lastDropKey = dropKey;
-        container.querySelectorAll('.settings-section').forEach(s => s.classList.remove('section-drag-over'));
-        target.classList.add('section-drag-over');
-        if (!placeholder) {
-          placeholder = document.createElement('div');
-          placeholder.className = 'section-placeholder';
-          placeholder.style.height = dragged._dragH + 'px';
-        }
-        if (before) {
-          container.insertBefore(placeholder, target);
-        } else {
-          container.insertBefore(placeholder, target.nextSibling);
-        }
+        container._dropTarget = target;
+        container._dropBefore = before;
+        container.querySelectorAll('.settings-section').forEach(s => {
+          s.classList.remove('section-drag-over-top', 'section-drag-over-bottom');
+        });
+        target.classList.add(before ? 'section-drag-over-top' : 'section-drag-over-bottom');
       }
-    } else if (placeholder && placeholder.parentNode) {
-      container._lastDropKey = null;
-      container.querySelectorAll('.settings-section').forEach(s => s.classList.remove('section-drag-over'));
-      placeholder.remove();
+    } else {
+      if (container._lastDropKey) {
+        container._lastDropKey = null;
+        container._dropTarget = null;
+        container.querySelectorAll('.settings-section').forEach(s => {
+          s.classList.remove('section-drag-over-top', 'section-drag-over-bottom');
+        });
+      }
     }
   });
 
   document.addEventListener('mouseup', (e) => {
     if (!dragged) return;
     if (isDragging) {
-      container.querySelectorAll('.settings-section').forEach(s => s.classList.remove('section-drag-over'));
-      container._lastDropKey = null;
+      container.querySelectorAll('.settings-section').forEach(s => {
+        s.classList.remove('section-drag-over-top', 'section-drag-over-bottom');
+      });
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
 
-      // Insert at placeholder position
-      if (placeholder && placeholder.parentNode) {
-        container.insertBefore(dragged, placeholder);
-        placeholder.remove();
+      // Insert at drop target position
+      const dropTarget = container._dropTarget;
+      if (dropTarget && dropTarget !== dragged) {
+        if (container._dropBefore) {
+          container.insertBefore(dragged, dropTarget);
+        } else if (dropTarget.nextSibling) {
+          container.insertBefore(dragged, dropTarget.nextSibling);
+        } else {
+          container.appendChild(dragged);
+        }
       }
-      placeholder = null;
+      container._dropTarget = null;
+      container._lastDropKey = null;
       dragged.style.display = '';
       if (ghost) { ghost.remove(); ghost = null; }
       saveSettingsSectionOrder();
