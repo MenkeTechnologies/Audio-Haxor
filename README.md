@@ -281,16 +281,17 @@ Unit tests live in `src/**/*.rs` inside `#[cfg(test)]` modules. Integration test
 
 **Integration tests** live under `tests/`. They import the library as `app_lib` (crate name in `Cargo.toml`) and cover DB (`init_global` + queries), scanners, KVR, xref/similarity, command-layer helpers, DAW/audio/preset scenarios, MIDI/LUFS/key/BPM, plugin paths, error-handling/stress harnesses (`error_handling_tests`, `stress_tests`), DAW pure helpers (`daw_scanner_pure_test` — extension matching + path edge cases), `xref_test` (unsupported extensions and `.rpp-bak` routing without fixtures), malformed audio headers (`file_format_edge_cases`), and `discover_plugins` + xref normalization (`scanner_discover_and_xref`). Run: `cargo test --manifest-path src-tauri/Cargo.toml`.
 
-**Handcrafted table suites** (`tests/handcrafted_tables_*.rs`): many small `#[test]` functions generated from declarative macros, each row an explicit input/expected pair for pure helpers — `kvr::parse_version` (split across `handcrafted_tables_kvr`, `handcrafted_tables_kvr_parse_many`, and `handcrafted_tables_kvr_parse_batch2`), `kvr::compare_versions` (strict chain + 50 pairs), `kvr::extract_version` (HTML snippets), `format_size`, `history::radix_string`, `similarity::fingerprint_distance`, DAW `ext_matches` / `daw_name_for_format`, and scanner/xref normalization. Run one crate with e.g. `cargo test --manifest-path src-tauri/Cargo.toml --test handcrafted_tables_kvr_parse_many` or `--test handcrafted_tables_kvr_parse_batch2`.
+**Handcrafted table suites** (`tests/handcrafted_tables_*.rs`): many small `#[test]` functions generated from declarative macros, each row an explicit input/expected pair for pure helpers — `kvr::parse_version` (split across `handcrafted_tables_kvr`, `handcrafted_tables_kvr_parse_many`, and `handcrafted_tables_kvr_parse_batch2`), `kvr::compare_versions` (strict chain + 50 pairs), `kvr::extract_version` (HTML snippets), `format_size`, `history::radix_string`, `similarity::fingerprint_distance`, DAW `ext_matches` / `daw_name_for_format`, and scanner/xref normalization. **`handcrafted_tables_massive`** adds thousands of one-function-per-row checks for `parse_version`, `compare_versions` on a sorted semver-like grid, and `format_size` (powers of two, linear byte ranges, and 1 MiB boundary). Run e.g. `cargo test --manifest-path src-tauri/Cargo.toml --test handcrafted_tables_massive`.
 
-### JavaScript tests (1098 tests, `node:test`)
+### JavaScript tests (3656 tests, `node:test`)
 
 | Suite | Tests | What runs |
 |-------|-------|-----------|
 | **`test/ui.test.js`** | 209 | Pure copies of UI helpers: `escapeHtml`, `escapePath`, `slugify`, `buildKvrUrl`, `formatAudioSize`, `formatTime`, `getFormatClass`, `timeAgo`, `kvrCacheKey`, `buildDirsTable`, `applyKvrCache`, `metaItem`, `buildPluginCardHtml`, `normalizePluginName`, etc. |
 | **`test/scanner.test.js`** | 25 | **In-test replicas** of plugin-type / `formatSize` / DAW+audio extension mapping (not an import of `scanner.js`, which uses macOS `execSync` for plists). |
 | **`test/update-worker.test.js`** | 32 | Version parse/compare and KVR URL patterns (logic duplicated in file). |
-| **`test/*.test.js` (bulk)** | 832 | One small file per concern: fzf-style scoring, string/array/math utilities, formatting — **not** the full `frontend/js/utils.js` module graph. |
+| **`test/iec-format-kvr-bulk.test.js`** | 2558 | IEC `format_size` parity, `parse_version` grid, `compare_versions` chain antisymmetry — mirrors backend KVR/size rules in isolation. |
+| **`test/*.test.js` (other bulk)** | 832 | fzf-style scoring, string/array/math utilities, other formatting — **not** the full `frontend/js/utils.js` module graph. |
 
 **What these tests do *not* cover (by design):**
 
