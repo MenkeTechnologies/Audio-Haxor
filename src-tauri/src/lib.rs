@@ -22,6 +22,7 @@ pub mod similarity;
 pub mod history;
 pub mod key_detect;
 pub mod lufs;
+pub mod midi;
 pub mod kvr;
 pub mod preset_scanner;
 pub mod scanner;
@@ -1434,6 +1435,13 @@ fn read_bwproject(file_path: String) -> Result<serde_json::Value, String> {
     read_binary_project(file_path, "bwproject")
 }
 
+// ── MIDI metadata ──
+
+#[tauri::command]
+fn get_midi_info(file_path: String) -> Result<Option<midi::MidiInfo>, String> {
+    Ok(midi::parse_midi(std::path::Path::new(&file_path)))
+}
+
 // ── Export / Import commands ──
 
 fn plugins_to_export(plugins: &[PluginInfo]) -> Vec<ExportPlugin> {
@@ -1950,6 +1958,9 @@ fn export_pdf(
     use printpdf::path::{PaintMode, WindingOrder};
     use printpdf::*;
 
+    // Load app icon for header (embedded at compile time)
+    let icon_bytes: &[u8] = include_bytes!("../icons/32x32.png");
+
     let page_w = Mm(297.0); // A4 landscape
     let page_h = Mm(210.0);
     let margin_x = 10.0_f32;
@@ -2090,6 +2101,17 @@ fn export_pdf(
         });
     }
 
+    // ── Decode icon PNG to raw RGB for embedding ──
+    let icon_rgb: Option<(Vec<u8>, u32, u32)> = {
+        let dimg = image_crate::load_from_memory_with_format(icon_bytes, image_crate::ImageFormat::Png).ok();
+        dimg.map(|di| {
+            let w = di.width();
+            let h = di.height();
+            let rgb: Vec<u8> = di.to_rgb8().into_raw();
+            (rgb, w, h)
+        })
+    };
+
     // ── Render page header ──
     let render_header = |layer_ref: &PdfLayerReference, y: &mut f32, page: usize| {
         // Dark header bar
@@ -2104,12 +2126,36 @@ fn export_pdf(
             0.04,
         );
 
-        // App name + music note (cyan)
+        // Icon at top-left
+        let icon_offset = match icon_rgb {
+            Some((ref rgb, ref iw, ref ih)) => {
+                let icon_size = 6.0_f32;
+                let w = *iw as usize;
+                let h = *ih as usize;
+                let img = Image::from(ImageXObject {
+                    width: Px(w), height: Px(h),
+                    color_space: ColorSpace::Rgb, bits_per_component: ColorBits::Bit8,
+                    image_data: rgb.to_vec(), image_filter: None, clipping_bbox: None,
+                    interpolate: false, smask: None,
+                });
+                img.add_to_layer(layer_ref.clone(), ImageTransform {
+                    translate_x: Some(Mm(margin_x)),
+                    translate_y: Some(Mm(page_h.0 - 19.0)),
+                    scale_x: Some(icon_size / w as f32),
+                    scale_y: Some(icon_size / h as f32),
+                    ..Default::default()
+                });
+                icon_size + 2.0
+            }
+            None => 0.0,
+        };
+
+        // App name (cyan)
         layer_ref.set_fill_color(rgb(0.02, 0.85, 0.91));
         layer_ref.use_text(
-            "\u{266B} AUDIO_HAXOR",
+            "AUDIO_HAXOR",
             14.0,
-            Mm(margin_x),
+            Mm(margin_x + icon_offset),
             Mm(page_h.0 - 14.0),
             &font_bold,
         );
@@ -2119,7 +2165,7 @@ fn export_pdf(
         layer_ref.use_text(
             format!("v{}", version),
             8.0,
-            Mm(margin_x + 68.0),
+            Mm(margin_x + icon_offset + 58.0),
             Mm(page_h.0 - 14.0),
             &font,
         );
@@ -3466,6 +3512,7 @@ pub fn run() {
             start_file_watcher,
             stop_file_watcher,
             get_file_watcher_status,
+            get_midi_info,
         ])
         .setup(|app| {
             // Restore window size/position

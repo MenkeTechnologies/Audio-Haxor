@@ -32,6 +32,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 notify = "7"
 sysinfo = "0.33"
+image_crate = { version = "0.25", default-features = false, features = ["png"], package = "image" }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
