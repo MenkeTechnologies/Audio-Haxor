@@ -146,6 +146,9 @@ document.addEventListener('click', (e) => {
     case 'importDaw': importDaw(); break;
     case 'exportPresets': exportPresets(); break;
     case 'importPresets': importPresets(); break;
+    case 'exportMidi': if (typeof exportMidi === 'function') exportMidi(); break;
+    case 'exportXref': if (typeof exportXref === 'function') exportXref(); break;
+    case 'exportSmartPlaylists': if (typeof exportSmartPlaylists === 'function') exportSmartPlaylists(); break;
     case 'settingToggleTheme': settingToggleTheme(); break;
     case 'settingToggleCrt': settingToggleCrt(); break;
     case 'settingToggleNeonGlow': settingToggleNeonGlow(); break;

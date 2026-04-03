@@ -241,6 +241,96 @@ function exportPresets() {
   showExportModal('presets', 'Presets', allPresets.length);
 }
 
+// ── MIDI export ──
+
+function exportMidi() {
+  if (typeof allMidiFiles === 'undefined' || allMidiFiles.length === 0) return;
+  _exportCtx = {
+    title: 'MIDI Files',
+    defaultName: exportFileName('midi', allMidiFiles.length),
+    exportFn: async (fmt, filePath) => {
+      const data = allMidiFiles.map(s => {
+        const info = typeof _midiInfoCache !== 'undefined' ? _midiInfoCache[s.path] || {} : {};
+        return { name: s.name, path: s.path, directory: s.directory, format: s.format, size: s.size, sizeFormatted: s.sizeFormatted, modified: s.modified, tracks: info.trackCount, tempo: info.tempo, timeSignature: info.timeSignature, keySignature: info.keySignature, noteCount: info.noteCount, channelsUsed: info.channelsUsed, duration: info.duration, trackNames: info.trackNames };
+      });
+      if (fmt === 'pdf') {
+        const headers = ['Name', 'Tracks', 'BPM', 'Time Sig', 'Key', 'Notes', 'Ch', 'Duration', 'Size', 'Path'];
+        const rows = data.map(m => [m.name, m.tracks || '', m.tempo || '', m.timeSignature || '', m.keySignature || '', m.noteCount || '', m.channelsUsed || '', m.duration ? (typeof formatTime === 'function' ? formatTime(m.duration) : m.duration + 's') : '', m.sizeFormatted, m.directory]);
+        await window.vstUpdater.exportPdf('MIDI Files', headers, rows, filePath);
+      } else if (fmt === 'csv' || fmt === 'tsv') {
+        const sep = fmt === 'tsv' ? '\t' : ',';
+        const esc = (v) => { const s = String(v ?? ''); return s.includes(sep) || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const lines = ['Name,Tracks,BPM,TimeSig,Key,Notes,Channels,Duration,Size,Path'.replace(/,/g, sep)];
+        for (const m of data) lines.push([m.name, m.tracks, m.tempo, m.timeSignature, m.keySignature, m.noteCount, m.channelsUsed, m.duration, m.sizeFormatted, m.directory].map(esc).join(sep));
+        await window.vstUpdater.writeTextFile(filePath, lines.join('\n'));
+      } else if (fmt === 'toml') {
+        await window.vstUpdater.exportToml({ midi: data }, filePath);
+      } else {
+        const json = JSON.stringify(data, null, 2);
+        await window.vstUpdater.writeTextFile(filePath, json);
+      }
+    }
+  };
+  showExportModal('midi', 'MIDI Files', allMidiFiles.length);
+}
+
+// ── Xref/Dependency export ──
+
+function exportXref() {
+  const cache = typeof _xrefCache !== 'undefined' ? _xrefCache : {};
+  const entries = Object.entries(cache).filter(([, v]) => v && v.length > 0);
+  if (entries.length === 0) { showToast('No xref data — build plugin index first'); return; }
+  _exportCtx = {
+    title: 'Plugin Cross-Reference',
+    defaultName: exportFileName('xref', entries.length),
+    exportFn: async (fmt, filePath) => {
+      if (fmt === 'pdf') {
+        const headers = ['Project', 'Plugin', 'Type', 'Manufacturer'];
+        const rows = [];
+        for (const [project, plugins] of entries) {
+          const pName = project.split('/').pop() || project;
+          for (const p of plugins) rows.push([pName, p.name, p.pluginType || '', p.manufacturer || '']);
+        }
+        await window.vstUpdater.exportPdf('Plugin Cross-Reference', headers, rows, filePath);
+      } else if (fmt === 'csv' || fmt === 'tsv') {
+        const sep = fmt === 'tsv' ? '\t' : ',';
+        const esc = (v) => { const s = String(v ?? ''); return s.includes(sep) || s.includes('"') ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const lines = ['Project,Plugin,Type,Manufacturer'.replace(/,/g, sep)];
+        for (const [project, plugins] of entries) for (const p of plugins) lines.push([project, p.name, p.pluginType || '', p.manufacturer || ''].map(esc).join(sep));
+        await window.vstUpdater.writeTextFile(filePath, lines.join('\n'));
+      } else if (fmt === 'toml') {
+        await window.vstUpdater.exportToml({ xref: Object.fromEntries(entries) }, filePath);
+      } else {
+        await window.vstUpdater.writeTextFile(filePath, JSON.stringify(Object.fromEntries(entries), null, 2));
+      }
+    }
+  };
+  showExportModal('xref', 'Plugin Cross-Reference', entries.length);
+}
+
+// ── Smart Playlists export/import ──
+
+function exportSmartPlaylists() {
+  const playlists = typeof prefs !== 'undefined' ? prefs.getObject('smartPlaylists', []) : [];
+  if (playlists.length === 0) { showToast('No smart playlists to export'); return; }
+  _exportCtx = {
+    title: 'Smart Playlists',
+    defaultName: exportFileName('smart-playlists', playlists.length),
+    exportFn: async (fmt, filePath) => {
+      if (fmt === 'pdf') {
+        const headers = ['Name', 'Rules', 'Match Mode'];
+        const rows = playlists.map(p => [p.name || 'Untitled', (p.rules || []).length + ' rules', p.matchMode || 'AND']);
+        await window.vstUpdater.exportPdf('Smart Playlists', headers, rows, filePath);
+      } else if (fmt === 'toml') {
+        await window.vstUpdater.exportToml({ playlists }, filePath);
+      } else {
+        await window.vstUpdater.writeTextFile(filePath, JSON.stringify(playlists, null, 2));
+      }
+    }
+  };
+  showExportModal('playlists', 'Smart Playlists', playlists.length);
+}
+
 // ── Import functions (unchanged — use native file dialog) ──
 
 async function importPlugins() {

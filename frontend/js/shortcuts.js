@@ -327,6 +327,7 @@ function _exportCurrentTab() {
   else if (active === 'tabPresets' && typeof exportPresets === 'function') exportPresets();
   else if (active === 'tabFavorites' && typeof exportFavorites === 'function') exportFavorites();
   else if (active === 'tabNotes' && typeof exportNotes === 'function') exportNotes();
+  else if (active === 'tabMidi' && typeof exportMidi === 'function') exportMidi();
 }
 
 function _importCurrentTab() {

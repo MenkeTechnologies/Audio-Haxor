@@ -61,6 +61,15 @@ function collectPaletteItems() {
   if (typeof exportLogPdf === 'function') {
     items.push({ type: 'action', name: 'Export App Log', icon: '&#128196;', action: () => exportLogPdf() });
   }
+  if (typeof exportMidi === 'function') {
+    items.push({ type: 'action', name: 'Export MIDI Files', icon: '&#127924;', action: () => exportMidi() });
+  }
+  if (typeof exportXref === 'function') {
+    items.push({ type: 'action', name: 'Export Plugin Cross-Reference', icon: '&#9889;', action: () => exportXref() });
+  }
+  if (typeof exportSmartPlaylists === 'function') {
+    items.push({ type: 'action', name: 'Export Smart Playlists', icon: '&#127926;', action: () => exportSmartPlaylists() });
+  }
   items.push({ type: 'action', name: 'Clear All Caches', icon: '&#128465;', action: () => {
     window.vstUpdater.dbClearCaches().then(() => {
       if (typeof _bpmCache !== 'undefined') { _bpmCache = {}; _keyCache = {}; _lufsCache = {}; }
