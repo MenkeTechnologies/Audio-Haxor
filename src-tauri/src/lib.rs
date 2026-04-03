@@ -388,6 +388,7 @@ async fn scan_plugins(
 
 #[tauri::command]
 async fn stop_scan(app: AppHandle) -> Result<(), String> {
+    append_log("SCAN STOP — plugins (user requested)".into());
     let state = app.state::<ScanState>();
     state.stop_scan.store(true, Ordering::SeqCst);
     Ok(())
@@ -539,6 +540,7 @@ async fn check_updates(
 
 #[tauri::command]
 async fn stop_updates(app: AppHandle) -> Result<(), String> {
+    append_log("UPDATE STOP — user cancelled update check".into());
     let state = app.state::<UpdateState>();
     state.stop_updates.store(true, Ordering::SeqCst);
     Ok(())
@@ -567,6 +569,7 @@ fn history_delete(id: String) -> Result<(), String> {
 
 #[tauri::command]
 fn history_clear() -> Result<(), String> {
+    append_log("HISTORY CLEAR — plugins (all scan history deleted)".into());
     db::global().clear_plugin_history()
 }
 
@@ -689,6 +692,7 @@ async fn scan_audio_samples(
 
 #[tauri::command]
 async fn stop_audio_scan(app: AppHandle) -> Result<(), String> {
+    append_log("SCAN STOP — audio (user requested)".into());
     let state = app.state::<AudioScanState>();
     state.stop_scan.store(true, Ordering::SeqCst);
     Ok(())
@@ -728,6 +732,7 @@ fn audio_history_delete(id: String) -> Result<(), String> {
 
 #[tauri::command]
 fn audio_history_clear() -> Result<(), String> {
+    append_log("HISTORY CLEAR — audio samples (all scan history deleted)".into());
     db::global().clear_audio_history()
 }
 
@@ -845,6 +850,7 @@ async fn scan_daw_projects(
 
 #[tauri::command]
 async fn stop_daw_scan(app: AppHandle) -> Result<(), String> {
+    append_log("SCAN STOP — daw (user requested)".into());
     let state = app.state::<DawScanState>();
     state.stop_scan.store(true, Ordering::SeqCst);
     Ok(())
@@ -879,6 +885,7 @@ fn daw_history_delete(id: String) -> Result<(), String> {
 
 #[tauri::command]
 fn daw_history_clear() -> Result<(), String> {
+    append_log("HISTORY CLEAR — DAW projects".into());
     db::global().clear_daw_history()
 }
 
@@ -988,6 +995,7 @@ async fn scan_presets(
 
 #[tauri::command]
 async fn stop_preset_scan(app: AppHandle) -> Result<(), String> {
+    append_log("SCAN STOP — presets (user requested)".into());
     let state = app.state::<PresetScanState>();
     state.stop_scan.store(true, Ordering::SeqCst);
     Ok(())
@@ -1022,6 +1030,7 @@ fn preset_history_delete(id: String) -> Result<(), String> {
 
 #[tauri::command]
 fn preset_history_clear() -> Result<(), String> {
+    append_log("HISTORY CLEAR — presets".into());
     db::global().clear_preset_history()
 }
 
@@ -1096,7 +1105,9 @@ async fn open_daw_project(file_path: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn extract_project_plugins(file_path: String) -> Result<Vec<xref::PluginRef>, String> {
-    Ok(xref::extract_plugins(&file_path))
+    let result = xref::extract_plugins(&file_path);
+    append_log(format!("XREF EXTRACT — {} | {} plugins found", file_path, result.len()));
+    Ok(result)
 }
 
 #[tauri::command]
@@ -2217,12 +2228,20 @@ fn get_virtual_bytes() -> u64 {
 }
 
 fn get_thread_count() -> u32 {
-    // sysinfo tasks only works on Linux; use platform fallbacks elsewhere
+    // Linux: `Process::tasks()` (per-thread PIDs). Never use `cpu_usage()` here (`f32`) — that
+    // mismatch only surfaces on Linux targets. Other OSes use fallbacks below.
     #[cfg(target_os = "linux")]
     {
-        let n = get_process_info().2;
-        if n > 0 {
-            return n;
+        use std::sync::{Mutex, OnceLock};
+        use sysinfo::{Pid, System};
+        static SYS: OnceLock<Mutex<System>> = OnceLock::new();
+        let mut sys = SYS.get_or_init(|| Mutex::new(System::new())).lock().unwrap();
+        let pid = Pid::from_u32(std::process::id());
+        sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+        if let Some(p) = sys.process(pid) {
+            if let Some(tasks) = p.tasks() {
+                return (tasks.len() as u32).saturating_add(1);
+            }
         }
     }
     #[cfg(target_os = "macos")]
@@ -2420,6 +2439,7 @@ fn export_pdf(
     rows: Vec<Vec<String>>,
     file_path: String,
 ) -> Result<(), String> {
+    append_log(format!("EXPORT PDF — \"{}\" | {} rows | {} columns → {}", title, rows.len(), headers.len(), file_path));
     use printpdf::path::{PaintMode, WindingOrder};
     use printpdf::*;
 
@@ -2948,6 +2968,7 @@ fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 fn delete_file(file_path: String) -> Result<(), String> {
+    append_log(format!("FILE DELETE — {}", file_path));
     let path = std::path::Path::new(&file_path);
     if !path.exists() {
         return Err("File not found".into());
@@ -2961,6 +2982,7 @@ fn delete_file(file_path: String) -> Result<(), String> {
 
 #[tauri::command]
 fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
+    append_log(format!("FILE RENAME — {} → {}", old_path, new_path));
     std::fs::rename(&old_path, &new_path).map_err(|e| e.to_string())
 }
 
@@ -4073,11 +4095,13 @@ fn db_cache_stats() -> Result<Vec<db::CacheStat>, String> {
 
 #[tauri::command]
 fn db_clear_caches() -> Result<(), String> {
+    append_log("DB CLEAR — all caches (waveform, spectrogram, xref, fingerprint, kvr)".into());
     db::global().clear_all_caches()
 }
 
 #[tauri::command]
 fn db_clear_cache_table(table: String) -> Result<(), String> {
+    append_log(format!("DB CLEAR — cache table: {}", table));
     db::global().clear_cache_table(&table)
 }
 
@@ -4085,12 +4109,14 @@ fn db_clear_cache_table(table: String) -> Result<(), String> {
 
 #[tauri::command]
 fn start_file_watcher(app: AppHandle, dirs: Vec<String>) -> Result<(), String> {
+    append_log(format!("FILE WATCHER START — {} directories: {:?}", dirs.len(), dirs));
     let state = app.state::<file_watcher::FileWatcherState>();
     file_watcher::start_watching(&app, &state, dirs)
 }
 
 #[tauri::command]
 fn stop_file_watcher(app: AppHandle) -> Result<(), String> {
+    append_log("FILE WATCHER STOP".into());
     let state = app.state::<file_watcher::FileWatcherState>();
     file_watcher::stop_watching(&state);
     Ok(())
