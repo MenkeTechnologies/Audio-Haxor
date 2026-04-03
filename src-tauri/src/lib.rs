@@ -17,6 +17,7 @@ pub mod audio_scanner;
 pub mod bpm;
 pub mod daw_scanner;
 pub mod db;
+pub mod file_watcher;
 pub mod similarity;
 pub mod history;
 pub mod key_detect;
@@ -3360,6 +3361,30 @@ fn db_clear_cache_table(table: String) -> Result<(), String> {
     db::global().clear_cache_table(&table)
 }
 
+// ── File watcher commands ──
+
+#[tauri::command]
+fn start_file_watcher(app: AppHandle, dirs: Vec<String>) -> Result<(), String> {
+    let state = app.state::<file_watcher::FileWatcherState>();
+    file_watcher::start_watching(&app, &state, dirs)
+}
+
+#[tauri::command]
+fn stop_file_watcher(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<file_watcher::FileWatcherState>();
+    file_watcher::stop_watching(&state);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_file_watcher_status(app: AppHandle) -> serde_json::Value {
+    let state = app.state::<file_watcher::FileWatcherState>();
+    serde_json::json!({
+        "watching": file_watcher::is_watching(&state),
+        "dirs": file_watcher::get_watched_dirs(&state),
+    })
+}
+
 // ── App setup ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -3450,7 +3475,7 @@ pub fn run() {
             daw_dirs: Arc::new(std::sync::Mutex::new(Vec::new())),
             preset_dirs: Arc::new(std::sync::Mutex::new(Vec::new())),
         })
-        // Database is accessed via db::global() — no managed state needed
+        .manage(file_watcher::FileWatcherState::new())
         .invoke_handler(tauri::generate_handler![
             get_version,
             get_walker_status,
@@ -3558,6 +3583,9 @@ pub fn run() {
             db_cache_stats,
             db_clear_caches,
             db_clear_cache_table,
+            start_file_watcher,
+            stop_file_watcher,
+            get_file_watcher_status,
         ])
         .setup(|app| {
             // Restore window size/position

@@ -174,6 +174,8 @@ document.addEventListener('click', (e) => {
     case 'resetAllScans': resetAllScans(); break;
     case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;
     case 'settingToggleAutoScan': settingToggleAutoScan(); break;
+    case 'settingToggleFolderWatch': settingToggleFileWatcher(); break;
+    case 'settingToggleFileWatcher': settingToggleFileWatcher(); break;
     case 'settingToggleAutoUpdate': settingToggleAutoUpdate(); break;
     case 'settingToggleSingleClickPlay': settingToggleSingleClickPlay(); break;
     case 'settingToggleExpandOnClick': settingToggleExpandOnClick(); break;
@@ -284,6 +286,10 @@ document.addEventListener('input', (e) => {
   else if (action === 'settingChannelBuffer') settingUpdateChannelBuffer(e.target.value);
   else if (action === 'settingBatchSize') settingUpdateBatchSize(e.target.value);
   else if (action === 'settingFdLimit') settingUpdateFdLimit(e.target.value);
+  else if (action === 'settingVizFps') settingUpdateVizFps(e.target.value);
+  else if (action === 'settingWfCacheMax') settingUpdateWfCacheMax(e.target.value);
+  else if (action === 'settingAnalysisPause') settingUpdateAnalysisPause(e.target.value);
+  else if (action === 'settingMaxRecent') settingUpdateMaxRecent(e.target.value);
 });
 document.addEventListener('change', (e) => {
   const action = e.target.dataset.action;
@@ -471,6 +477,10 @@ window.vstUpdater = {
   dbCacheStats: () => invoke('db_cache_stats'),
   dbClearCaches: () => invoke('db_clear_caches'),
   dbClearCacheTable: (table) => invoke('db_clear_cache_table', { table }),
+  // File watcher
+  startFileWatcher: (dirs) => invoke('start_file_watcher', { dirs }),
+  stopFileWatcher: () => invoke('stop_file_watcher'),
+  getFileWatcherStatus: () => invoke('get_file_watcher_status'),
 };
 
 // ── Preferences layer (file-backed, survives reboots) ──

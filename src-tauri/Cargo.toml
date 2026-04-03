@@ -30,6 +30,7 @@ flate2 = "1"
 symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "ogg", "pcm"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
+notify = { version = "7", default-features = false, features = ["macos_fsevent"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

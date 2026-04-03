@@ -5416,6 +5416,18 @@
           </div>
           <div class="settings-row">
             <div class="settings-label">
+              <span class="settings-title">Folder Watch (Auto-Scan)</span>
+              <span class="settings-desc">Watch scan directories for new/changed files and auto-index them</span>
+            </div>
+            <div class="settings-control">
+              <button class="settings-toggle" id="settingFolderWatch" data-action="settingToggleFolderWatch" title="Watch directories for filesystem changes">
+                <span class="settings-toggle-label" id="settingFolderWatchLabel">Off</span>
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+              </button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
               <span class="settings-title">Auto-Check Updates on Launch</span>
               <span class="settings-desc">Automatically check for plugin updates after scanning</span>
             </div>
@@ -5484,6 +5496,30 @@
                 <span class="settings-toggle-label" id="settingIncludeBackupsLabel">Off</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">File Watcher (Auto-Scan)</span>
+              <span class="settings-desc">Watch scan directories for new/changed files and auto-index them</span>
+            </div>
+            <div class="settings-control">
+              <button class="settings-toggle" id="settingFileWatcher" data-action="settingToggleFileWatcher" title="Toggle filesystem watcher for auto-indexing">
+                <span class="settings-toggle-label" id="settingFileWatcherLabel">Off</span>
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+              </button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Max Recently Played</span>
+              <span class="settings-desc">Number of tracks to keep in the play history</span>
+            </div>
+            <div class="settings-control">
+              <div class="settings-range-wrap">
+                <input type="range" class="settings-range" id="settingMaxRecent" min="20" max="500" step="10" value="50" data-action="settingMaxRecent" title="Maximum number of recently played tracks to remember">
+                <span class="settings-range-value" id="settingMaxRecentValue">50</span>
+              </div>
             </div>
           </div>
         </div>
@@ -5559,6 +5595,42 @@
               <div class="settings-range-wrap">
                 <input type="range" class="settings-range" id="settingFdLimit" min="256" max="65536" step="256" value="10240" data-action="settingFdLimit" title="Maximum file descriptors (open files) for the process">
                 <span class="settings-range-value" id="settingFdLimitValue">10240</span>
+              </div>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Visualizer FPS</span>
+              <span class="settings-desc">Frame rate cap for the visualizer tab (lower = less CPU)</span>
+            </div>
+            <div class="settings-control">
+              <div class="settings-range-wrap">
+                <input type="range" class="settings-range" id="settingVizFps" min="10" max="60" step="5" value="30" data-action="settingVizFps" title="Visualizer frame rate cap">
+                <span class="settings-range-value" id="settingVizFpsValue">30</span>
+              </div>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Waveform Cache Size</span>
+              <span class="settings-desc">Max cached waveforms in memory (higher = more RAM)</span>
+            </div>
+            <div class="settings-control">
+              <div class="settings-range-wrap">
+                <input type="range" class="settings-range" id="settingWfCacheMax" min="100" max="2000" step="100" value="500" data-action="settingWfCacheMax" title="Maximum number of cached waveforms">
+                <span class="settings-range-value" id="settingWfCacheMaxValue">500</span>
+              </div>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Analysis Pause Timeout</span>
+              <span class="settings-desc">Seconds of idle before background BPM/Key/LUFS analysis resumes</span>
+            </div>
+            <div class="settings-control">
+              <div class="settings-range-wrap">
+                <input type="range" class="settings-range" id="settingAnalysisPause" min="1" max="10" step="1" value="3" data-action="settingAnalysisPause" title="Seconds to wait before resuming background analysis">
+                <span class="settings-range-value" id="settingAnalysisPauseValue">3</span>
               </div>
             </div>
           </div>

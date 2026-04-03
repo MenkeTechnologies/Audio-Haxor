@@ -737,6 +737,32 @@ function settingToggleAutoScan() {
   refreshSettingsUI();
 }
 
+function settingToggleFolderWatch() {
+  const current = prefs.getItem('folderWatch') === 'on';
+  const next = !current;
+  prefs.setItem('folderWatch', next ? 'on' : 'off');
+  if (next) {
+    startFolderWatch();
+  } else {
+    window.vstUpdater.stopFileWatcher().catch(() => {});
+    showToast('Folder watch stopped');
+  }
+  refreshSettingsUI();
+}
+
+function startFolderWatch() {
+  const dirs = [];
+  for (const key of ['audioScanDirs', 'dawScanDirs', 'presetScanDirs']) {
+    const val = prefs.getItem(key);
+    if (val) dirs.push(...val.split('\n').map(d => d.trim()).filter(Boolean));
+  }
+  const unique = [...new Set(dirs)];
+  if (unique.length === 0) { showToast('No scan directories configured', 3000, 'error'); return; }
+  window.vstUpdater.startFileWatcher(unique).then(() => {
+    showToast(`Watching ${unique.length} directories`);
+  }).catch(e => showToast('Watch failed: ' + e, 4000, 'error'));
+}
+
 function settingToggleAutoUpdate() {
   const current = prefs.getItem('autoUpdate') === 'on';
   prefs.setItem('autoUpdate', current ? 'off' : 'on');
@@ -807,6 +833,57 @@ function settingUpdateFdLimit(val) {
   document.getElementById('settingFdLimitValue').textContent = val;
   prefs.setItem('fdLimit', val);
   showToast('FD limit set to ' + val + ' — restart to apply');
+}
+
+function settingUpdateVizFps(val) {
+  document.getElementById('settingVizFpsValue').textContent = val;
+  prefs.setItem('vizFps', val);
+  if (typeof _VIZ_FPS_SINGLE !== 'undefined') _VIZ_FPS_SINGLE = parseInt(val);
+  if (typeof _VIZ_FPS_ALL !== 'undefined') _VIZ_FPS_ALL = Math.max(10, parseInt(val) - 10);
+}
+
+function settingUpdateWfCacheMax(val) {
+  document.getElementById('settingWfCacheMaxValue').textContent = val;
+  prefs.setItem('wfCacheMax', val);
+  if (typeof _WF_CACHE_MAX !== 'undefined') _WF_CACHE_MAX = parseInt(val);
+}
+
+function settingUpdateAnalysisPause(val) {
+  document.getElementById('settingAnalysisPauseValue').textContent = val;
+  prefs.setItem('analysisPause', val);
+}
+
+function settingUpdateMaxRecent(val) {
+  document.getElementById('settingMaxRecentValue').textContent = val;
+  prefs.setItem('maxRecent', val);
+  if (typeof MAX_RECENT !== 'undefined') MAX_RECENT = parseInt(val);
+}
+
+async function settingToggleFileWatcher() {
+  const current = prefs.getItem('fileWatcher') === 'on';
+  const next = !current;
+  prefs.setItem('fileWatcher', next ? 'on' : 'off');
+  if (next) {
+    // Collect all scan dirs
+    const dirs = [];
+    const audio = prefs.getItem('audioScanDirs');
+    const daw = prefs.getItem('dawScanDirs');
+    const preset = prefs.getItem('presetScanDirs');
+    if (audio) dirs.push(...audio.split('\n').filter(d => d.trim()));
+    if (daw) dirs.push(...daw.split('\n').filter(d => d.trim()));
+    if (preset) dirs.push(...preset.split('\n').filter(d => d.trim()));
+    try {
+      await window.vstUpdater.startFileWatcher(dirs);
+      showToast(`Watching ${dirs.length} directories`);
+    } catch (e) {
+      showToast('Watcher failed: ' + e, 4000, 'error');
+      prefs.setItem('fileWatcher', 'off');
+    }
+  } else {
+    try { await window.vstUpdater.stopFileWatcher(); } catch {}
+    showToast('File watcher stopped');
+  }
+  refreshSettingsUI();
 }
 
 function settingSaveSelect(key, value) {
@@ -909,6 +986,13 @@ function refreshSettingsUI() {
     autoScanBtn.classList.toggle('active', autoScan);
     autoScanLabel.textContent = autoScan ? 'On' : 'Off';
   }
+
+  // Folder watch
+  const folderWatch = prefs.getItem('folderWatch') === 'on';
+  const fwBtn = document.getElementById('settingFolderWatch');
+  const fwLabel = document.getElementById('settingFolderWatchLabel');
+  if (fwBtn) { fwBtn.classList.toggle('active', folderWatch); }
+  if (fwLabel) { fwLabel.textContent = folderWatch ? 'On' : 'Off'; }
 
   // Auto-update
   const autoUpdate = prefs.getItem('autoUpdate') === 'on';

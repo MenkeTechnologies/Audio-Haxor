@@ -76,6 +76,29 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   }
   if (typeof renderFzfSettings === 'function') renderFzfSettings();
 
+  // Start folder watcher if enabled
+  if (prefs.getItem('folderWatch') === 'on' && typeof startFolderWatch === 'function') {
+    startFolderWatch();
+  }
+
+  // Listen for file watcher change events
+  try {
+    const { listen } = window.__TAURI__.event || {};
+    if (listen) {
+      listen('file-watcher-change', (event) => {
+        const cats = event.payload?.categories || [];
+        const msg = `Files changed: ${cats.join(', ')}`;
+        showToast(msg + ' — re-scanning...');
+        for (const cat of cats) {
+          if (cat === 'audio' && typeof scanAudioSamples === 'function') scanAudioSamples();
+          else if (cat === 'daw' && typeof scanDawProjects === 'function') scanDawProjects();
+          else if (cat === 'preset' && typeof scanPresets === 'function') scanPresets();
+          else if (cat === 'plugin' && typeof scanPlugins === 'function') scanPlugins();
+        }
+      });
+    }
+  } catch {}
+
   // Dismiss splash screen before loading data so errors are visible
   const splash = document.getElementById('splashScreen');
   if (splash) {
