@@ -388,6 +388,7 @@ function showToast(message, duration = 2500, type = '') {
 }
 
 window.vstUpdater = {
+  appendLog: (msg) => invoke('append_log', { msg }),
   getVersion: () => invoke('get_version'),
   scanPlugins: (customRoots, excludePaths) => invoke('scan_plugins', { customRoots: customRoots || null, excludePaths: excludePaths || null }),
   stopScan: () => invoke('stop_scan'),
