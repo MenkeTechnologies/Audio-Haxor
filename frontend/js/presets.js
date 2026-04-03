@@ -217,13 +217,24 @@ async function scanPresets(resume = false) {
       if (typeof initTableColumnReorder === 'function') initTableColumnReorder('presetTable', 'presetColumnOrder');
     }
 
-    allPresets.push(...batch);
-    filteredPresets.push(...batch);
+    // Split: MIDI files go to MIDI tab, presets stay here
+    const midiFormats = new Set(['MID', 'MIDI']);
+    const midiBatch = batch.filter(p => midiFormats.has(p.format));
+    const presetBatch = batch.filter(p => !midiFormats.has(p.format));
+    allPresets.push(...batch); // keep all in allPresets for export/history
+    filteredPresets.push(...presetBatch);
+    // Stream MIDI files to MIDI tab in real-time
+    if (midiBatch.length > 0 && typeof allMidiFiles !== 'undefined') {
+      allMidiFiles.push(...midiBatch);
+      filteredMidi = allMidiFiles.slice();
+      if (typeof renderMidiTable === 'function') renderMidiTable();
+      if (typeof updateMidiCount === 'function') updateMidiCount();
+    }
     const tbody = document.getElementById('presetTableBody');
     if (tbody && presetRenderCount < 2000) {
       const loadMore = document.getElementById('presetLoadMore');
       if (loadMore) loadMore.remove();
-      const toRender = batch.slice(0, 2000 - presetRenderCount);
+      const toRender = presetBatch.slice(0, 2000 - presetRenderCount);
       tbody.insertAdjacentHTML('beforeend', toRender.map(buildPresetRow).join(''));
       presetRenderCount += toRender.length;
     }
