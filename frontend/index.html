@@ -2477,7 +2477,7 @@
     .hm-stat-val { font-family: 'Orbitron', sans-serif; font-size: 20px; font-weight: 700; color: var(--cyan); }
     .hm-stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-top: 3px; }
     .hm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .hm-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; animation: neon-border-glow 3s ease-in-out infinite; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    .hm-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
     .hm-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4), 0 0 12px var(--cyan-glow); }
     .hm-card-wide { grid-column: 1 / -1; }
     .hm-card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--cyan); margin: 0 0 10px 0; font-weight: 600; }
@@ -3958,14 +3958,14 @@
     .viz-grid.viz-single { grid-template-columns: 1fr; }
     .viz-grid.viz-single .viz-tile { display: none; }
     .viz-grid.viz-single .viz-tile.viz-tile-active { display: flex; }
-    .viz-tile { display: flex; flex-direction: column; background: #05050a; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; position: relative; min-height: 0; animation: neon-border-glow 3s ease-in-out infinite; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: transform 0.15s, box-shadow 0.15s; }
+    .viz-tile { display: flex; flex-direction: column; background: #05050a; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; position: relative; min-height: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
     .viz-tile:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.4), 0 0 10px var(--cyan-glow); }
     .viz-tile-label { font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 2px; color: var(--cyan); padding: 4px 8px; flex-shrink: 0; opacity: 0.6; cursor: grab; }
     .viz-tile-canvas { flex: 1; width: 100%; min-height: 0; }
 
     /* Walker status tab */
     .walker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; height: 100%; }
-    .walker-tile { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; animation: neon-border-glow 3s ease-in-out infinite; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: transform 0.15s, box-shadow 0.15s; }
+    .walker-tile { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
     .walker-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4), 0 0 12px var(--cyan-glow); }
     .walker-tile-header { font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 10px 14px; border-bottom: 1px solid var(--border); }
     .walker-tile-status { font-size: 10px; color: var(--text-dim); padding: 4px 14px; border-bottom: 1px solid rgba(26,26,62,0.3); }
@@ -4137,14 +4137,6 @@
       0%, 100% { box-shadow: 0 0 20px var(--cyan-glow), 0 0 4px var(--cyan-glow); border-color: var(--cyan); }
       50%      { box-shadow: 0 0 40px var(--cyan-glow), 0 0 12px var(--magenta-glow); border-color: var(--accent); }
     }
-    /* Stagger glow on sibling tiles so they don't pulse in sync */
-    .walker-tile:nth-child(2), .viz-tile:nth-child(2), .hm-card:nth-child(2) { animation-delay: 0.6s; }
-    .walker-tile:nth-child(3), .viz-tile:nth-child(3), .hm-card:nth-child(3) { animation-delay: 1.2s; }
-    .walker-tile:nth-child(4), .viz-tile:nth-child(4), .hm-card:nth-child(4) { animation-delay: 1.8s; }
-    .viz-tile:nth-child(5), .hm-card:nth-child(5) { animation-delay: 0.4s; }
-    .viz-tile:nth-child(6), .hm-card:nth-child(6) { animation-delay: 1.0s; }
-    .hm-card:nth-child(7) { animation-delay: 1.6s; }
-    .hm-card:nth-child(8) { animation-delay: 0.2s; }
 
     /* Disable all neon glow animations when setting is off */
     body.no-neon-glow * {
@@ -6042,39 +6034,39 @@
     </div>
   </div>
 
-  <script src="js/ipc.js?v=22943"></script>
-  <script src="js/utils.js?v=22943"></script>
-  <script src="js/drag-reorder.js?v=22943"></script>
-  <script src="js/modal-drag.js?v=22943"></script>
-  <script src="js/columns.js?v=22943"></script>
-  <script src="js/notes.js?v=22943"></script>
-  <script src="js/favorites.js?v=22943"></script>
-  <script src="js/export.js?v=22943"></script>
-  <script src="js/plugins.js?v=22943"></script>
-  <script src="js/settings.js?v=22943"></script>
-  <script src="js/history.js?v=22943"></script>
-  <script src="js/kvr.js?v=22943"></script>
-  <script src="js/audio.js?v=22943"></script>
-  <script src="js/daw.js?v=22943"></script>
-  <script src="js/presets.js?v=22943"></script>
-  <script src="js/disk-usage.js?v=22943"></script>
-  <script src="js/batch-select.js?v=22943"></script>
-  <script src="js/sort-persist.js?v=22943"></script>
-  <script src="js/multi-filter.js?v=22943"></script>
-  <script src="js/file-browser.js?v=22943"></script>
-  <script src="js/duplicates.js?v=22943"></script>
-  <script src="js/command-palette.js?v=22943"></script>
-  <script src="js/xref.js?v=22943"></script>
-  <script src="js/dep-graph.js?v=22943"></script>
-  <script src="js/smart-playlists.js?v=22943"></script>
-  <script src="js/heatmap-dashboard.js?v=22943"></script>
-  <script src="js/midi.js?v=22943"></script>
-  <script src="js/visualizer.js?v=22943"></script>
-  <script src="js/walker-status.js?v=22943"></script>
-  <script src="js/context-menu.js?v=22943"></script>
-  <script src="js/help-overlay.js?v=22943"></script>
-  <script src="js/shortcuts.js?v=22943"></script>
-  <script src="js/keyboard-nav.js?v=22943"></script>
-  <script src="js/app.js?v=22943"></script>
+  <script src="js/ipc.js?v=18212"></script>
+  <script src="js/utils.js?v=18212"></script>
+  <script src="js/drag-reorder.js?v=18212"></script>
+  <script src="js/modal-drag.js?v=18212"></script>
+  <script src="js/columns.js?v=18212"></script>
+  <script src="js/notes.js?v=18212"></script>
+  <script src="js/favorites.js?v=18212"></script>
+  <script src="js/export.js?v=18212"></script>
+  <script src="js/plugins.js?v=18212"></script>
+  <script src="js/settings.js?v=18212"></script>
+  <script src="js/history.js?v=18212"></script>
+  <script src="js/kvr.js?v=18212"></script>
+  <script src="js/audio.js?v=18212"></script>
+  <script src="js/daw.js?v=18212"></script>
+  <script src="js/presets.js?v=18212"></script>
+  <script src="js/disk-usage.js?v=18212"></script>
+  <script src="js/batch-select.js?v=18212"></script>
+  <script src="js/sort-persist.js?v=18212"></script>
+  <script src="js/multi-filter.js?v=18212"></script>
+  <script src="js/file-browser.js?v=18212"></script>
+  <script src="js/duplicates.js?v=18212"></script>
+  <script src="js/command-palette.js?v=18212"></script>
+  <script src="js/xref.js?v=18212"></script>
+  <script src="js/dep-graph.js?v=18212"></script>
+  <script src="js/smart-playlists.js?v=18212"></script>
+  <script src="js/heatmap-dashboard.js?v=18212"></script>
+  <script src="js/midi.js?v=18212"></script>
+  <script src="js/visualizer.js?v=18212"></script>
+  <script src="js/walker-status.js?v=18212"></script>
+  <script src="js/context-menu.js?v=18212"></script>
+  <script src="js/help-overlay.js?v=18212"></script>
+  <script src="js/shortcuts.js?v=18212"></script>
+  <script src="js/keyboard-nav.js?v=18212"></script>
+  <script src="js/app.js?v=18212"></script>
 </body>
 </html>
