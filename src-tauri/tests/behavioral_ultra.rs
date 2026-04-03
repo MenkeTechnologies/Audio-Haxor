@@ -2521,3 +2521,117 @@ fn compute_plugin_diff_version_downgrade() {
     let d = compute_plugin_diff(&old, &new);
     assert_eq!(d.version_changed.len(), 1);
 }
+
+/// Regression: `init_global` must serialize `Database::open` + migrations; parallel opens of the
+/// same file caused `database is locked` on CI (`db::tests::init_global_concurrent_ok`). This
+/// integration binary shares the same static state as lib tests.
+#[test]
+fn db_init_global_concurrent_many_threads() {
+    let handles: Vec<_> = (0..48)
+        .map(|_| {
+            std::thread::spawn(|| {
+                app_lib::db::init_global().expect("init_global");
+                assert!(app_lib::db::global_initialized());
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().expect("thread join");
+    }
+}
+
+#[test]
+fn kvr_compare_unknown_vs_empty_equals() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("Unknown", ""),
+        Ordering::Equal
+    );
+}
+
+#[test]
+fn kvr_parse_version_non_numeric_suffix_segment_becomes_zero() {
+    let v = app_lib::kvr::parse_version("1.2.3beta");
+    assert_eq!(v, vec![1, 2, 0]);
+}
+
+#[test]
+fn normalize_plugin_name_unicode_lowercased() {
+    assert_eq!(normalize_plugin_name("Müller (x64)"), "müller");
+}
+
+#[test]
+fn compute_daw_diff_swap_two_projects_same_count() {
+    let a = dawproj("/one.dawproject");
+    let mut b = dawproj("/two.dawproject");
+    b.name = "q".into();
+    let old = build_daw_snapshot(&[a.clone()], &[]);
+    let new = build_daw_snapshot(&[b.clone()], &[]);
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.added.len(), 1);
+    assert_eq!(d.removed.len(), 1);
+}
+
+#[test]
+fn ext_matches_ptx_deep_path_uppercase_ext() {
+    assert_eq!(
+        ext_matches(Path::new("/Sessions/PROJ.PTX")).as_deref(),
+        Some("PTX")
+    );
+}
+
+#[test]
+fn radix_string_roundtrip_base_17() {
+    let n: u64 = 169;
+    let s = radix_string(n, 17);
+    assert_eq!(u64::from_str_radix(&s, 17).unwrap(), n);
+}
+
+#[test]
+fn export_payload_minimal_plugins_array_roundtrip() {
+    let p = ExportPayload {
+        version: "2".into(),
+        exported_at: "t".into(),
+        plugins: vec![ExportPlugin {
+            name: "A".into(),
+            plugin_type: "VST3".into(),
+            version: "1".into(),
+            manufacturer: "M".into(),
+            manufacturer_url: Some("https://m.example".into()),
+            path: "/a.vst3".into(),
+            size: "1 B".into(),
+            size_bytes: 1,
+            modified: "m".into(),
+            architectures: vec!["x64".into()],
+        }],
+    };
+    let j = serde_json::to_string(&p).unwrap();
+    let back: ExportPayload = serde_json::from_str(&j).unwrap();
+    assert_eq!(back.plugins.len(), 1);
+    assert_eq!(
+        back.plugins[0].manufacturer_url.as_deref(),
+        Some("https://m.example")
+    );
+}
+
+#[test]
+fn compute_preset_diff_both_empty_noop() {
+    let empty = build_preset_snapshot(&[], &[]);
+    let d = compute_preset_diff(&empty, &empty);
+    assert!(d.added.is_empty());
+    assert!(d.removed.is_empty());
+}
+
+#[test]
+fn kvr_parse_version_double_dot_empty_segments_zero() {
+    let v = app_lib::kvr::parse_version("1..2..3");
+    assert_eq!(v, vec![1, 0, 2, 0, 3]);
+}
+
+#[test]
+fn compute_audio_diff_identical_snapshots_empty_diff() {
+    let s = sample("/x.wav");
+    let snap = build_audio_snapshot(&[s.clone()], &[]);
+    let d = compute_audio_diff(&snap, &snap);
+    assert!(d.added.is_empty());
+    assert!(d.removed.is_empty());
+}

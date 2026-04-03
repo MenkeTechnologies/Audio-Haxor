@@ -13,13 +13,23 @@ use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
 static GLOBAL_DB: OnceLock<Database> = OnceLock::new();
+/// Serializes [`Database::open`] + migrations on the on-disk file. Without this, many threads can
+/// pass the `GLOBAL_DB` empty check at once and run `migrate()` in parallel against the same path,
+/// which triggers SQLite `database is locked` (seen on multi-core CI runners).
+static INIT_GLOBAL_MUTEX: Mutex<()> = Mutex::new(());
 
 /// Initialize the global database. Call once at startup.
 ///
-/// Safe under parallel `cargo test`: if another thread wins the `OnceLock` race, we return `Ok`
-/// after dropping a redundant connection. Callers should not treat `Err` as "already init" unless
-/// they also verify [`global_initialized`].
+/// Safe under parallel `cargo test`: [`OnceLock`] stores at most one handle; a mutex ensures only
+/// one thread opens the DB file and runs migrations. Losers of the `set` race return `Ok` without
+/// retaining a second connection.
 pub fn init_global() -> Result<(), String> {
+    if GLOBAL_DB.get().is_some() {
+        return Ok(());
+    }
+    let _guard = INIT_GLOBAL_MUTEX
+        .lock()
+        .map_err(|e| format!("init_global mutex: {e}"))?;
     if GLOBAL_DB.get().is_some() {
         return Ok(());
     }
@@ -3202,7 +3212,7 @@ mod tests {
         assert_eq!(obj["daw_scans"], 1);
     }
 
-    /// Many lib tests call `init_global()` in parallel; this locks in idempotent init.
+    /// Many lib tests call `init_global()` in parallel; migrations must not race on one file.
     #[test]
     fn init_global_concurrent_ok() {
         let threads: Vec<_> = (0..32)
@@ -3217,6 +3227,14 @@ mod tests {
         for t in threads {
             t.join().expect("thread join");
         }
+    }
+
+    #[test]
+    fn init_global_idempotent_same_thread() {
+        for _ in 0..64 {
+            init_global().expect("init_global");
+        }
+        assert!(global_initialized());
     }
 
     /// Run this to migrate real JSON caches to SQLite.
