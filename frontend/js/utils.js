@@ -795,4 +795,5 @@ function switchTab(tab) {
   if (tab === 'files') initFileBrowser();
   if (tab === 'midi' && typeof loadMidiFiles === 'function' && !_midiLoaded) loadMidiFiles();
   if (tab === 'settings') { refreshSettingsUI(); if (typeof renderCacheStats === 'function') renderCacheStats(); }
+  prefs.setItem('activeTab', tab);
 }

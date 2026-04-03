@@ -13,6 +13,13 @@ function restoreSortState(tab) {
 }
 
 function restoreAllSortStates() {
+  const plugin = restoreSortState('plugin');
+  if (plugin && typeof _pluginSortKey !== 'undefined') { _pluginSortKey = plugin.key; _pluginSortAsc = plugin.asc; }
+  // Fallback: seed from settings dropdown if no runtime sort saved
+  if (!plugin && typeof _pluginSortKey !== 'undefined') {
+    const def = prefs.getItem('pluginSort');
+    if (def) { const [k, d] = def.split('-'); _pluginSortKey = k || 'name'; _pluginSortAsc = d !== 'desc'; }
+  }
   const audio = restoreSortState('audio');
   if (audio && typeof audioSortKey !== 'undefined') { audioSortKey = audio.key; audioSortAsc = audio.asc; }
   const daw = restoreSortState('daw');

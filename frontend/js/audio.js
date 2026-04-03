@@ -98,9 +98,9 @@ function setEqBand(band, value) {
   if (band === 'low') _eqLow.gain.value = db;
   else if (band === 'mid') _eqMid.gain.value = db;
   else if (band === 'high') _eqHigh.gain.value = db;
-  // Update label
   const label = document.getElementById('npEq' + band.charAt(0).toUpperCase() + band.slice(1) + 'Val');
   if (label) label.textContent = (db >= 0 ? '+' : '') + db.toFixed(0) + ' dB';
+  prefs.setItem('eq' + band.charAt(0).toUpperCase() + band.slice(1), String(value));
 }
 
 function setPreampGain(value) {
@@ -109,6 +109,7 @@ function setPreampGain(value) {
   _gainNode.gain.value = g;
   const label = document.getElementById('npGainVal');
   if (label) label.textContent = (g * 100).toFixed(0) + '%';
+  prefs.setItem('preampGain', String(value));
 }
 
 function setPan(value) {
@@ -252,11 +253,24 @@ function loadRecentlyPlayed() {
   if (savedVol) { const slider = document.getElementById('npVolume'); if (slider) { slider.value = savedVol; setAudioVolume(savedVol); } }
 
   const savedSpeed = prefs.getItem('audioSpeed');
-  if (savedSpeed) { const slider = document.getElementById('npSpeedSlider'); if (slider) { slider.value = savedSpeed; setPlaybackSpeed(savedSpeed); } }
+  if (savedSpeed) { const sel = document.getElementById('npSpeed'); if (sel) { sel.value = savedSpeed; } setPlaybackSpeed(savedSpeed); }
 
   _monoMode = prefs.getItem('audioMono') === 'on';
   const monoBtn = document.getElementById('npBtnMono');
   if (monoBtn) monoBtn.classList.toggle('active', _monoMode);
+
+  const savedPan = prefs.getItem('audioPan');
+  if (savedPan) { const panSlider = document.getElementById('npPanSlider'); if (panSlider) { panSlider.value = savedPan; } setPan(savedPan); }
+
+  // Restore EQ bands + preamp gain
+  const savedEqLow = prefs.getItem('eqLow');
+  const savedEqMid = prefs.getItem('eqMid');
+  const savedEqHigh = prefs.getItem('eqHigh');
+  const savedGain = prefs.getItem('preampGain');
+  if (savedEqLow) { const el = document.getElementById('npEqLow'); if (el) el.value = savedEqLow; if (typeof setEqBand === 'function') setEqBand('low', savedEqLow); }
+  if (savedEqMid) { const el = document.getElementById('npEqMid'); if (el) el.value = savedEqMid; if (typeof setEqBand === 'function') setEqBand('mid', savedEqMid); }
+  if (savedEqHigh) { const el = document.getElementById('npEqHigh'); if (el) el.value = savedEqHigh; if (typeof setEqBand === 'function') setEqBand('high', savedEqHigh); }
+  if (savedGain) { const el = document.getElementById('npGainSlider'); if (el) el.value = savedGain; if (typeof setPreampGain === 'function') setPreampGain(savedGain); }
 }
 function saveRecentlyPlayed() {
   prefs.setItem('recentlyPlayed', recentlyPlayed);

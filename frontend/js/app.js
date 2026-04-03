@@ -50,6 +50,8 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   if (_stopAll) _stopAll.style.display = 'none';
   if (_resumeAll) _resumeAll.style.display = 'none';
   restoreSettings();
+  const savedTab = prefs.getItem('activeTab');
+  if (savedTab) switchTab(savedTab);
   initTabDragReorder();
   initMultiFilters();
   initSortPersistence();
