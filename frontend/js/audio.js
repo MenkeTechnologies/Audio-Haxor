@@ -1702,11 +1702,9 @@ function hidePlayer() {
 function showPlayer() {
   const pill = document.getElementById('audioRestorePill');
   if (pill) pill.classList.remove('active');
-  if (audioPlayerPath) {
-    const np = document.getElementById('audioNowPlaying');
-    np.classList.add('active');
-    if (prefs.getItem('playerExpanded') === 'on') np.classList.add('expanded');
-  }
+  const np = document.getElementById('audioNowPlaying');
+  np.classList.add('active');
+  if (prefs.getItem('playerExpanded') === 'on') np.classList.add('expanded');
 }
 
 // Double-click to expand/collapse player
