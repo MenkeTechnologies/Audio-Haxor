@@ -1436,18 +1436,19 @@ function initSettingsSectionDrag() {
       document.body.style.cursor = 'grabbing';
       // Collapse to single column during drag (CSS columns breaks insertBefore)
       container.classList.add('dragging-section');
+      container.offsetHeight; // force reflow so rect reflects single-column layout
 
-      // Create placeholder
+      // Create placeholder — sized to section's single-column dimensions
       const rect = dragged.getBoundingClientRect();
       placeholder = document.createElement('div');
       placeholder.className = 'section-placeholder';
-      placeholder.style.height = rect.height + 'px';
+      placeholder.style.height = dragged.offsetHeight + 'px';
       dragged.parentNode.insertBefore(placeholder, dragged);
 
-      // Create floating ghost
+      // Create floating ghost — match section width
       ghost = dragged.cloneNode(true);
       ghost.className = 'settings-section section-ghost';
-      ghost.style.width = rect.width + 'px';
+      ghost.style.width = dragged.offsetWidth + 'px';
       ghost.style.left = (e.clientX - offsetX) + 'px';
       ghost.style.top = (e.clientY - offsetY) + 'px';
       document.body.appendChild(ghost);
