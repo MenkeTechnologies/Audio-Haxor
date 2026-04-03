@@ -167,6 +167,12 @@ impl Database {
         Ok(db)
     }
 
+    /// Checkpoint WAL to merge it into the main DB file. Keeps WAL small.
+    pub fn checkpoint(&self) {
+        let conn = self.conn.lock().unwrap();
+        let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+    }
+
     /// Run schema migrations.
     fn migrate(&self) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();

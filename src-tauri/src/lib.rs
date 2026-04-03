@@ -323,6 +323,7 @@ async fn scan_plugins(
         let roots: Vec<String> = directories.clone();
         let snapshot = history::build_plugin_snapshot(&all_plugins, &directories, &roots);
         let _ = db::global().save_plugin_scan(&snapshot);
+        db::global().checkpoint();
 
         serde_json::json!({
             "plugins": all_plugins,
@@ -640,6 +641,7 @@ fn audio_history_save(
 ) -> Result<history::AudioScanSnapshot, String> {
     let snap = history::build_audio_snapshot(&samples, &roots.unwrap_or_default());
     db::global().save_audio_scan_full(&snap)?;
+    db::global().checkpoint();
     Ok(snap)
 }
 
@@ -769,6 +771,7 @@ async fn stop_daw_scan(app: AppHandle) -> Result<(), String> {
 fn daw_history_save(projects: Vec<DawProject>, roots: Option<Vec<String>>) -> Result<history::DawScanSnapshot, String> {
     let snap = history::build_daw_snapshot(&projects, &roots.unwrap_or_default());
     db::global().save_daw_scan(&snap)?;
+    db::global().checkpoint();
     Ok(snap)
 }
 
@@ -890,6 +893,7 @@ async fn stop_preset_scan(app: AppHandle) -> Result<(), String> {
 fn preset_history_save(presets: Vec<PresetFile>, roots: Option<Vec<String>>) -> Result<history::PresetScanSnapshot, String> {
     let snap = history::build_preset_snapshot(&presets, &roots.unwrap_or_default());
     db::global().save_preset_scan(&snap)?;
+    db::global().checkpoint();
     Ok(snap)
 }
 
