@@ -19,7 +19,7 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 
 ---
 
-[![CI](https://github.com/MenkeTechnologies/universal-plugin-update-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/MenkeTechnologies/universal-plugin-update-manager/actions/workflows/ci.yml)
+[![CI](https://github.com/MenkeTechnologies/Audio-Haxor/actions/workflows/ci.yml/badge.svg)](https://github.com/MenkeTechnologies/Audio-Haxor/actions/workflows/ci.yml)
 
 
 ## // VISUAL INTERFACE //
@@ -252,32 +252,34 @@ cd src-tauri && cargo test
 node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 ```
 
-### Rust tests (354 tests across 16 modules)
+### Rust tests (384 tests across 15 modules)
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
-| **lib** | 51 | Export/import roundtrips (JSON, TOML, CSV, TSV), preset export/import, DAW/audio import, CSV escaping, file ops (list dir, rename, delete), `.band` validation, serde payloads |
+| **xref** | 58 | Ableton .als gzip XML (VST2/VST3/AU), REAPER .rpp plaintext (VST/VST3/AU/CLAP), Bitwig binary scan, FL Studio ASCII+UTF-16LE, Cubase Plugin Name markers, Logic AU name matching, Studio One ZIP+XML, DAWproject ZIP+XML, Pro Tools AAX paths+markers, Reason binary scan, all 5 plugin types (VST2/VST3/AU/CLAP/AAX), cross-format dedup, trailing junk handling, name normalization, 3 real-file tests (FLP=7, CPR=2, LOGICX=13 plugins verified) |
 | **history** | 35 | Scan CRUD, 50-scan limit, diff (added/removed/version-changed), KVR cache CRUD, audio history CRUD, audio diff, DAW history CRUD, DAW diff, ID generation, preference storage |
-| **kvr** | 27 | Version parsing, version comparison, HTML version extraction (6 formats), download URL extraction, platform keyword detection, date filtering |
+| **kvr** | 31 | Version parsing, version comparison, HTML version extraction (6 formats), download URL extraction, platform keyword detection, date filtering |
 | **scanner** | 27 | Plugin type mapping, file size formatting, directory size calculation with depth limit, plugin discovery, VST directory enumeration, architecture detection, edge cases |
-| **audio_scanner** | 28 | Audio file discovery, metadata extraction (WAV/FLAC/AIFF), format size formatting, symlink deduplication, directory walking, stop signal, skip directories, batching, scan completeness, deep nesting, simulated SMB/NFS, concurrent scan isolation |
-| **daw_scanner** | 19 | DAW project discovery, extension-to-DAW mapping (14 DAW types), file size formatting, directory walking, stop signal, skip directories |
-| **xref** | 52 | Ableton .als gzip XML (VST2/VST3/AU), REAPER .rpp plaintext (VST/VST3/AU/CLAP), Bitwig binary scan, FL Studio ASCII+UTF-16LE, Cubase Plugin Name markers, Logic AU name matching, Studio One ZIP+XML, DAWproject ZIP+XML, Pro Tools AAX paths+markers, Reason binary scan, all 5 plugin types (VST2/VST3/AU/CLAP/AAX), cross-format dedup, trailing junk handling, name normalization, 3 real-file tests (FLP=7, CPR=2, LOGICX=13 plugins verified) |
-| **db** | 23 | SQLite insert/query roundtrip, fzf subsequence search, format filter, pagination (offset/limit), sort ascending/descending, BPM/key/LUFS update+retrieval, unanalyzed path query, aggregate stats, scan delete cascade, plugin/DAW/preset scan roundtrips, KVR cache roundtrip, clear_all_caches, per-table clear (bpm/key/waveform/xref/unknown), read/write cache waveform+xref, table_counts verification |
-| **file_watcher** | 10 | classify audio/daw/preset/plugin extensions, case-insensitive matching, unknown returns None, state lifecycle (new/watching/stop), noop stop on fresh state |
+| **db** | 24 | SQLite insert/query roundtrip, fzf subsequence search, format filter, pagination (offset/limit), sort ascending/descending, BPM/key/LUFS update+retrieval, unanalyzed path query, aggregate stats, scan delete cascade, plugin/DAW/preset scan roundtrips, KVR cache roundtrip, clear_all_caches, per-table clear (bpm/key/waveform/xref/unknown), read/write cache waveform+xref, table_counts verification |
 | **bpm** | 23 | WAV/AIFF PCM reading, onset-strength autocorrelation, click track detection (90/120/140/174 BPM), silence rejection, short file handling, 8/16/24-bit decode, stereo mixdown (chunks_exact), symphonia decoder (invalid data, WAV fallback), BPM rounding (integer snap within 0.15), zero-length WAV, AIFF error handling |
-| **key_detect** | 17 | Goertzel algorithm (440Hz detection, near-zero for absent frequencies), chromagram (pure A, pure C, C major chord, multi-octave A, bins bounded [0,1]), key profile matching (C major triad, A minor triad, perfect correlation, shifted profile), detect_key (WAV, silence, 96kHz, 8kHz, nonexistent, unsupported) |
+| **audio_scanner** | 21 | Audio file discovery, metadata extraction (WAV/FLAC/AIFF), format size formatting, symlink deduplication, directory walking, stop signal, skip directories, batching, scan completeness, deep nesting, simulated SMB/NFS, concurrent scan isolation |
+| **key_detect** | 19 | Goertzel algorithm (440Hz detection, near-zero for absent frequencies), chromagram (pure A, pure C, C major chord, multi-octave A, bins bounded [0,1]), key profile matching (C major triad, A minor triad, perfect correlation, shifted profile), detect_key (WAV, silence, 96kHz, 8kHz, nonexistent, unsupported) |
+| **daw_scanner** | 19 | DAW project discovery, extension-to-DAW mapping (14 DAW types), file size formatting, directory walking, stop signal, skip directories |
+| **similarity** | 17 | Fingerprint distance (identical=0, different>0.5, symmetric), similar-kicks-closer-than-kick-hihat, sorted results, self-exclusion, max results, empty/single candidates, nonexistent/unsupported files, WAV fingerprint (centroid bounded [0,1]), silence, very short audio, all-zero features |
+| **midi** | 17 | MThd header parsing, MTrk track parsing, variable-length quantity decoding, meta events (tempo, time sig, key sig), note counting, channel detection, duration calculation, multi-track files, format 0/1/2, edge cases |
+| **preset_scanner** | 14 | Preset discovery, directory walking, stop signal, exclude set, hidden/blacklisted dir skip, symlink dedup, format detection, batching |
+| **file_watcher** | 13 | classify audio/daw/preset/plugin extensions, case-insensitive matching, unknown returns None, state lifecycle (new/watching/stop), noop stop on fresh state |
 | **lufs** | 8 | Silence floor (-70 LUFS), sine wave levels, full-scale loudness, 6dB amplitude relationship, short file handling, louder-is-higher ordering, nonexistent/unsupported file handling |
-| **preset_scanner** | 11 | Preset discovery, directory walking, stop signal, exclude set, hidden/blacklisted dir skip, symlink dedup, format detection, batching |
-| **similarity** | 15 | Fingerprint distance (identical=0, different>0.5, symmetric), similar-kicks-closer-than-kick-hihat, sorted results, self-exclusion, max results, empty/single candidates, nonexistent/unsupported files, WAV fingerprint (centroid bounded [0,1]), silence, very short audio, all-zero features |
+| **lib** | 2 | Cache file roundtrip, nonexistent cache handling |
 
-### JavaScript tests (265 tests)
+### JavaScript tests (995 tests)
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
 | **ui** | 208 | `escapeHtml` (null, numeric, double-escaping), `escapePath` (spaces, quotes, unicode), `slugify` (camelCase, numbers, special chars), `buildKvrUrl` (spaces, parens, empty manufacturer), `formatAudioSize`, `formatTime` (0s, 60s, 3661s, negative), `getFormatClass` (all formats), `timeAgo` (seconds, minutes, hours, days), `kvrCacheKey` (special chars, unicode), `buildDirsTable`, `applyKvrCache`, `metaItem`, `buildPluginCardHtml`, `normalizePluginName` (case folding, arch suffix stripping, whitespace collapse, bracket/bare variants) |
 | **scanner** | 110 | Plugin type mapping (`.vst`/`.vst3`/`.component`/`.dll`/`.aaxplugin`/`.clap`), file size formatting (0B, 1B, 1023B, 1TB), DAW type mapping (all 14+ formats), audio format detection (WAV, MP3, FLAC, M4A, AAC, OPUS, REX) |
 | **update-worker** | 27 | Version parsing (pre-release, leading v, multi-part), version comparison (identical, long versions), KVR URL builder (slug generation, manufacturer suffix) |
+| *Additional test suites* | 650 | fzf scoring, search modes, filter logic, format detection, path handling |
 
 ---
 

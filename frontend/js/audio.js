@@ -852,7 +852,7 @@ async function fetchAudioPage() {
     // Update stats from DB
     rebuildAudioStats();
   } catch (e) {
-    console.error('fetchAudioPage failed:', e);
+    if (typeof showToast === 'function') showToast('Audio query failed: ' + (e.message || e), 4000, 'error');
   }
 }
 
