@@ -121,7 +121,7 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
       audioTotalUnfiltered = stats.sampleCount;
       audioStatCounts = stats.formatCounts || {};
       audioStatBytes = stats.totalBytes || 0;
-      allAudioSamples.length = stats.sampleCount; // for export compat
+      // Don't set array length — creates undefined slots that crash iterators
       updateAudioStats();
       audioCurrentOffset = 0;
       await fetchAudioPage();

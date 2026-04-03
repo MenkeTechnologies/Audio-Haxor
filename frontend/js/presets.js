@@ -154,6 +154,42 @@ function _legacyFilterPresets() {
     filteredPresets.length < allPresets.length ? `${filteredPresets.length} / ` : '';
 }
 
+function renderPresetTable() {
+  if (!document.getElementById('presetTable')) {
+    // Table not initialized yet — will be created by scan flush
+    const tableWrap = document.getElementById('presetTableWrap');
+    if (tableWrap && filteredPresets.length > 0) {
+      tableWrap.innerHTML = `<table class="audio-table" id="presetTable">
+        <thead><tr>
+          <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="Select all"></th>
+          <th data-action="sortPreset" data-key="name" style="width: 25%;">Name <span class="sort-arrow" id="presetSortArrowName">&#9660;</span><span class="col-resize"></span></th>
+          <th data-action="sortPreset" data-key="format" class="col-format" style="width: 100px;">Format <span class="sort-arrow" id="presetSortArrowFormat"></span><span class="col-resize"></span></th>
+          <th data-action="sortPreset" data-key="directory" style="width: 35%;">Path <span class="sort-arrow" id="presetSortArrowDirectory"></span><span class="col-resize"></span></th>
+          <th data-action="sortPreset" data-key="size" class="col-size" style="width: 90px;">Size <span class="sort-arrow" id="presetSortArrowSize"></span><span class="col-resize"></span></th>
+          <th data-action="sortPreset" data-key="modified" class="col-date" style="width: 100px;">Modified <span class="sort-arrow" id="presetSortArrowModified"></span><span class="col-resize"></span></th>
+          <th class="col-actions" style="width: 50px;"></th>
+        </tr></thead>
+        <tbody id="presetTableBody"></tbody>
+      </table>`;
+      document.getElementById('presetStats').style.display = 'flex';
+      if (typeof initColumnResize === 'function') initColumnResize(document.getElementById('presetTable'));
+      if (typeof initTableColumnReorder === 'function') initTableColumnReorder('presetTable', 'presetColumnOrder');
+    }
+  }
+  const tbody = document.getElementById('presetTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = filteredPresets.map(buildPresetRow).join('');
+  presetRenderCount = filteredPresets.length;
+  if (presetRenderCount < _presetTotalCount) {
+    tbody.insertAdjacentHTML('beforeend',
+      `<tr><td colspan="7" style="text-align:center;padding:12px;color:var(--text-muted);cursor:pointer;" data-action="loadMorePresets">
+        Showing ${presetRenderCount} of ${_presetTotalCount} — click to load more
+      </td></tr>`);
+  }
+  const fc = document.getElementById('presetFilteredCount');
+  if (fc) fc.textContent = presetRenderCount < _presetTotalCount ? `${presetRenderCount} / ` : '';
+}
+
 function loadMorePresets() {
   _presetOffset = allPresets.length;
   fetchPresetPage();
