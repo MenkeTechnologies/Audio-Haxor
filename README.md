@@ -281,6 +281,8 @@ Unit tests live in `src/**/*.rs` inside `#[cfg(test)]` modules. Integration test
 
 **Integration tests** live under `tests/`. They import the library as `app_lib` (crate name in `Cargo.toml`) and cover DB (`init_global` + queries), scanners, KVR, xref/similarity, command-layer helpers, DAW/audio/preset scenarios, MIDI/LUFS/key/BPM, plugin paths, error-handling/stress harnesses (`error_handling_tests`, `stress_tests`), DAW pure helpers (`daw_scanner_pure_test`), malformed audio headers (`file_format_edge_cases`), and `discover_plugins` + xref normalization (`scanner_discover_and_xref`). Run: `cargo test --manifest-path src-tauri/Cargo.toml`.
 
+**Handcrafted table suites** (`tests/handcrafted_tables_*.rs`): many small `#[test]` functions generated from declarative macros, each row an explicit input/expected pair for pure helpers — `kvr::parse_version` (120 cases), `kvr::compare_versions` (strict chain + 50 pairs), `kvr::extract_version` (HTML snippets), `format_size`, `history::radix_string`, `similarity::fingerprint_distance`, DAW `ext_matches` / `daw_name_for_format`, and scanner/xref normalization. Run one crate with e.g. `cargo test --manifest-path src-tauri/Cargo.toml --test handcrafted_tables_kvr_parse_many`.
+
 ### JavaScript tests (995 tests, `node:test`)
 
 | Suite | Tests | What runs |
