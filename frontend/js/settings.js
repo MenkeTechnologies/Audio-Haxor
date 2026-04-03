@@ -1161,8 +1161,8 @@ function refreshSettingsUI() {
       const scanThreads = parseInt(threadMult) * parseInt(cpus);
       const fmtMem = (bytes) => {
         if (!bytes || bytes === 0) return '0 B';
-        const units = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
         return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
       };
       const fmtUptime = (secs) => {
@@ -1239,6 +1239,11 @@ function refreshSettingsUI() {
           section('Visualizers', [tag(app.visualizers)]),
           section('Export Formats', [tag(app.exportFormats)]),
         ].join('');
+      }
+      // Re-balance columns now that async content has loaded
+      if (typeof balanceSettingsColumns === 'function') {
+        _columnsBalanced = false;
+        requestAnimationFrame(balanceSettingsColumns);
       }
     }).catch((err) => {
       const cpus = navigator.hardwareConcurrency || '?';
@@ -1406,12 +1411,12 @@ function initSettingsSectionDrag() {
   if (!container) return;
 
   // Balance CSS columns — deferred until settings tab is visible (offsetHeight=0 when hidden)
-  let _columnsBalanced = false;
-  function balanceSettingsColumns() {
-    if (_columnsBalanced) return;
+  window._columnsBalanced = false;
+  window.balanceSettingsColumns = function() {
+    if (window._columnsBalanced) return;
     const sections = [...container.querySelectorAll('.settings-section[data-section]')];
     if (!sections.length || sections[0].offsetHeight === 0) return; // still hidden
-    _columnsBalanced = true;
+    window._columnsBalanced = true;
     const numCols = window.innerWidth >= 1700 ? 3 : window.innerWidth >= 1100 ? 2 : 1;
     if (numCols < 2) return;
     sections.sort((a, b) => b.offsetHeight - a.offsetHeight);
@@ -1434,7 +1439,7 @@ function initSettingsSectionDrag() {
   if (_origSwitchTabBalance) {
     window.switchTab = function(tab) {
       _origSwitchTabBalance(tab);
-      if (tab === 'settings') requestAnimationFrame(balanceSettingsColumns);
+      if (tab === 'settings') requestAnimationFrame(window.balanceSettingsColumns);
     };
   }
 
