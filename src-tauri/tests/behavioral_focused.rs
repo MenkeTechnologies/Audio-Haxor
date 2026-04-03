@@ -8,8 +8,9 @@ use std::cmp::Ordering;
 use app_lib::history::{
     build_audio_snapshot, build_daw_snapshot, build_plugin_snapshot, build_preset_snapshot,
     compute_audio_diff, compute_daw_diff, compute_plugin_diff, compute_preset_diff, radix_string,
-    AudioSample, DawProject, KvrCacheEntry, PresetFile, ScanDiff, ScanSnapshot, ScanSummary,
-    VersionChangedPlugin,
+    AudioSample, AudioScanDiff, AudioScanSummary, DawProject, DawScanDiff, DawScanSummary,
+    KvrCacheEntry, KvrCacheUpdateEntry, PresetFile, PresetScanDiff, PresetScanSummary, ScanDiff,
+    ScanSnapshot, ScanSummary, VersionChangedPlugin,
 };
 use app_lib::scanner::PluginInfo;
 use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
@@ -549,4 +550,245 @@ fn kvr_compare_versions_negative_numeric_components_order_correctly() {
         app_lib::kvr::compare_versions("-1.0", "0.0"),
         Ordering::Less
     );
+}
+
+#[test]
+fn kvr_result_json_roundtrip_product_and_download_urls() {
+    let k = app_lib::kvr::KvrResult {
+        product_url: "https://www.kvraudio.com/product/foo".into(),
+        download_url: Some("https://vendor.com/get".into()),
+    };
+    let v = serde_json::to_value(&k).expect("serialize");
+    assert!(v.get("productUrl").is_some());
+    assert!(v.get("downloadUrl").is_some());
+    let back: app_lib::kvr::KvrResult = serde_json::from_value(v).expect("deserialize");
+    assert_eq!(back.product_url, k.product_url);
+    assert_eq!(back.download_url, k.download_url);
+}
+
+#[test]
+fn kvr_url_re_finds_first_http_url_in_text() {
+    let text = r#"see https://example.com/path?q=1 and more"#;
+    let m = app_lib::kvr::URL_RE.find(text).expect("match");
+    assert!(m.as_str().starts_with("https://example.com/"));
+}
+
+#[test]
+fn kvr_extract_version_returns_none_when_only_year_like_semver() {
+    let html = "<html><body><p>Version: 2024.12.01</p></body></html>";
+    assert!(app_lib::kvr::extract_version(html).is_none());
+}
+
+#[test]
+fn kvr_extract_version_first_version_label_in_document_wins() {
+    // Patterns match left-to-right; first successful non-date capture is returned.
+    let html = concat!(
+        "<html><body>",
+        "<p>Version: 3.14.1</p>",
+        "<p>Version: 2024.01.01</p>",
+        "</body></html>"
+    );
+    assert_eq!(
+        app_lib::kvr::extract_version(html).as_deref(),
+        Some("3.14.1")
+    );
+}
+
+#[test]
+fn kvr_parse_version_accepts_arbitrary_depth() {
+    assert_eq!(
+        app_lib::kvr::parse_version("1.2.3.4.5"),
+        vec![1, 2, 3, 4, 5]
+    );
+}
+
+#[test]
+fn kvr_cache_update_entry_json_optional_fields() {
+    let e = KvrCacheUpdateEntry {
+        key: "my-plugin".into(),
+        kvr_url: None,
+        update_url: Some("https://u".into()),
+        latest_version: Some("9.0".into()),
+        has_update: Some(true),
+        source: Some("kvr".into()),
+    };
+    let json = serde_json::to_string(&e).expect("serialize");
+    let back: KvrCacheUpdateEntry = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(back.key, e.key);
+    assert_eq!(back.latest_version, e.latest_version);
+}
+
+#[test]
+fn scanner_plugin_info_json_roundtrip_type_and_size_bytes_keys() {
+    let p = PluginInfo {
+        name: "N".into(),
+        path: "/a.vst3".into(),
+        plugin_type: "VST3".into(),
+        version: "2".into(),
+        manufacturer: "M".into(),
+        manufacturer_url: None,
+        size: "1 KB".into(),
+        size_bytes: 1024,
+        modified: "m".into(),
+        architectures: vec!["x86_64".into()],
+    };
+    let v = serde_json::to_value(&p).expect("to_value");
+    assert_eq!(v.get("type"), Some(&serde_json::json!("VST3")));
+    assert_eq!(v.get("sizeBytes"), Some(&serde_json::json!(1024)));
+    let back: PluginInfo = serde_json::from_value(v).expect("from_value");
+    assert_eq!(back.path, p.path);
+    assert_eq!(back.plugin_type, p.plugin_type);
+    assert_eq!(back.size_bytes, p.size_bytes);
+    assert_eq!(back.architectures, p.architectures);
+}
+
+#[test]
+fn find_similar_excludes_all_candidates_sharing_reference_path() {
+    let reference = AudioFingerprint {
+        path: "/session/ref.wav".into(),
+        rms: 0.5,
+        spectral_centroid: 0.1,
+        zero_crossing_rate: 0.1,
+        low_band_energy: 0.2,
+        mid_band_energy: 0.3,
+        high_band_energy: 0.1,
+        low_energy_ratio: 0.4,
+        attack_time: 0.02,
+    };
+    let dup = AudioFingerprint {
+        path: "/session/ref.wav".into(),
+        rms: 0.9,
+        spectral_centroid: 0.9,
+        zero_crossing_rate: 0.9,
+        low_band_energy: 0.9,
+        mid_band_energy: 0.9,
+        high_band_energy: 0.9,
+        low_energy_ratio: 0.9,
+        attack_time: 0.9,
+    };
+    let out = find_similar(&reference, &[dup], 10);
+    assert!(out.is_empty(), "same path as reference must not be scored");
+}
+
+#[test]
+fn audio_scan_diff_json_roundtrip_rename_keys() {
+    let s = sample_audio("/a.wav");
+    let diff = AudioScanDiff {
+        old_scan: AudioScanSummary {
+            id: "o".into(),
+            timestamp: "t0".into(),
+            sample_count: 0,
+            total_bytes: 0,
+            format_counts: std::collections::HashMap::new(),
+            roots: vec![],
+        },
+        new_scan: AudioScanSummary {
+            id: "n".into(),
+            timestamp: "t1".into(),
+            sample_count: 1,
+            total_bytes: s.size,
+            format_counts: [("WAV".into(), 1)].into_iter().collect(),
+            roots: vec!["/r".into()],
+        },
+        added: vec![s.clone()],
+        removed: vec![],
+    };
+    let v = serde_json::to_value(&diff).expect("to_value");
+    assert!(v.get("oldScan").is_some());
+    assert!(v.get("newScan").is_some());
+    let back: AudioScanDiff = serde_json::from_value(v).expect("from_value");
+    assert_eq!(back.added.len(), 1);
+    assert_eq!(back.added[0].path, s.path);
+}
+
+#[test]
+fn daw_scan_diff_json_roundtrip_rename_keys() {
+    let dp = sample_daw("/proj.als", "Live", "Ableton Live");
+    let diff = DawScanDiff {
+        old_scan: DawScanSummary {
+            id: "o".into(),
+            timestamp: "t0".into(),
+            project_count: 0,
+            total_bytes: 0,
+            daw_counts: std::collections::HashMap::new(),
+            roots: vec![],
+        },
+        new_scan: DawScanSummary {
+            id: "n".into(),
+            timestamp: "t1".into(),
+            project_count: 1,
+            total_bytes: dp.size,
+            daw_counts: [("Ableton Live".into(), 1)].into_iter().collect(),
+            roots: vec![],
+        },
+        added: vec![dp],
+        removed: vec![],
+    };
+    let v = serde_json::to_value(&diff).expect("to_value");
+    assert!(v["oldScan"].get("dawCounts").is_some());
+    let back: DawScanDiff = serde_json::from_value(v).expect("from_value");
+    assert_eq!(back.added.len(), 1);
+}
+
+#[test]
+fn preset_scan_diff_json_roundtrip_rename_keys() {
+    let pf = PresetFile {
+        name: "p".into(),
+        path: "/Presets/a.h2p".into(),
+        directory: "/Presets".into(),
+        format: "h2p".into(),
+        size: 8,
+        size_formatted: "8 B".into(),
+        modified: "m".into(),
+    };
+    let diff = PresetScanDiff {
+        old_scan: PresetScanSummary {
+            id: "o".into(),
+            timestamp: "t0".into(),
+            preset_count: 0,
+            total_bytes: 0,
+            format_counts: std::collections::HashMap::new(),
+            roots: vec![],
+        },
+        new_scan: PresetScanSummary {
+            id: "n".into(),
+            timestamp: "t1".into(),
+            preset_count: 1,
+            total_bytes: pf.size,
+            format_counts: [("h2p".into(), 1)].into_iter().collect(),
+            roots: vec![],
+        },
+        added: vec![pf.clone()],
+        removed: vec![],
+    };
+    let v = serde_json::to_value(&diff).expect("to_value");
+    let back: PresetScanDiff = serde_json::from_value(v).expect("from_value");
+    assert_eq!(back.new_scan.preset_count, 1);
+    assert_eq!(back.added[0].path, pf.path);
+}
+
+#[test]
+fn audio_scan_snapshot_json_keys_from_build_audio_snapshot() {
+    let snap = build_audio_snapshot(&[sample_audio("/z.wav")], &["/root".into()]);
+    let v: serde_json::Value = serde_json::to_value(&snap).expect("to_value");
+    assert!(v.get("sampleCount").is_some());
+    assert!(v.get("formatCounts").is_some());
+    assert!(v.get("totalBytes").is_some());
+}
+
+#[test]
+fn preset_scan_snapshot_json_keys_from_build_preset_snapshot() {
+    let pf = PresetFile {
+        name: "n".into(),
+        path: "/p.h2p".into(),
+        directory: "/".into(),
+        format: "h2p".into(),
+        size: 1,
+        size_formatted: "1 B".into(),
+        modified: "m".into(),
+    };
+    let snap = build_preset_snapshot(&[pf], &["/root".into()]);
+    let v: serde_json::Value = serde_json::to_value(&snap).expect("to_value");
+    assert!(v.get("presetCount").is_some());
+    assert!(v.get("formatCounts").is_some());
 }
