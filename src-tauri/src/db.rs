@@ -231,8 +231,9 @@ impl Database {
             conn: Mutex::new(conn),
         };
         db.migrate()?;
-        // Auto-prune: keep only 3 most recent scans per type
+        // Auto-prune: keep only 3 most recent scans per type, then reclaim space
         db.prune_old_scans(3);
+        db.vacuum_if_needed();
         Ok(db)
     }
 
@@ -257,6 +258,18 @@ impl Database {
     pub fn checkpoint(&self) {
         let conn = self.conn.lock().unwrap();
         let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+    }
+
+    /// VACUUM if >20% of pages are free (dead space from deleted rows).
+    pub fn vacuum_if_needed(&self) {
+        let conn = self.conn.lock().unwrap();
+        let page_count: u64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0)).unwrap_or(0);
+        let free_count: u64 = conn.query_row("PRAGMA freelist_count", [], |r| r.get(0)).unwrap_or(0);
+        if page_count > 0 && free_count * 100 / page_count > 20 {
+            drop(conn); // release lock before VACUUM (it needs exclusive access)
+            let conn = self.conn.lock().unwrap();
+            let _ = conn.execute_batch("VACUUM;");
+        }
     }
 
     /// Run schema migrations.
