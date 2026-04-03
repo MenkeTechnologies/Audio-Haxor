@@ -279,7 +279,7 @@ Unit tests live in `src/**/*.rs` inside `#[cfg(test)]` modules. Integration test
 | **lufs** | 16 | Silence floor (-70 LUFS), sine/stereo/AIFF paths, uppercase `.WAV`, minimum sample count, 6dB amplitude relationship, short file handling, louder-is-higher ordering, rounding, nonexistent/unsupported file handling |
 | **lib** | 64 | Export/import roundtrips (JSON/TOML/CSV/TSV), CSV/DSV escaping, `format_size` (incl. GB + unknown-path separator), cache helpers, band validation, file ops, plugin export payloads, preferences merge, and other IPC-adjacent helpers |
 
-**Integration tests** live under `tests/`. They import the library as `app_lib` (crate name in `Cargo.toml`) and cover DB (`init_global` + queries), scanners, KVR, xref/similarity, command-layer helpers, DAW/audio/preset scenarios, MIDI/LUFS/key/BPM, plugin paths, error-handling/stress harnesses (`error_handling_tests`, `stress_tests`), DAW pure helpers (`daw_scanner_pure_test`), and malformed audio headers (`file_format_edge_cases`). Run: `cargo test --manifest-path src-tauri/Cargo.toml`.
+**Integration tests** live under `tests/`. They import the library as `app_lib` (crate name in `Cargo.toml`) and cover DB (`init_global` + queries), scanners, KVR, xref/similarity, command-layer helpers, DAW/audio/preset scenarios, MIDI/LUFS/key/BPM, plugin paths, error-handling/stress harnesses (`error_handling_tests`, `stress_tests`), DAW pure helpers (`daw_scanner_pure_test`), malformed audio headers (`file_format_edge_cases`), and `discover_plugins` + xref normalization (`scanner_discover_and_xref`). Run: `cargo test --manifest-path src-tauri/Cargo.toml`.
 
 ### JavaScript tests (995 tests, `node:test`)
 
