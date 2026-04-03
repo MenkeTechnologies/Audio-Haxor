@@ -1434,29 +1434,32 @@ function initSettingsSectionDrag() {
       isDragging = true;
       document.body.style.userSelect = 'none';
       document.body.style.cursor = 'grabbing';
-      // Collapse to single column during drag (CSS columns breaks insertBefore)
-      container.classList.add('dragging-section');
-      container.offsetHeight; // force reflow so rect reflects single-column layout
 
-      // Create placeholder — match exact section dimensions
-      placeholder = document.createElement('div');
-      placeholder.className = 'section-placeholder';
-      placeholder.style.height = dragged.offsetHeight + 'px';
-      placeholder.style.width = dragged.offsetWidth + 'px';
-      placeholder.style.boxSizing = 'border-box';
-      dragged.parentNode.insertBefore(placeholder, dragged);
+      // Capture dimensions BEFORE column collapse
+      const origW = dragged.offsetWidth;
+      const origH = dragged.offsetHeight;
+      const origRect = dragged.getBoundingClientRect();
 
-      // Create floating ghost — match section width
+      // Create ghost at original multi-column size
       ghost = dragged.cloneNode(true);
       ghost.className = 'settings-section section-ghost';
-      ghost.style.width = dragged.offsetWidth + 'px';
+      ghost.style.width = origW + 'px';
       ghost.style.left = (e.clientX - offsetX) + 'px';
       ghost.style.top = (e.clientY - offsetY) + 'px';
       document.body.appendChild(ghost);
 
-      // Hide original — use visibility to keep it in column flow (display:none causes reflow collapse)
+      // Hide original immediately so user doesn't see resize
       dragged.style.visibility = 'hidden';
       dragged.style.opacity = '0';
+
+      // Now collapse to single column for correct insertBefore
+      container.classList.add('dragging-section');
+
+      // Create placeholder at original size
+      placeholder = document.createElement('div');
+      placeholder.className = 'section-placeholder';
+      placeholder.style.height = origH + 'px';
+      dragged.parentNode.insertBefore(placeholder, dragged);
     }
     if (!isDragging || !ghost) return;
 
