@@ -98,11 +98,13 @@ function renderDashboard(samples, plugins, projects, presets) {
 // ── Card Builders ──
 
 function buildFormatCard(samples) {
-  const counts = {};
-  for (const s of samples) counts[s.format] = (counts[s.format] || 0) + 1;
+  // Use full DB stats if available (samples is only the current page)
+  const counts = (typeof audioStatCounts !== 'undefined' && Object.keys(audioStatCounts).length > 0)
+    ? { ...audioStatCounts }
+    : (() => { const c = {}; for (const s of samples) c[s.format] = (c[s.format] || 0) + 1; return c; })();
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   const max = sorted.length > 0 ? sorted[0][1] : 1;
-  const total = samples.length || 1;
+  const total = sorted.reduce((sum, [, c]) => sum + c, 0) || 1;
 
   const bars = sorted.slice(0, 10).map(([fmt, count]) => {
     const barPct = (count / max) * 100; // visual: relative to largest
