@@ -223,11 +223,19 @@ async function scanPresets(resume = false) {
     const presetBatch = batch.filter(p => !midiFormats.has(p.format));
     allPresets.push(...batch); // keep all in allPresets for export/history
     filteredPresets.push(...presetBatch);
-    // Stream MIDI files to MIDI tab in real-time
+    // Stream MIDI files to MIDI tab incrementally
     if (midiBatch.length > 0 && typeof allMidiFiles !== 'undefined') {
       allMidiFiles.push(...midiBatch);
-      filteredMidi = allMidiFiles.slice();
-      if (typeof renderMidiTable === 'function') renderMidiTable();
+      if (typeof filteredMidi !== 'undefined') filteredMidi.push(...midiBatch);
+      // Append rows instead of full rebuild
+      const midiTbody = document.getElementById('midiTableBody');
+      if (midiTbody && typeof buildMidiRow === 'function' && typeof _midiRenderCount !== 'undefined' && _midiRenderCount < 2000) {
+        const toRender = midiBatch.slice(0, 2000 - _midiRenderCount);
+        midiTbody.insertAdjacentHTML('beforeend', toRender.map(buildMidiRow).join(''));
+        _midiRenderCount += toRender.length;
+      } else if (!midiTbody && typeof renderMidiTable === 'function') {
+        renderMidiTable(); // first batch — init table
+      }
       if (typeof updateMidiCount === 'function') updateMidiCount();
     }
     const tbody = document.getElementById('presetTableBody');
