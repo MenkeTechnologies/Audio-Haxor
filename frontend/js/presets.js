@@ -56,7 +56,7 @@ function buildPresetRow(p) {
   const checked = batchSelected.has(p.path) ? ' checked' : '';
   return `<tr data-preset-path="${hp}" style="cursor: pointer;" title="Double-click to reveal in Finder">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
-    <td>${highlightMatch(p.name, _lastPresetSearch, _lastPresetMode)}${typeof rowBadges === 'function' ? rowBadges(p.path) : ''}</td>
+    <td>${_lastPresetSearch ? highlightMatch(p.name, _lastPresetSearch, _lastPresetMode) : escapeHtml(p.name)}${typeof rowBadges === 'function' ? rowBadges(p.path) : ''}</td>
     <td class="col-format"><span class="format-badge format-default">${p.format}</span></td>
     <td title="${hp}">${escapeHtml(p.directory)}</td>
     <td class="col-size">${p.sizeFormatted || formatPresetSize(p.size)}</td>

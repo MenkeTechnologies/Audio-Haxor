@@ -939,7 +939,7 @@ function buildAudioRow(s) {
   const lufs = s.lufs != null ? s.lufs : (typeof _lufsCache !== 'undefined' && _lufsCache[s.path] != null) ? _lufsCache[s.path] : '';
   return `<tr${rowClass} data-audio-path="${hp}" data-action="toggleMetadata" data-path="${hp}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
-    <td class="col-name" title="${escapeHtml(s.name)}">${highlightMatch(s.name, _lastAudioSearch, _lastAudioMode)}${typeof rowBadges === 'function' ? rowBadges(s.path) : ''}</td>
+    <td class="col-name" title="${escapeHtml(s.name)}">${_lastAudioSearch ? highlightMatch(s.name, _lastAudioSearch, _lastAudioMode) : escapeHtml(s.name)}${typeof rowBadges === 'function' ? rowBadges(s.path) : ''}</td>
     <td class="col-format"><span class="format-badge ${fmtClass}">${s.format}</span></td>
     <td class="col-size">${s.sizeFormatted}</td>
     <td class="col-bpm" title="${bpm ? bpm + ' BPM' : 'Click to analyze'}">${bpm}</td>
@@ -1127,7 +1127,17 @@ function updatePlayBtnStates() {
   } else {
     _prevPlayingRow = null;
   }
-  renderRecentlyPlayed();
+  // Lightweight history update — just toggle active/icon classes, skip full re-render
+  const histItems = document.querySelectorAll('#npHistoryList .np-history-item');
+  if (histItems.length > 0) {
+    histItems.forEach(el => {
+      const isActive = el.dataset.path === audioPlayerPath;
+      const isPlaying = isActive && !audioPlayer.paused;
+      el.classList.toggle('active', isActive);
+      const icon = el.querySelector('.np-h-icon');
+      if (icon) icon.innerHTML = isPlaying ? '&#9654;' : '&#9835;';
+    });
+  }
 }
 
 function updateNowPlayingBtn() {
