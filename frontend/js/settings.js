@@ -1421,6 +1421,8 @@ function initSettingsSectionDrag() {
     e.preventDefault();
     dragged = section;
     const rect = section.getBoundingClientRect();
+    dragged._dragW = rect.width;
+    dragged._dragH = rect.height;
     startY = e.clientY;
     startX = e.clientX;
     offsetY = e.clientY - rect.top;
@@ -1435,14 +1437,10 @@ function initSettingsSectionDrag() {
       document.body.style.userSelect = 'none';
       document.body.style.cursor = 'grabbing';
 
-      // Capture dimensions in current column layout
-      const origW = dragged.offsetWidth;
-      const origH = dragged.offsetHeight;
-
-      // Create ghost at original size
+      // Create ghost at original column size (captured on mousedown)
       ghost = dragged.cloneNode(true);
       ghost.className = 'settings-section section-ghost';
-      ghost.style.width = origW + 'px';
+      ghost.style.width = dragged._dragW + 'px';
       ghost.style.left = (e.clientX - offsetX) + 'px';
       ghost.style.top = (e.clientY - offsetY) + 'px';
       document.body.appendChild(ghost);
