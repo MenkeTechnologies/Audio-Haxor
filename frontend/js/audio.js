@@ -236,6 +236,11 @@ function updateAbLoopUI() {
 
 function loadRecentlyPlayed() {
   recentlyPlayed = prefs.getObject('recentlyPlayed', []);
+  // Restore loop setting
+  audioLooping = prefs.getItem('audioLoop') === 'on';
+  audioPlayer.loop = audioLooping;
+  const loopBtn = document.getElementById('npBtnLoop');
+  if (loopBtn) loopBtn.classList.toggle('active', audioLooping);
 }
 function saveRecentlyPlayed() {
   prefs.setItem('recentlyPlayed', recentlyPlayed);
@@ -991,7 +996,7 @@ async function previewAudio(filePath) {
 function toggleAudioPlayback() {
   if (!audioPlayerPath) {
     // No track loaded — play most recent from history
-    if (typeof recentlyPlayed !== 'undefined' && recentlyPlayed.length > 0) {
+    if (typeof recentlyPlayed !== 'undefined' && recentlyPlayed.length > 0 && recentlyPlayed[0]?.path) {
       previewAudio(recentlyPlayed[0].path);
     }
     return;
@@ -1008,6 +1013,7 @@ function toggleAudioPlayback() {
 function toggleAudioLoop() {
   audioLooping = !audioLooping;
   audioPlayer.loop = audioLooping;
+  prefs.setItem('audioLoop', audioLooping ? 'on' : 'off');
   document.getElementById('npBtnLoop').classList.toggle('active', audioLooping);
   updateLoopBtnStates();
 }
