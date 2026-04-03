@@ -463,7 +463,7 @@ fn extract_plugins_from_binary(data: &[u8]) -> Vec<PluginRef> {
     let mut plugins = Vec::new();
     let mut current = Vec::new();
     for &byte in data {
-        if byte >= 0x20 && byte <= 0x7E {
+        if (0x20..=0x7E).contains(&byte) {
             current.push(byte);
         } else {
             if current.len() >= 6 {

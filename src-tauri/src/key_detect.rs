@@ -86,7 +86,7 @@ fn compute_chromagram(samples: &[f32], sample_rate: u32) -> [f64; 12] {
     let mut targets: Vec<(usize, f64)> = Vec::new(); // (chroma_bin, frequency)
     for octave in 0..7 {
         for note in 0..12 {
-            let freq = base_freq * 2.0f64.powi(octave as i32) * 2.0f64.powf(note as f64 / 12.0);
+            let freq = base_freq * 2.0f64.powi(octave) * 2.0f64.powf(note as f64 / 12.0);
             if freq < sr / 2.0 && freq > 20.0 {
                 targets.push((note, freq));
             }
@@ -154,18 +154,18 @@ fn match_key_profile(chroma: &[f64; 12]) -> Option<String> {
     let mut best_key = String::new();
     let mut best_corr = f64::NEG_INFINITY;
 
-    for root in 0..12 {
+    for (root, note) in NOTE_NAMES.iter().enumerate() {
         // Rotate profile to start from this root
         let major_corr = profile_correlation(chroma, &MAJOR_PROFILE, root);
         if major_corr > best_corr {
             best_corr = major_corr;
-            best_key = format!("{} Major", NOTE_NAMES[root]);
+            best_key = format!("{note} Major");
         }
 
         let minor_corr = profile_correlation(chroma, &MINOR_PROFILE, root);
         if minor_corr > best_corr {
             best_corr = minor_corr;
-            best_key = format!("{} Minor", NOTE_NAMES[root]);
+            best_key = format!("{note} Minor");
         }
     }
 

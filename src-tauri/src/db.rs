@@ -543,16 +543,12 @@ impl Database {
             _ => "name COLLATE NOCASE",
         };
         let sort_dir = if params.sort_asc { "ASC" } else { "DESC" };
-        let nulls = if params.sort_asc {
-            "NULLS LAST"
-        } else {
-            "NULLS LAST"
-        };
+        let nulls = "NULLS LAST";
 
         // Count total unfiltered
         let total_unfiltered: u64 = conn
             .query_row(
-                &format!("SELECT COUNT(*) FROM audio_samples WHERE scan_id = ?1"),
+                "SELECT COUNT(*) FROM audio_samples WHERE scan_id = ?1",
                 params![scan_id],
                 |row| row.get(0),
             )
@@ -707,10 +703,8 @@ impl Database {
                 Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
             })
             .map_err(|e| e.to_string())?;
-        for r in rows {
-            if let Ok((fmt, count)) = r {
-                format_counts.insert(fmt, count);
-            }
+        for (fmt, count) in rows.flatten() {
+            format_counts.insert(fmt, count);
         }
 
         let analyzed_count: u64 = conn
@@ -1141,7 +1135,7 @@ impl Database {
             }))
         }).map_err(|e| e.to_string())?;
         let mut map = HashMap::new();
-        for r in rows { if let Ok((k, v)) = r { map.insert(k, v); } }
+        for (k, v) in rows.flatten() { map.insert(k, v); }
         Ok(map)
     }
 
@@ -1285,7 +1279,7 @@ impl Database {
         }
 
         // KV caches — count rows and estimate size from data length
-        for (label, table, key_col, val_col, key) in [
+        for (label, table, _key_col, val_col, key) in [
             ("Waveform", "waveform_cache", "path", "data", "waveform"),
             ("Spectrogram", "spectrogram_cache", "path", "data", "spectrogram"),
             ("Xref", "xref_cache", "project_path", "plugins_json", "xref"),

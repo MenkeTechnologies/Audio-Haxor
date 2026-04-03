@@ -227,11 +227,7 @@ fn decode_with_symphonia(path: &Path) -> Option<(Vec<f32>, u32)> {
     // Limit to ~30 seconds for BPM detection (avoid decoding huge files)
     let max_samples = sample_rate as usize * 30 * channels;
 
-    loop {
-        let packet = match format.next_packet() {
-            Ok(p) => p,
-            Err(_) => break,
-        };
+    while let Ok(packet) = format.next_packet() {
         if packet.track_id() != track_id {
             continue;
         }
