@@ -1402,15 +1402,31 @@ document.addEventListener('input', (e) => {
 
 // ── Settings Section Drag Reorder (Trello-style) ──
 function initSettingsSectionDrag() {
-  // No section drag — CSS columns handles layout (drag breaks column reflow)
-  // Individual rows within sections are still draggable
   const container = document.querySelector('.settings-container');
-  if (!container || typeof initDragReorder !== 'function') return;
-  container.querySelectorAll('.settings-section[data-section]').forEach(section => {
-    initDragReorder(section, '.settings-row', 'settingsRows_' + section.dataset.section, {
-      getKey: (el) => el.querySelector('.settings-title')?.textContent?.trim() || '',
-    });
+  if (!container) return;
+
+  // Balance CSS columns — sort sections tallest-first, then alternate columns
+  requestAnimationFrame(() => {
+    const sections = [...container.querySelectorAll('.settings-section[data-section]')];
+    sections.sort((a, b) => b.offsetHeight - a.offsetHeight);
+    let col1H = 0, col2H = 0;
+    const col1 = [], col2 = [];
+    for (const s of sections) {
+      if (col1H <= col2H) { col1.push(s); col1H += s.offsetHeight; }
+      else { col2.push(s); col2H += s.offsetHeight; }
+    }
+    // CSS columns fills top-to-bottom: col1 items first, then col2
+    for (const s of [...col1, ...col2]) container.appendChild(s);
   });
+
+  // Individual rows within sections are still draggable
+  if (typeof initDragReorder === 'function') {
+    container.querySelectorAll('.settings-section[data-section]').forEach(section => {
+      initDragReorder(section, '.settings-row', 'settingsRows_' + section.dataset.section, {
+        getKey: (el) => el.querySelector('.settings-title')?.textContent?.trim() || '',
+      });
+    });
+  }
 }
 
 function saveSettingsSectionOrder() {
