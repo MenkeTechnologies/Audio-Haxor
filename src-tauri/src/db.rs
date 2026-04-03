@@ -2,7 +2,7 @@
 //! and scan metadata. Replaces JSON file persistence for data that can grow to
 //! millions of rows.
 
-use crate::history::{self, AudioSample, AudioScanSnapshot};
+use crate::history::{self, AudioHistory, AudioSample, AudioScanSnapshot};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -713,11 +713,12 @@ impl Database {
             }
         }
 
-        // Read JSON history
+        // Read JSON history — format is {"scans": [...]}
         let json_data =
             std::fs::read_to_string(&audio_history_path).map_err(|e| e.to_string())?;
-        let snapshots: Vec<AudioScanSnapshot> =
+        let history: AudioHistory =
             serde_json::from_str(&json_data).map_err(|e| format!("JSON parse error: {e}"))?;
+        let snapshots = history.scans;
 
         let mut total_migrated = 0;
         for snap in &snapshots {
@@ -1070,5 +1071,25 @@ mod tests {
             })
             .unwrap();
         assert_eq!(desc.samples[0].size, 300);
+    }
+
+    /// Run this to migrate real JSON caches to SQLite.
+    /// Not a real test — it's a one-shot migration runner.
+    /// Run with: cargo test --manifest-path src-tauri/Cargo.toml "run_migration" -- --nocapture --ignored
+    #[test]
+    #[ignore]
+    fn run_migration() {
+        let db = Database::open().expect("Failed to open database");
+        let count = db.migrate_from_json().expect("Migration failed");
+        println!("Migrated {count} audio samples to SQLite");
+        let scans = db.list_scans().expect("Failed to list scans");
+        for s in &scans {
+            println!("  Scan {} — {} samples, {} bytes, {} roots",
+                s.id, s.sample_count, s.total_bytes, s.roots.len());
+        }
+        if let Ok(stats) = db.audio_stats(None) {
+            println!("Stats: {} samples, {} bytes, {} analyzed, {} formats",
+                stats.sample_count, stats.total_bytes, stats.analyzed_count, stats.format_counts.len());
+        }
     }
 }
