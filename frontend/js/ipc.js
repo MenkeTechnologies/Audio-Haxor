@@ -155,6 +155,29 @@ document.addEventListener('click', (e) => {
     case 'settingToggleTheme': settingToggleTheme(); break;
     case 'settingToggleCrt': settingToggleCrt(); break;
     case 'settingToggleNeonGlow': settingToggleNeonGlow(); break;
+    case 'settingToggleTagBar': {
+      const current = prefs.getItem('tagBarVisible') !== 'off';
+      prefs.setItem('tagBarVisible', current ? 'off' : 'on');
+      const bar = document.getElementById('globalTagBar');
+      if (bar && current) bar.style.display = 'none';
+      showToast(current ? 'Tag bar hidden' : 'Tag bar will show when tag is active');
+      if (typeof refreshSettingsUI === 'function') refreshSettingsUI();
+    } break;
+    case 'settingTagBarPosition': {
+      const pos = document.getElementById('settingTagBarPosition')?.value || 'top';
+      prefs.setItem('tagBarPosition', pos);
+      const bar = document.getElementById('globalTagBar');
+      const tabNav = document.querySelector('.tab-nav');
+      if (bar && tabNav) {
+        if (pos === 'bottom') {
+          const lastTab = [...document.querySelectorAll('.tab-content')].pop();
+          if (lastTab) lastTab.parentNode.insertBefore(bar, lastTab.nextSibling);
+        } else {
+          tabNav.parentNode.insertBefore(bar, tabNav);
+        }
+      }
+      showToast(`Tag bar moved to ${pos}`);
+    } break;
     case 'clearFavorites': clearFavorites(); break;
     case 'exportFavorites': exportFavorites(); break;
     case 'importFavorites': importFavorites(); break;
@@ -162,13 +185,29 @@ document.addEventListener('click', (e) => {
     case 'importNotes': importNotes(); break;
     case 'clearAllNotes': clearAllNotes(); break;
     case 'clearGlobalTag': clearGlobalTag(); break;
-    case 'toggleTagBar': {
-      const list = document.getElementById('globalTagList');
-      const toggle = document.getElementById('globalTagToggle');
-      if (list) {
-        const collapsed = list.style.display === 'none';
-        list.style.display = collapsed ? '' : 'none';
-        if (toggle) toggle.innerHTML = collapsed ? '&#9660;' : '&#9654;';
+    case 'hideTagBar': {
+      const bar = document.getElementById('globalTagBar');
+      if (bar) bar.style.display = 'none';
+      prefs.setItem('tagBarVisible', 'off');
+      showToast('Tag bar hidden (filter still active). Show via Settings.');
+    } break;
+    case 'moveTagBar': {
+      const bar = document.getElementById('globalTagBar');
+      if (!bar) break;
+      const main = bar.parentNode;
+      const tabNav = document.querySelector('.tab-nav');
+      const isTop = bar.compareDocumentPosition(tabNav) & Node.DOCUMENT_POSITION_FOLLOWING;
+      if (isTop) {
+        // Move to bottom (after tab content area)
+        const lastTab = [...document.querySelectorAll('.tab-content')].pop();
+        if (lastTab) lastTab.parentNode.insertBefore(bar, lastTab.nextSibling);
+        prefs.setItem('tagBarPosition', 'bottom');
+        showToast('Tag bar moved to bottom');
+      } else {
+        // Move to top (before tab nav)
+        if (tabNav) tabNav.parentNode.insertBefore(bar, tabNav);
+        prefs.setItem('tagBarPosition', 'top');
+        showToast('Tag bar moved to top');
       }
     } break;
     case 'settingResetAllUI': settingResetAllUI(); break;

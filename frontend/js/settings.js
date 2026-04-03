@@ -973,6 +973,15 @@ function refreshSettingsUI() {
   if (neonBtn) { neonBtn.classList.toggle('active', neonOn); }
   if (neonLabel) { neonLabel.textContent = neonOn ? 'On' : 'Off'; }
 
+  // Tag bar
+  const tagBarOn = prefs.getItem('tagBarVisible') !== 'off';
+  const tagBarBtn = document.getElementById('settingTagBar');
+  const tagBarLabel = document.getElementById('settingTagBarLabel');
+  if (tagBarBtn) { tagBarBtn.classList.toggle('active', tagBarOn); }
+  if (tagBarLabel) { tagBarLabel.textContent = tagBarOn ? 'On' : 'Off'; }
+  const tagPosEl = document.getElementById('settingTagBarPosition');
+  if (tagPosEl) tagPosEl.value = prefs.getItem('tagBarPosition') || 'top';
+
   // Color scheme
   const currentScheme = prefs.getItem('colorScheme') || 'cyberpunk';
   document.querySelectorAll('.scheme-btn').forEach(btn => {
@@ -1313,6 +1322,14 @@ function restoreSettings() {
   AUDIO_PAGE_SIZE = pageSize;
   DAW_PAGE_SIZE = pageSize;
   PRESET_PAGE_SIZE = pageSize;
+
+  // Restore tag bar position
+  const tagPos = prefs.getItem('tagBarPosition');
+  if (tagPos === 'bottom') {
+    const bar = document.getElementById('globalTagBar');
+    const lastTab = [...document.querySelectorAll('.tab-content')].pop();
+    if (bar && lastTab) lastTab.parentNode.insertBefore(bar, lastTab.nextSibling);
+  }
 }
 // restoreSettings is called from loadLastScan after prefs.load()
 

@@ -4836,10 +4836,11 @@
     </div>
 
     <div class="global-tag-bar" id="globalTagBar" style="display:none;">
-      <button class="global-tag-toggle" id="globalTagToggle" data-action="toggleTagBar" title="Collapse/expand tag filter" style="background:none;border:none;color:var(--yellow);cursor:pointer;font-size:12px;padding:0 4px;">&#9660;</button>
       <span class="global-tag-label">&#127991; Tag Filter:</span>
       <div class="global-tag-list" id="globalTagList"></div>
-      <button class="global-tag-clear" id="globalTagClear" data-action="clearGlobalTag" title="Clear tag filter">&#10005;</button>
+      <button class="global-tag-clear" id="globalTagClear" data-action="clearGlobalTag" title="Clear tag filter and hide bar">&#10005;</button>
+      <button class="btn-small" data-action="moveTagBar" title="Move tag bar to top/bottom" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:9px;padding:2px 6px;margin-left:auto;">&#8597;</button>
+      <button class="btn-small" data-action="hideTagBar" title="Hide tag bar (filter stays active)" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:9px;padding:2px 6px;">&#10005;</button>
     </div>
     <div class="tab-nav">
       <button class="tab-btn active" data-action="switchTab" data-tab="plugins" title="VST2, VST3, and AU plugins (Cmd+1)">Plugins</button>
@@ -5320,6 +5321,30 @@
                 <span class="settings-toggle-label" id="settingNeonGlowLabel">On</span>
                 <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
               </button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Tag Filter Bar</span>
+              <span class="settings-desc">Show/hide the tag filter bar when a tag is active</span>
+            </div>
+            <div class="settings-control">
+              <button class="settings-toggle" id="settingTagBar" data-action="settingToggleTagBar" title="Toggle tag filter bar visibility">
+                <span class="settings-toggle-label" id="settingTagBarLabel">On</span>
+                <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+              </button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-title">Tag Bar Position</span>
+              <span class="settings-desc">Place the tag filter bar above or below tabs</span>
+            </div>
+            <div class="settings-control">
+              <select class="filter-select" id="settingTagBarPosition" data-action="settingTagBarPosition" title="Tag bar position">
+                <option value="top">Top</option>
+                <option value="bottom">Bottom</option>
+              </select>
             </div>
           </div>
         </div>

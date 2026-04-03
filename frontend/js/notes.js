@@ -711,6 +711,12 @@ function renderGlobalTagBar() {
   const list = document.getElementById('globalTagList');
   if (!bar || !list) return;
 
+  // Respect tag bar visibility setting
+  if (typeof prefs !== 'undefined' && prefs.getItem('tagBarVisible') === 'off') {
+    bar.style.display = 'none';
+    return;
+  }
+
   const allTags = getAllTags();
   if (allTags.length === 0) {
     bar.style.display = 'none';
