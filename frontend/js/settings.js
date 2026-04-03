@@ -1405,18 +1405,19 @@ function initSettingsSectionDrag() {
   const container = document.querySelector('.settings-container');
   if (!container) return;
 
-  // Balance CSS columns — sort sections tallest-first, then alternate columns
+  // Balance CSS columns — greedy bin-packing into N columns based on viewport
   requestAnimationFrame(() => {
     const sections = [...container.querySelectorAll('.settings-section[data-section]')];
+    const numCols = window.innerWidth >= 1700 ? 3 : window.innerWidth >= 1100 ? 2 : 1;
+    if (numCols < 2) return;
     sections.sort((a, b) => b.offsetHeight - a.offsetHeight);
-    let col1H = 0, col2H = 0;
-    const col1 = [], col2 = [];
+    const cols = Array.from({ length: numCols }, () => ({ items: [], height: 0 }));
     for (const s of sections) {
-      if (col1H <= col2H) { col1.push(s); col1H += s.offsetHeight; }
-      else { col2.push(s); col2H += s.offsetHeight; }
+      const shortest = cols.reduce((a, b) => a.height <= b.height ? a : b);
+      shortest.items.push(s);
+      shortest.height += s.offsetHeight;
     }
-    // CSS columns fills top-to-bottom: col1 items first, then col2
-    for (const s of [...col1, ...col2]) container.appendChild(s);
+    for (const col of cols) for (const s of col.items) container.appendChild(s);
   });
 
   // Individual rows within sections are still draggable
