@@ -171,3 +171,85 @@ pub fn is_watching(state: &FileWatcherState) -> bool {
 pub fn get_watched_dirs(state: &FileWatcherState) -> Vec<String> {
     state.watched_dirs.lock().unwrap().clone()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_classify_audio() {
+        for ext in &["wav", "mp3", "flac", "ogg", "aif", "aiff", "m4a", "wma", "opus", "ape"] {
+            let name = format!("test.{ext}");
+            assert_eq!(classify(Path::new(&name)), Some("audio"), "expected audio for .{ext}");
+        }
+    }
+
+    #[test]
+    fn test_classify_daw() {
+        for ext in &["als", "rpp", "flp", "cpr", "npr", "song", "dawproject", "bwproject"] {
+            let name = format!("project.{ext}");
+            assert_eq!(classify(Path::new(&name)), Some("daw"), "expected daw for .{ext}");
+        }
+    }
+
+    #[test]
+    fn test_classify_preset() {
+        for ext in &["fxp", "fxb", "vstpreset", "aupreset", "nmsv", "nki"] {
+            let name = format!("preset.{ext}");
+            assert_eq!(classify(Path::new(&name)), Some("preset"), "expected preset for .{ext}");
+        }
+    }
+
+    #[test]
+    fn test_classify_plugin() {
+        for ext in &["dll", "vst3", "component", "clap", "aaxplugin"] {
+            let name = format!("plugin.{ext}");
+            assert_eq!(classify(Path::new(&name)), Some("plugin"), "expected plugin for .{ext}");
+        }
+    }
+
+    #[test]
+    fn test_classify_unknown_returns_none() {
+        assert_eq!(classify(Path::new("readme.txt")), None);
+        assert_eq!(classify(Path::new("photo.png")), None);
+        assert_eq!(classify(Path::new("data.json")), None);
+        assert_eq!(classify(Path::new("noext")), None);
+    }
+
+    #[test]
+    fn test_classify_case_insensitive() {
+        assert_eq!(classify(Path::new("test.WAV")), Some("audio"));
+        assert_eq!(classify(Path::new("test.Flp")), Some("daw"));
+        assert_eq!(classify(Path::new("test.FXP")), Some("preset"));
+        assert_eq!(classify(Path::new("test.DLL")), Some("plugin"));
+    }
+
+    #[test]
+    fn test_file_watcher_state_new() {
+        let state = FileWatcherState::new();
+        assert!(!state.watching.load(Ordering::SeqCst));
+        assert!(state.watcher.lock().unwrap().is_none());
+        assert!(state.watched_dirs.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_is_watching_default_false() {
+        let state = FileWatcherState::new();
+        assert!(!is_watching(&state));
+    }
+
+    #[test]
+    fn test_get_watched_dirs_default_empty() {
+        let state = FileWatcherState::new();
+        assert!(get_watched_dirs(&state).is_empty());
+    }
+
+    #[test]
+    fn test_stop_watching_noop_on_fresh_state() {
+        let state = FileWatcherState::new();
+        stop_watching(&state);
+        assert!(!is_watching(&state));
+        assert!(get_watched_dirs(&state).is_empty());
+    }
+}

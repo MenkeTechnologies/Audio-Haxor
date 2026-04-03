@@ -1276,21 +1276,21 @@ function _saveBpmCache() {
   if (!_bpmCacheDirty) return;
   _bpmCacheDirty = false;
   // Use requestIdleCallback to avoid blocking animations
-  const doSave = () => window.vstUpdater.writeCacheFile('bpm-cache.json', _bpmCache).catch(() => {});
+  const doSave = () => window.vstUpdater.writeCacheFile('bpm-cache.json', _bpmCache).catch(() => showToast('Cache write failed', 4000, 'error'));
   if (typeof requestIdleCallback === 'function') requestIdleCallback(doSave); else setTimeout(doSave, 0);
 }
 
 function _saveKeyCache() {
   if (!_keyCacheDirty) return;
   _keyCacheDirty = false;
-  const doSave = () => window.vstUpdater.writeCacheFile('key-cache.json', _keyCache).catch(() => {});
+  const doSave = () => window.vstUpdater.writeCacheFile('key-cache.json', _keyCache).catch(() => showToast('Cache write failed', 4000, 'error'));
   if (typeof requestIdleCallback === 'function') requestIdleCallback(doSave); else setTimeout(doSave, 0);
 }
 
 function _saveLufsCache() {
   if (!_lufsCacheDirty) return;
   _lufsCacheDirty = false;
-  const doSave = () => window.vstUpdater.writeCacheFile('lufs-cache.json', _lufsCache).catch(() => {});
+  const doSave = () => window.vstUpdater.writeCacheFile('lufs-cache.json', _lufsCache).catch(() => showToast('Cache write failed', 4000, 'error'));
   if (typeof requestIdleCallback === 'function') requestIdleCallback(doSave); else setTimeout(doSave, 0);
 }
 
@@ -1432,19 +1432,19 @@ async function startBackgroundAnalysis() {
       try {
         const bpm = await window.vstUpdater.estimateBpm(path);
         await window.vstUpdater.dbUpdateBpm(path, bpm);
-      } catch { await window.vstUpdater.dbUpdateBpm(path, null).catch(() => {}); }
+      } catch { await window.vstUpdater.dbUpdateBpm(path, null).catch(() => showToast('DB update failed', 4000, 'error')); }
 
       // Key detection → save to SQLite
       try {
         const key = await window.vstUpdater.detectAudioKey(path);
         await window.vstUpdater.dbUpdateKey(path, key);
-      } catch { await window.vstUpdater.dbUpdateKey(path, null).catch(() => {}); }
+      } catch { await window.vstUpdater.dbUpdateKey(path, null).catch(() => showToast('DB update failed', 4000, 'error')); }
 
       // LUFS → save to SQLite
       try {
         const lufs = await window.vstUpdater.measureLufs(path);
         await window.vstUpdater.dbUpdateLufs(path, lufs);
-      } catch { await window.vstUpdater.dbUpdateLufs(path, null).catch(() => {}); }
+      } catch { await window.vstUpdater.dbUpdateLufs(path, null).catch(() => showToast('DB update failed', 4000, 'error')); }
 
       // Update visible row if present
       const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(path)}"]`);
@@ -1749,8 +1749,8 @@ function _saveWaveformCache() {
   _evictCache(_waveformCache);
   _evictCache(_spectrogramCache);
   // Stagger to avoid blocking
-  const saveWf = () => window.vstUpdater.writeCacheFile('waveform-cache.json', _waveformCache).catch(() => {});
-  const saveSg = () => window.vstUpdater.writeCacheFile('spectrogram-cache.json', _spectrogramCache).catch(() => {});
+  const saveWf = () => window.vstUpdater.writeCacheFile('waveform-cache.json', _waveformCache).catch(() => showToast('Cache write failed', 4000, 'error'));
+  const saveSg = () => window.vstUpdater.writeCacheFile('spectrogram-cache.json', _spectrogramCache).catch(() => showToast('Cache write failed', 4000, 'error'));
   if (typeof requestIdleCallback === 'function') {
     requestIdleCallback(saveWf);
     requestIdleCallback(saveSg);

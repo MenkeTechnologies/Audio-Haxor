@@ -665,11 +665,22 @@ document.addEventListener('contextmenu', (e) => {
   const tabBtn = e.target.closest('.tab-btn');
   if (tabBtn) {
     const tab = tabBtn.dataset.tab;
+    const exportMap = { plugins: 'exportPlugins', samples: 'exportAudio', daw: 'exportDaw', presets: 'exportPresets' };
+    const scanMap = { plugins: 'scanPlugins', samples: 'scanAudioSamples', daw: 'scanDawProjects', presets: 'scanPresets' };
     const items = [
       { icon: '&#8635;', label: 'Switch to Tab', action: () => switchTab(tab) },
       '---',
-      { icon: '&#8644;', label: 'Reset Tab Order', action: () => settingResetTabOrder() },
     ];
+    const scanFn = scanMap[tab];
+    if (scanFn && typeof window[scanFn] === 'function') {
+      items.push({ icon: '&#9889;', label: 'Rescan Tab Data', action: () => window[scanFn]() });
+    }
+    const exportFn = exportMap[tab];
+    if (exportFn && typeof window[exportFn] === 'function') {
+      items.push({ icon: '&#8615;', label: 'Export Tab Data', action: () => window[exportFn]() });
+    }
+    if (scanFn || exportFn) items.push('---');
+    items.push({ icon: '&#8644;', label: 'Reset Tab Order', action: () => settingResetTabOrder() });
     showContextMenu(e, items);
     return;
   }
@@ -999,8 +1010,12 @@ document.addEventListener('contextmenu', (e) => {
   if (walkerTile) {
     const body = walkerTile.querySelector('.walker-tile-body');
     const dirs = body ? [...body.querySelectorAll('.walker-dir')].map(d => d.textContent).join('\n') : '';
+    const title = walkerTile.querySelector('.walker-tile-title, h4, h3')?.textContent?.trim() || 'Walker';
     const items = [
-      { icon: '&#128203;', label: 'Copy All Paths', action: () => copyToClipboard(dirs) },
+      { icon: '&#128203;', label: 'Copy All Paths', action: () => copyToClipboard(dirs), disabled: !dirs },
+      { icon: '&#128203;', label: 'Copy Tile Title', action: () => copyToClipboard(title) },
+      '---',
+      { icon: '&#10005;', label: 'Clear Tile', action: () => { if (body) body.innerHTML = ''; showToast(`${title} cleared`); } },
     ];
     showContextMenu(e, items);
     return;

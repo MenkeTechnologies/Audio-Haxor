@@ -744,7 +744,7 @@ function settingToggleFolderWatch() {
   if (next) {
     startFolderWatch();
   } else {
-    window.vstUpdater.stopFileWatcher().catch(() => {});
+    window.vstUpdater.stopFileWatcher().catch(() => showToast('Failed to stop file watcher', 4000, 'error'));
     showToast('Folder watch stopped');
   }
   refreshSettingsUI();

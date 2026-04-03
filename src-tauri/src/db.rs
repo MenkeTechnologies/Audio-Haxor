@@ -1897,6 +1897,309 @@ mod tests {
         assert_eq!(desc.samples[0].size, 300);
     }
 
+    #[test]
+    fn test_plugin_scan_roundtrip() {
+        let db = test_db();
+        let snap = ScanSnapshot {
+            id: "ps1".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            plugin_count: 2,
+            plugins: vec![
+                PluginInfo {
+                    name: "Serum".into(), path: "/vst/Serum.vst3".into(),
+                    plugin_type: "VST3".into(), version: "1.3".into(),
+                    manufacturer: "Xfer".into(), manufacturer_url: None,
+                    size: "10 MB".into(), size_bytes: 10_000_000, modified: "2024-01-01".into(),
+                    architectures: vec!["arm64".into()],
+                },
+                PluginInfo {
+                    name: "Vital".into(), path: "/vst/Vital.vst3".into(),
+                    plugin_type: "VST3".into(), version: "1.5".into(),
+                    manufacturer: "Matt Tytel".into(), manufacturer_url: Some("https://vital.audio".into()),
+                    size: "5 MB".into(), size_bytes: 5_000_000, modified: "2024-02-01".into(),
+                    architectures: vec!["arm64".into(), "x86_64".into()],
+                },
+            ],
+            directories: vec!["/vst".into()],
+            roots: vec!["/vst".into()],
+        };
+        db.save_plugin_scan(&snap).unwrap();
+
+        let scans = db.get_plugin_scans().unwrap();
+        assert_eq!(scans.len(), 1);
+        assert_eq!(scans[0]["id"], "ps1");
+        assert_eq!(scans[0]["pluginCount"], 2);
+
+        let detail = db.get_plugin_scan_detail("ps1").unwrap();
+        assert_eq!(detail.plugins.len(), 2);
+        assert_eq!(detail.plugins[0].name, "Serum");
+        assert_eq!(detail.plugins[1].manufacturer, "Matt Tytel");
+        assert_eq!(detail.plugins[1].architectures, vec!["arm64", "x86_64"]);
+    }
+
+    #[test]
+    fn test_daw_scan_roundtrip() {
+        let db = test_db();
+        let mut daw_counts = HashMap::new();
+        daw_counts.insert("Ableton".into(), 2);
+        let snap = DawScanSnapshot {
+            id: "ds1".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            project_count: 2,
+            total_bytes: 50_000,
+            daw_counts,
+            projects: vec![
+                DawProject {
+                    name: "track1.als".into(), path: "/music/track1.als".into(),
+                    directory: "/music".into(), format: "ALS".into(), daw: "Ableton".into(),
+                    size: 30_000, size_formatted: "30 KB".into(), modified: "2024-03-01".into(),
+                },
+                DawProject {
+                    name: "track2.als".into(), path: "/music/track2.als".into(),
+                    directory: "/music".into(), format: "ALS".into(), daw: "Ableton".into(),
+                    size: 20_000, size_formatted: "20 KB".into(), modified: "2024-04-01".into(),
+                },
+            ],
+            roots: vec!["/music".into()],
+        };
+        db.save_daw_scan(&snap).unwrap();
+
+        let scans = db.get_daw_scans().unwrap();
+        assert_eq!(scans.len(), 1);
+        assert_eq!(scans[0]["projectCount"], 2);
+        assert_eq!(scans[0]["totalBytes"], 50_000);
+
+        let detail = db.get_daw_scan_detail("ds1").unwrap();
+        assert_eq!(detail.projects.len(), 2);
+        assert_eq!(detail.projects[0].daw, "Ableton");
+    }
+
+    #[test]
+    fn test_preset_scan_roundtrip() {
+        let db = test_db();
+        let mut format_counts = HashMap::new();
+        format_counts.insert("FXP".into(), 1);
+        let snap = PresetScanSnapshot {
+            id: "pr1".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            preset_count: 1,
+            total_bytes: 8000,
+            format_counts,
+            presets: vec![PresetFile {
+                name: "bass.fxp".into(), path: "/presets/bass.fxp".into(),
+                directory: "/presets".into(), format: "FXP".into(),
+                size: 8000, size_formatted: "8 KB".into(), modified: "2024-05-01".into(),
+            }],
+            roots: vec!["/presets".into()],
+        };
+        db.save_preset_scan(&snap).unwrap();
+
+        let scans = db.get_preset_scans().unwrap();
+        assert_eq!(scans.len(), 1);
+        assert_eq!(scans[0]["presetCount"], 1);
+
+        let detail = db.get_preset_scan_detail("pr1").unwrap();
+        assert_eq!(detail.presets.len(), 1);
+        assert_eq!(detail.presets[0].name, "bass.fxp");
+    }
+
+    #[test]
+    fn test_kvr_cache_roundtrip() {
+        use crate::history::KvrCacheUpdateEntry;
+        let db = test_db();
+
+        let entries = vec![
+            KvrCacheUpdateEntry {
+                key: "serum".into(),
+                kvr_url: Some("https://kvr.com/serum".into()),
+                update_url: Some("https://xfer.com/update".into()),
+                latest_version: Some("1.4".into()),
+                has_update: Some(true),
+                source: Some("kvr".into()),
+            },
+            KvrCacheUpdateEntry {
+                key: "vital".into(),
+                kvr_url: None,
+                update_url: None,
+                latest_version: Some("1.6".into()),
+                has_update: Some(false),
+                source: None,
+            },
+        ];
+        db.update_kvr_cache(&entries).unwrap();
+
+        let cache = db.load_kvr_cache().unwrap();
+        assert_eq!(cache.len(), 2);
+        assert_eq!(cache["serum"].kvr_url.as_deref(), Some("https://kvr.com/serum"));
+        assert!(cache["serum"].has_update);
+        assert!(!cache["vital"].has_update);
+        assert_eq!(cache["vital"].latest_version.as_deref(), Some("1.6"));
+    }
+
+    #[test]
+    fn test_clear_all_caches() {
+        let db = test_db();
+        let samples = vec![sample("kick.wav", "/kick.wav", "WAV", 1000)];
+        db.save_scan("s1", "2024-01-01T00:00:00", 1, 1000, &HashMap::new(), &[]).unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+        db.update_bpm("/kick.wav", Some(120.0)).unwrap();
+        db.update_key("/kick.wav", Some("A minor")).unwrap();
+        db.update_lufs("/kick.wav", Some(-14.0)).unwrap();
+
+        // Verify analysis is set
+        let analysis = db.get_analysis("/kick.wav").unwrap();
+        assert_eq!(analysis["bpm"], 120.0);
+
+        db.clear_all_caches().unwrap();
+
+        let analysis = db.get_analysis("/kick.wav").unwrap();
+        assert!(analysis.get("bpm").and_then(|v| v.as_f64()).is_none());
+        assert!(analysis.get("key").and_then(|v| v.as_str()).is_none());
+        assert!(analysis.get("lufs").and_then(|v| v.as_f64()).is_none());
+    }
+
+    #[test]
+    fn test_clear_cache_table_bpm() {
+        let db = test_db();
+        let samples = vec![sample("a.wav", "/a.wav", "WAV", 100)];
+        db.save_scan("s1", "2024-01-01T00:00:00", 1, 100, &HashMap::new(), &[]).unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+        db.update_bpm("/a.wav", Some(140.0)).unwrap();
+
+        db.clear_cache_table("bpm").unwrap();
+        let analysis = db.get_analysis("/a.wav").unwrap();
+        assert!(analysis.get("bpm").and_then(|v| v.as_f64()).is_none());
+    }
+
+    #[test]
+    fn test_clear_cache_table_key() {
+        let db = test_db();
+        let samples = vec![sample("a.wav", "/a.wav", "WAV", 100)];
+        db.save_scan("s1", "2024-01-01T00:00:00", 1, 100, &HashMap::new(), &[]).unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+        db.update_key("/a.wav", Some("D major")).unwrap();
+
+        db.clear_cache_table("key").unwrap();
+        let analysis = db.get_analysis("/a.wav").unwrap();
+        assert!(analysis.get("key").and_then(|v| v.as_str()).is_none());
+    }
+
+    #[test]
+    fn test_clear_cache_table_waveform() {
+        let db = test_db();
+        let data = serde_json::json!({"test_path": "some_waveform_data"});
+        db.write_cache("waveform-cache.json", &data).unwrap();
+
+        let cached = db.read_cache("waveform-cache.json").unwrap();
+        assert!(cached.as_object().unwrap().contains_key("test_path"));
+
+        db.clear_cache_table("waveform").unwrap();
+        let cached = db.read_cache("waveform-cache.json").unwrap();
+        assert!(cached.as_object().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_clear_cache_table_xref() {
+        let db = test_db();
+        let data = serde_json::json!({"/project.als": "[\"Serum\",\"Vital\"]"});
+        db.write_cache("xref-cache.json", &data).unwrap();
+
+        db.clear_cache_table("xref").unwrap();
+        let cached = db.read_cache("xref-cache.json").unwrap();
+        assert!(cached.as_object().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_clear_cache_table_unknown() {
+        let db = test_db();
+        let result = db.clear_cache_table("bogus");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unknown cache"));
+    }
+
+    #[test]
+    fn test_read_write_cache_waveform() {
+        let db = test_db();
+        let data = serde_json::json!({"/path/to/file.wav": "base64waveformdata"});
+        db.write_cache("waveform-cache.json", &data).unwrap();
+
+        let result = db.read_cache("waveform-cache.json").unwrap();
+        assert_eq!(result["/path/to/file.wav"], "base64waveformdata");
+    }
+
+    #[test]
+    fn test_read_write_cache_xref() {
+        let db = test_db();
+        let data = serde_json::json!({"/project.flp": "[\"Serum\"]"});
+        db.write_cache("xref-cache.json", &data).unwrap();
+
+        let result = db.read_cache("xref-cache.json").unwrap();
+        let obj = result.as_object().unwrap();
+        assert!(obj.contains_key("/project.flp"));
+    }
+
+    #[test]
+    fn test_table_counts() {
+        let db = test_db();
+        let counts = db.table_counts().unwrap();
+        let obj = counts.as_object().unwrap();
+
+        // Fresh DB should have all zeros
+        assert_eq!(obj["audio_samples"], 0);
+        assert_eq!(obj["plugins"], 0);
+        assert_eq!(obj["daw_projects"], 0);
+        assert_eq!(obj["presets"], 0);
+        assert_eq!(obj["kvr_cache"], 0);
+
+        // Insert some data and verify counts change
+        let samples = vec![sample("a.wav", "/a.wav", "WAV", 100)];
+        db.save_scan("s1", "2024-01-01T00:00:00", 1, 100, &HashMap::new(), &[]).unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let counts = db.table_counts().unwrap();
+        let obj = counts.as_object().unwrap();
+        assert_eq!(obj["audio_samples"], 1);
+        assert_eq!(obj["audio_scans"], 1);
+    }
+
+    #[test]
+    fn test_table_counts_with_plugin_and_daw_data() {
+        let db = test_db();
+        let snap = ScanSnapshot {
+            id: "ps1".into(), timestamp: "2024-01-01T00:00:00".into(),
+            plugin_count: 1,
+            plugins: vec![PluginInfo {
+                name: "Test".into(), path: "/test.vst3".into(),
+                plugin_type: "VST3".into(), version: "1.0".into(),
+                manufacturer: "Test Co".into(), manufacturer_url: None,
+                size: "1 MB".into(), size_bytes: 1_000_000, modified: "2024-01-01".into(),
+                architectures: vec![],
+            }],
+            directories: vec![], roots: vec![],
+        };
+        db.save_plugin_scan(&snap).unwrap();
+
+        let daw_snap = DawScanSnapshot {
+            id: "ds1".into(), timestamp: "2024-01-01T00:00:00".into(),
+            project_count: 1, total_bytes: 1000,
+            daw_counts: HashMap::new(),
+            projects: vec![DawProject {
+                name: "t.als".into(), path: "/t.als".into(), directory: "/".into(),
+                format: "ALS".into(), daw: "Ableton".into(),
+                size: 1000, size_formatted: "1 KB".into(), modified: "2024-01-01".into(),
+            }],
+            roots: vec![],
+        };
+        db.save_daw_scan(&daw_snap).unwrap();
+
+        let counts = db.table_counts().unwrap();
+        let obj = counts.as_object().unwrap();
+        assert_eq!(obj["plugins"], 1);
+        assert_eq!(obj["plugin_scans"], 1);
+        assert_eq!(obj["daw_projects"], 1);
+        assert_eq!(obj["daw_scans"], 1);
+    }
+
     /// Run this to migrate real JSON caches to SQLite.
     /// Not a real test — it's a one-shot migration runner.
     /// Run with: cargo test --manifest-path src-tauri/Cargo.toml "run_migration" -- --nocapture --ignored

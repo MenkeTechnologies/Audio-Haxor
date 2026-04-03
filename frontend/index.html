@@ -4801,6 +4801,7 @@
       <button class="tab-btn" data-action="switchTab" data-tab="tags" title="Tag manager (Cmd+7)">&#127991; Tags</button>
       <button class="tab-btn" data-action="switchTab" data-tab="files" title="File browser (Cmd+8)">&#128193; Files</button>
       <button class="tab-btn" data-action="switchTab" data-tab="history" title="Scan history and diffs (Cmd+9)">History</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="midi" title="MIDI files with note/tempo/key metadata">&#127924; MIDI</button>
       <button class="tab-btn" data-action="switchTab" data-tab="visualizer" title="Real-time audio analyzer and visualizer">&#127911; Visualizer</button>
       <button class="tab-btn" data-action="switchTab" data-tab="walkers" title="Live directory walker status">&#128270; Walkers</button>
       <button class="tab-btn" data-action="switchTab" data-tab="settings" title="App settings (Cmd+0)">&#9881; Settings</button>
@@ -5136,6 +5137,17 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="tab-content" id="tabMidi">
+      <div class="tab-toolbar">
+        <div class="search-box" style="flex: 1;">
+          <span class="search-icon">&#128269;</span>
+          <input type="text" id="midiSearchInput" placeholder="Search MIDI files..." data-action="filterMidi" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <span class="stat-label" id="midiCount" style="margin-left:12px;"></span>
+      </div>
+      <div class="table-wrap" id="midiTableWrap"></div>
     </div>
 
     <div class="tab-content" id="tabVisualizer">
@@ -5893,6 +5905,7 @@
   <script src="js/dep-graph.js?v=154"></script>
   <script src="js/smart-playlists.js?v=154"></script>
   <script src="js/heatmap-dashboard.js?v=154"></script>
+  <script src="js/midi.js?v=154"></script>
   <script src="js/visualizer.js?v=154"></script>
   <script src="js/walker-status.js?v=154"></script>
   <script src="js/context-menu.js?v=154"></script>

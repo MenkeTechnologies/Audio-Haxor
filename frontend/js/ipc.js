@@ -166,10 +166,10 @@ document.addEventListener('click', (e) => {
     case 'clearCacheTable': { const c = el.dataset.cache; if (c) window.vstUpdater.dbClearCacheTable(c).then(() => { if (c === 'bpm' && typeof _bpmCache !== 'undefined') _bpmCache = {}; if (c === 'key' && typeof _keyCache !== 'undefined') _keyCache = {}; if (c === 'lufs' && typeof _lufsCache !== 'undefined') _lufsCache = {}; if (c === 'waveform' && typeof _waveformCache !== 'undefined') _waveformCache = {}; if (c === 'spectrogram' && typeof _spectrogramCache !== 'undefined') _spectrogramCache = {}; showToast(`${c.toUpperCase()} cache cleared`); if (typeof renderCacheStats === 'function') renderCacheStats(); }).catch(e => showToast('Failed: ' + e, 4000, 'error')); } break;
     case 'exportSettingsPdf': if (typeof exportSettingsPdf === 'function') exportSettingsPdf(); break;
     case 'exportLogPdf': if (typeof exportLogPdf === 'function') exportLogPdf(); break;
-    case 'clearAppLog': window.vstUpdater.clearLog().then(() => showToast('Log cleared')).catch(() => {}); break;
+    case 'clearAppLog': window.vstUpdater.clearLog().then(() => showToast('Log cleared')).catch(() => showToast('Failed to clear log', 4000, 'error')); break;
     case 'refreshCacheList': if (typeof renderCacheFilesList === 'function') renderCacheFilesList(); break;
     case 'refreshCacheStats': if (typeof renderCacheStats === 'function') renderCacheStats(); break;
-    case 'revealDataFile': if (el.dataset.path) { const dir = el.dataset.path.replace(/\/[^/]+$/, ''); window.vstUpdater.openAudioFolder(el.dataset.path).catch(() => {}); } break;
+    case 'revealDataFile': if (el.dataset.path) { const dir = el.dataset.path.replace(/\/[^/]+$/, ''); window.vstUpdater.openAudioFolder(el.dataset.path).catch(() => showToast('Failed to reveal file', 4000, 'error')); } break;
     case 'deleteDataFile': if (el.dataset.name && confirm(`Delete ${el.dataset.name}?`)) { window.vstUpdater.deleteDataFile(el.dataset.name).then(() => { showToast(`Deleted ${el.dataset.name}`); if (typeof renderCacheFilesList === 'function') renderCacheFilesList(); }).catch(e => showToast('Delete failed: ' + e, 4000, 'error')); } break;
     case 'resetAllScans': resetAllScans(); break;
     case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;
@@ -509,11 +509,11 @@ const prefs = {
   },
   setItem(key, value) {
     this._cache[key] = value;
-    window.vstUpdater.prefsSet(key, value).catch(() => {});
+    window.vstUpdater.prefsSet(key, value).catch(() => showToast('Failed to save preference', 4000, 'error'));
   },
   removeItem(key) {
     delete this._cache[key];
-    window.vstUpdater.prefsRemove(key).catch(() => {});
+    window.vstUpdater.prefsRemove(key).catch(() => showToast('Failed to save preference', 4000, 'error'));
   },
 };
 

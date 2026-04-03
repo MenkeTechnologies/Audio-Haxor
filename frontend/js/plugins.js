@@ -222,7 +222,7 @@ async function checkUpdates() {
 
       // Persist to KVR cache
       if (cacheEntries.length > 0) {
-        window.vstUpdater.updateKvrCache(cacheEntries).catch(() => {});
+        window.vstUpdater.updateKvrCache(cacheEntries).catch(() => showToast('Cache write failed', 4000, 'error'));
       }
 
       // Update live stats

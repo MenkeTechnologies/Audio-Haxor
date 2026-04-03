@@ -56,7 +56,7 @@ const DEFAULT_SHORTCUTS = {
   'clearPlayHistory': { key: 'h', mod: true, label: 'Clear play history' },
 };
 
-const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'visualizer', 'walkers', 'settings'];
+const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'midi', 'visualizer', 'walkers', 'settings'];
 
 function getShortcuts() {
   const saved = prefs.getObject('customShortcuts', null);

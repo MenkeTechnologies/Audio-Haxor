@@ -18,7 +18,7 @@ async function loadXrefCache() {
 }
 
 function saveXrefCache() {
-  window.vstUpdater.writeCacheFile('xref-cache.json', _xrefCache).catch(() => {});
+  window.vstUpdater.writeCacheFile('xref-cache.json', _xrefCache).catch(() => showToast('Cache write failed', 4000, 'error'));
 }
 
 function isXrefSupported(format) {
