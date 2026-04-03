@@ -139,6 +139,8 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **Background Analysis** | Sequential BPM/Key/LUFS/metadata analysis starts as samples arrive during scan. Auto-pauses on user interaction, 50ms yield, saves every 50 samples. Cached to SQLite across reboots. Progress badge in header |
 | **Neon Glow Animations** | Animated pulsing neon borders on all modals, panels, walker tiles, visualizer tiles, heatmap cards, context menus, and command palette. Staggered delays create wave effects. Toggle on/off in Settings → Appearance |
 | **Resizable Recent List** | Audio player recently played list is vertically resizable via CSS resize handle (min 80px) |
+| **Folder Watch / Auto-Scan** | Watch configured scan directories for new/changed files using native filesystem events (FSEvents on macOS, inotify on Linux, ReadDirectoryChangesW on Windows). 2-second debounce batches rapid changes. Classifies files by type (audio/daw/preset/plugin) and triggers targeted re-scan. Toggle in Settings → Scanning. Auto-starts on launch if enabled |
+| **Cross-Platform** | Fully portable across macOS, Linux, and Windows. Process stats (RSS, CPU, threads, disk) via sysinfo crate on all platforms. File watcher uses native OS events. Scanner directories auto-detected per OS. All SQLite, audio analysis, and UI code is platform-agnostic |
 
 ---
 
@@ -250,7 +252,7 @@ cd src-tauri && cargo test
 node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 ```
 
-### Rust tests (320 tests across 14 modules)
+### Rust tests (354 tests across 16 modules)
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
@@ -261,7 +263,8 @@ node --test test/scanner.test.js test/update-worker.test.js test/ui.test.js
 | **audio_scanner** | 28 | Audio file discovery, metadata extraction (WAV/FLAC/AIFF), format size formatting, symlink deduplication, directory walking, stop signal, skip directories, batching, scan completeness, deep nesting, simulated SMB/NFS, concurrent scan isolation |
 | **daw_scanner** | 19 | DAW project discovery, extension-to-DAW mapping (14 DAW types), file size formatting, directory walking, stop signal, skip directories |
 | **xref** | 52 | Ableton .als gzip XML (VST2/VST3/AU), REAPER .rpp plaintext (VST/VST3/AU/CLAP), Bitwig binary scan, FL Studio ASCII+UTF-16LE, Cubase Plugin Name markers, Logic AU name matching, Studio One ZIP+XML, DAWproject ZIP+XML, Pro Tools AAX paths+markers, Reason binary scan, all 5 plugin types (VST2/VST3/AU/CLAP/AAX), cross-format dedup, trailing junk handling, name normalization, 3 real-file tests (FLP=7, CPR=2, LOGICX=13 plugins verified) |
-| **db** | 9 | SQLite insert/query roundtrip, fzf subsequence search, format filter, pagination (offset/limit), sort ascending/descending, BPM/key/LUFS update+retrieval, unanalyzed path query, aggregate stats, scan delete cascade |
+| **db** | 23 | SQLite insert/query roundtrip, fzf subsequence search, format filter, pagination (offset/limit), sort ascending/descending, BPM/key/LUFS update+retrieval, unanalyzed path query, aggregate stats, scan delete cascade, plugin/DAW/preset scan roundtrips, KVR cache roundtrip, clear_all_caches, per-table clear (bpm/key/waveform/xref/unknown), read/write cache waveform+xref, table_counts verification |
+| **file_watcher** | 10 | classify audio/daw/preset/plugin extensions, case-insensitive matching, unknown returns None, state lifecycle (new/watching/stop), noop stop on fresh state |
 | **bpm** | 23 | WAV/AIFF PCM reading, onset-strength autocorrelation, click track detection (90/120/140/174 BPM), silence rejection, short file handling, 8/16/24-bit decode, stereo mixdown (chunks_exact), symphonia decoder (invalid data, WAV fallback), BPM rounding (integer snap within 0.15), zero-length WAV, AIFF error handling |
 | **key_detect** | 17 | Goertzel algorithm (440Hz detection, near-zero for absent frequencies), chromagram (pure A, pure C, C major chord, multi-octave A, bins bounded [0,1]), key profile matching (C major triad, A minor triad, perfect correlation, shifted profile), detect_key (WAV, silence, 96kHz, 8kHz, nonexistent, unsupported) |
 | **lufs** | 8 | Silence floor (-70 LUFS), sine wave levels, full-scale loudness, 6dB amplitude relationship, short file handling, louder-is-higher ordering, nonexistent/unsupported file handling |
@@ -398,7 +401,10 @@ src-tauri/
     similarity.rs      -- Audio similarity search via spectral fingerprinting
     xref.rs            -- Plugin ↔ DAW cross-reference engine (11 DAW formats)
     db.rs              -- SQLite database layer (paginated queries, 6M+ sample scale)
+    file_watcher.rs    -- Filesystem watcher for auto-scan (FSEvents/inotify/ReadDirectoryChangesW)
     history.rs         -- Scan history persistence + diff engine
+    key_detect.rs      -- Musical key detection via Goertzel chromagram
+    lufs.rs            -- LUFS loudness measurement
     kvr.rs             -- KVR Audio scraper + version checker
   Cargo.toml           -- Rust dependencies
   tauri.conf.json      -- Tauri app configuration + CSP + bundling
@@ -437,6 +443,8 @@ frontend/
     walker-status.js   -- 4-tile live scanner thread status view
     heatmap-dashboard.js -- 8-card analytics dashboard
     smart-playlists.js -- Rule-based auto-playlists (10 rule types)
+    drag-reorder.js    -- Unified Trello-style drag/drop + table column reorder
+    modal-drag.js      -- Modal drag/resize with geometry persistence
     drag-reorder.js    -- Unified Trello-style drag and drop system
     modal-drag.js      -- Modal drag/resize with geometry persistence
 
