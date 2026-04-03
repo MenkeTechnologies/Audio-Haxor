@@ -1866,8 +1866,8 @@
       box-shadow: -4px 0 12px var(--cyan-glow);
     }
 
-    .tab-content { display: none; flex: 1 1 0; overflow-y: auto; overflow-x: hidden; flex-direction: column; min-height: 200px; }
-    .tab-content.active { animation: tabSlideIn 0.25s ease-out; }
+    .tab-content { display: none; flex: 1 1 0; overflow-y: auto; overflow-x: hidden; flex-direction: column; min-height: 200px; contain: layout style; }
+    .tab-content.active { /* no animation — prevents reflow lag on heavy tabs */ }
     @keyframes tabSlideIn {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
