@@ -4090,26 +4090,52 @@ pub fn run() {
     // Initialize app start time for uptime tracking
     APP_START.get_or_init(Instant::now);
 
-    // Log startup
-    append_log(format!(
-        "APP START — v{} | {} | {} cores | pid {}",
-        env!("CARGO_PKG_VERSION"),
-        std::env::consts::OS,
-        num_cpus::get(),
-        std::process::id(),
-    ));
-
     // Load preferences once for all startup config
     let prefs = history::load_preferences();
 
+    // Log startup with system info
+    let rss = get_rss_bytes();
+    let db_path = history::ensure_data_dir().join("audio_haxor.db");
+    let db_size = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
+    let rayon_threads = rayon::current_num_threads();
+    let hostname = sysinfo::System::host_name().unwrap_or_default();
     // Raise file descriptor limit for intensive directory walking
     #[cfg(unix)]
+    let fd_target: u64 = prefs
+        .get("fdLimit")
+        .and_then(|v| v.as_str().and_then(|s| s.parse().ok()).or(v.as_u64()))
+        .unwrap_or(10240)
+        .clamp(256, 65536);
+    #[cfg(not(unix))]
+    let fd_target: u64 = 0;
+
+    let batch_size = prefs.get("batchSize").and_then(|v| v.as_str()).unwrap_or("100");
+    let channel_buffer = prefs.get("channelBuffer").and_then(|v| v.as_str()).unwrap_or("512");
+    let flush_interval = prefs.get("flushInterval").and_then(|v| v.as_str()).unwrap_or("100");
+    let analysis_pause = prefs.get("analysisPause").and_then(|v| v.as_str()).unwrap_or("100");
+    let page_size = prefs.get("pageSize").and_then(|v| v.as_str()).unwrap_or("500");
+    let auto_scan = prefs.get("autoScan").and_then(|v| v.as_str()).unwrap_or("off");
+    let folder_watch = prefs.get("folderWatch").and_then(|v| v.as_str()).unwrap_or("off");
+
+    append_log(format!(
+        "APP START — v{} | {} {} | {} | {} cores | {} rayon threads | pid {} | RSS {} | DB {}",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        hostname,
+        num_cpus::get(),
+        rayon_threads,
+        std::process::id(),
+        format_size(rss),
+        format_size(db_size),
+    ));
+    append_log(format!(
+        "CONFIG — fd_limit: {} | batch_size: {} | channel_buffer: {} | flush_interval: {}ms | analysis_pause: {}ms | page_size: {} | auto_scan: {} | folder_watch: {}",
+        fd_target, batch_size, channel_buffer, flush_interval, analysis_pause, page_size, auto_scan, folder_watch,
+    ));
+
+    #[cfg(unix)]
     {
-        let fd_target: u64 = prefs
-            .get("fdLimit")
-            .and_then(|v| v.as_str().and_then(|s| s.parse().ok()).or(v.as_u64()))
-            .unwrap_or(10240)
-            .clamp(256, 65536);
         let mut rlim = libc::rlimit {
             rlim_cur: 0,
             rlim_max: 0,
@@ -4144,6 +4170,10 @@ pub fn run() {
         .unwrap_or(8)
         .clamp(1, 16);
     let pool_size = num_cpus::get() * multiplier;
+    append_log(format!(
+        "THREAD POOL — {}x multiplier | {} threads | 8MB stack",
+        multiplier, pool_size,
+    ));
     rayon::ThreadPoolBuilder::new()
         .num_threads(pool_size)
         .stack_size(8 * 1024 * 1024)
