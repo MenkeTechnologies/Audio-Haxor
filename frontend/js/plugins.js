@@ -1,6 +1,11 @@
 let scanProgressCleanup = null;
 let _pluginsLoaded = false;
 
+function _ui(k, vars) {
+  if (typeof appFmt !== 'function') return k;
+  return vars ? appFmt(k, vars) : appFmt(k);
+}
+
 let _pluginOffset = 0;
 let _pluginTotalCount = 0;
 let _pluginSortKey = 'name';
@@ -10,7 +15,7 @@ async function loadPluginsFromDb() {
   if (_pluginsLoaded) return;
   const list = document.getElementById('pluginList');
   if (list && list.querySelector('#emptyState')) {
-    list.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Loading plugins...</h2></div>';
+    list.innerHTML = `<div class="state-message"><div class="spinner"></div><h2>${_ui('ui.js.loading_plugins')}</h2></div>`;
   }
   try {
     _pluginOffset = 0;
@@ -90,13 +95,13 @@ async function scanPlugins(resume = false) {
   btn.disabled = true;
   resumeBtn.style.display = 'none';
   stopBtn.style.display = '';
-  btn.innerHTML = resume ? '&#8635; Resuming...' : '&#8635; Scanning...';
+  btn.innerHTML = resume ? `&#8635; ${_ui('ui.js.resuming_btn')}` : `&#8635; ${_ui('ui.js.scanning_btn')}`;
   progress.classList.add('active');
   progressFill.style.animation = 'none';
   progressFill.style.width = '0%';
 
   if (!resume) {
-    list.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for plugins...</h2><p>Discovering plugin files across system directories...</p></div>';
+    list.innerHTML = `<div class="state-message"><div class="spinner"></div><h2>${_ui('ui.js.scanning_for_plugins')}</h2><p>${_ui('ui.js.discovering_plugin_files')}</p></div>`;
     allPlugins = [];
   }
 
@@ -145,7 +150,7 @@ async function scanPlugins(resume = false) {
     document.getElementById('dirsList').innerHTML = buildDirsTable(result.directories, allPlugins);
 
     if (allPlugins.length === 0) {
-      list.innerHTML = '<div class="state-message"><div class="state-icon">&#128270;</div><h2>No Plugins Found</h2><p>No VST2, VST3, or Audio Unit plugins were found in the standard system directories.</p></div>';
+      list.innerHTML = `<div class="state-message"><div class="state-icon">&#128270;</div><h2>${_ui('ui.js.no_plugins_found')}</h2><p>${_ui('ui.js.no_plugins_found_body')}</p></div>`;
     } else {
       renderPlugins(allPlugins);
       resolveKvrDownloads();
@@ -155,7 +160,7 @@ async function scanPlugins(resume = false) {
     }
   } catch (err) {
     const errMsg = err.message || err || 'Unknown error';
-    list.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
+    list.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>${_ui('ui.js.scan_error')}</h2><p>${errMsg}</p></div>`;
     showToast(toastFmt('toast.plugin_scan_failed', { errMsg }), 4000, 'error');
   }
 
@@ -163,7 +168,7 @@ async function scanPlugins(resume = false) {
   hideGlobalProgress();
   stopBtn.style.display = 'none';
   btn.disabled = false;
-  btn.innerHTML = '&#8635; Scan Plugins';
+  btn.innerHTML = `&#8635; ${_ui('ui.js.scan_plugins_btn')}`;
   progressFill.style.width = '100%';
   setTimeout(() => {
     progress.classList.remove('active');
@@ -179,13 +184,13 @@ function buildPluginCardHtml(p) {
   const mfgUrl = p.manufacturerUrl || null;
   const mfgBtn = mfgUrl
     ? `<button class="btn-small btn-mfg" data-action="openUpdate" data-url="${mfgUrl}" title="${mfgUrl}">&#127760;</button>`
-    : `<button class="btn-small btn-no-web" disabled title="No manufacturer website">&#128683;</button>`;
+    : `<button class="btn-small btn-no-web" disabled title="${_ui('ui.js.no_mfg_website')}">&#128683;</button>`;
   const kvrUrl = p.kvrUrl || buildKvrUrl(p.name, p.manufacturer);
   const kvrBtn = `<button class="btn-small btn-kvr" data-action="openKvr" data-url="${kvrUrl.replace(/'/g, '&apos;')}" data-name="${escapeHtml(p.name)}" title="${escapeHtml(kvrUrl)}">KVR</button>`;
   // Show download button only if plugin has an update available
   const dlUrl = (p.hasUpdate && p.updateUrl) ? p.updateUrl : null;
   const dlBtn = dlUrl
-    ? `<button class="btn-small btn-download btn-dl-kvr" data-action="openUpdate" data-url="${dlUrl.replace(/'/g, '&apos;')}" title="${escapeHtml(dlUrl)}">&#11015; Download</button>`
+    ? `<button class="btn-small btn-download btn-dl-kvr" data-action="openUpdate" data-url="${dlUrl.replace(/'/g, '&apos;')}" title="${escapeHtml(dlUrl)}">&#11015; ${_ui('ui.js.download')}</button>`
     : '';
   let actionsHtml = dlBtn + kvrBtn + mfgBtn + `<button class="btn-small btn-folder" data-action="openFolder" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}">&#128193;</button>`;
 
@@ -194,11 +199,11 @@ function buildPluginCardHtml(p) {
       versionHtml = `<span class="version-current">v${p.currentVersion}</span>
         <span class="version-arrow">&#8594;</span>
         <span class="version-latest">v${p.latestVersion}</span>`;
-      badgeHtml = '<span class="badge badge-update">Update Available</span>';
+      badgeHtml = `<span class="badge badge-update">${_ui('ui.js.badge_update_available')}</span>`;
     } else if (p.source === 'not-found') {
-      badgeHtml = '<span class="badge badge-unknown">Unknown Latest</span>';
+      badgeHtml = `<span class="badge badge-unknown">${_ui('ui.js.badge_unknown_latest')}</span>`;
     } else {
-      badgeHtml = '<span class="badge badge-current">Up to Date</span>';
+      badgeHtml = `<span class="badge badge-current">${_ui('ui.js.badge_up_to_date')}</span>`;
     }
   }
 
@@ -235,12 +240,12 @@ async function checkUpdates() {
   currentOperation = 'updates';
   showStopButton();
   btn.disabled = true;
-  btn.innerHTML = '&#9889; Checking...';
+  btn.innerHTML = `&#9889; ${_ui('ui.js.checking_updates_btn')}`;
   progress.classList.add('active');
   progressFill.style.animation = 'none';
   progressFill.style.width = '0%';
   statusBar.classList.add('active');
-  statusText.textContent = 'Initializing update check...';
+  statusText.textContent = _ui('ui.js.init_update_check');
   statusStats.innerHTML = '';
 
   // Track which plugins have been updated (by path)
@@ -251,7 +256,7 @@ async function checkUpdates() {
   updateProgressCleanup = window.vstUpdater.onUpdateProgress((data) => {
     if (data.phase === 'start') {
       btn.innerHTML = `&#9889; 0 / ${data.total}`;
-      statusText.textContent = `Searching for updates across ${data.total} plugins...`;
+      statusText.textContent = _ui('ui.js.searching_updates', { n: data.total });
       updateEta.start();
     } else if (data.phase === 'checking') {
       const pct = Math.round((data.processed / data.total) * 100);
@@ -264,7 +269,13 @@ async function checkUpdates() {
       if (lastPlugin) {
         const mfg = lastPlugin.manufacturer !== 'Unknown' ? lastPlugin.manufacturer + ' ' : '';
         const updateRemaining = updateEta.estimate(data.processed, data.total);
-        statusText.textContent = `Checking ${mfg}${lastPlugin.name} (${data.processed}/${data.total})${updateRemaining ? ' — ' + updateRemaining + ' remaining' : ''}`;
+        statusText.textContent = _ui('ui.js.status_checking_plugin', {
+          mfg,
+          name: lastPlugin.name,
+          processed: data.processed,
+          total: data.total,
+          remaining: updateRemaining ? _ui('ui.js.remaining', { eta: updateRemaining }) : '',
+        });
       }
 
       // Update individual plugin cards in-place and save to KVR cache
@@ -313,11 +324,11 @@ async function checkUpdates() {
       document.getElementById('unknownCount').textContent = unknown;
 
       statusStats.innerHTML =
-        `<span class="stat-avail">${withUpdates} updates</span>` +
-        `<span class="stat-up">${upToDate} current</span>` +
-        `<span style="color: var(--text-muted);">${unknown} unknown</span>` +
-        `<span style="color: var(--yellow);">${kvrFound} KVR</span>` +
-        `<span class="stat-pending">${pending} pending</span>`;
+        `<span class="stat-avail">${withUpdates} ${_ui('ui.js.stat_updates')}</span>` +
+        `<span class="stat-up">${upToDate} ${_ui('ui.js.stat_current')}</span>` +
+        `<span style="color: var(--text-muted);">${unknown} ${_ui('ui.js.stat_unknown')}</span>` +
+        `<span style="color: var(--yellow);">${kvrFound} ${_ui('ui.js.stat_kvr_label')}</span>` +
+        `<span class="stat-pending">${pending} ${_ui('ui.js.stat_pending')}</span>`;
     }
   });
 
@@ -334,8 +345,18 @@ async function checkUpdates() {
     if (pluginsWithUpdates.length > 0) {
       const batchBar = document.getElementById('batchBar');
       batchBar.classList.add('visible');
-      document.getElementById('batchCount').textContent =
-        `${pluginsWithUpdates.length} plugin${pluginsWithUpdates.length > 1 ? 's' : ''} with updates`;
+      const bc = document.getElementById('pluginBatchUpdateCount');
+      if (bc) {
+        const n = pluginsWithUpdates.length;
+        if (typeof appFmt === 'function') {
+          bc.textContent =
+            n === 1
+              ? appFmt('menu.plugins_with_updates_one')
+              : appFmt('menu.plugins_with_updates', { n });
+        } else {
+          bc.textContent = `${n} plugin${n > 1 ? 's' : ''} with updates`;
+        }
+      }
       batchIndex = 0;
       updateBatchUI();
     }
@@ -353,7 +374,7 @@ async function checkUpdates() {
   hideStopButton();
   statusBar.classList.remove('active');
   btn.disabled = false;
-  btn.innerHTML = '&#9889; Check Updates';
+  btn.innerHTML = `&#9889; ${_ui('ui.js.check_updates_btn')}`;
   progressFill.style.width = '100%';
   setTimeout(() => {
     progress.classList.remove('active');
@@ -373,7 +394,7 @@ function renderPlugins(plugins) {
   const list = document.getElementById('pluginList');
 
   if (plugins.length === 0) {
-    list.innerHTML = '<div class="state-message"><div class="state-icon">&#128269;</div><h2>No matching plugins</h2></div>';
+    list.innerHTML = `<div class="state-message"><div class="state-icon">&#128269;</div><h2>${_ui('ui.js.no_matching_plugins')}</h2></div>`;
     return;
   }
 
@@ -386,7 +407,7 @@ function renderPlugins(plugins) {
   if (plugins.length > INITIAL) {
     list.insertAdjacentHTML('beforeend',
       `<div class="plugin-load-more" id="pluginLoadMore" data-action="loadMorePlugins" style="text-align:center;padding:16px;color:var(--text-muted);cursor:pointer;font-size:12px;">
-        Showing ${_pluginRenderCount} of ${_pluginTotalCount} — click to load more
+        ${_ui('ui.js.load_more_hint', { shown: _pluginRenderCount, total: _pluginTotalCount })}
       </div>`);
   }
 
@@ -417,7 +438,7 @@ function loadMorePlugins() {
   if (_pluginRenderCount < _renderedPlugins.length || allPlugins.length < _pluginTotalCount) {
     list.insertAdjacentHTML('beforeend',
       `<div class="plugin-load-more" id="pluginLoadMore" data-action="loadMorePlugins" style="text-align:center;padding:16px;color:var(--text-muted);cursor:pointer;font-size:12px;">
-        Showing ${_pluginRenderCount} of ${_pluginTotalCount} — click to load more
+        ${_ui('ui.js.load_more_hint', { shown: _pluginRenderCount, total: _pluginTotalCount })}
       </div>`);
   }
 }
@@ -462,7 +483,7 @@ async function openKvr(btn, directUrl, pluginName) {
         const dlBtn = document.createElement('button');
         dlBtn.className = 'btn-small btn-download btn-dl-kvr';
         dlBtn.title = result.downloadUrl;
-        dlBtn.innerHTML = '&#11015; Download';
+        dlBtn.innerHTML = `&#11015; ${_ui('ui.js.download')}`;
         dlBtn.onclick = () => openUpdate(result.downloadUrl);
         btn.parentNode.insertBefore(dlBtn, btn);
       }
@@ -487,19 +508,19 @@ function updateBatchUI() {
   const btnSkip = document.getElementById('btnSkip');
 
   if (batchIndex >= pluginsWithUpdates.length) {
-    progress.textContent = 'All done!';
+    progress.textContent = _ui('ui.js.batch_all_done');
     nameEl.textContent = '';
     btnNext.disabled = true;
-    btnNext.textContent = 'All Done';
+    btnNext.textContent = _ui('ui.js.batch_all_done_btn');
     btnSkip.style.display = 'none';
     return;
   }
 
   const current = pluginsWithUpdates[batchIndex];
-  progress.textContent = `${batchIndex + 1} of ${pluginsWithUpdates.length}`;
-  nameEl.textContent = `Next: ${current.name}`;
+  progress.textContent = _ui('ui.js.batch_progress', { n: batchIndex + 1, total: pluginsWithUpdates.length });
+  nameEl.textContent = _ui('ui.js.batch_next', { name: current.name });
   btnNext.disabled = false;
-  btnNext.textContent = 'Open Next Update';
+  btnNext.textContent = _ui('ui.js.batch_open_next');
   btnSkip.style.display = '';
 }
 

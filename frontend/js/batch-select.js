@@ -44,7 +44,13 @@ function updateBatchBar() {
     return;
   }
   bar.style.display = 'flex';
-  document.getElementById('batchCount').textContent = `${batchSelected.size} selected`;
+  const bc = document.getElementById('batchSelectionCount');
+  if (bc) {
+    bc.textContent =
+      typeof appFmt === 'function'
+        ? appFmt('menu.batch_selected', { n: batchSelected.size })
+        : `${batchSelected.size} selected`;
+  }
 
   // Update header checkbox state (checked if all visible are selected)
   const tbody = document.querySelector('.tab-content.active tbody');

@@ -37,6 +37,7 @@ async function reloadAppStrings(locale) {
     window.__appStr = m || {};
     window.__toastStr = window.__appStr;
     if (typeof applyUiI18n === 'function') applyUiI18n();
+    if (typeof refreshSettingsUI === 'function') refreshSettingsUI();
   } catch (_) {}
 }
 window.reloadAppStrings = reloadAppStrings;

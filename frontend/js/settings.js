@@ -1,5 +1,14 @@
 // ── Settings ──
 
+function _uiTheme(isLight) {
+  if (typeof appFmt !== 'function') return isLight ? 'Light' : 'Dark';
+  return isLight ? appFmt('ui.js.theme_light') : appFmt('ui.js.theme_dark');
+}
+function _uiToggle(on) {
+  if (typeof appFmt !== 'function') return on ? 'On' : 'Off';
+  return on ? appFmt('ui.js.toggle_on') : appFmt('ui.js.toggle_off');
+}
+
 // All CSS variable keys that color schemes control
 const SCHEME_VAR_KEYS = [
   '--accent', '--accent-light', '--accent-glow',
@@ -979,28 +988,28 @@ function refreshSettingsUI() {
   const themeBtn = document.getElementById('settingTheme');
   const themeLabel = document.getElementById('settingThemeLabel');
   themeBtn.classList.toggle('active', theme === 'light');
-  themeLabel.textContent = theme === 'light' ? 'Light' : 'Dark';
+  themeLabel.textContent = _uiTheme(theme === 'light');
 
   // CRT
   const crtOn = prefs.getItem('crtEffects') !== 'off';
   const crtBtn = document.getElementById('settingCrt');
   const crtLabel = document.getElementById('settingCrtLabel');
   crtBtn.classList.toggle('active', crtOn);
-  crtLabel.textContent = crtOn ? 'On' : 'Off';
+  crtLabel.textContent = _uiToggle(crtOn);
 
   // Neon glow
   const neonOn = prefs.getItem('neonGlow') !== 'off';
   const neonBtn = document.getElementById('settingNeonGlow');
   const neonLabel = document.getElementById('settingNeonGlowLabel');
   if (neonBtn) { neonBtn.classList.toggle('active', neonOn); }
-  if (neonLabel) { neonLabel.textContent = neonOn ? 'On' : 'Off'; }
+  if (neonLabel) { neonLabel.textContent = _uiToggle(neonOn); }
 
   // Tag bar
   const tagBarOn = prefs.getItem('tagBarVisible') !== 'off';
   const tagBarBtn = document.getElementById('settingTagBar');
   const tagBarLabel = document.getElementById('settingTagBarLabel');
   if (tagBarBtn) { tagBarBtn.classList.toggle('active', tagBarOn); }
-  if (tagBarLabel) { tagBarLabel.textContent = tagBarOn ? 'On' : 'Off'; }
+  if (tagBarLabel) { tagBarLabel.textContent = _uiToggle(tagBarOn); }
   const tagPosEl = document.getElementById('settingTagBarPosition');
   if (tagPosEl) tagPosEl.value = prefs.getItem('tagBarPosition') || 'top';
 
@@ -1016,7 +1025,7 @@ function refreshSettingsUI() {
   const autoScanLabel = document.getElementById('settingAutoScanLabel');
   if (autoScanBtn) {
     autoScanBtn.classList.toggle('active', autoScan);
-    autoScanLabel.textContent = autoScan ? 'On' : 'Off';
+    autoScanLabel.textContent = _uiToggle(autoScan);
   }
 
   // Folder watch
@@ -1024,7 +1033,7 @@ function refreshSettingsUI() {
   const fwBtn = document.getElementById('settingFolderWatch');
   const fwLabel = document.getElementById('settingFolderWatchLabel');
   if (fwBtn) { fwBtn.classList.toggle('active', folderWatch); }
-  if (fwLabel) { fwLabel.textContent = folderWatch ? 'On' : 'Off'; }
+  if (fwLabel) { fwLabel.textContent = _uiToggle(folderWatch); }
 
   // Auto-update
   const autoUpdate = prefs.getItem('autoUpdate') === 'on';
@@ -1032,7 +1041,7 @@ function refreshSettingsUI() {
   const autoUpdateLabel = document.getElementById('settingAutoUpdateLabel');
   if (autoUpdateBtn) {
     autoUpdateBtn.classList.toggle('active', autoUpdate);
-    autoUpdateLabel.textContent = autoUpdate ? 'On' : 'Off';
+    autoUpdateLabel.textContent = _uiToggle(autoUpdate);
   }
 
   // Single-click play
@@ -1041,7 +1050,7 @@ function refreshSettingsUI() {
   const singleClickLabel = document.getElementById('settingSingleClickPlayLabel');
   if (singleClickBtn) {
     singleClickBtn.classList.toggle('active', singleClick);
-    singleClickLabel.textContent = singleClick ? 'On' : 'Off';
+    singleClickLabel.textContent = _uiToggle(singleClick);
   }
 
   // Expand on click
@@ -1050,7 +1059,7 @@ function refreshSettingsUI() {
   const expandLabel = document.getElementById('settingExpandOnClickLabel');
   if (expandBtn) {
     expandBtn.classList.toggle('active', expandOnClick);
-    expandLabel.textContent = expandOnClick ? 'On' : 'Off';
+    expandLabel.textContent = _uiToggle(expandOnClick);
   }
 
   // Show player on startup
@@ -1059,7 +1068,7 @@ function refreshSettingsUI() {
   const showPlayerLabel = document.getElementById('settingShowPlayerOnStartupLabel');
   if (showPlayerBtn) {
     showPlayerBtn.classList.toggle('active', showPlayer);
-    showPlayerLabel.textContent = showPlayer ? 'On' : 'Off';
+    showPlayerLabel.textContent = _uiToggle(showPlayer);
   }
 
   // Autoplay next
@@ -1068,7 +1077,7 @@ function refreshSettingsUI() {
   const autoplayLabel = document.getElementById('settingAutoplayNextLabel');
   if (autoplayBtn) {
     autoplayBtn.classList.toggle('active', autoplay);
-    autoplayLabel.textContent = autoplay ? 'On' : 'Off';
+    autoplayLabel.textContent = _uiToggle(autoplay);
   }
 
   // Include Ableton backups
@@ -1077,7 +1086,7 @@ function refreshSettingsUI() {
   const backupsLabel = document.getElementById('settingIncludeBackupsLabel');
   if (backupsBtn) {
     backupsBtn.classList.toggle('active', includeBackups);
-    backupsLabel.textContent = includeBackups ? 'On' : 'Off';
+    backupsLabel.textContent = _uiToggle(includeBackups);
   }
 
   // Blacklist — prepopulate with defaults if empty
@@ -1173,7 +1182,7 @@ function refreshSettingsUI() {
   const fwOn2 = prefs.getItem('fileWatcher') === 'on';
   const fwBtn2 = document.getElementById('settingFileWatcher');
   const fwLabel2 = document.getElementById('settingFileWatcherLabel');
-  if (fwBtn2) { fwBtn2.classList.toggle('active', fwOn2); if (fwLabel2) fwLabel2.textContent = fwOn2 ? 'On' : 'Off'; }
+  if (fwBtn2) { fwBtn2.classList.toggle('active', fwOn2); if (fwLabel2) fwLabel2.textContent = _uiToggle(fwOn2); }
 
   // System perf info — get real stats from Rust backend
   const perfInfo = document.getElementById('settingPerfInfo');

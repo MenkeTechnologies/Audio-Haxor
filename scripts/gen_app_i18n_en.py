@@ -6,6 +6,7 @@ Optionally inject data-i18n* attributes into frontend/index.html (idempotent).
 """
 from __future__ import annotations
 
+import html as html_module
 import importlib.util
 import json
 import pathlib
@@ -44,12 +45,27 @@ def alloc_key(prefix: str, text: str, seen: dict[str, int]) -> str:
     return f"{prefix}.{base}_{n}"
 
 
+def is_translatable_visible_text(s: str) -> bool:
+    """True if inner HTML fragment has at least one letter (after entity decode)."""
+    t = html_module.unescape(s).strip()
+    if not t:
+        return False
+    return any(c.isalpha() for c in t)
+
+
 def extract_ui_from_html(html: str) -> dict[str, str]:
-    """Map i18n key -> English text for placeholders, titles, and <option> labels."""
+    """Map i18n key -> English text for placeholders, titles, options, settings rows, buttons, etc."""
     out: dict[str, str] = {}
     seen_ph: dict[str, int] = {}
     seen_tt: dict[str, int] = {}
     seen_opt: dict[str, int] = {}
+    seen_st: dict[str, int] = {}
+    seen_sd: dict[str, int] = {}
+    seen_sh: dict[str, int] = {}
+    seen_btn: dict[str, int] = {}
+    seen_h2: dict[str, int] = {}
+    seen_p: dict[str, int] = {}
+    seen_lbl: dict[str, int] = {}
 
     for m in re.finditer(r'placeholder="([^"]*)"', html):
         val = m.group(1)
@@ -72,6 +88,98 @@ def extract_ui_from_html(html: str) -> dict[str, str]:
         k = alloc_key("ui.opt", val, seen_opt)
         out[k] = val
 
+    for m in re.finditer(r'<span\s+class="settings-title"([^>]*)>([^<]+)</span>', html, re.IGNORECASE):
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            continue
+        if not text:
+            continue
+        k = alloc_key("ui.st", text, seen_st)
+        out[k] = text
+
+    for m in re.finditer(r'<span\s+class="settings-desc"([^>]*)>([^<]+)</span>', html, re.IGNORECASE):
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            continue
+        if not text:
+            continue
+        k = alloc_key("ui.sd", text, seen_sd)
+        out[k] = text
+
+    for m in re.finditer(r'<h2\s+class="settings-heading"([^>]*)>([^<]+)</h2>', html, re.IGNORECASE):
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            continue
+        if not text:
+            continue
+        k = alloc_key("ui.sh", text, seen_sh)
+        out[k] = text
+
+    for m in re.finditer(r"<button([^>]*)>([^<]+)</button>", html, re.IGNORECASE):
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            continue
+        if not is_translatable_visible_text(text):
+            continue
+        k = alloc_key("ui.btn", text, seen_btn)
+        out[k] = text
+
+    for m in re.finditer(r"<h2([^>]*)>([^<]+)</h2>", html, re.IGNORECASE):
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs or "settings-heading" in attrs:
+            continue
+        if not text:
+            continue
+        k = alloc_key("ui.h2", text, seen_h2)
+        out[k] = text
+
+    for m in re.finditer(r"<p([^>]*)>([^<]+)</p>", html, re.IGNORECASE):
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            continue
+        if not text:
+            continue
+        k = alloc_key("ui.p", text, seen_p)
+        out[k] = text
+
+    for m in re.finditer(
+        r'<div class="dirs-toggle"[^>]*>\s*<span[^>]*>[^<]*</span>\s*<span>([^<]+)</span>',
+        html,
+        re.IGNORECASE,
+    ):
+        text = m.group(1).strip()
+        if not text:
+            continue
+        k = alloc_key("ui.lbl", text, seen_lbl)
+        out[k] = text
+
+    for m in re.finditer(
+        r'<div class="history-sidebar-header"[^>]*>\s*<span>([^<]+)</span>',
+        html,
+        re.IGNORECASE,
+    ):
+        text = m.group(1).strip()
+        if not text:
+            continue
+        k = alloc_key("ui.lbl", text, seen_lbl)
+        out[k] = text
+
+    return out
+
+
+def extract_existing_data_i18n(html: str) -> dict[str, str]:
+    """Read ui.* keys already present in HTML (survives re-run after inject)."""
+    out: dict[str, str] = {}
+    patterns = [
+        r'<span\b[^>]*\sdata-i18n="(ui\.[^"]+)"[^>]*>([^<]+)</span>',
+        r'<button\b[^>]*\sdata-i18n="(ui\.[^"]+)"[^>]*>([^<]+)</button>',
+        r'<h2\b[^>]*\sdata-i18n="(ui\.[^"]+)"[^>]*>([^<]+)</h2>',
+        r'<p\b[^>]*\sdata-i18n="(ui\.[^"]+)"[^>]*>([^<]+)</p>',
+        r'<option\b[^>]*\sdata-i18n="(ui\.[^"]+)"[^>]*>([^<]+)</option>',
+    ]
+    for pat in patterns:
+        for m in re.finditer(pat, html, re.IGNORECASE):
+            out[m.group(1)] = m.group(2).strip()
     return out
 
 
@@ -89,6 +197,13 @@ def inject_open_tags(html: str, ui: dict[str, str]) -> str:
     ph_vk: dict[str, str] = {}
     tt_vk: dict[str, str] = {}
     opt_vk: dict[str, str] = {}
+    st_vk: dict[str, str] = {}
+    sd_vk: dict[str, str] = {}
+    sh_vk: dict[str, str] = {}
+    btn_vk: dict[str, str] = {}
+    h2_vk: dict[str, str] = {}
+    p_vk: dict[str, str] = {}
+    lbl_vk: dict[str, str] = {}
     for k, v in ui.items():
         if k.startswith("ui.ph."):
             ph_vk.setdefault(v, k)
@@ -96,6 +211,20 @@ def inject_open_tags(html: str, ui: dict[str, str]) -> str:
             tt_vk.setdefault(v, k)
         elif k.startswith("ui.opt."):
             opt_vk.setdefault(v, k)
+        elif k.startswith("ui.st."):
+            st_vk.setdefault(v, k)
+        elif k.startswith("ui.sd."):
+            sd_vk.setdefault(v, k)
+        elif k.startswith("ui.sh."):
+            sh_vk.setdefault(v, k)
+        elif k.startswith("ui.btn."):
+            btn_vk.setdefault(v, k)
+        elif k.startswith("ui.h2."):
+            h2_vk.setdefault(v, k)
+        elif k.startswith("ui.p."):
+            p_vk.setdefault(v, k)
+        elif k.startswith("ui.lbl."):
+            lbl_vk.setdefault(v, k)
 
     def patch_tag(m: re.Match[str]) -> str:
         tag = m.group(0)
@@ -131,6 +260,117 @@ def inject_open_tags(html: str, ui: dict[str, str]) -> str:
         return f"<option{attrs} data-i18n=\"{k}\">{text}</option>"
 
     html = re.sub(r"<option([^>]*)>([^<]+)</option>", inject_option, html, flags=re.IGNORECASE)
+
+    def inject_st(m: re.Match[str]) -> str:
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            return m.group(0)
+        k = st_vk.get(text)
+        if not k:
+            return m.group(0)
+        return f'<span class="settings-title"{attrs} data-i18n="{k}">{text}</span>'
+
+    html = re.sub(
+        r'<span\s+class="settings-title"([^>]*)>([^<]+)</span>',
+        inject_st,
+        html,
+        flags=re.IGNORECASE,
+    )
+
+    def inject_sd(m: re.Match[str]) -> str:
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            return m.group(0)
+        k = sd_vk.get(text)
+        if not k:
+            return m.group(0)
+        return f'<span class="settings-desc"{attrs} data-i18n="{k}">{text}</span>'
+
+    html = re.sub(
+        r'<span\s+class="settings-desc"([^>]*)>([^<]+)</span>',
+        inject_sd,
+        html,
+        flags=re.IGNORECASE,
+    )
+
+    def inject_sh(m: re.Match[str]) -> str:
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            return m.group(0)
+        k = sh_vk.get(text)
+        if not k:
+            return m.group(0)
+        return f'<h2 class="settings-heading"{attrs} data-i18n="{k}">{text}</h2>'
+
+    html = re.sub(
+        r'<h2\s+class="settings-heading"([^>]*)>([^<]+)</h2>',
+        inject_sh,
+        html,
+        flags=re.IGNORECASE,
+    )
+
+    def inject_p(m: re.Match[str]) -> str:
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            return m.group(0)
+        k = p_vk.get(text)
+        if not k:
+            return m.group(0)
+        return f"<p{attrs} data-i18n=\"{k}\">{text}</p>"
+
+    html = re.sub(r"<p([^>]*)>([^<]+)</p>", inject_p, html, flags=re.IGNORECASE)
+
+    def inject_dirs_lbl(m: re.Match[str]) -> str:
+        text = m.group(1).strip()
+        k = lbl_vk.get(text)
+        if not k:
+            return m.group(0)
+        return f'<span id="dirsArrow">&#9654;</span>\n        <span data-i18n="{k}">{text}</span>'
+
+    html = re.sub(
+        r"<span id=\"dirsArrow\">&#9654;</span>\s*<span>([^<]+)</span>",
+        inject_dirs_lbl,
+        html,
+        flags=re.IGNORECASE,
+    )
+
+    def inject_history_header(m: re.Match[str]) -> str:
+        prefix, text = m.group(1), m.group(2).strip()
+        k = lbl_vk.get(text)
+        if not k:
+            return m.group(0)
+        return f'{prefix}<span data-i18n="{k}">{text}</span>'
+
+    html = re.sub(
+        r'(<div class="history-sidebar-header"[^>]*>\s*)<span>([^<]+)</span>',
+        inject_history_header,
+        html,
+        flags=re.IGNORECASE,
+    )
+
+    def inject_h2_plain(m: re.Match[str]) -> str:
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs or "settings-heading" in attrs:
+            return m.group(0)
+        k = h2_vk.get(text)
+        if not k:
+            return m.group(0)
+        return f"<h2{attrs} data-i18n=\"{k}\">{text}</h2>"
+
+    html = re.sub(r"<h2([^>]*)>([^<]+)</h2>", inject_h2_plain, html, flags=re.IGNORECASE)
+
+    def inject_btn(m: re.Match[str]) -> str:
+        attrs, text = m.group(1), m.group(2).strip()
+        if "data-i18n=" in attrs:
+            return m.group(0)
+        if not is_translatable_visible_text(text):
+            return m.group(0)
+        k = btn_vk.get(text)
+        if not k:
+            return m.group(0)
+        return f"<button{attrs} data-i18n=\"{k}\">{text}</button>"
+
+    html = re.sub(r"<button([^>]*)>([^<]+)</button>", inject_btn, html, flags=re.IGNORECASE)
     return html
 
 
@@ -194,6 +434,9 @@ MENU_EN: dict[str, str] = {
     "menu.help": "Help",
     "menu.github": "GitHub Repository",
     "menu.docs": "Documentation",
+    "menu.plugins_with_updates": "{n} plugins with updates",
+    "menu.plugins_with_updates_one": "1 plugin with updates",
+    "menu.batch_selected": "{n} selected",
 }
 
 TRAY_EN: dict[str, str] = {
@@ -277,6 +520,46 @@ HELP_EN: dict[str, str] = {
     "help.mouse.drag_player_desc": "Dock to any corner",
 }
 
+# Dynamic / innerHTML strings (plugins.js, settings toggles, etc.)
+UI_JS_EN: dict[str, str] = {
+    "ui.js.loading_plugins": "Loading plugins...",
+    "ui.js.scanning_for_plugins": "Scanning for plugins...",
+    "ui.js.discovering_plugin_files": "Discovering plugin files across system directories...",
+    "ui.js.no_plugins_found": "No Plugins Found",
+    "ui.js.no_plugins_found_body": "No VST2, VST3, or Audio Unit plugins were found in the standard system directories.",
+    "ui.js.scan_error": "Scan Error",
+    "ui.js.scanning_btn": "Scanning...",
+    "ui.js.resuming_btn": "Resuming...",
+    "ui.js.scan_plugins_btn": "Scan Plugins",
+    "ui.js.no_matching_plugins": "No matching plugins",
+    "ui.js.load_more_hint": "Showing {shown} of {total} — click to load more",
+    "ui.js.no_mfg_website": "No manufacturer website",
+    "ui.js.badge_update_available": "Update Available",
+    "ui.js.badge_unknown_latest": "Unknown Latest",
+    "ui.js.badge_up_to_date": "Up to Date",
+    "ui.js.download": "Download",
+    "ui.js.checking_updates_btn": "Checking...",
+    "ui.js.check_updates_btn": "Check Updates",
+    "ui.js.init_update_check": "Initializing update check...",
+    "ui.js.searching_updates": "Searching for updates across {n} plugins...",
+    "ui.js.status_checking_plugin": "Checking {mfg}{name} ({processed}/{total}){remaining}",
+    "ui.js.remaining": " — {eta} remaining",
+    "ui.js.stat_updates": "updates",
+    "ui.js.stat_current": "current",
+    "ui.js.stat_unknown": "unknown",
+    "ui.js.stat_kvr_label": "KVR",
+    "ui.js.stat_pending": "pending",
+    "ui.js.batch_all_done": "All done!",
+    "ui.js.batch_open_next": "Open Next Update",
+    "ui.js.batch_all_done_btn": "All Done",
+    "ui.js.batch_next": "Next: {name}",
+    "ui.js.batch_progress": "{n} of {total}",
+    "ui.js.theme_light": "Light",
+    "ui.js.theme_dark": "Dark",
+    "ui.js.toggle_on": "On",
+    "ui.js.toggle_off": "Off",
+}
+
 SETTINGS_UI_EN: dict[str, str] = {
     "ui.settings.interface_language": "Interface language",
     "ui.settings.interface_language_desc": "UI text (restart the app to apply the native menu bar language)",
@@ -309,7 +592,17 @@ def main() -> None:
     toast_en = load_toast_en()
     html_path = ROOT / "frontend" / "index.html"
     html = html_path.read_text(encoding="utf-8")
-    ui_en = extract_ui_from_html(html)
+    out_path = I18N_DIR / "app_i18n_en.json"
+    prev_ui: dict[str, str] = {}
+    if out_path.exists():
+        try:
+            prev = json.loads(out_path.read_text(encoding="utf-8"))
+            prev_ui = {k: v for k, v in prev.items() if k.startswith("ui.")}
+        except (OSError, json.JSONDecodeError):
+            pass
+    ui_fresh = extract_ui_from_html(html)
+    ui_from_attrs = extract_existing_data_i18n(html)
+    ui_en = {**prev_ui, **ui_fresh, **ui_from_attrs}
 
     merged: dict[str, str] = {}
     merged.update(toast_en)
@@ -318,6 +611,7 @@ def main() -> None:
     merged.update(HELP_EN)
     merged.update(CONFIRM_EN)
     merged.update(ui_en)
+    merged.update(UI_JS_EN)
     merged.update(SETTINGS_UI_EN)
     # Locale <option> text also creates ui.opt.english etc.; canonical keys are ui.opt.lang_*.
     for dup in (
@@ -331,18 +625,23 @@ def main() -> None:
     merged.pop("ui.tt.interface_language", None)
 
     overlap = set(toast_en) & (
-        set(MENU_EN) | set(TRAY_EN) | set(HELP_EN) | set(CONFIRM_EN) | set(SETTINGS_UI_EN) | set(ui_en)
+        set(MENU_EN)
+        | set(TRAY_EN)
+        | set(HELP_EN)
+        | set(CONFIRM_EN)
+        | set(UI_JS_EN)
+        | set(SETTINGS_UI_EN)
+        | set(ui_en)
     )
     if overlap:
         raise SystemExit(f"duplicate keys across sections: {sorted(overlap)[:20]}")
 
     validate_keys(merged)
 
-    out = I18N_DIR / "app_i18n_en.json"
     text = json.dumps(merged, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    out.write_text(text, encoding="utf-8")
+    out_path.write_text(text, encoding="utf-8")
     print(
-        f"Wrote {len(merged)} entries ({len(toast_en)} toast + {len(ui_en)} ui html) to {out}",
+        f"Wrote {len(merged)} entries ({len(toast_en)} toast + {len(ui_en)} ui) to {out_path}",
         file=sys.stderr,
     )
 
