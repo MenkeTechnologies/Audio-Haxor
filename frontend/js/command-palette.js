@@ -87,6 +87,23 @@ function collectPaletteItems() {
   items.push({ type: 'action', name: 'Import to Current Tab', icon: '&#8613;', action: () => typeof _importCurrentTab === 'function' && _importCurrentTab() });
   items.push({ type: 'action', name: 'Help / Keyboard Shortcuts', icon: '&#10068;', action: () => typeof toggleHelpOverlay === 'function' && toggleHelpOverlay() });
   items.push({ type: 'action', name: 'Open Log File', icon: '&#128196;', action: () => window.vstUpdater.getPrefsPath().then(p => { const lp = p.replace(/preferences\.toml$/, 'app.log'); window.vstUpdater.openWithApp(lp, 'TextEdit').catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }); }) });
+
+  // Toggles
+  if (typeof settingToggleCrt === 'function') items.push({ type: 'action', name: 'Toggle CRT Effects', icon: '&#128187;', action: () => settingToggleCrt() });
+  if (typeof settingToggleNeonGlow === 'function') items.push({ type: 'action', name: 'Toggle Neon Glow', icon: '&#10024;', action: () => settingToggleNeonGlow() });
+  if (typeof settingToggleAutoScan === 'function') items.push({ type: 'action', name: 'Toggle Auto-Scan on Launch', icon: '&#8635;', action: () => settingToggleAutoScan() });
+  if (typeof settingToggleAutoUpdate === 'function') items.push({ type: 'action', name: 'Toggle Auto-Check Updates', icon: '&#9889;', action: () => settingToggleAutoUpdate() });
+  if (typeof settingToggleFolderWatch === 'function') items.push({ type: 'action', name: 'Toggle Folder Watch', icon: '&#128065;', action: () => settingToggleFolderWatch() });
+  if (typeof settingToggleSingleClickPlay === 'function') items.push({ type: 'action', name: 'Toggle Single-Click Play', icon: '&#9654;', action: () => settingToggleSingleClickPlay() });
+  if (typeof settingToggleAutoplayNext === 'function') items.push({ type: 'action', name: 'Toggle Autoplay Next', icon: '&#9197;', action: () => settingToggleAutoplayNext() });
+  if (typeof settingToggleShowPlayerOnStartup === 'function') items.push({ type: 'action', name: 'Toggle Show Player on Startup', icon: '&#9835;', action: () => settingToggleShowPlayerOnStartup() });
+  if (typeof settingToggleExpandOnClick === 'function') items.push({ type: 'action', name: 'Toggle Expand on Click', icon: '&#8597;', action: () => settingToggleExpandOnClick() });
+  if (typeof settingToggleIncludeBackups === 'function') items.push({ type: 'action', name: 'Toggle Include Ableton Backups', icon: '&#128190;', action: () => settingToggleIncludeBackups() });
+
+  // Resets
+  if (typeof resetTabOrder === 'function') items.push({ type: 'action', name: 'Reset Tab Order', icon: '&#8634;', action: () => { resetTabOrder(); showToast('Tab order reset'); } });
+  if (typeof resetSettingsSectionOrder === 'function') items.push({ type: 'action', name: 'Reset Settings Layout', icon: '&#8634;', action: () => { resetSettingsSectionOrder(); showToast('Settings layout reset'); } });
+  if (typeof resetFzfParams === 'function') items.push({ type: 'action', name: 'Reset Search Weights', icon: '&#8634;', action: () => resetFzfParams() });
   items.push({ type: 'action', name: 'Open Preferences File', icon: '&#128196;', action: () => typeof window.vstUpdater.openPrefsFile === 'function' && window.vstUpdater.openPrefsFile() });
   items.push({ type: 'action', name: 'Focus Search', icon: '&#128269;', action: () => { const tab = document.querySelector('.tab-content.active'); const input = tab?.querySelector('input[type="text"]'); if (input) { input.focus(); input.select(); } } });
 
