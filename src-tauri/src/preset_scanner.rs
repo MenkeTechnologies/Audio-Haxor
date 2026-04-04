@@ -498,6 +498,47 @@ mod tests {
     }
 
     #[test]
+    fn test_walk_for_presets_deduplicates_overlapping_roots() {
+        let tmp = std::env::temp_dir().join("upum_test_preset_overlap");
+        let _ = fs::remove_dir_all(&tmp);
+        let child = tmp.join("sub");
+        fs::create_dir_all(&child).unwrap();
+        fs::write(child.join("overlap.fxp"), b"preset").unwrap();
+        fs::write(tmp.join("top.fxp"), b"preset").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_presets(
+            &[tmp.clone(), child.clone()],
+            &mut |batch, _| found.extend_from_slice(batch),
+            &|| false,
+            None,
+            None,
+        );
+        let overlap_count = found.iter().filter(|p| p.name == "overlap").count();
+        assert_eq!(overlap_count, 1, "overlap.fxp found {} times", overlap_count);
+        assert!(found.iter().any(|p| p.name == "top"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_presets_consistent_counts() {
+        let tmp = std::env::temp_dir().join("upum_test_preset_consistent");
+        let _ = fs::remove_dir_all(&tmp);
+        for i in 0..5 {
+            let d = tmp.join(format!("dir{}", i));
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join(format!("p{}.fxp", i)), b"preset").unwrap();
+        }
+        let mut c1 = 0;
+        walk_for_presets(&[tmp.clone()], &mut |b, _| c1 += b.len(), &|| false, None, None);
+        let mut c2 = 0;
+        walk_for_presets(&[tmp.clone()], &mut |b, _| c2 += b.len(), &|| false, None, None);
+        assert_eq!(c1, c2, "two scans should match: {} vs {}", c1, c2);
+        assert_eq!(c1, 5);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
     fn test_walk_for_presets_batching() {
         let tmp = std::env::temp_dir().join("upum_test_preset_batch");
         let _ = fs::remove_dir_all(&tmp);

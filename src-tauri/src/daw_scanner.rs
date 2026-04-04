@@ -745,6 +745,53 @@ mod tests {
     }
 
     #[test]
+    fn test_walk_for_daw_deduplicates_overlapping_roots() {
+        // Parent and child dir as separate roots — files in child should be found once
+        let tmp = std::env::temp_dir().join("upum_test_daw_overlap");
+        let _ = fs::remove_dir_all(&tmp);
+        let child = tmp.join("sub");
+        fs::create_dir_all(&child).unwrap();
+        fs::write(child.join("overlap.rpp"), b"data").unwrap();
+        fs::write(tmp.join("top.als"), b"data").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_daw(
+            &[tmp.clone(), child.clone()],
+            &mut |batch, _| found.extend_from_slice(batch),
+            &|| false,
+            None,
+            false,
+            None,
+        );
+        let overlap_count = found.iter().filter(|d| d.name == "overlap").count();
+        assert_eq!(overlap_count, 1, "overlap.rpp should be found once despite overlapping roots, got {}", overlap_count);
+        assert!(found.iter().any(|d| d.name == "top"), "top.als should be found");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_daw_consistent_counts() {
+        // Run the same scan twice — should get identical results
+        let tmp = std::env::temp_dir().join("upum_test_daw_consistent");
+        let _ = fs::remove_dir_all(&tmp);
+        for i in 0..5 {
+            let d = tmp.join(format!("dir{}", i));
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join(format!("project{}.als", i)), b"data").unwrap();
+            fs::write(d.join(format!("project{}.rpp", i)), b"data").unwrap();
+        }
+
+        let mut count1 = 0;
+        walk_for_daw(&[tmp.clone()], &mut |batch, _| count1 += batch.len(), &|| false, None, false, None);
+        let mut count2 = 0;
+        walk_for_daw(&[tmp.clone()], &mut |batch, _| count2 += batch.len(), &|| false, None, false, None);
+
+        assert_eq!(count1, count2, "two scans of same dirs should find same count: {} vs {}", count1, count2);
+        assert_eq!(count1, 10, "should find 10 projects");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
     fn test_walk_for_daw_skips_backup_dirs() {
         let tmp = std::env::temp_dir().join("upum_test_daw_backup");
         let _ = fs::remove_dir_all(&tmp);

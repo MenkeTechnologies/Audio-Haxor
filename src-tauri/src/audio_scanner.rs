@@ -936,6 +936,47 @@ mod tests {
     }
 
     #[test]
+    fn test_walk_for_audio_deduplicates_overlapping_roots() {
+        let tmp = std::env::temp_dir().join("upum_test_audio_overlap");
+        let _ = fs::remove_dir_all(&tmp);
+        let child = tmp.join("sub");
+        fs::create_dir_all(&child).unwrap();
+        fs::write(child.join("overlap.wav"), b"fake wav").unwrap();
+        fs::write(tmp.join("top.wav"), b"fake wav").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_audio(
+            &[tmp.clone(), child.clone()],
+            &mut |batch, _| found.extend_from_slice(batch),
+            &|| false,
+            None,
+            None,
+        );
+        let overlap_count = found.iter().filter(|s| s.name == "overlap").count();
+        assert_eq!(overlap_count, 1, "overlap.wav found {} times", overlap_count);
+        assert!(found.iter().any(|s| s.name == "top"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_audio_consistent_counts() {
+        let tmp = std::env::temp_dir().join("upum_test_audio_consistent");
+        let _ = fs::remove_dir_all(&tmp);
+        for i in 0..5 {
+            let d = tmp.join(format!("dir{}", i));
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join(format!("s{}.wav", i)), b"fake wav").unwrap();
+        }
+        let mut c1 = 0;
+        walk_for_audio(&[tmp.clone()], &mut |b, _| c1 += b.len(), &|| false, None, None);
+        let mut c2 = 0;
+        walk_for_audio(&[tmp.clone()], &mut |b, _| c2 += b.len(), &|| false, None, None);
+        assert_eq!(c1, c2, "two scans should match: {} vs {}", c1, c2);
+        assert_eq!(c1, 5);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
     fn test_get_audio_metadata_aiff() {
         let tmp = std::env::temp_dir().join("upum_test_meta_aiff");
         let _ = fs::remove_dir_all(&tmp);
