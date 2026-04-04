@@ -1,8 +1,7 @@
 /**
  * Catalog hygiene beyond placeholders and key parity: avoid invisible / control characters
  * that break SQLite, HTML `textContent`, or diff tooling; plus spot-checks that mirror
- * `app_i18n::tests::seed_json_fr_menu_scan_all_differs_from_en` (every non-English locale
- * should not copy English verbatim for `menu.scan_all`).
+ * `test/i18n-anchor-keys.test.js` (per-locale translation spot-checks for menu + tray anchors).
  */
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -46,16 +45,3 @@ test('every catalog value is free of C0 controls, DEL, and U+2028/U+2029', () =>
   }
 });
 
-test('non-English locales do not copy English verbatim for menu.scan_all', () => {
-  const en = loadMap('app_i18n_en.json');
-  const baseline = en['menu.scan_all'];
-  assert.ok(baseline != null && String(baseline).trim() !== '', 'menu.scan_all missing in English');
-  for (const loc of ['de', 'es', 'fr', 'nl', 'pt', 'sv']) {
-    const m = loadMap(`app_i18n_${loc}.json`);
-    assert.notEqual(
-      m['menu.scan_all'],
-      baseline,
-      `locale ${loc}: menu.scan_all must differ from English (spot-check translation)`
-    );
-  }
-});

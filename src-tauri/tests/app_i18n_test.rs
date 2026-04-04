@@ -90,18 +90,20 @@ fn app_strings_all_locales_share_same_key_set_as_en_in_db() {
 }
 
 #[test]
-fn app_strings_de_retains_placeholder_for_menu_batch_selected() {
+fn app_strings_non_en_locales_retain_n_placeholder_for_menu_batch_selected() {
     ensure_db();
-    let de = app_lib::db::global()
-        .get_app_strings("de")
-        .expect("de");
-    let v = de
-        .get("menu.batch_selected")
-        .expect("menu.batch_selected should exist");
-    assert!(
-        v.contains("{n}"),
-        "German menu.batch_selected must keep {{n}} for appFmt: {v:?}"
-    );
+    for loc in ["de", "es", "sv", "fr", "nl", "pt"] {
+        let m = app_lib::db::global()
+            .get_app_strings(loc)
+            .unwrap_or_else(|e| panic!("get_app_strings {loc}: {e}"));
+        let v = m
+            .get("menu.batch_selected")
+            .expect("menu.batch_selected should exist");
+        assert!(
+            v.contains("{n}"),
+            "locale {loc} menu.batch_selected must keep {{n}} for appFmt: {v:?}"
+        );
+    }
 }
 
 #[test]
