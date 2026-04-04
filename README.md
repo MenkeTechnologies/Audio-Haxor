@@ -308,6 +308,7 @@ Unit tests live in `src/**/*.rs` inside `#[cfg(test)]` modules. Integration test
 | **`test/i18n-catalog-files.test.js`** | tally `rg -c '^test\\(' test/i18n-catalog-files.test.js` | `i18n/` contains exactly the seven shipped `app_i18n_*.json` locales (no stray/extra locale files); no BOM; strict UTF-8 (`TextDecoder` fatal); top-level keys lexicographically sorted (merge-friendly). |
 | **`test/i18n-value-safety.test.js`** | tally `rg -c '^test\\(' test/i18n-value-safety.test.js` | No C0 control characters, DEL, or U+2028/U+2029 in any catalog value. |
 | **`test/i18n-anchor-keys.test.js`** | tally `node --test test/i18n-anchor-keys.test.js` → `ℹ tests` | Auto-discovers **safe** keys under `menu.` / `tray.` / `confirm.` / `toast.` / `help.` / `ui.` (all six non-`en` values differ from English — excludes rows still matching `en`); one `test()` per key × locale plus a sanity case on safe-key count. |
+| **`test/i18n-html-injection-guard.test.js`** | tally `node --test test/i18n-html-injection-guard.test.js` → `ℹ tests` | Every `i18n/app_i18n_*.json` row: value has no `<script` / `<iframe` openers (case-insensitive); one `test()` per locale file × key. |
 | **`test/iec-format-kvr-bulk.test.js`** | 2558 | IEC `format_size` parity, `parse_version` grid, `compare_versions` chain antisymmetry — mirrors backend KVR/size rules in isolation. |
 | **`test/fingerprint-distance-bulk.test.js`** | 462 | Same distance formula as `similarity::fingerprint_distance` on RMS and centroid grids; checks symmetry and finiteness. |
 | **`test/radix-string-bulk.test.js`** | 1200 | `radix_string` algorithm vs `Number.prototype.toString(base)` on the same grid as `handcrafted_tables_radix_grid`. |
@@ -522,6 +523,7 @@ test/
   i18n-catalog-files.test.js -- exact app_i18n_*.json set; no BOM; UTF-8; sorted keys
   i18n-value-safety.test.js -- no control/line-sep chars in catalog values
   i18n-anchor-keys.test.js -- safe menu/tray keys (auto-discovered) differ from English per locale
+  i18n-html-injection-guard.test.js -- no script/iframe tag openers in catalog strings
 ```
 
 ---
