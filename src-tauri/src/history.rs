@@ -1577,6 +1577,30 @@ mod tests {
     }
 
     #[test]
+    fn test_toml_to_flat_invalid_toml_returns_empty_prefs() {
+        assert!(toml_to_flat("this is not [[valid]] toml").is_empty());
+    }
+
+    #[test]
+    fn test_json_to_toml_value_null_maps_to_empty_string() {
+        let v = json_to_toml_value(&serde_json::Value::Null);
+        assert!(matches!(v, toml::Value::String(s) if s.is_empty()));
+    }
+
+    #[test]
+    fn test_json_to_toml_value_non_integer_number_is_float() {
+        let v = json_to_toml_value(&serde_json::json!(3.14159));
+        assert!(matches!(v, toml::Value::Float(f) if (f - 3.14159).abs() < 1e-5));
+    }
+
+    #[test]
+    fn test_toml_value_to_json_integer_round_trips() {
+        let t = toml::Value::Integer(-42);
+        let j = toml_value_to_json(&t);
+        assert_eq!(j, serde_json::json!(-42));
+    }
+
+    #[test]
     fn test_build_audio_snapshot_aggregates_formats_and_total_bytes() {
         let samples = vec![
             AudioSample {

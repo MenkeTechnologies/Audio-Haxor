@@ -544,6 +544,14 @@ mod tests {
     }
 
     #[test]
+    fn test_ext_matches_audacity_aup3_suffix() {
+        assert_eq!(
+            ext_matches(Path::new("podcast.aup3")),
+            Some("AUP3".into())
+        );
+    }
+
+    #[test]
     fn test_daw_name_for_format_all_known_tokens() {
         assert_eq!(daw_name_for_format("ALS"), "Ableton Live");
         assert_eq!(daw_name_for_format("LOGICX"), "Logic Pro");

@@ -508,6 +508,14 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_midi_file_too_short_for_minimum_header() {
+        let tmp = std::env::temp_dir().join("test_midi_too_short.mid");
+        std::fs::write(&tmp, b"MThd\x00\x00\x00\x06").unwrap();
+        assert!(parse_midi(&tmp).is_none());
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_var_len() {
         assert_eq!(read_var_len(&[0x00], 0), (0, 1));
         assert_eq!(read_var_len(&[0x7F], 0), (127, 1));

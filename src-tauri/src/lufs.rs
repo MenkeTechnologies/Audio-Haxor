@@ -118,6 +118,11 @@ mod tests {
     }
 
     #[test]
+    fn test_lufs_nonexistent_flac_returns_none() {
+        assert!(measure_lufs("/nonexistent/partial.flac").is_none());
+    }
+
+    #[test]
     fn test_lufs_unsupported() {
         assert!(measure_lufs("/some/file.txt").is_none());
     }

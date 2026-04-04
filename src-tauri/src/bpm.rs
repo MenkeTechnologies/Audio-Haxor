@@ -669,6 +669,20 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_pcm_32bit_big_endian() {
+        let mut data = vec![0u8; 4];
+        let raw = 0x4000_0000i32;
+        data.copy_from_slice(&raw.to_be_bytes());
+        let samples = decode_pcm(&data, 32, 1, false);
+        assert_eq!(samples.len(), 1);
+        assert!(
+            (samples[0] - 0.5).abs() < 1e-5,
+            "32-bit BE 0x40000000 → ~0.5, got {}",
+            samples[0]
+        );
+    }
+
+    #[test]
     fn test_read_wav_invalid_header() {
         let tmp = std::env::temp_dir().join("test_bpm_invalid_header.wav");
         // Write data that is NOT a valid RIFF header

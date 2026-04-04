@@ -1349,6 +1349,32 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_plugins_from_xml_regex_capture() {
+        // Avoid attributes like deviceName= — substring `name="` would match inside it first
+        let xml = r#"<Plugin name="Serum" />"#;
+        let patterns = &[(
+            r#"name="([^"]+)""#,
+            "Xfer Records",
+            "VST3",
+        )];
+        let refs = extract_plugins_from_xml(xml, patterns);
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].name, "Serum");
+        assert_eq!(refs[0].manufacturer, "Xfer Records");
+        assert_eq!(refs[0].plugin_type, "VST3");
+    }
+
+    #[test]
+    fn test_extract_plugins_from_xml_skips_single_char_name() {
+        let xml = r#"<x name="X" />"#;
+        let patterns = &[(r#"name="([^"]+)""#, "Co", "VST3")];
+        assert!(
+            extract_plugins_from_xml(xml, patterns).is_empty(),
+            "stem length < 2 must be skipped"
+        );
+    }
+
+    #[test]
     fn test_dedup_case_insensitive() {
         let rpp = r#"<REAPER_PROJECT
   <TRACK
