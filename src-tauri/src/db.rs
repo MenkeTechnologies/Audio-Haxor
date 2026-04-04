@@ -967,6 +967,7 @@ impl Database {
     pub fn query_plugins(
         &self,
         search: Option<&str>,
+        type_filter: Option<&str>,
         sort_key: &str,
         sort_asc: bool,
         offset: u64,
@@ -990,6 +991,7 @@ impl Database {
         }
 
         let mut where_parts = vec!["scan_id = ?1".to_string()];
+        let mut bind_idx = 2usize;
         let search_pat = search.and_then(|s| {
             let t = s.trim();
             if t.is_empty() {
@@ -1005,8 +1007,16 @@ impl Database {
             }
         });
         if search_pat.is_some() {
-            where_parts.push("(name LIKE ?2 ESCAPE '\\' OR manufacturer LIKE ?2 ESCAPE '\\' OR path LIKE ?2 ESCAPE '\\')".into());
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR manufacturer LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
         }
+        if let Some(tf) = type_filter {
+            if !tf.is_empty() && tf != "all" {
+                where_parts.push(format!("plugin_type = ?{bind_idx}"));
+                bind_idx += 1;
+            }
+        }
+        let _ = bind_idx;
         let where_cl = where_parts.join(" AND ");
 
         let sort_col = match sort_key {
@@ -1023,30 +1033,27 @@ impl Database {
         let total_count: u64 = {
             let sql = format!("SELECT COUNT(*) FROM plugins WHERE {where_cl}");
             let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-            stmt.raw_bind_parameter(1, &scan_id)
-                .map_err(|e| e.to_string())?;
-            if let Some(ref p) = search_pat {
-                stmt.raw_bind_parameter(2, p).map_err(|e| e.to_string())?;
-            }
+            let mut bi = 1;
+            stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+            if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+            if let Some(tf) = type_filter { if !tf.is_empty() && tf != "all" { stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?; bi += 1; } }
+            let _ = bi;
             let mut rows = stmt.raw_query();
-            rows.next()
-                .map_err(|e| e.to_string())?
-                .map(|r| r.get::<_, u64>(0).unwrap_or(0))
-                .unwrap_or(0)
+            rows.next().map_err(|e| e.to_string())?.map(|r| r.get::<_, u64>(0).unwrap_or(0)).unwrap_or(0)
         };
 
-        let bind_offset = if search_pat.is_some() { 3 } else { 2 };
-        let sql = format!("SELECT name, path, plugin_type, version, manufacturer, manufacturer_url, size, size_bytes, modified, architectures FROM plugins WHERE {where_cl} ORDER BY {sort_col} {dir} LIMIT ?{} OFFSET ?{}", bind_offset, bind_offset + 1);
+        let mut bi = 1usize;
+        let mut bind_offset = 2usize;
+        if search_pat.is_some() { bind_offset += 1; }
+        if type_filter.map(|t| !t.is_empty() && t != "all").unwrap_or(false) { bind_offset += 1; }
+        let sql = format!("SELECT name, path, plugin_type, version, manufacturer, manufacturer_url, size, size_bytes, modified, architectures FROM plugins WHERE {where_cl} ORDER BY {sort_col} {dir} LIMIT ?{bind_offset} OFFSET ?{}", bind_offset + 1);
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-        stmt.raw_bind_parameter(1, &scan_id)
-            .map_err(|e| e.to_string())?;
-        if let Some(ref p) = search_pat {
-            stmt.raw_bind_parameter(2, p).map_err(|e| e.to_string())?;
-        }
-        stmt.raw_bind_parameter(bind_offset as usize, limit as i64)
-            .map_err(|e| e.to_string())?;
-        stmt.raw_bind_parameter(bind_offset as usize + 1, offset as i64)
-            .map_err(|e| e.to_string())?;
+        bi = 1;
+        stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+        if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+        if let Some(tf) = type_filter { if !tf.is_empty() && tf != "all" { stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?; bi += 1; } }
+        stmt.raw_bind_parameter(bi, limit as i64).map_err(|e| e.to_string())?; bi += 1;
+        stmt.raw_bind_parameter(bi, offset as i64).map_err(|e| e.to_string())?;
 
         let mut plugins = Vec::new();
         let mut rows = stmt.raw_query();

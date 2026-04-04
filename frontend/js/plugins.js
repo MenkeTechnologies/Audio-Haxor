@@ -38,9 +38,12 @@ async function loadPluginsFromDb() {
 
 async function fetchPluginPage() {
   const search = document.getElementById('searchInput')?.value || '';
+  const typeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('typeFilter') : null;
+  const typeFilter = typeSet && typeSet.size === 1 ? [...typeSet][0] : null;
   try {
     const result = await window.vstUpdater.dbQueryPlugins({
       search: search || null,
+      type_filter: typeFilter,
       sort_key: _pluginSortKey,
       sort_asc: _pluginSortAsc,
       offset: _pluginOffset,

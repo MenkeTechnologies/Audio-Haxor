@@ -4064,6 +4064,7 @@ fn db_query_audio(params: db::AudioQueryParams) -> Result<db::AudioQueryResult, 
 #[tauri::command]
 fn db_query_plugins(
     search: Option<String>,
+    type_filter: Option<String>,
     sort_key: Option<String>,
     sort_asc: Option<bool>,
     offset: Option<u64>,
@@ -4071,6 +4072,7 @@ fn db_query_plugins(
 ) -> Result<db::PluginQueryResult, String> {
     db::global().query_plugins(
         search.as_deref(),
+        type_filter.as_deref(),
         &sort_key.unwrap_or("name".into()),
         sort_asc.unwrap_or(true),
         offset.unwrap_or(0),

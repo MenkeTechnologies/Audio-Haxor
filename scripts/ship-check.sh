@@ -2,42 +2,19 @@
 # // AUDIO_HAXOR SHIP CHECK // pre-deploy system diagnostics
 set -uo pipefail
 cd "$(dirname "$0")/.."
-
-C='\033[1;36m'; M='\033[1;35m'; G='\033[1;32m'; R='\033[1;31m'
-Y='\033[1;33m'; D='\033[0;90m'; W='\033[1;37m'; N='\033[0m'
-B='\033[1;34m'
-
-# Rainbow section header
-rbw() {
-  local t="$1"
-  echo -e "  \033[1;31m──\033[1;33m──\033[1;32m── ${C}${t}${N} \033[1;34m──\033[1;35m──\033[1;31m──\033[1;33m──\033[1;32m──\033[1;36m──\033[1;34m──\033[1;35m──\033[1;31m──\033[1;33m──\033[1;32m──${N}"
-}
+source scripts/cyberpunk.sh
 
 APP_VER=$(grep '"version"' package.json | head -1 | sed 's/.*: *"\(.*\)".*/\1/')
 CARGO_VER=$(grep '^version' src-tauri/Cargo.toml | head -1 | sed 's/.*= *"\(.*\)".*/\1/')
 TAURI_VER=$(grep '"version"' src-tauri/tauri.conf.json | head -1 | sed 's/.*: *"\(.*\)".*/\1/')
 
-echo
-echo -e " \033[1;31m  █████╗ ██╗   ██╗██████╗ ██╗ ██████╗${N}"
-echo -e " \033[1;33m ██╔══██╗██║   ██║██╔══██╗██║██╔═══██╗${N}"
-echo -e " \033[1;32m ███████║██║   ██║██║  ██║██║██║   ██║${N}"
-echo -e " \033[1;36m ██╔══██║██║   ██║██║  ██║██║██║   ██║${N}"
-echo -e " \033[1;34m ██║  ██║╚██████╔╝██████╔╝██║╚██████╔╝${N}"
-echo -e " \033[1;35m ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝ ╚═════╝${N}"
-echo -e " \033[1;35m ██╗  ██╗ █████╗ ██╗  ██╗ ██████╗ ██████╗${N}"
-echo -e " \033[1;34m ██║  ██║██╔══██╗╚██╗██╔╝██╔═══██╗██╔══██╗${N}"
-echo -e " \033[1;36m ███████║███████║ ╚███╔╝ ██║   ██║██████╔╝${N}"
-echo -e " \033[1;32m ██╔══██║██╔══██║ ██╔██╗ ██║   ██║██╔══██╗${N}"
-echo -e " \033[1;33m ██║  ██║██║  ██║██╔╝ ██╗╚██████╔╝██║  ██║${N}"
-echo -e " \033[1;31m ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝${N}"
-echo -e " \033[1;31m┌\033[1;33m──\033[1;32m──\033[1;36m──\033[1;34m──\033[1;35m──\033[1;31m──\033[1;33m──\033[1;32m──\033[1;36m──\033[1;34m──\033[1;35m──\033[1;31m──\033[1;33m──\033[1;32m──\033[1;36m──\033[1;34m──\033[1;35m──\033[1;31m──\033[1;33m──\033[1;32m──\033[1;36m──\033[1;34m──\033[1;35m┐${N}"
-echo -e " ${D}│${N} ${W}STATUS:${N} ${G}ONLINE${N}  ${D}//${N} ${W}SIGNAL:${N} \033[1;31m█\033[1;33m█\033[1;32m█\033[1;36m█\033[1;34m█\033[1;35m█\033[1;31m█\033[1;33m█${D}░░${N} ${D}//${N} ${W}v${APP_VER}${N}   ${D}│${N}"
-echo -e " \033[1;35m└\033[1;34m──\033[1;36m──\033[1;32m──\033[1;33m──\033[1;31m──\033[1;35m──\033[1;34m──\033[1;36m──\033[1;32m──\033[1;33m──\033[1;31m──\033[1;35m──\033[1;34m──\033[1;36m──\033[1;32m──\033[1;33m──\033[1;31m──\033[1;35m──\033[1;34m──\033[1;36m──\033[1;32m──\033[1;33m──\033[1;31m┘${N}"
+cyber_banner
+cyber_status "STATUS" "ONLINE  // SIGNAL: ████████░░ // v${APP_VER}"
 echo -e "  ${D}>> SHIP CHECK // PRE-DEPLOY SYSTEM DIAGNOSTICS <<${N}"
 echo
 
-# ── VERSION MATRIX ─────────────────────────────────────
-echo -e "  \033[1;31m──\033[1;33m──\033[1;32m──\033[1;36m VERSION MATRIX \033[1;34m──\033[1;35m──\033[1;31m──\033[1;33m──\033[1;32m──\033[1;36m──\033[1;34m──\033[1;35m──\033[1;31m──\033[1;33m──\033[1;32m──\033[1;36m──\033[1;34m──\033[1;35m──${N}"
+# ── VERSION MATRIX ──
+cyber_section "VERSION MATRIX"
 echo -e "  ${D}package.json${N}    ${W}$APP_VER${N}"
 echo -e "  ${D}Cargo.toml${N}      ${W}$CARGO_VER${N}"
 echo -e "  ${D}tauri.conf.json${N} ${W}$TAURI_VER${N}"
@@ -48,11 +25,11 @@ else
 fi
 echo
 
-# ── GIT UPLINK ─────────────────────────────────────────
+# ── GIT UPLINK ──
 BRANCH=$(git branch --show-current)
 DIRTY=$(git status -s | grep -v '^\?\?' | wc -l | tr -d ' ')
 UNTRACKED=$(git status -s | grep '^\?\?' | wc -l | tr -d ' ')
-rbw "GIT UPLINK"
+cyber_section "GIT UPLINK"
 echo -e "  ${D}branch${N}    ${M}$BRANCH${N}"
 echo -e "  ${D}modified${N}  ${W}$DIRTY${N}"
 echo -e "  ${D}untracked${N} ${W}$UNTRACKED${N}"
@@ -60,12 +37,12 @@ if [ "$DIRTY" = "0" ]; then
   echo -e "  ${G}[CLEAN]${N} ${D}// working tree nominal${N}"
 else
   echo -e "  ${Y}[DIRTY]${N} ${D}// uncommitted mutations${N}"
-  git status -s | grep -v '^\?\?' | head -5 | sed "s/^/  ${D}  /" | sed "s/$/${N}/"
+  git status -s | grep -v '^\?\?' | head -5 | sed "s/^/  ${D}  /"
 fi
 echo
 
-# ── RUST SUBSYSTEM ─────────────────────────────────────
-rbw "RUST SUBSYSTEM"
+# ── RUST SUBSYSTEM ──
+cyber_section "RUST SUBSYSTEM"
 RUST_OUT=$(cargo test --manifest-path src-tauri/Cargo.toml --lib 2>&1 | grep 'test result' | tail -1)
 RUST_PASS=$(echo "$RUST_OUT" | grep -o '[0-9]* passed' | grep -o '[0-9]*' || echo "0")
 RUST_FAIL=$(echo "$RUST_OUT" | grep -o '[0-9]* failed' | grep -o '[0-9]*' || echo "0")
@@ -77,8 +54,8 @@ else
 fi
 echo
 
-# ── JS SUBSYSTEM ───────────────────────────────────────
-rbw "JS SUBSYSTEM"
+# ── JS SUBSYSTEM ──
+cyber_section "JS SUBSYSTEM"
 JS_OUT=$(node --test test/*.test.js 2>&1 | grep -E '^ℹ (tests|pass|fail)' || true)
 JS_TESTS=$(echo "$JS_OUT" | grep 'tests' | grep -o '[0-9]*' || echo 0)
 JS_PASS=$(echo "$JS_OUT" | grep 'pass' | grep -o '[0-9]*' || echo 0)
@@ -91,22 +68,22 @@ else
 fi
 echo
 
-# ── CODEBASE METRICS ───────────────────────────────────
+# ── CODEBASE METRICS ──
 RUST_LINES=$(wc -l src-tauri/src/*.rs | tail -1 | awk '{print $1}')
 JS_LINES=$(wc -l frontend/js/*.js | tail -1 | awk '{print $1}')
 HTML_LINES=$(wc -l frontend/index.html | awk '{print $1}')
 RUST_FILES=$(ls src-tauri/src/*.rs | wc -l | tr -d ' ')
 JS_FILES=$(ls frontend/js/*.js | wc -l | tr -d ' ')
 TOTAL_TESTS=$((RUST_PASS + JS_PASS))
-rbw "CODEBASE METRICS"
+cyber_section "CODEBASE METRICS"
 echo -e "  ${D}rust${N}   ${W}${RUST_LINES}${N} ${D}lines // ${RUST_FILES} modules${N}"
 echo -e "  ${D}js${N}     ${W}${JS_LINES}${N} ${D}lines // ${JS_FILES} files${N}"
 echo -e "  ${D}html${N}   ${W}${HTML_LINES}${N} ${D}lines${N}"
 echo -e "  ${D}tests${N}  ${C}${TOTAL_TESTS}${N} ${D}total // ${RUST_PASS} rust + ${JS_PASS} js${N}"
 echo
 
-# ── DATABASE ───────────────────────────────────────────
-rbw "DATABASE"
+# ── DATABASE ──
+cyber_section "DATABASE"
 DB_PATH="$HOME/Library/Application Support/com.menketechnologies.audio-haxor/audio_haxor.db"
 if [ -f "$DB_PATH" ]; then
   DB_SIZE=$(ls -lh "$DB_PATH" | awk '{print $5}')
@@ -130,8 +107,8 @@ else
 fi
 echo
 
-# ── SYSTEM LOG ─────────────────────────────────────────
-rbw "SYSTEM LOG"
+# ── SYSTEM LOG ──
+cyber_section "SYSTEM LOG"
 LOG_PATH="$HOME/Library/Application Support/com.menketechnologies.audio-haxor/app.log"
 if [ -f "$LOG_PATH" ]; then
   LOG_SIZE=$(ls -lh "$LOG_PATH" | awk '{print $5}')
@@ -153,8 +130,8 @@ else
 fi
 echo
 
-# ── BUILD ARTIFACTS ────────────────────────────────────
-rbw "BUILD ARTIFACTS"
+# ── BUILD ARTIFACTS ──
+cyber_section "BUILD ARTIFACTS"
 APP="src-tauri/target/release/bundle/macos/AUDIO_HAXOR.app"
 DMG="src-tauri/target/release/bundle/dmg/AUDIO_HAXOR_${APP_VER}_aarch64.dmg"
 if [ -d "$APP" ]; then
@@ -171,24 +148,22 @@ else
 fi
 echo
 
-# ── FINAL VERDICT ──────────────────────────────────────
+# ── FINAL VERDICT ──
 TOTAL_ISSUES=0
 [ "$DIRTY" != "0" ] && TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
 [ "$RUST_FAIL" != "0" ] && TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
 [ "$JS_FAIL" != "0" ] && TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
 [ "$APP_VER" != "$CARGO_VER" ] && TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
 
-echo -e " \033[1;31m░\033[1;33m░\033[1;32m░\033[1;36m░\033[1;34m░\033[1;35m░\033[1;31m░\033[1;33m░\033[1;32m░\033[1;36m░\033[1;34m░\033[1;35m░\033[1;31m░\033[1;33m░\033[1;32m░\033[1;36m░\033[1;34m░\033[1;35m░\033[1;31m░\033[1;33m░\033[1;32m░\033[1;36m░\033[1;34m░\033[1;35m░\033[1;31m░\033[1;33m░\033[1;32m░\033[1;36m░\033[1;34m░\033[1;35m░\033[1;31m░\033[1;33m░\033[1;32m░\033[1;36m░\033[1;34m░\033[1;35m░\033[1;31m░\033[1;33m░\033[1;32m░\033[1;36m░\033[1;34m░\033[1;35m░\033[1;31m░\033[1;33m░\033[1;32m░\033[1;36m░\033[1;34m░\033[1;35m░\033[1;31m░\033[1;33m░\033[1;32m░\033[1;36m░\033[1;34m░\033[1;35m░${N}"
+cyber_line
 if [ "$TOTAL_ISSUES" = "0" ]; then
-  echo
-  echo -e "  ${G}>>> JACK IN. DEPLOY. OWN YOUR AUDIO. <<<${N}"
+  cyber_tagline "JACK IN. DEPLOY. OWN YOUR AUDIO."
   echo -e "  ${C}// SYSTEM NOMINAL — ALL CHECKS PASSED //${N}"
-  echo
 else
   echo
   echo -e "  ${R}>>> $TOTAL_ISSUES CRITICAL ISSUE(S) — DO NOT DEPLOY <<<${N}"
   echo -e "  ${Y}// FIX BEFORE SHIPPING //${N}"
-  echo
 fi
-echo -e " \033[1;35m░\033[1;34m░\033[1;36m░\033[1;32m░\033[1;33m░\033[1;31m░\033[1;35m░\033[1;34m░\033[1;36m░\033[1;32m░\033[1;33m░\033[1;31m░\033[1;35m░\033[1;34m░\033[1;36m░\033[1;32m░\033[1;33m░\033[1;31m░\033[1;35m░\033[1;34m░\033[1;36m░\033[1;32m░\033[1;33m░\033[1;31m░\033[1;35m░\033[1;34m░\033[1;36m░\033[1;32m░\033[1;33m░\033[1;31m░\033[1;35m░\033[1;34m░\033[1;36m░\033[1;32m░\033[1;33m░\033[1;31m░\033[1;35m░\033[1;34m░\033[1;36m░\033[1;32m░\033[1;33m░\033[1;31m░\033[1;35m░\033[1;34m░\033[1;36m░\033[1;32m░\033[1;33m░\033[1;31m░\033[1;35m░\033[1;34m░\033[1;36m░\033[1;32m░\033[1;33m░${N}"
+echo
+cyber_line
 echo
