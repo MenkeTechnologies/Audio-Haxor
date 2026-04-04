@@ -70,11 +70,12 @@ function buildPresetRow(p) {
 function rebuildPresetStats() {
   const statsEl = document.getElementById('presetStats');
   if (!statsEl) return;
-  statsEl.style.display = allPresets.length > 0 ? 'flex' : 'none';
+  const displayCount = _presetTotalCount || allPresets.length;
+  statsEl.style.display = displayCount > 0 ? 'flex' : 'none';
 
-  document.getElementById('presetCount').textContent = allPresets.length;
+  document.getElementById('presetCount').textContent = displayCount.toLocaleString();
   const headerCount = document.getElementById('presetCountHeader');
-  if (headerCount) headerCount.textContent = allPresets.length;
+  if (headerCount) headerCount.textContent = displayCount.toLocaleString();
 
   const totalBytes = allPresets.reduce((sum, p) => sum + p.size, 0);
   document.getElementById('presetTotalSize').textContent = formatPresetSize(totalBytes);

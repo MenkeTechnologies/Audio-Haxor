@@ -60,7 +60,8 @@ function accumulateDawStats(projects) {
 function updateDawStats() {
   const stats = document.getElementById('dawStats');
   stats.style.display = 'flex';
-  document.getElementById('dawTotalCount').textContent = allDawProjects.length;
+  const dawDisplayCount = _dawTotalCount || allDawProjects.length;
+  document.getElementById('dawTotalCount').textContent = dawDisplayCount;
   document.getElementById('dawAbletonCount').textContent = dawStatCounts['Ableton Live'] || 0;
   document.getElementById('dawLogicCount').textContent = dawStatCounts['Logic Pro'] || 0;
   document.getElementById('dawFlCount').textContent = dawStatCounts['FL Studio'] || 0;
@@ -68,7 +69,7 @@ function updateDawStats() {
   const mainDaws = (dawStatCounts['Ableton Live'] || 0) + (dawStatCounts['Logic Pro'] || 0) + (dawStatCounts['FL Studio'] || 0) + (dawStatCounts['REAPER'] || 0);
   document.getElementById('dawOtherCount').textContent = allDawProjects.length - mainDaws;
   document.getElementById('dawTotalSize').textContent = formatAudioSize(dawStatBytes);
-  document.getElementById('dawProjectCount').textContent = allDawProjects.length;
+  document.getElementById('dawProjectCount').textContent = dawDisplayCount;
   document.getElementById('btnExportDaw').style.display = allDawProjects.length > 0 ? '' : 'none';
   if (typeof updateDawDiskUsage === 'function') updateDawDiskUsage();
 }
