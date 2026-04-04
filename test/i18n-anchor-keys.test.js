@@ -17,8 +17,12 @@ const i18nDir = join(root, 'i18n');
 const ANCHOR_KEYS = [
   'menu.scan_all',
   'menu.preferences',
+  'menu.file',
+  'menu.help',
+  'menu.about',
   'tray.scan_all',
   'tray.quit',
+  'tray.play_pause',
 ];
 
 const NON_EN = /** @type {const} */ (['de', 'es', 'fr', 'nl', 'pt', 'sv']);
