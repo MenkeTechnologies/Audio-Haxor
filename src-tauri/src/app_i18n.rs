@@ -152,6 +152,14 @@ mod tests {
         "tray.tooltip",
     ];
 
+    fn key_matches_catalog_prefix(k: &str) -> bool {
+        [
+            "menu.", "tray.", "confirm.", "toast.", "help.", "ui.",
+        ]
+        .iter()
+        .any(|p| k.starts_with(p))
+    }
+
     fn setup_minimal_i18n(conn: &Connection) {
         conn.execute_batch(
             "CREATE TABLE app_i18n (
@@ -551,10 +559,11 @@ mod tests {
         );
     }
 
-    /// Mirrors `test/i18n-anchor-keys.test.js`: for every `menu.*` / `tray.*` key where **all** six
-    /// non-English seeds differ from English, assert each locale row is not a verbatim copy of `en`.
+    /// Mirrors `test/i18n-anchor-keys.test.js`: for every `menu.` / `tray.` / `confirm.` /
+    /// `toast.` / `help.` / `ui.` key where **all** six non-English seeds differ from English, assert
+    /// each locale row is not a verbatim copy of `en`.
     #[test]
-    fn seed_json_safe_menu_tray_keys_all_locales_differ_from_en() {
+    fn seed_json_safe_catalog_keys_all_locales_differ_from_en() {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
         let locales: [(&str, &str); 6] = [
             ("de", SEED_JSON_DE),
@@ -570,7 +579,7 @@ mod tests {
             .collect();
 
         for (k, en_val) in &en {
-            if !k.starts_with("menu.") && !k.starts_with("tray.") {
+            if !key_matches_catalog_prefix(k) {
                 continue;
             }
             if en_val.trim().is_empty() {

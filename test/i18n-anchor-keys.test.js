@@ -1,10 +1,10 @@
 /**
- * Per-locale spot checks: for every **safe** `menu.*` / `tray.*` key, each non-English shipped
- * locale must not copy the English string verbatim (catches pasted `en` rows or bad MT).
+ * Per-locale spot checks: for every **safe** shipped-catalog key under the UI namespaces below,
+ * each non-English locale must not copy the English string verbatim (catches pasted `en` rows or bad MT).
  *
  * **Safe key** = English value is non-empty and `de`/`es`/`fr`/`nl`/`pt`/`sv` **all** differ
- * from English for that key (keys like `menu.app` / `tray.tooltip` where many locales keep
- * `AUDIO_HAXOR` are excluded automatically).
+ * from English for that key (shared brand strings like `menu.app` / `tray.tooltip` are excluded
+ * automatically when any locale still matches `en`).
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -15,7 +15,21 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const i18nDir = join(root, 'i18n');
 
+/** Same namespaces as `ipc.js` / HTML `data-i18n*` usage (plus native menus + tray). */
+const CATALOG_PREFIXES = /** @type {const} */ ([
+  'menu.',
+  'tray.',
+  'confirm.',
+  'toast.',
+  'help.',
+  'ui.',
+]);
+
 const NON_EN = /** @type {const} */ (['de', 'es', 'fr', 'nl', 'pt', 'sv']);
+
+function matchesCatalogPrefix(k) {
+  return CATALOG_PREFIXES.some((p) => k.startsWith(p));
+}
 
 function loadMap(name) {
   const raw = readFileSync(join(i18nDir, name), 'utf8');
@@ -31,7 +45,7 @@ const locMaps = Object.fromEntries(
 function anchorKeysWhereEveryLocaleDiffers() {
   const keys = [];
   for (const k of Object.keys(en).sort()) {
-    if (!k.startsWith('menu.') && !k.startsWith('tray.')) continue;
+    if (!matchesCatalogPrefix(k)) continue;
     const ev = en[k];
     if (typeof ev !== 'string' || ev.trim() === '') continue;
     if (NON_EN.every((loc) => locMaps[loc][k] !== ev)) keys.push(k);
@@ -41,10 +55,10 @@ function anchorKeysWhereEveryLocaleDiffers() {
 
 const ANCHOR_KEYS = anchorKeysWhereEveryLocaleDiffers();
 
-test('catalog yields a large safe menu/tray anchor set', () => {
+test('catalog yields a large safe anchor set across UI namespaces', () => {
   assert.ok(
-    ANCHOR_KEYS.length > 200,
-    `expected 200+ safe keys, got ${ANCHOR_KEYS.length}`
+    ANCHOR_KEYS.length > 1200,
+    `expected 1200+ safe keys, got ${ANCHOR_KEYS.length}`
   );
 });
 
