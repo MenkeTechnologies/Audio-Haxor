@@ -3541,6 +3541,20 @@ mod tests {
         let _ = fs::remove_file(&tmp);
     }
 
+    #[test]
+    fn test_import_plugins_json_errors_when_plugins_is_not_array() {
+        let tmp = std::env::temp_dir().join("upum_test_import_plugins_wrong_type.json");
+        let _ = fs::remove_file(&tmp);
+        fs::write(
+            &tmp,
+            r#"{"version":"1.0","exported_at":"2025-01-01T00:00:00Z","plugins":"not-an-array"}"#,
+        )
+        .unwrap();
+        let err = import_plugins_json(tmp.to_string_lossy().to_string()).unwrap_err();
+        assert!(!err.is_empty());
+        let _ = fs::remove_file(&tmp);
+    }
+
     /// Forward-compatible imports: serde ignores unknown keys on plugin objects.
     #[test]
     fn test_import_plugins_json_extra_keys_on_plugin_ignored() {
