@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="AUDIO_HAXOR v1.11.0 — Tauri desktop app: VST/VST3/AU plugin scanner, audio samples, DAW projects, KVR updates, SQLite history.">
   <meta name="application-name" content="AUDIO_HAXOR">
-  <title>AUDIO_HAXOR</title>
+  <title data-i18n="ui.page_title">AUDIO_HAXOR</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&display=swap');
 
@@ -4624,22 +4624,22 @@
 </head>
 <body>
   <div class="splash-screen" id="splashScreen">
-    <div class="splash-title">AUDIO HAXOR</div>
-    <div class="splash-sub">Audio Plugin Manager</div>
+    <div class="splash-title" data-i18n="ui.splash.title">AUDIO HAXOR</div>
+    <div class="splash-sub" data-i18n="ui.splash.subtitle">Audio Plugin Manager</div>
     <div class="splash-bar-wrap"><div class="splash-bar"></div></div>
-    <div class="splash-version" id="splashVersion">Loading...</div>
+    <div class="splash-version" id="splashVersion" data-i18n="ui.splash.loading">Loading...</div>
   </div>
   <div class="ctx-menu" id="ctxMenu"></div>
   <div class="dock-zone-overlay" id="dockOverlay">
-    <div class="dock-zone" id="dockTL">&#8598; TOP LEFT</div>
-    <div class="dock-zone" id="dockTR">TOP RIGHT &#8599;</div>
-    <div class="dock-zone" id="dockBL">&#8601; BOTTOM LEFT</div>
-    <div class="dock-zone" id="dockBR">BOTTOM RIGHT &#8600;</div>
+    <div class="dock-zone" id="dockTL" data-i18n="ui.dock.top_left">&#8598; TOP LEFT</div>
+    <div class="dock-zone" id="dockTR" data-i18n="ui.dock.top_right">TOP RIGHT &#8599;</div>
+    <div class="dock-zone" id="dockBL" data-i18n="ui.dock.bottom_left">&#8601; BOTTOM LEFT</div>
+    <div class="dock-zone" id="dockBR" data-i18n="ui.dock.bottom_right">BOTTOM RIGHT &#8600;</div>
   </div>
   <div class="audio-now-playing dock-br" id="audioNowPlaying">
     <div class="np-drag-handle" id="npDragHandle"><span class="np-drag-dots"></span></div>
     <div class="np-toolbar modal-header">
-      <span class="np-toolbar-title">&#9835; Audio Player</span>
+      <span class="np-toolbar-title" data-i18n="ui.np.toolbar_title">&#9835; Audio Player</span>
       <div class="np-toolbar-actions">
         <button class="np-toolbar-btn" data-action="collapsePlayer" title="Minimize" data-i18n-title="ui.tt.minimize">&#9866;</button>
         <button class="np-toolbar-btn" data-action="hidePlayer" title="Hide player" data-i18n-title="ui.tt.hide_player">&#9868;</button>
@@ -4687,7 +4687,7 @@
             <span class="volume-pct" id="npVolumePct">100%</span>
           </div>
           <div class="now-playing-speed">
-            <label>Speed</label>
+            <label data-i18n="ui.np.label_speed">Speed</label>
             <select class="speed-select" id="npSpeed" data-action="setPlaybackSpeed" title="Playback speed" data-i18n-title="ui.tt.playback_speed">
               <option value="0.25" data-i18n="ui.opt.0_25x">0.25x</option>
               <option value="0.5" data-i18n="ui.opt.0_5x">0.5x</option>
@@ -4705,7 +4705,7 @@
         <div class="np-search-results" id="npSearchResults"></div>
       </div>
       <div class="np-section" data-np-section="hint">
-        <div class="np-expand-hint">double-click to expand</div>
+        <div class="np-expand-hint" data-i18n="ui.np.expand_hint">double-click to expand</div>
       </div>
       <div class="np-section" data-np-section="history">
         <div class="np-history" id="npHistory">
@@ -4732,7 +4732,7 @@
       </div>
       <div class="np-eq-section" id="npEqSection">
         <div class="np-eq-header">
-          <span class="np-eq-title">PARAMETRIC EQ &amp; FX</span>
+          <span class="np-eq-title" data-i18n="ui.np.eq_title">PARAMETRIC EQ &amp; FX</span>
           <button class="btn-small btn-secondary" data-action="resetEq" style="padding:2px 8px;font-size:9px;" title="Reset all EQ bands and effects to defaults" data-i18n-title="ui.tt.reset_all_eq_bands_and_effects_to_defaults" data-i18n="ui.btn.reset">Reset</button>
         </div>
         <div style="position:relative;width:100%;height:120px;margin-bottom:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;overflow:hidden;">
@@ -4740,31 +4740,31 @@
         </div>
         <div class="np-eq-controls">
           <div class="np-eq-band">
-            <label>Low</label>
+            <label data-i18n="ui.eq.band_low">LOW</label>
             <input type="range" class="eq-slider" id="npEqLow" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqLow" title="Low EQ (200 Hz, -12 to +12 dB)" data-i18n-title="ui.tt.low_eq_200_hz_12_to_12_db">
             <span class="eq-val" id="npEqLowVal">0 dB</span>
             <span class="eq-freq">200 Hz</span>
           </div>
           <div class="np-eq-band">
-            <label>Mid</label>
+            <label data-i18n="ui.eq.band_mid">MID</label>
             <input type="range" class="eq-slider" id="npEqMid" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqMid" title="Mid EQ (1 kHz, -12 to +12 dB)" data-i18n-title="ui.tt.mid_eq_1_khz_12_to_12_db">
             <span class="eq-val" id="npEqMidVal">0 dB</span>
             <span class="eq-freq">1 kHz</span>
           </div>
           <div class="np-eq-band">
-            <label>High</label>
+            <label data-i18n="ui.eq.band_high">HIGH</label>
             <input type="range" class="eq-slider" id="npEqHigh" min="-12" max="12" value="0" step="1" orient="vertical" data-action="setEqHigh" title="High EQ (8 kHz, -12 to +12 dB)" data-i18n-title="ui.tt.high_eq_8_khz_12_to_12_db">
             <span class="eq-val" id="npEqHighVal">0 dB</span>
             <span class="eq-freq">8 kHz</span>
           </div>
           <div class="np-eq-divider"></div>
           <div class="np-eq-band">
-            <label>Gain</label>
+            <label data-i18n="ui.np.label_gain">Gain</label>
             <input type="range" class="eq-slider" id="npGainSlider" min="0" max="2" value="1" step="0.05" orient="vertical" data-action="setGain" title="Preamp gain (0-200%)" data-i18n-title="ui.tt.preamp_gain_0_200">
             <span class="eq-val" id="npGainVal">100%</span>
           </div>
           <div class="np-eq-band">
-            <label>Pan</label>
+            <label data-i18n="ui.np.label_pan">Pan</label>
             <input type="range" class="eq-slider" id="npPanSlider" min="-1" max="1" value="0" step="0.05" orient="vertical" data-action="setPan" title="Stereo pan (L-C-R)" data-i18n-title="ui.tt.stereo_pan_l_c_r">
             <span class="eq-val" id="npPanVal">C</span>
           </div>
@@ -4800,28 +4800,28 @@
         <div class="logo" id="appLogo" style="cursor:pointer;" title="Open GitHub repository" data-i18n-title="ui.tt.open_github_repository">
           <div class="logo-icon">&#9835;</div>
           <div class="logo-text">
-            <h1>AUDIO_HAXOR</h1>
-            <span class="logo-author">by MenkeTechnologies</span>
+            <h1 data-i18n="ui.logo.app_name">AUDIO_HAXOR</h1>
+            <span class="logo-author" data-i18n="ui.logo.author_line">by MenkeTechnologies</span>
             <span class="logo-version" id="appVersion"></span>
           </div>
         </div>
         <div class="scan-status-badge" id="scanStatusBadge"></div>
         <div class="header-actions">
           <div class="header-info" id="headerStats">
-            <div class="header-info-item" title="CPU cores" data-i18n-title="ui.tt.cpu_cores">CORES <span class="header-info-value" id="headerCores">--</span></div>
-            <div class="header-info-item" title="CPU usage (%)" data-i18n-title="ui.tt.cpu_usage">CPU <span class="header-info-value" id="headerCpu">--</span></div>
-            <div class="header-info-item" title="Resident memory (RSS)" data-i18n-title="ui.tt.resident_memory_rss">RSS <span class="header-info-value" id="headerMem">--</span></div>
-            <div class="header-info-item" title="Virtual memory" data-i18n-title="ui.tt.virtual_memory">VIRT <span class="header-info-value" id="headerVirt">--</span></div>
-            <div class="header-info-item" title="Total threads" data-i18n-title="ui.tt.total_threads">THR <span class="header-info-value" id="headerThreads">--</span></div>
-            <div class="header-info-item" title="Rayon worker pool size" data-i18n-title="ui.tt.rayon_worker_pool_size">POOL <span class="header-info-value" id="headerPool">--</span></div>
-            <div class="header-info-item" title="Open file descriptors" data-i18n-title="ui.tt.open_file_descriptors">FD <span class="header-info-value" id="headerFds">--</span></div>
-            <div class="header-info-item" title="Process uptime" data-i18n-title="ui.tt.process_uptime">UP <span class="header-info-value" id="headerUptime">--</span></div>
-            <div class="header-info-item" title="Process ID" data-i18n-title="ui.tt.process_id">PID <span class="header-info-value" id="headerPid">--</span></div>
-            <div class="header-info-item" title="Plugins scanned" data-i18n-title="ui.tt.plugins_scanned">PLG <span class="header-info-value" id="headerPlugins">0</span></div>
-            <div class="header-info-item" title="Audio samples scanned" data-i18n-title="ui.tt.audio_samples_scanned">SMP <span class="header-info-value" id="headerSamples">0</span></div>
-            <div class="header-info-item" title="DAW projects scanned" data-i18n-title="ui.tt.daw_projects_scanned">DAW <span class="header-info-value" id="headerDaw">0</span></div>
-            <div class="header-info-item" title="Presets scanned" data-i18n-title="ui.tt.presets_scanned">PRE <span class="header-info-value" id="headerPresets">0</span></div>
-            <div class="header-info-item" title="MIDI files scanned" data-i18n-title="ui.tt.midi_files_scanned">MID <span class="header-info-value" id="headerMidi">0</span></div>
+            <div class="header-info-item" title="CPU cores" data-i18n-title="ui.tt.cpu_cores"><span data-i18n="ui.hdr.abbr_cores">CORES</span> <span class="header-info-value" id="headerCores">--</span></div>
+            <div class="header-info-item" title="CPU usage (%)" data-i18n-title="ui.tt.cpu_usage"><span data-i18n="ui.hdr.abbr_cpu">CPU</span> <span class="header-info-value" id="headerCpu">--</span></div>
+            <div class="header-info-item" title="Resident memory (RSS)" data-i18n-title="ui.tt.resident_memory_rss"><span data-i18n="ui.hdr.abbr_rss">RSS</span> <span class="header-info-value" id="headerMem">--</span></div>
+            <div class="header-info-item" title="Virtual memory" data-i18n-title="ui.tt.virtual_memory"><span data-i18n="ui.hdr.abbr_virt">VIRT</span> <span class="header-info-value" id="headerVirt">--</span></div>
+            <div class="header-info-item" title="Total threads" data-i18n-title="ui.tt.total_threads"><span data-i18n="ui.hdr.abbr_thr">THR</span> <span class="header-info-value" id="headerThreads">--</span></div>
+            <div class="header-info-item" title="Rayon worker pool size" data-i18n-title="ui.tt.rayon_worker_pool_size"><span data-i18n="ui.hdr.abbr_pool">POOL</span> <span class="header-info-value" id="headerPool">--</span></div>
+            <div class="header-info-item" title="Open file descriptors" data-i18n-title="ui.tt.open_file_descriptors"><span data-i18n="ui.hdr.abbr_fd">FD</span> <span class="header-info-value" id="headerFds">--</span></div>
+            <div class="header-info-item" title="Process uptime" data-i18n-title="ui.tt.process_uptime"><span data-i18n="ui.hdr.abbr_up">UP</span> <span class="header-info-value" id="headerUptime">--</span></div>
+            <div class="header-info-item" title="Process ID" data-i18n-title="ui.tt.process_id"><span data-i18n="ui.hdr.abbr_pid">PID</span> <span class="header-info-value" id="headerPid">--</span></div>
+            <div class="header-info-item" title="Plugins scanned" data-i18n-title="ui.tt.plugins_scanned"><span data-i18n="ui.hdr.abbr_plg">PLG</span> <span class="header-info-value" id="headerPlugins">0</span></div>
+            <div class="header-info-item" title="Audio samples scanned" data-i18n-title="ui.tt.audio_samples_scanned"><span data-i18n="ui.hdr.abbr_smp">SMP</span> <span class="header-info-value" id="headerSamples">0</span></div>
+            <div class="header-info-item" title="DAW projects scanned" data-i18n-title="ui.tt.daw_projects_scanned"><span data-i18n="ui.hdr.abbr_daw">DAW</span> <span class="header-info-value" id="headerDaw">0</span></div>
+            <div class="header-info-item" title="Presets scanned" data-i18n-title="ui.tt.presets_scanned"><span data-i18n="ui.hdr.abbr_pre">PRE</span> <span class="header-info-value" id="headerPresets">0</span></div>
+            <div class="header-info-item" title="MIDI files scanned" data-i18n-title="ui.tt.midi_files_scanned"><span data-i18n="ui.hdr.abbr_mid">MID</span> <span class="header-info-value" id="headerMidi">0</span></div>
           </div>
           <span class="scan-btns-group" id="scanBtnsGroup">
             <button class="btn btn-primary" id="btnScanAll" data-action="scanAll" title="Scan all plugins, samples, DAW projects, and presets" data-i18n-title="ui.tt.scan_all_plugins_samples_daw_projects_and_presets" data-i18n="ui.btn.9889_scan_all">&#9889; Scan All</button>
@@ -4834,42 +4834,42 @@
         <div class="stat">
           <span class="stat-dot purple"></span>
           <span class="stat-value" id="totalCount">0</span>
-          <span>Plugins Found</span>
+          <span data-i18n="ui.stats.bar_plugins_found">Plugins Found</span>
         </div>
         <div class="stat">
           <span class="stat-dot green"></span>
           <span class="stat-value" id="upToDateCount">0</span>
-          <span>Up to Date</span>
+          <span data-i18n="ui.stats.bar_up_to_date">Up to Date</span>
         </div>
         <div class="stat">
           <span class="stat-dot orange"></span>
           <span class="stat-value" id="updateCount">0</span>
-          <span>Updates Available</span>
+          <span data-i18n="ui.stats.bar_updates_available">Updates Available</span>
         </div>
         <div class="stat">
           <span class="stat-dot muted"></span>
           <span class="stat-value" id="unknownCount">0</span>
-          <span>Unknown Latest Version</span>
+          <span data-i18n="ui.stats.bar_unknown_latest">Unknown Latest Version</span>
         </div>
         <div class="stat">
           <span class="stat-dot" style="background: var(--yellow); box-shadow: 0 0 6px var(--yellow-glow);"></span>
           <span class="stat-value" id="sampleCount">0</span>
-          <span>Samples Found</span>
+          <span data-i18n="ui.stats.bar_samples_found">Samples Found</span>
         </div>
         <div class="stat">
           <span class="stat-dot" style="background: var(--cyan); box-shadow: 0 0 6px var(--cyan-glow);"></span>
           <span class="stat-value" id="midiScanCount">0</span>
-          <span>MIDI Found</span>
+          <span data-i18n="ui.stats.bar_midi_found">MIDI Found</span>
         </div>
         <div class="stat">
           <span class="stat-dot" style="background: var(--magenta); box-shadow: 0 0 6px var(--magenta-glow);"></span>
           <span class="stat-value" id="dawProjectCount">0</span>
-          <span>DAW Projects</span>
+          <span data-i18n="ui.stats.bar_daw_projects">DAW Projects</span>
         </div>
         <div class="stat">
           <span class="stat-dot" style="background: var(--orange); box-shadow: 0 0 6px var(--orange-bg);"></span>
           <span class="stat-value" id="presetCountHeader">0</span>
-          <span>Presets</span>
+          <span data-i18n="ui.stats.bar_presets">Presets</span>
         </div>
         <div class="stat" id="dashBtnGroup"><button class="btn btn-secondary" data-action="showHeatmapDash" title="Audio heatmap dashboard (D)" style="padding:4px 10px;font-size:10px;" data-i18n-title="ui.tt.audio_heatmap_dashboard_d" data-i18n="ui.btn.128202_dashboard">&#128202; Dashboard</button></div>
         <div class="stat" id="bgAnalysisBadge" title="Background BPM/Key analysis progress" style="font-size:10px;color:var(--cyan);" data-i18n-title="ui.tt.background_bpm_key_analysis_progress"></div>
@@ -4877,7 +4877,7 @@
     </div>
 
     <div class="global-tag-bar" id="globalTagBar" style="display:none;">
-      <span class="global-tag-label">&#127991; Tag Filter:</span>
+      <span class="global-tag-label" data-i18n="ui.tag.filter_label">&#127991; Tag Filter:</span>
       <div class="global-tag-list" id="globalTagList"></div>
       <button class="global-tag-clear" id="globalTagClear" data-action="clearGlobalTag" title="Clear tag filter and hide bar" data-i18n-title="ui.tt.clear_tag_filter_and_hide_bar">&#10005;</button>
       <button class="btn-small" data-action="moveTagBar" title="Move tag bar to top/bottom" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:9px;padding:2px 6px;margin-left:auto;" data-i18n-title="ui.tt.move_tag_bar_to_top_bottom">&#8597;</button>
@@ -4947,7 +4947,7 @@
       <div class="state-message" id="emptyState">
         <div class="state-icon">&#127911;</div>
         <h2 data-i18n="ui.h2.welcome_to_audio_haxor">Welcome to AUDIO_HAXOR</h2>
-        <p>Click <strong>"Scan Plugins"</strong> or <strong>"Scan All"</strong> to discover everything on your system.</p>
+        <p data-i18n="ui.p.welcome_scan_intro">Click &quot;Scan Plugins&quot; or &quot;Scan All&quot; to discover everything on your system.</p>
         <div class="welcome-dashboard" id="welcomeDashboard"></div>
       </div>
     </div>
@@ -4986,7 +4986,7 @@
           <div class="state-message" id="favEmptyState">
             <div class="state-icon">&#9733;</div>
             <h2 data-i18n="ui.h2.no_favorites">No Favorites</h2>
-            <p>Right-click any plugin, sample, DAW project, or preset and choose <strong>"Add to Favorites"</strong>.</p>
+            <p data-i18n="ui.p.favorites_empty">Right-click any plugin, sample, DAW project, or preset and choose &quot;Add to Favorites&quot;.</p>
           </div>
         </div>
       </div>
@@ -5005,7 +5005,7 @@
           <div class="state-message" id="tagsEmptyState">
             <div class="state-icon">&#127991;</div>
             <h2 data-i18n="ui.h2.no_tags">No Tags</h2>
-            <p>Right-click any item and choose <strong>"Add Note"</strong> to add tags, or use the quick-tag menu.</p>
+            <p data-i18n="ui.p.tags_empty">Right-click any item and choose &quot;Add Note&quot; to add tags, or use the quick-tag menu.</p>
           </div>
         </div>
       </div>
@@ -5029,7 +5029,7 @@
           </div>
         </div>
         <div class="file-favs" id="fileFavs" style="display:none;">
-          <div class="file-favs-header">&#9733; Favorite Directories <span></span></div>
+          <div class="file-favs-header"><span data-i18n="ui.files.favorite_dirs_header">&#9733; Favorite Directories</span> <span></span></div>
           <div class="file-favs-grid" id="fileFavsGrid"></div>
         </div>
         <div class="file-list" id="fileList">
@@ -5057,7 +5057,7 @@
           <div class="state-message" id="notesEmptyState">
             <div class="state-icon">&#128221;</div>
             <h2 data-i18n="ui.h2.no_notes">No Notes</h2>
-            <p>Right-click any plugin, sample, DAW project, or preset and choose <strong>"Add Note"</strong>.</p>
+            <p data-i18n="ui.p.notes_empty">Right-click any plugin, sample, DAW project, or preset and choose &quot;Add Note&quot;.</p>
           </div>
         </div>
       </div>
@@ -5115,20 +5115,20 @@
           <div class="audio-progress-fill" id="audioProgressFill"></div>
         </div>
         <div class="audio-stats" id="audioStats" style="display: none;">
-          <span>Total: <span class="audio-stat-value" id="audioTotalCount">0</span></span>
-          <span>WAV: <span class="audio-stat-value" id="audioWavCount">0</span></span>
-          <span>MP3: <span class="audio-stat-value" id="audioMp3Count">0</span></span>
-          <span>AIFF: <span class="audio-stat-value" id="audioAiffCount">0</span></span>
-          <span>FLAC: <span class="audio-stat-value" id="audioFlacCount">0</span></span>
-          <span>Other: <span class="audio-stat-value" id="audioOtherCount">0</span></span>
-          <span>Size: <span class="audio-stat-value" id="audioTotalSize">0 B</span></span>
+          <span><span data-i18n="ui.audio.stat_total">Total:</span> <span class="audio-stat-value" id="audioTotalCount">0</span></span>
+          <span><span data-i18n="ui.audio.stat_wav">WAV:</span> <span class="audio-stat-value" id="audioWavCount">0</span></span>
+          <span><span data-i18n="ui.audio.stat_mp3">MP3:</span> <span class="audio-stat-value" id="audioMp3Count">0</span></span>
+          <span><span data-i18n="ui.audio.stat_aiff">AIFF:</span> <span class="audio-stat-value" id="audioAiffCount">0</span></span>
+          <span><span data-i18n="ui.audio.stat_flac">FLAC:</span> <span class="audio-stat-value" id="audioFlacCount">0</span></span>
+          <span><span data-i18n="ui.audio.stat_other">Other:</span> <span class="audio-stat-value" id="audioOtherCount">0</span></span>
+          <span><span data-i18n="ui.audio.stat_size">Size:</span> <span class="audio-stat-value" id="audioTotalSize">0 B</span></span>
         </div>
         <div class="disk-usage" id="audioDiskUsage" style="display:none;"></div>
         <div class="audio-table-wrap" id="audioTableWrap">
           <div class="state-message" id="audioEmptyState">
             <div class="state-icon">&#127925;</div>
             <h2 data-i18n="ui.h2.audio_sample_index">Audio Sample Index</h2>
-            <p>Click <strong>"Scan Samples"</strong> to find all audio files (WAV, MP3, AIFF, FLAC, etc.) on your system.</p>
+            <p data-i18n="ui.p.samples_empty">Click &quot;Scan Samples&quot; to find all audio files (WAV, MP3, AIFF, FLAC, etc.) on your system.</p>
           </div>
         </div>
       </div>
@@ -5168,20 +5168,20 @@
           <div class="audio-progress-fill" id="dawProgressFill"></div>
         </div>
         <div class="audio-stats" id="dawStats" style="display: none;">
-          <span>Total: <span class="audio-stat-value" id="dawTotalCount">0</span></span>
-          <span>Ableton: <span class="audio-stat-value" id="dawAbletonCount">0</span></span>
-          <span>Logic: <span class="audio-stat-value" id="dawLogicCount">0</span></span>
-          <span>FL Studio: <span class="audio-stat-value" id="dawFlCount">0</span></span>
-          <span>REAPER: <span class="audio-stat-value" id="dawReaperCount">0</span></span>
-          <span>Other: <span class="audio-stat-value" id="dawOtherCount">0</span></span>
-          <span>Size: <span class="audio-stat-value" id="dawTotalSize">0 B</span></span>
+          <span><span data-i18n="ui.audio.daw_stat_total">Total:</span> <span class="audio-stat-value" id="dawTotalCount">0</span></span>
+          <span><span data-i18n="ui.audio.daw_stat_ableton">Ableton:</span> <span class="audio-stat-value" id="dawAbletonCount">0</span></span>
+          <span><span data-i18n="ui.audio.daw_stat_logic">Logic:</span> <span class="audio-stat-value" id="dawLogicCount">0</span></span>
+          <span><span data-i18n="ui.audio.daw_stat_fl">FL Studio:</span> <span class="audio-stat-value" id="dawFlCount">0</span></span>
+          <span><span data-i18n="ui.audio.daw_stat_reaper">REAPER:</span> <span class="audio-stat-value" id="dawReaperCount">0</span></span>
+          <span><span data-i18n="ui.audio.daw_stat_other">Other:</span> <span class="audio-stat-value" id="dawOtherCount">0</span></span>
+          <span><span data-i18n="ui.audio.daw_stat_size">Size:</span> <span class="audio-stat-value" id="dawTotalSize">0 B</span></span>
         </div>
         <div class="disk-usage" id="dawDiskUsage" style="display:none;"></div>
         <div class="audio-table-wrap" id="dawTableWrap">
           <div class="state-message" id="dawEmptyState">
             <div class="state-icon">&#127911;</div>
             <h2 data-i18n="ui.h2.daw_project_index">DAW Project Index</h2>
-            <p>Click <strong>"Scan DAW Projects"</strong> to find all DAW project files (Ableton, Logic, FL Studio, Cubase, REAPER, etc.) on your system.</p>
+            <p data-i18n="ui.p.daw_empty">Click &quot;Scan DAW Projects&quot; to find all DAW project files (Ableton, Logic, FL Studio, Cubase, REAPER, etc.) on your system.</p>
           </div>
         </div>
       </div>
@@ -5217,7 +5217,7 @@
           <div class="progress-fill" id="presetProgressFill"></div>
         </div>
         <div class="audio-stats" id="presetStats" style="display: none;">
-          <div class="audio-stat"><span class="audio-stat-value" id="presetFilteredCount"></span><span class="audio-stat-value" id="presetCount">0</span> presets</div>
+          <div class="audio-stat"><span class="audio-stat-value" id="presetFilteredCount"></span><span class="audio-stat-value" id="presetCount">0</span> <span data-i18n="ui.preset.stats_word">presets</span></div>
           <div class="audio-stat"><span class="audio-stat-value" id="presetTotalSize">0 B</span></div>
           <div class="audio-stat" id="presetFormatBreakdown"></div>
         </div>
@@ -5225,7 +5225,7 @@
           <div class="state-message">
             <div class="state-icon">&#127924;</div>
             <h2 data-i18n="ui.h2.scan_for_presets">Scan for Presets</h2>
-            <p>Click <strong>"Scan Presets"</strong> to discover VST/AU/DAW presets on your system.</p>
+            <p data-i18n="ui.p.presets_empty">Click &quot;Scan Presets&quot; to discover VST/AU/DAW presets on your system.</p>
           </div>
         </div>
       </div>
@@ -5243,9 +5243,9 @@
         </div>
       </div>
       <div class="audio-stats" id="midiStats" style="display:none;">
-        <span>Total: <span class="audio-stat-value" id="midiTotalCount">0</span></span>
-        <span>Files: <span class="audio-stat-value" id="midiCount">0</span></span>
-        <span>Size: <span class="audio-stat-value" id="midiTotalSize">0 B</span></span>
+        <span><span data-i18n="ui.audio.midi_stat_total">Total:</span> <span class="audio-stat-value" id="midiTotalCount">0</span></span>
+        <span><span data-i18n="ui.audio.midi_stat_files">Files:</span> <span class="audio-stat-value" id="midiCount">0</span></span>
+        <span><span data-i18n="ui.audio.midi_stat_size">Size:</span> <span class="audio-stat-value" id="midiTotalSize">0 B</span></span>
       </div>
       <div class="table-wrap" id="midiTableWrap"></div>
     </div>

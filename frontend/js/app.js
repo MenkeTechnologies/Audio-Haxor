@@ -245,11 +245,12 @@ async function updateHeaderInfo() {
     // Scan status badge
     const sc = s.scanner || {};
     const active = [];
-    if (sc.pluginScanning) active.push('Plugins');
-    if (sc.audioScanning) active.push('Samples');
-    if (sc.dawScanning) active.push('DAW');
-    if (sc.presetScanning) active.push('Presets');
-    if (sc.updateChecking) active.push('Updates');
+    const _lbl = (k, fb) => (typeof appFmt === 'function' ? appFmt(k) : fb);
+    if (sc.pluginScanning) active.push(_lbl('ui.scan_status.plugins', 'Plugins'));
+    if (sc.audioScanning) active.push(_lbl('ui.scan_status.samples', 'Samples'));
+    if (sc.dawScanning) active.push(_lbl('ui.scan_status.daw', 'DAW'));
+    if (sc.presetScanning) active.push(_lbl('ui.scan_status.presets', 'Presets'));
+    if (sc.updateChecking) active.push(_lbl('ui.scan_status.updates', 'Updates'));
     const badge = document.getElementById('scanStatusBadge');
     if (badge) {
       if (active.length > 0) {
@@ -277,7 +278,10 @@ async function scanAll(resume = false) {
   const stopBtn = document.getElementById('btnStopAll');
   const resumeBtn = document.getElementById('btnResumeAll');
   btn.disabled = true;
-  btn.textContent = resume ? 'Resuming...' : 'Scanning...';
+  {
+    const _s = (k, fb) => (typeof appFmt === 'function' ? appFmt(k) : fb);
+    btn.textContent = resume ? _s('ui.js.resuming_btn', 'Resuming...') : _s('ui.js.scanning_btn', 'Scanning...');
+  }
   stopBtn.style.display = '';
   resumeBtn.style.display = 'none';
   scanAllRunning = true;
@@ -295,7 +299,7 @@ async function scanAll(resume = false) {
 
   scanAllRunning = false;
   btn.disabled = false;
-  btn.innerHTML = '&#9889; Scan All';
+  btn.innerHTML = typeof appFmt === 'function' ? appFmt('ui.btn.9889_scan_all') : '&#9889; Scan All';
   stopBtn.style.display = 'none';
 
   // Show resume only if any per-tab resume button is visible (scan was stopped)

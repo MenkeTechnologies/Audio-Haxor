@@ -481,11 +481,12 @@ async function renderCacheStats() {
   if (!grid) return;
   try {
     const stats = await window.vstUpdater.dbCacheStats();
+    const _cf = typeof appFmt === 'function' ? appFmt : (k) => k;
     grid.innerHTML = `<table style="width:100%;border-collapse:collapse;font-family:'Share Tech Mono',monospace;">
       <thead><tr style="color:var(--cyan);font-size:10px;text-transform:uppercase;letter-spacing:1px;">
-        <th style="text-align:left;padding:4px 8px;">Cache</th>
-        <th style="text-align:right;padding:4px 8px;">Items</th>
-        <th style="text-align:right;padding:4px 8px;">Size</th>
+        <th style="text-align:left;padding:4px 8px;">${_cf('ui.settings.cache_table_cache')}</th>
+        <th style="text-align:right;padding:4px 8px;">${_cf('ui.settings.cache_table_items')}</th>
+        <th style="text-align:right;padding:4px 8px;">${_cf('ui.settings.cache_table_size')}</th>
         <th style="text-align:center;padding:4px 8px;width:60px;"></th>
       </tr></thead>
       <tbody>${stats.map(s => {
@@ -496,12 +497,15 @@ async function renderCacheStats() {
           <td style="padding:4px 8px;color:var(--text);">${s.label}</td>
           <td style="padding:4px 8px;text-align:right;color:var(--text-muted);">${countStr}</td>
           <td style="padding:4px 8px;text-align:right;color:${s.sizeBytes > 10*1024*1024 ? 'var(--yellow)' : 'var(--text-muted)'};">${sizeStr}</td>
-          <td style="padding:4px 8px;text-align:center;">${canClear && s.count > 0 ? `<button class="btn btn-secondary" data-action="clearCacheTable" data-cache="${s.key}" style="font-size:9px;padding:2px 6px;">Clear</button>` : ''}</td>
+          <td style="padding:4px 8px;text-align:center;">${canClear && s.count > 0 ? `<button class="btn btn-secondary" data-action="clearCacheTable" data-cache="${s.key}" style="font-size:9px;padding:2px 6px;">${_cf('ui.settings.cache_clear')}</button>` : ''}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
   } catch (e) {
-    grid.innerHTML = `<span style="color:var(--red);font-size:11px;">Failed to load stats: ${e}</span>`;
+    const msg = typeof appFmt === 'function'
+      ? appFmt('ui.settings.cache_load_failed', { err: e.message || String(e) })
+      : `Failed to load stats: ${e}`;
+    grid.innerHTML = `<span style="color:var(--red);font-size:11px;">${typeof escapeHtml === 'function' ? escapeHtml(msg) : msg}</span>`;
   }
 }
 
@@ -591,16 +595,21 @@ async function renderCacheFilesList() {
   try {
     const files = await window.vstUpdater.listDataFiles();
     if (files.length === 0) {
-      container.innerHTML = '<div style="color:var(--text-dim);padding:8px;">No data files found</div>';
+      container.innerHTML = `<div style="color:var(--text-dim);padding:8px;">${typeof appFmt === 'function' ? appFmt('ui.settings.cache_files_empty') : 'No data files found'}</div>`;
       return;
     }
     const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
-    container.innerHTML = `<div style="margin-bottom:6px;color:var(--text-muted);font-size:10px;">${files.length} files — ${typeof formatAudioSize === 'function' ? formatAudioSize(totalSize) : Math.round(totalSize / 1024) + ' KB'} total</div>` +
+    const sz = typeof formatAudioSize === 'function' ? formatAudioSize(totalSize) : Math.round(totalSize / 1024) + ' KB';
+    const summary = typeof appFmt === 'function'
+      ? appFmt('ui.settings.cache_files_summary', { n: files.length, size: sz })
+      : `${files.length} files — ${sz} total`;
+    const _h = typeof appFmt === 'function' ? appFmt : (k) => k;
+    container.innerHTML = `<div style="margin-bottom:6px;color:var(--text-muted);font-size:10px;">${typeof escapeHtml === 'function' ? escapeHtml(summary) : summary}</div>` +
       `<table style="width:100%;border-collapse:collapse;font-size:10px;">
         <tr style="color:var(--text-dim);border-bottom:1px solid var(--border);">
-          <th style="text-align:left;padding:3px 6px;">File</th>
-          <th style="text-align:right;padding:3px 6px;">Size</th>
-          <th style="text-align:left;padding:3px 6px;">Modified</th>
+          <th style="text-align:left;padding:3px 6px;">${_h('ui.settings.cache_files_col_file')}</th>
+          <th style="text-align:right;padding:3px 6px;">${_h('ui.settings.cache_files_col_size')}</th>
+          <th style="text-align:left;padding:3px 6px;">${_h('ui.settings.cache_files_col_modified')}</th>
           <th style="padding:3px 6px;"></th>
         </tr>
         ${files.map(f => `<tr style="border-bottom:1px solid rgba(26,26,62,0.2);" title="${escapeHtml(f.path)}">
@@ -611,7 +620,10 @@ async function renderCacheFilesList() {
         </tr>`).join('')}
       </table>`;
   } catch (e) {
-    container.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${e.message || e}</div>`;
+    const errLine = typeof appFmt === 'function'
+      ? appFmt('ui.settings.cache_files_error', { err: e.message || String(e) })
+      : `Error: ${e.message || e}`;
+    container.innerHTML = `<div style="color:var(--red);padding:8px;">${typeof escapeHtml === 'function' ? escapeHtml(errLine) : errLine}</div>`;
   }
 }
 
@@ -935,7 +947,7 @@ function settingSaveSelect(key, value) {
 function showSavedMsg(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.textContent = 'Saved';
+  el.textContent = typeof appFmt === 'function' ? appFmt('ui.settings.saved') : 'Saved';
   el.classList.add('visible');
   setTimeout(() => el.classList.remove('visible'), 2000);
 }
@@ -946,7 +958,11 @@ async function browseDir(targetId) {
     showToast(toastFmt('toast.dialog_api_unavailable'), 3000, 'error');
     return;
   }
-  const selected = await dialogApi.open({ directory: true, multiple: false, title: 'Select folder to scan' });
+  const selected = await dialogApi.open({
+    directory: true,
+    multiple: false,
+    title: typeof appFmt === 'function' ? appFmt('ui.settings.dialog_select_folder') : 'Select folder to scan',
+  });
   if (!selected) return;
   const textarea = document.getElementById(targetId);
   if (!textarea) return;

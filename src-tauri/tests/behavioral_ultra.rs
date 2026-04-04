@@ -8067,3 +8067,205 @@ fn daw_project_serde_roundtrip_path_unicode_wave40() {
     let back: DawProject = serde_json::from_str(&j).unwrap();
     assert_eq!(back.path, "/プロジェクト/Mix/Master.dawproject");
 }
+
+// ── Wave 41: `radix_string(994_999_999, 36)` (`ggeawv`), `find_similar` 32/34, twenty-nine-sample /
+//    twenty-nine-DAW / twenty-nine-preset / twenty-eight-plugin-removed batches, DAW net 25/22,
+//    `format_size` 11 B, twenty-first-component KVR padding ───────────────────────────────────
+
+#[test]
+fn radix_string_994999999_base36_is_ggeawv() {
+    assert_eq!(radix_string(994_999_999, 36), "ggeawv");
+}
+
+#[test]
+fn extract_plugins_nonexistent_zorn_returns_empty() {
+    let p = std::env::temp_dir().join("audio_haxor_not_project.zorn");
+    assert!(extract_plugins(p.to_str().expect("utf8 temp path")).is_empty());
+}
+
+#[test]
+fn find_similar_thirty_four_candidates_max_thirty_two() {
+    let r = fp("/ref.wav");
+    let cands: Vec<_> = (0..34).map(|i| fp(&format!("/region{i}.wav"))).collect();
+    let out = find_similar(&r, &cands, 32);
+    assert_eq!(out.len(), 32);
+}
+
+#[test]
+fn compute_audio_diff_empty_to_twenty_nine_samples_added() {
+    let samples: Vec<_> = (0..29)
+        .map(|i| sample(&format!("/render/pass{i}.wav")))
+        .collect();
+    let old = build_audio_snapshot(&[], &[]);
+    let new = build_audio_snapshot(&samples, &[]);
+    let d = compute_audio_diff(&old, &new);
+    assert_eq!(d.added.len(), 29);
+}
+
+#[test]
+fn compute_daw_diff_twenty_nine_added_from_empty() {
+    let projects: Vec<_> = (0..29)
+        .map(|i| dawproj(&format!("/orchestra/movement{i}.dawproject")))
+        .collect();
+    let old = build_daw_snapshot(&[], &[]);
+    let new = build_daw_snapshot(&projects, &[]);
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.added.len(), 29);
+}
+
+#[test]
+fn compute_preset_diff_empty_to_twenty_nine_presets() {
+    let presets: Vec<_> = (0..29)
+        .map(|i| preset(&format!("/massive/BankD/preset{i}.nmsv")))
+        .collect();
+    let old = build_preset_snapshot(&[], &[]);
+    let new = build_preset_snapshot(&presets, &[]);
+    let d = compute_preset_diff(&old, &new);
+    assert_eq!(d.added.len(), 29);
+}
+
+#[test]
+fn compute_plugin_diff_twenty_eight_paths_all_removed() {
+    let old = build_plugin_snapshot(
+        &(0..28)
+            .map(|i| plug(&format!("/chain/link{i}.vst3"), "1"))
+            .collect::<Vec<_>>(),
+        &[],
+        &[],
+    );
+    let new = build_plugin_snapshot(&[], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert_eq!(d.removed.len(), 28);
+    assert!(d.added.is_empty() && d.version_changed.is_empty());
+}
+
+#[test]
+fn format_size_exactly_11_bytes_wave41() {
+    assert_eq!(app_lib::format_size(11), "11.0 B");
+}
+
+#[test]
+fn compute_daw_diff_twenty_five_removed_twenty_two_added_net() {
+    let old = build_daw_snapshot(
+        &(0..25)
+            .map(|i| dawproj(&format!("/vault/v{i}.dawproject")))
+            .collect::<Vec<_>>(),
+        &[],
+    );
+    let new = build_daw_snapshot(
+        &(0..22)
+            .map(|i| dawproj(&format!("/stage/s{i}.dawproject")))
+            .collect::<Vec<_>>(),
+        &[],
+    );
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.removed.len(), 25);
+    assert_eq!(d.added.len(), 22);
+}
+
+#[test]
+fn compute_plugin_diff_twenty_one_added_nineteen_removed_net_two() {
+    let old = build_plugin_snapshot(
+        &(0..19)
+            .map(|i| plug(&format!("/left/l{i}.vst3"), "1"))
+            .collect::<Vec<_>>(),
+        &[],
+        &[],
+    );
+    let new = build_plugin_snapshot(
+        &(0..21)
+            .map(|i| plug(&format!("/right/r{i}.vst3"), "1"))
+            .collect::<Vec<_>>(),
+        &[],
+        &[],
+    );
+    let d = compute_plugin_diff(&old, &new);
+    assert_eq!(d.removed.len(), 19);
+    assert_eq!(d.added.len(), 21);
+}
+
+#[test]
+fn ext_matches_nuendo_npr_deep_path_wave41() {
+    assert_eq!(
+        ext_matches(Path::new(
+            "/Volumes/Post/2026/Score/Act_IV/Strings/Session_Main_v3.npr"
+        ))
+        .as_deref(),
+        Some("NPR")
+    );
+}
+
+#[test]
+fn fingerprint_distance_low_energy_ratio_only_change_nonzero_wave41() {
+    let a = fp("/a.wav");
+    let mut b = fp("/b.wav");
+    b.low_energy_ratio = 0.86;
+    assert!(fingerprint_distance(&a, &b) > 0.01);
+}
+
+#[test]
+fn kvr_compare_versions_twenty_first_component_padding_equal() {
+    assert_eq!(
+        app_lib::kvr::compare_versions(
+            "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0",
+            "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0"
+        ),
+        Ordering::Equal
+    );
+}
+
+#[test]
+fn kvr_parse_version_triple_gap_thirteen_thirteen_thirteen() {
+    assert_eq!(
+        app_lib::kvr::parse_version("13..13..13"),
+        vec![13, 0, 13, 0, 13]
+    );
+}
+
+#[test]
+fn kvr_compare_versions_thirteen_vs_thirteen_dot_zeros_equal() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("13", "13.0.0.0"),
+        Ordering::Equal
+    );
+}
+
+#[test]
+fn normalize_plugin_name_strips_stereo_then_aax_parens() {
+    assert_eq!(
+        normalize_plugin_name("Limiter (Stereo) (AAX)"),
+        "limiter"
+    );
+}
+
+#[test]
+fn plugin_ref_serde_roundtrip_unicode_manufacturer_wave41() {
+    let p = PluginRef {
+        name: "X".into(),
+        normalized_name: "x".into(),
+        manufacturer: "日本メーカー".into(),
+        plugin_type: "VST3".into(),
+    };
+    let j = serde_json::to_string(&p).unwrap();
+    let back: PluginRef = serde_json::from_str(&j).unwrap();
+    assert_eq!(back.manufacturer, "日本メーカー");
+}
+
+#[test]
+fn update_result_serde_roundtrip_has_update_true_kvr_url_wave41() {
+    let u = app_lib::kvr::UpdateResult {
+        latest_version: "9".into(),
+        has_update: true,
+        source: "kvr".into(),
+        update_url: Some("https://dl.example/p".into()),
+        kvr_url: Some("https://www.kvraudio.com/p/1".into()),
+        has_platform_download: true,
+    };
+    let j = serde_json::to_string(&u).unwrap();
+    let back: app_lib::kvr::UpdateResult = serde_json::from_str(&j).unwrap();
+    assert!(back.has_update);
+    assert_eq!(
+        back.kvr_url.as_deref(),
+        Some("https://www.kvraudio.com/p/1")
+    );
+}

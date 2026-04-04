@@ -10,6 +10,12 @@ let audioScanProgressCleanup = null;
 let _midiScanCount = 0;
 let _audioScanActive = false;
 
+/** `appFmt` wrapper — same pattern as `plugins.js` `_ui`. */
+function _audioFmt(key, vars) {
+  if (typeof appFmt !== 'function') return key;
+  return vars ? appFmt(key, vars) : appFmt(key);
+}
+
 // Playback state
 let audioPlayer = new Audio();
 let audioPlayerPath = null;
@@ -170,11 +176,11 @@ function resetEq() {
   if (pan) { pan.value = 0; pan.disabled = false; }
   const mono = document.getElementById('npBtnMono');
   if (mono) mono.classList.remove('active');
-  document.getElementById('npEqLowVal').textContent = '0 dB';
-  document.getElementById('npEqMidVal').textContent = '0 dB';
-  document.getElementById('npEqHighVal').textContent = '0 dB';
-  document.getElementById('npGainVal').textContent = '100%';
-  document.getElementById('npPanVal').textContent = 'C';
+  document.getElementById('npEqLowVal').textContent = typeof appFmt === 'function' ? appFmt('ui.audio.eq_val_db') : '0 dB';
+  document.getElementById('npEqMidVal').textContent = typeof appFmt === 'function' ? appFmt('ui.audio.eq_val_db') : '0 dB';
+  document.getElementById('npEqHighVal').textContent = typeof appFmt === 'function' ? appFmt('ui.audio.eq_val_db') : '0 dB';
+  document.getElementById('npGainVal').textContent = typeof appFmt === 'function' ? appFmt('ui.audio.eq_gain_pct') : '100%';
+  document.getElementById('npPanVal').textContent = typeof appFmt === 'function' ? appFmt('ui.audio.pan_center') : 'C';
   showToast(toastFmt('toast.eq_reset'));
 }
 
@@ -441,11 +447,11 @@ async function findSimilarSamples(filePath) {
     const body = document.getElementById('simBody');
 
     if (results.length === 0) {
-      body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:11px;">No similar samples found. Scan more samples first.</div>';
+      body.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:11px;">${escapeHtml(_audioFmt('ui.audio.similar_empty'))}</div>`;
       return;
     }
 
-    body.innerHTML = `<div style="margin-bottom:6px;color:var(--text-muted);font-size:10px;padding:0 8px;">${results.length} similar samples</div>` +
+    body.innerHTML = `<div style="margin-bottom:6px;color:var(--text-muted);font-size:10px;padding:0 8px;">${escapeHtml(_audioFmt('ui.audio.similar_count', { n: results.length }))}</div>` +
       results.map(r => {
         const sampleName = r.path.split('/').pop().replace(/\.[^.]+$/, '');
         const ext = r.path.split('.').pop().toUpperCase();
@@ -470,7 +476,7 @@ async function findSimilarSamples(filePath) {
   } catch (err) {
     if (progressCleanup) progressCleanup();
     const body = document.getElementById('simBody');
-    if (body) body.innerHTML = `<div style="padding:16px;color:var(--red);font-size:11px;">Error: ${escapeHtml(err.message || String(err))}</div>`;
+    if (body) body.innerHTML = `<div style="padding:16px;color:var(--red);font-size:11px;">${escapeHtml(_audioFmt('ui.audio.similar_error_prefix'))} ${escapeHtml(err.message || String(err))}</div>`;
   }
 }
 
@@ -621,7 +627,9 @@ async function scanAudioSamples(resume = false) {
   const excludePaths = resume ? allAudioSamples.map(s => s.path) : null;
 
   btn.disabled = true;
-  btn.innerHTML = resume ? '&#8635; Resuming...' : '&#8635; Scanning...';
+  btn.innerHTML = '&#8635; ' + (typeof appFmt === 'function'
+    ? appFmt(resume ? 'ui.js.resuming_btn' : 'ui.js.scanning_btn')
+    : (resume ? 'Resuming...' : 'Scanning...'));
   resumeBtn.style.display = 'none';
   stopBtn.style.display = '';
   progressBar.classList.add('active');
@@ -633,7 +641,11 @@ async function scanAudioSamples(resume = false) {
     expandedMetaPath = null;
     resetAudioStats();
     document.getElementById('audioStats').style.display = 'none';
-    tableWrap.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for audio files...</h2><p>Walking filesystem directories parallelized...</p></div>';
+    {
+      const h2 = typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.scanning_title')) : _audioFmt('ui.audio.scanning_title');
+      const sub = typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.scanning_sub')) : _audioFmt('ui.audio.scanning_sub');
+      tableWrap.innerHTML = `<div class="state-message"><div class="spinner"></div><h2>${h2}</h2><p>${sub}</p></div>`;
+    }
   }
 
   let firstAudioBatch = true;
@@ -667,7 +679,9 @@ async function scanAudioSamples(resume = false) {
     if (_bgQueue.length > 50000) _bgQueue = _bgQueue.slice(-50000); // keep newest
     if (!_bgAnalysisRunning) startBackgroundAnalysis();
     const audioElapsed = audioEta.elapsed();
-    btn.innerHTML = `&#8635; ${pendingFound} found${audioElapsed ? ' — ' + audioElapsed : ''}`;
+    btn.innerHTML = typeof appFmt === 'function'
+      ? appFmt('ui.audio.scan_progress_line', { n: pendingFound, elapsed: audioElapsed ? ' — ' + audioElapsed : '' })
+      : `&#8635; ${pendingFound} found${audioElapsed ? ' — ' + audioElapsed : ''}`;
     progressFill.style.width = '';
     progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
 
@@ -736,14 +750,14 @@ async function scanAudioSamples(resume = false) {
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
     flushPendingSamples();
     const errMsg = err.message || err || 'Unknown error';
-    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
+    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>${typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.scan_error_title')) : _audioFmt('ui.audio.scan_error_title')}</h2><p>${typeof escapeHtml === 'function' ? escapeHtml(errMsg) : errMsg}</p></div>`;
     showToast(toastFmt('toast.audio_scan_failed', { errMsg }), 4000, 'error');
   }
 
   _audioScanActive = false;
   hideGlobalProgress();
   btn.disabled = false;
-  btn.innerHTML = '&#127925; Scan Samples';
+  btn.innerHTML = typeof appFmt === 'function' ? appFmt('ui.btn.127925_scan_samples') : '&#127925; Scan Samples';
   stopBtn.style.display = 'none';
   progressBar.classList.remove('active');
   progressFill.style.width = '0%';
@@ -808,20 +822,21 @@ async function rebuildAudioStats() {
 
 function initAudioTable() {
   const tableWrap = document.getElementById('audioTableWrap');
+  const t = _audioFmt;
   tableWrap.innerHTML = `<table class="audio-table" id="audioTable">
     <thead>
       <tr>
-        <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="Select all"></th>
-        <th data-action="sortAudio" data-key="name" style="width: 22%;" title="File name — click to sort">Name <span class="sort-arrow" id="sortArrowName">&#9660;</span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="format" class="col-format" style="width: 60px;" title="Audio format — click to sort">Format <span class="sort-arrow" id="sortArrowFormat"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="size" class="col-size" style="width: 75px;" title="File size — click to sort">Size <span class="sort-arrow" id="sortArrowSize"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="bpm" class="col-bpm" style="width: 55px;" title="Estimated BPM — click to sort">BPM <span class="sort-arrow" id="sortArrowBpm"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="key" class="col-key" style="width: 75px;" title="Musical key — click to sort">Key <span class="sort-arrow" id="sortArrowKey"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="duration" class="col-dur" style="width: 55px;" title="Duration — click to sort">Dur <span class="sort-arrow" id="sortArrowDuration"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="channels" class="col-ch" style="width: 40px;" title="Channels — click to sort">Ch <span class="sort-arrow" id="sortArrowChannels"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="lufs" class="col-lufs" style="width: 55px;" title="Integrated loudness (LUFS) — click to sort">LUFS <span class="sort-arrow" id="sortArrowLufs"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="modified" class="col-date" style="width: 90px;" title="Last modified date — click to sort">Modified <span class="sort-arrow" id="sortArrowModified"></span><span class="col-resize"></span></th>
-        <th data-action="sortAudio" data-key="directory" style="width: 22%;" title="Directory path — click to sort">Path <span class="sort-arrow" id="sortArrowDirectory"></span><span class="col-resize"></span></th>
+        <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="${typeof escapeHtml === 'function' ? escapeHtml(t('ui.audio.th_select_all')) : t('ui.audio.th_select_all')}"></th>
+        <th data-action="sortAudio" data-key="name" style="width: 22%;" title="File name — click to sort">${t('ui.audio.th_name')} <span class="sort-arrow" id="sortArrowName">&#9660;</span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="format" class="col-format" style="width: 60px;" title="Audio format — click to sort">${t('ui.audio.th_format')} <span class="sort-arrow" id="sortArrowFormat"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="size" class="col-size" style="width: 75px;" title="File size — click to sort">${t('ui.audio.th_size')} <span class="sort-arrow" id="sortArrowSize"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="bpm" class="col-bpm" style="width: 55px;" title="Estimated BPM — click to sort">${t('ui.audio.th_bpm')} <span class="sort-arrow" id="sortArrowBpm"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="key" class="col-key" style="width: 75px;" title="Musical key — click to sort">${t('ui.audio.th_key')} <span class="sort-arrow" id="sortArrowKey"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="duration" class="col-dur" style="width: 55px;" title="Duration — click to sort">${t('ui.audio.th_dur')} <span class="sort-arrow" id="sortArrowDuration"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="channels" class="col-ch" style="width: 40px;" title="Channels — click to sort">${t('ui.audio.th_ch')} <span class="sort-arrow" id="sortArrowChannels"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="lufs" class="col-lufs" style="width: 55px;" title="Integrated loudness (LUFS) — click to sort">${t('ui.audio.th_lufs')} <span class="sort-arrow" id="sortArrowLufs"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="modified" class="col-date" style="width: 90px;" title="Last modified date — click to sort">${t('ui.audio.th_modified')} <span class="sort-arrow" id="sortArrowModified"></span><span class="col-resize"></span></th>
+        <th data-action="sortAudio" data-key="directory" style="width: 22%;" title="Directory path — click to sort">${t('ui.audio.th_path')} <span class="sort-arrow" id="sortArrowDirectory"></span><span class="col-resize"></span></th>
         <th class="col-actions" style="width: 130px;"></th>
       </tr>
     </thead>
@@ -921,9 +936,15 @@ function renderAudioTable() {
 }
 
 function appendLoadMore(tbody) {
+  const line = typeof appFmt === 'function'
+    ? appFmt('ui.audio.load_more_hint', {
+        shown: audioRenderCount.toLocaleString(),
+        total: audioTotalCount.toLocaleString(),
+      })
+    : `Showing ${audioRenderCount.toLocaleString()} of ${audioTotalCount.toLocaleString()} — click to load more`;
   tbody.insertAdjacentHTML('beforeend',
     `<tr id="audioLoadMore"><td colspan="12" style="text-align: center; padding: 12px; color: var(--text-muted); cursor: pointer;" data-action="loadMoreAudio">
-      Showing ${audioRenderCount.toLocaleString()} of ${audioTotalCount.toLocaleString()} &#8212; click to load more
+      ${typeof escapeHtml === 'function' ? escapeHtml(line) : line}
     </td></tr>`);
 }
 
@@ -1096,7 +1117,7 @@ function clearAudioPlaybackUI() {
   np.classList.remove('expanded');
   np.classList.remove('np-playing');
   document.getElementById('npProgress').style.width = '0%';
-  document.getElementById('npTime').textContent = '0:00 / 0:00';
+  document.getElementById('npTime').textContent = typeof appFmt === 'function' ? appFmt('ui.audio.player_time_zero') : '0:00 / 0:00';
   const npCursor = document.getElementById('npCursor');
   if (npCursor) npCursor.style.display = 'none';
   const pill = document.getElementById('audioRestorePill');
@@ -1313,7 +1334,8 @@ async function toggleMetadata(filePath, event) {
       <span style="position:absolute;top:2px;left:4px;font-size:8px;color:var(--text-dim);pointer-events:none;">SPECTROGRAM</span>
     </div>`;
 
-    metaRow.innerHTML = `<td colspan="12"><div class="audio-meta-panel"><span class="meta-close-btn" data-action="closeMetaRow" title="Close metadata panel">&#10005;</span>${waveformHtml}${items}</div></td>`;
+    const _closeT = typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.meta_close_title')) : _audioFmt('ui.audio.meta_close_title');
+    metaRow.innerHTML = `<td colspan="12"><div class="audio-meta-panel"><span class="meta-close-btn" data-action="closeMetaRow" title="${_closeT}">&#10005;</span>${waveformHtml}${items}</div></td>`;
 
     // Draw waveform and spectrogram on the meta canvases
     drawMetaWaveform(filePath);
@@ -1348,7 +1370,10 @@ async function toggleMetadata(filePath, event) {
       if (lufsEl) lufsEl.textContent = '—';
     }
   } catch (err) {
-    metaRow.innerHTML = `<td colspan="12"><div class="audio-meta-panel"><span style="color: var(--red);">Failed to load metadata</span></div></td>`;
+    {
+      const msg = typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.meta_load_failed')) : _audioFmt('ui.audio.meta_load_failed');
+      metaRow.innerHTML = `<td colspan="12"><div class="audio-meta-panel"><span style="color: var(--red);">${msg}</span></div></td>`;
+    }
   }
 }
 
@@ -1629,7 +1654,7 @@ function renderRecentlyPlayed() {
   }
 
   if (items.length === 0 && query) {
-    list.innerHTML = '<div style="text-align:center;color:var(--text-dim);font-size:11px;padding:12px;">No matches</div>';
+    list.innerHTML = `<div style="text-align:center;color:var(--text-dim);font-size:11px;padding:12px;">${typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.search_no_matches')) : _audioFmt('ui.audio.search_no_matches')}</div>`;
     return;
   }
 
@@ -1686,7 +1711,7 @@ function renderMiniSearchResults() {
   const items = scored.slice(0, 50).map(s => s.item);
 
   if (items.length === 0) {
-    container.innerHTML = '<div style="text-align:center;color:var(--text-dim);font-size:11px;padding:8px;">No matches</div>';
+    container.innerHTML = `<div style="text-align:center;color:var(--text-dim);font-size:11px;padding:8px;">${typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.search_no_matches')) : _audioFmt('ui.audio.search_no_matches')}</div>`;
     return;
   }
 
@@ -1834,7 +1859,7 @@ function toggleMute() {
     audioMuted = true;
     if (btn) btn.innerHTML = '&#128263;';
     if (slider) slider.value = 0;
-    document.getElementById('npVolumePct').textContent = '0%';
+    document.getElementById('npVolumePct').textContent = typeof appFmt === 'function' ? appFmt('ui.audio.volume_zero') : '0%';
   }
 }
 
