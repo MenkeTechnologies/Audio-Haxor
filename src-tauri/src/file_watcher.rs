@@ -347,6 +347,11 @@ mod tests {
     }
 
     #[test]
+    fn test_classify_preset_bwpreset_bitwig() {
+        assert_eq!(classify(Path::new("Analog.bwpreset")), Some("preset"));
+    }
+
+    #[test]
     fn test_classify_case_insensitive() {
         assert_eq!(classify(Path::new("test.WAV")), Some("audio"));
         assert_eq!(classify(Path::new("test.Flp")), Some("daw"));

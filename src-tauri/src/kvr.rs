@@ -740,4 +740,16 @@ mod tests {
             std::cmp::Ordering::Equal
         );
     }
+
+    #[test]
+    fn test_compare_versions_multi_segment_numeric_not_string_order() {
+        assert_eq!(
+            compare_versions("10.0.0", "2.0.0"),
+            std::cmp::Ordering::Greater
+        );
+        assert_eq!(
+            compare_versions("2.0.0", "10.0.0"),
+            std::cmp::Ordering::Less
+        );
+    }
 }

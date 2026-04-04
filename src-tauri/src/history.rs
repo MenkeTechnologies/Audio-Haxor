@@ -1551,6 +1551,28 @@ mod tests {
     }
 
     #[test]
+    fn test_toml_key_to_flat_performance_pageSize_to_flat_key() {
+        assert_eq!(
+            toml_key_to_flat("performance", "pageSize").as_deref(),
+            Some("pageSize")
+        );
+    }
+
+    #[test]
+    fn test_toml_key_to_flat_favorites_items_to_flat_key() {
+        assert_eq!(
+            toml_key_to_flat("favorites", "items").as_deref(),
+            Some("favorites")
+        );
+    }
+
+    #[test]
+    fn test_migrate_json_string_bracketed_invalid_json_keeps_original() {
+        let v = migrate_json_string(serde_json::json!("[not valid json]"));
+        assert_eq!(v, serde_json::json!("[not valid json]"));
+    }
+
+    #[test]
     fn test_toml_to_flat_promotes_data_widths_key() {
         let toml = "[data]\nwidths = [120, 240]\n";
         let flat = toml_to_flat(toml);

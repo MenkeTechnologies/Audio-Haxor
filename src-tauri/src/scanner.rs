@@ -785,6 +785,24 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_architectures_pe_i386_machine() {
+        let tmp = std::env::temp_dir().join("upum_test_pe_i386.dll");
+        let _ = fs::remove_file(&tmp);
+        let pe_off = 0x40usize;
+        let mut buf = vec![0u8; 0x80];
+        buf[0] = b'M';
+        buf[1] = b'Z';
+        buf[0x3C..0x40].copy_from_slice(&(pe_off as u32).to_le_bytes());
+        buf[pe_off] = b'P';
+        buf[pe_off + 1] = b'E';
+        buf[pe_off + 4..pe_off + 6].copy_from_slice(&0x014cu16.to_le_bytes());
+        fs::write(&tmp, &buf).unwrap();
+
+        assert_eq!(super::detect_architectures(&tmp), vec!["i386"]);
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_get_plugin_info_nonexistent() {
         let info = super::get_plugin_info(Path::new("/nonexistent/plugin.vst3"));
         assert!(info.is_none());

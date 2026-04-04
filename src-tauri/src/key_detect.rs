@@ -584,6 +584,13 @@ mod tests {
     }
 
     #[test]
+    fn test_profile_correlation_zero_chroma_returns_zero() {
+        let z = [0.0f64; 12];
+        let r = profile_correlation(&z, &MAJOR_PROFILE, 0);
+        assert_eq!(r, 0.0, "zero variance in x → Pearson denom 0 → 0.0");
+    }
+
+    #[test]
     fn test_compute_chromagram_too_short_for_one_frame_returns_zeros() {
         let sr = 44100u32;
         let samples: Vec<f32> = vec![0.5; 3000];

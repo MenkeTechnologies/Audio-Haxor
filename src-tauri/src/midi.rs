@@ -650,4 +650,21 @@ mod tests {
         assert_eq!(info.note_count, 0);
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn test_parse_midi_track_name_zero_length_not_listed() {
+        let track = vec![
+            0x00, 0xFF, 0x03, 0x00, // sequence/track name, length 0
+            0x00, 0xFF, 0x2F, 0x00,
+        ];
+        let data = make_midi(0, 1, 480, &track);
+        let tmp = std::env::temp_dir().join("test_midi_empty_name.mid");
+        std::fs::write(&tmp, &data).unwrap();
+        let info = parse_midi(&tmp).unwrap();
+        assert!(
+            info.track_names.is_empty(),
+            "empty meta 0x03 must not add a track name"
+        );
+        let _ = std::fs::remove_file(&tmp);
+    }
 }
