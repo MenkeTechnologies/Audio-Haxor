@@ -1245,10 +1245,6 @@ function refreshSettingsUI() {
       const appPane = appInfo?.closest('.settings-section');
       if (sysPane) sysPane.style.display = '';
       if (appPane) appPane.style.display = '';
-      if (typeof window.balanceSettingsColumns === 'function') {
-        window._columnsBalanced = false;
-        requestAnimationFrame(window.balanceSettingsColumns);
-      }
     }).catch((err) => {
       const cpus = navigator.hardwareConcurrency || '?';
       perfInfo.textContent = `${cpus} cores | error: ${err}`;
@@ -1431,19 +1427,13 @@ function initSettingsSectionDrag() {
       shortest.height += s.offsetHeight;
     }
     for (const col of cols) for (const s of col.items) container.appendChild(s);
-    // Re-render dynamic content that lost state after DOM reorder
-    requestAnimationFrame(() => {
-      if (typeof refreshSettingsUI === 'function') refreshSettingsUI();
-      if (typeof renderCacheStats === 'function') renderCacheStats();
-      if (typeof renderShortcutSettings === 'function') renderShortcutSettings();
-    });
   }
   // Hook into switchTab — balance when settings becomes visible
   const _origSwitchTabBalance = window.switchTab;
   if (_origSwitchTabBalance) {
     window.switchTab = function(tab) {
       _origSwitchTabBalance(tab);
-      if (tab === 'settings') requestAnimationFrame(window.balanceSettingsColumns);
+      if (tab === 'settings') setTimeout(window.balanceSettingsColumns, 500);
     };
   }
 
