@@ -31,6 +31,10 @@ const ANCHOR_KEYS = [
   'menu.tools',
   'menu.window',
   'tray.show',
+  'menu.playback',
+  'menu.scan_daw',
+  'menu.scan_presets',
+  'menu.scan_samples',
 ];
 
 const NON_EN = /** @type {const} */ (['de', 'es', 'fr', 'nl', 'pt', 'sv']);
