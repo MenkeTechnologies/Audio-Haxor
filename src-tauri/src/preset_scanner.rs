@@ -163,15 +163,15 @@ fn walk_dir_parallel(
         return;
     }
 
-    let real_dir = match fs::canonicalize(dir) {
-        Ok(p) => normalize_macos_path(p),
-        Err(_) => normalize_macos_path(dir.to_path_buf()),
-    };
     {
         let mut vis = visited.lock().unwrap_or_else(|e| e.into_inner());
-        if !vis.insert(real_dir) {
+        let orig = normalize_macos_path(dir.to_path_buf());
+        let canon = fs::canonicalize(dir).ok().map(|p| normalize_macos_path(p));
+        let key = canon.unwrap_or_else(|| orig.clone());
+        if !vis.insert(key) {
             return;
         }
+        vis.insert(orig);
     }
 
     let dir_str = dir.to_string_lossy().to_string();
@@ -195,7 +195,7 @@ fn walk_dir_parallel(
     for entry in &entries {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if name_str.starts_with('.') || SKIP_DIRS.contains(&name_str.as_ref()) {
+        if name_str.starts_with('.') || SKIP_DIRS.contains(&name_str.as_ref()) || exclude.contains(name_str.as_ref()) {
             continue;
         }
         let path = entry.path();

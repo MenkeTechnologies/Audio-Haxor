@@ -299,15 +299,16 @@ fn walk_dir_parallel(
         return;
     }
 
-    let real_dir = match fs::canonicalize(dir) {
-        Ok(p) => normalize_macos_path(p),
-        Err(_) => normalize_macos_path(dir.to_path_buf()),
-    };
     {
         let mut vis = visited.lock().unwrap_or_else(|e| e.into_inner());
-        if !vis.insert(real_dir) {
+        let orig = normalize_macos_path(dir.to_path_buf());
+        let canon = fs::canonicalize(dir).ok().map(|p| normalize_macos_path(p));
+        // Dedup on canonical path (resolves symlinks), fall back to original
+        let key = canon.unwrap_or_else(|| orig.clone());
+        if !vis.insert(key) {
             return;
         }
+        vis.insert(orig); // also mark original to prevent re-entry via different route
     }
 
     let dir_str = dir.to_string_lossy().to_string();
@@ -331,7 +332,7 @@ fn walk_dir_parallel(
     for entry in &entries {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if name_str.starts_with('.') || SKIP_DIRS.contains(&name_str.as_ref()) {
+        if name_str.starts_with('.') || SKIP_DIRS.contains(&name_str.as_ref()) || exclude.contains(name_str.as_ref()) {
             continue;
         }
         if !include_backups && BACKUP_DIRS.contains(&name_str.as_ref()) {
