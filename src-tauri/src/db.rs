@@ -1356,7 +1356,7 @@ impl Database {
             tx.execute("DELETE FROM plugins WHERE scan_id = ?1", params![snap.id])
                 .map_err(|e| e.to_string())?;
             let mut stmt = tx.prepare_cached(
-                "INSERT INTO plugins (name, path, plugin_type, version, manufacturer, manufacturer_url, size, size_bytes, modified, architectures, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)"
+                "INSERT OR REPLACE INTO plugins (name, path, plugin_type, version, manufacturer, manufacturer_url, size, size_bytes, modified, architectures, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)"
             ).map_err(|e| e.to_string())?;
             for p in &snap.plugins {
                 let arch_json = serde_json::to_string(&p.architectures).unwrap_or_default();
@@ -1591,7 +1591,7 @@ impl Database {
                 params![snap.id],
             )
             .map_err(|e| e.to_string())?;
-            let mut stmt = tx.prepare_cached("INSERT INTO daw_projects (name, path, directory, format, daw, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)").map_err(|e| e.to_string())?;
+            let mut stmt = tx.prepare_cached("INSERT OR REPLACE INTO daw_projects (name, path, directory, format, daw, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)").map_err(|e| e.to_string())?;
             for p in &snap.projects {
                 stmt.execute(params![
                     p.name,
@@ -1709,7 +1709,7 @@ impl Database {
         {
             tx.execute("DELETE FROM presets WHERE scan_id = ?1", params![snap.id])
                 .map_err(|e| e.to_string())?;
-            let mut stmt = tx.prepare_cached("INSERT INTO presets (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").map_err(|e| e.to_string())?;
+            let mut stmt = tx.prepare_cached("INSERT OR REPLACE INTO presets (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").map_err(|e| e.to_string())?;
             for p in &snap.presets {
                 stmt.execute(params![
                     p.name,
