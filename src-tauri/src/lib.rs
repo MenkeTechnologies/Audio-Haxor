@@ -3329,6 +3329,49 @@ mod tests {
     }
 
     #[test]
+    fn test_read_binary_project_inner_missing_file_errors() {
+        assert!(read_binary_project_inner("/nonexistent/audio_haxor_binary_probe.bin").is_err());
+    }
+
+    #[test]
+    fn test_read_binary_project_inner_extracts_printable_plugin_paths() {
+        let tmp = std::env::temp_dir().join("upum_test_read_bin_inner.flp");
+        let _ = fs::remove_file(&tmp);
+        let mut blob = vec![0u8, 0x01, 0x02, 0x03];
+        blob.extend_from_slice(b"/Library/Audio/Plug-Ins/VST3/PluginA.vst3");
+        blob.push(0);
+        blob.extend_from_slice(b"C:\\VSTPlugins\\PluginB.dll");
+        blob.push(0);
+        fs::write(&tmp, &blob).unwrap();
+        let v = read_binary_project_inner(tmp.to_str().unwrap()).unwrap();
+        let plugins: Vec<&str> = v["plugins"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|x| x.as_str())
+            .collect();
+        assert!(
+            plugins.contains(&"/Library/Audio/Plug-Ins/VST3/PluginA.vst3"),
+            "plugins={plugins:?}"
+        );
+        assert!(plugins.contains(&"C:\\VSTPlugins\\PluginB.dll"), "plugins={plugins:?}");
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_read_binary_project_adds_format_display_name() {
+        let tmp = std::env::temp_dir().join("upum_test_read_bin_fmt.cpr");
+        let _ = fs::remove_file(&tmp);
+        fs::write(&tmp, b"x").unwrap();
+        let v = read_binary_project(tmp.to_string_lossy().to_string(), "cpr").unwrap();
+        assert_eq!(
+            v.get("_format").and_then(|x| x.as_str()),
+            Some("Cubase Project (.cpr)")
+        );
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_plugins_to_export_empty() {
         let result = plugins_to_export(&[]);
         assert!(result.is_empty());
@@ -4300,6 +4343,16 @@ fn db_audio_stats(scan_id: Option<String>) -> Result<db::AudioStatsResult, Strin
 }
 
 #[tauri::command]
+fn db_daw_stats(scan_id: Option<String>) -> Result<db::DawStatsResult, String> {
+    db::global().daw_stats(scan_id.as_deref())
+}
+
+#[tauri::command]
+fn db_preset_stats(scan_id: Option<String>) -> Result<db::PresetStatsResult, String> {
+    db::global().preset_stats(scan_id.as_deref())
+}
+
+#[tauri::command]
 fn db_list_scans() -> Result<Vec<db::ScanInfo>, String> {
     db::global().list_scans()
 }
@@ -4718,6 +4771,8 @@ pub fn run() {
             db_query_daw,
             db_query_presets,
             db_audio_stats,
+            db_daw_stats,
+            db_preset_stats,
             db_list_scans,
             db_update_bpm,
             db_update_key,

@@ -683,6 +683,15 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_pcm_unsupported_bit_depth_yields_zero_sample() {
+        let data = [0xABu8, 0xCD];
+        let samples = decode_pcm(&data, 12, 1, true);
+        assert_eq!(samples.len(), 2);
+        assert_eq!(samples[0], 0.0);
+        assert_eq!(samples[1], 0.0);
+    }
+
+    #[test]
     fn test_read_wav_invalid_header() {
         let tmp = std::env::temp_dir().join("test_bpm_invalid_header.wav");
         // Write data that is NOT a valid RIFF header

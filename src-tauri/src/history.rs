@@ -2548,4 +2548,94 @@ mod tests {
         assert!(d.added.is_empty());
         assert!(d.removed.is_empty());
     }
+
+    #[test]
+    fn test_compute_audio_diff_added_removed_by_path() {
+        let old = AudioScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            sample_count: 1,
+            total_bytes: 100,
+            format_counts: std::collections::HashMap::new(),
+            samples: vec![make_sample("kick", "/tmp/kick.wav", "WAV")],
+            roots: vec![],
+        };
+        let new = AudioScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            sample_count: 1,
+            total_bytes: 200,
+            format_counts: std::collections::HashMap::new(),
+            samples: vec![make_sample("snare", "/tmp/snare.wav", "WAV")],
+            roots: vec![],
+        };
+        let d = compute_audio_diff(&old, &new);
+        assert_eq!(d.added.len(), 1);
+        assert_eq!(d.added[0].path, "/tmp/snare.wav");
+        assert_eq!(d.removed.len(), 1);
+        assert_eq!(d.removed[0].path, "/tmp/kick.wav");
+    }
+
+    #[test]
+    fn test_compute_daw_diff_added_removed_by_path() {
+        let old = DawScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            project_count: 1,
+            total_bytes: 1000,
+            daw_counts: std::collections::HashMap::new(),
+            projects: vec![make_daw_project("Old", "/p/old.als", "ALS", "Ableton Live")],
+            roots: vec![],
+        };
+        let new = DawScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            project_count: 1,
+            total_bytes: 2000,
+            daw_counts: std::collections::HashMap::new(),
+            projects: vec![make_daw_project("New", "/p/new.flp", "FLP", "FL Studio")],
+            roots: vec![],
+        };
+        let d = compute_daw_diff(&old, &new);
+        assert_eq!(d.added.len(), 1);
+        assert_eq!(d.added[0].path, "/p/new.flp");
+        assert_eq!(d.removed.len(), 1);
+        assert_eq!(d.removed[0].path, "/p/old.als");
+    }
+
+    #[test]
+    fn test_compute_preset_diff_added_removed_by_path() {
+        let preset = |path: &str| PresetFile {
+            name: "n".into(),
+            path: path.into(),
+            directory: "/d".into(),
+            format: "FXP".into(),
+            size: 10,
+            size_formatted: "10 B".into(),
+            modified: "2024-01-01".into(),
+        };
+        let old = PresetScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            preset_count: 1,
+            total_bytes: 10,
+            format_counts: std::collections::HashMap::new(),
+            presets: vec![preset("/a/a.fxp")],
+            roots: vec![],
+        };
+        let new = PresetScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            preset_count: 1,
+            total_bytes: 20,
+            format_counts: std::collections::HashMap::new(),
+            presets: vec![preset("/b/b.fxp")],
+            roots: vec![],
+        };
+        let d = compute_preset_diff(&old, &new);
+        assert_eq!(d.added.len(), 1);
+        assert_eq!(d.added[0].path, "/b/b.fxp");
+        assert_eq!(d.removed.len(), 1);
+        assert_eq!(d.removed[0].path, "/a/a.fxp");
+    }
 }

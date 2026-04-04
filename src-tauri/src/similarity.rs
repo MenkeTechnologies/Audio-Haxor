@@ -407,6 +407,16 @@ mod tests {
     }
 
     #[test]
+    fn test_audio_fingerprint_json_roundtrip() {
+        let fp = make_fp("x.wav", 0.4, 0.2, 0.15, 0.5, 0.25, 0.1);
+        let json = serde_json::to_string(&fp).unwrap();
+        let back: AudioFingerprint = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.path, fp.path);
+        assert!((back.rms - fp.rms).abs() < 1e-9);
+        assert!((back.low_band_energy - fp.low_band_energy).abs() < 1e-9);
+    }
+
+    #[test]
     fn test_find_similar_empty_candidates() {
         let reference = make_fp("ref.wav", 0.5, 0.1, 0.1, 0.5, 0.3, 0.2);
         let results = find_similar(&reference, &[], 10);

@@ -1133,4 +1133,19 @@ mod tests {
         assert_eq!(meta.size_bytes, 5);
         let _ = fs::remove_dir_all(&tmp);
     }
+
+    #[test]
+    fn test_get_audio_metadata_rex_skips_native_header_parse() {
+        let tmp = std::env::temp_dir().join("upum_test_meta_rex_loop.rex");
+        let _ = fs::remove_file(&tmp);
+        fs::write(&tmp, b"not a rex header").unwrap();
+        let meta = get_audio_metadata(tmp.to_str().unwrap());
+        assert_eq!(meta.format, "REX");
+        assert!(
+            meta.duration.is_none() && meta.sample_rate.is_none(),
+            ".rex is listed as audio but get_audio_metadata has no parser branch for it"
+        );
+        assert!(meta.error.is_none());
+        let _ = fs::remove_file(&tmp);
+    }
 }
