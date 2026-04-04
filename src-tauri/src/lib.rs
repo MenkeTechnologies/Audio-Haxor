@@ -3479,6 +3479,40 @@ mod tests {
     }
 
     #[test]
+    fn test_export_plugins_tsv_uses_tab_separator_and_header() {
+        let tmp = std::env::temp_dir().join("upum_test_export_plugins.tsv");
+        let _ = fs::remove_file(&tmp);
+
+        let plugins = vec![make_plugin("Serum", "VST3")];
+        export_plugins_csv(plugins, tmp.to_string_lossy().to_string()).unwrap();
+
+        let content = fs::read_to_string(&tmp).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(
+            lines[0],
+            "Name\tType\tVersion\tManufacturer\tManufacturer URL\tPath\tSize\tModified"
+        );
+        assert!(
+            !lines[1].contains(','),
+            "TSV data row should use tabs, not commas: {}",
+            lines[1]
+        );
+        assert!(lines[1].contains('\t'));
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_import_plugins_json_errors_on_malformed_json() {
+        let tmp = std::env::temp_dir().join("upum_test_import_plugins_bad.json");
+        let _ = fs::remove_file(&tmp);
+        fs::write(&tmp, "{ not json").unwrap();
+        let err = import_plugins_json(tmp.to_string_lossy().to_string()).unwrap_err();
+        assert!(!err.is_empty());
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_import_json_invalid_file() {
         let result = import_plugins_json("/nonexistent/path.json".into());
         assert!(result.is_err());
