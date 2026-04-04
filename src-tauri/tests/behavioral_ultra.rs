@@ -4359,3 +4359,185 @@ fn preset_file_serde_roundtrip_unicode_path_segment() {
     assert_eq!(back.name, "プリセット");
     assert!(back.path.contains("日本語"));
 }
+
+// ── Wave 21: radix 36¹¹, `find_similar` 10/12, xref missing `.ptf`, larger batches ───────
+
+#[test]
+fn radix_string_131621703842267136_base36_is_hundred_billion() {
+    assert_eq!(radix_string(131_621_703_842_267_136, 36), "100000000000");
+}
+
+#[test]
+fn extract_plugins_nonexistent_ptf_returns_empty() {
+    let p = std::env::temp_dir().join("audio_haxor_missing_legacy.ptf");
+    assert!(extract_plugins(p.to_str().expect("utf8 temp path")).is_empty());
+}
+
+#[test]
+fn find_similar_twelve_candidates_max_ten() {
+    let r = fp("/ref.wav");
+    let cands: Vec<_> = (0..12).map(|i| fp(&format!("/c{i}.wav"))).collect();
+    let out = find_similar(&r, &cands, 10);
+    assert_eq!(out.len(), 10);
+}
+
+#[test]
+fn compute_audio_diff_empty_to_nine_samples_added() {
+    let samples: Vec<_> = (0..9)
+        .map(|i| sample(&format!("/clip{i}.wav")))
+        .collect();
+    let old = build_audio_snapshot(&[], &[]);
+    let new = build_audio_snapshot(&samples, &[]);
+    let d = compute_audio_diff(&old, &new);
+    assert_eq!(d.added.len(), 9);
+}
+
+#[test]
+fn compute_daw_diff_seven_added_from_empty() {
+    let projects: Vec<_> = (0..7)
+        .map(|i| dawproj(&format!("/proj{i}.dawproject")))
+        .collect();
+    let old = build_daw_snapshot(&[], &[]);
+    let new = build_daw_snapshot(&projects, &[]);
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.added.len(), 7);
+}
+
+#[test]
+fn compute_preset_diff_empty_to_eight_presets() {
+    let presets: Vec<_> = (0..8)
+        .map(|i| preset(&format!("/vst3/bank{i}.fxp")))
+        .collect();
+    let old = build_preset_snapshot(&[], &[]);
+    let new = build_preset_snapshot(&presets, &[]);
+    let d = compute_preset_diff(&old, &new);
+    assert_eq!(d.added.len(), 8);
+}
+
+#[test]
+fn compute_plugin_diff_seven_paths_all_removed() {
+    let old = build_plugin_snapshot(
+        &[
+            plug("/r0.vst3", "1"),
+            plug("/r1.vst3", "1"),
+            plug("/r2.vst3", "1"),
+            plug("/r3.vst3", "1"),
+            plug("/r4.vst3", "1"),
+            plug("/r5.vst3", "1"),
+            plug("/r6.vst3", "1"),
+        ],
+        &[],
+        &[],
+    );
+    let new = build_plugin_snapshot(&[], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert_eq!(d.removed.len(), 7);
+    assert!(d.added.is_empty() && d.version_changed.is_empty());
+}
+
+#[test]
+fn format_size_exactly_64_kilobytes() {
+    assert_eq!(app_lib::format_size(64 * 1024), "64.0 KB");
+}
+
+#[test]
+fn kvr_compare_versions_leading_component_zero_vs_one() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("0.9.9", "1.0.0"),
+        Ordering::Less
+    );
+}
+
+#[test]
+fn ext_matches_cubase_cpr_deep_path_lowercase() {
+    assert_eq!(
+        ext_matches(Path::new("/Volumes/Projects/2026/film_score/main_edit.cpr")).as_deref(),
+        Some("CPR")
+    );
+}
+
+#[test]
+fn fingerprint_distance_high_band_energy_only_change_nonzero_alt() {
+    let a = fp("/a.wav");
+    let mut b = fp("/b.wav");
+    b.high_band_energy = 0.89;
+    assert!(fingerprint_distance(&a, &b) > 0.01);
+}
+
+#[test]
+fn compute_daw_diff_five_removed_two_added_net() {
+    let old = build_daw_snapshot(
+        &[
+            dawproj("/p0.dawproject"),
+            dawproj("/p1.dawproject"),
+            dawproj("/p2.dawproject"),
+            dawproj("/p3.dawproject"),
+            dawproj("/p4.dawproject"),
+        ],
+        &[],
+    );
+    let new = build_daw_snapshot(
+        &[dawproj("/n0.dawproject"), dawproj("/n1.dawproject")],
+        &[],
+    );
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.removed.len(), 5);
+    assert_eq!(d.added.len(), 2);
+}
+
+#[test]
+fn normalize_plugin_name_strips_stereo_then_x64_parens() {
+    assert_eq!(
+        normalize_plugin_name("Pad (Stereo) (x64)"),
+        "pad"
+    );
+}
+
+#[test]
+fn kvr_parse_version_double_digit_components() {
+    assert_eq!(
+        app_lib::kvr::parse_version("10.20.30"),
+        vec![10, 20, 30]
+    );
+}
+
+#[test]
+fn daw_project_serde_roundtrip_unicode_daw_field() {
+    let d = DawProject {
+        name: "名".into(),
+        path: "/p.dawproject".into(),
+        directory: "/d".into(),
+        format: "dawproject".into(),
+        daw: "DAWproject".into(),
+        size: 1,
+        size_formatted: "1 B".into(),
+        modified: "m".into(),
+    };
+    let j = serde_json::to_string(&d).unwrap();
+    let back: DawProject = serde_json::from_str(&j).unwrap();
+    assert_eq!(back.name, "名");
+    assert_eq!(back.daw, "DAWproject");
+}
+
+#[test]
+fn export_plugin_json_serializes_empty_architectures_array() {
+    let p = ExportPlugin {
+        name: "N".into(),
+        plugin_type: "VST3".into(),
+        version: "1".into(),
+        manufacturer: "M".into(),
+        manufacturer_url: None,
+        path: "/x.vst3".into(),
+        size: "1 B".into(),
+        size_bytes: 1,
+        modified: "m".into(),
+        architectures: vec![],
+    };
+    let j = serde_json::to_string(&p).unwrap();
+    assert!(
+        j.contains("\"architectures\":[]"),
+        "empty architectures should serialize explicitly: {j}"
+    );
+    let back: ExportPlugin = serde_json::from_str(&j).unwrap();
+    assert!(back.architectures.is_empty());
+}
