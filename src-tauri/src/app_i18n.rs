@@ -65,8 +65,73 @@ pub fn load_merged(conn: &Connection, locale: &str) -> Result<HashMap<String, St
 
 #[cfg(test)]
 mod tests {
-    use super::{load_merged, SEED_JSON_EN};
+    use super::{load_merged, SEED_JSON_DE, SEED_JSON_EN, SEED_JSON_ES, SEED_JSON_FR, SEED_JSON_SV};
+    use regex::Regex;
     use rusqlite::Connection;
+    use std::collections::{HashMap, HashSet};
+
+    /// Keys passed to `t("…", …)` in `native_menu.rs` — English seed must define each.
+    const NATIVE_MENU_BAR_KEYS: &[&str] = &[
+        "menu.about",
+        "menu.app",
+        "menu.check_updates",
+        "menu.clear_favorites",
+        "menu.clear_history",
+        "menu.clear_kvr",
+        "menu.cmd_palette",
+        "menu.data",
+        "menu.dep_graph",
+        "menu.docs",
+        "menu.edit",
+        "menu.expand_player",
+        "menu.export_daw",
+        "menu.export_plugins",
+        "menu.export_presets",
+        "menu.export_samples",
+        "menu.file",
+        "menu.find",
+        "menu.find_duplicates",
+        "menu.github",
+        "menu.help",
+        "menu.help_overlay",
+        "menu.import_daw",
+        "menu.import_plugins",
+        "menu.import_presets",
+        "menu.import_samples",
+        "menu.next_track",
+        "menu.play_pause",
+        "menu.playback",
+        "menu.preferences",
+        "menu.prev_track",
+        "menu.reset_all_scans",
+        "menu.reset_columns",
+        "menu.reset_tabs",
+        "menu.scan",
+        "menu.scan_all",
+        "menu.scan_daw",
+        "menu.scan_plugins",
+        "menu.scan_presets",
+        "menu.scan_samples",
+        "menu.stop_all",
+        "menu.stop_playback",
+        "menu.tab_daw",
+        "menu.tab_favorites",
+        "menu.tab_files",
+        "menu.tab_history",
+        "menu.tab_notes",
+        "menu.tab_plugins",
+        "menu.tab_presets",
+        "menu.tab_samples",
+        "menu.tab_settings",
+        "menu.toggle_crt",
+        "menu.toggle_loop",
+        "menu.toggle_mute",
+        "menu.toggle_shuffle",
+        "menu.toggle_theme",
+        "menu.tools",
+        "menu.view",
+        "menu.window",
+    ];
 
     fn setup_minimal_i18n(conn: &Connection) {
         conn.execute_batch(
@@ -126,8 +191,7 @@ mod tests {
 
     #[test]
     fn seed_json_en_parses() {
-        let map: std::collections::HashMap<String, String> =
-            serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let map: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
         assert!(
             map.len() > 100,
             "English seed should contain a large string table"
@@ -137,9 +201,8 @@ mod tests {
 
     #[test]
     fn seed_json_fr_menu_scan_all_differs_from_en() {
-        let en: std::collections::HashMap<String, String> =
-            serde_json::from_str(SEED_JSON_EN).expect("en json");
-        let fr: std::collections::HashMap<String, String> = serde_json::from_str(include_str!(
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let fr: HashMap<String, String> = serde_json::from_str(include_str!(
             "../../i18n/app_i18n_fr.json"
         ))
         .expect("fr json");
@@ -148,5 +211,113 @@ mod tests {
             fr.get("menu.scan_all"),
             "French seed should translate menu.scan_all (same key, different value)"
         );
+    }
+
+    #[test]
+    fn seed_json_all_locales_share_exact_key_set() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let keys_en: HashSet<_> = en.keys().cloned().collect();
+        for (loc, json) in [
+            ("de", SEED_JSON_DE),
+            ("es", SEED_JSON_ES),
+            ("sv", SEED_JSON_SV),
+            ("fr", SEED_JSON_FR),
+        ] {
+            let m: HashMap<String, String> = serde_json::from_str(json).expect(loc);
+            let keys: HashSet<_> = m.keys().cloned().collect();
+            assert_eq!(
+                keys_en, keys,
+                "locale {loc} must define the same keys as en (missing or extra keys)"
+            );
+        }
+    }
+
+    #[test]
+    fn seed_json_no_empty_values() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        for (k, v) in &en {
+            assert!(
+                !v.trim().is_empty(),
+                "empty or whitespace-only value for key {k:?}"
+            );
+        }
+    }
+
+    /// `appFmt` / `toastFmt` replace `{token}` using the **English** token names passed from JS
+    /// (`ipc.js`). `de`, `fr`, and `sv` seeds keep the same `{name}`, `{n}`, … substrings as English.
+    /// Spanish (`es`) still has many legacy localized placeholder spellings in `toast.*` — covered
+    /// separately via `seed_json_es_critical_prefixes_match_en_placeholders`.
+    fn assert_seed_placeholders_match_en(en: &HashMap<String, String>, loc: &str, json: &str) {
+        let re = Regex::new(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}").expect("placeholder regex");
+        let m: HashMap<String, String> = serde_json::from_str(json).expect(loc);
+        for (k, en_val) in en {
+            let placeholders: HashSet<String> = re
+                .find_iter(en_val)
+                .map(|x| x.as_str().to_string())
+                .collect();
+            if placeholders.is_empty() {
+                continue;
+            }
+            let v = m.get(k).unwrap_or_else(|| panic!("key {k} missing in {loc}"));
+            for p in &placeholders {
+                assert!(
+                    v.contains(p.as_str()),
+                    "key {k} locale {loc}: value must contain placeholder {p} (English: {en_val:?})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn seed_json_appfmt_placeholders_preserved_de_fr_sv() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        for (loc, json) in [
+            ("de", SEED_JSON_DE),
+            ("fr", SEED_JSON_FR),
+            ("sv", SEED_JSON_SV),
+        ] {
+            assert_seed_placeholders_match_en(&en, loc, json);
+        }
+    }
+
+    #[test]
+    fn seed_json_es_critical_prefixes_match_en_placeholders() {
+        let re = Regex::new(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}").expect("placeholder regex");
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let es: HashMap<String, String> = serde_json::from_str(SEED_JSON_ES).expect("es json");
+        for (k, en_val) in &en {
+            let is_critical = k.starts_with("menu.")
+                || k.starts_with("ui.palette.")
+                || k.starts_with("ui.sp_")
+                || k.starts_with("confirm.");
+            if !is_critical {
+                continue;
+            }
+            let placeholders: HashSet<String> = re
+                .find_iter(en_val)
+                .map(|x| x.as_str().to_string())
+                .collect();
+            if placeholders.is_empty() {
+                continue;
+            }
+            let v = es.get(k).expect("es must define same keys as en");
+            for p in &placeholders {
+                assert!(
+                    v.contains(p.as_str()),
+                    "key {k} locale es: value must contain placeholder {p} (English: {en_val:?})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn seed_json_en_defines_all_native_menu_bar_keys() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        for key in NATIVE_MENU_BAR_KEYS {
+            assert!(
+                en.get(*key).map(|s| !s.trim().is_empty()).unwrap_or(false),
+                "English seed missing native menu bar key {key} (sync with native_menu.rs)"
+            );
+        }
     }
 }
