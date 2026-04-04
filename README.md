@@ -304,6 +304,7 @@ Unit tests live in `src/**/*.rs` inside `#[cfg(test)]` modules. Integration test
 | **`test/i18n-placeholders.test.js`** | tally `rg -c '^test\\(' test/i18n-placeholders.test.js` | Every `{…}` segment in each `i18n/app_i18n_*.json` value matches `ipc.js` `appFmt` token syntax (`{name}`, `{n}`, … — ASCII word chars only). |
 | **`test/i18n-batch-parity.test.js`** | tally `rg -c '\\btest\\(' test/i18n-batch-parity.test.js` | Each `scripts/i18n_batches/*.json` merge batch matches `i18n/app_i18n_en.json` key-for-key (proves English catalog stays aligned with recorded batch merges). |
 | **`test/i18n-locales-and-shape.test.js`** | tally `rg -c '^test\\(' test/i18n-locales-and-shape.test.js` | Shipped `i18n/app_i18n_*.json` locales share English’s key set; every value is a non-empty string; English keys match the allowed namespace pattern (mirrors Rust seed-json invariants on the JS CI path). |
+| **`test/i18n-seed-parity.test.js`** | tally `rg -c '^test\\(' test/i18n-seed-parity.test.js` | `de`/`fr`/`sv` values use the same `{token}` multiset as English per key; `es` keeps English placeholders for `menu.*` / `ui.palette.*` / `ui.sp_*` / `confirm.*`; English defines all `app_i18n.rs` native menu bar + tray keys (mirrors Rust `seed_json_*` tests on the JS CI path). |
 | **`test/iec-format-kvr-bulk.test.js`** | 2558 | IEC `format_size` parity, `parse_version` grid, `compare_versions` chain antisymmetry — mirrors backend KVR/size rules in isolation. |
 | **`test/fingerprint-distance-bulk.test.js`** | 462 | Same distance formula as `similarity::fingerprint_distance` on RMS and centroid grids; checks symmetry and finiteness. |
 | **`test/radix-string-bulk.test.js`** | 1200 | `radix_string` algorithm vs `Number.prototype.toString(base)` on the same grid as `handcrafted_tables_radix_grid`. |
@@ -512,6 +513,7 @@ test/
   i18n-placeholders.test.js -- app_i18n JSON {token} segments match ipc.js substitution
   i18n-batch-parity.test.js -- i18n_batches/*.json matches app_i18n_en.json
   i18n-locales-and-shape.test.js -- locale JSON key parity vs en, non-empty strings, key naming
+  i18n-seed-parity.test.js -- de/fr/sv {token} multiset vs en; es critical placeholders; menu/tray keys
 ```
 
 ---
