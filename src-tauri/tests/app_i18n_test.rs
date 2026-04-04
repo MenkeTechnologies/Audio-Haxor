@@ -23,8 +23,8 @@ fn app_strings_en_contains_core_menu_keys() {
     for key in [
         "menu.scan_all",
         "menu.tab_plugins",
-        "menu.batch_selected",
-        "menu.resume_all",
+        "menu.scan_daw",
+        "menu.about",
     ] {
         assert!(
             m.get(key).map(|s| !s.is_empty()).unwrap_or(false),

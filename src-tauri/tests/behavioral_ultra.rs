@@ -4188,3 +4188,174 @@ fn plugin_ref_serde_roundtrip_long_manufacturer_name() {
     let back: PluginRef = serde_json::from_str(&j).unwrap();
     assert_eq!(back.manufacturer, "Very Long Manufacturer Name GmbH & Co.");
 }
+
+// ── Wave 20: radix 36¹⁰, `find_similar` 9/11, larger snapshot batches, serde edge cases ─
+
+#[test]
+fn radix_string_3656158440062976_base36_is_ten_billion() {
+    assert_eq!(radix_string(3_656_158_440_062_976, 36), "10000000000");
+}
+
+#[test]
+fn find_similar_eleven_candidates_max_nine() {
+    let r = fp("/ref.wav");
+    let cands: Vec<_> = (0..11).map(|i| fp(&format!("/c{i}.wav"))).collect();
+    let out = find_similar(&r, &cands, 9);
+    assert_eq!(out.len(), 9);
+}
+
+#[test]
+fn compute_audio_diff_empty_to_eight_samples_added() {
+    let samples: Vec<_> = (0..8)
+        .map(|i| sample(&format!("/stem{i}.wav")))
+        .collect();
+    let old = build_audio_snapshot(&[], &[]);
+    let new = build_audio_snapshot(&samples, &[]);
+    let d = compute_audio_diff(&old, &new);
+    assert_eq!(d.added.len(), 8);
+}
+
+#[test]
+fn compute_daw_diff_six_added_from_empty() {
+    let projects: Vec<_> = (0..6)
+        .map(|i| dawproj(&format!("/session{i}.dawproject")))
+        .collect();
+    let old = build_daw_snapshot(&[], &[]);
+    let new = build_daw_snapshot(&projects, &[]);
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.added.len(), 6);
+}
+
+#[test]
+fn compute_preset_diff_empty_to_seven_presets() {
+    let presets: Vec<_> = (0..7)
+        .map(|i| preset(&format!("/bank/u{i}.fxp")))
+        .collect();
+    let old = build_preset_snapshot(&[], &[]);
+    let new = build_preset_snapshot(&presets, &[]);
+    let d = compute_preset_diff(&old, &new);
+    assert_eq!(d.added.len(), 7);
+}
+
+#[test]
+fn compute_plugin_diff_six_paths_all_removed() {
+    let old = build_plugin_snapshot(
+        &[
+            plug("/q0.vst3", "1"),
+            plug("/q1.vst3", "1"),
+            plug("/q2.vst3", "1"),
+            plug("/q3.vst3", "1"),
+            plug("/q4.vst3", "1"),
+            plug("/q5.vst3", "1"),
+        ],
+        &[],
+        &[],
+    );
+    let new = build_plugin_snapshot(&[], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert_eq!(d.removed.len(), 6);
+    assert!(d.added.is_empty() && d.version_changed.is_empty());
+}
+
+#[test]
+fn format_size_exactly_128_kilobytes() {
+    assert_eq!(app_lib::format_size(128 * 1024), "128.0 KB");
+}
+
+#[test]
+fn kvr_compare_versions_ten_dotted_components_numeric() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("1.2.3.4.5.6.7.8.9.10", "1.2.3.4.5.6.7.8.9.9"),
+        Ordering::Greater
+    );
+}
+
+#[test]
+fn ext_matches_logicx_deep_package_style_path() {
+    assert_eq!(
+        ext_matches(Path::new("/Music/Logic/Album2026/LeadVox_Takes.logicx")).as_deref(),
+        Some("LOGICX")
+    );
+}
+
+#[test]
+fn ext_matches_bitwig_bwproject_deep_lowercase_filename() {
+    assert_eq!(
+        ext_matches(Path::new("/projects/edm/drops/main_arrangement.bwproject")).as_deref(),
+        Some("BWPROJECT")
+    );
+}
+
+#[test]
+fn fingerprint_distance_mid_band_energy_only_change_nonzero_alt() {
+    let a = fp("/a.wav");
+    let mut b = fp("/b.wav");
+    b.mid_band_energy = 0.93;
+    assert!(fingerprint_distance(&a, &b) > 0.01);
+}
+
+#[test]
+fn compute_daw_diff_four_removed_one_added_net() {
+    let old = build_daw_snapshot(
+        &[
+            dawproj("/a.dawproject"),
+            dawproj("/b.dawproject"),
+            dawproj("/c.dawproject"),
+            dawproj("/d.dawproject"),
+        ],
+        &[],
+    );
+    let new = build_daw_snapshot(&[dawproj("/new.dawproject")], &[]);
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.removed.len(), 4);
+    assert_eq!(d.added.len(), 1);
+}
+
+#[test]
+fn kvr_parse_version_double_dot_only() {
+    assert_eq!(app_lib::kvr::parse_version(".."), vec![0, 0, 0]);
+}
+
+#[test]
+fn is_package_ext_not_plain_wav_file() {
+    assert!(!is_package_ext(Path::new("/tmp/render/bounce.wav")));
+}
+
+#[test]
+fn daw_name_for_format_song_studio_one() {
+    assert_eq!(daw_name_for_format("SONG"), "Studio One");
+}
+
+#[test]
+fn kvr_cache_entry_serde_roundtrip_minimal_fields() {
+    let e = KvrCacheEntry {
+        kvr_url: Some("https://kvraudio.com/x".into()),
+        update_url: None,
+        latest_version: Some("2.1.0".into()),
+        has_update: false,
+        source: "resolver".into(),
+        timestamp: "0".into(),
+    };
+    let j = serde_json::to_string(&e).unwrap();
+    let back: KvrCacheEntry = serde_json::from_str(&j).unwrap();
+    assert_eq!(back.kvr_url.as_deref(), Some("https://kvraudio.com/x"));
+    assert_eq!(back.latest_version.as_deref(), Some("2.1.0"));
+    assert!(!back.has_update);
+}
+
+#[test]
+fn preset_file_serde_roundtrip_unicode_path_segment() {
+    let pf = PresetFile {
+        name: "プリセット".into(),
+        path: "/Library/Presets/日本語/bank.fxp".into(),
+        directory: "/Library/Presets/日本語".into(),
+        format: "fxp".into(),
+        size: 1,
+        size_formatted: "1 B".into(),
+        modified: "m".into(),
+    };
+    let j = serde_json::to_string(&pf).unwrap();
+    let back: PresetFile = serde_json::from_str(&j).unwrap();
+    assert_eq!(back.name, "プリセット");
+    assert!(back.path.contains("日本語"));
+}
