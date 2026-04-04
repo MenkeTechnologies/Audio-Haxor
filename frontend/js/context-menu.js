@@ -672,6 +672,23 @@ document.addEventListener('contextmenu', (e) => {
     return;
   }
 
+  // ── Xref plugin items (plugins found in DAW projects) ──
+  const xrefItem = e.target.closest('.xref-item[data-xref-plugin]');
+  if (xrefItem) {
+    const pluginName = xrefItem.dataset.xrefPlugin;
+    const items = [
+      { icon: '&#128269;', label: 'Find in Plugins Tab', action: () => {
+        switchTab('plugins');
+        const input = document.getElementById('searchInput');
+        if (input) { input.value = pluginName; input.dispatchEvent(new Event('input', { bubbles: true })); }
+        showToast(`Searching plugins for "${pluginName}"...`);
+      }},
+      { icon: '&#128203;', label: 'Copy Plugin Name', action: () => { navigator.clipboard.writeText(pluginName); showToast('Copied: ' + pluginName); }},
+    ];
+    showContextMenu(e, items);
+    return;
+  }
+
   // ── Dep graph plugin rows ──
   const depRow = e.target.closest('.dep-plugin-row');
   if (depRow) {

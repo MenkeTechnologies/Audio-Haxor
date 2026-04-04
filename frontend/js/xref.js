@@ -89,7 +89,7 @@ function showXrefModal(projectName, plugins) {
     body = `<div style="color:var(--text-muted);font-size:11px;margin-bottom:12px;">${plugins.length} plugin${plugins.length !== 1 ? 's' : ''} found</div>
     <ul class="xref-list">${plugins.map(p => {
       const typeCls = 'xref-type-' + p.pluginType.toLowerCase();
-      return `<li class="xref-item">
+      return `<li class="xref-item" data-xref-plugin="${escapeHtml(p.name)}" style="cursor:pointer;">
         <span class="xref-item-type ${typeCls}">${escapeHtml(p.pluginType)}</span>
         <span class="xref-item-name">${escapeHtml(p.name)}</span>
         <span class="xref-item-mfg">${escapeHtml(p.manufacturer)}</span>
