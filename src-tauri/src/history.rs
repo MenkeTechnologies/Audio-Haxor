@@ -3185,4 +3185,95 @@ mod tests {
         assert!(d.added.is_empty());
         assert!(d.removed.is_empty());
     }
+
+    #[test]
+    fn test_build_pdf_snapshot_sums_bytes_and_roots() {
+        let pdfs = vec![
+            PdfFile {
+                name: "a".into(),
+                path: "/a/a.pdf".into(),
+                directory: "/a".into(),
+                size: 100,
+                size_formatted: "100 B".into(),
+                modified: "d".into(),
+            },
+            PdfFile {
+                name: "b".into(),
+                path: "/b/b.pdf".into(),
+                directory: "/b".into(),
+                size: 200,
+                size_formatted: "200 B".into(),
+                modified: "d".into(),
+            },
+        ];
+        let snap = build_pdf_snapshot(&pdfs, &["/roots".into()]);
+        assert_eq!(snap.pdf_count, 2);
+        assert_eq!(snap.total_bytes, 300);
+        assert_eq!(snap.roots, vec!["/roots".to_string()]);
+        assert!(!snap.id.is_empty());
+    }
+
+    #[test]
+    fn test_compute_pdf_diff_added_removed_by_path() {
+        let mk = |path: &str| PdfFile {
+            name: "n".into(),
+            path: path.into(),
+            directory: "/d".into(),
+            size: 1,
+            size_formatted: "1 B".into(),
+            modified: "2024-01-01".into(),
+        };
+        let old = PdfScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            pdf_count: 1,
+            total_bytes: 1,
+            pdfs: vec![mk("/old/a.pdf")],
+            roots: vec![],
+        };
+        let new = PdfScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            pdf_count: 1,
+            total_bytes: 1,
+            pdfs: vec![mk("/new/b.pdf")],
+            roots: vec![],
+        };
+        let d = compute_pdf_diff(&old, &new);
+        assert_eq!(d.added.len(), 1);
+        assert_eq!(d.removed.len(), 1);
+        assert_eq!(d.added[0].path, "/new/b.pdf");
+        assert_eq!(d.removed[0].path, "/old/a.pdf");
+    }
+
+    #[test]
+    fn test_compute_pdf_diff_same_paths_no_delta() {
+        let p = PdfFile {
+            name: "same".into(),
+            path: "/x/doc.pdf".into(),
+            directory: "/x".into(),
+            size: 10,
+            size_formatted: "10 B".into(),
+            modified: "d".into(),
+        };
+        let old = PdfScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            pdf_count: 1,
+            total_bytes: 10,
+            pdfs: vec![p.clone()],
+            roots: vec![],
+        };
+        let new = PdfScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            pdf_count: 1,
+            total_bytes: 99,
+            pdfs: vec![p],
+            roots: vec![],
+        };
+        let d = compute_pdf_diff(&old, &new);
+        assert!(d.added.is_empty());
+        assert!(d.removed.is_empty());
+    }
 }

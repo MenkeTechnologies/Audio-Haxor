@@ -4601,6 +4601,29 @@ mod tests {
         assert_eq!(detect_separator("export.data"), ',');
         assert_eq!(detect_separator("/tmp/no_extension"), ',');
     }
+
+    #[test]
+    fn test_export_pdf_writes_pdf_magic_bytes() {
+        let tmp = std::env::temp_dir().join(format!(
+            "ah_export_pdf_test_{}.pdf",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&tmp);
+        export_pdf(
+            "Unit test".into(),
+            vec!["Col A".into(), "Col B".into()],
+            vec![vec!["cell-a".into(), "cell-b".into()]],
+            tmp.to_string_lossy().to_string(),
+        )
+        .unwrap();
+        let bytes = fs::read(&tmp).unwrap();
+        assert!(
+            bytes.starts_with(b"%PDF-"),
+            "expected PDF header, got {:?}",
+            &bytes[..bytes.len().min(16)]
+        );
+        let _ = fs::remove_file(&tmp);
+    }
 }
 
 // ── Database IPC commands ──

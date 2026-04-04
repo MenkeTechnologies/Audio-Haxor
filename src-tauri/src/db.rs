@@ -3837,6 +3837,176 @@ mod tests {
         assert_eq!(detail.presets[0].name, "bass.fxp");
     }
 
+    #[test]
+    fn test_pdf_scan_roundtrip() {
+        let db = test_db();
+        let snap = PdfScanSnapshot {
+            id: "pdf1".into(),
+            timestamp: "2024-07-01T00:00:00".into(),
+            pdf_count: 1,
+            total_bytes: 1024,
+            pdfs: vec![PdfFile {
+                name: "readme".into(),
+                path: "/docs/readme.pdf".into(),
+                directory: "/docs".into(),
+                size: 1024,
+                size_formatted: "1.0 KB".into(),
+                modified: "2024-06-01".into(),
+            }],
+            roots: vec!["/docs".into()],
+        };
+        db.save_pdf_scan(&snap).unwrap();
+        let scans = db.get_pdf_scans().unwrap();
+        assert_eq!(scans.len(), 1);
+        assert_eq!(scans[0]["pdfCount"], 1);
+        let detail = db.get_pdf_scan_detail("pdf1").unwrap();
+        assert_eq!(detail.pdfs.len(), 1);
+        assert_eq!(detail.pdfs[0].name, "readme");
+    }
+
+    #[test]
+    fn test_query_pdfs_empty_without_scan() {
+        let db = test_db();
+        let res = db.query_pdfs(None, "name", true, 0, 100).unwrap();
+        assert_eq!(res.total_count, 0);
+        assert_eq!(res.total_unfiltered, 0);
+        assert!(res.pdfs.is_empty());
+    }
+
+    #[test]
+    fn test_query_pdfs_search_sort_and_pagination() {
+        let db = test_db();
+        let pdfs = vec![
+            PdfFile {
+                name: "zebra".into(),
+                path: "/a/z.pdf".into(),
+                directory: "/a".into(),
+                size: 100,
+                size_formatted: "100 B".into(),
+                modified: "2024-01-03".into(),
+            },
+            PdfFile {
+                name: "alpha".into(),
+                path: "/a/a.pdf".into(),
+                directory: "/b".into(),
+                size: 50,
+                size_formatted: "50 B".into(),
+                modified: "2024-01-01".into(),
+            },
+            PdfFile {
+                name: "alpha_notes".into(),
+                path: "/a/notes.pdf".into(),
+                directory: "/c".into(),
+                size: 50,
+                size_formatted: "50 B".into(),
+                modified: "2024-01-02".into(),
+            },
+        ];
+        let total_bytes: u64 = pdfs.iter().map(|p| p.size).sum();
+        let snap = PdfScanSnapshot {
+            id: "pdfq".into(),
+            timestamp: "2024-08-01T00:00:00".into(),
+            pdf_count: pdfs.len(),
+            total_bytes,
+            pdfs,
+            roots: vec![],
+        };
+        db.save_pdf_scan(&snap).unwrap();
+
+        let filtered = db.query_pdfs(Some("alp"), "name", true, 0, 100).unwrap();
+        assert_eq!(filtered.total_unfiltered, 3);
+        assert_eq!(filtered.total_count, 2);
+        assert_eq!(filtered.pdfs.len(), 2);
+        assert_eq!(filtered.pdfs[0].name, "alpha");
+        assert_eq!(filtered.pdfs[1].name, "alpha_notes");
+
+        let by_size = db.query_pdfs(None, "size", false, 0, 10).unwrap();
+        assert_eq!(by_size.pdfs[0].name, "zebra");
+
+        let page = db.query_pdfs(None, "name", true, 1, 1).unwrap();
+        assert_eq!(page.pdfs.len(), 1);
+        assert_eq!(page.total_count, 3);
+        assert_eq!(page.pdfs[0].name, "alpha_notes");
+    }
+
+    #[test]
+    fn test_query_pdfs_uses_latest_non_empty_scan() {
+        let db = test_db();
+        db.save_pdf_scan(&PdfScanSnapshot {
+            id: "old-pdf".into(),
+            timestamp: "2024-01-01T00:00:00".into(),
+            pdf_count: 1,
+            total_bytes: 10,
+            pdfs: vec![PdfFile {
+                name: "old".into(),
+                path: "/a/old.pdf".into(),
+                directory: "/a".into(),
+                size: 10,
+                size_formatted: "10 B".into(),
+                modified: "d".into(),
+            }],
+            roots: vec![],
+        })
+        .unwrap();
+        db.save_pdf_scan(&PdfScanSnapshot {
+            id: "new-pdf".into(),
+            timestamp: "2024-02-01T00:00:00".into(),
+            pdf_count: 1,
+            total_bytes: 20,
+            pdfs: vec![PdfFile {
+                name: "new".into(),
+                path: "/b/new.pdf".into(),
+                directory: "/b".into(),
+                size: 20,
+                size_formatted: "20 B".into(),
+                modified: "d".into(),
+            }],
+            roots: vec![],
+        })
+        .unwrap();
+        let res = db.query_pdfs(None, "name", true, 0, 100).unwrap();
+        assert_eq!(res.total_unfiltered, 1);
+        assert_eq!(res.pdfs.len(), 1);
+        assert_eq!(res.pdfs[0].name, "new");
+    }
+
+    #[test]
+    fn test_pdf_stats_matches_rows() {
+        let db = test_db();
+        let snap = PdfScanSnapshot {
+            id: "pdf-stat".into(),
+            timestamp: "2024-09-01T00:00:00".into(),
+            pdf_count: 2,
+            total_bytes: 300,
+            pdfs: vec![
+                PdfFile {
+                    name: "a".into(),
+                    path: "/p/a.pdf".into(),
+                    directory: "/p".into(),
+                    size: 100,
+                    size_formatted: "100 B".into(),
+                    modified: "d".into(),
+                },
+                PdfFile {
+                    name: "b".into(),
+                    path: "/p/b.pdf".into(),
+                    directory: "/p".into(),
+                    size: 200,
+                    size_formatted: "200 B".into(),
+                    modified: "d".into(),
+                },
+            ],
+            roots: vec![],
+        };
+        db.save_pdf_scan(&snap).unwrap();
+        let st = db.pdf_stats(None).unwrap();
+        assert_eq!(st.pdf_count, 2);
+        assert_eq!(st.total_bytes, 300);
+        let st2 = db.pdf_stats(Some("pdf-stat")).unwrap();
+        assert_eq!(st2.pdf_count, 2);
+        assert_eq!(st2.total_bytes, 300);
+    }
+
     // ── Header-count regression tests ──
     //
     // These verify that query_plugins/query_daw/query_presets return a
