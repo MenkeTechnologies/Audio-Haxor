@@ -39,7 +39,7 @@ async function loadPluginsFromDb() {
 async function fetchPluginPage() {
   const search = document.getElementById('searchInput')?.value || '';
   const typeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('typeFilter') : null;
-  const typeFilter = typeSet && typeSet.size === 1 ? [...typeSet][0] : null;
+  const typeFilter = typeSet ? [...typeSet].join(',') : null;
   try {
     const result = await window.vstUpdater.dbQueryPlugins({
       search: search || null,

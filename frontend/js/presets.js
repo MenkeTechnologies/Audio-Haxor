@@ -12,7 +12,7 @@ let _presetTotalCount = 0;
 async function fetchPresetPage() {
   const search = document.getElementById('presetSearchInput')?.value || '';
   const fmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('presetFormatFilter') : null;
-  const formatFilter = fmtSet && fmtSet.size === 1 ? [...fmtSet][0] : null;
+  const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
   try {
     const result = await window.vstUpdater.dbQueryPresets({
       search: search || null,

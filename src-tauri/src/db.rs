@@ -677,8 +677,13 @@ impl Database {
 
         if let Some(fmt) = &params.format_filter {
             if !fmt.is_empty() && fmt != "all" {
-                conditions.push(format!("format = ?{bind_idx}"));
-                bind_idx += 1;
+                if fmt.contains(',') {
+                    let vals: Vec<String> = fmt.split(',').map(|s| format!("'{}'", s.trim().replace('\'', "''"))).collect();
+                    conditions.push(format!("format IN ({})", vals.join(",")));
+                } else {
+                    conditions.push(format!("format = ?{bind_idx}"));
+                    bind_idx += 1;
+                }
             }
         }
         let _ = bind_idx; // suppress unused warning
@@ -735,7 +740,7 @@ impl Database {
             idx += 1;
         }
         if let Some(ref fmt) = params.format_filter {
-            if !fmt.is_empty() && fmt != "all" {
+            if !fmt.is_empty() && fmt != "all" && !fmt.contains(',') {
                 stmt.raw_bind_parameter(idx, fmt)
                     .map_err(|e| e.to_string())?;
                 idx += 1;
@@ -1012,8 +1017,13 @@ impl Database {
         }
         if let Some(tf) = type_filter {
             if !tf.is_empty() && tf != "all" {
-                where_parts.push(format!("plugin_type = ?{bind_idx}"));
-                bind_idx += 1;
+                if tf.contains(',') {
+                    let vals: Vec<String> = tf.split(',').map(|s| format!("'{}'", s.trim().replace('\'', "''"))).collect();
+                    where_parts.push(format!("plugin_type IN ({})", vals.join(",")));
+                } else {
+                    where_parts.push(format!("plugin_type = ?{bind_idx}"));
+                    bind_idx += 1;
+                }
             }
         }
         let _ = bind_idx;
@@ -1036,7 +1046,7 @@ impl Database {
             let mut bi = 1;
             stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
             if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
-            if let Some(tf) = type_filter { if !tf.is_empty() && tf != "all" { stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?; bi += 1; } }
+            if let Some(tf) = type_filter { if !tf.is_empty() && tf != "all" && !tf.contains(',') { stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?; bi += 1; } }
             let _ = bi;
             let mut rows = stmt.raw_query();
             rows.next().map_err(|e| e.to_string())?.map(|r| r.get::<_, u64>(0).unwrap_or(0)).unwrap_or(0)
@@ -1051,7 +1061,7 @@ impl Database {
         bi = 1;
         stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
         if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
-        if let Some(tf) = type_filter { if !tf.is_empty() && tf != "all" { stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?; bi += 1; } }
+        if let Some(tf) = type_filter { if !tf.is_empty() && tf != "all" && !tf.contains(',') { stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?; bi += 1; } }
         stmt.raw_bind_parameter(bi, limit as i64).map_err(|e| e.to_string())?; bi += 1;
         stmt.raw_bind_parameter(bi, offset as i64).map_err(|e| e.to_string())?;
 
@@ -1129,8 +1139,13 @@ impl Database {
         }
         if let Some(f) = daw_filter {
             if !f.is_empty() && f != "all" {
-                where_parts.push(format!("daw = ?{bind_idx}"));
-                bind_idx += 1;
+                if f.contains(',') {
+                    let vals: Vec<String> = f.split(',').map(|s| format!("'{}'", s.trim().replace('\'', "''"))).collect();
+                    where_parts.push(format!("daw IN ({})", vals.join(",")));
+                } else {
+                    where_parts.push(format!("daw = ?{bind_idx}"));
+                    bind_idx += 1;
+                }
             }
         }
         let where_cl = where_parts.join(" AND ");
@@ -1158,7 +1173,7 @@ impl Database {
                 bi += 1;
             }
             if let Some(f) = daw_filter {
-                if !f.is_empty() && f != "all" {
+                if !f.is_empty() && f != "all" && !f.contains(',') {
                     stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
                 }
             }
@@ -1263,8 +1278,13 @@ impl Database {
         where_parts.push("format NOT IN ('MID', 'MIDI')".into());
         if let Some(f) = format_filter {
             if !f.is_empty() && f != "all" {
-                where_parts.push(format!("format = ?{bind_idx}"));
-                bind_idx += 1;
+                if f.contains(',') {
+                    let vals: Vec<String> = f.split(',').map(|s| format!("'{}'", s.trim().replace('\'', "''"))).collect();
+                    where_parts.push(format!("format IN ({})", vals.join(",")));
+                } else {
+                    where_parts.push(format!("format = ?{bind_idx}"));
+                    bind_idx += 1;
+                }
             }
         }
         let where_cl = where_parts.join(" AND ");
@@ -1291,7 +1311,7 @@ impl Database {
                 bi += 1;
             }
             if let Some(f) = format_filter {
-                if !f.is_empty() && f != "all" {
+                if !f.is_empty() && f != "all" && !f.contains(',') {
                     stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
                 }
             }

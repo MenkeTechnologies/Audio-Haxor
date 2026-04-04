@@ -850,7 +850,7 @@ function filterAudioSamples() { applyFilter('filterAudioSamples'); }
 async function fetchAudioPage() {
   const search = _lastAudioSearch || '';
   const fmtSet = getMultiFilterValues('audioFormatFilter');
-  const formatFilter = fmtSet && fmtSet.size === 1 ? [...fmtSet][0] : null;
+  const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
   try {
     const result = await window.vstUpdater.dbQueryAudio({
       search: search || null,

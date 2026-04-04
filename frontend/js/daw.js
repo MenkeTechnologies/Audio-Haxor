@@ -13,7 +13,7 @@ let dawStatBytes = 0;
 async function fetchDawPage() {
   const search = document.getElementById('dawSearchInput')?.value || '';
   const dawSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('dawDawFilter') : null;
-  const dawFilter = dawSet && dawSet.size === 1 ? [...dawSet][0] : null;
+  const dawFilter = dawSet ? [...dawSet].join(',') : null;
   try {
     const result = await window.vstUpdater.dbQueryDaw({
       search: search || null,
