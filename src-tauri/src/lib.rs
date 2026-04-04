@@ -3739,6 +3739,32 @@ mod tests {
     }
 
     #[test]
+    fn test_import_audio_json_extra_field_on_sample_ignored() {
+        let tmp = std::env::temp_dir().join("upum_test_import_audio_extra_field.json");
+        let _ = fs::remove_file(&tmp);
+        let content = r#"{
+        "version":"1.0",
+        "exported_at":"2025-01-01T00:00:00Z",
+        "samples":[{
+            "name":"Extra",
+            "path":"/a.wav",
+            "directory":"/d",
+            "format":"WAV",
+            "size":100,
+            "sizeFormatted":"100 B",
+            "modified":"t",
+            "futureProof":true
+        }]
+    }"#;
+        fs::write(&tmp, content).unwrap();
+        let imported = import_audio_json(tmp.to_string_lossy().to_string()).unwrap();
+        assert_eq!(imported.len(), 1);
+        assert_eq!(imported[0].name, "Extra");
+        assert_eq!(imported[0].format, "WAV");
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_import_audio_json_invalid_format() {
         let tmp = std::env::temp_dir().join("upum_test_import_audio_bad.json");
         fs::write(&tmp, r#"{"not": "an array"}"#).unwrap();
@@ -3827,6 +3853,32 @@ mod tests {
         assert_eq!(imported[0].name, "Lead");
         assert_eq!(imported[1].format, "VSTPRESET");
 
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_import_presets_json_extra_field_on_preset_ignored() {
+        let tmp = std::env::temp_dir().join("upum_test_import_presets_extra_field.json");
+        let _ = fs::remove_file(&tmp);
+        let content = r#"{
+        "version":"1.0",
+        "exported_at":"2025-01-01T00:00:00Z",
+        "presets":[{
+            "name":"Extra",
+            "path":"/p.fxp",
+            "directory":"/d",
+            "format":"FXP",
+            "size":100,
+            "sizeFormatted":"100 B",
+            "modified":"t",
+            "futureProof":true
+        }]
+    }"#;
+        fs::write(&tmp, content).unwrap();
+        let imported = import_presets_json(tmp.to_string_lossy().to_string()).unwrap();
+        assert_eq!(imported.len(), 1);
+        assert_eq!(imported[0].name, "Extra");
+        assert_eq!(imported[0].format, "FXP");
         let _ = fs::remove_file(&tmp);
     }
 
