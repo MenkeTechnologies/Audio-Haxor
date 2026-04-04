@@ -43,4 +43,4 @@ python3 scripts/merge_batch_into_locales.py scripts/i18n_batches/your_batch.json
 
 ## Deprecated
 
-- `merge_ui_i18n_keys.py` (never merged to `main`; do not resurrect) — embedded key blob. Use `merge_i18n_keys.py` + `scripts/i18n_batches/*.json` instead.
+- `merge_ui_i18n_keys.py` — stub only; prints instructions and exits with code 1. Use `merge_i18n_keys.py` + `scripts/i18n_batches/*.json` instead.
