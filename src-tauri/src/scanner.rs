@@ -417,7 +417,7 @@ mod tests {
         let plug = tmp.join("UpperCase.VST3");
         fs::create_dir_all(&plug).unwrap();
 
-        let mut result = discover_plugins(&[tmp.to_string_lossy().to_string()]);
+        let result = discover_plugins(&[tmp.to_string_lossy().to_string()]);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].extension().and_then(|e| e.to_str()), Some("VST3"));
 

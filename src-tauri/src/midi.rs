@@ -721,4 +721,20 @@ mod tests {
         assert_eq!(info.note_count, 1);
         let _ = std::fs::remove_file(&tmp);
     }
+
+    #[test]
+    fn test_parse_midi_note_ons_on_two_channels_sets_channels_used() {
+        let track = vec![
+            0x00, 0x90, 60, 100, // ch 0 note on
+            0x00, 0x91, 64, 100, // ch 1 note on
+            0x00, 0xFF, 0x2F, 0x00,
+        ];
+        let data = make_midi(0, 1, 480, &track);
+        let tmp = std::env::temp_dir().join("test_midi_chans.mid");
+        std::fs::write(&tmp, &data).unwrap();
+        let info = parse_midi(&tmp).unwrap();
+        assert_eq!(info.note_count, 2);
+        assert_eq!(info.channels_used, 2);
+        let _ = std::fs::remove_file(&tmp);
+    }
 }

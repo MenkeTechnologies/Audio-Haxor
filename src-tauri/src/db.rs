@@ -3818,6 +3818,80 @@ mod tests {
         }
     }
 
+    /// `get_latest_*_scan` each run `ORDER BY timestamp DESC` then hydrate via `get_*_detail`.
+    #[test]
+    fn test_get_latest_plugin_audio_daw_preset_scan_return_newest_timestamp() {
+        let db = test_db();
+
+        db.save_plugin_scan(&ScanSnapshot {
+            id: "pl-old".into(),
+            timestamp: "2024-01-01T00:00:00".into(),
+            plugin_count: 1,
+            plugins: vec![plugin_info("OldPlug", "VST3", "Xfer")],
+            directories: vec!["/vst".into()],
+            roots: vec!["/vst".into()],
+        })
+        .unwrap();
+        db.save_plugin_scan(&ScanSnapshot {
+            id: "pl-new".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            plugin_count: 1,
+            plugins: vec![plugin_info("NewPlug", "VST3", "Xfer")],
+            directories: vec!["/vst".into()],
+            roots: vec!["/vst".into()],
+        })
+        .unwrap();
+        assert_eq!(db.get_latest_plugin_scan().unwrap().unwrap().id, "pl-new");
+
+        let mut fc = HashMap::new();
+        fc.insert("WAV".into(), 1);
+        db.save_scan("au-old", "2024-01-01T00:00:00", 1, 100, &fc, &[]).unwrap();
+        db.insert_audio_batch("au-old", &[sample("a.wav", "/a.wav", "WAV", 100)])
+            .unwrap();
+        db.save_scan("au-new", "2024-06-01T00:00:00", 1, 200, &fc, &[]).unwrap();
+        db.insert_audio_batch("au-new", &[sample("b.wav", "/b.wav", "WAV", 200)])
+            .unwrap();
+        assert_eq!(db.get_latest_audio_scan().unwrap().unwrap().id, "au-new");
+
+        db.save_daw_scan(&daw_snap(
+            "daw-old",
+            "2024-01-01T00:00:00",
+            vec![daw_project("old.als", "Ableton")],
+        ))
+        .unwrap();
+        db.save_daw_scan(&daw_snap(
+            "daw-new",
+            "2024-06-01T00:00:00",
+            vec![daw_project("new.als", "Ableton")],
+        ))
+        .unwrap();
+        assert_eq!(db.get_latest_daw_scan().unwrap().unwrap().id, "daw-new");
+
+        let mut pfc = HashMap::new();
+        pfc.insert("FXP".into(), 1);
+        db.save_preset_scan(&PresetScanSnapshot {
+            id: "pr-old".into(),
+            timestamp: "2024-01-01T00:00:00".into(),
+            preset_count: 1,
+            total_bytes: 10,
+            format_counts: pfc.clone(),
+            presets: vec![preset_file("old.fxp", "FXP")],
+            roots: vec![],
+        })
+        .unwrap();
+        db.save_preset_scan(&PresetScanSnapshot {
+            id: "pr-new".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            preset_count: 1,
+            total_bytes: 20,
+            format_counts: pfc,
+            presets: vec![preset_file("new.fxp", "FXP")],
+            roots: vec![],
+        })
+        .unwrap();
+        assert_eq!(db.get_latest_preset_scan().unwrap().unwrap().id, "pr-new");
+    }
+
     #[test]
     fn test_query_daw_multi_scan_returns_latest_only() {
         let db = test_db();
