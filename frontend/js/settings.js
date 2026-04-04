@@ -1202,16 +1202,24 @@ function refreshSettingsUI() {
   // System perf info — get real stats from Rust backend
   const perfInfo = document.getElementById('settingPerfInfo');
   if (perfInfo) {
+    const f = typeof appFmt === 'function' ? appFmt : (key, vars) => {
+      let s = key;
+      if (vars && typeof vars === 'object') {
+        s = s.replace(/\{(\w+)\}/g, (_, name) => (vars[name] != null && vars[name] !== '') ? String(vars[name]) : '');
+      }
+      return s;
+    };
     window.vstUpdater.getProcessStats().then(stats => {
       const cpus = stats.numCpus || navigator.hardwareConcurrency || '?';
-      const scanThreads = parseInt(threadMult) * parseInt(cpus);
       const fmtMem = (bytes) => {
+        if (typeof formatBytes === 'function') return formatBytes(bytes);
         if (!bytes || bytes === 0) return '0 B';
         const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
         const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
         return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
       };
-      const fmtUptime = (secs) => {
+      const fmtUptimeSecs = (secs) => {
+        if (typeof formatUptime === 'function') return formatUptime(secs);
         if (!secs) return '0s';
         const h = Math.floor(secs / 3600);
         const m = Math.floor((secs % 3600) / 60);
@@ -1228,62 +1236,112 @@ function refreshSettingsUI() {
       const dot = (on) => on ? '<span style="color:var(--green);">&#9679;</span>' : '<span style="color:var(--text-dim);">&#9675;</span>';
       const db = stats.database || {};
       const tc = db.tables || {};
-      const section = (title, lines) => `<div style="margin-bottom:6px;"><span style="color:var(--cyan);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:1px;">${title}</span><br>${lines.join('<br>')}</div>`;
+      const section = (titleKey, lines) => {
+        const title = f(titleKey);
+        return `<div style="margin-bottom:6px;"><span style="color:var(--cyan);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:1px;">${escapeHtml(title)}</span><br>${lines.join('<br>')}</div>`;
+      };
       perfInfo.innerHTML = [
-        section('System', [
-          `<b>OS:</b> ${stats.os || '?'} ${stats.arch || '?'} | <b>Host:</b> ${stats.hostname || '?'}`,
-          `<b>CPU:</b> ${cpus} cores | ${(stats.cpuPercent || 0).toFixed(1)}% usage`,
-          `<b>Disk:</b> ${fmtMem(stats.diskFreeBytes)} free / ${fmtMem(stats.diskTotalBytes)} total`,
+        section('ui.perf.section_system', [
+          f('ui.perf.line_os_host', {
+            os: escapeHtml(stats.os || '?'),
+            arch: escapeHtml(stats.arch || '?'),
+            hostname: escapeHtml(stats.hostname || '?'),
+          }),
+          f('ui.perf.line_cpu', { cpus: String(cpus), cpu_percent: (stats.cpuPercent || 0).toFixed(1) }),
+          f('ui.perf.line_disk', { free: fmtMem(stats.diskFreeBytes), total: fmtMem(stats.diskTotalBytes) }),
         ]),
-        section('Process', [
-          `<b>PID:</b> ${stats.pid} | <b>Version:</b> v${stats.appVersion || '?'}`,
-          `<b>Memory:</b> RSS ${fmtMem(stats.rssBytes)} | Virtual ${fmtMem(stats.virtualBytes)}`,
-          `<b>Threads:</b> ${stats.threads} total | rayon pool ${stats.rayonThreads}`,
-          `<b>File Descriptors:</b> ${stats.openFds} open | limit ${stats.fdSoftLimit}/${stats.fdHardLimit}`,
-          `<b>Uptime:</b> ${fmtUptime(stats.uptimeSecs)}`,
+        section('ui.perf.section_process', [
+          f('ui.perf.line_pid_version', { pid: String(stats.pid), version: stats.appVersion || '?' }),
+          f('ui.perf.line_memory', { rss: fmtMem(stats.rssBytes), virt: fmtMem(stats.virtualBytes) }),
+          f('ui.perf.line_threads', { threads: String(stats.threads), rayon: String(stats.rayonThreads) }),
+          f('ui.perf.line_fds', {
+            open: String(stats.openFds),
+            soft: String(stats.fdSoftLimit),
+            hard: String(stats.fdHardLimit),
+          }),
+          f('ui.perf.line_uptime', { uptime: fmtUptimeSecs(stats.uptimeSecs) }),
         ]),
-        section('Thread Pools', [
-          `<b>Global Rayon:</b> ${stats.rayonThreads} threads | multiplier ${cfg.threadMultiplier || '?'}x`,
-          `<b>Per-Scanner:</b> ${cfg.perScannerThreads || '?'} threads | stack ${cfg.stackSize || '?'}`,
-          `<b>Plugin Channel:</b> buf ${cfg.channelBuffer || '?'} (${cfg.pluginChannelMin || '?'}-${cfg.pluginChannelMax || '?'}) | batch ${cfg.batchSize || '?'}`,
-          `<b>Walker Channel:</b> buf ${cfg.walkerChannelBuffer || '?'} | batch ${cfg.walkerBatchSize || '?'} | depth ${cfg.depthLimit || '?'} | flush ${cfg.flushInterval || '?'}ms`,
+        section('ui.perf.section_thread_pools', [
+          f('ui.perf.line_rayon_global', { n: String(stats.rayonThreads), mult: String(cfg.threadMultiplier || '?') }),
+          f('ui.perf.line_per_scanner', { n: String(cfg.perScannerThreads || '?'), stack: String(cfg.stackSize || '?') }),
+          f('ui.perf.line_plugin_channel', {
+            buf: String(cfg.channelBuffer || '?'),
+            pmin: String(cfg.pluginChannelMin || '?'),
+            pmax: String(cfg.pluginChannelMax || '?'),
+            batch: String(cfg.batchSize || '?'),
+          }),
+          f('ui.perf.line_walker_channel', {
+            buf: String(cfg.walkerChannelBuffer || '?'),
+            batch: String(cfg.walkerBatchSize || '?'),
+            depth: String(cfg.depthLimit || '?'),
+            flush: String(cfg.flushInterval || '?'),
+          }),
         ]),
-        section('Scanner State', [
-          `${dot(sc.pluginScanning)} Plugins  ${dot(sc.audioScanning)} Samples  ${dot(sc.dawScanning)} DAW  ${dot(sc.presetScanning)} Presets  ${dot(sc.updateChecking)} Updates`,
+        section('ui.perf.section_scanner_state', [
+          `${dot(sc.pluginScanning)} ${f('ui.perf.scan_plugins')}  ${dot(sc.audioScanning)} ${f('ui.perf.scan_samples')}  ${dot(sc.dawScanning)} ${f('ui.perf.scan_daw')}  ${dot(sc.presetScanning)} ${f('ui.perf.scan_presets')}  ${dot(sc.updateChecking)} ${f('ui.perf.scan_updates')}`,
         ]),
-        section('Scan Results', [
-          `<b>Plugins:</b> ${pluginCount.toLocaleString()} | <b>Samples:</b> ${sampleCount.toLocaleString()} | <b>DAW:</b> ${dawCount.toLocaleString()} | <b>Presets:</b> ${presetCount.toLocaleString()}`,
+        section('ui.perf.section_scan_results', [
+          f('ui.perf.line_scan_results', {
+            plugin_count: pluginCount.toLocaleString(),
+            sample_count: sampleCount.toLocaleString(),
+            daw_count: dawCount.toLocaleString(),
+            preset_count: presetCount.toLocaleString(),
+          }),
         ]),
-        section('Database', [
-          `<b>Size:</b> ${fmtMem(db.sizeBytes || 0)} | <b>Prefs:</b> ${fmtMem((df.preferencesBytes || 0))}`,
-          `<b>Tables:</b> ${(tc.audio_samples||0).toLocaleString()} samples | ${(tc.plugins||0).toLocaleString()} plugins | ${(tc.daw_projects||0).toLocaleString()} DAW | ${(tc.presets||0).toLocaleString()} presets`,
-          `<b>Caches:</b> ${(tc.kvr_cache||0).toLocaleString()} KVR | ${(tc.waveform_cache||0).toLocaleString()} waveforms | ${(tc.spectrogram_cache||0).toLocaleString()} spectrograms | ${(tc.xref_cache||0).toLocaleString()} xref | ${(tc.fingerprint_cache||0).toLocaleString()} fingerprints`,
-          `<b>Scans:</b> ${(tc.plugin_scans||0)} plugin | ${(tc.audio_scans||0)} audio | ${(tc.daw_scans||0)} DAW | ${(tc.preset_scans||0)} preset`,
+        section('ui.perf.section_database', [
+          f('ui.perf.line_db_size', { db_size: fmtMem(db.sizeBytes || 0), prefs_size: fmtMem((df.preferencesBytes || 0)) }),
+          f('ui.perf.line_db_tables', {
+            samples: (tc.audio_samples || 0).toLocaleString(),
+            plugins: (tc.plugins || 0).toLocaleString(),
+            daw: (tc.daw_projects || 0).toLocaleString(),
+            presets: (tc.presets || 0).toLocaleString(),
+          }),
+          f('ui.perf.line_db_caches', {
+            kvr: (tc.kvr_cache || 0).toLocaleString(),
+            waveforms: (tc.waveform_cache || 0).toLocaleString(),
+            spectrograms: (tc.spectrogram_cache || 0).toLocaleString(),
+            xref: (tc.xref_cache || 0).toLocaleString(),
+            fp: (tc.fingerprint_cache || 0).toLocaleString(),
+          }),
+          f('ui.perf.line_db_scans', {
+            plugin_scans: String(tc.plugin_scans || 0),
+            audio_scans: String(tc.audio_scans || 0),
+            daw_scans: String(tc.daw_scans || 0),
+            preset_scans: String(tc.preset_scans || 0),
+          }),
         ]),
-        section('Storage', [
-          `<b>Data Dir:</b> <code style="font-size:10px;word-break:break-all;">${escapeHtml(stats.dataDir || '?')}</code>`,
+        section('ui.perf.section_storage', [
+          f('ui.perf.line_data_dir', {
+            path: `<code style="font-size:10px;word-break:break-all;">${escapeHtml(stats.dataDir || '?')}</code>`,
+          }),
         ]),
       ].join('');
       // App Info pane
       const appInfo = document.getElementById('settingAppInfo');
       if (appInfo) {
         const app = stats.app || {};
-        const tag = (items) => (items || []).map(i => `<span style="display:inline-block;background:var(--bg-card);border:1px solid var(--border);border-radius:2px;padding:1px 6px;margin:1px 2px;font-size:10px;">${i}</span>`).join('');
+        const tag = (items) => (items || []).map(i => `<span style="display:inline-block;background:var(--bg-card);border:1px solid var(--border);border-radius:2px;padding:1px 6px;margin:1px 2px;font-size:10px;">${escapeHtml(String(i))}</span>`).join('');
         appInfo.innerHTML = [
-          section('Build', [
-            `<b>Version:</b> v${stats.appVersion || '?'} | <b>Tauri:</b> v${stats.tauriVersion || '?'}`,
-            `<b>Target:</b> ${stats.rustcTarget || '?'} | <b>Profile:</b> ${stats.buildProfile || '?'}`,
-            `<b>UI:</b> ${app.uiFramework || '?'} | <b>Storage:</b> ${app.storageBackend || '?'}`,
-            `<b>Search:</b> ${app.searchEngine || '?'}`,
+          section('ui.perf.section_build', [
+            f('ui.perf.line_build_version', { version: stats.appVersion || '?', tauri: stats.tauriVersion || '?' }),
+            f('ui.perf.line_build_target', { target: stats.rustcTarget || '?', profile: stats.buildProfile || '?' }),
+            f('ui.perf.line_build_ui', { ui_fw: app.uiFramework || '?', storage: app.storageBackend || '?' }),
+            f('ui.perf.line_build_search', { search: app.searchEngine || '?' }),
           ]),
-          section('Audio Formats', [tag(app.audioFormats)]),
-          section('Plugin Formats', [tag(app.pluginFormats)]),
-          section('DAW Projects', [`${(app.dawFormats||[]).length} formats supported`, tag(app.dawFormats)]),
-          section('Preset Formats', [tag(app.presetFormats)]),
-          section('Plugin Extraction', [`${(app.xrefFormats||[]).length} DAW formats with plugin cross-reference`, tag(app.xrefFormats)]),
-          section('Analysis Engines', [tag(app.analysisEngines)]),
-          section('Visualizers', [tag(app.visualizers)]),
-          section('Export Formats', [tag(app.exportFormats)]),
+          section('ui.perf.section_audio_formats', [tag(app.audioFormats)]),
+          section('ui.perf.section_plugin_formats', [tag(app.pluginFormats)]),
+          section('ui.perf.section_app_daw_projects', [
+            f('ui.perf.daw_format_count', { n: String((app.dawFormats || []).length) }),
+            tag(app.dawFormats),
+          ]),
+          section('ui.perf.section_preset_formats', [tag(app.presetFormats)]),
+          section('ui.perf.section_plugin_extraction', [
+            f('ui.perf.xref_format_count', { n: String((app.xrefFormats || []).length) }),
+            tag(app.xrefFormats),
+          ]),
+          section('ui.perf.section_analysis_engines', [tag(app.analysisEngines)]),
+          section('ui.perf.section_visualizers', [tag(app.visualizers)]),
+          section('ui.perf.section_export_formats', [tag(app.exportFormats)]),
         ].join('');
       }
       // Show panes now that content is loaded, then rebalance columns
@@ -1292,8 +1350,8 @@ function refreshSettingsUI() {
       if (sysPane) sysPane.style.display = '';
       if (appPane) appPane.style.display = '';
     }).catch((err) => {
-      const cpus = navigator.hardwareConcurrency || '?';
-      perfInfo.textContent = `${cpus} cores | error: ${err}`;
+      const c = navigator.hardwareConcurrency || '?';
+      perfInfo.textContent = f('ui.perf.load_error', { cpus: String(c), err: String(err) });
     });
   }
 
