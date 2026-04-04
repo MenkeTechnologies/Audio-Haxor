@@ -2740,3 +2740,145 @@ fn compute_audio_diff_both_empty_snapshots() {
 fn get_plugin_type_dot_bundle_unknown() {
     assert_eq!(get_plugin_type(".bundle"), "Unknown");
 }
+
+// ── Wave 10: plugin diff (both-known version_changed), find_similar edges, format_size
+//    boundary, radix round-trips, xref extract guard, KVR + serde + DAW path tokens ─────
+
+#[test]
+fn compute_plugin_diff_both_known_same_path_emits_version_changed() {
+    let old = build_plugin_snapshot(&[plug("/same.vst3", "1.0.0")], &[], &[]);
+    let new = build_plugin_snapshot(&[plug("/same.vst3", "2.1.0")], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert!(d.added.is_empty() && d.removed.is_empty());
+    assert_eq!(d.version_changed.len(), 1);
+    assert_eq!(d.version_changed[0].previous_version, "1.0.0");
+    assert_eq!(d.version_changed[0].plugin.version, "2.1.0");
+}
+
+#[test]
+fn compute_plugin_diff_same_known_version_no_version_changed() {
+    let old = build_plugin_snapshot(&[plug("/p.vst3", "3.3.3")], &[], &[]);
+    let new = build_plugin_snapshot(&[plug("/p.vst3", "3.3.3")], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert!(d.version_changed.is_empty());
+}
+
+#[test]
+fn find_similar_empty_candidates_returns_empty() {
+    let r = fp("/ref.wav");
+    let out = find_similar(&r, &[], 5);
+    assert!(out.is_empty());
+}
+
+#[test]
+fn find_similar_max_results_zero_truncates_to_empty() {
+    let r = fp("/ref.wav");
+    let cands = vec![fp("/a.wav"), fp("/b.wav")];
+    let out = find_similar(&r, &cands, 0);
+    assert!(out.is_empty());
+}
+
+#[test]
+fn format_size_one_byte_below_one_mib_stays_in_kb_tier() {
+    let b = 1024_u64 * 1024 - 1;
+    assert_eq!(app_lib::format_size(b), "1024.0 KB");
+}
+
+#[test]
+fn radix_string_one_base2() {
+    assert_eq!(radix_string(1, 2), "1");
+}
+
+#[test]
+fn radix_string_u64_max_base10_roundtrip() {
+    let s = radix_string(u64::MAX, 10);
+    assert_eq!(s.parse::<u64>().unwrap(), u64::MAX);
+}
+
+#[test]
+fn ext_matches_reaper_project_uppercase_ext() {
+    assert_eq!(
+        ext_matches(Path::new("/Sessions/Mix.RPP")).as_deref(),
+        Some("RPP")
+    );
+}
+
+#[test]
+fn ext_matches_nuendo_cpr_uppercase_deep_path() {
+    assert_eq!(
+        ext_matches(Path::new("/Volumes/Audio/MyAlbum/MASTER.CPR")).as_deref(),
+        Some("CPR")
+    );
+}
+
+#[test]
+fn extract_plugins_no_extension_returns_empty() {
+    assert!(extract_plugins("/tmp/noextension").is_empty());
+}
+
+#[test]
+fn extract_plugins_unknown_extension_returns_empty() {
+    assert!(extract_plugins("/tmp/x.xyz").is_empty());
+}
+
+#[test]
+fn normalize_plugin_name_strips_aax_suffix_token() {
+    assert_eq!(normalize_plugin_name("MyPlug (AAX)"), "myplug");
+}
+
+#[test]
+fn kvr_compare_versions_equal_with_trailing_zeros() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("2.0", "2.0.0"),
+        Ordering::Equal
+    );
+}
+
+#[test]
+fn kvr_parse_version_non_numeric_segment_becomes_zero() {
+    // split on '.' only; "v12" does not parse as i32
+    assert_eq!(app_lib::kvr::parse_version("v12.34"), vec![0, 34]);
+}
+
+#[test]
+fn export_plugin_json_skips_manufacturer_url_key_when_none() {
+    let p = ExportPlugin {
+        name: "N".into(),
+        plugin_type: "VST3".into(),
+        version: "1".into(),
+        manufacturer: "M".into(),
+        manufacturer_url: None,
+        path: "/p.vst3".into(),
+        size: "1 B".into(),
+        size_bytes: 1,
+        modified: "m".into(),
+        architectures: vec![],
+    };
+    let j = serde_json::to_string(&p).unwrap();
+    assert!(!j.contains("manufacturerUrl"));
+}
+
+#[test]
+fn fingerprint_distance_self_is_zero() {
+    let a = fp("/self.wav");
+    assert!(fingerprint_distance(&a, &a).abs() < 1e-9);
+}
+
+#[test]
+fn compute_audio_diff_one_sample_added() {
+    let s0 = sample("/only.wav");
+    let old = build_audio_snapshot(&[], &[]);
+    let new = build_audio_snapshot(&[s0], &[]);
+    let d = compute_audio_diff(&old, &new);
+    assert_eq!(d.added.len(), 1);
+    assert!(d.removed.is_empty());
+}
+
+#[test]
+fn compute_preset_diff_identical_lists_no_delta() {
+    let ps = vec![preset("/a.fxp"), preset("/b.fxp")];
+    let old = build_preset_snapshot(&ps, &[]);
+    let new = build_preset_snapshot(&ps, &[]);
+    let d = compute_preset_diff(&old, &new);
+    assert!(d.added.is_empty() && d.removed.is_empty());
+}
