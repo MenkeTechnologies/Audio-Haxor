@@ -3776,6 +3776,33 @@ mod tests {
     }
 
     #[test]
+    fn test_import_daw_json_extra_field_on_project_ignored() {
+        let tmp = std::env::temp_dir().join("upum_test_import_daw_extra_field.json");
+        let _ = fs::remove_file(&tmp);
+        let content = r#"{
+        "version":"1.0",
+        "exported_at":"2025-01-01T00:00:00Z",
+        "projects":[{
+            "name":"Extra",
+            "path":"/p.als",
+            "directory":"/tmp",
+            "format":"ALS",
+            "daw":"Ableton Live",
+            "size":2048,
+            "sizeFormatted":"2.0 KB",
+            "modified":"t",
+            "futureProof":true
+        }]
+    }"#;
+        fs::write(&tmp, content).unwrap();
+        let imported = import_daw_json(tmp.to_string_lossy().to_string()).unwrap();
+        assert_eq!(imported.len(), 1);
+        assert_eq!(imported[0].name, "Extra");
+        assert_eq!(imported[0].daw, "Ableton Live");
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_import_daw_json_invalid_format() {
         let tmp = std::env::temp_dir().join("upum_test_import_daw_bad.json");
         fs::write(&tmp, "not json at all").unwrap();
