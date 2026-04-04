@@ -545,6 +545,22 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_midi_running_status_counts_second_note_on() {
+        // First event sets status 0x90; second pair omits status byte (running status).
+        let track = vec![
+            0x00, 0x90, 60, 100, // note on C4
+            0x00, 64, 90, // running: note on E4 (vel 90)
+            0x00, 0xFF, 0x2F, 0x00,
+        ];
+        let data = make_midi(0, 1, 480, &track);
+        let tmp = std::env::temp_dir().join("test_midi_running_status.mid");
+        std::fs::write(&tmp, &data).unwrap();
+        let info = parse_midi(&tmp).unwrap();
+        assert_eq!(info.note_count, 2);
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_var_len() {
         assert_eq!(read_var_len(&[0x00], 0), (0, 1));
         assert_eq!(read_var_len(&[0x7F], 0), (127, 1));

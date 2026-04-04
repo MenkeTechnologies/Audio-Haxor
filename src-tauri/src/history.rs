@@ -1577,6 +1577,18 @@ mod tests {
     }
 
     #[test]
+    fn test_migrate_json_string_empty_object_string() {
+        let v = migrate_json_string(serde_json::json!("{}"));
+        assert_eq!(v, serde_json::json!({}));
+    }
+
+    #[test]
+    fn test_migrate_json_string_padded_bracket_array_strips_and_parses() {
+        let v = migrate_json_string(serde_json::json!("  [7]  "));
+        assert_eq!(v, serde_json::json!([7]));
+    }
+
+    #[test]
     fn test_toml_to_flat_invalid_toml_returns_empty_prefs() {
         assert!(toml_to_flat("this is not [[valid]] toml").is_empty());
     }
@@ -2342,6 +2354,25 @@ mod tests {
         assert_eq!(merged.get("c"), Some(&serde_json::json!("user_c")));
     }
 
+    #[test]
+    fn test_merge_prefs_empty_defaults_absorbs_user_only_keys() {
+        let defaults = PrefsMap::new();
+        let mut user = PrefsMap::new();
+        user.insert("custom".into(), serde_json::json!(true));
+        let merged = merge_prefs(&defaults, &user);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged.get("custom"), Some(&serde_json::json!(true)));
+    }
+
+    #[test]
+    fn test_merge_prefs_empty_user_keeps_all_defaults() {
+        let mut defaults = PrefsMap::new();
+        defaults.insert("theme".into(), serde_json::json!("dark"));
+        let user = PrefsMap::new();
+        let merged = merge_prefs(&defaults, &user);
+        assert_eq!(merged.get("theme"), Some(&serde_json::json!("dark")));
+    }
+
     // ── TOML conversion tests ──
 
     #[test]
@@ -2458,6 +2489,52 @@ mod tests {
         assert!(
             d.version_changed.is_empty(),
             "Unknown→known should not emit version_changed (scanner ambiguity)"
+        );
+    }
+
+    #[test]
+    fn test_compute_plugin_diff_both_unknown_same_path_no_version_changed() {
+        let p = make_plugin("Q", "Unknown", "/y/plugin.vst3");
+        let old = ScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            plugin_count: 1,
+            plugins: vec![p.clone()],
+            directories: vec![],
+            roots: vec![],
+        };
+        let new = ScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            plugin_count: 1,
+            plugins: vec![p],
+            directories: vec![],
+            roots: vec![],
+        };
+        assert!(compute_plugin_diff(&old, &new).version_changed.is_empty());
+    }
+
+    #[test]
+    fn test_compute_plugin_diff_known_to_unknown_same_path_no_version_changed() {
+        let old = ScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            plugin_count: 1,
+            plugins: vec![make_plugin("R", "2.1.0", "/z/plugin.vst3")],
+            directories: vec![],
+            roots: vec![],
+        };
+        let new = ScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            plugin_count: 1,
+            plugins: vec![make_plugin("R", "Unknown", "/z/plugin.vst3")],
+            directories: vec![],
+            roots: vec![],
+        };
+        assert!(
+            compute_plugin_diff(&old, &new).version_changed.is_empty(),
+            "lost version info should not emit version_changed"
         );
     }
 
@@ -2648,5 +2725,64 @@ mod tests {
         assert_eq!(d.added[0].path, "/b/b.fxp");
         assert_eq!(d.removed.len(), 1);
         assert_eq!(d.removed[0].path, "/a/a.fxp");
+    }
+
+    #[test]
+    fn test_compute_audio_diff_same_paths_no_added_or_removed() {
+        let old = AudioScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            sample_count: 1,
+            total_bytes: 100,
+            format_counts: std::collections::HashMap::new(),
+            samples: vec![make_sample("kick", "/tmp/shared.wav", "WAV")],
+            roots: vec![],
+        };
+        let new = AudioScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            sample_count: 1,
+            total_bytes: 9999,
+            format_counts: std::collections::HashMap::new(),
+            samples: vec![make_sample("kick", "/tmp/shared.wav", "WAV")],
+            roots: vec![],
+        };
+        let d = compute_audio_diff(&old, &new);
+        assert!(d.added.is_empty());
+        assert!(d.removed.is_empty());
+    }
+
+    #[test]
+    fn test_compute_preset_diff_same_paths_no_added_or_removed() {
+        let p = PresetFile {
+            name: "lead".into(),
+            path: "/x/lead.fxp".into(),
+            directory: "/x".into(),
+            format: "FXP".into(),
+            size: 10,
+            size_formatted: "10 B".into(),
+            modified: "d".into(),
+        };
+        let old = PresetScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            preset_count: 1,
+            total_bytes: 10,
+            format_counts: std::collections::HashMap::new(),
+            presets: vec![p.clone()],
+            roots: vec![],
+        };
+        let new = PresetScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            preset_count: 1,
+            total_bytes: 99,
+            format_counts: std::collections::HashMap::new(),
+            presets: vec![p],
+            roots: vec![],
+        };
+        let d = compute_preset_diff(&old, &new);
+        assert!(d.added.is_empty());
+        assert!(d.removed.is_empty());
     }
 }

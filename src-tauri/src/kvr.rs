@@ -704,4 +704,17 @@ mod tests {
             compare_versions("1.0.0", "1.0.1").reverse()
         );
     }
+
+    #[test]
+    fn test_compare_versions_transitive_three_way() {
+        use std::cmp::Ordering;
+        assert_eq!(compare_versions("1.0", "1.1"), Ordering::Less);
+        assert_eq!(compare_versions("1.1", "2.0"), Ordering::Less);
+        assert_eq!(compare_versions("1.0", "2.0"), Ordering::Less);
+    }
+
+    #[test]
+    fn test_parse_version_positive_sign_first_segment() {
+        assert_eq!(parse_version("+1.2.3"), vec![1, 2, 3]);
+    }
 }

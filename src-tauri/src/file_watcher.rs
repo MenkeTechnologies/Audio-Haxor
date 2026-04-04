@@ -314,6 +314,15 @@ mod tests {
     }
 
     #[test]
+    fn test_classify_preset_clap_hyphen_extension() {
+        assert_eq!(
+            classify(Path::new("Analog.clap-preset")),
+            Some("preset"),
+            ".clap-preset must classify as preset (extension is full hyphenated token)"
+        );
+    }
+
+    #[test]
     fn test_classify_audio_opus() {
         assert_eq!(classify(Path::new("track.opus")), Some("audio"));
     }

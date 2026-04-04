@@ -2868,6 +2868,25 @@ mod tests {
         assert!(p.format_filter.is_none());
     }
 
+    #[test]
+    fn test_audio_query_params_json_partial_snake_case_overrides() {
+        let v = serde_json::json!({
+            "sort_key": "modified",
+            "sort_asc": false,
+            "limit": 50,
+            "offset": 100,
+            "search": "kick"
+        });
+        let p: AudioQueryParams = serde_json::from_value(v).expect("deserialize");
+        assert_eq!(p.sort_key, "modified");
+        assert!(!p.sort_asc);
+        assert_eq!(p.limit, 50);
+        assert_eq!(p.offset, 100);
+        assert_eq!(p.search.as_deref(), Some("kick"));
+        assert!(p.scan_id.is_none());
+        assert!(p.format_filter.is_none());
+    }
+
     fn test_db() -> Database {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
