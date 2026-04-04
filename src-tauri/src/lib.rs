@@ -1134,7 +1134,23 @@ async fn open_daw_project(file_path: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn extract_project_plugins(file_path: String) -> Result<Vec<xref::PluginRef>, String> {
-    let result = xref::extract_plugins(&file_path);
+    let mut result = xref::extract_plugins(&file_path);
+    // Enrich empty manufacturers from scanned plugin database
+    if result.iter().any(|p| p.manufacturer.is_empty()) {
+        if let Ok(all) = db::global().query_plugins(None, None, "name", true, 0, 100000) {
+            let mfg_map: std::collections::HashMap<String, String> = all.plugins.iter()
+                .filter(|p| !p.manufacturer.is_empty())
+                .map(|p| (p.name.to_lowercase(), p.manufacturer.clone()))
+                .collect();
+            for p in &mut result {
+                if p.manufacturer.is_empty() {
+                    if let Some(mfg) = mfg_map.get(&p.name.to_lowercase()) {
+                        p.manufacturer = mfg.clone();
+                    }
+                }
+            }
+        }
+    }
     #[cfg(not(test))]
     append_log(format!(
         "XREF EXTRACT — {} | {} plugins found",
