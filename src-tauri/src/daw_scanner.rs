@@ -519,6 +519,14 @@ mod tests {
     }
 
     #[test]
+    fn test_is_package_ext_dawproject_is_file_not_bundle() {
+        assert!(
+            !is_package_ext(Path::new("project.dawproject")),
+            ".dawproject is a zip file, not a macOS package dir"
+        );
+    }
+
+    #[test]
     fn test_daw_name_for_format() {
         assert_eq!(daw_name_for_format("ALS"), "Ableton Live");
         assert_eq!(daw_name_for_format("LOGICX"), "Logic Pro");

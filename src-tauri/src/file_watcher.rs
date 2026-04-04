@@ -295,6 +295,12 @@ mod tests {
     }
 
     #[test]
+    fn test_classify_archive_double_extension_is_last_segment() {
+        // `extension()` is only the final segment — `.gz` is not audio
+        assert_eq!(classify(Path::new("backup.tar.gz")), None);
+    }
+
+    #[test]
     fn test_classify_preset_nmsv_extension() {
         // Multi-dot names: std::path::extension is the final segment only — .nmsv matches PRESET_EXTS
         assert_eq!(classify(Path::new("preset.nmsv")), Some("preset"));

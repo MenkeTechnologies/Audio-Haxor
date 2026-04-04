@@ -878,6 +878,11 @@ mod tests {
     use std::io::Write;
 
     #[test]
+    fn test_normalize_plugin_name_whitespace_only() {
+        assert_eq!(normalize_plugin_name("   "), "");
+    }
+
+    #[test]
     fn test_plugin_ref_json_roundtrip() {
         let p = PluginRef {
             name: "Serum".into(),

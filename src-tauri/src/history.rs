@@ -1533,6 +1533,73 @@ mod tests {
     }
 
     #[test]
+    fn test_build_audio_snapshot_aggregates_formats_and_total_bytes() {
+        let samples = vec![
+            AudioSample {
+                name: "a".into(),
+                path: "/a.wav".into(),
+                directory: "/tmp".into(),
+                format: "WAV".into(),
+                size: 100,
+                size_formatted: "100 B".into(),
+                modified: "t".into(),
+                duration: None,
+                channels: None,
+                sample_rate: None,
+                bits_per_sample: None,
+            },
+            AudioSample {
+                name: "b".into(),
+                path: "/b.wav".into(),
+                directory: "/tmp".into(),
+                format: "WAV".into(),
+                size: 200,
+                size_formatted: "200 B".into(),
+                modified: "t".into(),
+                duration: None,
+                channels: None,
+                sample_rate: None,
+                bits_per_sample: None,
+            },
+            AudioSample {
+                name: "c".into(),
+                path: "/c.mp3".into(),
+                directory: "/tmp".into(),
+                format: "MP3".into(),
+                size: 50,
+                size_formatted: "50 B".into(),
+                modified: "t".into(),
+                duration: None,
+                channels: None,
+                sample_rate: None,
+                bits_per_sample: None,
+            },
+        ];
+        let roots = vec!["/music".into()];
+        let snap = build_audio_snapshot(&samples, &roots);
+        assert_eq!(snap.sample_count, 3);
+        assert_eq!(snap.total_bytes, 350);
+        assert_eq!(snap.format_counts.get("WAV"), Some(&2));
+        assert_eq!(snap.format_counts.get("MP3"), Some(&1));
+        assert_eq!(snap.roots, roots);
+    }
+
+    #[test]
+    fn test_build_plugin_snapshot_counts_and_roots_match_input() {
+        let plugins = vec![
+            make_plugin("Alpha", "1.0", "/tmp/a.vst3"),
+            make_plugin("Beta", "2.0", "/tmp/b.vst3"),
+        ];
+        let dirs = vec!["/tmp/plugins".into()];
+        let roots = vec!["/root/A".into(), "/root/B".into()];
+        let snap = build_plugin_snapshot(&plugins, &dirs, &roots);
+        assert_eq!(snap.plugin_count, 2);
+        assert_eq!(snap.plugins.len(), 2);
+        assert_eq!(snap.directories, dirs);
+        assert_eq!(snap.roots, roots);
+    }
+
+    #[test]
     fn test_gen_id_unique() {
         let id1 = gen_id();
         let id2 = gen_id();
@@ -2263,6 +2330,31 @@ mod tests {
         assert!(d.added.is_empty());
         assert!(d.removed.is_empty());
         assert!(d.version_changed.is_empty());
+    }
+
+    #[test]
+    fn test_compute_plugin_diff_same_known_version_no_version_changed() {
+        let p = make_plugin("Same", "1.2.3", "/tmp/same.vst3");
+        let old = ScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            plugin_count: 1,
+            plugins: vec![p.clone()],
+            directories: vec![],
+            roots: vec![],
+        };
+        let new = ScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            plugin_count: 1,
+            plugins: vec![p],
+            directories: vec![],
+            roots: vec![],
+        };
+        let d = compute_plugin_diff(&old, &new);
+        assert!(d.version_changed.is_empty());
+        assert!(d.added.is_empty());
+        assert!(d.removed.is_empty());
     }
 
     #[test]

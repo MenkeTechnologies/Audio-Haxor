@@ -631,6 +631,11 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_version_trailing_dot_empty_segment() {
+        assert_eq!(parse_version("1."), vec![1, 0]);
+    }
+
+    #[test]
     fn test_compare_versions_unknown_vs_numeric() {
         assert_eq!(
             compare_versions("Unknown", "2.0"),

@@ -123,6 +123,12 @@ mod tests {
     }
 
     #[test]
+    fn test_lufs_path_without_extension_returns_none_before_io() {
+        // Empty extension hits the unsupported branch — no valid decoder, no file read required
+        assert!(measure_lufs("/tmp/no_extension_or_dot").is_none());
+    }
+
+    #[test]
     fn test_louder_sample_higher_lufs() {
         let tmp1 = std::env::temp_dir().join("lufs_test_quiet.wav");
         let tmp2 = std::env::temp_dir().join("lufs_test_loud.wav");

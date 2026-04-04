@@ -4137,6 +4137,16 @@ mod tests {
     }
 
     #[test]
+    fn test_format_size_one_byte_below_one_gib_stays_in_mb_tier() {
+        let b = 1024_u64.pow(3) - 1;
+        let s = format_size(b);
+        assert!(
+            s.ends_with(" MB"),
+            "just under 1 GiB should use MB unit, got {s}"
+        );
+    }
+
+    #[test]
     fn test_detect_separator_unknown_extension_defaults_csv() {
         assert_eq!(detect_separator("export.data"), ',');
         assert_eq!(detect_separator("/tmp/no_extension"), ',');

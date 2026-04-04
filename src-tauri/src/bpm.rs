@@ -575,6 +575,15 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_pcm_16bit_be() {
+        // Big-endian 0x4000 = 16384 → 0.5 normalized
+        let data = [0x40u8, 0x00];
+        let samples = decode_pcm(&data, 16, 1, false);
+        assert_eq!(samples.len(), 1);
+        assert!((samples[0] - 0.5).abs() < 0.001);
+    }
+
+    #[test]
     fn test_decode_pcm_8bit() {
         let data = [128u8, 255, 0]; // 0.0, ~1.0, ~-1.0
         let samples = decode_pcm(&data, 8, 1, true);
