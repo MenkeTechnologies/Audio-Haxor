@@ -1363,7 +1363,10 @@ function restoreSettings() {
 
   const uiLoc = prefs.getItem('uiLocale');
   const localeSel = document.getElementById('settingUiLocale');
-  if (localeSel && (uiLoc === 'de' || uiLoc === 'es' || uiLoc === 'sv' || uiLoc === 'en')) {
+  if (
+    localeSel &&
+    (uiLoc === 'de' || uiLoc === 'es' || uiLoc === 'sv' || uiLoc === 'fr' || uiLoc === 'en')
+  ) {
     localeSel.value = uiLoc;
   }
 

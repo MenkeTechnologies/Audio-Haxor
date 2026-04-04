@@ -25,7 +25,13 @@ window.__toastReady = window.__appReady;
 
 async function reloadAppStrings(locale) {
   const loc =
-    locale === 'de' || locale === 'es' || locale === 'sv' || locale === 'en' ? locale : null;
+    locale === 'de' ||
+    locale === 'es' ||
+    locale === 'sv' ||
+    locale === 'fr' ||
+    locale === 'en'
+      ? locale
+      : null;
   try {
     const m = await invoke('get_app_strings', { locale: loc });
     window.__appStr = m || {};
