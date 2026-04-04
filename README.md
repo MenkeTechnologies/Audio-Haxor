@@ -299,6 +299,7 @@ Unit tests live in `src/**/*.rs` inside `#[cfg(test)]` modules. Integration test
 | **`test/scanner.test.js`** | 25 | **In-test replicas** of plugin-type / `formatSize` / DAW+audio extension mapping (not an import of `scanner.js`, which uses macOS `execSync` for plists). |
 | **`test/update-worker.test.js`** | 32 | Version parse/compare and KVR URL patterns (logic duplicated in file). |
 | **`test/i18n-appfmt.test.js`** | tally `rg -c '^test\\(' test/i18n-appfmt.test.js` | `appFmt` / `toastFmt` placeholder contract (`ipc.js`); `resolveUiString` lookup rules for `applyUiI18n` (`i18n-ui.js`). |
+| **`test/i18n-html-keys.test.js`** | tally `rg -c '^test\\(' test/i18n-html-keys.test.js` | Every `data-i18n` / `data-i18n-placeholder` / `data-i18n-title` key in `frontend/index.html` exists and is non-empty in `i18n/app_i18n_en.json`. |
 | **`test/iec-format-kvr-bulk.test.js`** | 2558 | IEC `format_size` parity, `parse_version` grid, `compare_versions` chain antisymmetry — mirrors backend KVR/size rules in isolation. |
 | **`test/fingerprint-distance-bulk.test.js`** | 462 | Same distance formula as `similarity::fingerprint_distance` on RMS and centroid grids; checks symmetry and finiteness. |
 | **`test/radix-string-bulk.test.js`** | 1200 | `radix_string` algorithm vs `Number.prototype.toString(base)` on the same grid as `handcrafted_tables_radix_grid`. |
@@ -502,6 +503,7 @@ test/
   update-worker.test.js -- Version comparison, KVR URL builder
   ui.test.js           -- UI helper functions, HTML builders
   i18n-appfmt.test.js  -- appFmt/toastFmt placeholder contract (ipc.js semantics)
+  i18n-html-keys.test.js -- index.html data-i18n* keys present in app_i18n_en.json
 ```
 
 ---
