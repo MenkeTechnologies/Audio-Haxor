@@ -245,13 +245,21 @@ mod tests {
     }
 
     #[test]
-    fn seed_json_no_empty_values() {
-        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
-        for (k, v) in &en {
-            assert!(
-                !v.trim().is_empty(),
-                "empty or whitespace-only value for key {k:?}"
-            );
+    fn seed_json_no_empty_values_any_locale() {
+        for (loc, json) in [
+            ("en", SEED_JSON_EN),
+            ("de", SEED_JSON_DE),
+            ("es", SEED_JSON_ES),
+            ("sv", SEED_JSON_SV),
+            ("fr", SEED_JSON_FR),
+        ] {
+            let m: HashMap<String, String> = serde_json::from_str(json).expect(loc);
+            for (k, v) in &m {
+                assert!(
+                    !v.trim().is_empty(),
+                    "empty or whitespace-only value for key {k:?} in locale {loc}"
+                );
+            }
         }
     }
 
