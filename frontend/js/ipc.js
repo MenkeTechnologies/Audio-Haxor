@@ -231,8 +231,7 @@ document.addEventListener('click', (e) => {
     case 'resetAllScans': resetAllScans(); break;
     case 'settingColorScheme': settingColorScheme(el.dataset.scheme); break;
     case 'settingToggleAutoScan': settingToggleAutoScan(); break;
-    case 'settingToggleFolderWatch': settingToggleFileWatcher(); break;
-    case 'settingToggleFileWatcher': settingToggleFileWatcher(); break;
+    case 'settingToggleFolderWatch': settingToggleFolderWatch(); break;
     case 'settingToggleAutoUpdate': settingToggleAutoUpdate(); break;
     case 'settingToggleSingleClickPlay': settingToggleSingleClickPlay(); break;
     case 'settingToggleExpandOnClick': settingToggleExpandOnClick(); break;

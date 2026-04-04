@@ -399,6 +399,7 @@ function settingToggleTheme() {
   const next = current === 'light' ? 'dark' : 'light';
   html.setAttribute('data-theme', next);
   prefs.setItem('theme', next);
+  showToast(`Theme: ${next}`);
   const scheme = prefs.getItem('colorScheme') || 'cyberpunk';
   if (scheme.startsWith('custom')) {
     const customVars = prefs.getObject('customSchemeVars', {});
@@ -418,6 +419,7 @@ function settingToggleCrt() {
   const next = !current;
   prefs.setItem('crtEffects', next ? 'on' : 'off');
   applyCrtSetting(next);
+  showToast(`CRT effects: ${next ? 'on' : 'off'}`);
   refreshSettingsUI();
 }
 
@@ -436,6 +438,7 @@ function settingToggleNeonGlow() {
   const next = !current;
   prefs.setItem('neonGlow', next ? 'on' : 'off');
   applyNeonGlowSetting(next);
+  showToast(`Neon glow: ${next ? 'on' : 'off'}`);
   refreshSettingsUI();
 }
 
@@ -733,7 +736,9 @@ async function settingClearKvrCache() {
 
 function settingToggleAutoScan() {
   const current = prefs.getItem('autoScan') === 'on';
-  prefs.setItem('autoScan', current ? 'off' : 'on');
+  const next = !current;
+  prefs.setItem('autoScan', next ? 'on' : 'off');
+  showToast(`Auto-scan on launch: ${next ? 'on' : 'off'}`);
   refreshSettingsUI();
 }
 
@@ -743,9 +748,10 @@ function settingToggleFolderWatch() {
   prefs.setItem('folderWatch', next ? 'on' : 'off');
   if (next) {
     startFolderWatch();
+    showToast('Folder watch: on');
   } else {
     window.vstUpdater.stopFileWatcher().catch(() => showToast('Failed to stop file watcher', 4000, 'error'));
-    showToast('Folder watch stopped');
+    showToast('Folder watch: off');
   }
   refreshSettingsUI();
 }
@@ -765,37 +771,49 @@ function startFolderWatch() {
 
 function settingToggleAutoUpdate() {
   const current = prefs.getItem('autoUpdate') === 'on';
-  prefs.setItem('autoUpdate', current ? 'off' : 'on');
+  const next = !current;
+  prefs.setItem('autoUpdate', next ? 'on' : 'off');
+  showToast(`Auto-check updates: ${next ? 'on' : 'off'}`);
   refreshSettingsUI();
 }
 
 function settingToggleSingleClickPlay() {
   const current = prefs.getItem('singleClickPlay') === 'on';
-  prefs.setItem('singleClickPlay', current ? 'off' : 'on');
+  const next = !current;
+  prefs.setItem('singleClickPlay', next ? 'on' : 'off');
+  showToast(`Single-click play: ${next ? 'on' : 'off'}`);
   refreshSettingsUI();
 }
 
 function settingToggleAutoplayNext() {
   const current = prefs.getItem('autoplayNext');
-  prefs.setItem('autoplayNext', current === 'off' ? 'on' : 'off');
+  const next = current === 'off' ? 'on' : 'off';
+  prefs.setItem('autoplayNext', next);
+  showToast(`Autoplay next: ${next}`);
   refreshSettingsUI();
 }
 
 function settingToggleShowPlayerOnStartup() {
   const current = prefs.getItem('showPlayerOnStartup') === 'on';
-  prefs.setItem('showPlayerOnStartup', current ? 'off' : 'on');
+  const next = !current;
+  prefs.setItem('showPlayerOnStartup', next ? 'on' : 'off');
+  showToast(`Show player on startup: ${next ? 'on' : 'off'}`);
   refreshSettingsUI();
 }
 
 function settingToggleExpandOnClick() {
   const current = prefs.getItem('expandOnClick');
-  prefs.setItem('expandOnClick', current === 'off' ? 'on' : 'off');
+  const next = current === 'off' ? 'on' : 'off';
+  prefs.setItem('expandOnClick', next);
+  showToast(`Expand on click: ${next}`);
   refreshSettingsUI();
 }
 
 function settingToggleIncludeBackups() {
   const current = prefs.getItem('includeAbletonBackups') === 'on';
-  prefs.setItem('includeAbletonBackups', current ? 'off' : 'on');
+  const next = !current;
+  prefs.setItem('includeAbletonBackups', next ? 'on' : 'off');
+  showToast(`Include Ableton backups: ${next ? 'on' : 'off'}`);
   refreshSettingsUI();
 }
 
