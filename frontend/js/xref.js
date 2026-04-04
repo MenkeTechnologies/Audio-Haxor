@@ -102,6 +102,7 @@ function showXrefModal(projectName, plugins) {
     : '';
   window._xrefExportPlugins = plugins;
   window._xrefExportProjectName = projectName;
+  window._xrefExportProjectPath = window._xrefLastProjectPath || '';
 
   const html = `<div class="modal-overlay" id="xrefModal" data-action-modal="closeXref">
     <div class="modal-content modal-wide">
@@ -122,6 +123,7 @@ function closeXrefModal() {
 }
 
 async function showProjectPlugins(projectPath, projectName) {
+  window._xrefLastProjectPath = projectPath;
   // Show loading modal
   let existing = document.getElementById('xrefModal');
   if (existing) existing.remove();

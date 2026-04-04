@@ -460,7 +460,9 @@ function exportXrefPlugins() {
       const headers = ['Name', 'Type', 'Manufacturer'];
       const rows = plugins.map(p => [p.name, p.pluginType, p.manufacturer || '']);
       if (fmt === 'pdf') {
-        await window.vstUpdater.exportPdf(`Plugins in ${projectName}`, headers, rows, filePath);
+        const projectPath = window._xrefExportProjectPath || '';
+        const pdfTitle = projectPath ? `Plugins in ${projectName}\n${projectPath}` : `Plugins in ${projectName}`;
+        await window.vstUpdater.exportPdf(pdfTitle, headers, rows, filePath);
       } else if (fmt === 'csv' || fmt === 'tsv') {
         const sep = fmt === 'tsv' ? '\t' : ',';
         const esc = (s) => s.includes(sep) || s.includes('"') ? '"' + s.replace(/"/g, '""') + '"' : s;
