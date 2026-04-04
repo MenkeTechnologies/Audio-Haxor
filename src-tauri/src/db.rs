@@ -3001,6 +3001,44 @@ mod tests {
         assert_eq!(result.total_count, 2);
     }
 
+    /// Search (name subsequence) + sort by size DESC + pagination: verifies full query_audio path.
+    #[test]
+    fn test_query_audio_search_subsequence_and_sort_size_desc() {
+        let db = test_db();
+        let samples = vec![
+            sample("small_kick.wav", "/test/small_kick.wav", "WAV", 100),
+            sample("big_kick.wav", "/test/big_kick.wav", "WAV", 9_999),
+            sample("snare.wav", "/test/snare.wav", "WAV", 500),
+        ];
+        db.save_scan(
+            "s1",
+            "2024-01-01T00:00:00",
+            3,
+            10_599,
+            &HashMap::new(),
+            &[],
+        )
+        .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let result = db
+            .query_audio(&AudioQueryParams {
+                scan_id: Some("s1".into()),
+                search: Some("kick".into()),
+                format_filter: None,
+                sort_key: "size".into(),
+                sort_asc: false,
+                offset: 0,
+                limit: 10,
+            })
+            .unwrap();
+
+        assert_eq!(result.total_count, 2);
+        assert_eq!(result.samples[0].name, "big_kick.wav");
+        assert_eq!(result.samples[0].size, 9_999);
+        assert_eq!(result.samples[1].name, "small_kick.wav");
+    }
+
     #[test]
     fn test_format_filter() {
         let db = test_db();

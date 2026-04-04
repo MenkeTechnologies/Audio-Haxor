@@ -674,4 +674,28 @@ mod tests {
         );
         let _ = std::fs::remove_file(&tmp);
     }
+
+    /// End-to-end single-track flow: track name → tempo meta → two note-ons → end-of-track.
+    #[test]
+    fn test_parse_midi_flow_track_name_tempo_notes_and_counts() {
+        let track = vec![
+            0x00, 0xFF, 0x03, 0x07, b'M', b'y', b'T', b'r', b'a', b'c', b'k',
+            0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20, // 500000 µs/qn → 120 BPM
+            0x00, 0x90, 60, 100, // note on C4
+            0x00, 0x90, 64, 100, // note on E4
+            0x00, 0xFF, 0x2F, 0x00,
+        ];
+        let data = make_midi(0, 1, 480, &track);
+        let tmp = std::env::temp_dir().join("test_midi_flow.mid");
+        std::fs::write(&tmp, &data).unwrap();
+        let info = parse_midi(&tmp).unwrap();
+        assert_eq!(info.track_names, vec!["MyTrack"]);
+        assert!(
+            (info.tempo - 120.0).abs() < 0.5,
+            "tempo meta should yield ~120 BPM, got {}",
+            info.tempo
+        );
+        assert_eq!(info.note_count, 2);
+        let _ = std::fs::remove_file(&tmp);
+    }
 }

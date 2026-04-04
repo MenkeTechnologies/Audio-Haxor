@@ -1744,6 +1744,37 @@ mod tests {
     }
 
     #[test]
+    fn test_build_preset_snapshot_aggregates_formats_and_total_bytes() {
+        let presets = vec![
+            PresetFile {
+                name: "lead".into(),
+                path: "/p/lead.fxp".into(),
+                directory: "/p".into(),
+                format: "FXP".into(),
+                size: 100,
+                size_formatted: "100 B".into(),
+                modified: "m".into(),
+            },
+            PresetFile {
+                name: "pad".into(),
+                path: "/p/pad.vstpreset".into(),
+                directory: "/p".into(),
+                format: "VSTPRESET".into(),
+                size: 250,
+                size_formatted: "250 B".into(),
+                modified: "m".into(),
+            },
+        ];
+        let roots = vec!["/presets".into()];
+        let snap = build_preset_snapshot(&presets, &roots);
+        assert_eq!(snap.preset_count, 2);
+        assert_eq!(snap.total_bytes, 350);
+        assert_eq!(snap.format_counts.get("FXP"), Some(&1));
+        assert_eq!(snap.format_counts.get("VSTPRESET"), Some(&1));
+        assert_eq!(snap.roots, roots);
+    }
+
+    #[test]
     fn test_gen_id_unique() {
         let id1 = gen_id();
         let id2 = gen_id();
@@ -2624,6 +2655,67 @@ mod tests {
         assert_eq!(d.version_changed.len(), 1);
         assert_eq!(d.version_changed[0].previous_version, "2.0");
         assert_eq!(d.version_changed[0].plugin.version, "1.0");
+    }
+
+    #[test]
+    fn test_compute_plugin_diff_version_upgrade_emits_version_changed() {
+        let old = ScanSnapshot {
+            id: "old".into(),
+            timestamp: "t1".into(),
+            plugin_count: 1,
+            plugins: vec![make_plugin("Serum", "1.0.0", "/lib/Serum.vst3")],
+            directories: vec![],
+            roots: vec![],
+        };
+        let new = ScanSnapshot {
+            id: "new".into(),
+            timestamp: "t2".into(),
+            plugin_count: 1,
+            plugins: vec![make_plugin("Serum", "1.5.2", "/lib/Serum.vst3")],
+            directories: vec![],
+            roots: vec![],
+        };
+        let d = compute_plugin_diff(&old, &new);
+        assert_eq!(d.version_changed.len(), 1);
+        assert_eq!(d.version_changed[0].previous_version, "1.0.0");
+        assert_eq!(d.version_changed[0].plugin.version, "1.5.2");
+        assert!(d.added.is_empty());
+        assert!(d.removed.is_empty());
+    }
+
+    /// Same scan diff path: one plugin upgrades, one path removed, one path added.
+    #[test]
+    fn test_compute_plugin_diff_upgrade_add_remove_flow() {
+        let old = ScanSnapshot {
+            id: "o".into(),
+            timestamp: "t1".into(),
+            plugin_count: 2,
+            plugins: vec![
+                make_plugin("Stay", "1.0.0", "/keep/plugin.vst3"),
+                make_plugin("Gone", "1.0", "/old/gone.vst3"),
+            ],
+            directories: vec![],
+            roots: vec![],
+        };
+        let new = ScanSnapshot {
+            id: "n".into(),
+            timestamp: "t2".into(),
+            plugin_count: 2,
+            plugins: vec![
+                make_plugin("Stay", "2.0.0", "/keep/plugin.vst3"),
+                make_plugin("New", "1.0", "/new/new.vst3"),
+            ],
+            directories: vec![],
+            roots: vec![],
+        };
+        let d = compute_plugin_diff(&old, &new);
+        assert_eq!(d.version_changed.len(), 1);
+        assert_eq!(d.version_changed[0].previous_version, "1.0.0");
+        assert_eq!(d.version_changed[0].plugin.version, "2.0.0");
+        assert_eq!(d.added.len(), 1);
+        assert_eq!(d.added[0].path, "/new/new.vst3");
+        assert_eq!(d.removed.len(), 1);
+        assert_eq!(d.removed[0].path, "/old/gone.vst3");
     }
 
     #[test]
