@@ -2882,3 +2882,159 @@ fn compute_preset_diff_identical_lists_no_delta() {
     let d = compute_preset_diff(&old, &new);
     assert!(d.added.is_empty() && d.removed.is_empty());
 }
+
+// ── Wave 11: plugin Unknown transitions, xref missing files, format_size multi-MiB,
+//    radix base-36, preset swap, KVR lexicographic, normalize edge cases ───────────────
+
+#[test]
+fn compute_plugin_diff_known_to_unknown_same_path_not_version_changed() {
+    let old = build_plugin_snapshot(&[plug("/only.vst3", "9.9.9")], &[], &[]);
+    let new = build_plugin_snapshot(&[plug("/only.vst3", "Unknown")], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert!(
+        d.version_changed.is_empty(),
+        "Known→Unknown is not version_changed (new side is Unknown)"
+    );
+}
+
+#[test]
+fn compute_plugin_diff_both_unknown_same_path_not_version_changed() {
+    let old = build_plugin_snapshot(&[plug("/x.vst3", "Unknown")], &[], &[]);
+    let new = build_plugin_snapshot(&[plug("/x.vst3", "Unknown")], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert!(d.version_changed.is_empty());
+}
+
+#[test]
+fn extract_plugins_nonexistent_rpp_returns_empty() {
+    let p = std::env::temp_dir().join("audio_haxor_no_such_rpp_for_xref_test.rpp");
+    assert!(extract_plugins(p.to_str().expect("utf8 temp path")).is_empty());
+}
+
+#[test]
+fn format_size_two_mebibytes() {
+    let s = app_lib::format_size(2 * 1024 * 1024);
+    assert_eq!(s, "2.0 MB");
+}
+
+#[test]
+fn radix_string_35_in_base36_is_z() {
+    assert_eq!(radix_string(35, 36), "z");
+}
+
+#[test]
+fn kvr_compare_versions_lexicographic_major_strings() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("10", "9"),
+        Ordering::Greater
+    );
+}
+
+#[test]
+fn kvr_parse_version_whitespace_only_yields_single_zero_segment() {
+    assert_eq!(app_lib::kvr::parse_version("   "), vec![0]);
+}
+
+#[test]
+fn fingerprint_distance_identical_vectors_different_paths_near_zero() {
+    let a = fp("/path/one.wav");
+    let mut b = fp("/other/two.wav");
+    b.rms = a.rms;
+    b.spectral_centroid = a.spectral_centroid;
+    b.zero_crossing_rate = a.zero_crossing_rate;
+    b.low_band_energy = a.low_band_energy;
+    b.mid_band_energy = a.mid_band_energy;
+    b.high_band_energy = a.high_band_energy;
+    b.low_energy_ratio = a.low_energy_ratio;
+    b.attack_time = a.attack_time;
+    assert!(fingerprint_distance(&a, &b).abs() < 1e-9);
+}
+
+#[test]
+fn compute_preset_diff_swap_two_paths_two_added_two_removed() {
+    let old = build_preset_snapshot(&[preset("/a.fxp"), preset("/b.fxp")], &[]);
+    let new = build_preset_snapshot(&[preset("/b.fxp"), preset("/c.fxp")], &[]);
+    let d = compute_preset_diff(&old, &new);
+    assert_eq!(d.added.len(), 1);
+    assert_eq!(d.removed.len(), 1);
+}
+
+#[test]
+fn ext_matches_ableton_project_lowercase_als() {
+    assert_eq!(
+        ext_matches(Path::new("/Music/Projects/live_set.als")).as_deref(),
+        Some("ALS")
+    );
+}
+
+#[test]
+fn ext_matches_fl_studio_flp_with_spaces_in_parent_dir() {
+    assert_eq!(
+        ext_matches(Path::new("/My Beats/v1/beat.flp")).as_deref(),
+        Some("FLP")
+    );
+}
+
+#[test]
+fn normalize_plugin_name_strips_x64_twice_nested() {
+    let n = normalize_plugin_name("Synth (x64) (VST3)");
+    assert!(!n.contains("x64"));
+    assert!(!n.contains("vst3"));
+}
+
+#[test]
+fn compute_audio_diff_two_samples_removed() {
+    let s1 = sample("/one.wav");
+    let s2 = sample("/two.wav");
+    let old = build_audio_snapshot(&[s1.clone(), s2.clone()], &[]);
+    let new = build_audio_snapshot(&[], &[]);
+    let d = compute_audio_diff(&old, &new);
+    assert_eq!(d.removed.len(), 2);
+    assert!(d.added.is_empty());
+}
+
+#[test]
+fn compute_daw_diff_one_format_change_same_stem_different_ext() {
+    let a = dawproj("/proj.dawproject");
+    let mut b = DawProject {
+        format: "rpp".into(),
+        daw: "reaper".into(),
+        ..a.clone()
+    };
+    b.path = "/proj.rpp".into();
+    let old = build_daw_snapshot(&[a], &[]);
+    let new = build_daw_snapshot(&[b], &[]);
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.added.len(), 1);
+    assert_eq!(d.removed.len(), 1);
+}
+
+#[test]
+fn compute_plugin_diff_two_plugins_only_one_emits_version_changed() {
+    let old = build_plugin_snapshot(
+        &[plug("/a.vst3", "1.0"), plug("/b.vst3", "1.0")],
+        &[],
+        &[],
+    );
+    let new = build_plugin_snapshot(
+        &[plug("/a.vst3", "2.0"), plug("/b.vst3", "1.0")],
+        &[],
+        &[],
+    );
+    let d = compute_plugin_diff(&old, &new);
+    assert_eq!(d.version_changed.len(), 1);
+    assert_eq!(d.version_changed[0].plugin.path, "/a.vst3");
+}
+
+#[test]
+fn kvr_compare_versions_empty_vs_empty() {
+    assert_eq!(app_lib::kvr::compare_versions("", ""), Ordering::Equal);
+}
+
+#[test]
+fn find_similar_three_candidates_max_two() {
+    let r = fp("/ref.wav");
+    let cands: Vec<_> = (0..3).map(|i| fp(&format!("/c{i}.wav"))).collect();
+    let out = find_similar(&r, &cands, 2);
+    assert_eq!(out.len(), 2);
+}
