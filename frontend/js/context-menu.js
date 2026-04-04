@@ -1109,35 +1109,7 @@ document.addEventListener('contextmenu', (e) => {
     return;
   }
 
-  // ── Visualizer tiles ──
-  const vizTile = e.target.closest('.viz-tile');
-  if (vizTile) {
-    const label = vizTile.querySelector('.viz-tile-label')?.textContent?.trim() || 'Visualizer';
-    const canvas = vizTile.querySelector('canvas');
-    const items = [
-      { icon: '&#128247;', label: appFmt('menu.export_snapshot_png'), action: () => {
-        if (canvas) {
-          const link = document.createElement('a');
-          link.download = `${label.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}.png`;
-          link.href = canvas.toDataURL('image/png');
-          link.click();
-          showToast(toastFmt('toast.snapshot_exported'));
-        }
-      }, disabled: !canvas },
-      { icon: '&#128203;', label: appFmt('menu.copy_tile_name'), ..._noEcho, action: () => typeof copyToClipboard === 'function' && copyToClipboard(label) },
-      '---',
-      { icon: '&#128260;', label: appFmt('menu.toggle_fullscreen'), action: () => {
-        vizTile.classList.toggle('viz-fullscreen');
-        if (vizTile.classList.contains('viz-fullscreen')) {
-          vizTile.requestFullscreen?.().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
-        } else {
-          document.exitFullscreen?.().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
-        }
-      }},
-    ];
-    showContextMenu(e, items);
-    return;
-  }
+  // ── Visualizer tiles ── (handled in visualizer.js — single menu with mode-specific items)
 
   // ── Settings sections ──
   const settingsSection = e.target.closest('.settings-section');

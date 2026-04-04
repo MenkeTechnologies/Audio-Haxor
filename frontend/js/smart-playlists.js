@@ -1,6 +1,8 @@
 // ── Smart Playlists ──
 // Auto-generated playlists based on rules (BPM range, format, tags, favorites, recently played, size, path)
 
+const _spMenuNoEcho = { skipEchoToast: true };
+
 let _smartPlaylists = [];
 let _activeSmartPlaylist = null;
 
@@ -172,28 +174,28 @@ function loadSmartPlaylistIntoPlayer(id) {
 function showSmartPlaylistEditor(existingId) {
   const existing = existingId ? _smartPlaylists.find(p => p.id === existingId) : null;
   const rules = existing ? [...existing.rules] : [{ type: 'format', value: 'WAV' }];
-  const name = existing ? existing.name : 'New Playlist';
+  const name = existing ? existing.name : appFmt('ui.sp_new_playlist_default');
   const matchMode = existing?.matchMode || 'all';
 
   const ruleTypes = [
-    { value: 'format', label: 'Format (e.g. WAV,MP3)' },
-    { value: 'bpm_range', label: 'BPM Range (e.g. 120-140)' },
-    { value: 'tag', label: 'Has Tag' },
-    { value: 'favorite', label: 'Is Favorited' },
-    { value: 'recently_played', label: 'Recently Played' },
-    { value: 'name_contains', label: 'Name Contains' },
-    { value: 'path_contains', label: 'Path Contains' },
-    { value: 'size_max', label: 'Max Size (MB)' },
-    { value: 'size_min', label: 'Min Size (MB)' },
-    { value: 'key', label: 'Musical Key (e.g. C Major)' },
+    { value: 'format', label: appFmt('ui.sp_rule_format') },
+    { value: 'bpm_range', label: appFmt('ui.sp_rule_bpm_range') },
+    { value: 'tag', label: appFmt('ui.sp_rule_tag') },
+    { value: 'favorite', label: appFmt('ui.sp_rule_favorite') },
+    { value: 'recently_played', label: appFmt('ui.sp_rule_recently_played') },
+    { value: 'name_contains', label: appFmt('ui.sp_rule_name_contains') },
+    { value: 'path_contains', label: appFmt('ui.sp_rule_path_contains') },
+    { value: 'size_max', label: appFmt('ui.sp_rule_size_max') },
+    { value: 'size_min', label: appFmt('ui.sp_rule_size_min') },
+    { value: 'key', label: appFmt('ui.sp_rule_key') },
   ];
 
   function buildRuleRow(rule, idx) {
-    const opts = ruleTypes.map(t => `<option value="${t.value}"${rule.type === t.value ? ' selected' : ''}>${t.label}</option>`).join('');
+    const opts = ruleTypes.map(t => `<option value="${t.value}"${rule.type === t.value ? ' selected' : ''}>${escapeHtml(t.label)}</option>`).join('');
     const needsValue = !['favorite', 'recently_played'].includes(rule.type);
     return `<div class="sp-rule-row" data-rule-idx="${idx}">
       <select class="sp-rule-type" data-ridx="${idx}" title="Rule type">${opts}</select>
-      ${needsValue ? `<input class="sp-rule-value" data-ridx="${idx}" value="${escapeHtml(rule.value || '')}" placeholder="value" title="Rule value">` : '<span style="flex:1"></span>'}
+      ${needsValue ? `<input class="sp-rule-value" data-ridx="${idx}" value="${escapeHtml(rule.value || '')}" placeholder="${escapeHtml(appFmt('ui.sp_rule_value_placeholder'))}" title="Rule value">` : '<span style="flex:1"></span>'}
       <button class="btn-small btn-stop sp-rule-del" data-ridx="${idx}" title="Remove rule" style="padding:2px 6px;font-size:10px;">&#10005;</button>
     </div>`;
   }
@@ -207,21 +209,21 @@ function showSmartPlaylistEditor(existingId) {
 
   function render() {
     card.innerHTML = `
-      <h3 style="margin:0 0 12px 0;color:var(--text-primary);font-size:14px;">${existing ? 'Edit' : 'Create'} Smart Playlist</h3>
-      <input class="sp-name-input" value="${escapeHtml(name)}" placeholder="Playlist name" style="width:100%;padding:6px 10px;margin-bottom:10px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;font-size:12px;box-sizing:border-box;" title="Playlist name">
+      <h3 style="margin:0 0 12px 0;color:var(--text-primary);font-size:14px;">${existing ? appFmt('ui.sp_modal_title_edit') : appFmt('ui.sp_modal_title_create')}</h3>
+      <input class="sp-name-input" value="${escapeHtml(name)}" placeholder="${escapeHtml(appFmt('ui.sp_playlist_name_placeholder'))}" style="width:100%;padding:6px 10px;margin-bottom:10px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;font-size:12px;box-sizing:border-box;" title="Playlist name">
       <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
-        <label style="font-size:11px;color:var(--text-muted);">Match:</label>
+        <label style="font-size:11px;color:var(--text-muted);">${escapeHtml(appFmt('ui.sp_match_label'))}</label>
         <select class="sp-match-mode" style="font-size:11px;padding:2px 6px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border);border-radius:3px;" title="Match mode">
-          <option value="all"${matchMode === 'all' ? ' selected' : ''}>All rules (AND)</option>
-          <option value="any"${matchMode === 'any' ? ' selected' : ''}>Any rule (OR)</option>
+          <option value="all"${matchMode === 'all' ? ' selected' : ''}>${escapeHtml(appFmt('ui.sp_match_all'))}</option>
+          <option value="any"${matchMode === 'any' ? ' selected' : ''}>${escapeHtml(appFmt('ui.sp_match_any'))}</option>
         </select>
       </div>
       <div class="sp-rules-list">${rules.map((r, i) => buildRuleRow(r, i)).join('')}</div>
       <div style="display:flex;gap:8px;margin-top:10px;">
-        <button class="btn-small btn-secondary sp-add-rule" style="font-size:10px;padding:4px 10px;" title="Add another rule">+ Add Rule</button>
+        <button class="btn-small btn-secondary sp-add-rule" style="font-size:10px;padding:4px 10px;" title="Add another rule">${escapeHtml(appFmt('ui.sp_add_rule'))}</button>
         <span style="flex:1"></span>
-        <button class="btn-small btn-secondary sp-cancel" style="font-size:10px;padding:4px 12px;" title="Cancel without saving">Cancel</button>
-        <button class="btn-small btn-play sp-save" style="font-size:10px;padding:4px 12px;" title="${existing ? 'Update playlist rules' : 'Create new smart playlist'}">${existing ? 'Update' : 'Create'}</button>
+        <button class="btn-small btn-secondary sp-cancel" style="font-size:10px;padding:4px 12px;" title="Cancel without saving">${escapeHtml(appFmt('ui.sp_cancel'))}</button>
+        <button class="btn-small btn-play sp-save" style="font-size:10px;padding:4px 12px;" title="${existing ? 'Update playlist rules' : 'Create new smart playlist'}">${existing ? escapeHtml(appFmt('ui.sp_update')) : escapeHtml(appFmt('ui.sp_create'))}</button>
       </div>
       <div class="sp-preview" style="margin-top:10px;font-size:10px;color:var(--text-dim);border-top:1px solid var(--border);padding-top:8px;"></div>
     `;
@@ -229,7 +231,7 @@ function showSmartPlaylistEditor(existingId) {
     // Preview
     const previewEl = card.querySelector('.sp-preview');
     const preview = evaluateSmartPlaylist({ rules, matchMode: card.querySelector('.sp-match-mode')?.value || 'all' });
-    previewEl.textContent = `Preview: ${preview.length} matching samples`;
+    previewEl.textContent = appFmt('ui.sp_preview_n', { n: preview.length });
   }
 
   render();
@@ -241,7 +243,7 @@ function showSmartPlaylistEditor(existingId) {
     if (e.target.classList.contains('sp-cancel')) {
       modal.remove();
     } else if (e.target.classList.contains('sp-save')) {
-      const plName = card.querySelector('.sp-name-input').value.trim() || 'Untitled';
+      const plName = card.querySelector('.sp-name-input').value.trim() || appFmt('ui.sp_untitled');
       const plMatchMode = card.querySelector('.sp-match-mode').value;
       if (existing) {
         existing.name = plName;
@@ -287,7 +289,7 @@ function showSmartPlaylistEditor(existingId) {
         const previewEl = card.querySelector('.sp-preview');
         if (previewEl) {
           const mm = card.querySelector('.sp-match-mode')?.value || 'all';
-          previewEl.textContent = `Preview: ${evaluateSmartPlaylist({ rules, matchMode: mm }).length} matching samples`;
+          previewEl.textContent = appFmt('ui.sp_preview_n', { n: evaluateSmartPlaylist({ rules, matchMode: mm }).length });
         }
       }, 200);
     }
@@ -323,26 +325,26 @@ document.addEventListener('contextmenu', (e) => {
 
   const matchCount = typeof evaluateSmartPlaylist === 'function' ? evaluateSmartPlaylist(pl).length : 0;
   const items = [
-    { icon: '&#9654;', label: `Load Playlist (${matchCount} tracks)`, action: () => loadSmartPlaylistIntoPlayer(id) },
-    { icon: '&#9998;', label: 'Edit Rules', action: () => showSmartPlaylistEditor(id) },
-    { icon: '&#128221;', label: 'Rename', action: () => {
-      const newName = prompt('Rename playlist:', pl.name);
+    { icon: '&#9654;', label: appFmt('menu.sp_load_playlist_tracks', { n: matchCount }), action: () => loadSmartPlaylistIntoPlayer(id) },
+    { icon: '&#9998;', label: appFmt('menu.sp_edit_rules'), action: () => showSmartPlaylistEditor(id) },
+    { icon: '&#128221;', label: appFmt('menu.sp_rename'), action: () => {
+      const newName = prompt(appFmt('ui.sp_prompt_rename'), pl.name);
       if (newName) renameSmartPlaylist(id, newName.trim());
     }},
-    { icon: '&#128203;', label: 'Clone', action: () => {
+    { icon: '&#128203;', label: appFmt('menu.sp_clone'), action: () => {
       const clone = JSON.parse(JSON.stringify(pl));
       clone.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      clone.name = pl.name + ' (copy)';
+      clone.name = pl.name + appFmt('ui.sp_clone_suffix');
       _smartPlaylists.push(clone);
       saveSmartPlaylists();
       renderSmartPlaylists();
       showToast(toastFmt('toast.cloned_playlist', { name: pl.name }));
     }},
-    { icon: '&#128203;', label: 'Copy Rules as JSON', action: () => {
+    { icon: '&#128203;', label: appFmt('menu.sp_copy_rules_json'), ..._spMenuNoEcho, action: () => {
       if (typeof copyToClipboard === 'function') copyToClipboard(JSON.stringify(pl.rules, null, 2));
     }},
     '---',
-    { icon: '&#128465;', label: 'Delete', action: () => {
+    { icon: '&#128465;', label: appFmt('menu.delete'), action: () => {
       if (confirm(appFmt('confirm.delete_smart_playlist', { name: pl.name }))) deleteSmartPlaylist(id);
     }},
   ];
@@ -353,12 +355,12 @@ document.addEventListener('contextmenu', (e) => {
 // ── Built-in playlist presets ──
 function getSmartPlaylistPresets() {
   return [
-    { name: 'Favorites Only', rules: [{ type: 'favorite', value: '' }], matchMode: 'all' },
-    { name: 'WAV Files', rules: [{ type: 'format', value: 'WAV' }], matchMode: 'all' },
-    { name: 'Small Samples (<1MB)', rules: [{ type: 'size_max', value: '1' }], matchMode: 'all' },
-    { name: 'Recently Played', rules: [{ type: 'recently_played', value: '' }], matchMode: 'all' },
-    { name: 'Drums', rules: [{ type: 'name_contains', value: 'kick' }, { type: 'name_contains', value: 'snare' }, { type: 'name_contains', value: 'hat' }], matchMode: 'any' },
-    { name: 'Bass Sounds', rules: [{ type: 'name_contains', value: 'bass' }], matchMode: 'all' },
+    { name: appFmt('ui.sp_preset_favorites_only'), rules: [{ type: 'favorite', value: '' }], matchMode: 'all' },
+    { name: appFmt('ui.sp_preset_wav_files'), rules: [{ type: 'format', value: 'WAV' }], matchMode: 'all' },
+    { name: appFmt('ui.sp_preset_small_samples'), rules: [{ type: 'size_max', value: '1' }], matchMode: 'all' },
+    { name: appFmt('ui.sp_preset_recently_played'), rules: [{ type: 'recently_played', value: '' }], matchMode: 'all' },
+    { name: appFmt('ui.sp_preset_drums'), rules: [{ type: 'name_contains', value: 'kick' }, { type: 'name_contains', value: 'snare' }, { type: 'name_contains', value: 'hat' }], matchMode: 'any' },
+    { name: appFmt('ui.sp_preset_bass_sounds'), rules: [{ type: 'name_contains', value: 'bass' }], matchMode: 'all' },
   ];
 }
 

@@ -411,34 +411,57 @@ function _drawBands(ctx, w, h, analyser) {
   }
 }
 
-// ── Context menus for visualizer tiles ──
+// ── Context menus for visualizer tiles (export / copy / fullscreen + mode tools — single handler; was duplicated in context-menu.js) ──
+const _vizMenuNoEcho = { skipEchoToast: true };
 document.addEventListener('contextmenu', (e) => {
   const tile = e.target.closest('.viz-tile');
   if (!tile) return;
   e.preventDefault();
   const mode = tile.dataset.vizTile;
+  const label = tile.querySelector('.viz-tile-label')?.textContent?.trim() || (typeof appFmt === 'function' ? appFmt('menu.tab_visualizer') : 'Visualizer');
+  const canvas = tile.querySelector('canvas');
   const items = [
-    { icon: '&#9974;', label: 'View Fullscreen', action: () => { _vizMode = mode; document.querySelector(`.viz-mode-btn[data-viz-mode="${mode}"]`)?.click(); document.querySelector('[data-action="vizFullscreen"]')?.click(); } },
-    { icon: '&#9650;', label: 'Show Only This', action: () => document.querySelector(`.viz-mode-btn[data-viz-mode="${mode}"]`)?.click() },
-    { icon: '&#9632;', label: 'Show All', action: () => document.querySelector('.viz-mode-btn[data-viz-mode="all"]')?.click() },
+    { icon: '&#128247;', label: typeof appFmt === 'function' ? appFmt('menu.export_snapshot_png') : 'Export Snapshot (PNG)', action: () => {
+      if (canvas) {
+        const link = document.createElement('a');
+        link.download = `${label.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        if (typeof showToast === 'function') showToast(toastFmt('toast.snapshot_exported'));
+      }
+    }, disabled: !canvas },
+    { icon: '&#128203;', label: typeof appFmt === 'function' ? appFmt('menu.copy_tile_name') : 'Copy Tile Name', ..._vizMenuNoEcho, action: () => typeof copyToClipboard === 'function' && copyToClipboard(label) },
+    '---',
+    { icon: '&#128260;', label: typeof appFmt === 'function' ? appFmt('menu.toggle_fullscreen') : 'Toggle Fullscreen', action: () => {
+      tile.classList.toggle('viz-fullscreen');
+      if (tile.classList.contains('viz-fullscreen')) {
+        tile.requestFullscreen?.().catch(err => { if (typeof showToast === 'function') showToast(String(err), 4000, 'error'); });
+      } else {
+        document.exitFullscreen?.().catch(err => { if (typeof showToast === 'function') showToast(String(err), 4000, 'error'); });
+      }
+    } },
+    '---',
+    { icon: '&#9974;', label: appFmt('menu.viz_view_fullscreen'), action: () => { _vizMode = mode; document.querySelector(`.viz-mode-btn[data-viz-mode="${mode}"]`)?.click(); document.querySelector('[data-action="vizFullscreen"]')?.click(); } },
+    { icon: '&#9650;', label: appFmt('menu.viz_show_only_this'), action: () => document.querySelector(`.viz-mode-btn[data-viz-mode="${mode}"]`)?.click() },
+    { icon: '&#9632;', label: appFmt('menu.viz_show_all'), action: () => document.querySelector('.viz-mode-btn[data-viz-mode="all"]')?.click() },
     '---',
   ];
 
   if (mode === 'fft') {
-    items.push({ icon: _vizParams.fftLogScale ? '&#10003;' : '&#9634;', label: 'Log Frequency Scale', action: () => { _vizParams.fftLogScale = !_vizParams.fftLogScale; } });
+    items.push({ icon: _vizParams.fftLogScale ? '&#10003;' : '&#9634;', label: appFmt('menu.viz_log_frequency_scale'), action: () => { _vizParams.fftLogScale = !_vizParams.fftLogScale; } });
   }
   if (mode === 'waveform') {
-    items.push({ icon: '&#127912;', label: 'Color: Cyan', action: () => { _vizParams.waveformColor = 'cyan'; } });
-    items.push({ icon: '&#127912;', label: 'Color: Magenta', action: () => { _vizParams.waveformColor = 'magenta'; } });
-    items.push({ icon: '&#127912;', label: 'Color: Green', action: () => { _vizParams.waveformColor = 'green'; } });
+    items.push({ icon: '&#127912;', label: appFmt('menu.viz_color_cyan'), action: () => { _vizParams.waveformColor = 'cyan'; } });
+    items.push({ icon: '&#127912;', label: appFmt('menu.viz_color_magenta'), action: () => { _vizParams.waveformColor = 'magenta'; } });
+    items.push({ icon: '&#127912;', label: appFmt('menu.viz_color_green'), action: () => { _vizParams.waveformColor = 'green'; } });
   }
   if (mode === 'levels') {
-    items.push({ icon: _vizParams.levelsHold ? '&#10003;' : '&#9634;', label: 'Peak Hold', action: () => { _vizParams.levelsHold = !_vizParams.levelsHold; _vizPeakHold = -96; } });
+    items.push({ icon: _vizParams.levelsHold ? '&#10003;' : '&#9634;', label: appFmt('menu.viz_peak_hold'), action: () => { _vizParams.levelsHold = !_vizParams.levelsHold; _vizPeakHold = -96; } });
   }
   if (mode === 'spectrogram') {
-    items.push({ icon: '&#9654;', label: 'Speed: Normal', action: () => { _vizParams.spectrogramSpeed = 1; _vizSpectrogramData = []; } });
-    items.push({ icon: '&#9654;&#9654;', label: 'Speed: Fast (2x)', action: () => { _vizParams.spectrogramSpeed = 2; _vizSpectrogramData = []; } });
-    items.push({ icon: '&#9654;&#9654;&#9654;', label: 'Speed: Slow (0.5x)', action: () => { _vizParams.spectrogramSpeed = 0.5; _vizSpectrogramData = []; } });
+    items.push({ icon: '&#9654;', label: appFmt('menu.viz_speed_normal'), action: () => { _vizParams.spectrogramSpeed = 1; _vizSpectrogramData = []; } });
+    items.push({ icon: '&#9654;&#9654;', label: appFmt('menu.viz_speed_fast'), action: () => { _vizParams.spectrogramSpeed = 2; _vizSpectrogramData = []; } });
+    items.push({ icon: '&#9654;&#9654;&#9654;', label: appFmt('menu.viz_speed_slow'), action: () => { _vizParams.spectrogramSpeed = 0.5; _vizSpectrogramData = []; } });
   }
 
   if (typeof showContextMenu === 'function') showContextMenu(e, items);
