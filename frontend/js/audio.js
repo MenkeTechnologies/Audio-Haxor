@@ -2372,17 +2372,25 @@ function updateMetaLine() {
     overlay.classList.remove('visible');
     Object.values(zones).forEach(id => document.getElementById(id).classList.remove('active'));
 
-    // Clear inline styles and snap to dock
+    // Clear position styles and snap to dock (preserve width/height)
+    const savedW = np.style.width;
+    const savedH = np.style.height;
     np.style.left = '';
     np.style.top = '';
     np.style.right = '';
     np.style.bottom = '';
-    np.style.width = '';
-    np.style.height = '';
+    np.style.width = savedW;
+    np.style.height = savedH;
 
     const dock = nearestDock(e.clientX, e.clientY);
     np.classList.add('snapping');
     setDock(dock);
+
+    // Save dimensions + dock to prefs
+    prefs.setItem('modal_audioNowPlaying', JSON.stringify({
+      width: np.offsetWidth,
+      height: np.offsetHeight,
+    }));
     setTimeout(() => np.classList.remove('snapping'), 300);
   });
 })();
@@ -2391,7 +2399,15 @@ function updateMetaLine() {
 // Use the same drag/resize system as all modals
 (function initPlayerResize() {
   const np = document.getElementById('audioNowPlaying');
-  // Set default size — dock position is handled by CSS classes, not saved geometry
+  // Restore saved dimensions or use defaults
+  const savedGeo = prefs.getItem('modal_audioNowPlaying');
+  if (savedGeo) {
+    try {
+      const geo = JSON.parse(savedGeo);
+      if (geo.width > 200) np.style.width = geo.width + 'px';
+      if (geo.height > 100) np.style.height = geo.height + 'px';
+    } catch {}
+  }
   if (!np.style.width) np.style.width = '360px';
   if (typeof initModalDragResize === 'function') {
     initModalDragResize(np);
