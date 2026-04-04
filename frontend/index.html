@@ -4631,15 +4631,15 @@
   </div>
   <div class="ctx-menu" id="ctxMenu"></div>
   <div class="dock-zone-overlay" id="dockOverlay">
-    <div class="dock-zone" id="dockTL" data-i18n="ui.dock.top_left">&#8598; TOP LEFT</div>
+    <div class="dock-zone" id="dockTL">&#8598; <span data-i18n="ui.dock.top_left">TOP LEFT</span></div>
     <div class="dock-zone" id="dockTR" data-i18n="ui.dock.top_right">TOP RIGHT &#8599;</div>
-    <div class="dock-zone" id="dockBL" data-i18n="ui.dock.bottom_left">&#8601; BOTTOM LEFT</div>
+    <div class="dock-zone" id="dockBL">&#8601; <span data-i18n="ui.dock.bottom_left">BOTTOM LEFT</span></div>
     <div class="dock-zone" id="dockBR" data-i18n="ui.dock.bottom_right">BOTTOM RIGHT &#8600;</div>
   </div>
   <div class="audio-now-playing dock-br" id="audioNowPlaying">
     <div class="np-drag-handle" id="npDragHandle"><span class="np-drag-dots"></span></div>
     <div class="np-toolbar modal-header">
-      <span class="np-toolbar-title" data-i18n="ui.np.toolbar_title">&#9835; Audio Player</span>
+      <span class="np-toolbar-title">&#9835; <span data-i18n="ui.np.toolbar_title">Audio Player</span></span>
       <div class="np-toolbar-actions">
         <button class="np-toolbar-btn" data-action="collapsePlayer" title="Minimize" data-i18n-title="ui.tt.minimize">&#9866;</button>
         <button class="np-toolbar-btn" data-action="hidePlayer" title="Hide player" data-i18n-title="ui.tt.hide_player">&#9868;</button>
@@ -4784,12 +4784,12 @@
     <span class="batch-count" id="batchSelectionCount">0 selected</span>
     <div class="batch-sep"></div>
     <button class="btn btn-secondary" data-batch-action="selectAll" title="Select all visible rows" data-i18n-title="ui.tt.select_all_visible_rows" data-i18n="ui.btn.select_all">Select All</button>
-    <button class="btn btn-stop" data-batch-action="deselectAll" title="Clear selection" data-i18n-title="ui.tt.clear_selection" data-i18n="ui.btn.10005_clear">&#10005; Clear</button>
+    <button class="btn btn-stop" data-batch-action="deselectAll" title="Clear selection" data-i18n-title="ui.tt.clear_selection">&#10005; <span data-i18n="ui.btn.10005_clear">Clear</span></button>
     <div class="batch-sep"></div>
-    <button class="btn btn-secondary" data-batch-action="favorite" title="Add selected to favorites" data-i18n-title="ui.tt.add_selected_to_favorites" data-i18n="ui.btn.9733_favorite">&#9733; Favorite</button>
-    <button class="btn btn-secondary" data-batch-action="copyPaths" title="Copy paths to clipboard" data-i18n-title="ui.tt.copy_paths_to_clipboard" data-i18n="ui.btn.128203_copy_paths">&#128203; Copy Paths</button>
-    <button class="btn btn-secondary" data-batch-action="exportJson" title="Copy selected as JSON" data-i18n-title="ui.tt.copy_selected_as_json" data-i18n="ui.btn.8615_json">&#8615; JSON</button>
-    <button class="btn btn-secondary" data-batch-action="reveal" title="Reveal first selected in Finder" data-i18n-title="ui.tt.reveal_first_selected_in_finder" data-i18n="ui.btn.128193_reveal">&#128193; Reveal</button>
+    <button class="btn btn-secondary" data-batch-action="favorite" title="Add selected to favorites" data-i18n-title="ui.tt.add_selected_to_favorites">&#9733; <span data-i18n="ui.btn.9733_favorite">Favorite</span></button>
+    <button class="btn btn-secondary" data-batch-action="copyPaths" title="Copy paths to clipboard" data-i18n-title="ui.tt.copy_paths_to_clipboard">&#128203; <span data-i18n="ui.btn.128203_copy_paths">Copy Paths</span></button>
+    <button class="btn btn-secondary" data-batch-action="exportJson" title="Copy selected as JSON" data-i18n-title="ui.tt.copy_selected_as_json">&#8615; <span data-i18n="ui.btn.8615_json">JSON</span></button>
+    <button class="btn btn-secondary" data-batch-action="reveal" title="Reveal first selected in Finder" data-i18n-title="ui.tt.reveal_first_selected_in_finder">&#128193; <span data-i18n="ui.btn.128193_reveal">Reveal</span></button>
   </div>
   <div class="toast-container" id="toastContainer"></div>
   <div class="global-progress" id="globalProgress"><div class="global-progress-fill"></div></div>
@@ -4824,9 +4824,9 @@
             <div class="header-info-item" title="MIDI files scanned" data-i18n-title="ui.tt.midi_files_scanned"><span data-i18n="ui.hdr.abbr_mid">MID</span> <span class="header-info-value" id="headerMidi">0</span></div>
           </div>
           <span class="scan-btns-group" id="scanBtnsGroup">
-            <button class="btn btn-primary" id="btnScanAll" data-action="scanAll" title="Scan all plugins, samples, DAW projects, and presets" data-i18n-title="ui.tt.scan_all_plugins_samples_daw_projects_and_presets" data-i18n="ui.btn.9889_scan_all">&#9889; Scan All</button>
-            <button class="btn btn-stop" id="btnStopAll" data-action="stopAll" style="display:none;" title="Stop all running scans" data-i18n-title="ui.tt.stop_all_running_scans" data-i18n="ui.btn.9632_stop_all">&#9632; Stop All</button>
-            <button class="btn btn-secondary" id="btnResumeAll" data-action="resumeAll" style="display:none;" title="Resume all paused scans" data-i18n-title="ui.tt.resume_all_paused_scans" data-i18n="ui.btn.9654_resume_all">&#9654; Resume All</button>
+            <button class="btn btn-primary" id="btnScanAll" data-action="scanAll" title="Scan all plugins, samples, DAW projects, and presets" data-i18n-title="ui.tt.scan_all_plugins_samples_daw_projects_and_presets">&#9889; <span data-i18n="ui.btn.9889_scan_all">Scan All</span></button>
+            <button class="btn btn-stop" id="btnStopAll" data-action="stopAll" style="display:none;" title="Stop all running scans" data-i18n-title="ui.tt.stop_all_running_scans">&#9632; <span data-i18n="ui.btn.9632_stop_all">Stop All</span></button>
+            <button class="btn btn-secondary" id="btnResumeAll" data-action="resumeAll" style="display:none;" title="Resume all paused scans" data-i18n-title="ui.tt.resume_all_paused_scans">&#9654; <span data-i18n="ui.btn.9654_resume_all">Resume All</span></button>
           </span>
         </div>
       </div>
@@ -4871,13 +4871,13 @@
           <span class="stat-value" id="presetCountHeader">0</span>
           <span data-i18n="ui.stats.bar_presets">Presets</span>
         </div>
-        <div class="stat" id="dashBtnGroup"><button class="btn btn-secondary" data-action="showHeatmapDash" title="Audio heatmap dashboard (D)" style="padding:4px 10px;font-size:10px;" data-i18n-title="ui.tt.audio_heatmap_dashboard_d" data-i18n="ui.btn.128202_dashboard">&#128202; Dashboard</button></div>
+        <div class="stat" id="dashBtnGroup"><button class="btn btn-secondary" data-action="showHeatmapDash" title="Audio heatmap dashboard (D)" style="padding:4px 10px;font-size:10px;" data-i18n-title="ui.tt.audio_heatmap_dashboard_d">&#128202; <span data-i18n="ui.btn.128202_dashboard">Dashboard</span></button></div>
         <div class="stat" id="bgAnalysisBadge" title="Background BPM/Key analysis progress" style="font-size:10px;color:var(--cyan);" data-i18n-title="ui.tt.background_bpm_key_analysis_progress"></div>
       </div>
     </div>
 
     <div class="global-tag-bar" id="globalTagBar" style="display:none;">
-      <span class="global-tag-label" data-i18n="ui.tag.filter_label">&#127991; Tag Filter:</span>
+      <span class="global-tag-label">&#127991; <span data-i18n="ui.tag.filter_label">Tag Filter:</span></span>
       <div class="global-tag-list" id="globalTagList"></div>
       <button class="global-tag-clear" id="globalTagClear" data-action="clearGlobalTag" title="Clear tag filter and hide bar" data-i18n-title="ui.tt.clear_tag_filter_and_hide_bar">&#10005;</button>
       <button class="btn-small" data-action="moveTagBar" title="Move tag bar to top/bottom" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:9px;padding:2px 6px;margin-left:auto;" data-i18n-title="ui.tt.move_tag_bar_to_top_bottom">&#8597;</button>
@@ -4888,26 +4888,26 @@
       <button class="tab-btn" data-action="switchTab" data-tab="samples" title="Audio sample files (Cmd+2)" data-i18n-title="ui.tt.audio_sample_files_cmd_2" data-i18n="ui.btn.samples">Samples</button>
       <button class="tab-btn" data-action="switchTab" data-tab="daw" title="DAW project files (Cmd+3)" data-i18n-title="ui.tt.daw_project_files_cmd_3" data-i18n="ui.btn.daw_projects">DAW Projects</button>
       <button class="tab-btn" data-action="switchTab" data-tab="presets" title="Plugin presets (Cmd+4)" data-i18n-title="ui.tt.plugin_presets_cmd_4" data-i18n="ui.btn.presets">Presets</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="midi" title="MIDI files with note/tempo/key metadata" data-i18n-title="ui.tt.midi_files_with_note_tempo_key_metadata" data-i18n="ui.btn.127924_midi">&#127924; MIDI</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="favorites" title="Favorited items (Cmd+5)" data-i18n-title="ui.tt.favorited_items_cmd_5" data-i18n="ui.btn.9733_favorites">&#9733; Favorites</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="notes" title="Notes &amp; tags (Cmd+6)" data-i18n-title="ui.tt.notes_amp_tags_cmd_6" data-i18n="ui.btn.128221_notes">&#128221; Notes</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="tags" title="Tag manager (Cmd+7)" data-i18n-title="ui.tt.tag_manager_cmd_7" data-i18n="ui.btn.127991_tags">&#127991; Tags</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="files" title="File browser (Cmd+8)" data-i18n-title="ui.tt.file_browser_cmd_8" data-i18n="ui.btn.128193_files">&#128193; Files</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="midi" title="MIDI files with note/tempo/key metadata" data-i18n-title="ui.tt.midi_files_with_note_tempo_key_metadata">&#127924; <span data-i18n="ui.btn.127924_midi">MIDI</span></button>
+      <button class="tab-btn" data-action="switchTab" data-tab="favorites" title="Favorited items (Cmd+5)" data-i18n-title="ui.tt.favorited_items_cmd_5">&#9733; <span data-i18n="ui.btn.9733_favorites">Favorites</span></button>
+      <button class="tab-btn" data-action="switchTab" data-tab="notes" title="Notes &amp; tags (Cmd+6)" data-i18n-title="ui.tt.notes_amp_tags_cmd_6">&#128221; <span data-i18n="ui.btn.128221_notes">Notes</span></button>
+      <button class="tab-btn" data-action="switchTab" data-tab="tags" title="Tag manager (Cmd+7)" data-i18n-title="ui.tt.tag_manager_cmd_7">&#127991; <span data-i18n="ui.btn.127991_tags">Tags</span></button>
+      <button class="tab-btn" data-action="switchTab" data-tab="files" title="File browser (Cmd+8)" data-i18n-title="ui.tt.file_browser_cmd_8">&#128193; <span data-i18n="ui.btn.128193_files">Files</span></button>
       <button class="tab-btn" data-action="switchTab" data-tab="history" title="Scan history and diffs (Cmd+9)" data-i18n-title="ui.tt.scan_history_and_diffs_cmd_9" data-i18n="ui.btn.history">History</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="visualizer" title="Real-time audio analyzer and visualizer" data-i18n-title="ui.tt.real_time_audio_analyzer_and_visualizer" data-i18n="ui.btn.127911_visualizer">&#127911; Visualizer</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="walkers" title="Live directory walker status" data-i18n-title="ui.tt.live_directory_walker_status" data-i18n="ui.btn.128270_walkers">&#128270; Walkers</button>
-      <button class="tab-btn" data-action="switchTab" data-tab="settings" title="App settings (Cmd+0)" data-i18n-title="ui.tt.app_settings_cmd_0" data-i18n="ui.btn.9881_settings">&#9881; Settings</button>
+      <button class="tab-btn" data-action="switchTab" data-tab="visualizer" title="Real-time audio analyzer and visualizer" data-i18n-title="ui.tt.real_time_audio_analyzer_and_visualizer">&#127911; <span data-i18n="ui.btn.127911_visualizer">Visualizer</span></button>
+      <button class="tab-btn" data-action="switchTab" data-tab="walkers" title="Live directory walker status" data-i18n-title="ui.tt.live_directory_walker_status">&#128270; <span data-i18n="ui.btn.128270_walkers">Walkers</span></button>
+      <button class="tab-btn" data-action="switchTab" data-tab="settings" title="App settings (Cmd+0)" data-i18n-title="ui.tt.app_settings_cmd_0">&#9881; <span data-i18n="ui.btn.9881_settings">Settings</span></button>
     </div>
 
     <div class="tab-content active" id="tabPlugins">
     <div class="audio-container">
       <div class="audio-toolbar">
-        <button class="btn btn-primary" id="btnScan" data-action="scanPlugins" title="Scan system directories for audio plugins" data-i18n-title="ui.tt.scan_system_directories_for_audio_plugins" data-i18n="ui.btn.8635_scan_plugins">&#8635; Scan Plugins</button>
-        <button class="btn btn-secondary" id="btnResumeScan" data-action="resumePluginScan" style="display:none;" title="Resume scan from where it stopped" data-i18n-title="ui.tt.resume_scan_from_where_it_stopped" data-i18n="ui.btn.9654_resume">&#9654; Resume</button>
-        <button class="btn btn-stop" id="btnStopPlugins" data-action="stopPluginScan" style="display:none;" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan" data-i18n="ui.btn.9632_stop">&#9632; Stop</button>
-        <button class="btn btn-primary" id="btnCheckUpdates" data-action="checkUpdates" disabled title="Check KVR Audio for newer versions" data-i18n-title="ui.tt.check_kvr_audio_for_newer_versions" data-i18n="ui.btn.9889_check_updates">&#9889; Check Updates</button>
-        <button class="btn btn-secondary" id="btnExport" data-action="exportPlugins" style="display:none;" title="Export plugin list to JSON" data-i18n-title="ui.tt.export_plugin_list_to_json" data-i18n="ui.btn.8615_export">&#8615; Export</button>
-        <button class="btn btn-secondary" id="btnImport" data-action="importPlugins" title="Import plugin list from JSON" data-i18n-title="ui.tt.import_plugin_list_from_json" data-i18n="ui.btn.8613_import">&#8613; Import</button>
+        <button class="btn btn-primary" id="btnScan" data-action="scanPlugins" title="Scan system directories for audio plugins" data-i18n-title="ui.tt.scan_system_directories_for_audio_plugins">&#8635; <span data-i18n="ui.btn.8635_scan_plugins">Scan Plugins</span></button>
+        <button class="btn btn-secondary" id="btnResumeScan" data-action="resumePluginScan" style="display:none;" title="Resume scan from where it stopped" data-i18n-title="ui.tt.resume_scan_from_where_it_stopped">&#9654; <span data-i18n="ui.btn.9654_resume">Resume</span></button>
+        <button class="btn btn-stop" id="btnStopPlugins" data-action="stopPluginScan" style="display:none;" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan">&#9632; <span data-i18n="ui.btn.9632_stop">Stop</span></button>
+        <button class="btn btn-primary" id="btnCheckUpdates" data-action="checkUpdates" disabled title="Check KVR Audio for newer versions" data-i18n-title="ui.tt.check_kvr_audio_for_newer_versions">&#9889; <span data-i18n="ui.btn.9889_check_updates">Check Updates</span></button>
+        <button class="btn btn-secondary" id="btnExport" data-action="exportPlugins" style="display:none;" title="Export plugin list to JSON" data-i18n-title="ui.tt.export_plugin_list_to_json">&#8615; <span data-i18n="ui.btn.8615_export">Export</span></button>
+        <button class="btn btn-secondary" id="btnImport" data-action="importPlugins" title="Import plugin list from JSON" data-i18n-title="ui.tt.import_plugin_list_from_json">&#8613; <span data-i18n="ui.btn.8613_import">Import</span></button>
         <div class="search-box" style="flex: 1;">
           <span class="search-icon">&#128269;</span>
           <input type="text" id="searchInput" placeholder="Fuzzy search plugins..." title="Search plugins (Cmd+F)" data-action="filterPlugins" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="ui.ph.fuzzy_search_plugins" data-i18n-title="ui.tt.search_plugins_cmd_f">
@@ -4978,8 +4978,8 @@
             <option value="folder" data-i18n="ui.opt.folders">Folders</option>
             <option value="file" data-i18n="ui.opt.files">Files</option>
           </select>
-          <button class="btn btn-secondary" data-action="exportFavorites" title="Export favorites" data-i18n-title="ui.tt.export_favorites" data-i18n="ui.btn.8615_export">&#8615; Export</button>
-          <button class="btn btn-secondary" data-action="importFavorites" title="Import favorites" data-i18n-title="ui.tt.import_favorites" data-i18n="ui.btn.8613_import">&#8613; Import</button>
+          <button class="btn btn-secondary" data-action="exportFavorites" title="Export favorites" data-i18n-title="ui.tt.export_favorites">&#8615; <span data-i18n="ui.btn.8615_export">Export</span></button>
+          <button class="btn btn-secondary" data-action="importFavorites" title="Import favorites" data-i18n-title="ui.tt.import_favorites">&#8613; <span data-i18n="ui.btn.8613_import">Import</span></button>
           <button class="btn btn-stop btn-settings-action" data-action="clearFavorites" title="Remove all favorites" data-i18n-title="ui.tt.remove_all_favorites" data-i18n="ui.btn.clear_all">Clear All</button>
         </div>
         <div class="fav-list" id="favList">
@@ -5014,14 +5014,14 @@
     <div class="tab-content" id="tabFiles">
       <div class="audio-container">
         <div class="audio-toolbar">
-          <button class="btn btn-secondary" id="btnFileUp" data-action="fileUp" title="Go to parent directory" data-i18n-title="ui.tt.go_to_parent_directory" data-i18n="ui.btn.8593_up">&#8593; Up</button>
-          <button class="btn btn-secondary" data-action="fileHome" title="Go to home directory" data-i18n-title="ui.tt.go_to_home_directory" data-i18n="ui.btn.127968_home">&#127968; Home</button>
-          <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="Desktop" title="Go to Desktop" data-i18n-title="ui.tt.go_to_desktop" data-i18n="ui.btn.128187_desktop">&#128187; Desktop</button>
-          <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="Downloads" title="Go to Downloads" data-i18n-title="ui.tt.go_to_downloads" data-i18n="ui.btn.11015_downloads">&#11015; Downloads</button>
-          <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="Music" title="Go to Music" data-i18n-title="ui.tt.go_to_music" data-i18n="ui.btn.127925_music">&#127925; Music</button>
-          <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="Documents" title="Go to Documents" data-i18n-title="ui.tt.go_to_documents" data-i18n="ui.btn.128196_documents">&#128196; Documents</button>
+          <button class="btn btn-secondary" id="btnFileUp" data-action="fileUp" title="Go to parent directory" data-i18n-title="ui.tt.go_to_parent_directory">&#8593; <span data-i18n="ui.btn.8593_up">Up</span></button>
+          <button class="btn btn-secondary" data-action="fileHome" title="Go to home directory" data-i18n-title="ui.tt.go_to_home_directory">&#127968; <span data-i18n="ui.btn.127968_home">Home</span></button>
+          <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="Desktop" title="Go to Desktop" data-i18n-title="ui.tt.go_to_desktop">&#128187; <span data-i18n="ui.btn.128187_desktop">Desktop</span></button>
+          <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="Downloads" title="Go to Downloads" data-i18n-title="ui.tt.go_to_downloads">&#11015; <span data-i18n="ui.btn.11015_downloads">Downloads</span></button>
+          <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="Music" title="Go to Music" data-i18n-title="ui.tt.go_to_music">&#127925; <span data-i18n="ui.btn.127925_music">Music</span></button>
+          <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="Documents" title="Go to Documents" data-i18n-title="ui.tt.go_to_documents">&#128196; <span data-i18n="ui.btn.128196_documents">Documents</span></button>
           <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="/" title="Go to root filesystem" data-i18n-title="ui.tt.go_to_root_filesystem" data-i18n="ui.btn.root">/ Root</button>
-          <button class="btn btn-secondary" id="btnFileFav" data-action="fileFav" title="Bookmark current directory" data-i18n-title="ui.tt.bookmark_current_directory" data-i18n="ui.btn.9733_bookmark">&#9733; Bookmark</button>
+          <button class="btn btn-secondary" id="btnFileFav" data-action="fileFav" title="Bookmark current directory" data-i18n-title="ui.tt.bookmark_current_directory">&#9733; <span data-i18n="ui.btn.9733_bookmark">Bookmark</span></button>
           <div class="file-breadcrumb" id="fileBreadcrumb"></div>
           <div class="search-box" style="flex: 1; max-width: 300px;">
             <span class="search-icon">&#128269;</span>
@@ -5029,7 +5029,7 @@
           </div>
         </div>
         <div class="file-favs" id="fileFavs" style="display:none;">
-          <div class="file-favs-header"><span data-i18n="ui.files.favorite_dirs_header">&#9733; Favorite Directories</span> <span></span></div>
+          <div class="file-favs-header"><span>&#9733; <span data-i18n="ui.files.favorite_dirs_header">Favorite Directories</span></span> <span></span></div>
           <div class="file-favs-grid" id="fileFavsGrid"></div>
         </div>
         <div class="file-list" id="fileList">
@@ -5049,8 +5049,8 @@
             <span class="search-icon">&#128269;</span>
             <input type="text" id="noteSearchInput" placeholder="Search notes and tags..." title="Search notes and tags" data-action="filterNotes" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="ui.ph.search_notes_and_tags" data-i18n-title="ui.tt.search_notes_and_tags">
           </div>
-          <button class="btn btn-secondary" data-action="exportNotes" title="Export notes and tags" data-i18n-title="ui.tt.export_notes_and_tags" data-i18n="ui.btn.8615_export">&#8615; Export</button>
-          <button class="btn btn-secondary" data-action="importNotes" title="Import notes and tags" data-i18n-title="ui.tt.import_notes_and_tags" data-i18n="ui.btn.8613_import">&#8613; Import</button>
+          <button class="btn btn-secondary" data-action="exportNotes" title="Export notes and tags" data-i18n-title="ui.tt.export_notes_and_tags">&#8615; <span data-i18n="ui.btn.8615_export">Export</span></button>
+          <button class="btn btn-secondary" data-action="importNotes" title="Import notes and tags" data-i18n-title="ui.tt.import_notes_and_tags">&#8613; <span data-i18n="ui.btn.8613_import">Import</span></button>
           <button class="btn btn-stop btn-settings-action" data-action="clearAllNotes" title="Delete all notes" data-i18n-title="ui.tt.delete_all_notes" data-i18n="ui.btn.clear_all">Clear All</button>
         </div>
         <div class="notes-list" id="notesList">
@@ -5089,11 +5089,11 @@
     <div class="tab-content" id="tabSamples">
       <div class="audio-container">
         <div class="audio-toolbar">
-          <button class="btn btn-primary" id="btnScanAudio" data-action="scanAudioSamples" title="Scan for audio sample files" data-i18n-title="ui.tt.scan_for_audio_sample_files" data-i18n="ui.btn.127925_scan_samples">&#127925; Scan Samples</button>
-          <button class="btn btn-secondary" id="btnResumeAudio" data-action="resumeAudioScan" style="display: none;" title="Resume sample scan" data-i18n-title="ui.tt.resume_sample_scan" data-i18n="ui.btn.9654_resume">&#9654; Resume</button>
-          <button class="btn btn-stop" id="btnStopAudio" style="display: none;" data-action="stopAudioScan" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan" data-i18n="ui.btn.9632_stop">&#9632; Stop</button>
-          <button class="btn btn-secondary" id="btnExportAudio" data-action="exportAudio" style="display:none;" title="Export samples to JSON" data-i18n-title="ui.tt.export_samples_to_json" data-i18n="ui.btn.8615_export">&#8615; Export</button>
-          <button class="btn btn-secondary" id="btnImportAudio" data-action="importAudio" title="Import samples from JSON" data-i18n-title="ui.tt.import_samples_from_json" data-i18n="ui.btn.8613_import">&#8613; Import</button>
+          <button class="btn btn-primary" id="btnScanAudio" data-action="scanAudioSamples" title="Scan for audio sample files" data-i18n-title="ui.tt.scan_for_audio_sample_files">&#127925; <span data-i18n="ui.btn.127925_scan_samples">Scan Samples</span></button>
+          <button class="btn btn-secondary" id="btnResumeAudio" data-action="resumeAudioScan" style="display: none;" title="Resume sample scan" data-i18n-title="ui.tt.resume_sample_scan">&#9654; <span data-i18n="ui.btn.9654_resume">Resume</span></button>
+          <button class="btn btn-stop" id="btnStopAudio" style="display: none;" data-action="stopAudioScan" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan">&#9632; <span data-i18n="ui.btn.9632_stop">Stop</span></button>
+          <button class="btn btn-secondary" id="btnExportAudio" data-action="exportAudio" style="display:none;" title="Export samples to JSON" data-i18n-title="ui.tt.export_samples_to_json">&#8615; <span data-i18n="ui.btn.8615_export">Export</span></button>
+          <button class="btn btn-secondary" id="btnImportAudio" data-action="importAudio" title="Import samples from JSON" data-i18n-title="ui.tt.import_samples_from_json">&#8613; <span data-i18n="ui.btn.8613_import">Import</span></button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="audioSearchInput" placeholder="Fuzzy search samples..." title="Search audio samples (Cmd+F)" data-action="filterAudioSamples" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="ui.ph.fuzzy_search_samples" data-i18n-title="ui.tt.search_audio_samples_cmd_f">
@@ -5137,13 +5137,13 @@
     <div class="tab-content" id="tabDaw">
       <div class="audio-container">
         <div class="audio-toolbar">
-          <button class="btn btn-primary" id="btnScanDaw" data-action="scanDawProjects" title="Scan for DAW project files" data-i18n-title="ui.tt.scan_for_daw_project_files" data-i18n="ui.btn.127911_scan_daw_projects">&#127911; Scan DAW Projects</button>
-          <button class="btn btn-secondary" id="btnResumeDaw" data-action="resumeDawScan" style="display: none;" title="Resume DAW scan" data-i18n-title="ui.tt.resume_daw_scan" data-i18n="ui.btn.9654_resume">&#9654; Resume</button>
-          <button class="btn btn-stop" id="btnStopDaw" style="display: none;" data-action="stopDawScan" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan" data-i18n="ui.btn.9632_stop">&#9632; Stop</button>
-          <button class="btn btn-secondary" id="btnExportDaw" data-action="exportDaw" style="display:none;" title="Export projects to JSON" data-i18n-title="ui.tt.export_projects_to_json" data-i18n="ui.btn.8615_export">&#8615; Export</button>
-          <button class="btn btn-secondary" id="btnImportDaw" data-action="importDaw" title="Import projects from JSON" data-i18n-title="ui.tt.import_projects_from_json" data-i18n="ui.btn.8613_import">&#8613; Import</button>
-          <button class="btn btn-secondary" id="btnXrefIndex" data-action="buildXrefIndex" title="Scan all Ableton/REAPER projects for plugin references" data-i18n-title="ui.tt.scan_all_ableton_reaper_projects_for_plugin_refere" data-i18n="ui.btn.9889_plugin_index">&#9889; Plugin Index</button>
-          <button class="btn btn-secondary" data-action="showDepGraph" title="Show plugin dependency graph (run Plugin Index first)" data-i18n-title="ui.tt.show_plugin_dependency_graph_run_plugin_index_firs" data-i18n="ui.btn.128200_dep_graph">&#128200; Dep Graph</button>
+          <button class="btn btn-primary" id="btnScanDaw" data-action="scanDawProjects" title="Scan for DAW project files" data-i18n-title="ui.tt.scan_for_daw_project_files">&#127911; <span data-i18n="ui.btn.127911_scan_daw_projects">Scan DAW Projects</span></button>
+          <button class="btn btn-secondary" id="btnResumeDaw" data-action="resumeDawScan" style="display: none;" title="Resume DAW scan" data-i18n-title="ui.tt.resume_daw_scan">&#9654; <span data-i18n="ui.btn.9654_resume">Resume</span></button>
+          <button class="btn btn-stop" id="btnStopDaw" style="display: none;" data-action="stopDawScan" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan">&#9632; <span data-i18n="ui.btn.9632_stop">Stop</span></button>
+          <button class="btn btn-secondary" id="btnExportDaw" data-action="exportDaw" style="display:none;" title="Export projects to JSON" data-i18n-title="ui.tt.export_projects_to_json">&#8615; <span data-i18n="ui.btn.8615_export">Export</span></button>
+          <button class="btn btn-secondary" id="btnImportDaw" data-action="importDaw" title="Import projects from JSON" data-i18n-title="ui.tt.import_projects_from_json">&#8613; <span data-i18n="ui.btn.8613_import">Import</span></button>
+          <button class="btn btn-secondary" id="btnXrefIndex" data-action="buildXrefIndex" title="Scan all Ableton/REAPER projects for plugin references" data-i18n-title="ui.tt.scan_all_ableton_reaper_projects_for_plugin_refere">&#9889; <span data-i18n="ui.btn.9889_plugin_index">Plugin Index</span></button>
+          <button class="btn btn-secondary" data-action="showDepGraph" title="Show plugin dependency graph (run Plugin Index first)" data-i18n-title="ui.tt.show_plugin_dependency_graph_run_plugin_index_firs">&#128200; <span data-i18n="ui.btn.128200_dep_graph">Dep Graph</span></button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="dawSearchInput" placeholder="Fuzzy search projects..." title="Search DAW projects (Cmd+F)" data-action="filterDawProjects" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="ui.ph.fuzzy_search_projects" data-i18n-title="ui.tt.search_daw_projects_cmd_f">
@@ -5190,11 +5190,11 @@
     <div class="tab-content" id="tabPresets">
       <div class="audio-container">
         <div class="audio-toolbar">
-          <button class="btn btn-primary" id="btnScanPresets" data-action="scanPresets" title="Scan for plugin presets" data-i18n-title="ui.tt.scan_for_plugin_presets" data-i18n="ui.btn.127924_scan_presets">&#127924; Scan Presets</button>
-          <button class="btn btn-secondary" id="btnResumePresets" data-action="resumePresetScan" style="display: none;" title="Resume preset scan" data-i18n-title="ui.tt.resume_preset_scan" data-i18n="ui.btn.9654_resume">&#9654; Resume</button>
-          <button class="btn btn-stop" id="btnStopPresets" style="display: none;" data-action="stopPresetScan" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan" data-i18n="ui.btn.9632_stop">&#9632; Stop</button>
-          <button class="btn btn-secondary" id="btnExportPresets" data-action="exportPresets" style="display:none;" title="Export presets to JSON" data-i18n-title="ui.tt.export_presets_to_json" data-i18n="ui.btn.8615_export">&#8615; Export</button>
-          <button class="btn btn-secondary" id="btnImportPresets" data-action="importPresets" title="Import presets from JSON" data-i18n-title="ui.tt.import_presets_from_json" data-i18n="ui.btn.8613_import">&#8613; Import</button>
+          <button class="btn btn-primary" id="btnScanPresets" data-action="scanPresets" title="Scan for plugin presets" data-i18n-title="ui.tt.scan_for_plugin_presets">&#127924; <span data-i18n="ui.btn.127924_scan_presets">Scan Presets</span></button>
+          <button class="btn btn-secondary" id="btnResumePresets" data-action="resumePresetScan" style="display: none;" title="Resume preset scan" data-i18n-title="ui.tt.resume_preset_scan">&#9654; <span data-i18n="ui.btn.9654_resume">Resume</span></button>
+          <button class="btn btn-stop" id="btnStopPresets" style="display: none;" data-action="stopPresetScan" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan">&#9632; <span data-i18n="ui.btn.9632_stop">Stop</span></button>
+          <button class="btn btn-secondary" id="btnExportPresets" data-action="exportPresets" style="display:none;" title="Export presets to JSON" data-i18n-title="ui.tt.export_presets_to_json">&#8615; <span data-i18n="ui.btn.8615_export">Export</span></button>
+          <button class="btn btn-secondary" id="btnImportPresets" data-action="importPresets" title="Import presets from JSON" data-i18n-title="ui.tt.import_presets_from_json">&#8613; <span data-i18n="ui.btn.8613_import">Import</span></button>
           <div class="search-box" style="flex: 1;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="presetSearchInput" placeholder="Fuzzy search presets..." title="Search presets (Cmd+F)" data-action="filterPresets" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="ui.ph.fuzzy_search_presets" data-i18n-title="ui.tt.search_presets_cmd_f">
@@ -5233,9 +5233,9 @@
 
     <div class="tab-content" id="tabMidi">
       <div class="audio-toolbar">
-        <button class="btn btn-primary" data-action="scanPresets" title="Scan for MIDI files (runs preset/MIDI scanner)" data-i18n-title="ui.tt.scan_for_midi_files_runs_preset_midi_scanner" data-i18n="ui.btn.127924_scan_midi">&#127924; Scan MIDI</button>
-        <button class="btn btn-secondary" data-action="exportMidi" title="Export MIDI file list" data-i18n-title="ui.tt.export_midi_file_list" data-i18n="ui.btn.8615_export">&#8615; Export</button>
-        <button class="btn btn-secondary" data-action="importAudio" title="Import MIDI list from JSON" data-i18n-title="ui.tt.import_midi_list_from_json" data-i18n="ui.btn.8613_import">&#8613; Import</button>
+        <button class="btn btn-primary" data-action="scanPresets" title="Scan for MIDI files (runs preset/MIDI scanner)" data-i18n-title="ui.tt.scan_for_midi_files_runs_preset_midi_scanner">&#127924; <span data-i18n="ui.btn.127924_scan_midi">Scan MIDI</span></button>
+        <button class="btn btn-secondary" data-action="exportMidi" title="Export MIDI file list" data-i18n-title="ui.tt.export_midi_file_list">&#8615; <span data-i18n="ui.btn.8615_export">Export</span></button>
+        <button class="btn btn-secondary" data-action="importAudio" title="Import MIDI list from JSON" data-i18n-title="ui.tt.import_midi_list_from_json">&#8613; <span data-i18n="ui.btn.8613_import">Import</span></button>
         <div class="search-box" style="flex: 1;">
           <span class="search-icon">&#128269;</span>
           <input type="text" id="midiSearchInput" placeholder="Fuzzy search MIDI files..." data-action="filterMidi" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Search MIDI files by name or path" data-i18n-placeholder="ui.ph.fuzzy_search_midi_files" data-i18n-title="ui.tt.search_midi_files_by_name_or_path">
@@ -5263,7 +5263,7 @@
             <button class="viz-mode-btn active" data-viz-mode="all" title="Show all visualizers in a grid" data-i18n-title="ui.tt.show_all_visualizers_in_a_grid" data-i18n="ui.btn.all">All</button>
           </div>
           <div style="display:flex;gap:6px;">
-            <button class="viz-mode-btn" data-action="vizFullscreen" title="Toggle fullscreen visualizer" data-i18n-title="ui.tt.toggle_fullscreen_visualizer" data-i18n="ui.btn.9974_fullscreen">&#9974; Fullscreen</button>
+            <button class="viz-mode-btn" data-action="vizFullscreen" title="Toggle fullscreen visualizer" data-i18n-title="ui.tt.toggle_fullscreen_visualizer">&#9974; <span data-i18n="ui.btn.9974_fullscreen">Fullscreen</span></button>
             <div class="viz-info" id="vizInfo" style="font-size:10px;color:var(--text-dim);line-height:28px;"></div>
           </div>
         </div>
@@ -5327,7 +5327,7 @@
     <div class="tab-content" id="tabSettings">
       <div class="settings-container">
         <div class="settings-section" data-section="appearance">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_appearance">&#9776; Appearance</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_appearance">Appearance</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.settings.interface_language">Interface language</span>
@@ -5406,7 +5406,7 @@
         </div>
 
         <div class="settings-section" data-section="colorscheme">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_color_scheme">&#9776; Color Scheme</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_color_scheme">Color Scheme</span></h2>
           <div class="scheme-grid" id="schemeGrid"></div>
           <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 12px;">
             <div class="settings-label">
@@ -5500,7 +5500,7 @@
         </div>
 
         <div class="settings-section" data-section="scanning">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_scan_directories">&#9776; Scan Directories</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_scan_directories">Scan Directories</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.plugin_scan_directories">Plugin Scan Directories</span>
@@ -5552,7 +5552,7 @@
         </div>
 
         <div class="settings-section" data-section="scan-behavior">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_scan_behavior">&#9776; Scan Behavior</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_scan_behavior">Scan Behavior</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.default_plugin_type_filter">Default Plugin Type Filter</span>
@@ -5606,7 +5606,7 @@
         </div>
 
         <div class="settings-section" data-section="playback">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_playback">&#9776; Playback</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_playback">Playback</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.single_click_sample_playback">Single-Click Sample Playback</span>
@@ -5670,7 +5670,7 @@
         </div>
 
         <div class="settings-section" data-section="exclusions">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_exclusions">&#9776; Exclusions</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_exclusions">Exclusions</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.directory_blacklist">Directory Blacklist</span>
@@ -5697,7 +5697,7 @@
         </div>
 
         <div class="settings-section" data-section="performance">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_performance">&#9776; Performance</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_performance">Performance</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.table_page_size">Table Page Size</span>
@@ -5773,7 +5773,7 @@
         </div>
 
         <div class="settings-section" data-section="visualizer-settings">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_visualizer">&#9776; Visualizer</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_visualizer">Visualizer</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.visualizer_fps">Visualizer FPS</span>
@@ -5813,17 +5813,17 @@
         </div>
 
         <div class="settings-section" data-section="system-info" style="display:none;">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_system_info">&#9776; System Info</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_system_info">System Info</span></h2>
           <div id="settingPerfInfo" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);line-height:1.7;"></div>
         </div>
 
         <div class="settings-section" data-section="app-info" style="display:none;">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_app_info">&#9776; App Info</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_app_info">App Info</span></h2>
           <div id="settingAppInfo" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);line-height:1.7;"></div>
         </div>
 
         <div class="settings-section" data-section="shortcuts">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_keybindings_amp_search">&#9776; Keybindings &amp; Search</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_keybindings_amp_search">Keybindings &amp; Search</span></h2>
           <div style="margin-bottom:8px;">
             <h3 style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">FUZZY SEARCH WEIGHTS</h3>
             <div id="fzfSettingsGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;"></div>
@@ -5846,7 +5846,7 @@
         </div>
 
         <div class="settings-section" data-section="sorting">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_sorting">&#9776; Sorting</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_sorting">Sorting</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.default_plugin_sort">Default Plugin Sort</span>
@@ -5895,14 +5895,14 @@
         </div>
 
         <div class="settings-section" data-section="data">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_reset_layout">&#9776; Reset Layout</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_reset_layout">Reset Layout</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.reset_all_ui_layout">Reset All UI Layout</span>
               <span class="settings-desc" data-i18n="ui.sd.reset_all_sizing_positioning_ordering_and_layout_t">Reset ALL sizing, positioning, ordering, and layout to factory defaults. Clears tab order, column order/widths, section order, modal positions, player dock, stat bar order, toolbar order, dashboard card order, and all drag-reorder prefs. Requires reload.</span>
             </div>
             <div class="settings-control">
-              <button class="btn btn-stop btn-settings-action" data-action="settingResetAllUI" title="Reset every UI layout preference to factory defaults" data-i18n-title="ui.tt.reset_every_ui_layout_preference_to_factory_defaul" data-i18n="ui.btn.9888_reset_all_ui">&#9888; Reset All UI</button>
+              <button class="btn btn-stop btn-settings-action" data-action="settingResetAllUI" title="Reset every UI layout preference to factory defaults" data-i18n-title="ui.tt.reset_every_ui_layout_preference_to_factory_defaul">&#9888; <span data-i18n="ui.btn.9888_reset_all_ui">Reset All UI</span></button>
             </div>
           </div>
           <div class="settings-row">
@@ -5935,7 +5935,7 @@
         </div>
 
         <div class="settings-section" data-section="storage">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_history">&#9776; History</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_history">History</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.clear_all_history">Clear All History</span>
@@ -5957,7 +5957,7 @@
         </div>
 
         <div class="settings-section" data-section="caches">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_database_caches">&#9776; Database Caches</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_database_caches">Database Caches</span></h2>
           <div id="cacheStatsGrid" style="font-size:11px;margin-bottom:8px;"></div>
           <div style="display:flex;gap:6px;">
             <button class="btn btn-stop btn-settings-action" data-action="settingClearAnalysisCache" title="Clear all caches at once" style="font-size:10px;" data-i18n-title="ui.tt.clear_all_caches_at_once" data-i18n="ui.btn.clear_all_caches">Clear All Caches</button>
@@ -5966,7 +5966,7 @@
         </div>
 
         <div class="settings-section" data-section="danger-zone">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_danger_zone">&#9776; Danger Zone</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_danger_zone">Danger Zone</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.reset_all_scans">Reset All Scans</span>
@@ -5979,7 +5979,7 @@
         </div>
 
         <div class="settings-section" data-section="files">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_files_amp_export">&#9776; Files &amp; Export</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_files_amp_export">Files &amp; Export</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.open_preferences_file">Open Preferences File</span>
@@ -6022,7 +6022,7 @@
         </div>
 
         <div class="settings-section" data-section="about">
-          <h2 class="settings-heading" data-i18n="ui.sh.9776_about">&#9776; About</h2>
+          <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_about">About</span></h2>
           <div class="settings-row">
             <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.audio_haxor">AUDIO_HAXOR</span>
@@ -6045,40 +6045,40 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=99984"></script>
-  <script src="js/ipc.js?v=99986"></script>
-  <script src="js/utils.js?v=99986"></script>
-  <script src="js/drag-reorder.js?v=99984"></script>
-  <script src="js/modal-drag.js?v=99984"></script>
-  <script src="js/columns.js?v=99984"></script>
-  <script src="js/notes.js?v=99984"></script>
-  <script src="js/favorites.js?v=99984"></script>
-  <script src="js/export.js?v=99986"></script>
-  <script src="js/plugins.js?v=99984"></script>
-  <script src="js/settings.js?v=99987"></script>
-  <script src="js/history.js?v=99984"></script>
-  <script src="js/kvr.js?v=99984"></script>
-  <script src="js/audio.js?v=99986"></script>
-  <script src="js/daw.js?v=99984"></script>
-  <script src="js/presets.js?v=99984"></script>
-  <script src="js/disk-usage.js?v=99984"></script>
-  <script src="js/batch-select.js?v=99984"></script>
-  <script src="js/sort-persist.js?v=99984"></script>
-  <script src="js/multi-filter.js?v=99984"></script>
-  <script src="js/file-browser.js?v=99984"></script>
-  <script src="js/duplicates.js?v=99984"></script>
-  <script src="js/command-palette.js?v=99984"></script>
-  <script src="js/xref.js?v=99984"></script>
-  <script src="js/dep-graph.js?v=99984"></script>
-  <script src="js/smart-playlists.js?v=99986"></script>
-  <script src="js/heatmap-dashboard.js?v=99986"></script>
-  <script src="js/midi.js?v=99984"></script>
-  <script src="js/visualizer.js?v=99984"></script>
-  <script src="js/walker-status.js?v=99984"></script>
-  <script src="js/context-menu.js?v=99984"></script>
-  <script src="js/help-overlay.js?v=99984"></script>
-  <script src="js/shortcuts.js?v=99986"></script>
-  <script src="js/keyboard-nav.js?v=99984"></script>
-  <script src="js/app.js?v=99986"></script>
+  <script src="js/i18n-ui.js?v=21387"></script>
+  <script src="js/ipc.js?v=21387"></script>
+  <script src="js/utils.js?v=21387"></script>
+  <script src="js/drag-reorder.js?v=21387"></script>
+  <script src="js/modal-drag.js?v=21387"></script>
+  <script src="js/columns.js?v=21387"></script>
+  <script src="js/notes.js?v=21387"></script>
+  <script src="js/favorites.js?v=21387"></script>
+  <script src="js/export.js?v=21387"></script>
+  <script src="js/plugins.js?v=21387"></script>
+  <script src="js/settings.js?v=21387"></script>
+  <script src="js/history.js?v=21387"></script>
+  <script src="js/kvr.js?v=21387"></script>
+  <script src="js/audio.js?v=21387"></script>
+  <script src="js/daw.js?v=21387"></script>
+  <script src="js/presets.js?v=21387"></script>
+  <script src="js/disk-usage.js?v=21387"></script>
+  <script src="js/batch-select.js?v=21387"></script>
+  <script src="js/sort-persist.js?v=21387"></script>
+  <script src="js/multi-filter.js?v=21387"></script>
+  <script src="js/file-browser.js?v=21387"></script>
+  <script src="js/duplicates.js?v=21387"></script>
+  <script src="js/command-palette.js?v=21387"></script>
+  <script src="js/xref.js?v=21387"></script>
+  <script src="js/dep-graph.js?v=21387"></script>
+  <script src="js/smart-playlists.js?v=21387"></script>
+  <script src="js/heatmap-dashboard.js?v=21387"></script>
+  <script src="js/midi.js?v=21387"></script>
+  <script src="js/visualizer.js?v=21387"></script>
+  <script src="js/walker-status.js?v=21387"></script>
+  <script src="js/context-menu.js?v=21387"></script>
+  <script src="js/help-overlay.js?v=21387"></script>
+  <script src="js/shortcuts.js?v=21387"></script>
+  <script src="js/keyboard-nav.js?v=21387"></script>
+  <script src="js/app.js?v=21387"></script>
 </body>
 </html>
