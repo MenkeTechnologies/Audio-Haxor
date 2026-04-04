@@ -734,6 +734,13 @@ mod tests {
     }
 
     #[test]
+    fn test_plugin_info_missing_size_bytes_deserializes_to_zero() {
+        let json = r#"{"name":"N","path":"/p","type":"VST3","version":"1","manufacturer":"M","size":"1 MB","modified":"2024"}"#;
+        let info: PluginInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.size_bytes, 0);
+    }
+
+    #[test]
     fn test_get_directory_size_depth_limit() {
         // Create nested dirs deeper than 10 levels
         let tmp = std::env::temp_dir().join("upum_test_depth_limit");

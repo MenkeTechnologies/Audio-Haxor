@@ -288,6 +288,12 @@ mod tests {
     }
 
     #[test]
+    fn test_classify_vst2_bundle_ext_not_watched_as_plugin() {
+        // Legacy `.vst` dirs are plugins but watcher only lists modern bundle extensions
+        assert_eq!(classify(Path::new("LegacySynth.vst")), None);
+    }
+
+    #[test]
     fn test_classify_unknown_returns_none() {
         assert_eq!(classify(Path::new("readme.txt")), None);
         assert_eq!(classify(Path::new("photo.png")), None);

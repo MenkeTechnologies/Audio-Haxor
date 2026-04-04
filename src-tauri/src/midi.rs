@@ -516,6 +516,21 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_midi_smpte_division_defaults_ppqn() {
+        let tmp = std::env::temp_dir().join("test_midi_smpte_ppqn.mid");
+        let mut data = Vec::new();
+        data.extend_from_slice(b"MThd");
+        data.extend_from_slice(&6u32.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes());
+        data.extend_from_slice(&0x8001u16.to_be_bytes());
+        std::fs::write(&tmp, &data).unwrap();
+        let info = parse_midi(&tmp).unwrap();
+        assert_eq!(info.ppqn, 480, "SMPTE timecode division → internal PPQN default");
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_var_len() {
         assert_eq!(read_var_len(&[0x00], 0), (0, 1));
         assert_eq!(read_var_len(&[0x7F], 0), (127, 1));

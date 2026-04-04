@@ -1349,6 +1349,16 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_au_identifiers_component_bundle_name() {
+        let mut data = b"MyDelay.component".to_vec();
+        data.push(0);
+        let refs = extract_au_identifiers(&data);
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].name, "MyDelay");
+        assert_eq!(refs[0].plugin_type, "AU");
+    }
+
+    #[test]
     fn test_extract_plugins_from_xml_regex_capture() {
         // Avoid attributes like deviceName= — substring `name="` would match inside it first
         let xml = r#"<Plugin name="Serum" />"#;
