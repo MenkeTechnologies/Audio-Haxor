@@ -302,6 +302,7 @@ Unit tests live in `src/**/*.rs` inside `#[cfg(test)]` modules. Integration test
 | **`test/i18n-html-keys.test.js`** | tally `rg -c '^test\\(' test/i18n-html-keys.test.js` | Every `data-i18n` / `data-i18n-placeholder` / `data-i18n-title` key in `frontend/index.html` exists and is non-empty in `i18n/app_i18n_en.json`. |
 | **`test/i18n-js-keys.test.js`** | tally `rg -c '^test\\(' test/i18n-js-keys.test.js` | Every `frontend/js/**/*.js` string literal matching a catalog key (`ui.*`, `menu.*`, `toast.*`, `help.*`, `confirm.*`, `tray.*`) exists and is non-empty in `i18n/app_i18n_en.json` (covers `appFmt`/`toastFmt`, wrappers like `_ui` / `h` / `f`, and `labelKey` / `descKey` / `titleKey` fields). |
 | **`test/i18n-placeholders.test.js`** | tally `rg -c '^test\\(' test/i18n-placeholders.test.js` | Every `{…}` segment in each `i18n/app_i18n_*.json` value matches `ipc.js` `appFmt` token syntax (`{name}`, `{n}`, … — ASCII word chars only). |
+| **`test/i18n-batch-parity.test.js`** | tally `rg -c '\\btest\\(' test/i18n-batch-parity.test.js` | Each `scripts/i18n_batches/*.json` merge batch matches `i18n/app_i18n_en.json` key-for-key (proves English catalog stays aligned with recorded batch merges). |
 | **`test/iec-format-kvr-bulk.test.js`** | 2558 | IEC `format_size` parity, `parse_version` grid, `compare_versions` chain antisymmetry — mirrors backend KVR/size rules in isolation. |
 | **`test/fingerprint-distance-bulk.test.js`** | 462 | Same distance formula as `similarity::fingerprint_distance` on RMS and centroid grids; checks symmetry and finiteness. |
 | **`test/radix-string-bulk.test.js`** | 1200 | `radix_string` algorithm vs `Number.prototype.toString(base)` on the same grid as `handcrafted_tables_radix_grid`. |
@@ -508,6 +509,7 @@ test/
   i18n-html-keys.test.js -- index.html data-i18n* keys present in app_i18n_en.json
   i18n-js-keys.test.js    -- frontend/js literal catalog keys present in app_i18n_en.json
   i18n-placeholders.test.js -- app_i18n JSON {token} segments match ipc.js substitution
+  i18n-batch-parity.test.js -- i18n_batches/*.json matches app_i18n_en.json
 ```
 
 ---
