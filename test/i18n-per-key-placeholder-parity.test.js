@@ -4,7 +4,7 @@
  * only report the first mismatch.
  *
  * Rules mirror `src-tauri/src/app_i18n.rs` + `i18n-seed-parity.test.js`:
- * - `de` / `fr` / `pt` / `sv`: IPC `{token}` multiset matches English for every key that uses placeholders
+ * - `de` / `fr` / `nl` / `pt` / `sv`: IPC `{token}` multiset matches English for every key that uses placeholders
  * - `es`: every English `{token}` substring must appear in the translation for `menu.*`,
  *   `ui.palette.*`, `ui.sp_*`, `confirm.*` when English has placeholders (`seed_json_es_critical_prefixes`)
  */
@@ -44,6 +44,7 @@ function isEsCriticalPrefix(k) {
 const en = loadMap('app_i18n_en.json');
 const de = loadMap('app_i18n_de.json');
 const fr = loadMap('app_i18n_fr.json');
+const nl = loadMap('app_i18n_nl.json');
 const pt = loadMap('app_i18n_pt.json');
 const sv = loadMap('app_i18n_sv.json');
 const es = loadMap('app_i18n_es.json');
@@ -52,9 +53,9 @@ const keysWithIpcTokens = Object.keys(en).filter(
   (k) => (en[k].match(IPC_PLACEHOLDER) ?? []).length > 0
 );
 
-const localeMaps = { de, fr, pt, sv };
+const localeMaps = { de, fr, nl, pt, sv };
 
-for (const loc of /** @type {const} */ (['de', 'fr', 'pt', 'sv'])) {
+for (const loc of /** @type {const} */ (['de', 'fr', 'nl', 'pt', 'sv'])) {
   const m = localeMaps[loc];
   for (const k of keysWithIpcTokens) {
     test(`seed multiset parity ${loc} ${k}`, () => {

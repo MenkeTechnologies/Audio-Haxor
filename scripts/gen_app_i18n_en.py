@@ -569,6 +569,7 @@ SETTINGS_UI_EN: dict[str, str] = {
     "ui.opt.lang_sv": "Svenska",
     "ui.opt.lang_fr": "Français",
     "ui.opt.lang_pt": "Português",
+    "ui.opt.lang_nl": "Nederlands",
 }
 
 CONFIRM_EN: dict[str, str] = {
@@ -622,6 +623,7 @@ def main() -> None:
         "ui.opt.svenska",
         "ui.opt.fran_ais",
         "ui.opt.portugu_s",
+        "ui.opt.nederlands",
     ):
         merged.pop(dup, None)
     merged.pop("ui.tt.interface_language", None)

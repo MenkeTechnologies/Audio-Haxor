@@ -50,7 +50,7 @@ test('non-English locales do not copy English verbatim for menu.scan_all', () =>
   const en = loadMap('app_i18n_en.json');
   const baseline = en['menu.scan_all'];
   assert.ok(baseline != null && String(baseline).trim() !== '', 'menu.scan_all missing in English');
-  for (const loc of ['de', 'es', 'fr', 'pt', 'sv']) {
+  for (const loc of ['de', 'es', 'fr', 'nl', 'pt', 'sv']) {
     const m = loadMap(`app_i18n_${loc}.json`);
     assert.notEqual(
       m['menu.scan_all'],
