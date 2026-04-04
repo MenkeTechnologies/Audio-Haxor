@@ -61,4 +61,23 @@ describe('frontend/js/export.js (vm-loaded)', () => {
     assert.ok(!name.includes('T'));
     assert.ok(!name.includes(':'));
   });
+
+  it('pdfHeaders maps each key through appFmt for PDF table columns', () => {
+    const two = E.pdfHeaders('a', 'b');
+    assert.strictEqual(two.length, 2);
+    assert.strictEqual(two[0], 'a');
+    assert.strictEqual(two[1], 'b');
+    const one = E.pdfHeaders('ui.export.col_name');
+    assert.strictEqual(one.length, 1);
+    assert.strictEqual(one[0], 'ui.export.col_name');
+  });
+
+  it('EXPORT_FORMAT_DEFS covers tabular and pdf export ids', () => {
+    const opts = E.getExportFormatOptions();
+    const ids = new Set(opts.map((o) => o.id));
+    for (const id of ['json', 'toml', 'csv', 'tsv', 'pdf']) {
+      assert.ok(ids.has(id), `missing format ${id}`);
+    }
+  });
 });
+
