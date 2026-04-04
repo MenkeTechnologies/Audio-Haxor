@@ -336,7 +336,9 @@ pub fn get_preferences_path() -> PathBuf {
 pub type PrefsMap = serde_json::Map<String, serde_json::Value>;
 
 /// Avoid re-reading preferences.toml on every hot path (e.g. `get_process_stats` once per second).
-static PREF_CACHE: Mutex<Option<(u64, PrefsMap)>> = Mutex::new(None);
+/// Cache entries are keyed by the resolved preferences path so parallel tests (each with a
+/// thread-local temp data dir) and the main app never share a `PrefsMap` across different files.
+static PREF_CACHE: Mutex<Option<(u64, PathBuf, PrefsMap)>> = Mutex::new(None);
 const PREF_CACHE_TTL_MS: u64 = 2000;
 
 fn prefs_cache_now_ms() -> u64 {
@@ -600,10 +602,11 @@ fn load_preferences_from_disk() -> PrefsMap {
 
 pub fn load_preferences() -> PrefsMap {
     let now = prefs_cache_now_ms();
+    let path = preferences_file();
     {
         if let Ok(guard) = PREF_CACHE.lock() {
-            if let Some((t, p)) = guard.as_ref() {
-                if now.saturating_sub(*t) < PREF_CACHE_TTL_MS {
+            if let Some((t, cached_path, p)) = guard.as_ref() {
+                if now.saturating_sub(*t) < PREF_CACHE_TTL_MS && *cached_path == path {
                     return p.clone();
                 }
             }
@@ -611,7 +614,7 @@ pub fn load_preferences() -> PrefsMap {
     }
     let loaded = load_preferences_from_disk();
     if let Ok(mut guard) = PREF_CACHE.lock() {
-        *guard = Some((now, loaded.clone()));
+        *guard = Some((now, path, loaded.clone()));
     }
     loaded
 }
@@ -2043,6 +2046,33 @@ mod tests {
             let val = get_preference("color");
             assert_eq!(val, Some(serde_json::json!("blue")));
         });
+    }
+
+    /// `PREF_CACHE` is global; unit tests use distinct thread-local temp dirs. Without path-keyed
+    /// cache, parallel tests could read another thread's cached prefs (CI failure: overwrite test).
+    #[test]
+    fn test_preferences_cache_isolated_across_parallel_threads() {
+        use std::thread;
+        let a = thread::spawn(|| {
+            with_temp_dir(|_| {
+                set_preference("parallelIsolationKey", serde_json::json!("thread-a"));
+                assert_eq!(
+                    get_preference("parallelIsolationKey"),
+                    Some(serde_json::json!("thread-a"))
+                );
+            });
+        });
+        let b = thread::spawn(|| {
+            with_temp_dir(|_| {
+                set_preference("parallelIsolationKey", serde_json::json!("thread-b"));
+                assert_eq!(
+                    get_preference("parallelIsolationKey"),
+                    Some(serde_json::json!("thread-b"))
+                );
+            });
+        });
+        a.join().expect("thread a");
+        b.join().expect("thread b");
     }
 
     // ── Scan detail tests ──
