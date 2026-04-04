@@ -17,6 +17,7 @@ let _lastPdfMode = 'fuzzy';
 
 async function fetchPdfPage() {
   const search = document.getElementById('pdfSearchInput')?.value || '';
+  if (typeof showGlobalProgress === 'function') showGlobalProgress();
   // During an active scan, DOM-toggle filter existing rendered rows instead of
   // hitting the DB (scan isn't saved yet, query would wipe live results).
   if (pdfScanProgressCleanup) {
@@ -35,6 +36,7 @@ async function fetchPdfPage() {
       }
       _pdfTotalCount = visible;
     }
+    if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
     return;
   }
   try {
@@ -62,7 +64,9 @@ async function fetchPdfPage() {
     _pdfTotalUnfiltered = result.totalUnfiltered || 0;
     renderPdfTable();
   } catch (e) {
-    showToast(toastFmt('toast.pdf_query_failed', { err: e }), 4000, 'error');
+    showToast(toastFmt('toast.pdf_query_failed', { err: e && e.message ? e.message : e }), 4000, 'error');
+  } finally {
+    if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
   }
 }
 
@@ -285,7 +289,7 @@ async function scanPdfs(resume = false) {
     if (!result.stopped) {
       try {
         await window.vstUpdater.savePdfScan(allPdfs, result.roots);
-      } catch (e) { showToast(toastFmt('toast.failed_save_pdf_history', { err: e.message || e }), 4000, 'error'); }
+      } catch (e) { showToast(toastFmt('toast.failed_save_pdf_history', { err: e && e.message ? e.message : e }), 4000, 'error'); }
     }
     if (result.stopped && allPdfs.length > 0 && resumeBtn) {
       resumeBtn.style.display = '';
@@ -294,8 +298,8 @@ async function scanPdfs(resume = false) {
     if (pdfScanProgressCleanup) { pdfScanProgressCleanup(); pdfScanProgressCleanup = null; }
     flushPending();
     const errMsg = err.message || err || 'Unknown error';
-    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
-    showToast(toastFmt('toast.pdf_scan_failed', { errMsg }), 4000, 'error');
+    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${escapeHtml(errMsg)}</p></div>`;
+    showToast(toastFmt('toast.pdf_scan_failed', { err: errMsg }), 4000, 'error');
   }
 
   hideGlobalProgress();

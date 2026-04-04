@@ -12,6 +12,10 @@ python3 scripts/merge_i18n_keys.py scripts/i18n_batches/your_batch.json
 
 The script fails if a key already exists (prevents accidental overwrites). Rebuild the Tauri app after changing English so the DB seed updates.
 
+- **Canonical toasts:** Add new `toast.*` strings to `scripts/gen_toast_i18n_en.py` (then merge the emitted lines into `app_i18n_en.json` via `merge_i18n_keys.py` or a small batch) so the toast catalog stays traceable.
+
+- **Avoid blind `gen_app_i18n_en.py`:** That script rebuilds the English file from HTML extraction plus fixed `MENU_EN` / `HELP_EN` blocks. It only carries over **previous `ui.*`** keys from the old JSON, not arbitrary `menu.*` entries that exist only on disk. Running it without checking the diff can delete hundreds of extended menu/context keys. Prefer batch merges or edit `app_i18n_en.json` directly for targeted additions, then `python3 scripts/sync_locale_keys_from_en.py`.
+
 ## Other locales (`de`, `es`, `sv`, `fr`, `nl`, `pt`)
 
 - **Full machine translation** (slow; needs network):
