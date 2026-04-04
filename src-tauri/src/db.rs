@@ -3276,6 +3276,67 @@ mod tests {
         assert_eq!(detail.plugins[1].architectures, vec!["arm64", "x86_64"]);
     }
 
+    /// Subsequence search (name/manufacturer/path) + sort by `size_bytes` DESC.
+    #[test]
+    fn test_query_plugins_search_subsequence_and_sort_size_desc() {
+        let db = test_db();
+        let snap = ScanSnapshot {
+            id: "pg-sort-1".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            plugin_count: 3,
+            plugins: vec![
+                PluginInfo {
+                    name: "small_serum_label".into(),
+                    path: "/vst/small.vst3".into(),
+                    plugin_type: "VST3".into(),
+                    version: "1.0".into(),
+                    manufacturer: "Xfer".into(),
+                    manufacturer_url: None,
+                    size: "100 B".into(),
+                    size_bytes: 100,
+                    modified: "2024-01-01".into(),
+                    architectures: vec![],
+                },
+                PluginInfo {
+                    name: "big_serum_bank".into(),
+                    path: "/vst/big.vst3".into(),
+                    plugin_type: "VST3".into(),
+                    version: "1.0".into(),
+                    manufacturer: "Xfer".into(),
+                    manufacturer_url: None,
+                    size: "10 KB".into(),
+                    size_bytes: 10_000,
+                    modified: "2024-01-01".into(),
+                    architectures: vec![],
+                },
+                PluginInfo {
+                    name: "Other".into(),
+                    // Path must not contain "s…e…r" subsequence (e.g. `/vst/…` matches "ser").
+                    path: "/plugin/other.clap".into(),
+                    plugin_type: "CLAP".into(),
+                    version: "1.0".into(),
+                    manufacturer: "ACME".into(),
+                    manufacturer_url: None,
+                    size: "5 MB".into(),
+                    size_bytes: 5_000_000,
+                    modified: "2024-01-01".into(),
+                    architectures: vec![],
+                },
+            ],
+            directories: vec!["/vst".into()],
+            roots: vec!["/vst".into()],
+        };
+        db.save_plugin_scan(&snap).unwrap();
+
+        let res = db
+            .query_plugins(Some("ser"), None, "size", false, 0, 100)
+            .unwrap();
+        assert_eq!(res.total_count, 2);
+        assert_eq!(res.plugins[0].name, "big_serum_bank");
+        assert_eq!(res.plugins[0].size_bytes, 10_000);
+        assert_eq!(res.plugins[1].name, "small_serum_label");
+    }
+
     #[test]
     fn test_daw_scan_roundtrip() {
         let db = test_db();
@@ -3321,6 +3382,63 @@ mod tests {
         let detail = db.get_daw_scan_detail("ds1").unwrap();
         assert_eq!(detail.projects.len(), 2);
         assert_eq!(detail.projects[0].daw, "Ableton");
+    }
+
+    /// Subsequence search on name/path + sort by file size DESC.
+    #[test]
+    fn test_query_daw_search_subsequence_and_sort_size_desc() {
+        let db = test_db();
+        let mut daw_counts = HashMap::new();
+        daw_counts.insert("Ableton".into(), 3);
+        let snap = DawScanSnapshot {
+            id: "ds-sort-1".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            project_count: 3,
+            total_bytes: 10_600,
+            daw_counts,
+            projects: vec![
+                DawProject {
+                    name: "small_mix_down.als".into(),
+                    path: "/music/small_mix_down.als".into(),
+                    directory: "/music".into(),
+                    format: "ALS".into(),
+                    daw: "Ableton".into(),
+                    size: 100,
+                    size_formatted: "100 B".into(),
+                    modified: "2024-01-01".into(),
+                },
+                DawProject {
+                    name: "big_mix_master.als".into(),
+                    path: "/music/big_mix_master.als".into(),
+                    directory: "/music".into(),
+                    format: "ALS".into(),
+                    daw: "Ableton".into(),
+                    size: 10_000,
+                    size_formatted: "10 KB".into(),
+                    modified: "2024-01-01".into(),
+                },
+                DawProject {
+                    name: "vocal_take.als".into(),
+                    path: "/music/vocal_take.als".into(),
+                    directory: "/music".into(),
+                    format: "ALS".into(),
+                    daw: "Ableton".into(),
+                    size: 500,
+                    size_formatted: "500 B".into(),
+                    modified: "2024-01-01".into(),
+                },
+            ],
+            roots: vec!["/music".into()],
+        };
+        db.save_daw_scan(&snap).unwrap();
+
+        let res = db
+            .query_daw(Some("mix"), None, "size", false, 0, 100)
+            .unwrap();
+        assert_eq!(res.total_count, 2);
+        assert_eq!(res.projects[0].name, "big_mix_master.als");
+        assert_eq!(res.projects[0].size, 10_000);
+        assert_eq!(res.projects[1].name, "small_mix_down.als");
     }
 
     #[test]

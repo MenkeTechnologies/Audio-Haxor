@@ -440,6 +440,7 @@ fn walk_dir_parallel(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
     use std::fs;
     use std::slice::from_ref;
 
@@ -642,6 +643,32 @@ mod tests {
         assert!(found[0].path.contains("mysong.als"));
         assert_eq!(found[0].format, "ALS");
         assert_eq!(found[0].daw, "Ableton Live");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_daw_exclude_full_path_skips_file() {
+        let tmp = std::env::temp_dir().join("upum_test_daw_walk_exclude_path");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("keep.als"), b"fake").unwrap();
+        fs::write(tmp.join("skip.als"), b"fake").unwrap();
+        let mut ex = HashSet::new();
+        ex.insert(tmp.join("skip.als").to_string_lossy().into_owned());
+
+        let mut found = Vec::new();
+        walk_for_daw(
+            from_ref(&tmp),
+            &mut |batch, _count| {
+                found.extend_from_slice(batch);
+            },
+            &|| false,
+            Some(ex),
+            false,
+            None,
+        );
+        assert_eq!(found.len(), 1);
+        assert!(found[0].path.contains("keep.als"));
         let _ = fs::remove_dir_all(&tmp);
     }
 
