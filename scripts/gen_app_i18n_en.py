@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate src-tauri/app_i18n_en.json: toasts + menus + tray + HTML + help + confirm dialogs.
+"""Generate i18n/app_i18n_en.json: toasts + menus + tray + HTML + help + confirm dialogs.
 
 Run from repo root: python3 scripts/gen_app_i18n_en.py
 Optionally inject data-i18n* attributes into frontend/index.html (idempotent).
@@ -13,6 +13,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+I18N_DIR = ROOT / "i18n"
 
 ALLOWED_PREFIXES = ("toast.", "menu.", "tray.", "ui.", "help.", "confirm.")
 
@@ -337,7 +338,7 @@ def main() -> None:
 
     validate_keys(merged)
 
-    out = ROOT / "src-tauri" / "app_i18n_en.json"
+    out = I18N_DIR / "app_i18n_en.json"
     text = json.dumps(merged, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     out.write_text(text, encoding="utf-8")
     print(

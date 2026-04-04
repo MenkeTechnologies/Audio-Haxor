@@ -2,7 +2,7 @@
 const { invoke, convertFileSrc } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-// App i18n — strings loaded from SQLite via get_app_strings (seeded from app_i18n_en.json).
+// App i18n — strings loaded from SQLite via get_app_strings (seeded from i18n/app_i18n_en.json at build).
 window.__appStr = {};
 window.__toastStr = window.__appStr;
 function appFmt(key, vars) {

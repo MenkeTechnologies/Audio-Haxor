@@ -1,4 +1,4 @@
-// Apply SQLite-backed strings to elements annotated with data-i18n* (see scripts/gen_app_i18n_en.py).
+// Apply SQLite-backed strings to elements annotated with data-i18n* (see scripts/gen_app_i18n_en.py, i18n/*.json).
 function applyUiI18n() {
   const m = window.__appStr || {};
   if (!m || typeof m !== 'object') return;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Canonical toast.* map used by scripts/gen_app_i18n_en.py. Run that script to emit app_i18n_en.json."""
+"""Canonical toast.* map used by scripts/gen_app_i18n_en.py. Run that script to emit i18n/app_i18n_en.json."""
 import pathlib
 import subprocess
 import sys

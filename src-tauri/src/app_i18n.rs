@@ -1,14 +1,14 @@
-//! App UI strings for i18n: seeded into SQLite (`app_i18n` table) from `app_i18n_en.json`
+//! App UI strings for i18n: seeded into SQLite (`app_i18n` table) from `i18n/app_i18n_en.json`
 //! (toasts, menus, tray, HTML `data-i18n*`, dialogs). Other locales add rows with the same keys.
 
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
 
-static SEED_JSON_EN: &str = include_str!("../app_i18n_en.json");
-static SEED_JSON_DE: &str = include_str!("../app_i18n_de.json");
-static SEED_JSON_ES: &str = include_str!("../app_i18n_es.json");
-static SEED_JSON_SV: &str = include_str!("../app_i18n_sv.json");
-static SEED_JSON_FR: &str = include_str!("../app_i18n_fr.json");
+static SEED_JSON_EN: &str = include_str!("../../i18n/app_i18n_en.json");
+static SEED_JSON_DE: &str = include_str!("../../i18n/app_i18n_de.json");
+static SEED_JSON_ES: &str = include_str!("../../i18n/app_i18n_es.json");
+static SEED_JSON_SV: &str = include_str!("../../i18n/app_i18n_sv.json");
+static SEED_JSON_FR: &str = include_str!("../../i18n/app_i18n_fr.json");
 
 /// Insert default locale rows (`INSERT OR IGNORE`) so new app versions can add keys without
 /// overwriting user-edited translations.

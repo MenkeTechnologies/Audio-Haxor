@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build src-tauri/app_i18n_fr.json from app_i18n_en.json (French UI).
+"""Build i18n/app_i18n_fr.json from app_i18n_en.json (French UI).
 
 Requires: pip install deep-translator (use a venv, e.g. .venv-i18n).
 
@@ -14,6 +14,7 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+I18N_DIR = ROOT / "i18n"
 
 
 def align_placeholders(en_val: str, fr_val: str) -> str:
@@ -37,8 +38,8 @@ def main() -> None:
         )
         raise SystemExit(1) from None
 
-    en_path = ROOT / "src-tauri" / "app_i18n_en.json"
-    out_path = ROOT / "src-tauri" / "app_i18n_fr.json"
+    en_path = I18N_DIR / "app_i18n_en.json"
+    out_path = I18N_DIR / "app_i18n_fr.json"
     en: dict[str, str] = json.loads(en_path.read_text(encoding="utf-8"))
     translator = GoogleTranslator(source="en", target="fr")
 
