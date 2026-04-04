@@ -4072,6 +4072,51 @@ mod tests {
     }
 
     #[test]
+    fn test_latest_scan_id_returns_newest_audio_scan() {
+        let db = test_db();
+        let mut fc = HashMap::new();
+        fc.insert("WAV".into(), 1);
+        db.save_scan("a-old", "2024-01-01T00:00:00", 1, 100, &fc, &[])
+            .unwrap();
+        db.insert_audio_batch("a-old", &[sample("a.wav", "/a.wav", "WAV", 100)])
+            .unwrap();
+        db.save_scan("a-new", "2024-06-01T00:00:00", 1, 200, &fc, &[])
+            .unwrap();
+        db.insert_audio_batch("a-new", &[sample("b.wav", "/b.wav", "WAV", 200)])
+            .unwrap();
+        assert_eq!(db.latest_scan_id().unwrap().as_deref(), Some("a-new"));
+    }
+
+    #[test]
+    fn test_prune_old_scans_drops_oldest_audio_beyond_keep() {
+        let db = test_db();
+        let mut fc = HashMap::new();
+        fc.insert("WAV".into(), 1);
+        for (id, ts, name) in [
+            ("s1", "2024-01-01T00:00:00", "n1.wav"),
+            ("s2", "2024-02-01T00:00:00", "n2.wav"),
+            ("s3", "2024-03-01T00:00:00", "n3.wav"),
+            ("s4", "2024-04-01T00:00:00", "n4.wav"),
+        ] {
+            db.save_scan(id, ts, 1, 100, &fc, &[]).unwrap();
+            db.insert_audio_batch(
+                id,
+                &[sample(name, &format!("/{name}"), "WAV", 100)],
+            )
+            .unwrap();
+        }
+        db.prune_old_scans(2);
+        let scans = db.list_scans().unwrap();
+        assert_eq!(scans.len(), 2);
+        assert_eq!(scans[0].id, "s4");
+        assert_eq!(scans[1].id, "s3");
+        assert!(db.get_audio_scan_detail("s1").is_err());
+        assert!(db.get_audio_scan_detail("s2").is_err());
+        assert!(db.get_audio_scan_detail("s3").is_ok());
+        assert!(db.get_audio_scan_detail("s4").is_ok());
+    }
+
+    #[test]
     fn test_query_daw_multi_scan_returns_latest_only() {
         let db = test_db();
         // First (older) scan with 3 projects
