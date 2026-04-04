@@ -736,8 +736,10 @@ async function scanAudioSamples(resume = false) {
     const result = await window.vstUpdater.scanAudioSamples(audioRoots.length ? audioRoots : undefined, excludePaths);
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
     flushPendingSamples();
-    // Save scan results to SQLite
-    try { await window.vstUpdater.saveAudioScan(result.samples || [], result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_audio_history', { err: e.message || e }), 4000, 'error'); }
+    // Save scan results to SQLite (skip if stopped with partial results)
+    if (!result.stopped) {
+      try { await window.vstUpdater.saveAudioScan(result.samples || [], result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_audio_history', { err: e.message || e }), 4000, 'error'); }
+    }
     // Fetch first page from DB (no in-memory array needed)
     audioCurrentOffset = 0;
     await rebuildAudioStats();

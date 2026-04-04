@@ -347,7 +347,9 @@ async function scanPresets(resume = false) {
     filterPresets();
     // Reload MIDI tab from preset data
     if (typeof loadMidiFiles === 'function') { _midiLoaded = false; loadMidiFiles(); }
-    try { await window.vstUpdater.savePresetScan(allPresets, result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_preset_history', { err: e.message || e }), 4000, 'error'); }
+    if (!result.stopped) {
+      try { await window.vstUpdater.savePresetScan(allPresets, result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_preset_history', { err: e.message || e }), 4000, 'error'); }
+    }
     if (result.stopped && allPresets.length > 0) {
       resumeBtn.style.display = '';
     }

@@ -315,7 +315,10 @@ async function scanDawProjects(resume = false) {
     }
     rebuildDawStats();
     filterDawProjects();
-    try { await window.vstUpdater.saveDawScan(allDawProjects, result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_daw_history', { err: e.message || e }), 4000, 'error'); }
+    // Only save if scan completed fully (not stopped/aborted with partial results)
+    if (!result.stopped) {
+      try { await window.vstUpdater.saveDawScan(allDawProjects, result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_daw_history', { err: e.message || e }), 4000, 'error'); }
+    }
     if (result.stopped && allDawProjects.length > 0) {
       resumeBtn.style.display = '';
     }

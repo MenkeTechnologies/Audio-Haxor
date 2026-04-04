@@ -1043,7 +1043,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let scan_id: String = conn
             .query_row(
-                "SELECT id FROM plugin_scans ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM plugin_scans WHERE plugin_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -1163,7 +1163,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let scan_id: String = conn
             .query_row(
-                "SELECT id FROM daw_scans ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM daw_scans WHERE project_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -1300,7 +1300,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let scan_id: String = conn
             .query_row(
-                "SELECT id FROM preset_scans ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM preset_scans WHERE preset_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -1519,7 +1519,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
             .query_row(
-                "SELECT id FROM plugin_scans ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM plugin_scans WHERE plugin_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -1749,7 +1749,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
             .query_row(
-                "SELECT id FROM daw_scans ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM daw_scans WHERE project_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -1865,7 +1865,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
             .query_row(
-                "SELECT id FROM preset_scans ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM preset_scans WHERE preset_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
