@@ -8,6 +8,7 @@ function _ui(k, vars) {
 
 let _pluginOffset = 0;
 let _pluginTotalCount = 0;
+let _pluginTotalUnfiltered = 0;
 let _pluginSortKey = 'name';
 let _pluginSortAsc = true;
 
@@ -56,6 +57,7 @@ async function fetchPluginPage() {
     });
     let plugins = result.plugins || [];
     _pluginTotalCount = result.totalCount || 0;
+    _pluginTotalUnfiltered = result.totalUnfiltered || 0;
 
     // Re-sort by fzf relevance score on the frontend (SQL can only do subsequence LIKE)
     if (search && plugins.length > 1) {

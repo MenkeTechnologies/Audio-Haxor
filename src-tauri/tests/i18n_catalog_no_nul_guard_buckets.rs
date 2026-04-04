@@ -1,8 +1,5 @@
-//! Bucketed HTML-injection guards for every `i18n/app_i18n_*.json` row (mirrors
-//! `test/i18n-html-injection-guard.test.js`). Each locale map is parsed once (`OnceLock`);
-//! `bucket_id(key)` assigns keys to `BUCKETS` shards so failures name a small slice.
-//!
-//! `seq-macro` expands to `BUCKETS × 7` separate `#[test]` functions (parallel-friendly).
+//! Bucketed NUL-byte guards for every `i18n/app_i18n_*.json` value (SQLite / JSON safety).
+//! Mirrors the hygiene goal of `test/i18n-value-safety.test.js` at the Rust seed boundary.
 
 use seq_macro::seq;
 use std::collections::hash_map::DefaultHasher;
@@ -10,7 +7,7 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 
-const BUCKETS: usize = 1024;
+const BUCKETS: usize = 512;
 
 fn bucket_id(k: &str) -> usize {
     let mut h = DefaultHasher::new();
@@ -19,14 +16,9 @@ fn bucket_id(k: &str) -> usize {
 }
 
 fn guard_value(v: &str, locale: &str, key: &str) {
-    let lower = v.to_ascii_lowercase();
     assert!(
-        !lower.contains("<script"),
-        "locale `{locale}` key `{key}` must not contain `<script`"
-    );
-    assert!(
-        !lower.contains("<iframe"),
-        "locale `{locale}` key `{key}` must not contain `<iframe`"
+        !v.contains('\0'),
+        "locale `{locale}` key `{key}` must not contain NUL"
     );
 }
 
@@ -63,7 +55,7 @@ locale_map!(CELL_FR, map_fr, "app_i18n_fr.json");
 locale_map!(CELL_NL, map_nl, "app_i18n_nl.json");
 locale_map!(CELL_PT, map_pt, "app_i18n_pt.json");
 
-seq!(N in 0..1024 {
+seq!(N in 0..512 {
     #[test]
     fn en_bucket~N() {
         check_bucket(map_en(), "en", N);

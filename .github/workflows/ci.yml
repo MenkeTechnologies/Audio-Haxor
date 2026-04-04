@@ -47,8 +47,8 @@ jobs:
       - name: Run Rust tests (library)
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
-      - name: Run Rust tests (behavioral_ultra + app_i18n + i18n catalog HTML guards)
-        run: cargo test --manifest-path src-tauri/Cargo.toml --test behavioral_ultra --test app_i18n_test --test i18n_catalog_html_guard_buckets
+      - name: Run Rust tests (behavioral_ultra + app_i18n + i18n catalog seed guards)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --test behavioral_ultra --test app_i18n_test --test i18n_catalog_html_guard_buckets --test i18n_catalog_no_nul_guard_buckets
 
   build:
     needs: test

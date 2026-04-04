@@ -237,10 +237,10 @@ async function updateHeaderInfo() {
     set('headerPid', s.pid);
     // Scan counts — use DB table counts from process stats (always accurate)
     const tc = s.database?.tables || {};
-    set('headerPlugins', _pluginTotalCount || tc.plugins || 0);
+    set('headerPlugins', _pluginTotalUnfiltered || tc.plugins || 0);
     set('headerSamples', audioTotalUnfiltered || tc.audio_samples || 0);
-    set('headerDaw', _dawTotalCount || tc.daw_projects || 0);
-    set('headerPresets', _presetTotalCount || tc.presets || 0);
+    set('headerDaw', _dawTotalUnfiltered || tc.daw_projects || 0);
+    set('headerPresets', _presetTotalUnfiltered || tc.presets || 0);
     set('headerMidi', typeof getMidiCount === 'function' ? getMidiCount() : 0);
 
     // Scan status badge

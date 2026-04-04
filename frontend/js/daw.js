@@ -6,6 +6,7 @@ let dawSortAsc = true;
 let dawScanProgressCleanup = null;
 let _dawOffset = 0;
 let _dawTotalCount = 0;
+let _dawTotalUnfiltered = 0;
 
 let dawStatCounts = {};
 let dawStatBytes = 0;
@@ -38,6 +39,7 @@ async function fetchDawPage() {
       allDawProjects.push(...projects);
     }
     _dawTotalCount = result.totalCount || 0;
+    _dawTotalUnfiltered = result.totalUnfiltered || 0;
     renderDawTable();
     rebuildDawStats();
   } catch (e) {

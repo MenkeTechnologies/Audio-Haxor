@@ -186,6 +186,8 @@ pub struct PluginQueryResult {
     pub plugins: Vec<PluginRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
+    #[serde(rename = "totalUnfiltered")]
+    pub total_unfiltered: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -206,6 +208,8 @@ pub struct DawQueryResult {
     pub projects: Vec<DawRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
+    #[serde(rename = "totalUnfiltered")]
+    pub total_unfiltered: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -225,6 +229,8 @@ pub struct PresetQueryResult {
     pub presets: Vec<PresetRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
+    #[serde(rename = "totalUnfiltered")]
+    pub total_unfiltered: u64,
 }
 
 /// Current schema version — bump when adding migrations.
@@ -1054,8 +1060,18 @@ impl Database {
             return Ok(PluginQueryResult {
                 plugins: vec![],
                 total_count: 0,
+                total_unfiltered: 0,
             });
         }
+
+        // Unfiltered count for the latest scan (header total — independent of search/filter)
+        let total_unfiltered: u64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM plugins WHERE scan_id = ?1",
+                params![scan_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
 
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
@@ -1147,6 +1163,7 @@ impl Database {
         Ok(PluginQueryResult {
             plugins,
             total_count,
+            total_unfiltered,
         })
     }
 
@@ -1174,8 +1191,18 @@ impl Database {
             return Ok(DawQueryResult {
                 projects: vec![],
                 total_count: 0,
+                total_unfiltered: 0,
             });
         }
+
+        // Unfiltered count for the latest scan (header total — independent of search/filter)
+        let total_unfiltered: u64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM daw_projects WHERE scan_id = ?1",
+                params![scan_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
 
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
@@ -1284,6 +1311,7 @@ impl Database {
         Ok(DawQueryResult {
             projects,
             total_count,
+            total_unfiltered,
         })
     }
 
@@ -1311,8 +1339,18 @@ impl Database {
             return Ok(PresetQueryResult {
                 presets: vec![],
                 total_count: 0,
+                total_unfiltered: 0,
             });
         }
+
+        // Unfiltered preset count for latest scan (excludes MIDI, which is shown in its own tab)
+        let total_unfiltered: u64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM presets WHERE scan_id = ?1 AND format NOT IN ('MID', 'MIDI')",
+                params![scan_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
 
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
@@ -1421,6 +1459,7 @@ impl Database {
         Ok(PresetQueryResult {
             presets,
             total_count,
+            total_unfiltered,
         })
     }
 
@@ -3081,6 +3120,273 @@ mod tests {
         let detail = db.get_preset_scan_detail("pr1").unwrap();
         assert_eq!(detail.presets.len(), 1);
         assert_eq!(detail.presets[0].name, "bass.fxp");
+    }
+
+    // ── Header-count regression tests ──
+    //
+    // These verify that query_plugins/query_daw/query_presets return a
+    // `total_unfiltered` that reflects the *latest scan's row count* and is
+    // independent of any search/filter arguments. This is what drives the
+    // header counters and must NOT drop to 0 when a filter excludes all rows.
+
+    fn plugin_info(name: &str, ptype: &str, manufacturer: &str) -> PluginInfo {
+        PluginInfo {
+            name: name.into(),
+            path: format!("/vst/{name}.vst3"),
+            plugin_type: ptype.into(),
+            version: "1.0".into(),
+            manufacturer: manufacturer.into(),
+            manufacturer_url: None,
+            size: "1 MB".into(),
+            size_bytes: 1_000_000,
+            modified: "2024-01-01".into(),
+            architectures: vec!["arm64".into()],
+        }
+    }
+
+    #[test]
+    fn test_query_plugins_total_unfiltered_with_filter_match_none() {
+        let db = test_db();
+        let snap = ScanSnapshot {
+            id: "ps-hdr-1".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            plugin_count: 3,
+            plugins: vec![
+                plugin_info("Serum", "VST3", "Xfer"),
+                plugin_info("Vital", "VST3", "Matt Tytel"),
+                plugin_info("Massive", "VST3", "NI"),
+            ],
+            directories: vec!["/vst".into()],
+            roots: vec!["/vst".into()],
+        };
+        db.save_plugin_scan(&snap).unwrap();
+
+        // Filter that matches nothing → filtered count 0, unfiltered stays 3
+        let res = db
+            .query_plugins(Some("nonexistent_xyz"), None, "name", true, 0, 100)
+            .unwrap();
+        assert_eq!(res.total_count, 0, "filtered count should be 0");
+        assert_eq!(
+            res.total_unfiltered, 3,
+            "unfiltered header count must reflect full scan, not filter"
+        );
+        assert!(res.plugins.is_empty());
+    }
+
+    #[test]
+    fn test_query_plugins_total_unfiltered_matches_total_count_no_filter() {
+        let db = test_db();
+        let snap = ScanSnapshot {
+            id: "ps-hdr-2".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            plugin_count: 2,
+            plugins: vec![
+                plugin_info("Serum", "VST3", "Xfer"),
+                plugin_info("Vital", "VST3", "Matt Tytel"),
+            ],
+            directories: vec!["/vst".into()],
+            roots: vec!["/vst".into()],
+        };
+        db.save_plugin_scan(&snap).unwrap();
+
+        let res = db.query_plugins(None, None, "name", true, 0, 100).unwrap();
+        assert_eq!(res.total_count, 2);
+        assert_eq!(res.total_unfiltered, 2);
+    }
+
+    #[test]
+    fn test_query_plugins_total_unfiltered_empty_db() {
+        let db = test_db();
+        let res = db.query_plugins(None, None, "name", true, 0, 100).unwrap();
+        assert_eq!(res.total_count, 0);
+        assert_eq!(res.total_unfiltered, 0);
+        assert!(res.plugins.is_empty());
+    }
+
+    fn daw_project(name: &str, daw: &str) -> DawProject {
+        DawProject {
+            name: name.into(),
+            path: format!("/music/{name}"),
+            directory: "/music".into(),
+            format: "ALS".into(),
+            daw: daw.into(),
+            size: 1000,
+            size_formatted: "1 KB".into(),
+            modified: "2024-01-01".into(),
+        }
+    }
+
+    #[test]
+    fn test_query_daw_total_unfiltered_with_filter_match_none() {
+        let db = test_db();
+        let mut daw_counts = HashMap::new();
+        daw_counts.insert("Ableton".into(), 2);
+        daw_counts.insert("Logic".into(), 1);
+        let snap = DawScanSnapshot {
+            id: "ds-hdr-1".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            project_count: 3,
+            total_bytes: 3000,
+            daw_counts,
+            projects: vec![
+                daw_project("t1.als", "Ableton"),
+                daw_project("t2.als", "Ableton"),
+                daw_project("t3.logicx", "Logic"),
+            ],
+            roots: vec!["/music".into()],
+        };
+        db.save_daw_scan(&snap).unwrap();
+
+        // daw_filter that doesn't match any existing daw — filtered=0, unfiltered=3
+        let res = db
+            .query_daw(None, Some("FL Studio"), "name", true, 0, 100)
+            .unwrap();
+        assert_eq!(res.total_count, 0);
+        assert_eq!(
+            res.total_unfiltered, 3,
+            "unfiltered count must include all 3 projects in latest scan"
+        );
+    }
+
+    #[test]
+    fn test_query_daw_total_unfiltered_with_search_filter() {
+        let db = test_db();
+        let mut daw_counts = HashMap::new();
+        daw_counts.insert("Ableton".into(), 2);
+        let snap = DawScanSnapshot {
+            id: "ds-hdr-2".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            project_count: 2,
+            total_bytes: 2000,
+            daw_counts,
+            projects: vec![
+                daw_project("bassline.als", "Ableton"),
+                daw_project("drums.als", "Ableton"),
+            ],
+            roots: vec!["/music".into()],
+        };
+        db.save_daw_scan(&snap).unwrap();
+
+        // Search that only matches 1 — filtered=1, unfiltered=2
+        let res = db
+            .query_daw(Some("bass"), None, "name", true, 0, 100)
+            .unwrap();
+        assert_eq!(res.total_count, 1);
+        assert_eq!(res.total_unfiltered, 2);
+    }
+
+    #[test]
+    fn test_query_daw_total_unfiltered_empty_db() {
+        let db = test_db();
+        let res = db.query_daw(None, None, "name", true, 0, 100).unwrap();
+        assert_eq!(res.total_count, 0);
+        assert_eq!(res.total_unfiltered, 0);
+    }
+
+    fn preset_file(name: &str, fmt: &str) -> PresetFile {
+        PresetFile {
+            name: name.into(),
+            path: format!("/presets/{name}"),
+            directory: "/presets".into(),
+            format: fmt.into(),
+            size: 1000,
+            size_formatted: "1 KB".into(),
+            modified: "2024-01-01".into(),
+        }
+    }
+
+    #[test]
+    fn test_query_presets_total_unfiltered_with_filter_match_none() {
+        let db = test_db();
+        let mut format_counts = HashMap::new();
+        format_counts.insert("FXP".into(), 2);
+        let snap = PresetScanSnapshot {
+            id: "pr-hdr-1".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            preset_count: 2,
+            total_bytes: 2000,
+            format_counts,
+            presets: vec![
+                preset_file("lead.fxp", "FXP"),
+                preset_file("pad.fxp", "FXP"),
+            ],
+            roots: vec!["/presets".into()],
+        };
+        db.save_preset_scan(&snap).unwrap();
+
+        let res = db
+            .query_presets(None, Some("H2P"), "name", true, 0, 100)
+            .unwrap();
+        assert_eq!(res.total_count, 0);
+        assert_eq!(res.total_unfiltered, 2);
+    }
+
+    #[test]
+    fn test_query_presets_total_unfiltered_excludes_midi() {
+        // MIDI files live in the presets table but are shown in their own tab.
+        // `total_unfiltered` for presets must exclude MID/MIDI so the preset
+        // header count matches what the preset view actually shows.
+        let db = test_db();
+        let mut format_counts = HashMap::new();
+        format_counts.insert("FXP".into(), 1);
+        format_counts.insert("MID".into(), 2);
+        let snap = PresetScanSnapshot {
+            id: "pr-hdr-2".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            preset_count: 3,
+            total_bytes: 3000,
+            format_counts,
+            presets: vec![
+                preset_file("lead.fxp", "FXP"),
+                preset_file("song.mid", "MID"),
+                preset_file("beat.midi", "MIDI"),
+            ],
+            roots: vec!["/presets".into()],
+        };
+        db.save_preset_scan(&snap).unwrap();
+
+        let res = db.query_presets(None, None, "name", true, 0, 100).unwrap();
+        assert_eq!(
+            res.total_unfiltered, 1,
+            "MIDI files must be excluded from preset header count"
+        );
+        assert_eq!(res.total_count, 1);
+        assert!(res.presets.iter().all(|p| p.format != "MID" && p.format != "MIDI"));
+    }
+
+    #[test]
+    fn test_query_presets_total_unfiltered_with_search() {
+        let db = test_db();
+        let mut format_counts = HashMap::new();
+        format_counts.insert("FXP".into(), 3);
+        let snap = PresetScanSnapshot {
+            id: "pr-hdr-3".into(),
+            timestamp: "2024-06-01T00:00:00".into(),
+            preset_count: 3,
+            total_bytes: 3000,
+            format_counts,
+            presets: vec![
+                preset_file("bass_sub.fxp", "FXP"),
+                preset_file("bass_808.fxp", "FXP"),
+                preset_file("lead_saw.fxp", "FXP"),
+            ],
+            roots: vec!["/presets".into()],
+        };
+        db.save_preset_scan(&snap).unwrap();
+
+        let res = db
+            .query_presets(Some("bass"), None, "name", true, 0, 100)
+            .unwrap();
+        assert_eq!(res.total_count, 2);
+        assert_eq!(res.total_unfiltered, 3);
+    }
+
+    #[test]
+    fn test_query_presets_total_unfiltered_empty_db() {
+        let db = test_db();
+        let res = db.query_presets(None, None, "name", true, 0, 100).unwrap();
+        assert_eq!(res.total_count, 0);
+        assert_eq!(res.total_unfiltered, 0);
     }
 
     #[test]

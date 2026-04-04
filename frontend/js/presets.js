@@ -8,6 +8,7 @@ let PRESET_PAGE_SIZE = 500;
 let presetRenderCount = 0;
 let _presetOffset = 0;
 let _presetTotalCount = 0;
+let _presetTotalUnfiltered = 0;
 
 async function fetchPresetPage() {
   const search = document.getElementById('presetSearchInput')?.value || '';
@@ -37,6 +38,7 @@ async function fetchPresetPage() {
       allPresets.push(...presets);
     }
     _presetTotalCount = result.totalCount || 0;
+    _presetTotalUnfiltered = result.totalUnfiltered || 0;
     renderPresetTable();
     rebuildPresetStats();
   } catch (e) {
