@@ -152,6 +152,23 @@ test('es: critical prefixes preserve every English {token} substring (Rust seed_
   );
 });
 
+test('es: menu.* and tray.* appFmt token multiset matches English (native menu + tray)', () => {
+  const en = loadMap('app_i18n_en.json');
+  const es = loadMap('app_i18n_es.json');
+  const bad = [];
+  for (const k of Object.keys(en)) {
+    if (!k.startsWith('menu.') && !k.startsWith('tray.')) continue;
+    const a = JSON.stringify(ipcTokenMultiset(en[k]));
+    const b = JSON.stringify(ipcTokenMultiset(es[k]));
+    if (a !== b) bad.push({ k, en: en[k], es: es[k] });
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    `es menu/tray: ${bad.length} key(s) differ in {token} multiset vs English (first: ${bad[0]?.k ?? ''})`
+  );
+});
+
 test('English catalog defines every native menu bar key (app_i18n.rs NATIVE_MENU_BAR_KEYS)', () => {
   const en = loadMap('app_i18n_en.json');
   const missing = NATIVE_MENU_BAR_KEYS.filter((k) => {
