@@ -3038,3 +3038,158 @@ fn find_similar_three_candidates_max_two() {
     let out = find_similar(&r, &cands, 2);
     assert_eq!(out.len(), 2);
 }
+
+// ── Wave 12: radix b36 grid, KVR JSON-LD `softwareVersion`, preset/plugin/DAW diffs,
+//    Nuendo/GarageBand paths, fingerprint + find_similar ordering ──────────────────────
+
+#[test]
+fn radix_string_1296_base36_is_one_hundred() {
+    assert_eq!(radix_string(1296, 36), "100");
+}
+
+#[test]
+fn kvr_extract_version_software_version_json_ld_style() {
+    let html = r#"{"@type":"SoftwareApplication","softwareVersion":"4.5.6"}"#;
+    assert_eq!(
+        app_lib::kvr::extract_version(html).as_deref(),
+        Some("4.5.6")
+    );
+}
+
+#[test]
+fn ext_matches_nuendo_uppercase_npr_filename() {
+    assert_eq!(
+        ext_matches(Path::new("/Sessions/FilmScore/MASTER.NPR")).as_deref(),
+        Some("NPR")
+    );
+}
+
+#[test]
+fn compute_preset_diff_empty_to_three_presets() {
+    let old = build_preset_snapshot(&[], &[]);
+    let new = build_preset_snapshot(
+        &[
+            preset("/presets/a.fxp"),
+            preset("/presets/b.fxp"),
+            preset("/presets/c.fxp"),
+        ],
+        &[],
+    );
+    let d = compute_preset_diff(&old, &new);
+    assert_eq!(d.added.len(), 3);
+    assert!(d.removed.is_empty());
+}
+
+#[test]
+fn compute_plugin_diff_remove_one_add_one_different_paths() {
+    let old = build_plugin_snapshot(&[plug("/old.vst3", "1")], &[], &[]);
+    let new = build_plugin_snapshot(&[plug("/new.vst3", "1")], &[], &[]);
+    let d = compute_plugin_diff(&old, &new);
+    assert_eq!(d.removed.len(), 1);
+    assert_eq!(d.added.len(), 1);
+    assert!(d.version_changed.is_empty());
+}
+
+#[test]
+fn normalize_plugin_name_pro_q_style_preserves_version_digit() {
+    assert_eq!(
+        normalize_plugin_name("FabFilter Pro-Q 3 (VST3)"),
+        "fabfilter pro-q 3"
+    );
+}
+
+#[test]
+fn kvr_compare_versions_trailing_components_implicit_zero() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("1.0.0", "1.0"),
+        Ordering::Equal
+    );
+}
+
+#[test]
+fn find_similar_four_candidates_max_one() {
+    let r = fp("/ref.wav");
+    let cands: Vec<_> = (0..4).map(|i| fp(&format!("/c{i}.wav"))).collect();
+    let out = find_similar(&r, &cands, 1);
+    assert_eq!(out.len(), 1);
+}
+
+#[test]
+fn fingerprint_distance_rms_only_change_nonzero() {
+    let a = fp("/a.wav");
+    let mut b = fp("/b.wav");
+    b.rms = 0.99;
+    assert!(fingerprint_distance(&a, &b) > 0.01);
+}
+
+#[test]
+fn compute_daw_diff_replace_one_project_same_count() {
+    let old = build_daw_snapshot(&[dawproj("/one.dawproject")], &[]);
+    let mut p = dawproj("/other.dawproject");
+    p.name = "other".into();
+    let new = build_daw_snapshot(&[p], &[]);
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.added.len(), 1);
+    assert_eq!(d.removed.len(), 1);
+}
+
+#[test]
+fn kvr_compare_versions_leading_zeros_in_component_equal() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("1.0", "1.00"),
+        Ordering::Equal
+    );
+}
+
+#[test]
+fn kvr_parse_version_triple_plus_non_numeric_segment_zero() {
+    assert_eq!(app_lib::kvr::parse_version("+++"), vec![0]);
+}
+
+#[test]
+fn ext_matches_garageband_band_uppercase() {
+    assert_eq!(
+        ext_matches(Path::new("/Mobile/Grooves/BEAT.BAND")).as_deref(),
+        Some("BAND")
+    );
+}
+
+#[test]
+fn compute_plugin_diff_version_changed_and_added_in_same_diff() {
+    let old = build_plugin_snapshot(&[plug("/keep.vst3", "1.0")], &[], &[]);
+    let new = build_plugin_snapshot(
+        &[plug("/keep.vst3", "2.0"), plug("/extra.vst3", "1")],
+        &[],
+        &[],
+    );
+    let d = compute_plugin_diff(&old, &new);
+    assert_eq!(d.version_changed.len(), 1);
+    assert_eq!(d.added.len(), 1);
+}
+
+#[test]
+fn format_size_quarter_tebibyte() {
+    let s = app_lib::format_size(256 * 1024_u64.pow(4));
+    assert!(s.contains("TB"), "{s}");
+}
+
+#[test]
+fn kvr_parse_version_single_dot_only() {
+    assert_eq!(app_lib::kvr::parse_version("."), vec![0, 0]);
+}
+
+#[test]
+fn find_similar_picks_lowest_distance_path_first() {
+    let r = fp("/ref.wav");
+    let mut close = fp("/close.wav");
+    close.rms = r.rms + 0.001;
+    let mut far = fp("/far.wav");
+    far.rms = 0.99;
+    let out = find_similar(&r, &[close, far], 1);
+    assert_eq!(out.len(), 1);
+    assert!(
+        out[0].0.contains("close"),
+        "expected nearest fingerprint path, got {:?}",
+        out[0].0
+    );
+}
