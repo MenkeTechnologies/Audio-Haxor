@@ -29,6 +29,7 @@ fn plug(path: &str, ver: &str) -> PluginInfo {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn fp(
     path: &str,
     rms: f64,
@@ -495,7 +496,6 @@ fn format_size_two_tb_unit() {
 #[test]
 fn radix_string_one_million_base_7() {
     let s = radix_string(1_000_000, 7);
-    assert_eq!(s.len() >= 1, true);
     assert!(!s.is_empty());
 }
 

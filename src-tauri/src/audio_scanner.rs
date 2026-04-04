@@ -579,6 +579,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::io::Write;
+    use std::slice::from_ref;
 
     #[test]
     fn test_format_size() {
@@ -637,7 +638,7 @@ mod tests {
 
         let mut total = 0usize;
         walk_for_audio(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |_batch, count| {
                 total = count;
             },
@@ -659,7 +660,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_audio(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -681,7 +682,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_audio(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -704,7 +705,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_audio(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -728,7 +729,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_audio(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -830,7 +831,7 @@ mod tests {
         buf[25] = 0x44;
         // bytes 26-41: MD5 (zeros, already set)
 
-        fs::write(&flac_path, &buf).unwrap();
+        fs::write(&flac_path, buf).unwrap();
 
         let meta = get_audio_metadata(flac_path.to_str().unwrap());
         assert_eq!(meta.format, "FLAC");
@@ -858,7 +859,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_audio(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -885,7 +886,7 @@ mod tests {
 
         let mut batch_call_count = 0usize;
         walk_for_audio(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |_batch, _count| {
                 batch_call_count += 1;
             },
@@ -917,7 +918,7 @@ mod tests {
 
             let mut found = Vec::new();
             walk_for_audio(
-                &[tmp.clone()],
+                from_ref(&tmp),
                 &mut |batch, _count| {
                     found.extend_from_slice(batch);
                 },
@@ -1005,7 +1006,7 @@ mod tests {
         let path = tmp.join("garbage.wav");
         fs::write(
             &path,
-            &[
+            [
                 0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33, 0xAA, 0xBB, 0xCC, 0xDD, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

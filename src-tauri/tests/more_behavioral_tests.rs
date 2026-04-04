@@ -198,6 +198,6 @@ fn find_similar_skips_candidate_with_same_path_as_reference() {
         low_energy_ratio: 0.4,
         attack_time: 0.01,
     };
-    let out = find_similar(&fp, &[fp.clone()], 5);
+    let out = find_similar(&fp, std::slice::from_ref(&fp), 5);
     assert!(out.is_empty());
 }

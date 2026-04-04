@@ -272,6 +272,7 @@ fn walk_dir_parallel(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::slice::from_ref;
 
     #[test]
     fn test_preset_extensions_complete() {
@@ -353,7 +354,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_presets(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -377,7 +378,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_presets(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -408,7 +409,7 @@ mod tests {
         let s2 = stop_after.clone();
 
         walk_for_presets(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 c2.fetch_add(batch.len(), std::sync::atomic::Ordering::Relaxed);
                 s2.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -436,7 +437,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_presets(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -462,7 +463,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_presets(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| found.extend_from_slice(batch),
             &|| false,
             None,
@@ -507,7 +508,7 @@ mod tests {
 
         let mut total = 0usize;
         walk_for_presets(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, count| {
                 assert!(!batch.is_empty());
                 total = count;

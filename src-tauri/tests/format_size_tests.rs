@@ -372,7 +372,7 @@ mod format_size_stability_tests {
     #[test]
     fn test_format_size_consistency() {
         // Run multiple times and ensure consistent results
-        let test_values = vec![
+        let test_values = [
             0u64,
             1,
             1024,

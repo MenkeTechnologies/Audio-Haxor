@@ -1,8 +1,6 @@
 //! Export/Import functionality tests
 //! Tests JSON, TOML, CSV, TSV, PDF exports and import validation
 
-use serde_json;
-
 /// Test JSON export of plugins
 #[test]
 fn test_export_json_valid() {
@@ -87,7 +85,7 @@ fn test_export_csv_format() {
     let mut file = std::fs::File::create(base.join("plugins.csv")).unwrap();
     writeln!(file, "{}", csv_content).unwrap();
 
-    let content = std::fs::read_to_string(&base.join("plugins.csv")).unwrap();
+    let content = std::fs::read_to_string(base.join("plugins.csv")).unwrap();
     assert!(content.contains("name,path,type,version"));
 
     let _ = std::fs::remove_dir_all(&base);
@@ -160,13 +158,13 @@ fn test_import_csv_validation() {
 
     let _csv_content = "name,path,type,version,manufacturer,size,modified,architectures\n";
     writeln!(
-        std::fs::File::create(&base.join("plugins.csv")).unwrap(),
+        std::fs::File::create(base.join("plugins.csv")).unwrap(),
         "TestVST,/test/plugin.vst3,VST3,1.0,Test,1 MB,2024-01-01,[x86_64]\n",
     )
     .unwrap();
 
     // Test that CSV parsing would succeed
-    let content = std::fs::read_to_string(&base.join("plugins.csv")).unwrap();
+    let content = std::fs::read_to_string(base.join("plugins.csv")).unwrap();
     assert!(content.contains("TestVST"));
 
     let _ = std::fs::remove_dir_all(&base);

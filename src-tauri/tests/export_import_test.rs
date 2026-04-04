@@ -62,49 +62,48 @@ fn test_export_plugin_with_and_without_url() {
 
 #[test]
 fn test_payload_with_multiple_plugins() {
-    let mut plugins = Vec::new();
-
-    // First plugin - VST2
-    plugins.push(ExportPlugin {
-        name: "ReaEQ".to_string(),
-        plugin_type: "VST2".to_string(),
-        version: "6.01".to_string(),
-        manufacturer: "Cocktail Cubes".to_string(),
-        manufacturer_url: None,
-        path: "/vst/ReaEQ.vst".to_string(),
-        size: "0.5 MB".to_string(),
-        size_bytes: 524_288,
-        modified: "2024-01-01".to_string(),
-        architectures: vec!["x86_64".to_string()],
-    });
-
-    // Second plugin - VST3
-    plugins.push(ExportPlugin {
-        name: "Valhalla VintageVerb".to_string(),
-        plugin_type: "VST3".to_string(),
-        version: "3.3.4".to_string(),
-        manufacturer: "Valhalla DSP".to_string(),
-        manufacturer_url: Some("https://valhalladsp.com".to_string()),
-        path: "/vst3/Valhalla VintageVerb.vst3".to_string(),
-        size: "15.2 MB".to_string(),
-        size_bytes: 15_938_304,
-        modified: "2024-01-01".to_string(),
-        architectures: vec!["x86_64".to_string(), "arm64".to_string()],
-    });
-
-    // Third plugin - AU
-    plugins.push(ExportPlugin {
-        name: "Softube Tube-Tech".to_string(),
-        plugin_type: "AU".to_string(),
-        version: "1.0.0".to_string(),
-        manufacturer: "Softube".to_string(),
-        manufacturer_url: Some("https://softube.com".to_string()),
-        path: "/components/Tube-Tech.component".to_string(),
-        size: "2.1 MB".to_string(),
-        size_bytes: 2_202_009,
-        modified: "2024-01-01".to_string(),
-        architectures: vec!["arm64".to_string()],
-    });
+    let plugins = [
+        // First plugin - VST2
+        ExportPlugin {
+            name: "ReaEQ".to_string(),
+            plugin_type: "VST2".to_string(),
+            version: "6.01".to_string(),
+            manufacturer: "Cocktail Cubes".to_string(),
+            manufacturer_url: None,
+            path: "/vst/ReaEQ.vst".to_string(),
+            size: "0.5 MB".to_string(),
+            size_bytes: 524_288,
+            modified: "2024-01-01".to_string(),
+            architectures: vec!["x86_64".to_string()],
+        },
+        // Second plugin - VST3
+        ExportPlugin {
+            name: "Valhalla VintageVerb".to_string(),
+            plugin_type: "VST3".to_string(),
+            version: "3.3.4".to_string(),
+            manufacturer: "Valhalla DSP".to_string(),
+            manufacturer_url: Some("https://valhalladsp.com".to_string()),
+            path: "/vst3/Valhalla VintageVerb.vst3".to_string(),
+            size: "15.2 MB".to_string(),
+            size_bytes: 15_938_304,
+            modified: "2024-01-01".to_string(),
+            architectures: vec!["x86_64".to_string(), "arm64".to_string()],
+        },
+        // Third plugin - AU
+        ExportPlugin {
+            name: "Softube Tube-Tech".to_string(),
+            plugin_type: "AU".to_string(),
+            version: "1.0.0".to_string(),
+            manufacturer: "Softube".to_string(),
+            manufacturer_url: Some("https://softube.com".to_string()),
+            path: "/components/Tube-Tech.component".to_string(),
+            size: "2.1 MB".to_string(),
+            size_bytes: 2_202_009,
+            modified: "2024-01-01".to_string(),
+            architectures: vec!["arm64".to_string()],
+        },
+    ];
 
     assert_eq!(plugins.len(), 3);
 }
+

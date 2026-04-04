@@ -173,8 +173,10 @@ fn format_size_1025_bytes_shows_kb_not_exactly_one() {
 
 #[test]
 fn midi_info_channels_used_in_json() {
-    let mut m = app_lib::midi::MidiInfo::default();
-    m.channels_used = 16;
+    let m = app_lib::midi::MidiInfo {
+        channels_used: 16,
+        ..Default::default()
+    };
     let v = serde_json::to_value(&m).unwrap();
     assert_eq!(v["channelsUsed"], 16);
 }

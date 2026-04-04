@@ -50,6 +50,9 @@ pub fn global() -> &'static Database {
     GLOBAL_DB.get().expect("Database not initialized")
 }
 
+/// One row for [`Database::batch_update_analysis`]: path, BPM, musical key, LUFS.
+pub type AnalysisBatchRow = (String, Option<f64>, Option<String>, Option<f64>);
+
 /// Wraps a SQLite connection with WAL mode for concurrent reads.
 pub struct Database {
     conn: Mutex<Connection>,
@@ -1111,7 +1114,7 @@ impl Database {
             rows.next().map_err(|e| e.to_string())?.map(|r| r.get::<_, u64>(0).unwrap_or(0)).unwrap_or(0)
         };
 
-        let mut bi = 1usize;
+        let mut bi;
         let mut bind_offset = 2usize;
         if search_pat.is_some() { bind_offset += 1; }
         if type_filter.map(|t| !t.is_empty() && t != "all").unwrap_or(false) { bind_offset += 1; }
@@ -2236,7 +2239,7 @@ impl Database {
     /// Batch update BPM/Key/LUFS for multiple files in a single transaction.
     pub fn batch_update_analysis(
         &self,
-        results: &[(String, Option<f64>, Option<String>, Option<f64>)],
+        results: &[AnalysisBatchRow],
     ) -> Result<u32, String> {
         let conn = self.conn.lock().unwrap();
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;

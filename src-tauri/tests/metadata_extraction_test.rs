@@ -11,7 +11,7 @@ fn test_get_audio_metadata_nonexistent() {
 fn test_get_audio_metadata_temp_wav_header_only() {
     let temp = std::env::temp_dir().join("audio_haxor_meta_short.wav");
     // Minimal 44-byte WAV header shell (may not decode duration)
-    std::fs::write(&temp, &vec![0u8; 44]).unwrap();
+    std::fs::write(&temp, vec![0u8; 44]).unwrap();
     let m = app_lib::audio_scanner::get_audio_metadata(&temp.to_string_lossy());
     assert!(m.full_path.contains("audio_haxor_meta_short"));
     assert!(m.file_name.contains("audio_haxor_meta_short"));

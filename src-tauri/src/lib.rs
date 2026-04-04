@@ -1203,9 +1203,9 @@ async fn measure_lufs(file_path: String) -> Result<Option<f64>, String> {
 /// Returns count of successfully analyzed files.
 #[tauri::command]
 async fn batch_analyze(paths: Vec<String>) -> Result<u32, String> {
-    Ok(tokio::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         use rayon::prelude::*;
-        let results: Vec<(String, Option<f64>, Option<String>, Option<f64>)> = paths
+        let results: Vec<db::AnalysisBatchRow> = paths
             .par_iter()
             .map(|path| {
                 let bpm_val = bpm::estimate_bpm(path);
@@ -1218,7 +1218,7 @@ async fn batch_analyze(paths: Vec<String>) -> Result<u32, String> {
         db::global().batch_update_analysis(&results).unwrap_or(0)
     })
     .await
-    .map_err(|e| e.to_string())?)
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

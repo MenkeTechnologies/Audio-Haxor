@@ -252,8 +252,8 @@ fn compute_daw_diff_swap_projects() {
         size_formatted: "2 B".into(),
         modified: "m".into(),
     };
-    let old = build_daw_snapshot(&[a.clone()], &[]);
-    let new = build_daw_snapshot(&[b.clone()], &[]);
+    let old = build_daw_snapshot(std::slice::from_ref(&a), &[]);
+    let new = build_daw_snapshot(std::slice::from_ref(&b), &[]);
     let d = compute_daw_diff(&old, &new);
     assert_eq!(d.removed.len(), 1);
     assert_eq!(d.added.len(), 1);

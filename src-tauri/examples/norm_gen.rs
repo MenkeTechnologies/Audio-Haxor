@@ -48,8 +48,6 @@ fn main() {
         for s in suffixes {
             if s.is_empty() {
                 inputs.push(b.to_string());
-            } else if s.starts_with('(') || s.starts_with('[') {
-                inputs.push(format!("{b} {s}"));
             } else {
                 inputs.push(format!("{b} {s}"));
             }

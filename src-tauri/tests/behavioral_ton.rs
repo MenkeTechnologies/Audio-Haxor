@@ -28,6 +28,7 @@ fn plug(path: &str, ver: &str) -> PluginInfo {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn fp_full(
     path: &str,
     rms: f64,

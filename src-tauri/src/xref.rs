@@ -355,13 +355,12 @@ fn extract_plugins_utf16le(data: &[u8]) -> Vec<PluginRef> {
         let lo = data[start];
         let hi = data[start + 1];
         // Check if this looks like a printable ASCII char in UTF-16LE (lo=printable, hi=0)
-        if hi == 0 && lo >= 0x20 && lo <= 0x7E {
+        if hi == 0 && (0x20..=0x7E).contains(&lo) {
             let run_start = start;
             let mut end = start;
             while end + 1 < data.len()
                 && data[end + 1] == 0
-                && data[end] >= 0x20
-                && data[end] <= 0x7E
+                && (0x20..=0x7E).contains(&data[end])
             {
                 end += 2;
             }
@@ -450,7 +449,7 @@ fn extract_logic_plugin_names(data: &[u8]) -> Vec<PluginRef> {
     let mut current = Vec::new();
     let mut found_names = std::collections::HashSet::new();
     for &byte in data {
-        if byte >= 0x20 && byte <= 0x7E {
+        if (0x20..=0x7E).contains(&byte) {
             current.push(byte);
         } else {
             if current.len() >= 3 && current.len() <= 64 {
@@ -577,7 +576,7 @@ fn extract_au_identifiers(data: &[u8]) -> Vec<PluginRef> {
     let mut current = Vec::new();
     // Look for readable strings that could be AU plugin names
     for &byte in data {
-        if byte >= 0x20 && byte <= 0x7E {
+        if (0x20..=0x7E).contains(&byte) {
             current.push(byte);
         } else {
             if current.len() >= 4 {

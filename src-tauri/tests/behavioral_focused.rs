@@ -124,7 +124,7 @@ fn build_plugin_snapshot_empty_has_zero_count_and_roots() {
 fn compute_plugin_diff_empty_to_one_marks_added_only() {
     let old = build_plugin_snapshot(&[], &[], &[]);
     let p = sample_plugin("/Plugins/X.vst3", "1.0");
-    let new = build_plugin_snapshot(&[p.clone()], &[], &[]);
+    let new = build_plugin_snapshot(std::slice::from_ref(&p), &[], &[]);
     let d = compute_plugin_diff(&old, &new);
     assert_eq!(d.added.len(), 1);
     assert_eq!(d.added[0].path, p.path);
@@ -156,7 +156,7 @@ fn compute_plugin_diff_version_change_requires_both_non_unknown() {
 #[test]
 fn compute_plugin_diff_swap_old_new_produces_added_removed_swap() {
     let p = sample_plugin("/only.vst3", "1.0");
-    let full = build_plugin_snapshot(&[p.clone()], &[], &[]);
+    let full = build_plugin_snapshot(std::slice::from_ref(&p), &[], &[]);
     let empty = build_plugin_snapshot(&[], &[], &[]);
     let d = compute_plugin_diff(&full, &empty);
     assert_eq!(d.removed.len(), 1);

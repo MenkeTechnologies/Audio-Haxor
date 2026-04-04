@@ -52,7 +52,7 @@ fn test_command_layer_sort_plugins() {
     plugins.insert("Banana VST".to_string(), "/plugin3.vst".to_string());
 
     let mut sorted: Vec<String> = plugins.keys().cloned().collect();
-    sorted.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    sorted.sort_by_key(|a| a.to_lowercase());
 
     // Check alphabetical order (case-insensitive sort, original casing preserved)
     assert!(sorted[0].to_lowercase().contains("apple"));

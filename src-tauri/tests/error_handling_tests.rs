@@ -85,7 +85,7 @@ fn test_similarity_non_audio_file() {
 
     let result = non_audio
         .to_str()
-        .and_then(|p| similarity::compute_fingerprint(p));
+        .and_then(similarity::compute_fingerprint);
     assert!(result.is_none(), "Should return None for non-audio files");
 }
 

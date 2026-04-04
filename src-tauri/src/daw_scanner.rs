@@ -440,6 +440,7 @@ fn walk_dir_parallel(
 mod tests {
     use super::*;
     use std::fs;
+    use std::slice::from_ref;
 
     #[test]
     fn test_format_size() {
@@ -532,7 +533,7 @@ mod tests {
 
         let mut total = 0usize;
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |_batch, count| {
                 total = count;
             },
@@ -555,7 +556,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -582,7 +583,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -608,7 +609,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -632,7 +633,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -663,7 +664,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _count| {
                 found.extend_from_slice(batch);
             },
@@ -691,7 +692,7 @@ mod tests {
 
         let mut batch_call_count = 0usize;
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |_batch, _count| {
                 batch_call_count += 1;
             },
@@ -723,7 +724,7 @@ mod tests {
 
             let mut found = Vec::new();
             walk_for_daw(
-                &[tmp.clone()],
+                from_ref(&tmp),
                 &mut |batch, _count| {
                     found.extend_from_slice(batch);
                 },
@@ -754,7 +755,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _| {
                 found.extend_from_slice(batch);
             },
@@ -785,7 +786,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _| {
                 found.extend_from_slice(batch);
             },
@@ -814,7 +815,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _| {
                 found.extend_from_slice(batch);
             },
@@ -838,7 +839,7 @@ mod tests {
 
         let mut found = Vec::new();
         walk_for_daw(
-            &[tmp.clone()],
+            from_ref(&tmp),
             &mut |batch, _| {
                 found.extend_from_slice(batch);
             },

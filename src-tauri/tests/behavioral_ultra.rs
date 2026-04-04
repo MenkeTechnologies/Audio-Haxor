@@ -1156,7 +1156,7 @@ fn is_package_ext_not_a_package_wav() {
 #[test]
 fn compute_preset_diff_same_file_twice_no_dup_added() {
     let p = preset("/one.fxp");
-    let s = build_preset_snapshot(&[p.clone()], &[]);
+    let s = build_preset_snapshot(std::slice::from_ref(&p), &[]);
     let d = compute_preset_diff(&s, &s);
     assert!(d.added.is_empty() && d.removed.is_empty());
 }
@@ -1209,7 +1209,7 @@ fn find_similar_sorts_by_distance() {
 #[test]
 fn kvr_parse_version_with_trailing_nonnumeric_stripped() {
     let v = app_lib::kvr::parse_version("2.0beta");
-    assert!(v.len() >= 1);
+    assert!(!v.is_empty());
     assert_eq!(v[0], 2);
 }
 
@@ -1746,6 +1746,17 @@ fn compute_daw_diff_one_added_project() {
 }
 
 #[test]
+fn compute_daw_diff_two_removed_one_added_net() {
+    let a = dawproj("/a.dawproject");
+    let b = dawproj("/b.dawproject");
+    let old = build_daw_snapshot(&[a, b], &[]);
+    let new = build_daw_snapshot(&[dawproj("/c.dawproject")], &[]);
+    let d = compute_daw_diff(&old, &new);
+    assert_eq!(d.removed.len(), 2);
+    assert_eq!(d.added.len(), 1);
+}
+
+#[test]
 fn compute_daw_diff_two_removed_both() {
     let a = dawproj("/a.dawproject");
     let b = dawproj("/b.dawproject");
@@ -1914,7 +1925,7 @@ fn plugin_info_json_preserves_path_with_spaces() {
 #[test]
 fn compute_audio_diff_roots_change_only_same_samples() {
     let s = sample("/x.wav");
-    let a = build_audio_snapshot(&[s.clone()], &["/r1".into()]);
+    let a = build_audio_snapshot(std::slice::from_ref(&s), &["/r1".into()]);
     let b = build_audio_snapshot(&[s], &["/r2".into()]);
     let d = compute_audio_diff(&a, &b);
     assert!(d.added.is_empty() && d.removed.is_empty());
@@ -1923,7 +1934,7 @@ fn compute_audio_diff_roots_change_only_same_samples() {
 #[test]
 fn compute_preset_diff_identical_lists() {
     let p = preset("/z.fxp");
-    let old = build_preset_snapshot(&[p.clone()], &[]);
+    let old = build_preset_snapshot(std::slice::from_ref(&p), &[]);
     let new = build_preset_snapshot(&[p], &[]);
     let d = compute_preset_diff(&old, &new);
     assert!(d.added.is_empty() && d.removed.is_empty());
@@ -2189,7 +2200,7 @@ fn ext_matches_bwproject_trailing_path() {
 #[test]
 fn compute_daw_diff_identical_projects_noop() {
     let p = dawproj("/same.dawproject");
-    let s = build_daw_snapshot(&[p.clone()], &[]);
+    let s = build_daw_snapshot(std::slice::from_ref(&p), &[]);
     let d = compute_daw_diff(&s, &s);
     assert!(d.added.is_empty() && d.removed.is_empty());
 }
@@ -2564,8 +2575,8 @@ fn compute_daw_diff_swap_two_projects_same_count() {
     let a = dawproj("/one.dawproject");
     let mut b = dawproj("/two.dawproject");
     b.name = "q".into();
-    let old = build_daw_snapshot(&[a.clone()], &[]);
-    let new = build_daw_snapshot(&[b.clone()], &[]);
+    let old = build_daw_snapshot(std::slice::from_ref(&a), &[]);
+    let new = build_daw_snapshot(std::slice::from_ref(&b), &[]);
     let d = compute_daw_diff(&old, &new);
     assert_eq!(d.added.len(), 1);
     assert_eq!(d.removed.len(), 1);
@@ -2630,7 +2641,7 @@ fn kvr_parse_version_double_dot_empty_segments_zero() {
 #[test]
 fn compute_audio_diff_identical_snapshots_empty_diff() {
     let s = sample("/x.wav");
-    let snap = build_audio_snapshot(&[s.clone()], &[]);
+    let snap = build_audio_snapshot(std::slice::from_ref(&s), &[]);
     let d = compute_audio_diff(&snap, &snap);
     assert!(d.added.is_empty());
     assert!(d.removed.is_empty());
@@ -3584,4 +3595,115 @@ fn compute_preset_diff_swap_three_presets_rotated() {
     );
     let d = compute_preset_diff(&old, &new);
     assert!(d.added.is_empty() && d.removed.is_empty());
+}
+
+// ── Wave 16: radix 36⁶, xref missing `.cpr`, `format_size` 100 MiB, `find_similar` 5/7,
+//    low-band fingerprint, five-sample audio add, KVR leading-zero compare ─────────────
+
+#[test]
+fn radix_string_2176782336_base36_is_one_million() {
+    assert_eq!(radix_string(2_176_782_336, 36), "1000000");
+}
+
+#[test]
+fn extract_plugins_nonexistent_cpr_returns_empty() {
+    let p = std::env::temp_dir().join("audio_haxor_missing_cpr.cpr");
+    assert!(extract_plugins(p.to_str().expect("utf8 temp path")).is_empty());
+}
+
+#[test]
+fn format_size_exactly_100_mebibytes() {
+    assert_eq!(app_lib::format_size(100 * 1024 * 1024), "100.0 MB");
+}
+
+#[test]
+fn find_similar_seven_candidates_max_five() {
+    let r = fp("/ref.wav");
+    let cands: Vec<_> = (0..7).map(|i| fp(&format!("/c{i}.wav"))).collect();
+    let out = find_similar(&r, &cands, 5);
+    assert_eq!(out.len(), 5);
+}
+
+#[test]
+fn fingerprint_distance_low_band_energy_only_change_nonzero() {
+    let a = fp("/a.wav");
+    let mut b = fp("/b.wav");
+    b.low_band_energy = 0.92;
+    assert!(fingerprint_distance(&a, &b) > 0.01);
+}
+
+#[test]
+fn compute_audio_diff_empty_to_five_samples_added() {
+    let samples: Vec<_> = (0..5)
+        .map(|i| sample(&format!("/s{i}.wav")))
+        .collect();
+    let old = build_audio_snapshot(&[], &[]);
+    let new = build_audio_snapshot(&samples, &[]);
+    let d = compute_audio_diff(&old, &new);
+    assert_eq!(d.added.len(), 5);
+}
+
+#[test]
+fn kvr_compare_versions_leading_zeros_each_component_equal() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("01.02.03", "1.2.3"),
+        Ordering::Equal
+    );
+}
+
+#[test]
+fn ext_matches_reaper_rpp_lowercase_deep_path() {
+    assert_eq!(
+        ext_matches(Path::new("/home/user/ReaperProjects/2025/mix_final.rpp")).as_deref(),
+        Some("RPP")
+    );
+}
+
+#[test]
+fn normalize_plugin_name_mono_then_au_parens() {
+    assert_eq!(
+        normalize_plugin_name("Channel Strip (Mono) (AU)"),
+        "channel strip"
+    );
+}
+
+#[test]
+fn compute_preset_diff_remove_two_keep_one_preset() {
+    let old = build_preset_snapshot(
+        &[preset("/a.fxp"), preset("/b.fxp"), preset("/c.fxp")],
+        &[],
+    );
+    let new = build_preset_snapshot(&[preset("/b.fxp")], &[]);
+    let d = compute_preset_diff(&old, &new);
+    assert_eq!(d.removed.len(), 2);
+    assert!(d.added.is_empty());
+}
+
+#[test]
+fn compute_plugin_diff_one_removed_two_added_same_diff() {
+    let old = build_plugin_snapshot(&[plug("/gone.vst3", "1")], &[], &[]);
+    let new = build_plugin_snapshot(
+        &[plug("/new1.vst3", "1"), plug("/new2.vst3", "1")],
+        &[],
+        &[],
+    );
+    let d = compute_plugin_diff(&old, &new);
+    assert_eq!(d.removed.len(), 1);
+    assert_eq!(d.added.len(), 2);
+}
+
+#[test]
+fn kvr_compare_versions_first_component_tie_breaks_second() {
+    assert_eq!(
+        app_lib::kvr::compare_versions("1.9", "1.10"),
+        Ordering::Less
+    );
+}
+
+#[test]
+fn ext_matches_nuendo_npr_lowercase_filename() {
+    assert_eq!(
+        ext_matches(Path::new("/Sessions/Film/nuendo_master.npr")).as_deref(),
+        Some("NPR")
+    );
 }

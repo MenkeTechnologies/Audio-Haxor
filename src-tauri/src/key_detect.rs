@@ -550,7 +550,7 @@ mod tests {
         let chroma = compute_chromagram(&samples, sr);
         for (i, &v) in chroma.iter().enumerate() {
             assert!(
-                v >= 0.0 && v <= 1.0,
+                (0.0..=1.0).contains(&v),
                 "chroma bin {} should be [0,1], got {}",
                 i,
                 v

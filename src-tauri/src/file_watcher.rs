@@ -84,6 +84,12 @@ pub struct FileWatcherState {
     watched_dirs: Mutex<Vec<String>>,
 }
 
+impl Default for FileWatcherState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FileWatcherState {
     pub fn new() -> Self {
         Self {
@@ -169,10 +175,11 @@ pub fn start_watching(
     let mut watched = Vec::new();
     for dir in &dirs {
         let path = Path::new(dir);
-        if path.exists() && path.is_dir() {
-            if watcher.watch(path, RecursiveMode::Recursive).is_ok() {
-                watched.push(dir.clone());
-            }
+        if path.exists()
+            && path.is_dir()
+            && watcher.watch(path, RecursiveMode::Recursive).is_ok()
+        {
+            watched.push(dir.clone());
         }
     }
 

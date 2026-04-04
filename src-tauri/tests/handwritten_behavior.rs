@@ -157,8 +157,10 @@ fn midi_info_default_matches_derive_defaults() {
 
 #[test]
 fn midi_info_serializes_track_names_array() {
-    let mut m = app_lib::midi::MidiInfo::default();
-    m.track_names = vec!["Drums".into(), "Bass".into()];
+    let m = app_lib::midi::MidiInfo {
+        track_names: vec!["Drums".into(), "Bass".into()],
+        ..Default::default()
+    };
     let v = serde_json::to_value(&m).unwrap();
     assert_eq!(v["trackNames"].as_array().unwrap().len(), 2);
 }

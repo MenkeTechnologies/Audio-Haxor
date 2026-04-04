@@ -145,21 +145,21 @@ fn handcrafted_compare_versions_strict_total_order_on_chain() {
         "20000.0.0",
         "30000.1",
     ];
-    for i in 0..CHAIN.len() {
-        for j in (i + 1)..CHAIN.len() {
+    for (i, a) in CHAIN.iter().enumerate() {
+        for b in CHAIN.iter().skip(i + 1) {
             assert_eq!(
-                app_lib::kvr::compare_versions(CHAIN[i], CHAIN[j]),
+                app_lib::kvr::compare_versions(a, b),
                 Ordering::Less,
                 "{} < {}",
-                CHAIN[i],
-                CHAIN[j]
+                a,
+                b
             );
             assert_eq!(
-                app_lib::kvr::compare_versions(CHAIN[j], CHAIN[i]),
+                app_lib::kvr::compare_versions(b, a),
                 Ordering::Greater,
                 "{} > {}",
-                CHAIN[j],
-                CHAIN[i]
+                b,
+                a
             );
         }
     }
