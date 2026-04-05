@@ -604,7 +604,9 @@ async function renderCacheFilesList() {
   try {
     const files = await window.vstUpdater.listDataFiles();
     if (files.length === 0) {
-      container.innerHTML = `<div style="color:var(--text-dim);padding:8px;">${typeof appFmt === 'function' ? appFmt('ui.settings.cache_files_empty') : 'No data files found'}</div>`;
+      const msg = typeof appFmt === 'function' ? appFmt('ui.settings.cache_files_empty') : 'No data files found';
+      const esc = typeof escapeHtml === 'function' ? escapeHtml : (s) => String(s);
+      container.innerHTML = `<div class="state-message"><div class="state-icon">&#128193;</div><h2>${esc(msg)}</h2></div>`;
       return;
     }
     const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
@@ -1484,7 +1486,7 @@ function restoreSettings() {
   const localeSel = document.getElementById('settingUiLocale');
   if (
     localeSel &&
-    (uiLoc === 'de' || uiLoc === 'es' || uiLoc === 'sv' || uiLoc === 'fr' || uiLoc === 'nl' || uiLoc === 'pt' || uiLoc === 'it' || uiLoc === 'el' || uiLoc === 'en')
+    (uiLoc === 'de' || uiLoc === 'es' || uiLoc === 'sv' || uiLoc === 'fr' || uiLoc === 'nl' || uiLoc === 'pt' || uiLoc === 'it' || uiLoc === 'el' || uiLoc === 'pl' || uiLoc === 'en')
   ) {
     localeSel.value = uiLoc;
   }

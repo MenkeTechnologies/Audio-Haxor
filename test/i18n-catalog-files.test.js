@@ -22,6 +22,7 @@ const SHIPPED_APP_I18N = [
   'app_i18n_fr.json',
   'app_i18n_it.json',
   'app_i18n_nl.json',
+  'app_i18n_pl.json',
   'app_i18n_pt.json',
   'app_i18n_sv.json',
 ];

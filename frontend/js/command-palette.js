@@ -38,6 +38,7 @@ function collectPaletteItems() {
   items.push({ type: 'action', name: appFmt('menu.stop_pdf_scan'), icon: '&#9632;', action: () => { if (typeof stopPdfScan === 'function') stopPdfScan(); } });
   items.push({ type: 'action', name: appFmt('menu.export_pdfs'), icon: '&#8615;', action: () => { if (typeof exportPdfs === 'function') exportPdfs(); } });
   items.push({ type: 'action', name: appFmt('menu.import_pdfs'), icon: '&#8613;', action: () => { if (typeof importPdfs === 'function') importPdfs(); } });
+  items.push({ type: 'action', name: 'Extract PDF page counts', icon: '&#128196;', action: () => { if (typeof buildPdfPagesCache === 'function') buildPdfPagesCache(); } });
   items.push({ type: 'action', name: appFmt('menu.build_fingerprint_cache'), icon: '&#127925;', action: () => {
     const paths = (typeof allAudioSamples !== 'undefined' ? allAudioSamples : []).map(s => s.path);
     if (paths.length === 0) { showToast(toastFmt('toast.no_audio_samples_scan_first'), 4000, 'error'); return; }

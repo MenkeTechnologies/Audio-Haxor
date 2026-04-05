@@ -272,8 +272,8 @@ function showDepGraph() {
           <button class="dep-tab" data-dep-tab="orphaned" title="Installed plugins not used in any scanned project">Orphaned (${data.orphaned.length})</button>
           <button class="dep-tab" data-dep-tab="analytics" title="Plugin usage analytics and insights">Analytics</button>
         </div>
-        <div class="dep-panel active" id="depPanelUsage">${topPlugins || '<div class="dep-empty">No plugin references found.</div>'}</div>
-        <div class="dep-panel" id="depPanelProjects">${topProjects || '<div class="dep-empty">No projects indexed.</div>'}</div>
+        <div class="dep-panel active" id="depPanelUsage">${topPlugins || '<div class="state-message"><div class="state-icon">&#9889;</div><h2>No plugin references found</h2></div>'}</div>
+        <div class="dep-panel" id="depPanelProjects">${topProjects || '<div class="state-message"><div class="state-icon">&#127911;</div><h2>No projects indexed</h2></div>'}</div>
         <div class="dep-panel" id="depPanelOrphaned">${orphanedHtml}</div>
         <div class="dep-panel" id="depPanelAnalytics">${analyticsHtml}</div>
       </div>
@@ -370,7 +370,7 @@ document.addEventListener('click', (e) => {
       panel._prevHtml = panel.innerHTML;
       let body;
       if (plugins.length === 0) {
-        body = '<div class="dep-empty">No plugins found in this project.</div>';
+        body = '<div class="state-message"><div class="state-icon">&#9889;</div><h2>No plugins found in this project</h2></div>';
       } else {
         body = plugins.map(p => {
           const typeCls = 'xref-type-' + p.pluginType.toLowerCase();

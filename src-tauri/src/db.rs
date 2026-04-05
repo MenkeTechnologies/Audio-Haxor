@@ -649,6 +649,22 @@ impl Database {
             .map_err(|e| format!("Migration v6 schema_version failed: {e}"))?;
         }
 
+        if current < 7 {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS pdf_metadata (
+                    path        TEXT PRIMARY KEY,
+                    pages       INTEGER,
+                    updated_at  TEXT NOT NULL
+                );",
+            )
+            .map_err(|e| format!("Migration v7 (pdf_metadata) failed: {e}"))?;
+            conn.execute(
+                "INSERT INTO schema_version (version) VALUES (7)",
+                [],
+            )
+            .map_err(|e| format!("Migration v7 schema_version failed: {e}"))?;
+        }
+
         if conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_i18n'",
@@ -2249,6 +2265,95 @@ impl Database {
             .map_err(|e| e.to_string())
     }
 
+    // ── PDF metadata (page count) ──
+
+    /// Return paths from the latest PDF scan that don't yet have metadata cached.
+    pub fn unindexed_pdf_paths(&self, limit: u64) -> Result<Vec<String>, String> {
+        let conn = self.conn.lock().unwrap();
+        let scan_id: String = conn
+            .query_row(
+                "SELECT id FROM pdf_scans WHERE pdf_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?
+            .unwrap_or_default();
+        if scan_id.is_empty() {
+            return Ok(vec![]);
+        }
+        let mut stmt = conn.prepare(
+            "SELECT p.path FROM pdfs p
+             LEFT JOIN pdf_metadata m ON m.path = p.path
+             WHERE p.scan_id = ?1 AND m.path IS NULL
+             LIMIT ?2",
+        ).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![scan_id, limit as i64], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    }
+
+    /// Batch upsert PDF page counts. Entries with None page count are still
+    /// inserted (as a negative marker) so we don't re-attempt broken files.
+    pub fn save_pdf_metadata(&self, batch: &[(String, Option<u32>)]) -> Result<(), String> {
+        if batch.is_empty() {
+            return Ok(());
+        }
+        let conn = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
+        let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+        {
+            let mut stmt = tx
+                .prepare_cached("INSERT OR REPLACE INTO pdf_metadata (path, pages, updated_at) VALUES (?1, ?2, ?3)")
+                .map_err(|e| e.to_string())?;
+            for (path, pages) in batch {
+                let pages_i: Option<i64> = pages.map(|n| n as i64);
+                stmt.execute(params![path, pages_i, now])
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())
+    }
+
+    /// Get page counts for a set of paths (returns only entries that exist).
+    pub fn get_pdf_metadata(
+        &self,
+        paths: &[String],
+    ) -> Result<std::collections::HashMap<String, Option<u32>>, String> {
+        if paths.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let conn = self.conn.lock().unwrap();
+        let mut out = std::collections::HashMap::new();
+        // SQLite IN clause with ~999 param limit — chunk to be safe.
+        for chunk in paths.chunks(500) {
+            let placeholders: Vec<String> =
+                (1..=chunk.len()).map(|i| format!("?{i}")).collect();
+            let sql = format!(
+                "SELECT path, pages FROM pdf_metadata WHERE path IN ({})",
+                placeholders.join(",")
+            );
+            let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+            for (i, p) in chunk.iter().enumerate() {
+                stmt.raw_bind_parameter(i + 1, p).map_err(|e| e.to_string())?;
+            }
+            let mut rows = stmt.raw_query();
+            while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+                let path: String = row.get(0).unwrap_or_default();
+                let pages: Option<i64> = row.get(1).ok();
+                out.insert(path, pages.and_then(|n| if n >= 0 { Some(n as u32) } else { None }));
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn clear_pdf_metadata(&self) -> Result<(), String> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute_batch("DELETE FROM pdf_metadata;")
+            .map_err(|e| e.to_string())
+    }
+
     // ── Paginated PDF query ──
     pub fn query_pdfs(
         &self,
@@ -2606,6 +2711,7 @@ impl Database {
             "preset_scans",
             "pdfs",
             "pdf_scans",
+            "pdf_metadata",
             "kvr_cache",
             "waveform_cache",
             "spectrogram_cache",

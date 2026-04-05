@@ -47,7 +47,7 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   await prefs.load();
   const uiLoc = prefs.getItem('uiLocale');
   if (typeof reloadAppStrings === 'function') {
-    await reloadAppStrings(['de', 'es', 'sv', 'fr', 'nl', 'pt', 'it', 'el'].includes(uiLoc) ? uiLoc : 'en');
+    await reloadAppStrings(['de', 'es', 'sv', 'fr', 'nl', 'pt', 'it', 'el', 'pl'].includes(uiLoc) ? uiLoc : 'en');
   }
   // Ensure stop/resume buttons are hidden on fresh start
   const _stopAll = document.getElementById('btnStopAll');
@@ -287,56 +287,6 @@ if (typeof document !== 'undefined') {
     if (!document.hidden) updateHeaderInfo();
   });
 }
-
-/** After SQLite-backed strings change — re-run JS-built labels and the active tab’s list (static HTML uses applyUiI18n). */
-function refreshLocaleDependentUi() {
-  try {
-    const ho = document.getElementById('helpOverlay');
-    if (ho) ho.remove();
-  } catch (_) {}
-  if (typeof renderWelcomeDashboard === 'function') renderWelcomeDashboard();
-  if (typeof updateHeaderInfo === 'function') void updateHeaderInfo();
-  const active = document.querySelector('.tab-content.active');
-  if (!active) return;
-  switch (active.id) {
-    case 'tabPlugins':
-      if (typeof filterPlugins === 'function') filterPlugins();
-      break;
-    case 'tabSamples':
-      if (typeof filterAudioSamples === 'function') filterAudioSamples();
-      break;
-    case 'tabDaw':
-      if (typeof filterDawProjects === 'function') filterDawProjects();
-      break;
-    case 'tabPresets':
-      if (typeof filterPresets === 'function') filterPresets();
-      break;
-    case 'tabFavorites':
-      if (typeof filterFavorites === 'function') filterFavorites();
-      break;
-    case 'tabNotes':
-      if (typeof renderNotesTab === 'function') renderNotesTab();
-      break;
-    case 'tabHistory':
-      if (typeof loadHistory === 'function') void loadHistory();
-      break;
-    case 'tabTags':
-      if (typeof renderTagsManager === 'function') renderTagsManager();
-      break;
-    case 'tabMidi':
-      if (typeof filterMidi === 'function') filterMidi();
-      break;
-    case 'tabPdf':
-      if (typeof filterPdfs === 'function') filterPdfs();
-      break;
-    case 'tabFiles':
-      if (typeof refreshFileBrowserForLocale === 'function') refreshFileBrowserForLocale();
-      break;
-    default:
-      break;
-  }
-}
-window.refreshLocaleDependentUi = refreshLocaleDependentUi;
 
 let scanAllRunning = false;
 

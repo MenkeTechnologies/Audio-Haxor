@@ -263,7 +263,7 @@ async function runAudioDiff(currentId) {
   let html = '';
 
   if (diff.added.length === 0 && diff.removed.length === 0) {
-    html = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;">No differences found between these scans.</div>';
+    html = '<div class="state-message"><div class="state-icon">&#10003;</div><h2>No differences found</h2><p>These two scans match.</p></div>';
   } else {
     if (diff.added.length > 0) {
       html += `<div class="diff-section diff-added">
@@ -370,7 +370,7 @@ async function runDawDiff(currentId) {
   let html = '';
 
   if (diff.added.length === 0 && diff.removed.length === 0) {
-    html = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;">No differences found between these scans.</div>';
+    html = '<div class="state-message"><div class="state-icon">&#10003;</div><h2>No differences found</h2><p>These two scans match.</p></div>';
   } else {
     if (diff.added.length > 0) {
       html += `<div class="diff-section diff-added">
@@ -485,7 +485,7 @@ async function runPresetDiff(currentId) {
   let html = '';
 
   if (diff.added.length === 0 && diff.removed.length === 0) {
-    html = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;">No differences found between these scans.</div>';
+    html = '<div class="state-message"><div class="state-icon">&#10003;</div><h2>No differences found</h2><p>These two scans match.</p></div>';
   } else {
     if (diff.added.length > 0) {
       html += `<div class="diff-section diff-added">
@@ -539,7 +539,7 @@ async function runDiff(currentId) {
   let html = '';
 
   if (diff.added.length === 0 && diff.removed.length === 0 && diff.versionChanged.length === 0) {
-    html = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;">No differences found between these scans.</div>';
+    html = '<div class="state-message"><div class="state-icon">&#10003;</div><h2>No differences found</h2><p>These two scans match.</p></div>';
   } else {
     if (diff.added.length > 0) {
       html += `<div class="diff-section diff-added">

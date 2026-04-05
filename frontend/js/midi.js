@@ -133,10 +133,14 @@ function renderMidiTable() {
   const wrap = document.getElementById('midiTableWrap');
   if (!wrap) return;
   if (filteredMidi.length === 0 && allMidiFiles.length === 0) {
-    const emptyMsg = typeof escapeHtml === 'function'
-      ? escapeHtml(_midiFmt('ui.midi.empty_state'))
-      : _midiFmt('ui.midi.empty_state');
-    wrap.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-dim);">${emptyMsg}</div>`;
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (s) => String(s);
+    const h2 = esc(_midiFmt('ui.h2.midi_index'));
+    const p = esc(_midiFmt('ui.midi.empty_state'));
+    wrap.innerHTML = `<div class="state-message" id="midiEmptyState">
+      <div class="state-icon">&#127924;</div>
+      <h2>${h2}</h2>
+      <p>${p}</p>
+    </div>`;
     return;
   }
   if (!_midiTableInit) {

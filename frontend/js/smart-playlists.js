@@ -110,7 +110,7 @@ function renderSmartPlaylists() {
 
   if (_smartPlaylists.length === 0) {
     const _spEmpty = typeof appFmt === 'function' ? appFmt('ui.sp.empty_state') : 'No smart playlists yet';
-    container.innerHTML = `<div style="text-align:center;color:var(--text-dim);font-size:10px;padding:6px;">${typeof escapeHtml === 'function' ? escapeHtml(_spEmpty) : _spEmpty}</div>`;
+    container.innerHTML = `<div style="text-align:center;color:var(--text-dim);font-size:10px;padding:6px;">&#127926; ${typeof escapeHtml === 'function' ? escapeHtml(_spEmpty) : _spEmpty}</div>`;
     return;
   }
 

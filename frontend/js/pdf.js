@@ -76,6 +76,7 @@ async function fetchPdfPage() {
     _pdfTotalCount = result.totalCount || 0;
     _pdfTotalUnfiltered = result.totalUnfiltered || 0;
     renderPdfTable();
+    rebuildPdfStats();
     // Hydrate the pages cache for visible rows, then kick off background extract.
     loadPdfPagesForVisible();
   } catch (e) {
@@ -98,13 +99,28 @@ function resetPdfStatsAccumulators() {
 function rebuildPdfStats() {
   const statsEl = document.getElementById('pdfStats');
   if (!statsEl) return;
-  const displayCount = _pdfTotalUnfiltered || _pdfTotalCount || allPdfs.length;
-  statsEl.style.display = displayCount > 0 ? 'flex' : 'none';
-  document.getElementById('pdfCount').textContent = displayCount.toLocaleString();
-  if (_pdfStatsTotalBytes === 0 && allPdfs.length > 0) {
-    accumulatePdfStats(allPdfs);
+  // When a filter/search is active (_pdfTotalCount < _pdfTotalUnfiltered) show
+  // filtered counts; otherwise show the full unfiltered scan totals. Size is
+  // summed from currently-loaded filtered rows (pagination-capped — honest).
+  const unfiltered = _pdfTotalUnfiltered || 0;
+  const filtered = _pdfTotalCount || 0;
+  const isFiltered = filtered > 0 && unfiltered > 0 && filtered < unfiltered;
+  let displayCount;
+  let displayBytes;
+  if (isFiltered) {
+    displayCount = filtered;
+    displayBytes = filteredPdfs.reduce((sum, p) => sum + (p.size || 0), 0);
+  } else {
+    displayCount = unfiltered || filtered || allPdfs.length;
+    if (_pdfStatsTotalBytes === 0 && allPdfs.length > 0) accumulatePdfStats(allPdfs);
+    displayBytes = _pdfStatsTotalBytes;
   }
-  document.getElementById('pdfTotalSize').textContent = formatAudioSize(_pdfStatsTotalBytes);
+  statsEl.style.display = displayCount > 0 ? 'flex' : 'none';
+  const countStr = isFiltered
+    ? displayCount.toLocaleString() + ' / ' + unfiltered.toLocaleString()
+    : displayCount.toLocaleString();
+  document.getElementById('pdfCount').textContent = countStr;
+  document.getElementById('pdfTotalSize').textContent = formatAudioSize(displayBytes);
   const btn = document.getElementById('btnExportPdf');
   if (btn) btn.style.display = displayCount > 0 ? '' : 'none';
   // Mirror into the global stats-bar counter (top of app)

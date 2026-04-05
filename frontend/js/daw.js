@@ -252,12 +252,35 @@ function sortDawArray() {
 let dawRenderCount = 0;
 
 function renderDawTable() {
+  const wrap = document.getElementById('dawTableWrap');
+  // No data at all — restore the initial state-message (unfiltered empty scan).
+  if (filteredDawProjects.length === 0 && _dawTotalCount === 0 && _dawTotalUnfiltered === 0) {
+    if (wrap) {
+      const esc = typeof escapeHtml === 'function' ? escapeHtml : (s) => String(s);
+      const h2 = esc(typeof appFmt === 'function' ? appFmt('ui.h2.daw_project_index') : 'DAW Project Index');
+      const p = esc(typeof appFmt === 'function' ? appFmt('ui.p.daw_empty') : 'Click "Scan DAW Projects" to find DAW project files on your system.');
+      wrap.innerHTML = `<div class="state-message" id="dawEmptyState">
+        <div class="state-icon">&#127911;</div>
+        <h2>${h2}</h2>
+        <p>${p}</p>
+      </div>`;
+    }
+    return;
+  }
   if (!document.getElementById('dawTable')) initDawTable();
   const tbody = document.getElementById('dawTableBody');
   if (!tbody) return;
   dawRenderCount = filteredDawProjects.length;
   tbody.innerHTML = filteredDawProjects.map(buildDawRow).join('');
 
+  // Filter active + no matches: inline row with a clear message instead of a blank table body.
+  if (filteredDawProjects.length === 0 && _dawTotalUnfiltered > 0) {
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (s) => String(s);
+    const msg = esc(typeof appFmt === 'function' ? appFmt('ui.daw.no_filter_matches') : 'No DAW projects match the current filter.');
+    tbody.insertAdjacentHTML('beforeend',
+      `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-dim);"><span style="font-size:24px;display:block;margin-bottom:8px;">&#128269;</span>${msg}</td></tr>`);
+    return;
+  }
   if (dawRenderCount < _dawTotalCount) {
     appendDawLoadMore(tbody);
   }

@@ -38,7 +38,7 @@ fn app_strings_en_contains_core_menu_keys() {
 #[test]
 fn app_strings_all_supported_locales_have_substantial_maps() {
     ensure_db();
-    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el"] {
+    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el", "pl"] {
         let m = app_lib::db::global()
             .get_app_strings(loc)
             .unwrap_or_else(|e| panic!("get_app_strings {loc}: {e}"));
@@ -77,7 +77,7 @@ fn app_strings_all_locales_share_same_key_set_as_en_in_db() {
         .get_app_strings("en")
         .expect("en");
     let keys_en: HashSet<_> = en.keys().cloned().collect();
-    for loc in ["de", "es", "sv", "fr", "nl", "pt", "it", "el"] {
+    for loc in ["de", "es", "sv", "fr", "nl", "pt", "it", "el", "pl"] {
         let m = app_lib::db::global()
             .get_app_strings(loc)
             .unwrap_or_else(|e| panic!("get_app_strings {loc}: {e}"));
@@ -92,7 +92,7 @@ fn app_strings_all_locales_share_same_key_set_as_en_in_db() {
 #[test]
 fn app_strings_non_en_locales_retain_n_placeholder_for_menu_batch_selected() {
     ensure_db();
-    for loc in ["de", "es", "sv", "fr", "nl", "pt", "it", "el"] {
+    for loc in ["de", "es", "sv", "fr", "nl", "pt", "it", "el", "pl"] {
         let m = app_lib::db::global()
             .get_app_strings(loc)
             .unwrap_or_else(|e| panic!("get_app_strings {loc}: {e}"));
@@ -142,7 +142,7 @@ fn app_strings_ui_palette_keys_nonempty_all_locales() {
         !keys.is_empty(),
         "expected ui.palette.* keys in English seed"
     );
-    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el"] {
+    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el", "pl"] {
         let m = app_lib::db::global()
             .get_app_strings(loc)
             .unwrap_or_else(|e| panic!("get_app_strings {loc}: {e}"));
@@ -166,7 +166,7 @@ fn app_strings_confirm_keys_nonempty_all_locales() {
         .cloned()
         .collect();
     assert!(!keys.is_empty(), "expected confirm.* keys in English seed");
-    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el"] {
+    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el", "pl"] {
         let m = app_lib::db::global()
             .get_app_strings(loc)
             .unwrap_or_else(|e| panic!("get_app_strings {loc}: {e}"));
@@ -190,7 +190,7 @@ fn app_strings_help_keys_nonempty_all_locales() {
         .cloned()
         .collect();
     assert!(!keys.is_empty(), "expected help.* keys in English seed");
-    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el"] {
+    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el", "pl"] {
         let m = app_lib::db::global()
             .get_app_strings(loc)
             .unwrap_or_else(|e| panic!("get_app_strings {loc}: {e}"));
@@ -206,7 +206,7 @@ fn app_strings_help_keys_nonempty_all_locales() {
 #[test]
 fn app_strings_toast_failed_contains_err_placeholder_all_locales() {
     ensure_db();
-    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el"] {
+    for loc in ["en", "de", "es", "sv", "fr", "nl", "pt", "it", "el", "pl"] {
         let m = app_lib::db::global()
             .get_app_strings(loc)
             .unwrap_or_else(|e| panic!("get_app_strings {loc}: {e}"));

@@ -84,7 +84,7 @@ function showXrefModal(projectName, plugins) {
 
   let body;
   if (plugins.length === 0) {
-    body = '<div class="xref-unsupported">No plugins found in this project.</div>';
+    body = '<div class="state-message"><div class="state-icon">&#9889;</div><h2>No plugins found in this project</h2></div>';
   } else {
     body = `<div style="color:var(--text-muted);font-size:11px;margin-bottom:12px;">${plugins.length} plugin${plugins.length !== 1 ? 's' : ''} found</div>
     <ul class="xref-list">${plugins.map(p => {

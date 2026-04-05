@@ -26,6 +26,7 @@ tauri-plugin-dialog = "2.6.0"
 libc = "0.2"
 num_cpus = "1"
 printpdf = "0.7"
+lopdf = "0.32"
 flate2 = "1"
 symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "ogg", "pcm"] }
 rusqlite = { version = "0.31", features = ["bundled"] }

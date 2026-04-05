@@ -2702,6 +2702,8 @@
     }
     .notes-list {
       padding: 12px 24px 120px;
+      flex: 1;
+      min-height: 0;
     }
     .note-card {
       background: var(--bg-card);
@@ -2802,6 +2804,8 @@
     .file-crumb-sep { color: var(--text-muted); }
     .file-list {
       padding: 0 24px 120px;
+      flex: 1;
+      min-height: 0;
     }
     .file-row {
       display: flex;
@@ -3002,6 +3006,8 @@
     /* Tags manager */
     .tags-manager {
       padding: 12px 24px 120px;
+      flex: 1;
+      min-height: 0;
     }
     .tag-manager-card {
       background: var(--bg-card);
@@ -3291,7 +3297,7 @@
       gap: 8px;
     }
 
-    .audio-table-wrap {
+    .audio-table-wrap, .table-wrap {
       flex: 1;
       overflow-y: auto;
       padding: 0;
@@ -4565,6 +4571,8 @@
     /* Favorites */
     .fav-list {
       padding: 12px 24px 120px;
+      flex: 1;
+      min-height: 0;
     }
     .fav-item {
       display: flex;
@@ -5413,6 +5421,7 @@
                 <option value="en" data-i18n="ui.opt.lang_en">English</option>
                 <option value="de" data-i18n="ui.opt.lang_de">Deutsch</option>
                 <option value="el" data-i18n="ui.opt.lang_el">Ελληνικά</option>
+                <option value="pl" data-i18n="ui.opt.lang_pl">Polski</option>
                 <option value="es" data-i18n="ui.opt.lang_es">Español</option>
                 <option value="sv" data-i18n="ui.opt.lang_sv">Svenska</option>
                 <option value="fr" data-i18n="ui.opt.lang_fr">Français</option>
@@ -6136,42 +6145,42 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=39435"></script>
-  <script src="js/ipc.js?v=39435"></script>
-  <script src="js/utils.js?v=39435"></script>
-  <script src="js/drag-reorder.js?v=39435"></script>
-  <script src="js/modal-drag.js?v=39435"></script>
-  <script src="js/columns.js?v=39435"></script>
-  <script src="js/notes.js?v=39435"></script>
-  <script src="js/favorites.js?v=39435"></script>
-  <script src="js/export.js?v=39435"></script>
-  <script src="js/plugins.js?v=39435"></script>
-  <script src="js/settings.js?v=39435"></script>
-  <script src="js/history.js?v=39435"></script>
-  <script src="js/kvr.js?v=39435"></script>
-  <script src="js/audio.js?v=39436"></script>
-  <script src="js/daw.js?v=39436"></script>
-  <script src="js/presets.js?v=39436"></script>
-  <script src="js/disk-usage.js?v=39435"></script>
-  <script src="js/batch-select.js?v=39435"></script>
-  <script src="js/sort-persist.js?v=39435"></script>
-  <script src="js/multi-filter.js?v=39435"></script>
-  <script src="js/file-browser.js?v=39435"></script>
-  <script src="js/duplicates.js?v=39435"></script>
-  <script src="js/command-palette.js?v=39435"></script>
-  <script src="js/xref.js?v=39435"></script>
-  <script src="js/dep-graph.js?v=39435"></script>
-  <script src="js/smart-playlists.js?v=39435"></script>
-  <script src="js/heatmap-dashboard.js?v=39435"></script>
-  <script src="js/midi.js?v=39436"></script>
-  <script src="js/pdf.js?v=39437"></script>
-  <script src="js/settings-search.js?v=39435"></script>
-  <script src="js/visualizer.js?v=39435"></script>
-  <script src="js/walker-status.js?v=39435"></script>
-  <script src="js/context-menu.js?v=39435"></script>
-  <script src="js/help-overlay.js?v=39435"></script>
-  <script src="js/shortcuts.js?v=39435"></script>
-  <script src="js/keyboard-nav.js?v=39435"></script>
-  <script src="js/app.js?v=39435"></script>
+  <script src="js/i18n-ui.js?v=6553"></script>
+  <script src="js/ipc.js?v=6553"></script>
+  <script src="js/utils.js?v=6553"></script>
+  <script src="js/drag-reorder.js?v=6553"></script>
+  <script src="js/modal-drag.js?v=6553"></script>
+  <script src="js/columns.js?v=6553"></script>
+  <script src="js/notes.js?v=6553"></script>
+  <script src="js/favorites.js?v=6553"></script>
+  <script src="js/export.js?v=6553"></script>
+  <script src="js/plugins.js?v=6553"></script>
+  <script src="js/settings.js?v=6553"></script>
+  <script src="js/history.js?v=6553"></script>
+  <script src="js/kvr.js?v=6553"></script>
+  <script src="js/audio.js?v=6553"></script>
+  <script src="js/daw.js?v=6553"></script>
+  <script src="js/presets.js?v=6553"></script>
+  <script src="js/disk-usage.js?v=6553"></script>
+  <script src="js/batch-select.js?v=6553"></script>
+  <script src="js/sort-persist.js?v=6553"></script>
+  <script src="js/multi-filter.js?v=6553"></script>
+  <script src="js/file-browser.js?v=6553"></script>
+  <script src="js/duplicates.js?v=6553"></script>
+  <script src="js/command-palette.js?v=6553"></script>
+  <script src="js/xref.js?v=6553"></script>
+  <script src="js/dep-graph.js?v=6553"></script>
+  <script src="js/smart-playlists.js?v=6553"></script>
+  <script src="js/heatmap-dashboard.js?v=6553"></script>
+  <script src="js/midi.js?v=6553"></script>
+  <script src="js/pdf.js?v=6553"></script>
+  <script src="js/settings-search.js?v=6553"></script>
+  <script src="js/visualizer.js?v=6553"></script>
+  <script src="js/walker-status.js?v=6553"></script>
+  <script src="js/context-menu.js?v=6553"></script>
+  <script src="js/help-overlay.js?v=6553"></script>
+  <script src="js/shortcuts.js?v=6553"></script>
+  <script src="js/keyboard-nav.js?v=6553"></script>
+  <script src="js/app.js?v=6553"></script>
 </body>
 </html>

@@ -25,6 +25,7 @@ pub mod kvr;
 pub mod lufs;
 pub mod midi;
 pub mod native_menu;
+pub mod pdf_meta;
 pub mod pdf_scanner;
 pub mod preset_scanner;
 pub mod scanner;
@@ -1240,6 +1241,81 @@ fn pdf_history_diff(old_id: String, new_id: String) -> Option<history::PdfScanDi
 #[tauri::command]
 async fn open_pdf_file(file_path: String) -> Result<(), String> {
     open_plugin_folder(file_path).await
+}
+
+#[tauri::command]
+async fn pdf_metadata_get(paths: Vec<String>) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let map = db::global().get_pdf_metadata(&paths)?;
+        let mut out = serde_json::Map::new();
+        for (k, v) in map {
+            out.insert(
+                k,
+                match v {
+                    Some(n) => serde_json::json!(n),
+                    None => serde_json::Value::Null,
+                },
+            );
+        }
+        Ok::<serde_json::Value, String>(serde_json::Value::Object(out))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn pdf_metadata_extract_batch(
+    app: AppHandle,
+    paths: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let total = paths.len();
+        if total == 0 {
+            return serde_json::json!({ "extracted": 0, "total": 0 });
+        }
+        let _ = app.emit(
+            "pdf-metadata-progress",
+            serde_json::json!({ "phase": "start", "total": total }),
+        );
+        // Chunk so we can emit progress + persist incrementally
+        const CHUNK: usize = 100;
+        let mut done = 0usize;
+        let mut extracted = 0usize;
+        for chunk in paths.chunks(CHUNK) {
+            let pairs = pdf_meta::extract_pages_batch(chunk);
+            // Build batch including None markers for files that failed to parse
+            let extracted_set: std::collections::HashSet<&String> =
+                pairs.iter().map(|(p, _)| p).collect();
+            let mut rows: Vec<(String, Option<u32>)> = Vec::with_capacity(chunk.len());
+            for p in chunk {
+                let found = pairs.iter().find(|(pp, _)| pp == p).map(|(_, n)| *n);
+                rows.push((p.clone(), if extracted_set.contains(p) { found } else { None }));
+            }
+            let _ = db::global().save_pdf_metadata(&rows);
+            extracted += pairs.len();
+            done += chunk.len();
+            let _ = app.emit(
+                "pdf-metadata-progress",
+                serde_json::json!({
+                    "phase": "progress", "done": done, "total": total, "extracted": extracted
+                }),
+            );
+        }
+        let _ = app.emit(
+            "pdf-metadata-progress",
+            serde_json::json!({ "phase": "done", "extracted": extracted, "total": total }),
+        );
+        serde_json::json!({ "extracted": extracted, "total": total })
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Get paths from latest PDF scan that don't yet have metadata — caller uses this
+/// to kick off a background extraction pass.
+#[tauri::command]
+fn pdf_metadata_unindexed(limit: Option<u64>) -> Result<Vec<String>, String> {
+    db::global().unindexed_pdf_paths(limit.unwrap_or(100000))
 }
 
 #[tauri::command]
@@ -5274,6 +5350,9 @@ pub fn run() {
             pdf_history_latest,
             pdf_history_diff,
             open_pdf_file,
+            pdf_metadata_get,
+            pdf_metadata_extract_batch,
+            pdf_metadata_unindexed,
             open_file_default,
             export_presets_json,
             export_presets_dsv,
