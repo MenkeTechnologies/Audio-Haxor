@@ -98,6 +98,11 @@ async function initFileBrowser() {
   _fileBrowserInited = true;
 }
 
+function refreshFileBrowserForLocale() {
+  if (_fileBrowserPath) void loadDirectory(_fileBrowserPath);
+}
+window.refreshFileBrowserForLocale = refreshFileBrowserForLocale;
+
 async function loadDirectory(dirPath) {
   _fileBrowserPath = dirPath;
   // Reset cursor cache when directory changes

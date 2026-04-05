@@ -12,6 +12,8 @@ python3 scripts/merge_i18n_keys.py scripts/i18n_batches/your_batch.json
 
 The script fails if a key already exists (prevents accidental overwrites). Rebuild the Tauri app after changing English so the DB seed updates.
 
+**In-app language (Settings → Interface language)** loads merged strings from SQLite via `get_app_strings` and applies them immediately (static HTML via `applyUiI18n`, plus `refreshLocaleDependentUi` for JS-built surfaces such as the welcome dashboard and the active tab list). That does **not** reload catalog JSON from disk at runtime; editing `i18n/app_i18n_*.json` still requires a rebuild (and restart) for the bundled seed to change.
+
 ## Other locales (`de`, `es`, `sv`, `fr`, `nl`, `pt`, `it`, `el`)
 
 - **Full machine translation** (slow; needs network):

@@ -46,6 +46,7 @@ async function reloadAppStrings(locale) {
       const sf = document.getElementById('shortcutsFilter');
       renderShortcutSettings(sf && sf.value ? sf.value : '');
     }
+    if (typeof refreshLocaleDependentUi === 'function') refreshLocaleDependentUi();
     try {
       await invoke('refresh_native_menu');
     } catch (_) {}
@@ -456,8 +457,9 @@ document.addEventListener('change', (e) => {
   } else if (action === 'settingUiLocale') {
     const v = e.target.value || 'en';
     prefs.setItem('uiLocale', v);
-    reloadAppStrings(v);
-    showToast(toastFmt('toast.locale_changed'), 4000, '');
+    void reloadAppStrings(v).then(() => {
+      if (typeof showToast === 'function') showToast(toastFmt('toast.locale_changed'), 4000, '');
+    });
   }
 });
 document.addEventListener('blur', (e) => {}, true);
