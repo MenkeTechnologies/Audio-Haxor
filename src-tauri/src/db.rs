@@ -93,13 +93,26 @@ fn default_limit() -> u64 {
 /// in double quotes (phrase match) with internal quotes doubled per FTS5 syntax.
 /// Trigram tokenizer indexes substrings, so `"foo"` matches any row containing
 /// "foo" as a substring in any indexed column.
+/// Returns an FTS5 phrase for trigram MATCH, or None if the search is empty
+/// or too short (trigram needs ≥3 chars). Callers must fall back to LIKE for
+/// 1–2 char searches.
 fn fts_phrase(search: &str) -> Option<String> {
     let trimmed = search.trim();
-    if trimmed.is_empty() {
+    if trimmed.len() < 3 {
         return None;
     }
-    // Escape FTS5 phrase syntax: double any `"` in the input.
     Some(format!("\"{}\"", trimmed.replace('"', "\"\"")))
+}
+
+/// Build a LIKE pattern for short searches (1–2 chars) where FTS5 trigram
+/// can't help. Returns None for empty input.
+fn short_like(search: &str) -> Option<String> {
+    let trimmed = search.trim();
+    if trimmed.is_empty() || trimmed.len() >= 3 {
+        return None;
+    }
+    let escaped = trimmed.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    Some(format!("%{escaped}%"))
 }
 
 /// A single row returned from a paginated query, with analysis data inline.
@@ -1040,16 +1053,20 @@ impl Database {
         let mut conditions = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2;
 
-        // FTS5 trigram substring match via join-on-rowid subquery — O(log n) vs
-        // LIKE's full-table scan. Must also filter by scan_id (UNINDEXED column)
-        // since FTS holds rows from every scan ever performed.
+        // FTS5 trigram for ≥3 char searches; LIKE fallback for 1–2 chars.
         let fts_match = params.search.as_deref().and_then(fts_phrase);
+        let like_pat = params.search.as_deref().and_then(short_like);
         if fts_match.is_some() {
             conditions.push(format!(
                 "id IN (SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH ?{bind_idx} AND scan_id = ?{scan_idx})",
                 scan_idx = bind_idx + 1,
             ));
             bind_idx += 2;
+        } else if like_pat.is_some() {
+            conditions.push(format!(
+                "(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"
+            ));
+            bind_idx += 1;
         }
 
         if let Some(fmt) = &params.format_filter {
@@ -1119,6 +1136,10 @@ impl Database {
                 .map_err(|e| e.to_string())?;
             idx += 1;
             stmt.raw_bind_parameter(idx, &scan_id)
+                .map_err(|e| e.to_string())?;
+            idx += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(idx, pat)
                 .map_err(|e| e.to_string())?;
             idx += 1;
         }
@@ -1673,12 +1694,16 @@ impl Database {
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
         let fts_match = search.and_then(fts_phrase);
+        let like_pat = search.and_then(short_like);
         if fts_match.is_some() {
             where_parts.push(format!(
                 "id IN (SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH ?{bind_idx} AND scan_id = ?{scan_idx})",
                 scan_idx = bind_idx + 1,
             ));
             bind_idx += 2;
+        } else if like_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
         }
         if let Some(f) = daw_filter {
             if !f.is_empty() && f != "all" {
@@ -1720,6 +1745,9 @@ impl Database {
                 stmt.raw_bind_parameter(bi, &scan_id)
                     .map_err(|e| e.to_string())?;
                 bi += 1;
+            } else if let Some(ref pat) = like_pat {
+                stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
+                bi += 1;
             }
             if let Some(f) = daw_filter {
                 if !f.is_empty() && f != "all" && !f.contains(',') {
@@ -1744,6 +1772,9 @@ impl Database {
             bi += 1;
             stmt.raw_bind_parameter(bi, &scan_id)
                 .map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
             bi += 1;
         }
         if let Some(f) = daw_filter {
@@ -1820,12 +1851,16 @@ impl Database {
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
         let fts_match = search.and_then(fts_phrase);
+        let like_pat = search.and_then(short_like);
         if fts_match.is_some() {
             where_parts.push(format!(
                 "id IN (SELECT rowid FROM presets_fts WHERE presets_fts MATCH ?{bind_idx} AND scan_id = ?{scan_idx})",
                 scan_idx = bind_idx + 1,
             ));
             bind_idx += 2;
+        } else if like_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
         }
         // Exclude MIDI files from presets
         where_parts.push("format NOT IN ('MID', 'MIDI')".into());
@@ -1868,6 +1903,9 @@ impl Database {
                 stmt.raw_bind_parameter(bi, &scan_id)
                     .map_err(|e| e.to_string())?;
                 bi += 1;
+            } else if let Some(ref pat) = like_pat {
+                stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
+                bi += 1;
             }
             if let Some(f) = format_filter {
                 if !f.is_empty() && f != "all" && !f.contains(',') {
@@ -1892,6 +1930,9 @@ impl Database {
             bi += 1;
             stmt.raw_bind_parameter(bi, &scan_id)
                 .map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
             bi += 1;
         }
         if let Some(f) = format_filter {
@@ -2782,12 +2823,16 @@ impl Database {
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
         let fts_match = search.and_then(fts_phrase);
+        let like_pat = search.and_then(short_like);
         if fts_match.is_some() {
             where_parts.push(format!(
                 "id IN (SELECT rowid FROM midi_files_fts WHERE midi_files_fts MATCH ?{bind_idx} AND scan_id = ?{scan_idx})",
                 scan_idx = bind_idx + 1,
             ));
             bind_idx += 2;
+        } else if like_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
         }
         if let Some(f) = format_filter {
             if !f.is_empty() && f != "all" {
@@ -2830,6 +2875,9 @@ impl Database {
                 stmt.raw_bind_parameter(bi, &scan_id)
                     .map_err(|e| e.to_string())?;
                 bi += 1;
+            } else if let Some(ref pat) = like_pat {
+                stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
+                bi += 1;
             }
             if let Some(f) = format_filter {
                 if !f.is_empty() && f != "all" && !f.contains(',') {
@@ -2860,6 +2908,9 @@ impl Database {
             bi += 1;
             stmt.raw_bind_parameter(bi, &scan_id)
                 .map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
             bi += 1;
         }
         if let Some(f) = format_filter {
@@ -2916,6 +2967,7 @@ impl Database {
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
+        let like_pat = search.and_then(short_like);
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
         if fts_match.is_some() {
@@ -2924,6 +2976,9 @@ impl Database {
                 scan_idx = bind_idx + 1,
             ));
             bind_idx += 2;
+        } else if like_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
         }
         if let Some(f) = format_filter {
             if !f.is_empty() && f != "all" {
@@ -2950,6 +3005,9 @@ impl Database {
             bi += 1;
             stmt.raw_bind_parameter(bi, &scan_id)
                 .map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
             bi += 1;
         }
         if let Some(f) = format_filter {
@@ -3301,12 +3359,16 @@ impl Database {
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
         let fts_match = search.and_then(fts_phrase);
+        let like_pat = search.and_then(short_like);
         if fts_match.is_some() {
             where_parts.push(format!(
                 "id IN (SELECT rowid FROM pdfs_fts WHERE pdfs_fts MATCH ?{bind_idx} AND scan_id = ?{scan_idx})",
                 scan_idx = bind_idx + 1,
             ));
             bind_idx += 2;
+        } else if like_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
         }
         let where_cl = where_parts.join(" AND ");
 
@@ -3331,6 +3393,8 @@ impl Database {
                 bi += 1;
                 stmt.raw_bind_parameter(bi, &scan_id)
                     .map_err(|e| e.to_string())?;
+            } else if let Some(ref pat) = like_pat {
+                stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
             }
             let mut rows = stmt.raw_query();
             rows.next()
@@ -3350,6 +3414,9 @@ impl Database {
             bi += 1;
             stmt.raw_bind_parameter(bi, &scan_id)
                 .map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
             bi += 1;
         }
         stmt.raw_bind_parameter(bi, limit as i64)
@@ -3480,6 +3547,7 @@ impl Database {
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
+        let like_pat = search.and_then(short_like);
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
         if fts_match.is_some() {
@@ -3488,6 +3556,9 @@ impl Database {
                 scan_idx = bind_idx + 1,
             ));
             bind_idx += 2;
+        } else if like_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
         }
         if let Some(f) = format_filter {
             if !f.is_empty() && f != "all" {
@@ -3512,6 +3583,9 @@ impl Database {
             bi += 1;
             stmt.raw_bind_parameter(bi, &scan_id)
                 .map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
             bi += 1;
         }
         if let Some(f) = format_filter {
@@ -3566,6 +3640,7 @@ impl Database {
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
+        let like_pat = search.and_then(short_like);
         let mut where_parts = vec!["scan_id = ?1".to_string()];
         let mut bind_idx = 2usize;
         if fts_match.is_some() {
@@ -3574,6 +3649,9 @@ impl Database {
                 scan_idx = bind_idx + 1,
             ));
             bind_idx += 2;
+        } else if like_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
         }
         if let Some(f) = daw_filter {
             if !f.is_empty() && f != "all" {
@@ -3598,6 +3676,9 @@ impl Database {
             bi += 1;
             stmt.raw_bind_parameter(bi, &scan_id)
                 .map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
             bi += 1;
         }
         if let Some(f) = daw_filter {
@@ -3652,6 +3733,7 @@ impl Database {
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
+        let like_pat = search.and_then(short_like);
         // Presets always exclude MIDI (lives in its own tab)
         let mut where_parts = vec![
             "scan_id = ?1".to_string(),
@@ -3664,6 +3746,9 @@ impl Database {
                 scan_idx = bind_idx + 1,
             ));
             bind_idx += 2;
+        } else if like_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
         }
         if let Some(f) = format_filter {
             if !f.is_empty() && f != "all" {
@@ -3688,6 +3773,9 @@ impl Database {
             bi += 1;
             stmt.raw_bind_parameter(bi, &scan_id)
                 .map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
             bi += 1;
         }
         if let Some(f) = format_filter {
@@ -3818,8 +3906,11 @@ impl Database {
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
+        let like_pat = search.and_then(short_like);
         let sql = if fts_match.is_some() {
             "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE scan_id = ?1 AND id IN (SELECT rowid FROM pdfs_fts WHERE pdfs_fts MATCH ?2 AND scan_id = ?3)"
+        } else if like_pat.is_some() {
+            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE scan_id = ?1 AND (name LIKE ?2 ESCAPE '\\' OR path LIKE ?2 ESCAPE '\\')"
         } else {
             "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE scan_id = ?1"
         };
@@ -3830,6 +3921,8 @@ impl Database {
             stmt.raw_bind_parameter(2, m).map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(3, &scan_id)
                 .map_err(|e| e.to_string())?;
+        } else if let Some(ref pat) = like_pat {
+            stmt.raw_bind_parameter(2, pat).map_err(|e| e.to_string())?;
         }
         let mut rows = stmt.raw_query();
         let (count, total_bytes) = if let Some(row) = rows.next().map_err(|e| e.to_string())? {

@@ -70,7 +70,7 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 | **KVR Cache** | Resolved KVR data (product URLs, download links, versions) persisted to SQLite. On restart, cached results are restored instantly and the background resolver resumes from where it left off |
 | **Download Button** | Green download button appears on plugins with a confirmed newer version and a KVR download link (platform-specific when available) |
 | **Export/Import** | Export all tabs (plugins, samples, DAW projects, presets) to JSON, TOML, CSV, or TSV via native file dialogs. Import from JSON or TOML. Format auto-detected from file extension |
-| **Scan History** | Stores up to 50 scan snapshots in SQLite (plugins, audio, DAW, and preset scans merged) with full diff support between any two scans. Sidebar scan-type tags use `menu.tab_*` i18n keys (same strings as the main tabs) |
+| **Scan History** | Stores scan snapshots in SQLite (plugins, audio, DAW, preset, PDF, and MIDI scans merged in one timeline) with full diff support between any two scans of the same type. Sidebar scan-type tags use `menu.tab_*` i18n keys (same strings as the main tabs) |
 | **Batch Updater** | Walk through all outdated plugins one by one with skip/open controls |
 | **Manufacturer Link** | Globe button on each plugin opens the manufacturer's website directly (derived from bundle ID). Shows a disabled icon when no website is available |
 | **Reveal in Finder** | Folder button opens the plugin's filesystem location. Double-click any preset row to reveal it in Finder. Tooltip shows the full path on hover |
@@ -343,10 +343,10 @@ Built packages land in `src-tauri/target/release/bundle/`:
                 duplicate queries. Cards update in-place as results arrive.
                 Status bar shows current plugin and live tallies.
 
-[5] HISTORY --> Each scan is persisted to SQLite. Plugin, audio, DAW, and
-                preset scans are merged in the history timeline. Diff any two
-                snapshots to see what was added, removed, or version-bumped.
-                Last scan auto-restores on startup.
+[5] HISTORY --> Each scan is persisted to SQLite. Plugin, audio, DAW, preset,
+                PDF, and MIDI scans are merged in the history timeline. Diff any
+                two snapshots of the same type to see added/removed rows (plugins
+                also show version changes). Last scan auto-restores on startup.
 
 [6] EXPORT ---> Export any tab to JSON, TOML, CSV, TSV, or PDF via native
                 file dialogs. Import from JSON or TOML.

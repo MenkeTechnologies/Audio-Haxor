@@ -1291,6 +1291,13 @@ fn midi_history_latest() -> Result<Option<history::MidiScanSnapshot>, String> {
 }
 
 #[tauri::command]
+fn midi_history_diff(old_id: String, new_id: String) -> Option<history::MidiScanDiff> {
+    let old = db::global().get_midi_scan_detail(&old_id).ok()?;
+    let new = db::global().get_midi_scan_detail(&new_id).ok()?;
+    Some(history::compute_midi_diff(&old, &new))
+}
+
+#[tauri::command]
 fn db_query_midi(
     search: Option<String>,
     format_filter: Option<String>,
@@ -5981,6 +5988,7 @@ pub fn run() {
             midi_history_delete,
             midi_history_clear,
             midi_history_latest,
+            midi_history_diff,
             db_query_midi,
             db_midi_filter_stats,
             scan_pdfs,

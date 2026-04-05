@@ -7,6 +7,8 @@ let selectedScanType = null; // 'plugin' or 'audio'
 
 let historyDawScanList = [];
 let historyPresetScanList = [];
+let historyPdfScanList = [];
+let historyMidiScanList = [];
 
 /** Sidebar tag: which scanner produced this history row (reuses main tab labels). */
 function historyScanTypeLabel(scanType) {
@@ -14,29 +16,37 @@ function historyScanTypeLabel(scanType) {
     scanType === 'preset' ? 'menu.tab_presets' :
     scanType === 'daw' ? 'menu.tab_daw' :
     scanType === 'audio' ? 'menu.tab_samples' :
+    scanType === 'pdf' ? 'menu.tab_pdf' :
+    scanType === 'midi' ? 'menu.tab_midi' :
     'menu.tab_plugins';
   if (typeof appFmt === 'function') return appFmt(key);
-  return scanType === 'preset' ? 'Presets' : scanType === 'daw' ? 'DAW Projects' : scanType === 'audio' ? 'Samples' : 'Plugins';
+  return scanType === 'preset' ? 'Presets' : scanType === 'daw' ? 'DAW Projects' : scanType === 'audio' ? 'Samples' : scanType === 'pdf' ? 'PDFs' : scanType === 'midi' ? 'MIDI' : 'Plugins';
 }
 
 async function loadHistory() {
   showGlobalProgress();
   try {
-    const [pluginScans, audioScans, dawScans, presetScans] = await Promise.all([
+    const [pluginScans, audioScans, dawScans, presetScans, pdfScans, midiScans] = await Promise.all([
       window.vstUpdater.getScans(),
       window.vstUpdater.getAudioScans(),
       window.vstUpdater.getDawScans(),
       window.vstUpdater.getPresetScans(),
+      window.vstUpdater.getPdfScans(),
+      window.vstUpdater.getMidiScans(),
     ]);
     historyScanList = pluginScans;
     historyAudioScanList = audioScans;
     historyDawScanList = dawScans;
     historyPresetScanList = presetScans;
+    historyPdfScanList = pdfScans;
+    historyMidiScanList = midiScans;
     historyMergedList = [
       ...pluginScans.map(s => ({ ...s, _type: 'plugin' })),
       ...audioScans.map(s => ({ ...s, _type: 'audio' })),
       ...dawScans.map(s => ({ ...s, _type: 'daw' })),
       ...presetScans.map(s => ({ ...s, _type: 'preset' })),
+      ...pdfScans.map(s => ({ ...s, _type: 'pdf' })),
+      ...midiScans.map(s => ({ ...s, _type: 'midi' })),
     ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     renderHistoryList();
   } catch (e) {
@@ -59,16 +69,22 @@ function renderHistoryList() {
     const isAudio = s._type === 'audio';
     const isDaw = s._type === 'daw';
     const isPreset = s._type === 'preset';
-    const icon = isPreset ? '&#127924;' : isDaw ? '&#127911;' : isAudio ? '&#127925;' : '&#127911;';
+    const isPdf = s._type === 'pdf';
+    const isMidi = s._type === 'midi';
+    const icon = isPreset ? '&#127924;' : isDaw ? '&#127911;' : isAudio ? '&#127925;' : isPdf ? '&#128196;' : isMidi ? '&#127932;' : '&#127911;';
     const label = isPreset
       ? `${s.presetCount} preset${s.presetCount !== 1 ? 's' : ''}`
       : isDaw
       ? `${s.projectCount} project${s.projectCount !== 1 ? 's' : ''}`
       : isAudio
       ? `${s.sampleCount} sample${s.sampleCount !== 1 ? 's' : ''}`
+      : isPdf
+      ? `${s.pdfCount} PDF${s.pdfCount !== 1 ? 's' : ''}`
+      : isMidi
+      ? `${s.midiCount} MIDI file${s.midiCount !== 1 ? 's' : ''}`
       : `${s.pluginCount} plugin${s.pluginCount !== 1 ? 's' : ''}`;
     const typeTag = historyScanTypeLabel(s._type);
-    const typeColor = isPreset ? 'var(--orange)' : isDaw ? 'var(--magenta)' : isAudio ? 'var(--yellow)' : 'var(--cyan)';
+    const typeColor = isPreset ? 'var(--orange)' : isDaw ? 'var(--magenta)' : isAudio ? 'var(--yellow)' : isPdf ? 'var(--accent)' : isMidi ? 'var(--green)' : 'var(--cyan)';
     const rootsHint = s.roots && s.roots.length > 0
       ? `<div class="history-item-roots" title="${s.roots.map(r => escapeHtml(r)).join('\n')}">${s.roots.map(r => escapeHtml(r)).join(', ')}</div>`
       : '';
@@ -92,6 +108,16 @@ async function selectScan(id, type) {
 
   if (selectedScanType === 'preset') {
     await selectPresetScan(id);
+    return;
+  }
+
+  if (selectedScanType === 'pdf') {
+    await selectPdfScan(id);
+    return;
+  }
+
+  if (selectedScanType === 'midi') {
+    await selectMidiScan(id);
     return;
   }
 
@@ -523,6 +549,231 @@ async function runPresetDiff(currentId) {
   container.innerHTML = html;
 }
 
+async function selectPdfScan(id) {
+  const detail = await window.vstUpdater.getPdfScanDetail(id);
+  if (!detail) return;
+
+  const d = new Date(detail.timestamp);
+  const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const pdfRootsHtml = detail.roots && detail.roots.length > 0
+    ? `<div class="history-detail-roots"><span style="color: var(--text-dim); font-size: 11px;">Scanned:</span> ${detail.roots.map(r => `<code class="root-path">${escapeHtml(r)}</code>`).join(' ')}</div>`
+    : '';
+
+  const otherScans = historyPdfScanList.filter(s => s.id !== id);
+  let compareHtml = '';
+  if (otherScans.length > 0) {
+    const options = otherScans.map(s => {
+      const od = new Date(s.timestamp);
+      return `<option value="${s.id}">${od.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${od.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} (${s.pdfCount})</option>`;
+    }).join('');
+    compareHtml = `
+      <div class="compare-controls">
+        <span>Compare with:</span>
+        <select id="compareSelect">
+          <option value="">Select a scan...</option>
+          ${options}
+        </select>
+        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runPdfDiff" data-id="${id}" title="Compare with selected scan">Compare</button>
+      </div>`;
+  }
+
+  const container = document.getElementById('historyDetail');
+  container.innerHTML = `
+    <div class="history-detail-header">
+      <div>
+        <h2>&#128196; ${dateStr}</h2>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${timeStr} &middot; ${detail.pdfCount} PDFs &middot; ${formatAudioSize(detail.totalBytes)}</div>
+        ${pdfRootsHtml}
+      </div>
+      <button class="btn-danger" data-action="deletePdfScanEntry" data-id="${id}" title="Delete this scan entry">Delete</button>
+    </div>
+    ${compareHtml}
+    <div id="diffResults"></div>
+    <div style="margin-top:8px;color:var(--text-muted);font-size:11px;">${detail.pdfs.length.toLocaleString()} PDFs in this scan</div>
+    <div id="pdfScanDetailList" style="margin-top:8px;max-height:400px;overflow-y:auto;"></div>`;
+  const pdfListEl = document.getElementById('pdfScanDetailList');
+  if (pdfListEl) {
+    let _r = 0;
+    pdfListEl._items = detail.pdfs;
+    function _renderPdfBatch() {
+      const batch = pdfListEl._items.slice(_r, _r + 200);
+      pdfListEl.insertAdjacentHTML('beforeend', batch.map(p =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;">
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name)}</span>
+          <span style="color:var(--text-dim);font-size:10px;">${p.sizeFormatted || ''}</span>
+          <button class="btn-small btn-folder" data-action="openPdfFile" data-path="${escapeHtml(p.path)}" title="${escapeHtml(p.path)}" style="padding:2px 4px;">&#128193;</button>
+        </div>`
+      ).join(''));
+      _r += batch.length;
+    }
+    _renderPdfBatch();
+    pdfListEl.addEventListener('scroll', () => { if (pdfListEl.scrollTop + pdfListEl.clientHeight >= pdfListEl.scrollHeight - 50) _renderPdfBatch(); });
+  }
+}
+
+async function runPdfDiff(currentId) {
+  const compareId = document.getElementById('compareSelect').value;
+  if (!compareId) return;
+
+  const diff = await window.vstUpdater.diffPdfScans(compareId, currentId);
+  if (!diff) return;
+
+  const container = document.getElementById('diffResults');
+  let html = '';
+
+  if (diff.added.length === 0 && diff.removed.length === 0) {
+    html = '<div class="state-message"><div class="state-icon">&#10003;</div><h2>No differences found</h2><p>These two scans match.</p></div>';
+  } else {
+    if (diff.added.length > 0) {
+      html += `<div class="diff-section diff-added">
+        <h3>Added <span class="diff-count">${diff.added.length}</span></h3>
+        ${diff.added.map(p => `
+          <div class="diff-plugin">
+            <div class="diff-plugin-name">${escapeHtml(p.name)}</div>
+            <div class="diff-plugin-detail">${p.sizeFormatted || formatAudioSize(p.size)} &middot; ${escapeHtml(p.directory || '')}</div>
+          </div>`).join('')}
+      </div>`;
+    }
+    if (diff.removed.length > 0) {
+      html += `<div class="diff-section diff-removed">
+        <h3>Removed <span class="diff-count">${diff.removed.length}</span></h3>
+        ${diff.removed.map(p => `
+          <div class="diff-plugin">
+            <div class="diff-plugin-name">${escapeHtml(p.name)}</div>
+            <div class="diff-plugin-detail">${p.sizeFormatted || formatAudioSize(p.size)} &middot; ${escapeHtml(p.directory || '')}</div>
+          </div>`).join('')}
+      </div>`;
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+async function deletePdfScanEntry(id) {
+  await window.vstUpdater.deletePdfScan(id);
+  selectedScanId = null;
+  selectedScanType = null;
+  document.getElementById('historyDetail').innerHTML = '<div class="empty-history"><div class="empty-history-icon">&#8592;</div><p>Select a scan from the sidebar to view details</p></div>';
+  await loadHistory();
+}
+
+async function selectMidiScan(id) {
+  const detail = await window.vstUpdater.getMidiScanDetail(id);
+  if (!detail) return;
+
+  const d = new Date(detail.timestamp);
+  const dateStr = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const fmtBreakdown = Object.entries(detail.formatCounts || {}).map(([fmt, count]) => {
+    return `<span class="format-badge format-default">${fmt}: ${count}</span>`;
+  }).join(' ');
+
+  const midiRootsHtml = detail.roots && detail.roots.length > 0
+    ? `<div class="history-detail-roots"><span style="color: var(--text-dim); font-size: 11px;">Scanned:</span> ${detail.roots.map(r => `<code class="root-path">${escapeHtml(r)}</code>`).join(' ')}</div>`
+    : '';
+
+  const otherScans = historyMidiScanList.filter(s => s.id !== id);
+  let compareHtml = '';
+  if (otherScans.length > 0) {
+    const options = otherScans.map(s => {
+      const od = new Date(s.timestamp);
+      return `<option value="${s.id}">${od.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${od.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} (${s.midiCount})</option>`;
+    }).join('');
+    compareHtml = `
+      <div class="compare-controls">
+        <span>Compare with:</span>
+        <select id="compareSelect">
+          <option value="">Select a scan...</option>
+          ${options}
+        </select>
+        <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" data-action="runMidiDiff" data-id="${id}" title="Compare with selected scan">Compare</button>
+      </div>`;
+  }
+
+  const container = document.getElementById('historyDetail');
+  container.innerHTML = `
+    <div class="history-detail-header">
+      <div>
+        <h2>&#127932; ${dateStr}</h2>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${timeStr} &middot; ${detail.midiCount} MIDI files &middot; ${formatAudioSize(detail.totalBytes)} &middot; ${fmtBreakdown}</div>
+        ${midiRootsHtml}
+      </div>
+      <button class="btn-danger" data-action="deleteMidiScanEntry" data-id="${id}" title="Delete this scan entry">Delete</button>
+    </div>
+    ${compareHtml}
+    <div id="diffResults"></div>
+    <div style="margin-top:8px;color:var(--text-muted);font-size:11px;">${detail.midiFiles.length.toLocaleString()} MIDI files in this scan</div>
+    <div id="midiScanDetailList" style="margin-top:8px;max-height:400px;overflow-y:auto;"></div>`;
+  const midiListEl = document.getElementById('midiScanDetailList');
+  if (midiListEl) {
+    let _r = 0;
+    midiListEl._items = detail.midiFiles;
+    function _renderMidiBatch() {
+      const batch = midiListEl._items.slice(_r, _r + 200);
+      midiListEl.insertAdjacentHTML('beforeend', batch.map(m =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;">
+          <span class="format-badge format-default" style="font-size:9px;">${escapeHtml(m.format)}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(m.name)}</span>
+          <span style="color:var(--text-dim);font-size:10px;">${m.sizeFormatted || ''}</span>
+          <button class="btn-small btn-folder" data-action="openAudioFolder" data-path="${escapeHtml(m.path)}" title="${escapeHtml(m.path)}" style="padding:2px 4px;">&#128193;</button>
+        </div>`
+      ).join(''));
+      _r += batch.length;
+    }
+    _renderMidiBatch();
+    midiListEl.addEventListener('scroll', () => { if (midiListEl.scrollTop + midiListEl.clientHeight >= midiListEl.scrollHeight - 50) _renderMidiBatch(); });
+  }
+}
+
+async function runMidiDiff(currentId) {
+  const compareId = document.getElementById('compareSelect').value;
+  if (!compareId) return;
+
+  const diff = await window.vstUpdater.diffMidiScans(compareId, currentId);
+  if (!diff) return;
+
+  const container = document.getElementById('diffResults');
+  let html = '';
+
+  if (diff.added.length === 0 && diff.removed.length === 0) {
+    html = '<div class="state-message"><div class="state-icon">&#10003;</div><h2>No differences found</h2><p>These two scans match.</p></div>';
+  } else {
+    if (diff.added.length > 0) {
+      html += `<div class="diff-section diff-added">
+        <h3>Added <span class="diff-count">${diff.added.length}</span></h3>
+        ${diff.added.map(m => `
+          <div class="diff-plugin">
+            <div class="diff-plugin-name">${escapeHtml(m.name)}</div>
+            <div class="diff-plugin-detail">${escapeHtml(m.format)} &middot; ${m.sizeFormatted || formatAudioSize(m.size)} &middot; ${escapeHtml(m.directory || '')}</div>
+          </div>`).join('')}
+      </div>`;
+    }
+    if (diff.removed.length > 0) {
+      html += `<div class="diff-section diff-removed">
+        <h3>Removed <span class="diff-count">${diff.removed.length}</span></h3>
+        ${diff.removed.map(m => `
+          <div class="diff-plugin">
+            <div class="diff-plugin-name">${escapeHtml(m.name)}</div>
+            <div class="diff-plugin-detail">${escapeHtml(m.format)} &middot; ${m.sizeFormatted || formatAudioSize(m.size)} &middot; ${escapeHtml(m.directory || '')}</div>
+          </div>`).join('')}
+      </div>`;
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+async function deleteMidiScanEntry(id) {
+  await window.vstUpdater.deleteMidiScan(id);
+  selectedScanId = null;
+  selectedScanType = null;
+  document.getElementById('historyDetail').innerHTML = '<div class="empty-history"><div class="empty-history-icon">&#8592;</div><p>Select a scan from the sidebar to view details</p></div>';
+  await loadHistory();
+}
+
 async function deletePresetScanEntry(id) {
   await window.vstUpdater.deletePresetScan(id);
   selectedScanId = null;
@@ -602,6 +853,8 @@ async function clearAllHistory() {
     window.vstUpdater.clearAudioHistory(),
     window.vstUpdater.clearDawHistory(),
     window.vstUpdater.clearPresetHistory(),
+    window.vstUpdater.clearPdfHistory(),
+    window.vstUpdater.clearMidiHistory(),
   ]);
   selectedScanId = null;
   selectedScanType = null;

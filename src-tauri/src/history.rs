@@ -299,6 +299,30 @@ pub struct MidiScanSnapshot {
     pub roots: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MidiScanSummary {
+    pub id: String,
+    pub timestamp: String,
+    #[serde(rename = "midiCount")]
+    pub midi_count: usize,
+    #[serde(rename = "totalBytes")]
+    pub total_bytes: u64,
+    #[serde(rename = "formatCounts")]
+    pub format_counts: std::collections::HashMap<String, usize>,
+    #[serde(default)]
+    pub roots: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MidiScanDiff {
+    #[serde(rename = "oldScan")]
+    pub old_scan: MidiScanSummary,
+    #[serde(rename = "newScan")]
+    pub new_scan: MidiScanSummary,
+    pub added: Vec<MidiFile>,
+    pub removed: Vec<MidiFile>,
+}
+
 // PDF scan types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PdfFile {
@@ -1448,6 +1472,45 @@ pub fn build_midi_snapshot(midi_files: &[MidiFile], roots: &[String]) -> MidiSca
         format_counts,
         midi_files: midi_files.to_vec(),
         roots: roots.to_vec(),
+    }
+}
+
+pub fn compute_midi_diff(old_scan: &MidiScanSnapshot, new_scan: &MidiScanSnapshot) -> MidiScanDiff {
+    let old_paths: std::collections::HashSet<&str> =
+        old_scan.midi_files.iter().map(|m| m.path.as_str()).collect();
+    let new_paths: std::collections::HashSet<&str> =
+        new_scan.midi_files.iter().map(|m| m.path.as_str()).collect();
+    let added: Vec<MidiFile> = new_scan
+        .midi_files
+        .iter()
+        .filter(|m| !old_paths.contains(m.path.as_str()))
+        .cloned()
+        .collect();
+    let removed: Vec<MidiFile> = old_scan
+        .midi_files
+        .iter()
+        .filter(|m| !new_paths.contains(m.path.as_str()))
+        .cloned()
+        .collect();
+    MidiScanDiff {
+        old_scan: MidiScanSummary {
+            id: old_scan.id.clone(),
+            timestamp: old_scan.timestamp.clone(),
+            midi_count: old_scan.midi_count,
+            total_bytes: old_scan.total_bytes,
+            format_counts: old_scan.format_counts.clone(),
+            roots: old_scan.roots.clone(),
+        },
+        new_scan: MidiScanSummary {
+            id: new_scan.id.clone(),
+            timestamp: new_scan.timestamp.clone(),
+            midi_count: new_scan.midi_count,
+            total_bytes: new_scan.total_bytes,
+            format_counts: new_scan.format_counts.clone(),
+            roots: new_scan.roots.clone(),
+        },
+        added,
+        removed,
     }
 }
 

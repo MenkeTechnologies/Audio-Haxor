@@ -477,6 +477,18 @@ document.addEventListener('click', (e) => {
             case 'deletePresetScanEntry':
                 deletePresetScanEntry(el.dataset.id);
                 break;
+            case 'runPdfDiff':
+                runPdfDiff(el.dataset.id);
+                break;
+            case 'deletePdfScanEntry':
+                deletePdfScanEntry(el.dataset.id);
+                break;
+            case 'runMidiDiff':
+                runMidiDiff(el.dataset.id);
+                break;
+            case 'deleteMidiScanEntry':
+                deleteMidiScanEntry(el.dataset.id);
+                break;
             case 'exportPlugins':
                 exportPlugins();
                 break;
@@ -1147,6 +1159,7 @@ window.vstUpdater = {
     deleteMidiScan: (id) => invoke('midi_history_delete', {id}),
     clearMidiHistory: () => invoke('midi_history_clear'),
     getLatestMidiScan: () => invoke('midi_history_latest'),
+    diffMidiScans: (oldId, newId) => invoke('midi_history_diff', {oldId, newId}),
     dbQueryMidi: (params) => invoke('db_query_midi', params || {}),
     dbMidiFilterStats: (search, formatFilter) => invoke('db_midi_filter_stats', {
         search: search || null,

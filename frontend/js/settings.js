@@ -772,7 +772,7 @@ function settingResetColumns() {
 }
 
 async function settingClearAllHistory() {
-  if (!await confirmAction('Clear all plugin, audio, DAW, and preset scan history? This cannot be undone.', 'Clear History')) return;
+  if (!await confirmAction('Clear all plugin, audio, DAW, preset, PDF, and MIDI scan history? This cannot be undone.', 'Clear History')) return;
   showGlobalProgress();
   try {
     await Promise.all([
@@ -781,6 +781,7 @@ async function settingClearAllHistory() {
       window.vstUpdater.clearDawHistory(),
       window.vstUpdater.clearPresetHistory(),
       window.vstUpdater.clearPdfHistory(),
+      window.vstUpdater.clearMidiHistory(),
     ]);
     showToast(toastFmt('toast.all_scan_history_cleared'));
   } catch (e) {
@@ -799,6 +800,7 @@ async function resetAllScans() {
       window.vstUpdater.stopDawScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
       window.vstUpdater.stopPresetScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
       window.vstUpdater.stopPdfScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
+      window.vstUpdater.stopMidiScan().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); }),
     ]);
     // Clear backend history + KVR cache
     await Promise.all([
@@ -807,6 +809,7 @@ async function resetAllScans() {
       window.vstUpdater.clearDawHistory(),
       window.vstUpdater.clearPresetHistory(),
       window.vstUpdater.clearPdfHistory(),
+      window.vstUpdater.clearMidiHistory(),
       window.vstUpdater.updateKvrCache([]),
     ]);
     // Clear in-memory data

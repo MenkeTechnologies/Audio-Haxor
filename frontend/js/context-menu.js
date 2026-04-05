@@ -574,6 +574,8 @@ document.addEventListener('contextmenu', (e) => {
           if (type === 'audio') deleteAudioScanEntry(id);
           else if (type === 'daw') deleteDawScanEntry(id);
           else if (type === 'preset') deletePresetScanEntry(id);
+          else if (type === 'pdf') deletePdfScanEntry(id);
+          else if (type === 'midi') deleteMidiScanEntry(id);
           else deleteScanEntry(id);
         }},
       ];
