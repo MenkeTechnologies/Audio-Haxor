@@ -24,6 +24,10 @@ describe('frontend/js/daw.js (vm-loaded)', () => {
     assert.strictEqual(D.getDawBadgeClass('REAPER'), 'daw-reaper');
   });
 
+  it('getDawBadgeClass collapses multiple spaces in the DAW label', () => {
+    assert.strictEqual(D.getDawBadgeClass('Bitwig  Studio'), 'daw-bitwig-studio');
+  });
+
   it('buildDawRow embeds search and path data attributes for scan-time filtering', () => {
     const html = D.buildDawRow({
       path: '/Music/beat.als',
@@ -58,5 +62,19 @@ describe('frontend/js/daw.js (vm-loaded)', () => {
     assert.ok(html.includes('checked'), 'checkbox checked when path in batchSelected');
     assert.ok(html.includes('has-plugins'), 'cached xref adds has-plugins class');
     assert.ok(html.includes('&#9889; 1'), 'button shows plugin count');
+  });
+
+  it('buildDawRow omits xref button when project format is not xref-supported', () => {
+    const html = D.buildDawRow({
+      path: '/tmp/x.wav',
+      name: 'Bounce',
+      daw: 'Export',
+      format: 'WAV',
+      sizeFormatted: '1 MB',
+      modified: 'd',
+      directory: '/tmp',
+    });
+    assert.ok(!html.includes('data-action="showXref"'));
+    assert.ok(html.includes('format-default'));
   });
 });

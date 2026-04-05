@@ -44,4 +44,9 @@ describe('frontend/js/utils.js parseFzfQuery (vm-loaded)', () => {
     assert.strictEqual(g[2][0].type, 'suffix');
     assert.strictEqual(g[2][0].text, 'baz');
   });
+
+  it('parseFzfQuery returns empty groups for whitespace-only query', () => {
+    const g = U.parseFzfQuery('   ');
+    assert.strictEqual(g.length, 0);
+  });
 });

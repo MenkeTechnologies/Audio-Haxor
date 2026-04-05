@@ -21,6 +21,7 @@ describe('frontend/js/presets.js (vm-loaded)', () => {
   it('formatPresetSize matches human-readable byte ladder', () => {
     assert.strictEqual(P.formatPresetSize(0), '0 B');
     assert.match(P.formatPresetSize(1536), /^1\.5 KB$/);
+    assert.match(P.formatPresetSize(2.5 * 1024 * 1024), /^2\.5 MB$/);
   });
 
   it('buildPresetRow includes path, format, and checkbox wiring', () => {
@@ -53,5 +54,15 @@ describe('frontend/js/presets.js (vm-loaded)', () => {
     const bytes = vm.runInContext('_presetStatsTotalBytes', P);
     assert.deepStrictEqual(counts, { FXP: 1, H2P: 1 });
     assert.strictEqual(bytes, 150);
+  });
+
+  it('accumulatePresetStats no-op on empty batch leaves accumulators cleared', () => {
+    vm.runInContext(
+      `resetPresetStatsAccumulators();
+      accumulatePresetStats([]);`,
+      P
+    );
+    assert.strictEqual(vm.runInContext('_presetStatsTotalBytes', P), 0);
+    assert.strictEqual(JSON.stringify(vm.runInContext('_presetStatsFormatCounts', P)), '{}');
   });
 });

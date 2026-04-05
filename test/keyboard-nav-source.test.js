@@ -144,6 +144,20 @@ describe('frontend/js/keyboard-nav.js (vm-loaded)', () => {
     assert.strictEqual(removed.length, 1);
   });
 
+  it('getNavigableItems returns #dawTableBody rows on tabDaw', () => {
+    const tr = { dataset: { dawPath: '/p/session.rpp' } };
+    const activeTab = {
+      id: 'tabDaw',
+      querySelectorAll(sel) {
+        if (sel === '#dawTableBody tr[data-daw-path]') return [tr];
+        return [];
+      },
+    };
+    const K = loadKeyboardNavSandbox(activeTab);
+    assert.strictEqual(K.getNavigableItems().length, 1);
+    assert.strictEqual(K.getNavigableItems()[0], tr);
+  });
+
   it('_getSelectedPath reads dataset.path on plugin card', () => {
     const card = {
       dataset: { path: '/Plugins/X.vst3' },

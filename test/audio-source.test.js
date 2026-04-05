@@ -131,6 +131,7 @@ describe('frontend/js/audio.js (vm-loaded)', () => {
     assert.strictEqual(A.getFormatClass('mp3'), 'format-mp3');
     assert.strictEqual(A.getFormatClass('AIFF'), 'format-aiff');
     assert.strictEqual(A.getFormatClass('aif'), 'format-aif');
+    assert.strictEqual(A.getFormatClass('flac'), 'format-flac');
     assert.strictEqual(A.getFormatClass('ogg'), 'format-ogg');
     assert.strictEqual(A.getFormatClass('m4a'), 'format-m4a');
     assert.strictEqual(A.getFormatClass('aac'), 'format-aac');
@@ -171,5 +172,29 @@ describe('frontend/js/audio.js (vm-loaded)', () => {
     });
     assert.ok(html.includes('row-playing'));
     assert.ok(html.includes('btn-loop') && html.includes('active'));
+  });
+
+  it('buildAudioRow shows mono vs multi-channel shorthand in col-ch', () => {
+    vm.runInContext('audioPlayerPath = null; _lastAudioSearch = ""; _lastAudioMode = "fuzzy";', A);
+    const mono = A.buildAudioRow({
+      name: 'M',
+      path: '/m.wav',
+      format: 'WAV',
+      sizeFormatted: '1 B',
+      modified: 'd',
+      directory: '/',
+      channels: 1,
+    });
+    assert.ok(mono.includes('class="col-ch"') && mono.includes('>M</td>'));
+    const six = A.buildAudioRow({
+      name: 'S',
+      path: '/s.wav',
+      format: 'WAV',
+      sizeFormatted: '1 B',
+      modified: 'd',
+      directory: '/',
+      channels: 6,
+    });
+    assert.ok(six.includes('>6ch</td>'));
   });
 });
