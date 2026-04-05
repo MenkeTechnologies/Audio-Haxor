@@ -82,6 +82,11 @@ async function fetchDawPage() {
 function resetDawStats() {
   dawStatCounts = {};
   dawStatBytes = 0;
+  // Drop any stale DB snapshot from a prior scan — otherwise updateDawStats
+  // would read from the old snapshot while the new scan's accumulator fills
+  // dawStatCounts, causing the stats row to lag the scan button counter.
+  _dawStatsSnapshot = null;
+  _lastDawAggKey = null;
 }
 
 function accumulateDawStats(projects) {
