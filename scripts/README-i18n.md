@@ -16,11 +16,17 @@ The script fails if a key already exists (prevents accidental overwrites). Rebui
 
 ## Other locales (`de`, `es`, `sv`, `fr`, `nl`, `pt`, `it`, `el`, `pl`, `ru`, `zh` — Simplified Chinese, `ja` — Japanese, `ko` — Korean)
 
-- **Full machine translation** (slow; needs network):
+- **Full machine translation** (slow; needs network). Regenerate **all** shipped non-English catalogs from English in one go:
 
 ```bash
 python3 -m venv .venv-i18n
 .venv-i18n/bin/pip install deep-translator
+.venv-i18n/bin/python scripts/gen_all_app_i18n_locales.py
+```
+
+Or run per-locale generators individually:
+
+```bash
 .venv-i18n/bin/python scripts/gen_app_i18n_de.py
 .venv-i18n/bin/python scripts/gen_app_i18n_es.py
 .venv-i18n/bin/python scripts/gen_app_i18n_sv.py

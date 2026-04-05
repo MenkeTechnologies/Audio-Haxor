@@ -46,6 +46,8 @@ async function reloadAppStrings(locale) {
     window.__appStr = m || {};
     window.__toastStr = window.__appStr;
     if (typeof applyUiI18n === 'function') applyUiI18n();
+    if (typeof renderFavDirs === 'function') renderFavDirs();
+    if (typeof updateBookmarkBtn === 'function') updateBookmarkBtn();
     if (typeof refreshSettingsUI === 'function') refreshSettingsUI();
     if (typeof renderShortcutSettings === 'function') {
       const sf = document.getElementById('shortcutsFilter');

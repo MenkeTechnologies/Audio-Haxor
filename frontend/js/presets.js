@@ -324,13 +324,17 @@ function openPresetFolder(path) {
 async function scanPresets(resume = false, unifiedResult = null) {
   showGlobalProgress();
   const btn = document.getElementById('btnScanPresets');
-  // MIDI tab's scan button also routes to scanPresets — mirror button state
-  // there so users who start the scan from the MIDI tab see live progress.
+  // MIDI tab's scan button also routes to scanPresets — mirror state there
+  // so users who start the scan from the MIDI tab see live progress, but
+  // show MIDI-only count (not total preset count) on the MIDI button.
   const midiBtn = document.getElementById('btnScanMidi');
-  const setBtn = (html, disabled) => {
+  const setBtn = (html, disabled, midiHtml) => {
     btn.innerHTML = html;
     btn.disabled = disabled;
-    if (midiBtn) { midiBtn.innerHTML = html; midiBtn.disabled = disabled; }
+    if (midiBtn) {
+      midiBtn.innerHTML = midiHtml != null ? midiHtml : html;
+      midiBtn.disabled = disabled;
+    }
   };
   const resumeBtn = document.getElementById('btnResumePresets');
   const stopBtn = document.getElementById('btnStopPresets');
@@ -427,7 +431,14 @@ async function scanPresets(resume = false, unifiedResult = null) {
 
     rebuildPresetStats();
     const presetElapsed = presetEta.elapsed();
-    setBtn(`&#8635; ${pendingFound.toLocaleString()} found${presetElapsed ? ' — ' + presetElapsed : ''}`, true);
+    const midiNow = typeof _midiScanCount !== 'undefined' ? _midiScanCount : 0;
+    const presetOnly = Math.max(0, pendingFound - midiNow);
+    const timeSuffix = presetElapsed ? ' — ' + presetElapsed : '';
+    setBtn(
+      `&#8635; ${presetOnly.toLocaleString()} found${timeSuffix}`,
+      true,
+      `&#8635; ${midiNow.toLocaleString()} found${timeSuffix}`,
+    );
     lastFlush = performance.now();
   }
 

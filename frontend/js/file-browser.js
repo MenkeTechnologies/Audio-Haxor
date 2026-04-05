@@ -46,11 +46,14 @@ function renderFavDirs() {
     return;
   }
   container.style.display = '';
+  const rmTitle = typeof appFmt === 'function'
+    ? appFmt('ui.tt.remove_bookmark_from_chip')
+    : 'Remove bookmark';
   grid.innerHTML = dirs.map(d =>
     `<div class="file-fav-chip" data-fav-dir="${escapeHtml(d.path)}" title="${escapeHtml(d.path)}">
       <span class="fav-chip-icon">&#128193;</span>
       <span class="fav-chip-name">${escapeHtml(d.name)}</span>
-      <span class="fav-chip-remove" data-remove-fav-dir="${escapeHtml(d.path)}" title="Remove bookmark">&#10005;</span>
+      <span class="fav-chip-remove" data-remove-fav-dir="${escapeHtml(d.path)}" title="${escapeHtml(rmTitle)}">&#10005;</span>
     </div>`
   ).join('');
 }
@@ -59,8 +62,10 @@ function updateBookmarkBtn() {
   const btn = document.getElementById('btnFileFav');
   if (!btn || !_fileBrowserPath) return;
   const fav = isFavDir(_fileBrowserPath);
-  btn.innerHTML = fav ? '&#9733; Unbookmark' : '&#9733; Bookmark';
-  btn.title = fav ? 'Remove current directory from bookmarks' : 'Bookmark current directory';
+  const fmt = typeof appFmt === 'function' ? appFmt : (k) => k;
+  const label = fav ? fmt('ui.btn.9733_unbookmark') : fmt('ui.btn.9733_bookmark');
+  btn.innerHTML = `&#9733; <span>${escapeHtml(label)}</span>`;
+  btn.title = fav ? fmt('ui.tt.remove_current_directory_from_bookmarks') : fmt('ui.tt.bookmark_current_directory');
 }
 
 const AUDIO_EXTS = ['wav', 'mp3', 'aiff', 'aif', 'flac', 'ogg', 'm4a', 'aac', 'opus', 'wma'];
