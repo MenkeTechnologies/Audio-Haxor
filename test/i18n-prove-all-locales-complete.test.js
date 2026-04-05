@@ -31,6 +31,7 @@ const LOCALE_FILES = [
   ['zh', 'app_i18n_zh.json'],
   ['ja', 'app_i18n_ja.json'],
   ['ko', 'app_i18n_ko.json'],
+  ['fi', 'app_i18n_fi.json'],
 ];
 
 /** Match literals for namespaces in `i18n/app_i18n_en.json` (same as `i18n-js-keys.test.js`). */

@@ -25,7 +25,7 @@ const CATALOG_PREFIXES = /** @type {const} */ ([
   'ui.',
 ]);
 
-const NON_EN = /** @type {const} */ (['de', 'el', 'es', 'fr', 'it', 'nl', 'pl', 'pt', 'ru', 'sv', 'zh', 'ja', 'ko']);
+const NON_EN = /** @type {const} */ (['de', 'el', 'es', 'fi', 'fr', 'it', 'nl', 'pl', 'pt', 'ru', 'sv', 'zh', 'ja', 'ko']);
 
 /** Locales required to differ from English for anchor keys. */
 const TRANSLATED_LOCALES = NON_EN;

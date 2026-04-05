@@ -490,6 +490,7 @@ const CACHE_STAT_I18N_KEYS = {
   audio_scans: 'ui.settings.cache_row_audio_scans',
   daw_scans: 'ui.settings.cache_row_daw_scans',
   preset_scans: 'ui.settings.cache_row_preset_scans',
+  midi_scans: 'ui.settings.cache_row_midi_scans',
   pdf_scans: 'ui.settings.cache_row_pdf_scans',
   database: 'ui.settings.cache_row_database',
 };
@@ -844,7 +845,7 @@ function settingToggleFolderWatch() {
 
 function startFolderWatch() {
   const dirs = [];
-  for (const key of ['audioScanDirs', 'dawScanDirs', 'presetScanDirs', 'pdfScanDirs']) {
+  for (const key of ['audioScanDirs', 'dawScanDirs', 'presetScanDirs', 'midiScanDirs', 'pdfScanDirs']) {
     const val = prefs.getItem(key);
     if (val) dirs.push(...val.split('\n').map(d => d.trim()).filter(Boolean));
   }
@@ -1053,6 +1054,13 @@ function savePresetScanDirs() {
   prefs.setItem('presetScanDirs', val);
   showSavedMsg('savedMsgPresetScanDirs');
   showToast(toastFmt('toast.preset_scan_dirs_saved'));
+}
+
+function saveMidiScanDirs() {
+  const val = document.getElementById('settingMidiScanDirs').value.trim();
+  prefs.setItem('midiScanDirs', val);
+  showSavedMsg('savedMsgMidiScanDirs');
+  if (typeof showToast === 'function') showToast(typeof toastFmt === 'function' ? toastFmt('toast.midi_scan_dirs_saved') : 'MIDI scan directories saved');
 }
 
 function savePdfScanDirs() {
@@ -1472,6 +1480,9 @@ function refreshSettingsUI() {
   const presetScanDirs = prefs.getItem('presetScanDirs') || '';
   const presetScanDirsEl = document.getElementById('settingPresetScanDirs');
   if (presetScanDirsEl) presetScanDirsEl.value = presetScanDirs;
+  const midiScanDirs = prefs.getItem('midiScanDirs') || '';
+  const midiScanDirsEl = document.getElementById('settingMidiScanDirs');
+  if (midiScanDirsEl) midiScanDirsEl.value = midiScanDirs;
   const pdfScanDirs = prefs.getItem('pdfScanDirs') || '';
   const pdfScanDirsEl = document.getElementById('settingPdfScanDirs');
   if (pdfScanDirsEl) pdfScanDirsEl.value = pdfScanDirs;
@@ -1538,7 +1549,7 @@ function restoreSettings() {
   const localeSel = document.getElementById('settingUiLocale');
   if (
     localeSel &&
-    (uiLoc === 'de' || uiLoc === 'es' || uiLoc === 'sv' || uiLoc === 'fr' || uiLoc === 'nl' || uiLoc === 'pt' || uiLoc === 'it' || uiLoc === 'el' || uiLoc === 'pl' || uiLoc === 'ru' || uiLoc === 'zh' || uiLoc === 'ja' || uiLoc === 'ko' || uiLoc === 'en')
+    (uiLoc === 'de' || uiLoc === 'es' || uiLoc === 'sv' || uiLoc === 'fr' || uiLoc === 'nl' || uiLoc === 'pt' || uiLoc === 'it' || uiLoc === 'el' || uiLoc === 'pl' || uiLoc === 'ru' || uiLoc === 'zh' || uiLoc === 'ja' || uiLoc === 'ko' || uiLoc === 'fi' || uiLoc === 'en')
   ) {
     localeSel.value = uiLoc;
   }

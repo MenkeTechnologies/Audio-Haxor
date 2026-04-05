@@ -38,6 +38,7 @@ async function reloadAppStrings(locale) {
     locale === 'zh' ||
     locale === 'ja' ||
     locale === 'ko' ||
+    locale === 'fi' ||
     locale === 'en'
       ? locale
       : null;
@@ -193,6 +194,9 @@ document.addEventListener('click', (e) => {
     case 'openPresetFolder': openPresetFolder(el.dataset.path); break;
     case 'sortPreset': sortPreset(el.dataset.key); break;
     case 'loadMorePresets': loadMorePresets(); break;
+    case 'scanMidi': if (typeof scanMidi === 'function') scanMidi(); break;
+    case 'resumeMidiScan': if (typeof scanMidi === 'function') scanMidi(true); break;
+    case 'stopMidiScan': if (typeof stopMidiScan === 'function') stopMidiScan(); break;
     case 'scanPdfs': scanPdfs(); break;
     case 'resumePdfScan': scanPdfs(true); break;
     case 'stopPdfScan': stopPdfScan(); break;
@@ -336,6 +340,7 @@ document.addEventListener('click', (e) => {
     case 'saveAudioScanDirs': saveAudioScanDirs(); break;
     case 'saveDawScanDirs': saveDawScanDirs(); break;
     case 'savePresetScanDirs': savePresetScanDirs(); break;
+    case 'saveMidiScanDirs': if (typeof saveMidiScanDirs === 'function') saveMidiScanDirs(); break;
     case 'savePdfScanDirs': savePdfScanDirs(); break;
     case 'openPrefsFile': showToast(toastFmt('toast.opening_preferences')); openPrefsFile(); break;
     case 'toggleRegex': toggleRegex(el); break;
@@ -564,6 +569,21 @@ window.vstUpdater = {
   clearPresetHistory: () => invoke('preset_history_clear'),
   getLatestPresetScan: () => invoke('preset_history_latest'),
   diffPresetScans: (oldId, newId) => invoke('preset_history_diff', { oldId, newId }),
+  // MIDI — fully independent from preset scanner.
+  scanMidiFiles: (customRoots, excludePaths) => invoke('scan_midi_files', { customRoots: customRoots || null, excludePaths: excludePaths || null }),
+  stopMidiScan: () => invoke('stop_midi_scan'),
+  onMidiScanProgress: (callback) => {
+    const p = listen('midi-scan-progress', (event) => callback(event.payload));
+    return () => { p.then(fn => fn()); };
+  },
+  saveMidiScan: (midiFiles, roots) => invoke('midi_history_save', { midiFiles, roots: roots || null }),
+  getMidiScans: () => invoke('midi_history_get_scans'),
+  getMidiScanDetail: (id) => invoke('midi_history_get_detail', { id }),
+  deleteMidiScan: (id) => invoke('midi_history_delete', { id }),
+  clearMidiHistory: () => invoke('midi_history_clear'),
+  getLatestMidiScan: () => invoke('midi_history_latest'),
+  dbQueryMidi: (params) => invoke('db_query_midi', params || {}),
+  dbMidiFilterStats: (search, formatFilter) => invoke('db_midi_filter_stats', { search: search || null, format_filter: formatFilter || null }),
   // PDFs
   scanPdfs: (customRoots, excludePaths) => invoke('scan_pdfs', { customRoots: customRoots || null, excludePaths: excludePaths || null }),
   stopPdfScan: () => invoke('stop_pdf_scan'),
@@ -578,6 +598,8 @@ window.vstUpdater = {
     dawIncludeBackups: args.dawIncludeBackups || false,
     presetCustomRoots: args.presetCustomRoots || null,
     presetExcludePaths: args.presetExcludePaths || null,
+    midiCustomRoots: args.midiCustomRoots || null,
+    midiExcludePaths: args.midiExcludePaths || null,
     pdfCustomRoots: args.pdfCustomRoots || null,
     pdfExcludePaths: args.pdfExcludePaths || null,
   }),
