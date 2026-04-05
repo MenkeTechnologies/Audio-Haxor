@@ -2,7 +2,7 @@
 //! `test/i18n-html-injection-guard.test.js`). Each locale map is parsed once (`OnceLock`);
 //! `bucket_id(key)` assigns keys to `BUCKETS` shards so failures name a small slice.
 //!
-//! `seq-macro` expands to `BUCKETS × 7` separate `#[test]` functions (parallel-friendly).
+//! `seq-macro` expands to `BUCKETS × 8` separate `#[test]` functions (parallel-friendly).
 
 use seq_macro::seq;
 use std::collections::hash_map::DefaultHasher;
@@ -62,6 +62,7 @@ locale_map!(CELL_SV, map_sv, "app_i18n_sv.json");
 locale_map!(CELL_FR, map_fr, "app_i18n_fr.json");
 locale_map!(CELL_NL, map_nl, "app_i18n_nl.json");
 locale_map!(CELL_PT, map_pt, "app_i18n_pt.json");
+locale_map!(CELL_IT, map_it, "app_i18n_it.json");
 
 seq!(N in 0..1024 {
     #[test]
@@ -91,5 +92,9 @@ seq!(N in 0..1024 {
     #[test]
     fn pt_bucket~N() {
         check_bucket(map_pt(), "pt", N);
+    }
+    #[test]
+    fn it_bucket~N() {
+        check_bucket(map_it(), "it", N);
     }
 });

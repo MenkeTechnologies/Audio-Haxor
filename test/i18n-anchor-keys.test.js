@@ -2,7 +2,7 @@
  * Per-locale spot checks: for every **safe** shipped-catalog key under the UI namespaces below,
  * each non-English locale must not copy the English string verbatim (catches pasted `en` rows or bad MT).
  *
- * **Safe key** = English value is non-empty and `de`/`es`/`fr`/`nl`/`pt`/`sv` **all** differ
+ * **Safe key** = English value is non-empty and `de`/`es`/`fr`/`it`/`nl`/`pt`/`sv` **all** differ
  * from English for that key (shared brand strings like `menu.app` / `tray.tooltip` are excluded
  * automatically when any locale still matches `en`).
  */
@@ -25,7 +25,7 @@ const CATALOG_PREFIXES = /** @type {const} */ ([
   'ui.',
 ]);
 
-const NON_EN = /** @type {const} */ (['de', 'es', 'fr', 'nl', 'pt', 'sv']);
+const NON_EN = /** @type {const} */ (['de', 'es', 'fr', 'it', 'nl', 'pt', 'sv']);
 
 function matchesCatalogPrefix(k) {
   return CATALOG_PREFIXES.some((p) => k.startsWith(p));
