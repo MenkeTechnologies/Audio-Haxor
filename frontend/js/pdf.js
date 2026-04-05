@@ -162,8 +162,8 @@ function buildPdfRow(p) {
   const hp = escapeHtml(p.path);
   const checked = batchSelected.has(p.path) ? ' checked' : '';
   const rowTt = typeof escapeHtml === 'function'
-    ? escapeHtml(_pdfFmt('ui.tt.row_double_click_reveal_finder'))
-    : _pdfFmt('ui.tt.row_double_click_reveal_finder');
+    ? escapeHtml(_pdfFmt('ui.tt.pdf_row_double_click_open_default'))
+    : _pdfFmt('ui.tt.pdf_row_double_click_open_default');
   const cached = _pdfPagesCache[p.path];
   const pagesCell = cached === undefined ? '<span style="color:var(--text-dim);">—</span>'
     : cached === null ? pdfPagesUnknownHtml()
