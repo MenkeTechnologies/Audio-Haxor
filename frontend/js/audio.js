@@ -7,7 +7,6 @@ let audioCurrentOffset = 0; // pagination offset
 let audioSortKey = 'name';
 let audioSortAsc = true;
 let audioScanProgressCleanup = null;
-let _midiScanCount = 0;
 let _audioScanActive = false;
 
 /** `appFmt` wrapper — same pattern as `plugins.js` `_ui`. */
@@ -655,7 +654,6 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
   let firstAudioBatch = true;
   let pendingSamples = [];
   let pendingFound = 0;
-  _midiScanCount = 0;
   _audioScanActive = true;
   let flushScheduled = false;
   const audioEta = createETA();

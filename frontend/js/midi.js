@@ -18,14 +18,12 @@ let midiSortAsc = true;
 
 async function loadMidiFiles() {
   try {
-    const midiFormats = new Set(['MID', 'MIDI']);
-    if (typeof allPresets !== 'undefined' && allPresets.length > 0) {
-      allMidiFiles = allPresets.filter(p => midiFormats.has(p.format));
+    // Load from the MIDI scanner's own DB — completely independent of presets.
+    const latest = await window.vstUpdater.getLatestMidiScan();
+    if (latest && latest.midiFiles) {
+      allMidiFiles = latest.midiFiles;
     } else {
-      const latest = await window.vstUpdater.getLatestPresetScan();
-      if (latest && latest.presets) {
-        allMidiFiles = latest.presets.filter(p => midiFormats.has(p.format));
-      }
+      allMidiFiles = [];
     }
     filteredMidi = allMidiFiles.slice();
     _midiLoaded = true;
@@ -35,12 +33,112 @@ async function loadMidiFiles() {
     renderMidiTable();
     updateMidiCount();
     updateMidiHeaderCount();
+    syncMidiStatsBarCount();
   } catch (e) {
     if (typeof showToast === 'function') showToast(toastFmt('toast.midi_load_failed', { err: e.message || e }), 4000, 'error');
   }
 }
 
+// ── MIDI scanner — fully independent from preset scanner ──
+let _midiScanProgressCleanup = null;
+
+async function stopMidiScan() {
+  try { await window.vstUpdater.stopMidiScan(); } catch (e) { /* ignore */ }
+}
+
+async function scanMidi(resume = false) {
+  if (typeof showGlobalProgress === 'function') showGlobalProgress();
+  const btn = document.getElementById('btnScanMidi');
+  const resumeBtn = document.getElementById('btnResumeMidi');
+  const stopBtn = document.getElementById('btnStopMidi');
+  const progressBar = document.getElementById('midiProgressBar');
+  const progressFill = document.getElementById('midiProgressFill');
+  const tableWrap = document.getElementById('midiTableWrap');
+  const setBtn = (html, disabled) => { if (btn) { btn.innerHTML = html; btn.disabled = disabled; } };
+
+  const excludePaths = resume ? allMidiFiles.map(m => m.path) : null;
+
+  setBtn(resume ? '&#8635; Resuming...' : '&#8635; Scanning...', true);
+  if (resumeBtn) resumeBtn.style.display = 'none';
+  if (stopBtn) stopBtn.style.display = '';
+  if (progressBar) progressBar.classList.add('active');
+  if (progressFill) progressFill.style.width = '0%';
+
+  if (!resume) {
+    allMidiFiles = [];
+    filteredMidi = [];
+    _midiInfoCache = {};
+    _midiRenderCount = 0;
+    _midiTableInit = false;
+    if (tableWrap) tableWrap.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for MIDI files...</h2><p>Walking filesystem directories parallelized...</p></div>';
+  }
+
+  let pendingMidi = [];
+  let pendingFound = 0;
+  const midiEta = typeof createETA === 'function' ? createETA() : null;
+  if (midiEta) midiEta.start();
+
+  if (_midiScanProgressCleanup) _midiScanProgressCleanup();
+  _midiScanProgressCleanup = window.vstUpdater.onMidiScanProgress((data) => {
+    if (data.phase === 'scanning') {
+      if (data.midiFiles) pendingMidi.push(...data.midiFiles);
+      pendingFound = data.found || 0;
+      syncMidiStatsBarCount(pendingFound);
+      const elapsed = midiEta ? midiEta.elapsed() : '';
+      const timeSuffix = elapsed ? ' — ' + elapsed : '';
+      setBtn(`&#8635; ${pendingFound.toLocaleString()} found${timeSuffix}`, true);
+    }
+  });
+
+  try {
+    const midiRoots = (typeof prefs !== 'undefined' ? (prefs.getItem('midiScanDirs') || '') : '').split('\n').map(s => s.trim()).filter(Boolean);
+    const result = await window.vstUpdater.scanMidiFiles(midiRoots.length ? midiRoots : undefined, excludePaths);
+    const files = result.midiFiles || [];
+    if (resume) {
+      allMidiFiles = [...allMidiFiles, ...files];
+    } else {
+      allMidiFiles = files;
+    }
+    filteredMidi = allMidiFiles.slice();
+    // Save to DB — the scan isn't persistent until this runs.
+    if (!result.stopped) {
+      try { await window.vstUpdater.saveMidiScan(allMidiFiles, result.roots); }
+      catch (e) { if (typeof showToast === 'function') showToast('Failed to save MIDI history: ' + (e.message || e), 4000, 'error'); }
+    }
+    if (_midiScanProgressCleanup) { _midiScanProgressCleanup(); _midiScanProgressCleanup = null; }
+    _midiTableInit = false;
+    _midiRenderCount = 0;
+    sortMidiArray();
+    renderMidiTable();
+    updateMidiCount();
+    updateMidiHeaderCount();
+    syncMidiStatsBarCount();
+    if (result.stopped && allMidiFiles.length > 0 && resumeBtn) {
+      resumeBtn.style.display = '';
+    }
+  } catch (err) {
+    if (_midiScanProgressCleanup) { _midiScanProgressCleanup(); _midiScanProgressCleanup = null; }
+    const errMsg = err.message || err || 'Unknown error';
+    if (tableWrap) tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
+    if (typeof showToast === 'function') showToast('MIDI scan failed: ' + errMsg, 4000, 'error');
+  }
+
+  if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
+  setBtn('&#127924; Scan MIDI', false);
+  if (stopBtn) stopBtn.style.display = 'none';
+  if (progressBar) progressBar.classList.remove('active');
+  if (progressFill) progressFill.style.width = '0%';
+}
+
 function getMidiCount() { return allMidiFiles.length; }
+
+/** Stats bar "MIDI Found" — must not rely on preset scan (MIDI has its own walker/DB). */
+function syncMidiStatsBarCount(total) {
+  const el = document.getElementById('midiScanCount');
+  if (!el) return;
+  const n = typeof total === 'number' ? total : allMidiFiles.length;
+  el.textContent = n.toLocaleString();
+}
 
 function updateMidiCount() {
   const count = document.getElementById('midiCount');

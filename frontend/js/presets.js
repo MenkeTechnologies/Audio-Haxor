@@ -324,27 +324,14 @@ function openPresetFolder(path) {
 async function scanPresets(resume = false, unifiedResult = null) {
   showGlobalProgress();
   const btn = document.getElementById('btnScanPresets');
-  // MIDI tab's scan button also routes to scanPresets — mirror state there
-  // so users who start the scan from the MIDI tab see live progress, but
-  // show MIDI-only count (not total preset count) on the MIDI button.
-  const midiBtn = document.getElementById('btnScanMidi');
-  const setBtn = (html, disabled, midiHtml) => {
+  const setBtn = (html, disabled) => {
     btn.innerHTML = html;
     btn.disabled = disabled;
-    if (midiBtn) {
-      midiBtn.innerHTML = midiHtml != null ? midiHtml : html;
-      midiBtn.disabled = disabled;
-    }
   };
   const resumeBtn = document.getElementById('btnResumePresets');
   const stopBtn = document.getElementById('btnStopPresets');
-  // Mirror resume/stop button visibility onto MIDI tab's copies so users on
-  // the MIDI tab can stop/resume without having to switch tabs.
-  const midiResumeBtn = document.getElementById('btnResumeMidi');
-  const midiStopBtn = document.getElementById('btnStopMidi');
-  const setBtnDisplay = (el, mirror, display) => {
+  const setBtnDisplay = (el, display) => {
     if (el) el.style.display = display;
-    if (mirror) mirror.style.display = display;
   };
   const progressBar = document.getElementById('presetProgressBar');
   const progressFill = document.getElementById('presetProgressFill');
@@ -353,8 +340,8 @@ async function scanPresets(resume = false, unifiedResult = null) {
   const excludePaths = resume ? allPresets.map(p => p.path) : null;
 
   setBtn(resume ? '&#8635; Resuming...' : '&#8635; Scanning...', true);
-  setBtnDisplay(resumeBtn, midiResumeBtn, 'none');
-  setBtnDisplay(stopBtn, midiStopBtn, '');
+  setBtnDisplay(resumeBtn, 'none');
+  setBtnDisplay(stopBtn, '');
   progressBar.classList.add('active');
   progressFill.style.width = '0%';
 
@@ -369,7 +356,6 @@ async function scanPresets(resume = false, unifiedResult = null) {
 
   let firstBatch = true;
   let pendingPresets = [];
-  if (typeof _midiScanCount !== 'undefined') _midiScanCount = 0;
   let pendingFound = 0;
   let flushScheduled = false;
   const presetEta = createETA();
@@ -439,14 +425,8 @@ async function scanPresets(resume = false, unifiedResult = null) {
 
     rebuildPresetStats();
     const presetElapsed = presetEta.elapsed();
-    const midiNow = typeof _midiScanCount !== 'undefined' ? _midiScanCount : 0;
-    const presetOnly = Math.max(0, pendingFound - midiNow);
     const timeSuffix = presetElapsed ? ' — ' + presetElapsed : '';
-    setBtn(
-      `&#8635; ${presetOnly.toLocaleString()} found${timeSuffix}`,
-      true,
-      `&#8635; ${midiNow.toLocaleString()} found${timeSuffix}`,
-    );
+    setBtn(`&#8635; ${pendingFound.toLocaleString()} found${timeSuffix}`, true);
     lastFlush = performance.now();
   }
 
@@ -465,14 +445,8 @@ async function scanPresets(resume = false, unifiedResult = null) {
     } else if (data.phase === 'scanning') {
       pendingPresets.push(...data.presets);
       pendingFound = data.found;
-      // Split count: presets vs MIDI
-      const midiFormats = new Set(['MID', 'MIDI']);
-      const midiInBatch = data.presets ? data.presets.filter(p => midiFormats.has(p.format)).length : 0;
-      if (typeof _midiScanCount !== 'undefined') _midiScanCount += midiInBatch;
-      const presetOnly = pendingFound - (typeof _midiScanCount !== 'undefined' ? _midiScanCount : 0);
-      document.getElementById('presetCountHeader').textContent = presetOnly.toLocaleString();
-      const midiEl = document.getElementById('midiScanCount');
-      if (midiEl) midiEl.textContent = (typeof _midiScanCount !== 'undefined' ? _midiScanCount : 0).toLocaleString();
+      // Preset scanner does not emit MIDI (dedicated midi_scanner); found = preset files only.
+      document.getElementById('presetCountHeader').textContent = pendingFound.toLocaleString();
       scheduleFlush();
     }
   });
@@ -506,7 +480,7 @@ async function scanPresets(resume = false, unifiedResult = null) {
     // Reload MIDI tab from preset data
     if (typeof loadMidiFiles === 'function') { _midiLoaded = false; loadMidiFiles(); }
     if (result.stopped && allPresets.length > 0) {
-      setBtnDisplay(resumeBtn, midiResumeBtn, '');
+      setBtnDisplay(resumeBtn, '');
     }
   } catch (err) {
     if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
@@ -519,8 +493,7 @@ async function scanPresets(resume = false, unifiedResult = null) {
   hideGlobalProgress();
   btn.disabled = false;
   btn.innerHTML = '&#127924; Scan Presets';
-  if (midiBtn) { midiBtn.disabled = false; midiBtn.innerHTML = '&#127924; Scan MIDI'; }
-  setBtnDisplay(stopBtn, midiStopBtn, 'none');
+  setBtnDisplay(stopBtn, 'none');
   document.getElementById('btnExportPresets').style.display = allPresets.length > 0 ? '' : 'none';
   progressBar.classList.remove('active');
   progressFill.style.width = '0%';
