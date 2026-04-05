@@ -556,6 +556,28 @@
       flex-shrink: 0;
     }
 
+    /* Settings → Database Caches: BPM/Key/LUFS batch under cache stats table, left-aligned */
+    .settings-row.settings-cache-bpm-wrap {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .settings-cache-bpm-wrap .settings-label {
+      flex: 0 1 auto;
+      width: 100%;
+      max-width: 100%;
+    }
+    .settings-cache-bpm-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-start;
+      align-items: center;
+      width: 100%;
+    }
+
     .btn-settings-action {
       padding: 6px 16px;
       font-size: 11px;
@@ -6066,14 +6088,14 @@
         <div class="settings-section" data-section="caches">
           <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_database_caches">Database Caches</span></h2>
           <div id="cacheStatsGrid" style="font-size:11px;margin-bottom:8px;"></div>
-          <div class="settings-row" style="margin-bottom:8px;flex-direction:column;align-items:flex-start;">
-            <div class="settings-label" style="flex:1 1 auto;width:100%;">
-              <span class="settings-title" data-i18n="ui.st.bpm_key_lufs_analysis">BPM/Key/LUFS analysis</span>
-              <span class="settings-desc" data-i18n="ui.sd.bpm_key_lufs_analysis">Analyze files that do not have BPM, key, and loudness yet — same background job as idle analysis</span>
-            </div>
-            <div class="settings-control" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+          <div class="settings-row settings-cache-bpm-wrap">
+            <div class="settings-cache-bpm-btns">
               <button class="btn btn-secondary btn-settings-action" data-action="runBpmKeyLufsAnalysis" title="Start or resume background BPM/Key/LUFS analysis for unanalyzed files" style="font-size:10px;" data-i18n-title="ui.tt.run_bpm_key_lufs_analysis" data-i18n="ui.btn.run_bpm_key_lufs_analysis">Run analysis</button>
               <button class="btn btn-stop btn-settings-action" data-action="stopBpmKeyLufsAnalysis" title="Stop background BPM/Key/LUFS analysis (after the current batch finishes)" style="font-size:10px;" data-i18n-title="ui.tt.stop_bpm_key_lufs_analysis" data-i18n="ui.btn.stop_bpm_key_lufs_analysis">Stop analysis</button>
+            </div>
+            <div class="settings-label">
+              <span class="settings-title" data-i18n="ui.st.bpm_key_lufs_analysis">BPM/Key/LUFS analysis</span>
+              <span class="settings-desc" data-i18n="ui.sd.bpm_key_lufs_analysis">Analyze files that do not have BPM, key, and loudness yet — same background job as idle analysis</span>
             </div>
           </div>
           <div style="display:flex;gap:6px;">
@@ -6163,42 +6185,42 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=39898"></script>
-  <script src="js/ipc.js?v=39898"></script>
-  <script src="js/utils.js?v=39898"></script>
-  <script src="js/drag-reorder.js?v=39898"></script>
-  <script src="js/modal-drag.js?v=39898"></script>
-  <script src="js/columns.js?v=39898"></script>
-  <script src="js/notes.js?v=39898"></script>
-  <script src="js/favorites.js?v=39898"></script>
-  <script src="js/export.js?v=39898"></script>
-  <script src="js/plugins.js?v=39898"></script>
-  <script src="js/settings.js?v=39898"></script>
-  <script src="js/history.js?v=39898"></script>
-  <script src="js/kvr.js?v=39898"></script>
-  <script src="js/audio.js?v=39898"></script>
-  <script src="js/daw.js?v=39898"></script>
-  <script src="js/presets.js?v=39898"></script>
-  <script src="js/disk-usage.js?v=39898"></script>
-  <script src="js/batch-select.js?v=39898"></script>
-  <script src="js/sort-persist.js?v=39898"></script>
-  <script src="js/multi-filter.js?v=39898"></script>
-  <script src="js/file-browser.js?v=39898"></script>
-  <script src="js/duplicates.js?v=39898"></script>
-  <script src="js/command-palette.js?v=39898"></script>
-  <script src="js/xref.js?v=39898"></script>
-  <script src="js/dep-graph.js?v=39898"></script>
-  <script src="js/smart-playlists.js?v=39898"></script>
-  <script src="js/heatmap-dashboard.js?v=39898"></script>
-  <script src="js/midi.js?v=39898"></script>
-  <script src="js/pdf.js?v=39898"></script>
-  <script src="js/settings-search.js?v=39898"></script>
-  <script src="js/visualizer.js?v=39898"></script>
-  <script src="js/walker-status.js?v=39898"></script>
-  <script src="js/context-menu.js?v=39898"></script>
-  <script src="js/help-overlay.js?v=39898"></script>
-  <script src="js/shortcuts.js?v=39898"></script>
-  <script src="js/keyboard-nav.js?v=39898"></script>
-  <script src="js/app.js?v=39898"></script>
+  <script src="js/i18n-ui.js?v=39899"></script>
+  <script src="js/ipc.js?v=39899"></script>
+  <script src="js/utils.js?v=39899"></script>
+  <script src="js/drag-reorder.js?v=39899"></script>
+  <script src="js/modal-drag.js?v=39899"></script>
+  <script src="js/columns.js?v=39899"></script>
+  <script src="js/notes.js?v=39899"></script>
+  <script src="js/favorites.js?v=39899"></script>
+  <script src="js/export.js?v=39899"></script>
+  <script src="js/plugins.js?v=39899"></script>
+  <script src="js/settings.js?v=39899"></script>
+  <script src="js/history.js?v=39899"></script>
+  <script src="js/kvr.js?v=39899"></script>
+  <script src="js/audio.js?v=39899"></script>
+  <script src="js/daw.js?v=39899"></script>
+  <script src="js/presets.js?v=39899"></script>
+  <script src="js/disk-usage.js?v=39899"></script>
+  <script src="js/batch-select.js?v=39899"></script>
+  <script src="js/sort-persist.js?v=39899"></script>
+  <script src="js/multi-filter.js?v=39899"></script>
+  <script src="js/file-browser.js?v=39899"></script>
+  <script src="js/duplicates.js?v=39899"></script>
+  <script src="js/command-palette.js?v=39899"></script>
+  <script src="js/xref.js?v=39899"></script>
+  <script src="js/dep-graph.js?v=39899"></script>
+  <script src="js/smart-playlists.js?v=39899"></script>
+  <script src="js/heatmap-dashboard.js?v=39899"></script>
+  <script src="js/midi.js?v=39899"></script>
+  <script src="js/pdf.js?v=39899"></script>
+  <script src="js/settings-search.js?v=39899"></script>
+  <script src="js/visualizer.js?v=39899"></script>
+  <script src="js/walker-status.js?v=39899"></script>
+  <script src="js/context-menu.js?v=39899"></script>
+  <script src="js/help-overlay.js?v=39899"></script>
+  <script src="js/shortcuts.js?v=39899"></script>
+  <script src="js/keyboard-nav.js?v=39899"></script>
+  <script src="js/app.js?v=39899"></script>
 </body>
 </html>
