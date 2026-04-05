@@ -352,6 +352,9 @@ describe('fzfMatch', () => {
     const m = fzfMatch('ab', 'Zab');
     assert.ok(m);
     assert.deepStrictEqual(m.indices, [1, 2]);
+    assert.strictEqual(m.score, 52);
+    assert.deepStrictEqual(fzfMatch('ab', 'ab').indices, [0, 1]);
+    assert.strictEqual(fzfMatch('ab', 'ab').score, 54);
   });
 
   it('is case insensitive', () => {
@@ -377,6 +380,25 @@ describe('scoreToken', () => {
     const exact = scoreToken({ type: 'fuzzy', text: 'ab', negate: false }, 'ab');
     const fuzzy = scoreToken({ type: 'fuzzy', text: 'ab', negate: false }, 'acb');
     assert.ok(exact > fuzzy);
+  });
+
+  it('scoreToken deterministic scores match utils.js fzf constants', () => {
+    assert.strictEqual(
+      scoreToken({ type: 'exact', text: 'bar', negate: false }, 'foo bar baz'),
+      1000 + 3 * 16
+    );
+    assert.strictEqual(
+      scoreToken({ type: 'prefix', text: 'foo', negate: false }, 'foobar'),
+      1500 + 3 * 16
+    );
+    assert.strictEqual(
+      scoreToken({ type: 'suffix', text: 'bar', negate: false }, 'foobar'),
+      1000 + 3 * 16
+    );
+    assert.strictEqual(
+      scoreToken({ type: 'fuzzy', text: 'test', negate: false }, 'test'),
+      2000 + 4 * 16
+    );
   });
 });
 

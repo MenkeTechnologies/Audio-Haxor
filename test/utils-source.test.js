@@ -110,6 +110,40 @@ describe('frontend/js/utils.js (vm-loaded source)', () => {
     assert.ok(a > b);
   });
 
+  it('fzfMatch: greedy extension per start + fzf-style bonuses (default SCORE_* / BONUS_*)', () => {
+    const m = U.fzfMatch('ab', 'Zab');
+    assert.ok(m);
+    assert.deepStrictEqual(Array.from(m.indices), [1, 2]);
+    // 'Z'→'a' is upper→lower (BONUS_NON_WORD×first_char_mult), not boundary; + consecutive 'a'→'b'
+    assert.strictEqual(m.score, 52);
+    const full = U.fzfMatch('ab', 'ab');
+    assert.ok(full);
+    assert.strictEqual(full.score, 54);
+    assert.deepStrictEqual(Array.from(full.indices), [0, 1]);
+  });
+
+  it('scoreToken: exact / prefix / suffix / fuzzy use fzf-weighted scores (default constants)', () => {
+    assert.strictEqual(
+      U.scoreToken({ type: 'exact', text: 'bar', negate: false }, 'foo bar baz'),
+      1000 + 3 * 16
+    );
+    assert.strictEqual(
+      U.scoreToken({ type: 'prefix', text: 'foo', negate: false }, 'foobar'),
+      1500 + 3 * 16
+    );
+    assert.strictEqual(
+      U.scoreToken({ type: 'suffix', text: 'bar', negate: false }, 'foobar'),
+      1000 + 3 * 16
+    );
+    assert.strictEqual(
+      U.scoreToken({ type: 'fuzzy', text: 'test', negate: false }, 'test'),
+      2000 + 4 * 16
+    );
+    const fuzzyOnly = U.scoreToken({ type: 'fuzzy', text: 'fb', negate: false }, 'FooBar');
+    assert.ok(fuzzyOnly > 0);
+    assert.ok(fuzzyOnly < 2000);
+  });
+
   it('searchScore: invalid regex falls back to substring', () => {
     assert.ok(U.searchScore('[', ['[literal'], 'regex') > 0);
   });
