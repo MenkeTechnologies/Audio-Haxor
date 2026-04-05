@@ -39,39 +39,13 @@ fn format_size(bytes: u64) -> String {
     crate::format_size(bytes)
 }
 
+/// Default PDF scan roots: user home only (`~`). Add more via Settings → PDF scan directories.
 pub fn get_pdf_roots() -> Vec<PathBuf> {
     let home = dirs::home_dir().unwrap_or_default();
-    let mut roots = Vec::new();
-    // Include home (`~`) so paths like ~/mnt/... are scanned without custom prefs.
-    // Overlaps with Documents/Desktop/Downloads; `walk_for_pdfs` dedupes visited dirs.
-    if !home.as_os_str().is_empty() {
-        roots.push(home.clone());
+    if home.as_os_str().is_empty() || !home.exists() {
+        return Vec::new();
     }
-
-    #[cfg(target_os = "macos")]
-    {
-        roots.push(home.join("Documents"));
-        roots.push(home.join("Desktop"));
-        roots.push(home.join("Downloads"));
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        roots.push(home.join("Documents"));
-        roots.push(home.join("Desktop"));
-        roots.push(home.join("Downloads"));
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        roots.push(home.join("Documents"));
-        roots.push(home.join("Desktop"));
-        roots.push(home.join("Downloads"));
-    }
-
-    roots.sort();
-    roots.dedup();
-    roots.into_iter().filter(|r| r.exists()).collect()
+    vec![home]
 }
 
 pub fn walk_for_pdfs(
