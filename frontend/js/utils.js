@@ -376,7 +376,7 @@ function applyFilter(action) {
 
 function applyFilterDebounced(action) {
   clearTimeout(_filterDebounceTimers[action]);
-  _filterDebounceTimers[action] = setTimeout(() => applyFilter(action), 200);
+  _filterDebounceTimers[action] = setTimeout(() => applyFilter(action), 250);
 }
 
 /**

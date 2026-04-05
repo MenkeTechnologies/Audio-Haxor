@@ -5839,6 +5839,9 @@ pub fn run() {
     // Initialize global SQLite database
     db::init_global().expect("Failed to initialize database");
 
+    // Warm page cache in background so first tab activation is instant
+    std::thread::spawn(|| { db::global().prewarm(); });
+
     // Log DB stats at startup
     if let Ok(counts) = db::global().table_counts() {
         let m = counts.as_object().unwrap();

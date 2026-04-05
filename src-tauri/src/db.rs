@@ -336,10 +336,16 @@ impl Database {
             Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
 
         // Performance pragmas
+        //   cache_size=-262144  — 256 MB page cache (negative = KB). Keeps hot
+        //                         indexes resident at millions-of-rows scale.
+        //   mmap_size=536870912 — 512 MB memory-mapped reads. SQLite reads pages
+        //                         directly from the OS page cache without a read()
+        //                         syscall — big win for browse-heavy workloads.
         conn.execute_batch(
             "PRAGMA journal_mode=WAL;
              PRAGMA synchronous=NORMAL;
-             PRAGMA cache_size=-65536;
+             PRAGMA cache_size=-262144;
+             PRAGMA mmap_size=536870912;
              PRAGMA foreign_keys=ON;
              PRAGMA temp_store=MEMORY;
              PRAGMA wal_autocheckpoint=1000;",
@@ -348,6 +354,9 @@ impl Database {
 
         // Checkpoint WAL to keep it small (prevents startup lag from huge WAL)
         let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+
+        // Refresh query-planner statistics so SQLite picks the right index
+        let _ = conn.execute_batch("PRAGMA optimize;");
 
         let db = Self {
             conn: Mutex::new(conn),
@@ -379,6 +388,25 @@ impl Database {
     }
 
     /// Checkpoint WAL to merge it into the main DB file. Keeps WAL small.
+    /// Warm the page cache by touching each table + FTS index root. First real
+    /// query returns ~1 ms instead of the 50-200 ms cold-cache penalty.
+    pub fn prewarm(&self) {
+        let conn = self.conn.lock().unwrap();
+        let _ = conn.execute_batch(
+            "SELECT COUNT(*) FROM audio_samples WHERE id=1;
+             SELECT COUNT(*) FROM daw_projects WHERE id=1;
+             SELECT COUNT(*) FROM presets WHERE id=1;
+             SELECT COUNT(*) FROM midi_files WHERE id=1;
+             SELECT COUNT(*) FROM pdfs WHERE id=1;
+             SELECT COUNT(*) FROM plugins WHERE id=1;
+             SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH 'xzyq' LIMIT 1;
+             SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH 'xzyq' LIMIT 1;
+             SELECT rowid FROM presets_fts WHERE presets_fts MATCH 'xzyq' LIMIT 1;
+             SELECT rowid FROM midi_files_fts WHERE midi_files_fts MATCH 'xzyq' LIMIT 1;
+             SELECT rowid FROM pdfs_fts WHERE pdfs_fts MATCH 'xzyq' LIMIT 1;",
+        );
+    }
+
     pub fn checkpoint(&self) {
         let conn = self.conn.lock().unwrap();
         let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");

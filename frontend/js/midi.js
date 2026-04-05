@@ -19,7 +19,7 @@ let _midiOffset = 0;
 let _midiTotalCount = 0;      // filtered count from DB
 let _midiTotalUnfiltered = 0; // unfiltered count from DB
 let _midiStatsSnapshot = null;
-const MIDI_PAGE_SIZE = 500;
+const MIDI_PAGE_SIZE = 200;
 
 async function loadMidiFiles() {
   // Initial paginated load from SQLite — mirrors audio.js pattern. Memory stays
