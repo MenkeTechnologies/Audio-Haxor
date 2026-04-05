@@ -5273,9 +5273,9 @@
 
     <div class="tab-content" id="tabMidi">
       <div class="audio-toolbar">
-        <button class="btn btn-primary" id="btnScanMidi" data-action="scanPresets" title="Scan for MIDI files (runs preset/MIDI scanner)" data-i18n-title="ui.tt.scan_for_midi_files_runs_preset_midi_scanner">&#127924; <span data-i18n="ui.btn.127924_scan_midi">Scan MIDI</span></button>
-        <button class="btn btn-secondary" id="btnResumeMidi" data-action="resumePresetScan" style="display: none;" title="Resume preset scan" data-i18n-title="ui.tt.resume_preset_scan">&#9654; <span data-i18n="ui.btn.9654_resume">Resume</span></button>
-        <button class="btn btn-stop" id="btnStopMidi" style="display: none;" data-action="stopPresetScan" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan">&#9632; <span data-i18n="ui.btn.9632_stop">Stop</span></button>
+        <button class="btn btn-primary" id="btnScanMidi" data-action="scanMidi" title="Scan filesystem for MIDI files" data-i18n-title="ui.tt.scan_for_midi_files">&#127924; <span data-i18n="ui.btn.127924_scan_midi">Scan MIDI</span></button>
+        <button class="btn btn-secondary" id="btnResumeMidi" data-action="resumeMidiScan" style="display: none;" title="Resume MIDI scan" data-i18n-title="ui.tt.resume_midi_scan">&#9654; <span data-i18n="ui.btn.9654_resume">Resume</span></button>
+        <button class="btn btn-stop" id="btnStopMidi" style="display: none;" data-action="stopMidiScan" title="Stop the current scan" data-i18n-title="ui.tt.stop_the_current_scan">&#9632; <span data-i18n="ui.btn.9632_stop">Stop</span></button>
         <button class="btn btn-secondary" data-action="exportMidi" title="Export MIDI file list" data-i18n-title="ui.tt.export_midi_file_list">&#8615; <span data-i18n="ui.btn.8615_export">Export</span></button>
         <button class="btn btn-secondary" data-action="importAudio" title="Import MIDI list from JSON" data-i18n-title="ui.tt.import_midi_list_from_json">&#8613; <span data-i18n="ui.btn.8613_import">Import</span></button>
         <div class="search-box" style="flex: 1;">
@@ -5376,7 +5376,7 @@
           <div class="walker-tile-status">idle</div>
           <div class="walker-tile-body" id="walkerPluginBody"></div>
         </div>
-        <div class="walker-tile" id="walkerTileUnified" title="Unified file walker — single traversal classifying audio, DAW projects, presets, MIDI, and PDFs. Right-click to copy paths." style="display:none;">
+        <div class="walker-tile" id="walkerTileUnified" title="Unified file walker — single traversal classifying audio, DAW projects, presets, MIDI, and PDFs. Right-click to copy paths." data-i18n-title="ui.tt.unified_file_walker" style="display:none;">
           <div class="walker-tile-header" style="color:var(--accent);">&#9881; Unified File Walker</div>
           <div class="walker-tile-status">idle</div>
           <div class="walker-tile-body" id="walkerUnifiedBody"></div>
@@ -5390,7 +5390,7 @@
           <div class="search-box" style="width:100%;">
             <span class="search-icon">&#128269;</span>
             <input type="text" id="settingsSearchInput" placeholder="Search settings..." data-action="filterSettings" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Filter settings by title, description, or section (Esc to clear)" data-i18n-placeholder="ui.ph.search_settings" data-i18n-title="ui.tt.filter_settings">
-            <button class="btn-regex" data-action="clearSettingsSearch" id="clearSettingsSearchBtn" style="display:none;" title="Clear search">&#10005;</button>
+            <button class="btn-regex" data-action="clearSettingsSearch" id="clearSettingsSearchBtn" style="display:none;" title="Clear search" data-i18n-title="ui.tt.clear_settings_search">&#10005;</button>
           </div>
           <div class="settings-search-empty" id="settingsSearchEmpty" style="display:none;">
             <span>No settings match your search.</span>
@@ -6053,6 +6053,7 @@
           <div id="cacheStatsGrid" style="font-size:11px;margin-bottom:8px;"></div>
           <div style="display:flex;gap:6px;">
             <button class="btn btn-stop btn-settings-action" data-action="settingClearAnalysisCache" title="Clear all caches at once" style="font-size:10px;" data-i18n-title="ui.tt.clear_all_caches_at_once" data-i18n="ui.btn.clear_all_caches">Clear All Caches</button>
+            <button class="btn btn-stop btn-settings-action" data-action="settingClearAllDatabases" title="Clear all scan history tables (plugins, audio, DAW, presets, MIDI, PDF)" style="font-size:10px;" data-i18n-title="ui.tt.clear_all_databases" data-i18n="ui.btn.clear_all_databases">Clear All Databases</button>
             <button class="btn btn-secondary btn-settings-action" data-action="refreshCacheStats" title="Refresh cache stats" style="font-size:10px;" data-i18n-title="ui.tt.refresh_cache_stats" data-i18n="ui.btn.refresh">Refresh</button>
           </div>
         </div>
@@ -6137,42 +6138,42 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=25705"></script>
-  <script src="js/ipc.js?v=25705"></script>
-  <script src="js/utils.js?v=25705"></script>
-  <script src="js/drag-reorder.js?v=25705"></script>
-  <script src="js/modal-drag.js?v=25705"></script>
-  <script src="js/columns.js?v=25705"></script>
-  <script src="js/notes.js?v=25705"></script>
-  <script src="js/favorites.js?v=25705"></script>
-  <script src="js/export.js?v=25705"></script>
-  <script src="js/plugins.js?v=25705"></script>
-  <script src="js/settings.js?v=25705"></script>
-  <script src="js/history.js?v=25705"></script>
-  <script src="js/kvr.js?v=25705"></script>
-  <script src="js/audio.js?v=25705"></script>
-  <script src="js/daw.js?v=25705"></script>
-  <script src="js/presets.js?v=25705"></script>
-  <script src="js/disk-usage.js?v=25705"></script>
-  <script src="js/batch-select.js?v=25705"></script>
-  <script src="js/sort-persist.js?v=25705"></script>
-  <script src="js/multi-filter.js?v=25705"></script>
-  <script src="js/file-browser.js?v=25705"></script>
-  <script src="js/duplicates.js?v=25705"></script>
-  <script src="js/command-palette.js?v=25705"></script>
-  <script src="js/xref.js?v=25705"></script>
-  <script src="js/dep-graph.js?v=25705"></script>
-  <script src="js/smart-playlists.js?v=25705"></script>
-  <script src="js/heatmap-dashboard.js?v=25705"></script>
-  <script src="js/midi.js?v=25705"></script>
-  <script src="js/pdf.js?v=25705"></script>
-  <script src="js/settings-search.js?v=25705"></script>
-  <script src="js/visualizer.js?v=25705"></script>
-  <script src="js/walker-status.js?v=25705"></script>
-  <script src="js/context-menu.js?v=25705"></script>
-  <script src="js/help-overlay.js?v=25705"></script>
-  <script src="js/shortcuts.js?v=25705"></script>
-  <script src="js/keyboard-nav.js?v=25705"></script>
-  <script src="js/app.js?v=25705"></script>
+  <script src="js/i18n-ui.js?v=46739"></script>
+  <script src="js/ipc.js?v=46739"></script>
+  <script src="js/utils.js?v=46739"></script>
+  <script src="js/drag-reorder.js?v=46739"></script>
+  <script src="js/modal-drag.js?v=46739"></script>
+  <script src="js/columns.js?v=46739"></script>
+  <script src="js/notes.js?v=46739"></script>
+  <script src="js/favorites.js?v=46739"></script>
+  <script src="js/export.js?v=46739"></script>
+  <script src="js/plugins.js?v=46739"></script>
+  <script src="js/settings.js?v=46739"></script>
+  <script src="js/history.js?v=46739"></script>
+  <script src="js/kvr.js?v=46739"></script>
+  <script src="js/audio.js?v=46739"></script>
+  <script src="js/daw.js?v=46739"></script>
+  <script src="js/presets.js?v=46739"></script>
+  <script src="js/disk-usage.js?v=46739"></script>
+  <script src="js/batch-select.js?v=46739"></script>
+  <script src="js/sort-persist.js?v=46739"></script>
+  <script src="js/multi-filter.js?v=46739"></script>
+  <script src="js/file-browser.js?v=46739"></script>
+  <script src="js/duplicates.js?v=46739"></script>
+  <script src="js/command-palette.js?v=46739"></script>
+  <script src="js/xref.js?v=46739"></script>
+  <script src="js/dep-graph.js?v=46739"></script>
+  <script src="js/smart-playlists.js?v=46739"></script>
+  <script src="js/heatmap-dashboard.js?v=46739"></script>
+  <script src="js/midi.js?v=46739"></script>
+  <script src="js/pdf.js?v=46739"></script>
+  <script src="js/settings-search.js?v=46739"></script>
+  <script src="js/visualizer.js?v=46739"></script>
+  <script src="js/walker-status.js?v=46739"></script>
+  <script src="js/context-menu.js?v=46739"></script>
+  <script src="js/help-overlay.js?v=46739"></script>
+  <script src="js/shortcuts.js?v=46739"></script>
+  <script src="js/keyboard-nav.js?v=46739"></script>
+  <script src="js/app.js?v=46739"></script>
 </body>
 </html>

@@ -430,6 +430,8 @@ MENU_EN: dict[str, str] = {
     "menu.find_duplicates": "Find Duplicates",
     "menu.dep_graph": "Dependency Graph",
     "menu.cmd_palette": "Command Palette",
+    "menu.context_settings_section_fallback": "Section",
+    "menu.context_walker_fallback": "Walker",
     "menu.help_overlay": "Keyboard Shortcuts",
     "menu.window": "Window",
     "menu.help": "Help",

@@ -792,8 +792,8 @@ document.addEventListener('contextmenu', (e) => {
   const tabBtn = e.target.closest('.tab-btn');
   if (tabBtn) {
     const tab = tabBtn.dataset.tab;
-    const exportMap = { plugins: 'exportPlugins', samples: 'exportAudio', daw: 'exportDaw', presets: 'exportPresets', pdf: 'exportPdfs' };
-    const scanMap = { plugins: 'scanPlugins', samples: 'scanAudioSamples', daw: 'scanDawProjects', presets: 'scanPresets', pdf: 'scanPdfs' };
+    const exportMap = { plugins: 'exportPlugins', samples: 'exportAudio', daw: 'exportDaw', presets: 'exportPresets', pdf: 'exportPdfs', midi: 'exportMidi' };
+    const scanMap = { plugins: 'scanPlugins', samples: 'scanAudioSamples', daw: 'scanDawProjects', presets: 'scanPresets', pdf: 'scanPdfs', midi: 'scanMidi' };
     const items = [
       { icon: '&#8635;', label: appFmt('menu.switch_to_tab'), action: () => switchTab(tab) },
       '---',
@@ -1137,7 +1137,8 @@ document.addEventListener('contextmenu', (e) => {
   if (walkerTile) {
     const body = walkerTile.querySelector('.walker-tile-body');
     const dirs = body ? [...body.querySelectorAll('.walker-dir')].map(d => d.textContent).join('\n') : '';
-    const title = walkerTile.querySelector('.walker-tile-title, h4, h3')?.textContent?.trim() || 'Walker';
+    const title = walkerTile.querySelector('.walker-tile-title, h4, h3')?.textContent?.trim()
+      || (typeof appFmt === 'function' ? appFmt('menu.context_walker_fallback') : 'Walker');
     const items = [
       { icon: '&#128203;', label: appFmt('menu.copy_all_paths'), ..._noEcho, action: () => copyToClipboard(dirs), disabled: !dirs },
       { icon: '&#128203;', label: appFmt('menu.copy_tile_title'), ..._noEcho, action: () => copyToClipboard(title) },
@@ -1153,7 +1154,8 @@ document.addEventListener('contextmenu', (e) => {
   // ── Settings sections ──
   const settingsSection = e.target.closest('.settings-section');
   if (settingsSection) {
-    const heading = settingsSection.querySelector('.settings-heading')?.textContent?.trim() || 'Section';
+    const heading = settingsSection.querySelector('.settings-heading')?.textContent?.trim()
+      || (typeof appFmt === 'function' ? appFmt('menu.context_settings_section_fallback') : 'Section');
     const items = [
       { icon: '&#128203;', label: appFmt('menu.copy_section_name'), ..._noEcho, action: () => typeof copyToClipboard === 'function' && copyToClipboard(heading) },
       { icon: '&#9650;', label: appFmt('menu.move_up'), action: () => {
