@@ -672,6 +672,9 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
     pendingSamples = [];
 
     allAudioSamples.push(...toAdd);
+    // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data,
+    // post-scan fetchAudioPage() reloads the visible page directly from SQLite.
+    if (allAudioSamples.length > 100000) allAudioSamples = allAudioSamples.slice(-100000);
     accumulateAudioStats(toAdd);
     // Queue for background BPM/Key/LUFS analysis (cap at 50K to prevent unbounded growth)
     _bgQueue.push(...toAdd);
@@ -695,6 +698,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
     });
     if (matching.length > 0) {
       filteredAudioSamples.push(...matching);
+      if (filteredAudioSamples.length > 100000) filteredAudioSamples = filteredAudioSamples.slice(-100000);
       const tbody = document.getElementById('audioTableBody');
       if (tbody && audioRenderCount < 2000) {
         const loadMore = document.getElementById('audioLoadMore');
@@ -1651,6 +1655,16 @@ async function startBackgroundAnalysis() {
 
 function stopBackgroundAnalysis() {
   _bgAnalysisAbort = true;
+}
+
+/** Settings / manual trigger: start background BPM/Key/LUFS batch if not already running. */
+function triggerBackgroundBpmKeyLufsAnalysis() {
+  if (_bgAnalysisRunning) {
+    if (typeof showToast === 'function') showToast(toastFmt('toast.bpm_key_lufs_analysis_already_running'));
+    return;
+  }
+  startBackgroundAnalysis();
+  if (typeof showToast === 'function') showToast(toastFmt('toast.bpm_key_lufs_analysis_started'));
 }
 
 function metaItem(label, value, wide) {
