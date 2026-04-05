@@ -61,7 +61,8 @@ python3 scripts/merge_batch_into_locales.py scripts/i18n_batches/your_batch.json
 - `test/i18n-html-keys.test.js` — every `data-i18n*` key in `frontend/index.html` exists in `app_i18n_en.json`.
 - `test/i18n-js-keys.test.js` — string literals that look like catalog keys (`ui.*`, `menu.*`, `toast.*`, …) under `frontend/js` are defined in English.
 - `test/i18n-locales-and-shape.test.js` — every shipped locale JSON has the **same key set** as English and only non-empty string values.
-- `test/i18n-anchor-keys.test.js` — for keys where **de/el/es/fr/it/nl/pl/pt/sv** all differ from English, none of those locales may copy `en` verbatim (`ru` excluded while Russian mirrors English).
+- `test/i18n-prove-all-locales-complete.test.js` — exhaustive proof: every English key exists in every locale with a non-empty value; every HTML- and JS-referenced catalog key exists in **every** locale (not only `en`).
+- `test/i18n-anchor-keys.test.js` — for keys where **de/el/es/fr/it/nl/pl/pt/ru/sv** all differ from English, none of those locales may copy `en` verbatim.
 - `test/i18n-no-raw-showtoast.test.js` — `showToast` is not called with a raw `'…'` / `"…"` first argument (use `toastFmt('toast.*')` or `String(err)`).
 - `test/i18n-catalog-files.test.js` — shipped locale JSON files match `app_i18n.rs` seeds, UTF-8, and **lexicographically sorted keys** (stable merges).
 
