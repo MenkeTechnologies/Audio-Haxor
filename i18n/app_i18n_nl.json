@@ -177,6 +177,7 @@
   "menu.hide_audio_player": "Audiospeler verbergen",
   "menu.hide_player": "Speler verbergen",
   "menu.import_daw": "DAW-projecten importeren...",
+  "menu.import_midi_list": "MIDI-lijst importeren...",
   "menu.import_pdfs": "Import PDFs",
   "menu.import_plugins": "Plug-ins importeren...",
   "menu.import_presets": "Voorinstellingen importeren...",

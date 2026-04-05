@@ -177,6 +177,7 @@
   "menu.hide_audio_player": "오디오 플레이어 숨기기",
   "menu.hide_player": "플레이어 숨기기",
   "menu.import_daw": "DAW 프로젝트 가져오기...",
+  "menu.import_midi_list": "MIDI 목록 가져오기...",
   "menu.import_pdfs": "PDF 가져오기",
   "menu.import_plugins": "플러그인 가져오기...",
   "menu.import_presets": "사전 설정 가져오기...",

@@ -177,6 +177,7 @@
   "menu.hide_audio_player": "オーディオプレーヤーを隠す",
   "menu.hide_player": "プレイヤーを隠す",
   "menu.import_daw": "DAW プロジェクトをインポート...",
+  "menu.import_midi_list": "MIDIリストをインポート...",
   "menu.import_pdfs": "PDF をインポートする",
   "menu.import_plugins": "プラグインをインポート...",
   "menu.import_presets": "プリセットをインポート...",

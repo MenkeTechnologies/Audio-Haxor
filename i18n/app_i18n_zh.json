@@ -177,6 +177,7 @@
   "menu.hide_audio_player": "隐藏音频播放器",
   "menu.hide_player": "隐藏玩家",
   "menu.import_daw": "导入 DAW 项目...",
+  "menu.import_midi_list": "导入 MIDI 列表...",
   "menu.import_pdfs": "导入 PDF",
   "menu.import_plugins": "导入插件...",
   "menu.import_presets": "导入预设...",

@@ -505,6 +505,16 @@ document.addEventListener('contextmenu', (e) => {
       items.push('---');
       items.push({ icon: '&#8615;', label: appFmt('menu.export_presets'), action: () => exportPresets(), disabled: allPresets.length === 0 });
       items.push({ icon: '&#8613;', label: appFmt('menu.import_presets'), action: () => importPresets() });
+    } else if (tabId === 'tabMidi') {
+      items.push({ icon: '&#127924;', label: appFmt('menu.scan_midi'), action: () => { if (typeof scanMidi === 'function') scanMidi(); } });
+      items.push('---');
+      items.push({ icon: '&#8615;', label: appFmt('menu.export_midi_files'), action: () => { if (typeof exportMidi === 'function') exportMidi(); }, disabled: typeof allMidiFiles === 'undefined' || allMidiFiles.length === 0 });
+      items.push({ icon: '&#8613;', label: appFmt('menu.import_midi_list'), action: () => { if (typeof importAudio === 'function') importAudio(); } });
+    } else if (tabId === 'tabPdf') {
+      items.push({ icon: '&#8635;', label: appFmt('menu.scan_pdf'), action: () => { if (typeof scanPdfs === 'function') scanPdfs(); } });
+      items.push('---');
+      items.push({ icon: '&#8615;', label: appFmt('menu.export_pdfs'), action: () => { if (typeof exportPdfs === 'function') exportPdfs(); }, disabled: typeof allPdfs === 'undefined' || allPdfs.length === 0 });
+      items.push({ icon: '&#8613;', label: appFmt('menu.import_pdfs'), action: () => { if (typeof importPdfs === 'function') importPdfs(); } });
     }
     if (items.length) {
       items.push('---');

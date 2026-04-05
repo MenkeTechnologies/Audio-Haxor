@@ -177,6 +177,7 @@
   "menu.hide_audio_player": "Piilota äänisoitin",
   "menu.hide_player": "Piilota soitin",
   "menu.import_daw": "Tuo DAW-projektit...",
+  "menu.import_midi_list": "Tuo MIDI-luettelo...",
   "menu.import_pdfs": "Tuo PDF-tiedostoja",
   "menu.import_plugins": "Tuo laajennukset...",
   "menu.import_presets": "Tuo esiasetukset...",

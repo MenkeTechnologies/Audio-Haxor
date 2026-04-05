@@ -177,6 +177,7 @@
   "menu.hide_audio_player": "Απόκρυψη προγράμματος αναπαραγωγής ήχου",
   "menu.hide_player": "Απόκρυψη προγράμματος αναπαραγωγής",
   "menu.import_daw": "Εισαγωγή έργων DAW...",
+  "menu.import_midi_list": "Εισαγωγή λίστας MIDI...",
   "menu.import_pdfs": "Import PDFs",
   "menu.import_plugins": "Εισαγωγή προσθηκών...",
   "menu.import_presets": "Εισαγωγή προεπιλογών...",

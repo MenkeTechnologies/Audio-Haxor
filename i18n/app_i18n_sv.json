@@ -177,6 +177,7 @@
   "menu.hide_audio_player": "Dölj ljudspelare",
   "menu.hide_player": "Göm spelare",
   "menu.import_daw": "Importera DAW-projekt...",
+  "menu.import_midi_list": "Importera MIDI-lista...",
   "menu.import_pdfs": "Importera PDF-filer",
   "menu.import_plugins": "Importera plugins...",
   "menu.import_presets": "Importera förinställningar...",

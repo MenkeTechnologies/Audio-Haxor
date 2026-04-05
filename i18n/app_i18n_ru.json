@@ -177,6 +177,7 @@
   "menu.hide_audio_player": "Скрыть аудиоплеер",
   "menu.hide_player": "Скрыть игрока",
   "menu.import_daw": "Импортировать проекты DAW...",
+  "menu.import_midi_list": "Импорт списка MIDI...",
   "menu.import_pdfs": "Импортировать PDF-файлы",
   "menu.import_plugins": "Импортировать плагины...",
   "menu.import_presets": "Импортировать пресеты...",

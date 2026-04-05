@@ -177,6 +177,7 @@
   "menu.hide_audio_player": "Ocultar reprodutor de áudio",
   "menu.hide_player": "Ocultar jogador",
   "menu.import_daw": "Importar projetos DAW...",
+  "menu.import_midi_list": "Importar lista MIDI...",
   "menu.import_pdfs": "Import PDFs",
   "menu.import_plugins": "Importar plug-ins...",
   "menu.import_presets": "Importar predefinições...",
