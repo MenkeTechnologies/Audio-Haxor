@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "Föremål",
   "ui.settings.cache_table_size": "Storlek",
   "ui.settings.dialog_select_folder": "Välj mapp att skanna",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Gränssnittsspråk",
   "ui.settings.interface_language_desc": "Valt språk gäller för gränssnittet och menyraden efter omstart",
   "ui.settings.saved": "Sparad",

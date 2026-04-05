@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "Rzeczy",
   "ui.settings.cache_table_size": "Rozmiar",
   "ui.settings.dialog_select_folder": "Wybierz folder do przeskanowania",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Język interfejsu",
   "ui.settings.interface_language_desc": "Tekst interfejsu użytkownika (uruchom ponownie aplikację, aby zastosować natywny język paska menu)",
   "ui.settings.saved": "Zapisano",

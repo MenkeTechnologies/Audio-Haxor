@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "Artikel",
   "ui.settings.cache_table_size": "Größe",
   "ui.settings.dialog_select_folder": "Wählen Sie den zu scannenden Ordner aus",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Schnittstellensprache",
   "ui.settings.interface_language_desc": "Gewählte Sprache gilt für UI und Menüleiste nach Neustart der App",
   "ui.settings.saved": "Gespeichert",

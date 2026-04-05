@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "Είδη",
   "ui.settings.cache_table_size": "Μέγεθος",
   "ui.settings.dialog_select_folder": "Επιλέξτε φάκελο για σάρωση",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Γλώσσα διεπαφής",
   "ui.settings.interface_language_desc": "Η επιλεγμένη γλώσσα εφαρμόζεται στη διεπαφή και τη γραμμή μενού μετά την επανεκκίνηση",
   "ui.settings.saved": "Αποθηκεύτηκε",

@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "Unid",
   "ui.settings.cache_table_size": "Tamanho",
   "ui.settings.dialog_select_folder": "Selecione a pasta para digitalizar",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Idioma da interface",
   "ui.settings.interface_language_desc": "O idioma escolhido aplica-se à interface e à barra de menu após reiniciar",
   "ui.settings.saved": "Salvo",

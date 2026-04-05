@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "项目",
   "ui.settings.cache_table_size": "尺寸",
   "ui.settings.dialog_select_folder": "选择要扫描的文件夹",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "界面语言",
   "ui.settings.interface_language_desc": "重新启动应用程序后，所选语言将应用于 UI 和菜单栏",
   "ui.settings.saved": "已保存",

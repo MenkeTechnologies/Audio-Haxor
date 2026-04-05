@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "품목",
   "ui.settings.cache_table_size": "크기",
   "ui.settings.dialog_select_folder": "스캔할 폴더 선택",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "인터페이스 언어",
   "ui.settings.interface_language_desc": "선택한 언어는 앱을 다시 시작한 후 UI와 메뉴 표시줄에 적용됩니다.",
   "ui.settings.saved": "저장됨",

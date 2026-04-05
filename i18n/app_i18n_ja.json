@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "アイテム",
   "ui.settings.cache_table_size": "サイズ",
   "ui.settings.dialog_select_folder": "スキャンするフォルダーを選択してください",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "インターフェース言語",
   "ui.settings.interface_language_desc": "選択した言語は、アプリの再起動後に UI とメニュー バーに適用されます",
   "ui.settings.saved": "保存されました",

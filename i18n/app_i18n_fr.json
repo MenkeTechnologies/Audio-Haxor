@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "Articles",
   "ui.settings.cache_table_size": "Taille",
   "ui.settings.dialog_select_folder": "Sélectionnez le dossier à analyser",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Langue de l'interface",
   "ui.settings.interface_language_desc": "La langue choisie s'applique à l'interface et à la barre de menus après redémarrage",
   "ui.settings.saved": "Enregistré",

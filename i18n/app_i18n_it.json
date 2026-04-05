@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "Elementi",
   "ui.settings.cache_table_size": "Misurare",
   "ui.settings.dialog_select_folder": "Seleziona la cartella da scansionare",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Linguaggio dell'interfaccia",
   "ui.settings.interface_language_desc": "La lingua scelta si applica all'interfaccia e alla barra dei menu dopo il riavvio",
   "ui.settings.saved": "Salvato",

@@ -1200,6 +1200,7 @@
   "ui.settings.cache_table_items": "Items",
   "ui.settings.cache_table_size": "Size",
   "ui.settings.dialog_select_folder": "Select folder to scan",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Interface language",
   "ui.settings.interface_language_desc": "Chosen language applies to the UI and menu bar after you restart the app",
   "ui.settings.about_version_line": "Version {version} · {author} · ",

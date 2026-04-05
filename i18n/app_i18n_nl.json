@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "Artikelen",
   "ui.settings.cache_table_size": "Maat",
   "ui.settings.dialog_select_folder": "Selecteer de map om te scannen",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Interfacetaal",
   "ui.settings.interface_language_desc": "Gekozen taal geldt voor de UI en menubalk na herstart",
   "ui.settings.saved": "Opgeslagen",

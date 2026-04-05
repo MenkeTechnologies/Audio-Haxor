@@ -1201,6 +1201,7 @@
   "ui.settings.cache_table_items": "Предметы",
   "ui.settings.cache_table_size": "Размер",
   "ui.settings.dialog_select_folder": "Выберите папку для сканирования",
+  "ui.settings.fuzzy_search_weights_heading": "Fuzzy search weights",
   "ui.settings.interface_language": "Язык интерфейса",
   "ui.settings.interface_language_desc": "Выбранный язык применяется к пользовательскому интерфейсу и строке меню после перезапуска приложения.",
   "ui.settings.saved": "Сохранено",
