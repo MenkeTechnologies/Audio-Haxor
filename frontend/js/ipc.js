@@ -39,6 +39,9 @@ async function reloadAppStrings(locale) {
     locale === 'ja' ||
     locale === 'ko' ||
     locale === 'fi' ||
+    locale === 'da' ||
+    locale === 'nb' ||
+    locale === 'tr' ||
     locale === 'en'
       ? locale
       : null;

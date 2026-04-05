@@ -1,5 +1,5 @@
 //! App UI strings for i18n: seeded into SQLite (`app_i18n` table) from `i18n/app_i18n_en.json`
-//! (toasts, menus, tray, HTML `data-i18n*`, dialogs). Locales `de`, `es`, `sv`, `fr`, `nl`, `pt`, `it`, `el`, `pl`, `ru`, `zh`, `ja`, `ko`, `fi` add rows with the same keys.
+//! (toasts, menus, tray, HTML `data-i18n*`, dialogs). Locales `da`, `de`, `es`, `sv`, `fr`, `nl`, `pt`, `it`, `el`, `pl`, `ru`, `zh`, `ja`, `ko`, `fi`, `nb`, `tr` add rows with the same keys.
 
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
@@ -19,6 +19,9 @@ static SEED_JSON_ZH: &str = include_str!("../../i18n/app_i18n_zh.json");
 static SEED_JSON_JA: &str = include_str!("../../i18n/app_i18n_ja.json");
 static SEED_JSON_KO: &str = include_str!("../../i18n/app_i18n_ko.json");
 static SEED_JSON_FI: &str = include_str!("../../i18n/app_i18n_fi.json");
+static SEED_JSON_DA: &str = include_str!("../../i18n/app_i18n_da.json");
+static SEED_JSON_NB: &str = include_str!("../../i18n/app_i18n_nb.json");
+static SEED_JSON_TR: &str = include_str!("../../i18n/app_i18n_tr.json");
 
 /// Insert default locale rows (`INSERT OR REPLACE` on `(key, locale)` primary key) on every
 /// migration so shipped `i18n/app_i18n_*.json` values stay current. There is no separate UI to
@@ -39,6 +42,9 @@ pub fn seed_defaults(conn: &Connection) -> Result<(), String> {
     seed_locale(conn, "ja", SEED_JSON_JA)?;
     seed_locale(conn, "ko", SEED_JSON_KO)?;
     seed_locale(conn, "fi", SEED_JSON_FI)?;
+    seed_locale(conn, "da", SEED_JSON_DA)?;
+    seed_locale(conn, "nb", SEED_JSON_NB)?;
+    seed_locale(conn, "tr", SEED_JSON_TR)?;
     Ok(())
 }
 
@@ -90,9 +96,10 @@ pub fn load_merged(conn: &Connection, locale: &str) -> Result<HashMap<String, St
 #[cfg(test)]
 mod tests {
     use super::{
-        load_merged, SEED_JSON_DE, SEED_JSON_EL, SEED_JSON_EN, SEED_JSON_ES, SEED_JSON_FI,
-        SEED_JSON_FR, SEED_JSON_IT, SEED_JSON_JA, SEED_JSON_KO, SEED_JSON_NL, SEED_JSON_PL,
-        SEED_JSON_PT, SEED_JSON_RU, SEED_JSON_SV, SEED_JSON_ZH,
+        load_merged, SEED_JSON_DA, SEED_JSON_DE, SEED_JSON_EL, SEED_JSON_EN, SEED_JSON_ES,
+        SEED_JSON_FI, SEED_JSON_FR, SEED_JSON_IT, SEED_JSON_JA, SEED_JSON_KO, SEED_JSON_NB,
+        SEED_JSON_NL, SEED_JSON_PL, SEED_JSON_PT, SEED_JSON_RU, SEED_JSON_SV, SEED_JSON_TR,
+        SEED_JSON_ZH,
     };
     use regex::Regex;
     use rusqlite::Connection;
@@ -426,6 +433,39 @@ mod tests {
     }
 
     #[test]
+    fn seed_json_da_menu_scan_all_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let da: HashMap<String, String> = serde_json::from_str(SEED_JSON_DA).expect("da json");
+        assert_ne!(
+            en.get("menu.scan_all"),
+            da.get("menu.scan_all"),
+            "Danish seed should translate menu.scan_all (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_nb_menu_scan_all_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let nb: HashMap<String, String> = serde_json::from_str(SEED_JSON_NB).expect("nb json");
+        assert_ne!(
+            en.get("menu.scan_all"),
+            nb.get("menu.scan_all"),
+            "Norwegian seed should translate menu.scan_all (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_tr_menu_scan_all_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let tr: HashMap<String, String> = serde_json::from_str(SEED_JSON_TR).expect("tr json");
+        assert_ne!(
+            en.get("menu.scan_all"),
+            tr.get("menu.scan_all"),
+            "Turkish seed should translate menu.scan_all (same key, different value)"
+        );
+    }
+
+    #[test]
     fn seed_json_de_tray_play_pause_differs_from_en() {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
         let de: HashMap<String, String> = serde_json::from_str(SEED_JSON_DE).expect("de json");
@@ -576,6 +616,39 @@ mod tests {
             en.get("tray.play_pause"),
             fi.get("tray.play_pause"),
             "Finnish seed should translate tray.play_pause (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_da_tray_play_pause_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let da: HashMap<String, String> = serde_json::from_str(SEED_JSON_DA).expect("da json");
+        assert_ne!(
+            en.get("tray.play_pause"),
+            da.get("tray.play_pause"),
+            "Danish seed should translate tray.play_pause (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_nb_tray_play_pause_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let nb: HashMap<String, String> = serde_json::from_str(SEED_JSON_NB).expect("nb json");
+        assert_ne!(
+            en.get("tray.play_pause"),
+            nb.get("tray.play_pause"),
+            "Norwegian seed should translate tray.play_pause (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_tr_tray_play_pause_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let tr: HashMap<String, String> = serde_json::from_str(SEED_JSON_TR).expect("tr json");
+        assert_ne!(
+            en.get("tray.play_pause"),
+            tr.get("tray.play_pause"),
+            "Turkish seed should translate tray.play_pause (same key, different value)"
         );
     }
 
@@ -734,6 +807,39 @@ mod tests {
     }
 
     #[test]
+    fn seed_json_da_tray_stop_all_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let da: HashMap<String, String> = serde_json::from_str(SEED_JSON_DA).expect("da json");
+        assert_ne!(
+            en.get("tray.stop_all"),
+            da.get("tray.stop_all"),
+            "Danish seed should translate tray.stop_all (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_nb_tray_stop_all_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let nb: HashMap<String, String> = serde_json::from_str(SEED_JSON_NB).expect("nb json");
+        assert_ne!(
+            en.get("tray.stop_all"),
+            nb.get("tray.stop_all"),
+            "Norwegian seed should translate tray.stop_all (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_tr_tray_stop_all_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let tr: HashMap<String, String> = serde_json::from_str(SEED_JSON_TR).expect("tr json");
+        assert_ne!(
+            en.get("tray.stop_all"),
+            tr.get("tray.stop_all"),
+            "Turkish seed should translate tray.stop_all (same key, different value)"
+        );
+    }
+
+    #[test]
     fn seed_json_de_tray_show_differs_from_en() {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
         let de: HashMap<String, String> = serde_json::from_str(SEED_JSON_DE).expect("de json");
@@ -884,6 +990,39 @@ mod tests {
             en.get("tray.show"),
             fi.get("tray.show"),
             "Finnish seed should translate tray.show (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_da_tray_show_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let da: HashMap<String, String> = serde_json::from_str(SEED_JSON_DA).expect("da json");
+        assert_ne!(
+            en.get("tray.show"),
+            da.get("tray.show"),
+            "Danish seed should translate tray.show (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_nb_tray_show_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let nb: HashMap<String, String> = serde_json::from_str(SEED_JSON_NB).expect("nb json");
+        assert_ne!(
+            en.get("tray.show"),
+            nb.get("tray.show"),
+            "Norwegian seed should translate tray.show (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_tr_tray_show_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let tr: HashMap<String, String> = serde_json::from_str(SEED_JSON_TR).expect("tr json");
+        assert_ne!(
+            en.get("tray.show"),
+            tr.get("tray.show"),
+            "Turkish seed should translate tray.show (same key, different value)"
         );
     }
 
@@ -1041,13 +1180,46 @@ mod tests {
         );
     }
 
+    #[test]
+    fn seed_json_da_menu_scan_daw_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let da: HashMap<String, String> = serde_json::from_str(SEED_JSON_DA).expect("da json");
+        assert_ne!(
+            en.get("menu.scan_daw"),
+            da.get("menu.scan_daw"),
+            "Danish seed should translate menu.scan_daw (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_nb_menu_scan_daw_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let nb: HashMap<String, String> = serde_json::from_str(SEED_JSON_NB).expect("nb json");
+        assert_ne!(
+            en.get("menu.scan_daw"),
+            nb.get("menu.scan_daw"),
+            "Norwegian seed should translate menu.scan_daw (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_tr_menu_scan_daw_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let tr: HashMap<String, String> = serde_json::from_str(SEED_JSON_TR).expect("tr json");
+        assert_ne!(
+            en.get("menu.scan_daw"),
+            tr.get("menu.scan_daw"),
+            "Turkish seed should translate menu.scan_daw (same key, different value)"
+        );
+    }
+
     /// Mirrors `test/i18n-anchor-keys.test.js`: for every `menu.` / `tray.` / `confirm.` /
     /// `toast.` / `help.` / `ui.` key where **all** non-English seeds differ from English, assert
     /// each locale row is not a verbatim copy of `en`.
     #[test]
     fn seed_json_safe_catalog_keys_all_locales_differ_from_en() {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
-        let locales: [(&str, &str); 14] = [
+        let locales: [(&str, &str); 17] = [
             ("de", SEED_JSON_DE),
             ("es", SEED_JSON_ES),
             ("sv", SEED_JSON_SV),
@@ -1062,6 +1234,9 @@ mod tests {
             ("ja", SEED_JSON_JA),
             ("ko", SEED_JSON_KO),
             ("fi", SEED_JSON_FI),
+            ("da", SEED_JSON_DA),
+            ("nb", SEED_JSON_NB),
+            ("tr", SEED_JSON_TR),
         ];
         let maps: Vec<(&str, HashMap<String, String>)> = locales
             .iter()
@@ -1111,6 +1286,9 @@ mod tests {
             ("ja", SEED_JSON_JA),
             ("ko", SEED_JSON_KO),
             ("fi", SEED_JSON_FI),
+            ("da", SEED_JSON_DA),
+            ("nb", SEED_JSON_NB),
+            ("tr", SEED_JSON_TR),
         ] {
             let m: HashMap<String, String> = serde_json::from_str(json).expect(loc);
             let keys: HashSet<_> = m.keys().cloned().collect();
@@ -1139,6 +1317,9 @@ mod tests {
             ("ja", SEED_JSON_JA),
             ("ko", SEED_JSON_KO),
             ("fi", SEED_JSON_FI),
+            ("da", SEED_JSON_DA),
+            ("nb", SEED_JSON_NB),
+            ("tr", SEED_JSON_TR),
         ] {
             let m: HashMap<String, String> = serde_json::from_str(json).expect(loc);
             for (k, v) in &m {
@@ -1178,7 +1359,7 @@ mod tests {
     }
 
     #[test]
-    fn seed_json_appfmt_placeholders_preserved_de_el_es_fi_fr_it_nl_pl_pt_ru_sv_zh_ja_ko() {
+    fn seed_json_appfmt_placeholders_preserved_de_el_es_fi_fr_it_nl_pl_pt_ru_sv_zh_ja_ko_da_nb_tr() {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
         for (loc, json) in [
             ("de", SEED_JSON_DE),
@@ -1195,6 +1376,9 @@ mod tests {
             ("ja", SEED_JSON_JA),
             ("ko", SEED_JSON_KO),
             ("fi", SEED_JSON_FI),
+            ("da", SEED_JSON_DA),
+            ("nb", SEED_JSON_NB),
+            ("tr", SEED_JSON_TR),
         ] {
             assert_seed_placeholders_match_en(&en, loc, json);
         }

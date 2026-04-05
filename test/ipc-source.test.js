@@ -74,7 +74,7 @@ describe('frontend/js/ipc.js (vm-loaded)', () => {
     assert.strictEqual(getStr[getStr.length - 1].args.locale, 'fr');
   });
 
-  const supportedLocales = ['es', 'sv', 'pt', 'nl', 'pl', 'ru', 'el', 'zh', 'ja', 'ko', 'fi'];
+  const supportedLocales = ['es', 'sv', 'pt', 'nl', 'pl', 'ru', 'el', 'zh', 'ja', 'ko', 'fi', 'da', 'nb', 'tr'];
 
   for (const loc of supportedLocales) {
     it(`reloadAppStrings passes ${loc} to get_app_strings`, async () => {

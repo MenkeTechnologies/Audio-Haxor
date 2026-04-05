@@ -1592,7 +1592,7 @@ function restoreSettings() {
   const localeSel = document.getElementById('settingUiLocale');
   if (
     localeSel &&
-    (uiLoc === 'de' || uiLoc === 'es' || uiLoc === 'sv' || uiLoc === 'fr' || uiLoc === 'nl' || uiLoc === 'pt' || uiLoc === 'it' || uiLoc === 'el' || uiLoc === 'pl' || uiLoc === 'ru' || uiLoc === 'zh' || uiLoc === 'ja' || uiLoc === 'ko' || uiLoc === 'fi' || uiLoc === 'en')
+    (uiLoc === 'de' || uiLoc === 'es' || uiLoc === 'sv' || uiLoc === 'fr' || uiLoc === 'nl' || uiLoc === 'pt' || uiLoc === 'it' || uiLoc === 'el' || uiLoc === 'pl' || uiLoc === 'ru' || uiLoc === 'zh' || uiLoc === 'ja' || uiLoc === 'ko' || uiLoc === 'fi' || uiLoc === 'da' || uiLoc === 'nb' || uiLoc === 'tr' || uiLoc === 'en')
   ) {
     localeSel.value = uiLoc;
   }

@@ -47,7 +47,13 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   await prefs.load();
   const uiLoc = prefs.getItem('uiLocale');
   if (typeof reloadAppStrings === 'function') {
-    await reloadAppStrings(['de', 'es', 'sv', 'fr', 'nl', 'pt', 'it', 'el', 'pl', 'ru', 'zh', 'ja', 'ko', 'fi'].includes(uiLoc) ? uiLoc : 'en');
+    await reloadAppStrings(
+      ['de', 'es', 'sv', 'fr', 'nl', 'pt', 'it', 'el', 'pl', 'ru', 'zh', 'ja', 'ko', 'fi', 'da', 'nb', 'tr'].includes(
+        uiLoc
+      )
+        ? uiLoc
+        : 'en'
+    );
   }
   // Ensure stop/resume buttons are hidden on fresh start
   const _stopAll = document.getElementById('btnStopAll');
@@ -331,10 +337,14 @@ async function scanAll(resume = false) {
     // microtasks flush is sufficient.
     let unifiedResolve, unifiedReject;
     const unifiedP = new Promise((res, rej) => { unifiedResolve = res; unifiedReject = rej; });
-    const audioP = unifiedP.then(r => ({ samples: r.audio, roots: r.audioRoots, stopped: r.stopped }));
-    const dawP = unifiedP.then(r => ({ projects: r.daw, roots: r.dawRoots, stopped: r.stopped }));
-    const presetP = unifiedP.then(r => ({ presets: r.preset, roots: r.presetRoots, stopped: r.stopped }));
-    const pdfP = unifiedP.then(r => ({ pdfs: r.pdf, roots: r.pdfRoots, stopped: r.stopped }));
+    // scan_unified now streams each batch directly into the DB as the walker
+    // runs. The returned result has COUNTS only (no file arrays) so memory
+    // stays bounded regardless of scale (works at 6M+ files). Frontend paginates
+    // via dbQueryX(offset, limit) after scan.
+    const audioP = unifiedP.then(r => ({ samples: [], count: r.audioCount, roots: r.audioRoots, stopped: r.stopped, streamed: true }));
+    const dawP = unifiedP.then(r => ({ projects: [], count: r.dawCount, roots: r.dawRoots, stopped: r.stopped, streamed: true }));
+    const presetP = unifiedP.then(r => ({ presets: [], count: r.presetCount, roots: r.presetRoots, stopped: r.stopped, streamed: true }));
+    const pdfP = unifiedP.then(r => ({ pdfs: [], count: r.pdfCount, roots: r.pdfRoots, stopped: r.stopped, streamed: true }));
 
     // Start per-tab scan functions — each registers its event listener + UI
     // then awaits its derived promise. MIDI runs as its own independent scan
