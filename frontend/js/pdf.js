@@ -1,4 +1,9 @@
 // ── PDFs ──
+function _pdfFmt(key, vars) {
+  if (typeof appFmt !== 'function') return key;
+  return vars ? appFmt(key, vars) : appFmt(key);
+}
+
 let allPdfs = [];
 let filteredPdfs = [];
 let pdfSortKey = 'name';
@@ -11,6 +16,11 @@ let _pdfTotalCount = 0;
 let _pdfTotalUnfiltered = 0;
 // Incremental stats for PDFs — avoids O(N) rebuild on every scan flush.
 let _pdfStatsTotalBytes = 0;
+// Page-count cache: path -> number (or null if extraction failed).
+// Populated lazily via background extractor + DB on-demand lookups.
+const _pdfPagesCache = {};
+let _pdfMetaRunning = false;
+let _pdfMetaProgressCleanup = null;
 
 let _lastPdfSearch = '';
 let _lastPdfMode = 'fuzzy';
@@ -100,7 +110,10 @@ function rebuildPdfStats() {
 function buildPdfRow(p) {
   const hp = escapeHtml(p.path);
   const checked = batchSelected.has(p.path) ? ' checked' : '';
-  return `<tr data-pdf-path="${hp}" data-pdf-name="${escapeHtml((p.name || '').toLowerCase())}" style="cursor: pointer;" title="Double-click to reveal in Finder">
+  const rowTt = typeof escapeHtml === 'function'
+    ? escapeHtml(_pdfFmt('ui.tt.row_double_click_reveal_finder'))
+    : _pdfFmt('ui.tt.row_double_click_reveal_finder');
+  return `<tr data-pdf-path="${hp}" data-pdf-name="${escapeHtml((p.name || '').toLowerCase())}" style="cursor: pointer;" title="${rowTt}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
     <td>${_lastPdfSearch ? highlightMatch(p.name, _lastPdfSearch, _lastPdfMode) : escapeHtml(p.name)}${typeof rowBadges === 'function' ? rowBadges(p.path) : ''}</td>
     <td title="${hp}">${escapeHtml(p.directory)}</td>
@@ -127,9 +140,15 @@ function renderPdfTable() {
   tbody.innerHTML = filteredPdfs.map(buildPdfRow).join('');
   pdfRenderCount = filteredPdfs.length;
   if (pdfRenderCount < _pdfTotalCount) {
+    const line = typeof appFmt === 'function'
+      ? appFmt('ui.js.load_more_hint', {
+          shown: pdfRenderCount.toLocaleString(),
+          total: _pdfTotalCount.toLocaleString(),
+        })
+      : `Showing ${pdfRenderCount} of ${_pdfTotalCount} — click to load more`;
     tbody.insertAdjacentHTML('beforeend',
       `<tr><td colspan="6" style="text-align:center;padding:12px;color:var(--text-muted);cursor:pointer;" data-action="loadMorePdfs">
-        Showing ${pdfRenderCount} of ${_pdfTotalCount} — click to load more
+        ${typeof escapeHtml === 'function' ? escapeHtml(line) : line}
       </td></tr>`);
   }
 }
@@ -202,7 +221,12 @@ async function scanPdfs(resume = false) {
 
   const excludePaths = resume ? allPdfs.map(p => p.path) : null;
 
-  if (scanBtn) { scanBtn.disabled = true; scanBtn.innerHTML = resume ? '&#8635; Resuming...' : '&#8635; Scanning...'; }
+  if (scanBtn) {
+    scanBtn.disabled = true;
+    scanBtn.innerHTML = '&#8635; ' + (typeof appFmt === 'function'
+      ? appFmt(resume ? 'ui.js.resuming_btn' : 'ui.js.scanning_btn')
+      : (resume ? 'Resuming...' : 'Scanning...'));
+  }
   if (resumeBtn) resumeBtn.style.display = 'none';
   if (stopBtn) stopBtn.style.display = '';
   progressBar.classList.add('active');
@@ -214,7 +238,11 @@ async function scanPdfs(resume = false) {
     resetPdfStatsAccumulators();
     _pdfTotalUnfiltered = 0;
     document.getElementById('pdfStats').style.display = 'none';
-    tableWrap.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for PDFs...</h2><p>Walking filesystem directories parallelized...</p></div>';
+    {
+      const h2 = typeof escapeHtml === 'function' ? escapeHtml(_pdfFmt('ui.pdf.scanning_title')) : _pdfFmt('ui.pdf.scanning_title');
+      const sub = typeof escapeHtml === 'function' ? escapeHtml(_pdfFmt('ui.audio.scanning_sub')) : _pdfFmt('ui.audio.scanning_sub');
+      tableWrap.innerHTML = `<div class="state-message"><div class="spinner"></div><h2>${h2}</h2><p>${sub}</p></div>`;
+    }
   }
 
   let firstBatch = true;
@@ -257,7 +285,14 @@ async function scanPdfs(resume = false) {
     _pdfTotalUnfiltered = allPdfs.length;
     rebuildPdfStats();
     const elapsed = pdfEta.elapsed();
-    if (scanBtn) scanBtn.innerHTML = `&#8635; ${pendingFound} found${elapsed ? ' — ' + elapsed : ''}`;
+    if (scanBtn) {
+      scanBtn.innerHTML = typeof appFmt === 'function'
+        ? appFmt('ui.audio.scan_progress_line', {
+            n: pendingFound.toLocaleString(),
+            elapsed: elapsed ? ' — ' + elapsed : '',
+          })
+        : `&#8635; ${pendingFound} found${elapsed ? ' — ' + elapsed : ''}`;
+    }
     lastFlush = performance.now();
   }
 
@@ -306,13 +341,17 @@ async function scanPdfs(resume = false) {
   } catch (err) {
     if (pdfScanProgressCleanup) { pdfScanProgressCleanup(); pdfScanProgressCleanup = null; }
     flushPending();
-    const errMsg = err.message || err || 'Unknown error';
-    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${escapeHtml(errMsg)}</p></div>`;
+    const errMsg = err.message || err || (typeof appFmt === 'function' ? appFmt('toast.unknown_error') : 'Unknown error');
+    const errTitle = typeof escapeHtml === 'function' ? escapeHtml(_pdfFmt('ui.audio.scan_error_title')) : _pdfFmt('ui.audio.scan_error_title');
+    tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>${errTitle}</h2><p>${escapeHtml(errMsg)}</p></div>`;
     showToast(toastFmt('toast.pdf_scan_failed', { err: errMsg }), 4000, 'error');
   }
 
   hideGlobalProgress();
-  if (scanBtn) { scanBtn.disabled = false; scanBtn.innerHTML = '&#8635; Scan PDFs'; }
+  if (scanBtn) {
+    scanBtn.disabled = false;
+    scanBtn.innerHTML = '&#8635; ' + (typeof appFmt === 'function' ? appFmt('ui.btn.scan_pdfs') : 'Scan PDFs');
+  }
   if (stopBtn) stopBtn.style.display = 'none';
   progressBar.classList.remove('active');
   progressFill.style.width = '0%';

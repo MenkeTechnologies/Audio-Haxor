@@ -60,6 +60,8 @@ python3 scripts/merge_batch_into_locales.py scripts/i18n_batches/your_batch.json
 
 Run `node scripts/run-js-tests.mjs` (or `pnpm run test:js` if wired) after catalog edits.
 
+- **PDF tab:** `frontend/js/pdf.js` builds table rows and scan/load-more UI with `appFmt` / shared keys (`ui.js.load_more_hint`, `ui.audio.scan_progress_line`, etc.); `index.html` uses `data-i18n` on `ui.pdf.*` for the stats bar and PDF walker tile header.
+
 ## Deprecated
 
 - `merge_ui_i18n_keys.py` — stub only; prints instructions and exits with code 1. Use `merge_i18n_keys.py` + `scripts/i18n_batches/*.json` instead.
