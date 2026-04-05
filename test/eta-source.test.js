@@ -41,4 +41,31 @@ describe('frontend/js/utils.js createETA (vm-loaded)', () => {
     assert.ok(out.includes('s') || out.includes('m'));
     assert.ok(out.startsWith('~'));
   });
+
+  it('elapsed uses minutes when 60 seconds or more', () => {
+    const eta = U.createETA();
+    t = 1000;
+    eta.start();
+    t = 125_000;
+    assert.strictEqual(eta.elapsed(), '2m 4s');
+  });
+
+  it('estimate returns "< 1s" when remaining work finishes under one second', () => {
+    const eta = U.createETA();
+    t = 1000;
+    eta.start();
+    t = 11_000;
+    assert.strictEqual(eta.estimate(1000, 1001), '< 1s');
+  });
+
+  it('estimate uses minutes+seconds format when remaining exceeds one minute', () => {
+    const eta = U.createETA();
+    t = 1000;
+    eta.start();
+    t = 2000;
+    const out = eta.estimate(1, 1000);
+    assert.ok(out.includes('m'));
+    assert.ok(out.includes('s'));
+    assert.ok(out.startsWith('~'));
+  });
 });

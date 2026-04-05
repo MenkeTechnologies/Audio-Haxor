@@ -101,4 +101,65 @@ describe('frontend/js/keyboard-nav.js (vm-loaded)', () => {
     assert.strictEqual(navEls.length, 1);
     assert.strictEqual(navEls[0], a);
   });
+
+  it('getNavigableItems returns #audioTableBody rows on tabSamples', () => {
+    const tr = { dataset: { audioPath: '/s/k.wav' } };
+    const activeTab = {
+      id: 'tabSamples',
+      querySelectorAll(sel) {
+        if (sel === '#audioTableBody tr[data-audio-path]') return [tr];
+        return [];
+      },
+    };
+    const K = loadKeyboardNavSandbox(activeTab);
+    assert.strictEqual(K.getNavigableItems().length, 1);
+    assert.strictEqual(K.getNavigableItems()[0], tr);
+  });
+
+  it('getNavigableItems returns .fav-item nodes on tabFavorites', () => {
+    const fav = {};
+    const activeTab = {
+      id: 'tabFavorites',
+      querySelectorAll(sel) {
+        if (sel === '.fav-item') return [fav];
+        return [];
+      },
+    };
+    const K = loadKeyboardNavSandbox(activeTab);
+    assert.strictEqual(K.getNavigableItems()[0], fav);
+  });
+
+  it('clearNavSelection removes nav-selected from tracked elements', () => {
+    const removed = [];
+    const el = {
+      classList: {
+        remove(c) {
+          if (c === 'nav-selected') removed.push(1);
+        },
+      },
+    };
+    const activeTab = { id: 'tabPlugins', querySelectorAll: () => [] };
+    const K = loadKeyboardNavSandbox(activeTab, [el]);
+    K.clearNavSelection();
+    assert.strictEqual(removed.length, 1);
+  });
+
+  it('_getSelectedPath reads dataset.path on plugin card', () => {
+    const card = {
+      dataset: { path: '/Plugins/X.vst3' },
+      getAttribute: () => null,
+      classList: { add: () => {}, remove: () => {} },
+      scrollIntoView: () => {},
+    };
+    const activeTab = {
+      id: 'tabPlugins',
+      querySelectorAll(sel) {
+        if (sel === '.plugin-card') return [card];
+        return [];
+      },
+    };
+    const K = loadKeyboardNavSandbox(activeTab);
+    K.setNavIndex(0);
+    assert.strictEqual(vm.runInContext('_getSelectedPath()', K), '/Plugins/X.vst3');
+  });
 });

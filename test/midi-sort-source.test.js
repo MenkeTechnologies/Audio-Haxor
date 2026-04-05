@@ -80,4 +80,20 @@ describe('frontend/js/midi.js sortMidiArray (vm-loaded)', () => {
     );
     assert.strictEqual(names(M), 'b,a');
   });
+
+  it('sorts by path uses directory (midi path column compares parent folder)', () => {
+    vm.runInContext(
+      `
+      filteredMidi = [
+        { name: 'z', path: '/z.mid', directory: '/folder-b', size: 1 },
+        { name: 'a', path: '/a.mid', directory: '/folder-a', size: 1 },
+      ];
+      midiSortKey = 'path';
+      midiSortAsc = true;
+      sortMidiArray();
+    `,
+      M,
+    );
+    assert.strictEqual(names(M), 'a,z');
+  });
 });

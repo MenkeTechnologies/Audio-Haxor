@@ -226,4 +226,10 @@ describe('frontend/js/utils.js (vm-loaded source)', () => {
     const rows = [{ path: '/x.wav' }];
     assert.strictEqual(U.findByPath(rows, '/x.wav', true).path, '/x.wav');
   });
+
+  it('findByPath returns undefined when arr or path is falsy', () => {
+    assert.strictEqual(U.findByPath(null, '/a.wav'), undefined);
+    assert.strictEqual(U.findByPath([{ path: '/a.wav' }], ''), undefined);
+    assert.strictEqual(U.findByPath([{ path: '/a.wav' }], null), undefined);
+  });
 });

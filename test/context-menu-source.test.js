@@ -54,6 +54,55 @@ function loadContextMenuSandbox() {
   return sandbox;
 }
 
+function loadContextMenuSandboxWithSize(menuW, menuH, winW, winH) {
+  const ctxMenuEl = {
+    _actions: {},
+    _labels: {},
+    _skipEcho: {},
+    innerHTML: '',
+    classList: {
+      _c: new Set(),
+      add(name) {
+        this._c.add(name);
+      },
+      remove(name) {
+        this._c.delete(name);
+      },
+      contains(name) {
+        return this._c.has(name);
+      },
+    },
+    style: { left: '', top: '' },
+    getBoundingClientRect: () => ({ width: menuW, height: menuH }),
+    addEventListener: () => {},
+  };
+  const sandbox = {
+    console,
+    document: {
+      getElementById: (id) => (id === 'ctxMenu' ? ctxMenuEl : null),
+      addEventListener: () => {},
+      querySelector: () => null,
+    },
+    window: {
+      innerWidth: winW,
+      innerHeight: winH,
+    },
+    navigator: {
+      clipboard: { writeText: () => Promise.resolve() },
+    },
+  };
+  sandbox.window = sandbox;
+  sandbox.innerWidth = winW;
+  sandbox.innerHeight = winH;
+  vm.createContext(sandbox);
+  vm.runInContext(
+    fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'context-menu.js'), 'utf8'),
+    sandbox
+  );
+  sandbox._ctxMenuEl = ctxMenuEl;
+  return sandbox;
+}
+
 describe('frontend/js/context-menu.js (vm-loaded)', () => {
   let C;
 
@@ -94,5 +143,23 @@ describe('frontend/js/context-menu.js (vm-loaded)', () => {
     C.hideContextMenu();
     assert.strictEqual(Object.keys(C._ctxMenuEl._actions).length, 0);
     assert.strictEqual(Object.keys(C._ctxMenuEl._labels).length, 0);
+  });
+});
+
+describe('frontend/js/context-menu.js viewport clamp (vm-loaded)', () => {
+  it('showContextMenu shifts x left when menu would overflow right edge', () => {
+    const C = loadContextMenuSandboxWithSize(100, 40, 200, 400);
+    const e = { preventDefault: () => {}, clientX: 150, clientY: 10 };
+    C.showContextMenu(e, [{ label: 'Wide', action: () => {} }]);
+    assert.strictEqual(C._ctxMenuEl.style.left, '96px');
+    assert.strictEqual(C._ctxMenuEl.style.top, '10px');
+  });
+
+  it('showContextMenu shifts y up when menu would overflow bottom edge', () => {
+    const C = loadContextMenuSandboxWithSize(80, 100, 400, 200);
+    const e = { preventDefault: () => {}, clientX: 5, clientY: 150 };
+    C.showContextMenu(e, [{ label: 'Tall', action: () => {} }]);
+    assert.strictEqual(C._ctxMenuEl.style.left, '5px');
+    assert.strictEqual(C._ctxMenuEl.style.top, '96px');
   });
 });
