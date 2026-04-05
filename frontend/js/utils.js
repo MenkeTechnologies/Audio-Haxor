@@ -4,6 +4,12 @@ function escapeHtml(str) {
   return _escDiv.innerHTML;
 }
 
+/** Table column header label — uses `appFmt` when IPC strings are loaded. */
+function appTableCol(key) {
+  if (typeof appFmt !== 'function') return key;
+  return appFmt(key);
+}
+
 // ── fzf-style fuzzy matching with scoring ──
 
 // Scoring constants (from fzf) — configurable via settings
@@ -577,11 +583,12 @@ function buildDirsTable(directories, plugins) {
       <td style="padding: 4px 0 4px 8px;">${typeStr}</td>
     </tr>`;
   });
+  const tc = typeof appTableCol === 'function' ? appTableCol : (k) => k;
   return `<table style="width: 100%; border-collapse: collapse; margin-top: 6px;">
     <tr style="color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px;">
-      <th style="text-align: left; padding: 2px 8px 2px 0;">Directory</th>
-      <th style="text-align: right; padding: 2px 8px;">Plugins</th>
-      <th style="text-align: left; padding: 2px 0 2px 8px;">Types</th>
+      <th style="text-align: left; padding: 2px 8px 2px 0;">${tc('ui.col.directory')}</th>
+      <th style="text-align: right; padding: 2px 8px;">${tc('ui.col.plugins')}</th>
+      <th style="text-align: left; padding: 2px 0 2px 8px;">${tc('ui.col.types')}</th>
     </tr>
     ${rows.join('')}
   </table>`;

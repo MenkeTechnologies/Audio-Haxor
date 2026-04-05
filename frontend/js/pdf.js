@@ -135,13 +135,15 @@ function renderPdfTable() {
 }
 
 function buildPdfTableHtml() {
+  const tc = typeof appTableCol === 'function' ? appTableCol : (k) => k;
+  const sel = typeof escapeHtml === 'function' ? escapeHtml(tc('ui.audio.th_select_all')) : tc('ui.audio.th_select_all');
   return `<table class="audio-table" id="pdfTable">
     <thead><tr>
-      <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="Select all"></th>
-      <th data-action="sortPdf" data-key="name" style="width: 30%;">Name <span class="sort-arrow" id="pdfSortArrowName">&#9660;</span><span class="col-resize"></span></th>
-      <th data-action="sortPdf" data-key="directory" style="width: 40%;">Path <span class="sort-arrow" id="pdfSortArrowDirectory"></span><span class="col-resize"></span></th>
-      <th data-action="sortPdf" data-key="size" class="col-size" style="width: 90px;">Size <span class="sort-arrow" id="pdfSortArrowSize"></span><span class="col-resize"></span></th>
-      <th data-action="sortPdf" data-key="modified" class="col-date" style="width: 100px;">Modified <span class="sort-arrow" id="pdfSortArrowModified"></span><span class="col-resize"></span></th>
+      <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="${sel}"></th>
+      <th data-action="sortPdf" data-key="name" style="width: 30%;">${tc('ui.export.col_name')} <span class="sort-arrow" id="pdfSortArrowName">&#9660;</span><span class="col-resize"></span></th>
+      <th data-action="sortPdf" data-key="directory" style="width: 40%;">${tc('ui.export.col_path')} <span class="sort-arrow" id="pdfSortArrowDirectory"></span><span class="col-resize"></span></th>
+      <th data-action="sortPdf" data-key="size" class="col-size" style="width: 90px;">${tc('ui.export.col_size')} <span class="sort-arrow" id="pdfSortArrowSize"></span><span class="col-resize"></span></th>
+      <th data-action="sortPdf" data-key="modified" class="col-date" style="width: 100px;">${tc('ui.export.col_modified')} <span class="sort-arrow" id="pdfSortArrowModified"></span><span class="col-resize"></span></th>
       <th class="col-actions" style="width: 50px;"></th>
     </tr></thead>
     <tbody id="pdfTableBody"></tbody>

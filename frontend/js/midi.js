@@ -134,21 +134,24 @@ function renderMidiTable() {
   if (!_midiTableInit) {
     _midiTableInit = true;
     _midiRenderCount = 0;
+    const tc = typeof appTableCol === 'function' ? appTableCol : (k) => k;
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (s) => String(s);
+    const selTitle = esc(tc('ui.audio.th_select_all'));
     const arrow = (k) => `<span class="sort-arrow" id="midiSortArrow${k}">${midiSortKey === k.toLowerCase() ? (midiSortAsc ? '&#9650;' : '&#9660;') : ''}</span>`;
     wrap.innerHTML = `<table class="audio-table" id="midiTable">
       <thead>
         <tr>
-          <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="Select all"></th>
-          <th data-action="sortMidi" data-key="name" style="width:22%;" title="File name">Name ${arrow('Name')}<span class="col-resize"></span></th>
-          <th data-action="sortMidi" data-key="tracks" style="width:55px;" title="Track count">Tracks ${arrow('Tracks')}<span class="col-resize"></span></th>
-          <th data-action="sortMidi" data-key="bpm" style="width:65px;" title="Tempo (BPM)">BPM ${arrow('Bpm')}<span class="col-resize"></span></th>
-          <th data-action="sortMidi" data-key="time" style="width:55px;" title="Time signature">Time ${arrow('Time')}<span class="col-resize"></span></th>
-          <th data-action="sortMidi" data-key="key" style="width:80px;" title="Key signature">Key ${arrow('Key')}<span class="col-resize"></span></th>
-          <th data-action="sortMidi" data-key="notes" style="width:60px;" title="Note count">Notes ${arrow('Notes')}<span class="col-resize"></span></th>
-          <th data-action="sortMidi" data-key="ch" style="width:45px;" title="MIDI channels used">Ch ${arrow('Ch')}<span class="col-resize"></span></th>
-          <th data-action="sortMidi" data-key="duration" style="width:65px;" title="Duration">Dur ${arrow('Duration')}<span class="col-resize"></span></th>
-          <th data-action="sortMidi" data-key="size" style="width:60px;" title="File size">Size ${arrow('Size')}<span class="col-resize"></span></th>
-          <th data-action="sortMidi" data-key="path" style="width:22%;" title="Directory path">Path ${arrow('Path')}<span class="col-resize"></span></th>
+          <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="${selTitle}"></th>
+          <th data-action="sortMidi" data-key="name" style="width:22%;" title="File name">${tc('ui.export.col_name')} ${arrow('Name')}<span class="col-resize"></span></th>
+          <th data-action="sortMidi" data-key="tracks" style="width:55px;" title="Track count">${tc('ui.export.col_tracks')} ${arrow('Tracks')}<span class="col-resize"></span></th>
+          <th data-action="sortMidi" data-key="bpm" style="width:65px;" title="Tempo (BPM)">${tc('ui.export.col_bpm')} ${arrow('Bpm')}<span class="col-resize"></span></th>
+          <th data-action="sortMidi" data-key="time" style="width:55px;" title="Time signature">${tc('ui.midi.th_time')} ${arrow('Time')}<span class="col-resize"></span></th>
+          <th data-action="sortMidi" data-key="key" style="width:80px;" title="Key signature">${tc('ui.export.col_key')} ${arrow('Key')}<span class="col-resize"></span></th>
+          <th data-action="sortMidi" data-key="notes" style="width:60px;" title="Note count">${tc('ui.export.col_notes')} ${arrow('Notes')}<span class="col-resize"></span></th>
+          <th data-action="sortMidi" data-key="ch" style="width:45px;" title="MIDI channels used">${tc('ui.export.col_ch')} ${arrow('Ch')}<span class="col-resize"></span></th>
+          <th data-action="sortMidi" data-key="duration" style="width:65px;" title="Duration">${tc('ui.audio.th_dur')} ${arrow('Duration')}<span class="col-resize"></span></th>
+          <th data-action="sortMidi" data-key="size" style="width:60px;" title="File size">${tc('ui.export.col_size')} ${arrow('Size')}<span class="col-resize"></span></th>
+          <th data-action="sortMidi" data-key="path" style="width:22%;" title="Directory path">${tc('ui.export.col_path')} ${arrow('Path')}<span class="col-resize"></span></th>
           <th class="col-actions" style="width:50px;"></th>
         </tr>
       </thead>
