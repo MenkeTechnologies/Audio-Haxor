@@ -166,4 +166,19 @@ describe('frontend/js/settings-search.js (vm-loaded)', () => {
     assert.strictEqual(dom._secGeneral.style.display, 'none');
     assert.strictEqual(dom._rowCache.style.display, 'none');
   });
+
+  it('whitespace-only query behaves like empty (shows all)', () => {
+    dom._searchInput.value = '   \t  ';
+    filterSettings();
+    assert.strictEqual(dom._rowCache.style.display, '');
+    assert.strictEqual(dom._rowTheme.style.display, '');
+    assert.strictEqual(dom._emptyEl.style.display, 'none');
+  });
+
+  it('matches description text without title token', () => {
+    dom._searchInput.value = 'mb limit';
+    filterSettings();
+    assert.strictEqual(dom._rowCache.style.display, '');
+    assert.strictEqual(dom._rowOther.style.display, 'none');
+  });
 });

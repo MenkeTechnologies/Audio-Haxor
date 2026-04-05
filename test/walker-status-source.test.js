@@ -50,4 +50,17 @@ describe('frontend/js/walker-status.js _renderTile (vm-loaded)', () => {
     assert.ok(body.innerHTML.includes('Waiting for scan'));
     assert.strictEqual(tile.style.borderColor, 'var(--border)');
   });
+
+  it('when idle but dirs buffer non-empty, does not overwrite body (stale list until next scan)', () => {
+    body.innerHTML = '<div class="stale">keep</div>';
+    W._renderTile('walkerPluginBody', 'walkerTilePlugin', ['/tmp/a'], 'var(--cyan)', 4, false);
+    assert.ok(body.innerHTML.includes('stale'));
+    assert.ok(statusEl.innerHTML.includes('idle'));
+  });
+
+  it('when scanning with one dir, escapes HTML in path', () => {
+    W._renderTile('walkerPluginBody', 'walkerTilePlugin', ['/a<b>"c'], 'var(--cyan)', 2, true);
+    assert.ok(body.innerHTML.includes('&lt;b&gt;'));
+    assert.ok(body.innerHTML.includes('&quot;'));
+  });
 });

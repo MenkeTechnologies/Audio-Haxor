@@ -111,4 +111,17 @@ describe('frontend/js/disk-usage.js (vm-loaded)', () => {
     assert.ok(firstSeg >= 0 && secondSeg >= 0);
     assert.ok(firstSeg < secondSeg, 'WAV (larger) should appear before MP3 in bar HTML');
   });
+
+  it('renderDiskUsageBar hides container when data array is empty', () => {
+    D.renderDiskUsageBar('emptyDisk', [], 1000);
+    const el = D._containers.emptyDisk;
+    assert.strictEqual(el.style.display, 'none');
+  });
+
+  it('renderDiskUsageBar single format shows 100%', () => {
+    D.renderDiskUsageBar('oneDisk', [{ label: 'WAV', bytes: 500, sizeStr: '500 B' }], 500);
+    const el = D._containers.oneDisk;
+    assert.strictEqual(el.style.display, '');
+    assert.ok(el.innerHTML.includes('100.0'));
+  });
 });
