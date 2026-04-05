@@ -563,16 +563,17 @@ UI_JS_EN: dict[str, str] = {
 SETTINGS_UI_EN: dict[str, str] = {
     "ui.settings.interface_language": "Interface language",
     "ui.settings.interface_language_desc": "UI text (restart the app to apply the native menu bar language)",
-    "ui.opt.lang_en": "English",
     "ui.opt.lang_de": "Deutsch",
     "ui.opt.lang_el": "Ελληνικά",
+    "ui.opt.lang_en": "English",
     "ui.opt.lang_es": "Español",
-    "ui.opt.lang_sv": "Svenska",
     "ui.opt.lang_fr": "Français",
     "ui.opt.lang_it": "Italiano",
-    "ui.opt.lang_pt": "Português",
     "ui.opt.lang_nl": "Nederlands",
     "ui.opt.lang_pl": "Polski",
+    "ui.opt.lang_pt": "Português",
+    "ui.opt.lang_ru": "Русский",
+    "ui.opt.lang_sv": "Svenska",
 }
 
 CONFIRM_EN: dict[str, str] = {
@@ -630,6 +631,7 @@ def main() -> None:
         "ui.opt.italiano",
         "ui.opt.ellinika",
         "ui.opt.polski",
+        "ui.opt.russkiy",
     ):
         merged.pop(dup, None)
     merged.pop("ui.tt.interface_language", None)

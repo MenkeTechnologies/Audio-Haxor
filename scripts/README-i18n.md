@@ -16,8 +16,6 @@ The script fails if a key already exists (prevents accidental overwrites). Rebui
 
 ## Other locales (`de`, `es`, `sv`, `fr`, `nl`, `pt`, `it`, `el`, `pl`, `ru`)
 
-**Russian (`ru`):** The shipped `app_i18n_ru.json` is currently **stub-synced from English** (same values as `en`) until you run a full `gen_app_i18n_ru.py` pass and review. Automated “must differ from English” spot checks **exclude** `ru` so CI stays green; key set, placeholders, and non-empty values are still enforced for `ru` like every other locale.
-
 - **Full machine translation** (slow; needs network):
 
 ```bash

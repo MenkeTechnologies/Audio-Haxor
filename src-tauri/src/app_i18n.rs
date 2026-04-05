@@ -362,16 +362,14 @@ mod tests {
         );
     }
 
-    /// Russian (`ru`) is stub-synced from English until a native translation pass (`scripts/gen_app_i18n_ru.py`).
     #[test]
-    fn seed_json_ru_parallels_en_stub() {
+    fn seed_json_ru_menu_scan_all_differs_from_en() {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
         let ru: HashMap<String, String> = serde_json::from_str(SEED_JSON_RU).expect("ru json");
-        assert_eq!(en.len(), ru.len(), "ru must define the same keys as en");
-        assert_eq!(
-            ru.get("menu.scan_all"),
+        assert_ne!(
             en.get("menu.scan_all"),
-            "spot-check: ru mirrors en for menu.scan_all while stubbed"
+            ru.get("menu.scan_all"),
+            "Russian seed should translate menu.scan_all (same key, different value)"
         );
     }
 
@@ -475,6 +473,17 @@ mod tests {
     }
 
     #[test]
+    fn seed_json_ru_tray_play_pause_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let ru: HashMap<String, String> = serde_json::from_str(SEED_JSON_RU).expect("ru json");
+        assert_ne!(
+            en.get("tray.play_pause"),
+            ru.get("tray.play_pause"),
+            "Russian seed should translate tray.play_pause (same key, different value)"
+        );
+    }
+
+    #[test]
     fn seed_json_de_tray_stop_all_differs_from_en() {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
         let de: HashMap<String, String> = serde_json::from_str(SEED_JSON_DE).expect("de json");
@@ -570,6 +579,17 @@ mod tests {
             en.get("tray.stop_all"),
             pl.get("tray.stop_all"),
             "Polish seed should translate tray.stop_all (same key, different value)"
+        );
+    }
+
+    #[test]
+    fn seed_json_ru_tray_stop_all_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let ru: HashMap<String, String> = serde_json::from_str(SEED_JSON_RU).expect("ru json");
+        assert_ne!(
+            en.get("tray.stop_all"),
+            ru.get("tray.stop_all"),
+            "Russian seed should translate tray.stop_all (same key, different value)"
         );
     }
 
@@ -673,6 +693,17 @@ mod tests {
     }
 
     #[test]
+    fn seed_json_ru_tray_show_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let ru: HashMap<String, String> = serde_json::from_str(SEED_JSON_RU).expect("ru json");
+        assert_ne!(
+            en.get("tray.show"),
+            ru.get("tray.show"),
+            "Russian seed should translate tray.show (same key, different value)"
+        );
+    }
+
+    #[test]
     fn seed_json_de_menu_scan_daw_differs_from_en() {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
         let de: HashMap<String, String> = serde_json::from_str(SEED_JSON_DE).expect("de json");
@@ -771,13 +802,24 @@ mod tests {
         );
     }
 
+    #[test]
+    fn seed_json_ru_menu_scan_daw_differs_from_en() {
+        let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
+        let ru: HashMap<String, String> = serde_json::from_str(SEED_JSON_RU).expect("ru json");
+        assert_ne!(
+            en.get("menu.scan_daw"),
+            ru.get("menu.scan_daw"),
+            "Russian seed should translate menu.scan_daw (same key, different value)"
+        );
+    }
+
     /// Mirrors `test/i18n-anchor-keys.test.js`: for every `menu.` / `tray.` / `confirm.` /
-    /// `toast.` / `help.` / `ui.` key where **all** non-English seeds **except `ru`** differ from English,
-    /// assert each of those locale rows is not a verbatim copy of `en`. (`ru` is stubbed from English until translated.)
+    /// `toast.` / `help.` / `ui.` key where **all** ten non-English seeds differ from English, assert
+    /// each locale row is not a verbatim copy of `en`.
     #[test]
     fn seed_json_safe_catalog_keys_all_locales_differ_from_en() {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
-        let locales: [(&str, &str); 9] = [
+        let locales: [(&str, &str); 10] = [
             ("de", SEED_JSON_DE),
             ("es", SEED_JSON_ES),
             ("sv", SEED_JSON_SV),
@@ -787,6 +829,7 @@ mod tests {
             ("it", SEED_JSON_IT),
             ("el", SEED_JSON_EL),
             ("pl", SEED_JSON_PL),
+            ("ru", SEED_JSON_RU),
         ];
         let maps: Vec<(&str, HashMap<String, String>)> = locales
             .iter()
