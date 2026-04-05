@@ -79,4 +79,23 @@ describe('frontend/js/sort-persist.js (vm-loaded)', () => {
     assert.strictEqual(S._pluginSortKey, 'vendor');
     assert.strictEqual(S._pluginSortAsc, false);
   });
+
+  it('pluginSort without hyphen uses ascending (d undefined)', () => {
+    S.prefs._cache.pluginSort = 'name';
+    S.restoreAllSortStates();
+    assert.strictEqual(S._pluginSortKey, 'name');
+    assert.strictEqual(S._pluginSortAsc, true);
+  });
+
+  it('pluginSort with hyphenated key preserves first segment only for key', () => {
+    S.prefs._cache.pluginSort = 'name-desc-extra';
+    S.restoreAllSortStates();
+    assert.strictEqual(S._pluginSortKey, 'name');
+    assert.strictEqual(S._pluginSortAsc, false);
+  });
+
+  it('restoreSortState returns null for empty string stored', () => {
+    S.prefs._cache.sort_plugin = '';
+    assert.strictEqual(S.restoreSortState('plugin'), null);
+  });
 });

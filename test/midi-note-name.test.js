@@ -32,4 +32,16 @@ describe('midiToName', () => {
   it('A440', () => assert.strictEqual(midiToName(69), 'A4'));
 
   it('lowest common MIDI 0', () => assert.strictEqual(midiToName(0), 'C-1'));
+
+  it('highest MIDI 127 is G9', () => assert.strictEqual(midiToName(127), 'G9'));
+
+  it('MIDI 128 wraps to G#9 (same pitch class as 0 mod 12)', () => {
+    assert.strictEqual(midiToName(128), 'G#9');
+    assert.strictEqual(midiToName(128) === midiToName(0), false);
+  });
+
+  it('G5 and F5 in same octave range', () => {
+    assert.strictEqual(midiToName(79), 'G5');
+    assert.strictEqual(midiToName(77), 'F5');
+  });
 });

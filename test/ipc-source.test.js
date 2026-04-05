@@ -73,4 +73,29 @@ describe('frontend/js/ipc.js (vm-loaded)', () => {
     getStr = calls.filter((c) => c.cmd === 'get_app_strings');
     assert.strictEqual(getStr[getStr.length - 1].args.locale, 'fr');
   });
+
+  const supportedLocales = ['es', 'sv', 'pt', 'nl', 'pl', 'ru', 'el'];
+
+  for (const loc of supportedLocales) {
+    it(`reloadAppStrings passes ${loc} to get_app_strings`, async () => {
+      const { sandbox, calls } = loadIpcSandbox(async () => ({}));
+      await sandbox.reloadAppStrings(loc);
+      const getStr = calls.filter((c) => c.cmd === 'get_app_strings');
+      assert.strictEqual(getStr[getStr.length - 1].args.locale, loc);
+    });
+  }
+
+  it('reloadAppStrings passes null for undefined locale', async () => {
+    const { sandbox, calls } = loadIpcSandbox(async () => ({}));
+    await sandbox.reloadAppStrings(undefined);
+    const getStr = calls.filter((c) => c.cmd === 'get_app_strings');
+    assert.strictEqual(getStr[getStr.length - 1].args.locale, null);
+  });
+
+  it('reloadAppStrings passes null for empty string locale', async () => {
+    const { sandbox, calls } = loadIpcSandbox(async () => ({}));
+    await sandbox.reloadAppStrings('');
+    const getStr = calls.filter((c) => c.cmd === 'get_app_strings');
+    assert.strictEqual(getStr[getStr.length - 1].args.locale, null);
+  });
 });

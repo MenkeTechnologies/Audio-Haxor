@@ -82,4 +82,16 @@ describe('minIndentLines', () => {
     const out = minIndentLines(lines);
     assert.deepStrictEqual(out, ['abc', 'abc', '']);
   });
+
+  it('only blank lines returns unchanged', () => {
+    const lines = ['', '   ', '\t'];
+    const out = minIndentLines(lines);
+    assert.deepStrictEqual(out, lines);
+  });
+
+  it('strips minimum when indents differ', () => {
+    const lines = ['  a', '    b', '  c'];
+    const out = minIndentLines(lines);
+    assert.deepStrictEqual(out, ['a', '  b', 'c']);
+  });
 });
