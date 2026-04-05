@@ -33,17 +33,34 @@ async function _updateWalkerTiles() {
   try {
     const status = await window.vstUpdater.getWalkerStatus();
     _renderTile('walkerPluginBody', 'walkerTilePlugin', status.plugin, 'var(--cyan)', status.poolThreads, status.pluginScanning);
-    _renderTile('walkerAudioBody', 'walkerTileAudio', status.audio, 'var(--yellow)', status.poolThreads, status.audioScanning);
-    _renderTile('walkerDawBody', 'walkerTileDaw', status.daw, 'var(--magenta)', status.poolThreads, status.dawScanning);
-    _renderTile('walkerPresetBody', 'walkerTilePreset', status.preset, 'var(--orange)', status.poolThreads, status.presetScanning);
-    _renderTile('walkerPdfBody', 'walkerTilePdf', status.pdf, 'var(--green)', status.poolThreads, status.pdfScanning);
+
+    // Unified tile shows when any file-walker (audio/daw/preset/pdf, unified
+    // or single-type) is active. The WalkerStatus lists are fed by whichever
+    // walker is running, so picking status.audio as the source covers both
+    // scan_unified (fan-out) and single-type scans.
+    const unifiedTile = document.getElementById('walkerTileUnified');
+    const fileWalkerActive = status.unifiedScanning || status.audioScanning
+      || status.dawScanning || status.presetScanning || status.pdfScanning;
+    if (fileWalkerActive) {
+      if (unifiedTile) unifiedTile.style.display = '';
+      // During single-type scans, WalkerStatus populates only the active
+      // type's dirs list — fall back through them in priority order.
+      const dirs = (status.audio && status.audio.length) ? status.audio
+        : (status.daw && status.daw.length) ? status.daw
+        : (status.preset && status.preset.length) ? status.preset
+        : (status.pdf && status.pdf.length) ? status.pdf
+        : [];
+      _renderTile('walkerUnifiedBody', 'walkerTileUnified', dirs, 'var(--accent)', status.poolThreads, true);
+    } else if (unifiedTile) {
+      unifiedTile.style.display = 'none';
+    }
 
     // Stop polling after 10 consecutive idle checks (5 seconds)
-    const allIdle = !status.pluginScanning && !status.audioScanning && !status.dawScanning && !status.presetScanning && !status.pdfScanning;
+    const allIdle = !status.pluginScanning && !fileWalkerActive;
     if (allIdle) { _walkerIdleCount++; if (_walkerIdleCount >= 10) stopWalkerPolling(); }
     else { _walkerIdleCount = 0; }
   } catch (err) {
-    const body = document.getElementById('walkerAudioBody');
+    const body = document.getElementById('walkerUnifiedBody');
     if (body) body.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${err?.message || err}</div>`;
   }
 }
@@ -66,12 +83,15 @@ function _renderTile(bodyId, tileId, dirs, color, poolThreads, isScanning) {
   tile.style.borderColor = color;
   if (statusEl) statusEl.innerHTML = `<span style="color:${color};font-weight:600;">scanning — ${poolThreads} threads</span> <span style="color:var(--text-dim);">| ${dirs.length} dirs in buffer</span>`;
 
-  // Build dir list — show newest at top, truncate path for readability
+  // Build dir list — oldest at top, newest at bottom. Buffer is sized (200)
+  // to fill a full-height tile; auto-scroll to bottom so the latest dirs
+  // stay visible as the stream advances.
   const html = dirs.map(d => {
     return `<div class="walker-dir walker-dir-active" title="${escapeHtml(d)}">${escapeHtml(d)}</div>`;
   }).join('');
 
   body.innerHTML = html;
+  body.scrollTop = body.scrollHeight;
 }
 
 // Make walker tiles draggable (Trello-style reorder)

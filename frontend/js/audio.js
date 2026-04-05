@@ -614,7 +614,11 @@ function getFormatClass(format) {
   return 'format-default';
 }
 
-async function scanAudioSamples(resume = false) {
+// `unifiedResult` is an optional promise provided by scanAll() that resolves
+// to `{ samples, roots, stopped }` from a shared scan_unified backend call.
+// When provided, this function skips its own Tauri invoke and reuses the
+// shared result — so the filesystem is walked once instead of 4 times.
+async function scanAudioSamples(resume = false, unifiedResult = null) {
   stopBackgroundAnalysis();
   showGlobalProgress();
   const btn = document.getElementById('btnScanAudio');
@@ -680,8 +684,8 @@ async function scanAudioSamples(resume = false) {
     if (!_bgAnalysisRunning) startBackgroundAnalysis();
     const audioElapsed = audioEta.elapsed();
     btn.innerHTML = typeof appFmt === 'function'
-      ? appFmt('ui.audio.scan_progress_line', { n: pendingFound, elapsed: audioElapsed ? ' — ' + audioElapsed : '' })
-      : `&#8635; ${pendingFound} found${audioElapsed ? ' — ' + audioElapsed : ''}`;
+      ? appFmt('ui.audio.scan_progress_line', { n: pendingFound.toLocaleString(), elapsed: audioElapsed ? ' — ' + audioElapsed : '' })
+      : `&#8635; ${pendingFound.toLocaleString()} found${audioElapsed ? ' — ' + audioElapsed : ''}`;
     progressFill.style.width = '';
     progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
 
@@ -726,14 +730,16 @@ async function scanAudioSamples(resume = false) {
     } else if (data.phase === 'scanning') {
       pendingSamples.push(...data.samples);
       pendingFound = data.found;
-      document.getElementById('sampleCount').textContent = pendingFound;
+      document.getElementById('sampleCount').textContent = pendingFound.toLocaleString();
       scheduleFlush();
     }
   });
 
   try {
     const audioRoots = (prefs.getItem('audioScanDirs') || '').split('\n').map(s => s.trim()).filter(Boolean);
-    const result = await window.vstUpdater.scanAudioSamples(audioRoots.length ? audioRoots : undefined, excludePaths);
+    const result = unifiedResult
+      ? await unifiedResult
+      : await window.vstUpdater.scanAudioSamples(audioRoots.length ? audioRoots : undefined, excludePaths);
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
     flushPendingSamples();
     // Save scan results to SQLite (skip if stopped with partial results)
@@ -795,38 +801,49 @@ function updateAudioStats() {
   const aiff = (audioStatCounts['AIFF'] || 0) + (audioStatCounts['AIF'] || 0);
   const flac = audioStatCounts['FLAC'] || 0;
   const mainFormats = wav + mp3 + aiff + flac;
-  // Sum ALL incremental format counts for "other" so the breakdown is internally
-  // consistent even before audioTotalUnfiltered has been populated (scan in progress).
   let accumulatedTotal = 0;
   for (const k in audioStatCounts) accumulatedTotal += audioStatCounts[k];
-  // Use the larger of (incremental accumulation, DB unfiltered total) so we never
-  // display a total smaller than the breakdown we're showing.
-  const total = Math.max(audioTotalUnfiltered || 0, accumulatedTotal);
-  document.getElementById('audioTotalCount').textContent = total.toLocaleString();
+  const total = Math.max(audioTotalCount || 0, accumulatedTotal);
+  const unfiltered = audioTotalUnfiltered || 0;
+  const isFiltered = unfiltered > 0 && total > 0 && total < unfiltered;
+  const totalStr = isFiltered ? total.toLocaleString() + ' / ' + unfiltered.toLocaleString() : total.toLocaleString();
+  document.getElementById('audioTotalCount').textContent = totalStr;
   document.getElementById('audioWavCount').textContent = wav.toLocaleString();
   document.getElementById('audioMp3Count').textContent = mp3.toLocaleString();
   document.getElementById('audioAiffCount').textContent = aiff.toLocaleString();
   document.getElementById('audioFlacCount').textContent = flac.toLocaleString();
   document.getElementById('audioOtherCount').textContent = Math.max(0, total - mainFormats).toLocaleString();
   document.getElementById('audioTotalSize').textContent = formatAudioSize(audioStatBytes);
-  // Don't overwrite live scan counter during active scan
   if (!_audioScanActive) {
-    document.getElementById('sampleCount').textContent = total.toLocaleString();
+    document.getElementById('sampleCount').textContent = (unfiltered || total).toLocaleString();
   }
   document.getElementById('btnExportAudio').style.display = total > 0 ? '' : 'none';
   if (typeof updateAudioDiskUsage === 'function') updateAudioDiskUsage();
 }
 
-async function rebuildAudioStats() {
+let _lastAudioAggKey = null;
+let _audioBytesByType = {};
+async function rebuildAudioStats(force) {
+  // During an active scan, the DB hasn't been written yet — querying it would
+  // overwrite the incremental accumulators with stale/empty data and flick the
+  // counters to 0. The scan flush already keeps audioStatCounts/Bytes current.
+  if (audioScanProgressCleanup) { updateAudioStats(); return; }
   try {
-    const stats = await window.vstUpdater.dbAudioStats();
-    audioStatCounts = stats.formatCounts || {};
-    audioStatBytes = stats.totalBytes || 0;
-    audioTotalUnfiltered = stats.sampleCount || 0;
-    // Don't set array length — creates undefined slots that crash iterators
+    const search = _lastAudioSearch || '';
+    const fmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('audioFormatFilter') : null;
+    const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
+    const key = search + '|' + (formatFilter || '');
+    // Skip the aggregate query if filter/search hasn't changed (e.g. load-more, sort).
+    if (!force && key === _lastAudioAggKey) { updateAudioStats(); return; }
+    _lastAudioAggKey = key;
+    const agg = await window.vstUpdater.dbAudioFilterStats(search, formatFilter);
+    audioStatCounts = agg.byType || {};
+    audioStatBytes = agg.totalBytes || 0;
+    audioTotalCount = agg.count || 0;
+    audioTotalUnfiltered = agg.totalUnfiltered || 0;
+    _audioBytesByType = agg.bytesByType || {};
     updateAudioStats();
   } catch {
-    // Fallback for when DB not ready
     resetAudioStats();
     updateAudioStats();
   }
@@ -1028,7 +1045,7 @@ function buildAudioRow(s) {
     <td class="col-ch" title="${chTitle}">${ch}</td>
     <td class="col-lufs${lufs !== '' && lufs < -25 ? ' lufs-low' : ''}" title="${lufsTitle}">${lufs}</td>
     <td class="col-date">${s.modified}</td>
-    <td class="col-path" title="${hp}">${escapeHtml(s.directory)}</td>
+    <td class="col-path" title="${hp}">${_lastAudioSearch ? highlightMatch(s.directory, _lastAudioSearch, _lastAudioMode) : escapeHtml(s.directory)}</td>
     <td class="col-actions" data-action-stop>
       <button class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-action="previewAudio" data-path="${hp}" title="${previewBtnT}">
         ${isPlaying && !audioPlayer.paused ? '&#9646;&#9646;' : '&#9654;'}

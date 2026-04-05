@@ -108,7 +108,7 @@ function buildPresetRow(p) {
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
     <td>${_lastPresetSearch ? highlightMatch(p.name, _lastPresetSearch, _lastPresetMode) : escapeHtml(p.name)}${typeof rowBadges === 'function' ? rowBadges(p.path) : ''}</td>
     <td class="col-format"><span class="format-badge format-default">${p.format}</span></td>
-    <td title="${hp}">${escapeHtml(p.directory)}</td>
+    <td title="${hp}">${_lastPresetSearch ? highlightMatch(p.directory, _lastPresetSearch, _lastPresetMode) : escapeHtml(p.directory)}</td>
     <td class="col-size">${p.sizeFormatted || formatPresetSize(p.size)}</td>
     <td class="col-date">${p.modified}</td>
     <td class="col-actions">
@@ -134,27 +134,59 @@ function resetPresetStatsAccumulators() {
   _presetStatsFormatCounts = {};
 }
 
-function rebuildPresetStats() {
+let _lastPresetAggKey = null;
+let _presetAggCache = null;
+async function rebuildPresetStats(force) {
   const statsEl = document.getElementById('presetStats');
   if (!statsEl) return;
-  // Use unfiltered scan count so the stats don't flash to 0 when a filter matches nothing.
-  const displayCount = _presetTotalUnfiltered || _presetTotalCount || allPresets.length;
-  statsEl.style.display = displayCount > 0 ? 'flex' : 'none';
-
-  document.getElementById('presetCount').textContent = displayCount.toLocaleString();
-  const headerCount = document.getElementById('presetCountHeader');
-  if (headerCount) headerCount.textContent = displayCount.toLocaleString();
-
-  // If accumulators are empty (e.g., after post-scan reload from DB), backfill from
-  // allPresets ONCE. Subsequent flushes stay O(batch).
-  if (_presetStatsTotalBytes === 0 && Object.keys(_presetStatsFormatCounts).length === 0 && allPresets.length > 0) {
-    accumulatePresetStats(allPresets);
+  const search = document.getElementById('presetSearchInput')?.value || '';
+  const fmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('presetFormatFilter') : null;
+  const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
+  const key = search.trim() + '|' + (formatFilter || '');
+  let count = 0, bytes = 0, unfiltered = 0, byType = {};
+  // During an active scan the DB hasn't been written yet (savePresetScan runs
+  // at scan completion), so dbPresetFilterStats returns stale/empty data and
+  // would flick the counter to 0. Use the incremental accumulator instead.
+  if (presetScanProgressCleanup) {
+    bytes = _presetStatsTotalBytes;
+    byType = _presetStatsFormatCounts;
+    count = Object.values(byType).reduce((a, b) => a + b, 0);
+    unfiltered = count;
+  } else {
+    const cacheHit = !force && key === _lastPresetAggKey && _presetAggCache;
+    try {
+      const agg = cacheHit ? _presetAggCache : await window.vstUpdater.dbPresetFilterStats(search.trim(), formatFilter);
+      if (!cacheHit) { _lastPresetAggKey = key; _presetAggCache = agg; }
+      count = agg.count || 0;
+      bytes = agg.totalBytes || 0;
+      unfiltered = agg.totalUnfiltered || 0;
+      byType = agg.byType || {};
+      _presetTotalCount = count;
+      _presetTotalUnfiltered = unfiltered;
+    } catch {
+      // Fallback to incremental accumulator
+      if (_presetStatsTotalBytes === 0 && Object.keys(_presetStatsFormatCounts).length === 0 && allPresets.length > 0) {
+        accumulatePresetStats(allPresets);
+      }
+      bytes = _presetStatsTotalBytes;
+      byType = _presetStatsFormatCounts;
+      count = Object.values(byType).reduce((a, b) => a + b, 0);
+      unfiltered = count;
+    }
   }
-  document.getElementById('presetTotalSize').textContent = formatPresetSize(_presetStatsTotalBytes);
-
-  const entries = Object.entries(_presetStatsFormatCounts).sort((a, b) => b[1] - a[1]);
+  const isFiltered = unfiltered > 0 && count > 0 && count < unfiltered;
+  const displayCount = count || unfiltered;
+  statsEl.style.display = (displayCount > 0 || unfiltered > 0) ? 'flex' : 'none';
+  const countStr = isFiltered
+    ? count.toLocaleString() + ' / ' + unfiltered.toLocaleString()
+    : (unfiltered || count).toLocaleString();
+  document.getElementById('presetCount').textContent = countStr;
+  const headerCount = document.getElementById('presetCountHeader');
+  if (headerCount) headerCount.textContent = (unfiltered || count).toLocaleString();
+  document.getElementById('presetTotalSize').textContent = formatPresetSize(bytes);
+  const entries = Object.entries(byType).sort((a, b) => b[1] - a[1]);
   const fmtHtml = entries
-    .map(([fmt, count]) => `<span class="format-badge format-default">${fmt}: ${count}</span>`)
+    .map(([fmt, c]) => `<span class="format-badge format-default">${fmt}: ${c}</span>`)
     .join(' ');
   document.getElementById('presetFormatBreakdown').innerHTML = fmtHtml;
 }
@@ -239,8 +271,8 @@ function _legacyFilterPresets() {
       </td></tr>`);
   }
 
-  document.getElementById('presetFilteredCount').textContent =
-    filteredPresets.length < allPresets.length ? `${filteredPresets.length} / ` : '';
+  // (pagination render-count display removed)
+  document.getElementById('presetFilteredCount').textContent = '';
 }
 
 function renderPresetTable() {
@@ -273,8 +305,9 @@ function renderPresetTable() {
         ${typeof escapeHtml === 'function' ? escapeHtml(line) : line}
       </td></tr>`);
   }
+  // (pagination render-count display removed — presetCount already shows "filtered / total")
   const fc = document.getElementById('presetFilteredCount');
-  if (fc) fc.textContent = presetRenderCount < _presetTotalCount ? `${presetRenderCount} / ` : '';
+  if (fc) fc.textContent = '';
 }
 
 function loadMorePresets() {
@@ -286,9 +319,19 @@ function openPresetFolder(path) {
   window.vstUpdater.openPresetFolder(path).then(() => showToast(toastFmt('toast.revealed_in_finder'))).catch(e => showToast(toastFmt('toast.failed', { err: e }), 4000, 'error'));
 }
 
-async function scanPresets(resume = false) {
+// When `unifiedResult` is passed (by scanAll), skip this function's Tauri
+// invoke and consume the shared result from a single scan_unified call.
+async function scanPresets(resume = false, unifiedResult = null) {
   showGlobalProgress();
   const btn = document.getElementById('btnScanPresets');
+  // MIDI tab's scan button also routes to scanPresets — mirror button state
+  // there so users who start the scan from the MIDI tab see live progress.
+  const midiBtn = document.getElementById('btnScanMidi');
+  const setBtn = (html, disabled) => {
+    btn.innerHTML = html;
+    btn.disabled = disabled;
+    if (midiBtn) { midiBtn.innerHTML = html; midiBtn.disabled = disabled; }
+  };
   const resumeBtn = document.getElementById('btnResumePresets');
   const stopBtn = document.getElementById('btnStopPresets');
   const progressBar = document.getElementById('presetProgressBar');
@@ -297,8 +340,7 @@ async function scanPresets(resume = false) {
 
   const excludePaths = resume ? allPresets.map(p => p.path) : null;
 
-  btn.disabled = true;
-  btn.innerHTML = resume ? '&#8635; Resuming...' : '&#8635; Scanning...';
+  setBtn(resume ? '&#8635; Resuming...' : '&#8635; Scanning...', true);
   resumeBtn.style.display = 'none';
   stopBtn.style.display = '';
   progressBar.classList.add('active');
@@ -385,7 +427,7 @@ async function scanPresets(resume = false) {
 
     rebuildPresetStats();
     const presetElapsed = presetEta.elapsed();
-    btn.innerHTML = `&#8635; ${pendingFound} found${presetElapsed ? ' — ' + presetElapsed : ''}`;
+    setBtn(`&#8635; ${pendingFound.toLocaleString()} found${presetElapsed ? ' — ' + presetElapsed : ''}`, true);
     lastFlush = performance.now();
   }
 
@@ -409,34 +451,41 @@ async function scanPresets(resume = false) {
       const midiInBatch = data.presets ? data.presets.filter(p => midiFormats.has(p.format)).length : 0;
       if (typeof _midiScanCount !== 'undefined') _midiScanCount += midiInBatch;
       const presetOnly = pendingFound - (typeof _midiScanCount !== 'undefined' ? _midiScanCount : 0);
-      document.getElementById('presetCountHeader').textContent = presetOnly;
+      document.getElementById('presetCountHeader').textContent = presetOnly.toLocaleString();
       const midiEl = document.getElementById('midiScanCount');
-      if (midiEl) midiEl.textContent = typeof _midiScanCount !== 'undefined' ? _midiScanCount : 0;
+      if (midiEl) midiEl.textContent = (typeof _midiScanCount !== 'undefined' ? _midiScanCount : 0).toLocaleString();
       scheduleFlush();
     }
   });
 
   try {
     const presetRoots = (prefs.getItem('presetScanDirs') || '').split('\n').map(s => s.trim()).filter(Boolean);
-    const result = await window.vstUpdater.scanPresets(presetRoots.length ? presetRoots : undefined, excludePaths);
-    if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
+    const result = unifiedResult
+      ? await unifiedResult
+      : await window.vstUpdater.scanPresets(presetRoots.length ? presetRoots : undefined, excludePaths);
+    // Drain final streamed batch with the scan-active guard still set so the
+    // rebuild inside flushPending uses incremental accumulators.
     flushPending();
     if (resume) {
       allPresets = [...allPresets, ...result.presets];
     } else {
       allPresets = result.presets;
     }
-    rebuildPresetStats();
-    filterPresets();
     // Refresh header count immediately — don't wait for next fetchPresetPage.
     // Exclude MIDI since they live in their own tab (matches backend `total_unfiltered` definition).
     const midiFormats = new Set(['MID', 'MIDI']);
     _presetTotalUnfiltered = allPresets.filter(p => !midiFormats.has(p.format)).length;
-    // Reload MIDI tab from preset data
-    if (typeof loadMidiFiles === 'function') { _midiLoaded = false; loadMidiFiles(); }
+    // Save to the DB BEFORE rebuildPresetStats — otherwise the filter-stats
+    // query hits stale/empty rows and the top counter flickers between the
+    // previous scan's totals and zero/filtered values.
     if (!result.stopped) {
       try { await window.vstUpdater.savePresetScan(allPresets, result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_preset_history', { err: e.message || e }), 4000, 'error'); }
     }
+    if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
+    rebuildPresetStats(true);
+    filterPresets();
+    // Reload MIDI tab from preset data
+    if (typeof loadMidiFiles === 'function') { _midiLoaded = false; loadMidiFiles(); }
     if (result.stopped && allPresets.length > 0) {
       resumeBtn.style.display = '';
     }
@@ -451,6 +500,7 @@ async function scanPresets(resume = false) {
   hideGlobalProgress();
   btn.disabled = false;
   btn.innerHTML = '&#127924; Scan Presets';
+  if (midiBtn) { midiBtn.disabled = false; midiBtn.innerHTML = '&#127924; Scan MIDI'; }
   stopBtn.style.display = 'none';
   document.getElementById('btnExportPresets').style.display = allPresets.length > 0 ? '' : 'none';
   progressBar.classList.remove('active');

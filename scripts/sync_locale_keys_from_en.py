@@ -20,7 +20,7 @@ I18N = ROOT / "i18n"
 def main() -> None:
     en_path = I18N / "app_i18n_en.json"
     en: dict[str, str] = json.loads(en_path.read_text(encoding="utf-8"))
-    for loc in ("de", "es", "sv", "fr", "nl", "pt", "it", "el", "pl", "ru", "zh", "ja"):
+    for loc in ("de", "es", "sv", "fr", "nl", "pt", "it", "el", "pl", "ru", "zh", "ja", "ko"):
         path = I18N / f"app_i18n_{loc}.json"
         cur: dict[str, str] = json.loads(path.read_text(encoding="utf-8"))
         added = 0

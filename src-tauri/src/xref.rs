@@ -1933,6 +1933,33 @@ mod tests {
         let _ = fs::remove_file(&tmp);
     }
 
+    /// `.rpp-bak` must route through the REAPER parser (compound extension).
+    #[test]
+    fn test_extract_plugins_reaper_backup_extension() {
+        let tmp = std::env::temp_dir().join("test_xref_reaper_bak.rpp-bak");
+        let content = r#"<VST "VST3: Serum (Xfer)" C:\VST3\Serum.vst3"#;
+        fs::write(&tmp, content).unwrap();
+        let result = extract_plugins(tmp.to_str().unwrap());
+        assert!(
+            result.iter().any(|p| p.name == "Serum"),
+            "expected Serum from REAPER backup path, got {:?}",
+            result.iter().map(|p| &p.name).collect::<Vec<_>>()
+        );
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_extract_plugins_no_extension_returns_empty() {
+        assert!(extract_plugins("/tmp/no-extension").is_empty());
+    }
+
+    #[test]
+    fn test_normalize_plugin_name_idempotent_on_clean_name() {
+        let once = normalize_plugin_name("FabFilter Pro-Q 3");
+        let twice = normalize_plugin_name(&once);
+        assert_eq!(once, twice);
+    }
+
     // ── Real file tests (ignored, run manually) ──
 
     #[test]

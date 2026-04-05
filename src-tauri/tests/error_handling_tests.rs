@@ -140,10 +140,7 @@ fn test_parallel_scan_cancellation() {
     }
 }
 
-/// Placeholder for `query_audio` + fixture-driven batch tests (DB API no longer has `get_audio`).
-#[test]
-#[ignore = "implement with AudioQueryParams + a scan fixture when DB integration tests are expanded"]
-fn test_batch_with_mixed_paths() {}
+// `query_audio` escape + sort fallback + `format_filter: "all"`: see `db::tests` in `src-tauri/src/db.rs`.
 
 /// Test export with very large plugin list
 #[test]

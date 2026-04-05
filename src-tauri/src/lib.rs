@@ -16,6 +16,7 @@
 pub mod app_i18n;
 pub mod audio_scanner;
 pub mod bpm;
+pub mod bulk_stat;
 pub mod daw_scanner;
 pub mod db;
 pub mod file_watcher;
@@ -30,6 +31,7 @@ pub mod pdf_scanner;
 pub mod preset_scanner;
 pub mod scanner;
 pub mod similarity;
+pub mod unified_walker;
 pub mod xref;
 
 /// Shared utility: format bytes to human-readable string.
@@ -116,6 +118,10 @@ struct WalkerStatus {
     daw_dirs: Arc<std::sync::Mutex<Vec<String>>>,
     preset_dirs: Arc<std::sync::Mutex<Vec<String>>>,
     pdf_dirs: Arc<std::sync::Mutex<Vec<String>>>,
+    /// True while `scan_unified` is active. Frontend walker-status tiles
+    /// collapse 4 → 1 display when this is true (the single walker fans its
+    /// dir-push out to all 4 `*_dirs` lists; showing all 4 would be redundant).
+    unified_scanning: AtomicBool,
 }
 
 // ── Plugin update types ──
@@ -186,6 +192,7 @@ fn get_walker_status(app: AppHandle) -> serde_json::Value {
         .scanning
         .load(Ordering::Relaxed);
     let pdf_scanning = app.state::<PdfScanState>().scanning.load(Ordering::Relaxed);
+    let unified_scanning = ws.unified_scanning.load(Ordering::Relaxed);
     serde_json::json!({
         "plugin": plugin,
         "audio": audio,
@@ -198,6 +205,7 @@ fn get_walker_status(app: AppHandle) -> serde_json::Value {
         "dawScanning": daw_scanning,
         "presetScanning": preset_scanning,
         "pdfScanning": pdf_scanning,
+        "unifiedScanning": unified_scanning,
     })
 }
 
@@ -1190,6 +1198,258 @@ async fn stop_pdf_scan(app: AppHandle) -> Result<(), String> {
     append_log("SCAN STOP — pdfs (user requested)".into());
     let state = app.state::<PdfScanState>();
     state.stop_scan.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+// ── Unified home-tree scan ──
+// Walks the union of audio/daw/preset/pdf roots ONCE and classifies files in
+// place, emitting the same per-type events (`audio-scan-progress`,
+// `daw-scan-progress`, `preset-scan-progress`, `pdf-scan-progress`) so
+// frontend listeners work unchanged. Saves 4x filesystem traversals on
+// overlapping roots (especially valuable on SMB shares where every readdir
+// is a network roundtrip).
+#[tauri::command]
+async fn scan_unified(
+    app: AppHandle,
+    audio_custom_roots: Option<Vec<String>>,
+    audio_exclude_paths: Option<Vec<String>>,
+    daw_custom_roots: Option<Vec<String>>,
+    daw_exclude_paths: Option<Vec<String>>,
+    daw_include_backups: Option<bool>,
+    preset_custom_roots: Option<Vec<String>>,
+    preset_exclude_paths: Option<Vec<String>>,
+    pdf_custom_roots: Option<Vec<String>>,
+    pdf_exclude_paths: Option<Vec<String>>,
+) -> Result<serde_json::Value, String> {
+    let scan_start = Instant::now();
+    append_log("SCAN START — unified (audio+daw+preset+pdf)".into());
+
+    // Acquire all 4 scanning flags atomically; rollback if any is taken.
+    let audio_state = app.state::<AudioScanState>();
+    let daw_state = app.state::<DawScanState>();
+    let preset_state = app.state::<PresetScanState>();
+    let pdf_state = app.state::<PdfScanState>();
+
+    if audio_state.scanning.swap(true, Ordering::SeqCst) {
+        return Err("Audio scan already in progress".into());
+    }
+    if daw_state.scanning.swap(true, Ordering::SeqCst) {
+        audio_state.scanning.store(false, Ordering::SeqCst);
+        return Err("DAW scan already in progress".into());
+    }
+    if preset_state.scanning.swap(true, Ordering::SeqCst) {
+        audio_state.scanning.store(false, Ordering::SeqCst);
+        daw_state.scanning.store(false, Ordering::SeqCst);
+        return Err("Preset scan already in progress".into());
+    }
+    if pdf_state.scanning.swap(true, Ordering::SeqCst) {
+        audio_state.scanning.store(false, Ordering::SeqCst);
+        daw_state.scanning.store(false, Ordering::SeqCst);
+        preset_state.scanning.store(false, Ordering::SeqCst);
+        return Err("PDF scan already in progress".into());
+    }
+    audio_state.stop_scan.store(false, Ordering::SeqCst);
+    daw_state.stop_scan.store(false, Ordering::SeqCst);
+    preset_state.stop_scan.store(false, Ordering::SeqCst);
+    pdf_state.stop_scan.store(false, Ordering::SeqCst);
+    // Signal walker-status tiles to collapse 4 → 1 while we hold the walker.
+    app.state::<WalkerStatus>().unified_scanning.store(true, Ordering::SeqCst);
+
+    // Kick off four status messages on the same event streams so the tabs
+    // show "scanning" immediately.
+    for ev in [
+        "audio-scan-progress",
+        "daw-scan-progress",
+        "preset-scan-progress",
+        "pdf-scan-progress",
+    ] {
+        let _ = app.emit(
+            ev,
+            serde_json::json!({
+                "phase": "status",
+                "message": "Walking filesystem (unified) — single traversal classifying all types..."
+            }),
+        );
+    }
+
+    let app_handle = app.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let resolve = |custom: Option<Vec<String>>, default: &dyn Fn() -> Vec<std::path::PathBuf>| -> Vec<std::path::PathBuf> {
+            if let Some(extra) = custom {
+                let v: Vec<std::path::PathBuf> = extra
+                    .into_iter()
+                    .map(std::path::PathBuf::from)
+                    .filter(|p| p.exists())
+                    .collect();
+                if v.is_empty() { default() } else { v }
+            } else {
+                default()
+            }
+        };
+        let audio_roots = resolve(audio_custom_roots, &audio_scanner::get_audio_roots);
+        let daw_roots = resolve(daw_custom_roots, &daw_scanner::get_daw_roots);
+        let preset_roots = resolve(preset_custom_roots, &preset_scanner::get_preset_roots);
+        let pdf_roots = resolve(pdf_custom_roots, &pdf_scanner::get_pdf_roots);
+
+        let spec = unified_walker::UnifiedSpec {
+            audio_roots: audio_roots.clone(),
+            audio_exclude: audio_exclude_paths.into_iter().flatten().collect(),
+            daw_roots: daw_roots.clone(),
+            daw_exclude: daw_exclude_paths.into_iter().flatten().collect(),
+            daw_include_backups: daw_include_backups.unwrap_or(false),
+            preset_roots: preset_roots.clone(),
+            preset_exclude: preset_exclude_paths.into_iter().flatten().collect(),
+            pdf_roots: pdf_roots.clone(),
+            pdf_exclude: pdf_exclude_paths.into_iter().flatten().collect(),
+        };
+
+        let mut all_audio: Vec<AudioSample> = Vec::new();
+        let mut all_daw: Vec<DawProject> = Vec::new();
+        let mut all_preset: Vec<PresetFile> = Vec::new();
+        let mut all_pdf: Vec<PdfFile> = Vec::new();
+
+        let audio_state2 = app_handle.state::<AudioScanState>();
+        let daw_state2 = app_handle.state::<DawScanState>();
+        let preset_state2 = app_handle.state::<PresetScanState>();
+        let pdf_state2 = app_handle.state::<PdfScanState>();
+
+        unified_walker::walk_unified(
+            &spec,
+            &mut |batch, counts| {
+                use unified_walker::ClassifiedBatch;
+                match batch {
+                    ClassifiedBatch::Audio(b) => {
+                        let _ = app_handle.emit(
+                            "audio-scan-progress",
+                            serde_json::json!({
+                                "phase": "scanning",
+                                "samples": &b,
+                                "found": counts.audio,
+                            }),
+                        );
+                        all_audio.extend(b);
+                    }
+                    ClassifiedBatch::Daw(b) => {
+                        let _ = app_handle.emit(
+                            "daw-scan-progress",
+                            serde_json::json!({
+                                "phase": "scanning",
+                                "projects": &b,
+                                "found": counts.daw,
+                            }),
+                        );
+                        all_daw.extend(b);
+                    }
+                    ClassifiedBatch::Preset(b) => {
+                        let _ = app_handle.emit(
+                            "preset-scan-progress",
+                            serde_json::json!({
+                                "phase": "scanning",
+                                "presets": &b,
+                                "found": counts.preset,
+                            }),
+                        );
+                        all_preset.extend(b);
+                    }
+                    ClassifiedBatch::Pdf(b) => {
+                        let _ = app_handle.emit(
+                            "pdf-scan-progress",
+                            serde_json::json!({
+                                "phase": "scanning",
+                                "pdfs": &b,
+                                "found": counts.pdf,
+                            }),
+                        );
+                        all_pdf.extend(b);
+                    }
+                }
+            },
+            &|| {
+                // Any individual stop_* command cancels the unified scan.
+                audio_state2.stop_scan.load(Ordering::SeqCst)
+                    || daw_state2.stop_scan.load(Ordering::SeqCst)
+                    || preset_state2.stop_scan.load(Ordering::SeqCst)
+                    || pdf_state2.stop_scan.load(Ordering::SeqCst)
+            },
+            // Fan the walker's current-dir updates into all 4 WalkerStatus
+            // lists so each walker-status tile shows live progress.
+            {
+                let ws = app_handle.state::<WalkerStatus>();
+                vec![
+                    Arc::clone(&ws.audio_dirs),
+                    Arc::clone(&ws.daw_dirs),
+                    Arc::clone(&ws.preset_dirs),
+                    Arc::clone(&ws.pdf_dirs),
+                ]
+            },
+        );
+
+        let stopped = audio_state2.stop_scan.load(Ordering::Relaxed)
+            || daw_state2.stop_scan.load(Ordering::Relaxed)
+            || preset_state2.stop_scan.load(Ordering::Relaxed)
+            || pdf_state2.stop_scan.load(Ordering::Relaxed);
+
+        // Clear WalkerStatus dir lists so tiles return to idle state.
+        {
+            let ws = app_handle.state::<WalkerStatus>();
+            for sink in [&ws.audio_dirs, &ws.daw_dirs, &ws.preset_dirs, &ws.pdf_dirs] {
+                sink.lock().unwrap_or_else(|e| e.into_inner()).clear();
+            }
+        }
+
+        all_audio.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        all_daw.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        all_preset.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        all_pdf.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+        let to_strs = |v: &[std::path::PathBuf]| -> Vec<String> {
+            v.iter().map(|r| r.to_string_lossy().to_string()).collect()
+        };
+
+        serde_json::json!({
+            "audio": all_audio,
+            "daw": all_daw,
+            "preset": all_preset,
+            "pdf": all_pdf,
+            "audioRoots": to_strs(&audio_roots),
+            "dawRoots": to_strs(&daw_roots),
+            "presetRoots": to_strs(&preset_roots),
+            "pdfRoots": to_strs(&pdf_roots),
+            "stopped": stopped,
+        })
+    })
+    .await;
+
+    audio_state.scanning.store(false, Ordering::SeqCst);
+    daw_state.scanning.store(false, Ordering::SeqCst);
+    preset_state.scanning.store(false, Ordering::SeqCst);
+    pdf_state.scanning.store(false, Ordering::SeqCst);
+    app.state::<WalkerStatus>().unified_scanning.store(false, Ordering::SeqCst);
+
+    let elapsed = scan_start.elapsed();
+    match &result {
+        Ok(v) => append_log(format!(
+            "SCAN END — unified | {}s | audio:{} daw:{} preset:{} pdf:{}",
+            elapsed.as_secs(),
+            v.get("audio").and_then(|x| x.as_array()).map(|a| a.len()).unwrap_or(0),
+            v.get("daw").and_then(|x| x.as_array()).map(|a| a.len()).unwrap_or(0),
+            v.get("preset").and_then(|x| x.as_array()).map(|a| a.len()).unwrap_or(0),
+            v.get("pdf").and_then(|x| x.as_array()).map(|a| a.len()).unwrap_or(0),
+        )),
+        Err(e) => append_log(format!("SCAN ERROR — unified | {}s | {}", elapsed.as_secs(), e)),
+    }
+    result.map_err(|e| e.to_string())
+}
+
+// Stops a running unified scan by setting stop flags on all four per-type
+// scan states. The scan loop checks these each iteration and breaks out.
+#[tauri::command]
+async fn stop_unified_scan(app: AppHandle) -> Result<(), String> {
+    append_log("SCAN STOP — unified (user requested)".into());
+    app.state::<AudioScanState>().stop_scan.store(true, Ordering::SeqCst);
+    app.state::<DawScanState>().stop_scan.store(true, Ordering::SeqCst);
+    app.state::<PresetScanState>().stop_scan.store(true, Ordering::SeqCst);
+    app.state::<PdfScanState>().stop_scan.store(true, Ordering::SeqCst);
     Ok(())
 }
 
@@ -5296,6 +5556,7 @@ pub fn run() {
             daw_dirs: Arc::new(std::sync::Mutex::new(Vec::new())),
             preset_dirs: Arc::new(std::sync::Mutex::new(Vec::new())),
             pdf_dirs: Arc::new(std::sync::Mutex::new(Vec::new())),
+            unified_scanning: AtomicBool::new(false),
         })
         .manage(file_watcher::FileWatcherState::new())
         .invoke_handler(tauri::generate_handler![
@@ -5379,6 +5640,8 @@ pub fn run() {
             open_preset_folder,
             scan_pdfs,
             stop_pdf_scan,
+            scan_unified,
+            stop_unified_scan,
             pdf_history_save,
             pdf_history_get_scans,
             pdf_history_get_detail,

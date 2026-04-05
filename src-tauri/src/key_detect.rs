@@ -432,6 +432,14 @@ mod tests {
     }
 
     #[test]
+    fn test_goertzel_single_sample_is_finite() {
+        // n=1 is a degenerate frame; must not panic and should yield a finite power.
+        let samples = vec![1.0f64];
+        let p = goertzel(&samples, 440.0, 44100.0);
+        assert!(p.is_finite(), "goertzel power should be finite for n=1, got {}", p);
+    }
+
+    #[test]
     fn test_goertzel_near_zero_for_absent_frequency() {
         // Pure 440Hz sine should have near-zero energy at 261.63Hz (C4)
         let sr = 44100.0;

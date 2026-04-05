@@ -497,6 +497,22 @@ mod tests {
     }
 
     #[test]
+    fn test_read_wav_pcm_pub_truncated_file_returns_none() {
+        let tmp = std::env::temp_dir().join("test_bpm_trunc.wav");
+        fs::write(&tmp, b"RIFF").unwrap();
+        assert!(read_wav_pcm_pub(&tmp).is_none());
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_read_wav_pcm_pub_not_riff_returns_none() {
+        let tmp = std::env::temp_dir().join("test_bpm_not_riff.wav");
+        fs::write(&tmp, b"XXXX0000WAVE").unwrap();
+        assert!(read_wav_pcm_pub(&tmp).is_none());
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_estimate_bpm_silence() {
         let tmp = std::env::temp_dir().join("test_bpm_silence.wav");
         let silence = vec![0.0f32; 44100 * 4];

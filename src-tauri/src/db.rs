@@ -284,6 +284,21 @@ pub struct PdfStatsResult {
     pub total_bytes: u64,
 }
 
+/// Filtered aggregate stats — count + size + per-type breakdown reflecting
+/// the active search/filter. One round-trip: COUNT + SUM + GROUP BY in SQL.
+#[derive(Debug, Serialize)]
+pub struct FilterStatsResult {
+    pub count: u64,
+    #[serde(rename = "totalBytes")]
+    pub total_bytes: u64,
+    #[serde(rename = "byType")]
+    pub by_type: HashMap<String, u64>,
+    #[serde(rename = "bytesByType")]
+    pub bytes_by_type: HashMap<String, u64>,
+    #[serde(rename = "totalUnfiltered")]
+    pub total_unfiltered: u64,
+}
+
 /// Current schema version — bump when adding migrations.
 #[allow(dead_code)]
 const SCHEMA_VERSION: i64 = 4;
@@ -2504,6 +2519,234 @@ impl Database {
         Ok(PdfStatsResult { pdf_count, total_bytes })
     }
 
+    // ── Filter-aware aggregate stats ──
+    // Each returns count + total_bytes + per-type breakdown reflecting the active
+    // search/filter. Uses a single GROUP BY query for the breakdown (O(latest_scan)).
+
+    fn fzf_like(s: Option<&str>) -> Option<String> {
+        s.and_then(|t| {
+            let t = t.trim();
+            if t.is_empty() { return None; }
+            let esc: String = t.chars().map(|c| match c {
+                '%' => "\\%".to_string(),
+                '_' => "\\_".to_string(),
+                _ => c.to_string(),
+            }).collect::<Vec<_>>().join("%");
+            Some(format!("%{esc}%"))
+        })
+    }
+
+    fn in_list_sql(values: &str) -> String {
+        values.split(',')
+            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    fn get_latest_scan_id(&self, scan_table: &str, count_col: &str) -> Result<String, String> {
+        let conn = self.conn.lock().unwrap();
+        Ok(conn.query_row(
+            &format!("SELECT id FROM {scan_table} WHERE {count_col} > 0 ORDER BY timestamp DESC LIMIT 1"),
+            [], |r| r.get(0)
+        ).optional().map_err(|e| e.to_string())?.unwrap_or_default())
+    }
+
+    pub fn audio_filter_stats(&self, search: Option<&str>, format_filter: Option<&str>) -> Result<FilterStatsResult, String> {
+        let scan_id = self.get_latest_scan_id("audio_scans", "sample_count")?;
+        if scan_id.is_empty() {
+            return Ok(FilterStatsResult { count: 0, total_bytes: 0, by_type: HashMap::new(), bytes_by_type: HashMap::new(), total_unfiltered: 0 });
+        }
+        let conn = self.conn.lock().unwrap();
+        let total_unfiltered: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM audio_samples WHERE scan_id = ?1",
+            params![scan_id], |r| r.get(0)
+        ).unwrap_or(0);
+        let search_pat = Self::fzf_like(search);
+        let mut where_parts = vec!["scan_id = ?1".to_string()];
+        let mut bind_idx = 2usize;
+        if search_pat.is_some() { where_parts.push(format!("name LIKE ?{bind_idx} ESCAPE '\\'")); bind_idx += 1; }
+        if let Some(f) = format_filter { if !f.is_empty() && f != "all" {
+            if f.contains(',') { where_parts.push(format!("format IN ({})", Self::in_list_sql(f))); }
+            else { where_parts.push(format!("format = ?{bind_idx}")); bind_idx += 1; }
+        }}
+        let _ = bind_idx;
+        let where_cl = where_parts.join(" AND ");
+        let sql = format!("SELECT format, COUNT(*), COALESCE(SUM(size),0) FROM audio_samples WHERE {where_cl} GROUP BY format");
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut bi = 1;
+        stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+        if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+        if let Some(f) = format_filter { if !f.is_empty() && f != "all" && !f.contains(',') { stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?; } }
+        let mut rows = stmt.raw_query();
+        let mut count = 0u64; let mut total_bytes = 0u64;
+        let mut by_type = HashMap::new(); let mut bytes_by_type = HashMap::new();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let fmt: String = row.get(0).unwrap_or_default();
+            let n: u64 = row.get::<_, i64>(1).unwrap_or(0) as u64;
+            let sz: u64 = row.get::<_, i64>(2).unwrap_or(0) as u64;
+            count += n; total_bytes += sz;
+            by_type.insert(fmt.clone(), n);
+            bytes_by_type.insert(fmt, sz);
+        }
+        Ok(FilterStatsResult { count, total_bytes, by_type, bytes_by_type, total_unfiltered })
+    }
+
+    pub fn daw_filter_stats(&self, search: Option<&str>, daw_filter: Option<&str>) -> Result<FilterStatsResult, String> {
+        let scan_id = self.get_latest_scan_id("daw_scans", "project_count")?;
+        if scan_id.is_empty() {
+            return Ok(FilterStatsResult { count: 0, total_bytes: 0, by_type: HashMap::new(), bytes_by_type: HashMap::new(), total_unfiltered: 0 });
+        }
+        let conn = self.conn.lock().unwrap();
+        let total_unfiltered: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM daw_projects WHERE scan_id = ?1",
+            params![scan_id], |r| r.get(0)
+        ).unwrap_or(0);
+        let search_pat = Self::fzf_like(search);
+        let mut where_parts = vec!["scan_id = ?1".to_string()];
+        let mut bind_idx = 2usize;
+        if search_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
+        }
+        if let Some(f) = daw_filter { if !f.is_empty() && f != "all" {
+            if f.contains(',') { where_parts.push(format!("daw IN ({})", Self::in_list_sql(f))); }
+            else { where_parts.push(format!("daw = ?{bind_idx}")); bind_idx += 1; }
+        }}
+        let _ = bind_idx;
+        let where_cl = where_parts.join(" AND ");
+        let sql = format!("SELECT daw, COUNT(*), COALESCE(SUM(size),0) FROM daw_projects WHERE {where_cl} GROUP BY daw");
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut bi = 1;
+        stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+        if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+        if let Some(f) = daw_filter { if !f.is_empty() && f != "all" && !f.contains(',') { stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?; } }
+        let mut rows = stmt.raw_query();
+        let mut count = 0u64; let mut total_bytes = 0u64;
+        let mut by_type = HashMap::new(); let mut bytes_by_type = HashMap::new();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let daw: String = row.get(0).unwrap_or_default();
+            let n: u64 = row.get::<_, i64>(1).unwrap_or(0) as u64;
+            let sz: u64 = row.get::<_, i64>(2).unwrap_or(0) as u64;
+            count += n; total_bytes += sz;
+            by_type.insert(daw.clone(), n);
+            bytes_by_type.insert(daw, sz);
+        }
+        Ok(FilterStatsResult { count, total_bytes, by_type, bytes_by_type, total_unfiltered })
+    }
+
+    pub fn preset_filter_stats(&self, search: Option<&str>, format_filter: Option<&str>) -> Result<FilterStatsResult, String> {
+        let scan_id = self.get_latest_scan_id("preset_scans", "preset_count")?;
+        if scan_id.is_empty() {
+            return Ok(FilterStatsResult { count: 0, total_bytes: 0, by_type: HashMap::new(), bytes_by_type: HashMap::new(), total_unfiltered: 0 });
+        }
+        let conn = self.conn.lock().unwrap();
+        let total_unfiltered: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM presets WHERE scan_id = ?1 AND format NOT IN ('MID','MIDI')",
+            params![scan_id], |r| r.get(0)
+        ).unwrap_or(0);
+        let search_pat = Self::fzf_like(search);
+        // Presets always exclude MIDI (lives in its own tab)
+        let mut where_parts = vec!["scan_id = ?1".to_string(), "format NOT IN ('MID','MIDI')".to_string()];
+        let mut bind_idx = 2usize;
+        if search_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
+        }
+        if let Some(f) = format_filter { if !f.is_empty() && f != "all" {
+            if f.contains(',') { where_parts.push(format!("format IN ({})", Self::in_list_sql(f))); }
+            else { where_parts.push(format!("format = ?{bind_idx}")); bind_idx += 1; }
+        }}
+        let _ = bind_idx;
+        let where_cl = where_parts.join(" AND ");
+        let sql = format!("SELECT format, COUNT(*), COALESCE(SUM(size),0) FROM presets WHERE {where_cl} GROUP BY format");
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut bi = 1;
+        stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+        if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+        if let Some(f) = format_filter { if !f.is_empty() && f != "all" && !f.contains(',') { stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?; } }
+        let mut rows = stmt.raw_query();
+        let mut count = 0u64; let mut total_bytes = 0u64;
+        let mut by_type = HashMap::new(); let mut bytes_by_type = HashMap::new();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let fmt: String = row.get(0).unwrap_or_default();
+            let n: u64 = row.get::<_, i64>(1).unwrap_or(0) as u64;
+            let sz: u64 = row.get::<_, i64>(2).unwrap_or(0) as u64;
+            count += n; total_bytes += sz;
+            by_type.insert(fmt.clone(), n);
+            bytes_by_type.insert(fmt, sz);
+        }
+        Ok(FilterStatsResult { count, total_bytes, by_type, bytes_by_type, total_unfiltered })
+    }
+
+    pub fn plugin_filter_stats(&self, search: Option<&str>, type_filter: Option<&str>) -> Result<FilterStatsResult, String> {
+        let scan_id = self.get_latest_scan_id("plugin_scans", "plugin_count")?;
+        if scan_id.is_empty() {
+            return Ok(FilterStatsResult { count: 0, total_bytes: 0, by_type: HashMap::new(), bytes_by_type: HashMap::new(), total_unfiltered: 0 });
+        }
+        let conn = self.conn.lock().unwrap();
+        let total_unfiltered: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM plugins WHERE scan_id = ?1",
+            params![scan_id], |r| r.get(0)
+        ).unwrap_or(0);
+        let search_pat = Self::fzf_like(search);
+        let mut where_parts = vec!["scan_id = ?1".to_string()];
+        let mut bind_idx = 2usize;
+        if search_pat.is_some() {
+            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR manufacturer LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            bind_idx += 1;
+        }
+        if let Some(tf) = type_filter { if !tf.is_empty() && tf != "all" {
+            if tf.contains(',') { where_parts.push(format!("plugin_type IN ({})", Self::in_list_sql(tf))); }
+            else { where_parts.push(format!("plugin_type = ?{bind_idx}")); bind_idx += 1; }
+        }}
+        let _ = bind_idx;
+        let where_cl = where_parts.join(" AND ");
+        let sql = format!("SELECT plugin_type, COUNT(*), COALESCE(SUM(size_bytes),0) FROM plugins WHERE {where_cl} GROUP BY plugin_type");
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut bi = 1;
+        stmt.raw_bind_parameter(bi, &scan_id).map_err(|e| e.to_string())?; bi += 1;
+        if let Some(ref p) = search_pat { stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?; bi += 1; }
+        if let Some(tf) = type_filter { if !tf.is_empty() && tf != "all" && !tf.contains(',') { stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?; } }
+        let mut rows = stmt.raw_query();
+        let mut count = 0u64; let mut total_bytes = 0u64;
+        let mut by_type = HashMap::new(); let mut bytes_by_type = HashMap::new();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let t: String = row.get(0).unwrap_or_default();
+            let n: u64 = row.get::<_, i64>(1).unwrap_or(0) as u64;
+            let sz: u64 = row.get::<_, i64>(2).unwrap_or(0) as u64;
+            count += n; total_bytes += sz;
+            by_type.insert(t.clone(), n);
+            bytes_by_type.insert(t, sz);
+        }
+        Ok(FilterStatsResult { count, total_bytes, by_type, bytes_by_type, total_unfiltered })
+    }
+
+    pub fn pdf_filter_stats(&self, search: Option<&str>) -> Result<FilterStatsResult, String> {
+        let scan_id = self.get_latest_scan_id("pdf_scans", "pdf_count")?;
+        if scan_id.is_empty() {
+            return Ok(FilterStatsResult { count: 0, total_bytes: 0, by_type: HashMap::new(), bytes_by_type: HashMap::new(), total_unfiltered: 0 });
+        }
+        let conn = self.conn.lock().unwrap();
+        let total_unfiltered: u64 = conn.query_row(
+            "SELECT COUNT(*) FROM pdfs WHERE scan_id = ?1",
+            params![scan_id], |r| r.get(0)
+        ).unwrap_or(0);
+        let search_pat = Self::fzf_like(search);
+        let (sql, has_search) = if search_pat.is_some() {
+            ("SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE scan_id = ?1 AND (name LIKE ?2 ESCAPE '\\' OR path LIKE ?2 ESCAPE '\\')", true)
+        } else {
+            ("SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE scan_id = ?1", false)
+        };
+        let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+        stmt.raw_bind_parameter(1, &scan_id).map_err(|e| e.to_string())?;
+        if has_search { stmt.raw_bind_parameter(2, search_pat.as_ref().unwrap()).map_err(|e| e.to_string())?; }
+        let mut rows = stmt.raw_query();
+        let (count, total_bytes) = if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            (row.get::<_, i64>(0).unwrap_or(0) as u64, row.get::<_, i64>(1).unwrap_or(0) as u64)
+        } else { (0, 0) };
+        Ok(FilterStatsResult { count, total_bytes, by_type: HashMap::new(), bytes_by_type: HashMap::new(), total_unfiltered })
+    }
+
     // ── KVR cache ──
 
     pub fn load_kvr_cache(&self) -> Result<HashMap<String, KvrCacheEntry>, String> {
@@ -3503,6 +3746,447 @@ mod tests {
 
         assert_eq!(result.total_count, 2);
         assert!(result.samples.iter().all(|s| s.format == "WAV"));
+    }
+
+    /// User search uses SQL LIKE: `%` and `_` in the query string must be escaped (not wildcards).
+    #[test]
+    fn test_query_audio_search_escapes_percent_in_user_query() {
+        let db = test_db();
+        let samples = vec![
+            sample("kick.wav", "/kick.wav", "WAV", 100),
+            sample("100%_wet.wav", "/w.wav", "WAV", 200),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 2, 300, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let result = db
+            .query_audio(&AudioQueryParams {
+                scan_id: Some("s1".into()),
+                search: Some("100%".into()),
+                format_filter: None,
+                sort_key: "name".into(),
+                sort_asc: true,
+                offset: 0,
+                limit: 100,
+            })
+            .unwrap();
+
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.samples[0].name, "100%_wet.wav");
+    }
+
+    #[test]
+    fn test_query_audio_search_escapes_underscore_in_user_query() {
+        let db = test_db();
+        let samples = vec![
+            sample("ab.wav", "/ab.wav", "WAV", 100),
+            sample("a_b.wav", "/a_b.wav", "WAV", 200),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 2, 300, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let result = db
+            .query_audio(&AudioQueryParams {
+                scan_id: Some("s1".into()),
+                search: Some("a_b".into()),
+                format_filter: None,
+                sort_key: "name".into(),
+                sort_asc: true,
+                offset: 0,
+                limit: 100,
+            })
+            .unwrap();
+
+        assert_eq!(result.total_count, 1);
+        assert_eq!(result.samples[0].name, "a_b.wav");
+    }
+
+    /// Unknown `sort_key` falls back to name (NOCASE), same as the default branch in `query_audio`.
+    #[test]
+    fn test_query_audio_unknown_sort_key_defaults_to_name() {
+        let db = test_db();
+        let samples = vec![
+            sample("zebra.wav", "/z.wav", "WAV", 100),
+            sample("Alpha.wav", "/a.wav", "WAV", 200),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 2, 300, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let result = db
+            .query_audio(&AudioQueryParams {
+                scan_id: Some("s1".into()),
+                search: None,
+                format_filter: None,
+                sort_key: "not_a_supported_column".into(),
+                sort_asc: true,
+                offset: 0,
+                limit: 100,
+            })
+            .unwrap();
+
+        assert_eq!(result.samples[0].name, "Alpha.wav");
+        assert_eq!(result.samples[1].name, "zebra.wav");
+    }
+
+    #[test]
+    fn test_format_filter_all_does_not_restrict() {
+        let db = test_db();
+        let samples = vec![
+            sample("a.wav", "/a.wav", "WAV", 100),
+            sample("b.mp3", "/b.mp3", "MP3", 200),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 2, 300, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let result = db
+            .query_audio(&AudioQueryParams {
+                scan_id: Some("s1".into()),
+                search: None,
+                format_filter: Some("all".into()),
+                sort_key: "name".into(),
+                sort_asc: true,
+                offset: 0,
+                limit: 100,
+            })
+            .unwrap();
+
+        assert_eq!(result.total_count, 2);
+        assert_eq!(result.total_unfiltered, 2);
+    }
+
+    // ── Filter-aware aggregate stats (`*filter_stats` — disk bar / breakdown) ──
+
+    #[test]
+    fn test_audio_filter_stats_empty_db() {
+        let db = test_db();
+        let st = db.audio_filter_stats(None, None).unwrap();
+        assert_eq!(st.count, 0);
+        assert_eq!(st.total_bytes, 0);
+        assert_eq!(st.total_unfiltered, 0);
+        assert!(st.by_type.is_empty());
+    }
+
+    #[test]
+    fn test_audio_filter_stats_unfiltered_breakdown() {
+        let db = test_db();
+        let samples = vec![
+            sample("kick.wav", "/kick.wav", "WAV", 100),
+            sample("snare.wav", "/snare.wav", "WAV", 200),
+            sample("loop.mp3", "/loop.mp3", "MP3", 400),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 3, 700, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let st = db.audio_filter_stats(None, None).unwrap();
+        assert_eq!(st.total_unfiltered, 3);
+        assert_eq!(st.count, 3);
+        assert_eq!(st.total_bytes, 700);
+        assert_eq!(st.by_type.get("WAV").copied().unwrap_or(0), 2);
+        assert_eq!(st.by_type.get("MP3").copied().unwrap_or(0), 1);
+        assert_eq!(st.bytes_by_type.get("WAV").copied().unwrap_or(0), 300);
+        assert_eq!(st.bytes_by_type.get("MP3").copied().unwrap_or(0), 400);
+    }
+
+    #[test]
+    fn test_audio_filter_stats_search_subsequence() {
+        let db = test_db();
+        let samples = vec![
+            sample("kick_hard.wav", "/k.wav", "WAV", 100),
+            sample("snare.wav", "/s.wav", "WAV", 200),
+            sample("kick_soft.wav", "/ks.wav", "WAV", 300),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 3, 600, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let st = db.audio_filter_stats(Some("kck"), None).unwrap();
+        assert_eq!(st.total_unfiltered, 3);
+        assert_eq!(st.count, 2);
+        assert_eq!(st.total_bytes, 400);
+    }
+
+    #[test]
+    fn test_audio_filter_stats_format_single_and_multi() {
+        let db = test_db();
+        let samples = vec![
+            sample("a.wav", "/a.wav", "WAV", 100),
+            sample("b.aiff", "/b.aiff", "AIFF", 200),
+            sample("c.mp3", "/c.mp3", "MP3", 400),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 3, 700, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let w = db.audio_filter_stats(None, Some("WAV")).unwrap();
+        assert_eq!(w.count, 1);
+        assert_eq!(w.total_unfiltered, 3);
+        assert_eq!(w.by_type.len(), 1);
+
+        let wm = db.audio_filter_stats(None, Some("WAV,AIFF")).unwrap();
+        assert_eq!(wm.count, 2);
+        assert_eq!(wm.total_bytes, 300);
+    }
+
+    #[test]
+    fn test_audio_filter_stats_format_all_noop() {
+        let db = test_db();
+        let samples = vec![sample("x.wav", "/x.wav", "WAV", 10)];
+        db.save_scan("s1", "2024-01-01T00:00:00", 1, 10, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let st = db.audio_filter_stats(None, Some("all")).unwrap();
+        assert_eq!(st.count, 1);
+        assert_eq!(st.total_unfiltered, 1);
+    }
+
+    #[test]
+    fn test_daw_filter_stats_daw_filter_and_search() {
+        let db = test_db();
+        db.save_daw_scan(&daw_snap(
+            "ds-fs1",
+            "2024-06-01T00:00:00",
+            vec![
+                daw_project("a.als", "Ableton Live"),
+                daw_project("b.als", "Ableton Live"),
+                daw_project("c.logicx", "Logic Pro"),
+            ],
+        ))
+        .unwrap();
+
+        let unfiltered = db.daw_filter_stats(None, None).unwrap();
+        assert_eq!(unfiltered.total_unfiltered, 3);
+        assert_eq!(unfiltered.count, 3);
+        assert_eq!(
+            unfiltered.by_type.get("Ableton Live").copied().unwrap_or(0),
+            2
+        );
+        assert_eq!(unfiltered.by_type.get("Logic Pro").copied().unwrap_or(0), 1);
+
+        let abl = db.daw_filter_stats(None, Some("Ableton Live")).unwrap();
+        assert_eq!(abl.count, 2);
+        assert_eq!(abl.total_unfiltered, 3);
+        assert_eq!(abl.total_bytes, 2000);
+
+        let search = db.daw_filter_stats(Some("a.als"), None).unwrap();
+        assert_eq!(search.count, 1);
+        assert_eq!(search.total_unfiltered, 3);
+    }
+
+    #[test]
+    fn test_daw_filter_stats_empty_db() {
+        let db = test_db();
+        let st = db.daw_filter_stats(None, None).unwrap();
+        assert_eq!(st.count, 0);
+        assert_eq!(st.total_unfiltered, 0);
+    }
+
+    #[test]
+    fn test_preset_filter_stats_respects_midi_exclusion() {
+        let db = test_db();
+        db.save_preset_scan(&preset_snap(
+            "pr-fs",
+            "2024-06-01T00:00:00",
+            vec![
+                preset_file("a.fxp", "FXP"),
+                preset_file("b.fxp", "FXP"),
+                preset_file("c.mid", "MID"),
+            ],
+        ))
+        .unwrap();
+
+        let st = db.preset_filter_stats(None, None).unwrap();
+        assert_eq!(st.total_unfiltered, 2);
+        assert_eq!(st.count, 2);
+        assert_eq!(st.by_type.get("FXP").copied().unwrap_or(0), 2);
+
+        let fx = db.preset_filter_stats(None, Some("FXP")).unwrap();
+        assert_eq!(fx.count, 2);
+        assert_eq!(fx.total_unfiltered, 2);
+    }
+
+    #[test]
+    fn test_preset_filter_stats_search_subsequence() {
+        let db = test_db();
+        db.save_preset_scan(&preset_snap(
+            "pr-fs2",
+            "2024-06-01T00:00:00",
+            vec![
+                preset_file("lead_brass.fxp", "FXP"),
+                preset_file("kick.wav", "WAV"),
+            ],
+        ))
+        .unwrap();
+
+        let st = db.preset_filter_stats(Some("brss"), None).unwrap();
+        assert_eq!(st.count, 1);
+        assert_eq!(st.total_unfiltered, 2);
+    }
+
+    #[test]
+    fn test_plugin_filter_stats_type_and_search() {
+        let db = test_db();
+        db.save_plugin_scan(&plugin_snap(
+            "ps-fs",
+            "2024-06-01T00:00:00",
+            vec![
+                plugin_info("Serum", "VST3", "Xfer"),
+                plugin_info("Diva", "AU", "u-he"),
+                plugin_info("Vital", "VST3", "Matt"),
+            ],
+        ))
+        .unwrap();
+
+        let st = db.plugin_filter_stats(None, None).unwrap();
+        assert_eq!(st.total_unfiltered, 3);
+        assert_eq!(st.count, 3);
+        assert_eq!(st.by_type.get("VST3").copied().unwrap_or(0), 2);
+
+        let vst = db.plugin_filter_stats(None, Some("VST3")).unwrap();
+        assert_eq!(vst.count, 2);
+        assert_eq!(vst.total_bytes, 2_000_000);
+
+        let xfer = db.plugin_filter_stats(Some("Xfer"), None).unwrap();
+        assert_eq!(xfer.count, 1);
+        assert_eq!(xfer.total_unfiltered, 3);
+    }
+
+    #[test]
+    fn test_plugin_filter_stats_multi_type() {
+        let db = test_db();
+        db.save_plugin_scan(&plugin_snap(
+            "ps-fs2",
+            "2024-06-01T00:00:00",
+            vec![
+                plugin_info("A", "VST3", "X"),
+                plugin_info("B", "AU", "X"),
+            ],
+        ))
+        .unwrap();
+
+        let st = db.plugin_filter_stats(None, Some("VST3,AU")).unwrap();
+        assert_eq!(st.count, 2);
+        assert_eq!(st.total_unfiltered, 2);
+    }
+
+    #[test]
+    fn test_plugin_filter_stats_empty_db() {
+        let db = test_db();
+        let st = db.plugin_filter_stats(None, None).unwrap();
+        assert_eq!(st.count, 0);
+        assert_eq!(st.total_unfiltered, 0);
+    }
+
+    #[test]
+    fn test_pdf_filter_stats_search_and_totals() {
+        let db = test_db();
+        let snap = PdfScanSnapshot {
+            id: "pdf-fs".into(),
+            timestamp: "2024-07-01T00:00:00".into(),
+            pdf_count: 2,
+            total_bytes: 300,
+            pdfs: vec![
+                PdfFile {
+                    name: "manual".into(),
+                    path: "/docs/manual.pdf".into(),
+                    directory: "/docs".into(),
+                    size: 100,
+                    size_formatted: "100 B".into(),
+                    modified: "2024-06-01".into(),
+                },
+                PdfFile {
+                    name: "readme_extra".into(),
+                    path: "/docs/readme_extra.pdf".into(),
+                    directory: "/docs".into(),
+                    size: 200,
+                    size_formatted: "200 B".into(),
+                    modified: "2024-06-02".into(),
+                },
+            ],
+            roots: vec!["/docs".into()],
+        };
+        db.save_pdf_scan(&snap).unwrap();
+
+        let all = db.pdf_filter_stats(None).unwrap();
+        assert_eq!(all.total_unfiltered, 2);
+        assert_eq!(all.count, 2);
+        assert_eq!(all.total_bytes, 300);
+        assert!(all.by_type.is_empty());
+
+        let sub = db.pdf_filter_stats(Some("readme")).unwrap();
+        assert_eq!(sub.count, 1);
+        assert_eq!(sub.total_bytes, 200);
+        assert_eq!(sub.total_unfiltered, 2);
+    }
+
+    #[test]
+    fn test_pdf_filter_stats_empty_db() {
+        let db = test_db();
+        let st = db.pdf_filter_stats(None).unwrap();
+        assert_eq!(st.count, 0);
+        assert_eq!(st.total_unfiltered, 0);
+    }
+
+    /// Whitespace-only `search` is treated as no search (same row set as `search: None`).
+    #[test]
+    fn test_query_audio_whitespace_only_search_is_noop() {
+        let db = test_db();
+        let samples = vec![
+            sample("first.wav", "/first.wav", "WAV", 100),
+            sample("second.wav", "/second.wav", "WAV", 200),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 2, 300, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let with_spaces = db
+            .query_audio(&AudioQueryParams {
+                scan_id: Some("s1".into()),
+                search: Some("   \t  ".into()),
+                format_filter: None,
+                sort_key: "name".into(),
+                sort_asc: true,
+                offset: 0,
+                limit: 100,
+            })
+            .unwrap();
+        let no_search = db
+            .query_audio(&AudioQueryParams {
+                scan_id: Some("s1".into()),
+                search: None,
+                format_filter: None,
+                sort_key: "name".into(),
+                sort_asc: true,
+                offset: 0,
+                limit: 100,
+            })
+            .unwrap();
+        assert_eq!(with_spaces.total_count, no_search.total_count);
+        assert_eq!(with_spaces.total_count, 2);
+    }
+
+    #[test]
+    fn test_batch_update_analysis_empty_batch_returns_zero() {
+        let db = test_db();
+        assert_eq!(db.batch_update_analysis(&[]).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_get_analysis_unknown_path_returns_empty_object() {
+        let db = test_db();
+        let samples = vec![sample("a.wav", "/a.wav", "WAV", 100)];
+        db.save_scan("s1", "2024-01-01T00:00:00", 1, 100, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let j = db.get_analysis("/no/such/file.wav").unwrap();
+        assert!(j.is_object());
+        assert!(j.as_object().unwrap().is_empty());
     }
 
     #[test]
@@ -5622,6 +6306,73 @@ mod tests {
         db.clear_cache_table("xref").unwrap();
         let cached = db.read_cache("xref-cache.json").unwrap();
         assert!(cached.as_object().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_clear_cache_table_spectrogram() {
+        let db = test_db();
+        let data = serde_json::json!({"/a.wav": "spectrogram_payload"});
+        db.write_cache("spectrogram-cache.json", &data).unwrap();
+        assert!(
+            db.read_cache("spectrogram-cache.json")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .contains_key("/a.wav")
+        );
+        db.clear_cache_table("spectrogram").unwrap();
+        assert!(
+            db.read_cache("spectrogram-cache.json")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_clear_cache_table_fingerprint() {
+        let db = test_db();
+        let data = serde_json::json!({"/sample.wav": "fpabc"});
+        db.write_cache("fingerprint-cache.json", &data).unwrap();
+        db.clear_cache_table("fingerprint").unwrap();
+        assert!(
+            db.read_cache("fingerprint-cache.json")
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_clear_cache_table_kvr() {
+        let db = test_db();
+        let entries = vec![crate::history::KvrCacheUpdateEntry {
+            key: "test_plugin_key".into(),
+            kvr_url: Some("https://www.kvraudio.com/product/test".into()),
+            update_url: None,
+            latest_version: Some("2.0".into()),
+            has_update: Some(true),
+            source: Some("test".into()),
+        }];
+        db.update_kvr_cache(&entries).unwrap();
+        assert_eq!(db.load_kvr_cache().unwrap().len(), 1);
+        db.clear_cache_table("kvr").unwrap();
+        assert!(db.load_kvr_cache().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_clear_cache_table_lufs() {
+        let db = test_db();
+        let samples = vec![sample("a.wav", "/a.wav", "WAV", 100)];
+        db.save_scan("s1", "2024-01-01T00:00:00", 1, 100, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+        db.update_lufs("/a.wav", Some(-12.0)).unwrap();
+        db.clear_cache_table("lufs").unwrap();
+        let analysis = db.get_analysis("/a.wav").unwrap();
+        assert!(analysis.get("lufs").and_then(|v| v.as_f64()).is_none());
     }
 
     #[test]

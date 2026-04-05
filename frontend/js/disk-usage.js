@@ -53,58 +53,65 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
   });
 }
 
-// Build disk usage data from audio stats
+// Reads already-fetched aggregate bytesByType from module caches populated by
+// rebuildAudioStats / refreshDawStatsSnapshot — no extra IPC round-trip.
 function updateAudioDiskUsage() {
-  const counts = {};
-  const bytes = {};
-  for (const s of allAudioSamples) {
-    const sz = typeof s.size === 'number' && isFinite(s.size) ? s.size : 0;
-    counts[s.format] = (counts[s.format] || 0) + 1;
-    bytes[s.format] = (bytes[s.format] || 0) + sz;
-  }
-  const data = Object.entries(bytes).map(([label, b]) => ({
-    label, bytes: b, sizeStr: formatAudioSize(b),
-  }));
+  const bytes = (typeof _audioBytesByType !== 'undefined' ? _audioBytesByType : null) || {};
   const total = Object.values(bytes).reduce((a, b) => a + b, 0);
+  const data = Object.entries(bytes).map(([label, b]) => ({ label, bytes: b, sizeStr: formatAudioSize(b) }));
   renderDiskUsageBar('audioDiskUsage', data, total);
 }
 
-// Build disk usage data from DAW stats
 function updateDawDiskUsage() {
-  const bytes = {};
-  for (const p of allDawProjects) {
-    bytes[p.daw] = (bytes[p.daw] || 0) + (p.size || 0);
-  }
-  const data = Object.entries(bytes).map(([label, b]) => ({
-    label, bytes: b, sizeStr: formatAudioSize(b),
-  }));
+  const snap = (typeof _dawStatsSnapshot !== 'undefined' ? _dawStatsSnapshot : null);
+  const bytes = (snap && snap.bytesByType) || {};
   const total = Object.values(bytes).reduce((a, b) => a + b, 0);
+  const data = Object.entries(bytes).map(([label, b]) => ({ label, bytes: b, sizeStr: formatAudioSize(b) }));
   renderDiskUsageBar('dawDiskUsage', data, total);
 }
 
 // Build disk usage data from plugin types + populate the plugin stats row
 // (styled like the samples-tab audio-stats row: Total, VST3, VST2, AU, Other, Size).
-function updatePluginDiskUsage() {
-  if (typeof allPlugins === 'undefined' || allPlugins.length === 0) return;
-  const counts = {};
-  const bytes = {};
-  for (const p of allPlugins) {
-    const sz = typeof p.sizeBytes === 'number' && isFinite(p.sizeBytes) ? p.sizeBytes : 0;
-    counts[p.type] = (counts[p.type] || 0) + 1;
-    bytes[p.type] = (bytes[p.type] || 0) + sz;
-  }
-  // Samples-tab-style stats row
+// Reflects the current search + type filter via db_plugin_filter_stats.
+let _lastPluginAggKey = null;
+let _pluginAggCache = null;
+async function updatePluginDiskUsage(force) {
   const statsEl = document.getElementById('pluginStats');
+  const search = document.getElementById('searchInput')?.value || '';
+  const typeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('typeFilter') : null;
+  const typeFilter = typeSet ? [...typeSet].join(',') : null;
+  const key = search.trim() + '|' + (typeFilter || '');
+  let counts = {}, bytes = {}, total = 0, unfiltered = 0, totalBytes = 0;
+  const cacheHit = !force && key === _lastPluginAggKey && _pluginAggCache;
+  try {
+    const agg = cacheHit ? _pluginAggCache : await window.vstUpdater.dbPluginFilterStats(search.trim(), typeFilter);
+    if (!cacheHit) { _lastPluginAggKey = key; _pluginAggCache = agg; }
+    counts = agg.byType || {};
+    bytes = agg.bytesByType || {};
+    total = agg.count || 0;
+    totalBytes = agg.totalBytes || 0;
+    unfiltered = agg.totalUnfiltered || 0;
+  } catch {
+    // Fallback to local data
+    if (typeof allPlugins === 'undefined' || allPlugins.length === 0) return;
+    for (const p of allPlugins) {
+      const sz = typeof p.sizeBytes === 'number' && isFinite(p.sizeBytes) ? p.sizeBytes : 0;
+      counts[p.type] = (counts[p.type] || 0) + 1;
+      bytes[p.type] = (bytes[p.type] || 0) + sz;
+      totalBytes += sz;
+    }
+    total = allPlugins.length;
+    unfiltered = total;
+  }
   if (statsEl) {
-    const total = allPlugins.length;
     const vst3 = counts['VST3'] || 0;
     const vst2 = counts['VST2'] || 0;
     const au = counts['AU'] || 0;
     const other = Math.max(0, total - vst3 - vst2 - au);
-    const totalBytes = Object.values(bytes).reduce((a, b) => a + b, 0);
-    statsEl.style.display = total > 0 ? 'flex' : 'none';
+    statsEl.style.display = (total > 0 || unfiltered > 0) ? 'flex' : 'none';
     const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-    set('pluginStatsTotal', total.toLocaleString());
+    const isFiltered = unfiltered > 0 && total > 0 && total < unfiltered;
+    set('pluginStatsTotal', isFiltered ? total.toLocaleString() + ' / ' + unfiltered.toLocaleString() : total.toLocaleString());
     set('pluginStatsVst3', vst3.toLocaleString());
     set('pluginStatsVst2', vst2.toLocaleString());
     set('pluginStatsAu', au.toLocaleString());
@@ -114,6 +121,5 @@ function updatePluginDiskUsage() {
   const data = Object.entries(bytes).map(([label, b]) => ({
     label, bytes: b, sizeStr: formatAudioSize(b),
   }));
-  const total = Object.values(bytes).reduce((a, b) => a + b, 0);
-  renderDiskUsageBar('pluginDiskUsage', data, total);
+  renderDiskUsageBar('pluginDiskUsage', data, totalBytes);
 }

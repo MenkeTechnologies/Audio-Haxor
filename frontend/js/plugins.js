@@ -24,7 +24,7 @@ async function loadPluginsFromDb() {
     await fetchPluginPage();
     _pluginsLoaded = true;
 
-    document.getElementById('totalCount').textContent = _pluginTotalCount;
+    document.getElementById('totalCount').textContent = (_pluginTotalUnfiltered || allPlugins.length || 0).toLocaleString();
     if (_pluginTotalCount > 0) {
       document.getElementById('btnCheckUpdates').disabled = false;
       const toolbar = document.getElementById('toolbar');
@@ -65,7 +65,7 @@ async function fetchPluginPage() {
         if (match) visible++;
       }
       _pluginTotalCount = visible;
-      document.getElementById('totalCount').textContent = _pluginTotalCount;
+      document.getElementById('totalCount').textContent = (_pluginTotalUnfiltered || allPlugins.length || 0).toLocaleString();
     }
     return;
   }
@@ -100,7 +100,7 @@ async function fetchPluginPage() {
       // Append new batch to DOM without re-rendering everything
       loadMorePlugins();
     }
-    document.getElementById('totalCount').textContent = _pluginTotalCount;
+    document.getElementById('totalCount').textContent = (_pluginTotalUnfiltered || allPlugins.length || 0).toLocaleString();
   } catch (e) {
     showToast(toastFmt('toast.plugin_query_failed', { err: e }), 4000, 'error');
   }
@@ -146,7 +146,7 @@ async function scanPlugins(resume = false) {
       progressFill.style.width = pct + '%';
       const etaStr = eta.estimate(data.processed, data.total);
       btn.innerHTML = `&#8635; ${data.processed} / ${data.total}${etaStr ? ' — ' + etaStr : ''}`;
-      document.getElementById('totalCount').textContent = allPlugins.length;
+      document.getElementById('totalCount').textContent = allPlugins.length.toLocaleString();
 
       // Render the new batch directly into the list
       const fragment = document.createDocumentFragment();
@@ -257,7 +257,7 @@ function buildPluginCardHtml(p) {
         <h3>${_lastPluginSearch ? highlightMatch(p.name, _lastPluginSearch, _lastPluginMode) : escapeHtml(p.name)}${typeof rowBadges === 'function' ? ' ' + rowBadges(p.path) : ''}</h3>
         <div class="plugin-meta">
           <span class="plugin-type ${typeClass}">${p.type}</span>
-          <span>${escapeHtml(p.manufacturer)}</span>
+          <span>${_lastPluginSearch ? highlightMatch(p.manufacturer || '', _lastPluginSearch, _lastPluginMode) : escapeHtml(p.manufacturer || '')}</span>
           <span>${p.size}</span>
           <span>${p.modified}</span>
           ${(p.architectures && p.architectures.length) ? p.architectures.map(a => `<span class="arch-badge arch-${a.toLowerCase()}">${a}</span>`).join('') : ''}

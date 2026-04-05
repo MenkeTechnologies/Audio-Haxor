@@ -3998,7 +3998,7 @@
     .viz-tile-canvas { flex: 1; width: 100%; min-height: 0; }
 
     /* Walker status tab */
-    .walker-grid { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 12px; padding: 12px; height: 100%; min-height: 0; }
+    .walker-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; gap: 12px; padding: 12px; height: 100%; min-height: 0; }
     .walker-tile { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.3); min-height: 0; }
     .walker-tile:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4), 0 0 12px var(--cyan-glow); }
     .walker-tile-header { font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 10px 14px; border-bottom: 1px solid var(--border); }
@@ -5273,7 +5273,7 @@
 
     <div class="tab-content" id="tabMidi">
       <div class="audio-toolbar">
-        <button class="btn btn-primary" data-action="scanPresets" title="Scan for MIDI files (runs preset/MIDI scanner)" data-i18n-title="ui.tt.scan_for_midi_files_runs_preset_midi_scanner">&#127924; <span data-i18n="ui.btn.127924_scan_midi">Scan MIDI</span></button>
+        <button class="btn btn-primary" id="btnScanMidi" data-action="scanPresets" title="Scan for MIDI files (runs preset/MIDI scanner)" data-i18n-title="ui.tt.scan_for_midi_files_runs_preset_midi_scanner">&#127924; <span data-i18n="ui.btn.127924_scan_midi">Scan MIDI</span></button>
         <button class="btn btn-secondary" data-action="exportMidi" title="Export MIDI file list" data-i18n-title="ui.tt.export_midi_file_list">&#8615; <span data-i18n="ui.btn.8615_export">Export</span></button>
         <button class="btn btn-secondary" data-action="importAudio" title="Import MIDI list from JSON" data-i18n-title="ui.tt.import_midi_list_from_json">&#8613; <span data-i18n="ui.btn.8613_import">Import</span></button>
         <div class="search-box" style="flex: 1;">
@@ -5373,26 +5373,6 @@
           <div class="walker-tile-header" style="color:var(--cyan);">&#9889; Plugin Walker</div>
           <div class="walker-tile-status">idle</div>
           <div class="walker-tile-body" id="walkerPluginBody"></div>
-        </div>
-        <div class="walker-tile" id="walkerTileAudio" title="Audio scanner — directories being walked for audio samples. Right-click to copy paths." data-i18n-title="ui.tt.audio_scanner_directories_being_walked_for_audio_s">
-          <div class="walker-tile-header" style="color:var(--yellow);">&#127925; Audio Walker</div>
-          <div class="walker-tile-status">idle</div>
-          <div class="walker-tile-body" id="walkerAudioBody"></div>
-        </div>
-        <div class="walker-tile" id="walkerTileDaw" title="DAW scanner — directories being walked for DAW projects. Right-click to copy paths." data-i18n-title="ui.tt.daw_scanner_directories_being_walked_for_daw_proje">
-          <div class="walker-tile-header" style="color:var(--magenta);">&#127911; DAW Walker</div>
-          <div class="walker-tile-status">idle</div>
-          <div class="walker-tile-body" id="walkerDawBody"></div>
-        </div>
-        <div class="walker-tile" id="walkerTilePreset" title="Preset/MIDI scanner — directories being walked for presets and MIDI files. Right-click to copy paths." data-i18n-title="ui.tt.preset_midi_scanner_directories_being_walked_for_p">
-          <div class="walker-tile-header" style="color:var(--orange);">&#127926; Preset/MIDI Walker</div>
-          <div class="walker-tile-status">idle</div>
-          <div class="walker-tile-body" id="walkerPresetBody"></div>
-        </div>
-        <div class="walker-tile" id="walkerTilePdf" title="PDF scanner — directories being walked for PDF documents. Right-click to copy paths." data-i18n-title="ui.tt.pdf_scanner_directories_being_walked_for_pdf_docume">
-          <div class="walker-tile-header" style="color:var(--green);">&#128196; <span data-i18n="ui.pdf.walker_header">PDF Walker</span></div>
-          <div class="walker-tile-status">idle</div>
-          <div class="walker-tile-body" id="walkerPdfBody"></div>
         </div>
         <div class="walker-tile" id="walkerTileUnified" title="Unified file walker — single traversal classifying audio, DAW projects, presets, MIDI, and PDFs. Right-click to copy paths." style="display:none;">
           <div class="walker-tile-header" style="color:var(--accent);">&#9881; Unified File Walker</div>
@@ -6153,42 +6133,42 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=77942"></script>
-  <script src="js/ipc.js?v=77942"></script>
-  <script src="js/utils.js?v=77942"></script>
-  <script src="js/drag-reorder.js?v=77942"></script>
-  <script src="js/modal-drag.js?v=77942"></script>
-  <script src="js/columns.js?v=77942"></script>
-  <script src="js/notes.js?v=77942"></script>
-  <script src="js/favorites.js?v=77942"></script>
-  <script src="js/export.js?v=77942"></script>
-  <script src="js/plugins.js?v=77942"></script>
-  <script src="js/settings.js?v=77942"></script>
-  <script src="js/history.js?v=77942"></script>
-  <script src="js/kvr.js?v=77942"></script>
-  <script src="js/audio.js?v=77942"></script>
-  <script src="js/daw.js?v=77942"></script>
-  <script src="js/presets.js?v=77942"></script>
-  <script src="js/disk-usage.js?v=77942"></script>
-  <script src="js/batch-select.js?v=77942"></script>
-  <script src="js/sort-persist.js?v=77942"></script>
-  <script src="js/multi-filter.js?v=77942"></script>
-  <script src="js/file-browser.js?v=77942"></script>
-  <script src="js/duplicates.js?v=77942"></script>
-  <script src="js/command-palette.js?v=77942"></script>
-  <script src="js/xref.js?v=77942"></script>
-  <script src="js/dep-graph.js?v=77942"></script>
-  <script src="js/smart-playlists.js?v=77942"></script>
-  <script src="js/heatmap-dashboard.js?v=77942"></script>
-  <script src="js/midi.js?v=77942"></script>
-  <script src="js/pdf.js?v=77942"></script>
-  <script src="js/settings-search.js?v=77942"></script>
-  <script src="js/visualizer.js?v=77942"></script>
-  <script src="js/walker-status.js?v=77942"></script>
-  <script src="js/context-menu.js?v=77942"></script>
-  <script src="js/help-overlay.js?v=77942"></script>
-  <script src="js/shortcuts.js?v=77942"></script>
-  <script src="js/keyboard-nav.js?v=77942"></script>
-  <script src="js/app.js?v=77942"></script>
+  <script src="js/i18n-ui.js?v=43275"></script>
+  <script src="js/ipc.js?v=43275"></script>
+  <script src="js/utils.js?v=43275"></script>
+  <script src="js/drag-reorder.js?v=43275"></script>
+  <script src="js/modal-drag.js?v=43275"></script>
+  <script src="js/columns.js?v=43275"></script>
+  <script src="js/notes.js?v=43275"></script>
+  <script src="js/favorites.js?v=43275"></script>
+  <script src="js/export.js?v=43275"></script>
+  <script src="js/plugins.js?v=43275"></script>
+  <script src="js/settings.js?v=43275"></script>
+  <script src="js/history.js?v=43275"></script>
+  <script src="js/kvr.js?v=43275"></script>
+  <script src="js/audio.js?v=43275"></script>
+  <script src="js/daw.js?v=43275"></script>
+  <script src="js/presets.js?v=43275"></script>
+  <script src="js/disk-usage.js?v=43275"></script>
+  <script src="js/batch-select.js?v=43275"></script>
+  <script src="js/sort-persist.js?v=43275"></script>
+  <script src="js/multi-filter.js?v=43275"></script>
+  <script src="js/file-browser.js?v=43275"></script>
+  <script src="js/duplicates.js?v=43275"></script>
+  <script src="js/command-palette.js?v=43275"></script>
+  <script src="js/xref.js?v=43275"></script>
+  <script src="js/dep-graph.js?v=43275"></script>
+  <script src="js/smart-playlists.js?v=43275"></script>
+  <script src="js/heatmap-dashboard.js?v=43275"></script>
+  <script src="js/midi.js?v=43275"></script>
+  <script src="js/pdf.js?v=43275"></script>
+  <script src="js/settings-search.js?v=43275"></script>
+  <script src="js/visualizer.js?v=43275"></script>
+  <script src="js/walker-status.js?v=43275"></script>
+  <script src="js/context-menu.js?v=43275"></script>
+  <script src="js/help-overlay.js?v=43275"></script>
+  <script src="js/shortcuts.js?v=43275"></script>
+  <script src="js/keyboard-nav.js?v=43275"></script>
+  <script src="js/app.js?v=43275"></script>
 </body>
 </html>

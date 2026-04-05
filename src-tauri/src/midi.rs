@@ -365,6 +365,22 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_midi_wrong_magic_returns_none() {
+        let tmp = std::env::temp_dir().join("test_midi_wrong_magic.mid");
+        std::fs::write(&tmp, b"RIFFxxxxNOTMThd").unwrap();
+        assert!(parse_midi(&tmp).is_none());
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_parse_midi_truncated_header_returns_none() {
+        let tmp = std::env::temp_dir().join("test_midi_trunc.mid");
+        std::fs::write(&tmp, b"MThd").unwrap();
+        assert!(parse_midi(&tmp).is_none());
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn test_parse_empty_midi() {
         // Single track with just end-of-track
         let track = vec![0x00, 0xFF, 0x2F, 0x00]; // delta=0, meta end-of-track

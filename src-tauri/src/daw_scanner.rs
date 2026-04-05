@@ -75,6 +75,13 @@ const SKIP_DIRS: &[&str] = &[
     "System Volume Information",
     ".cache",
     "__pycache__",
+    // Never contain user audio/preset/pdf/daw content.
+    "Caches",           // ~/Library/Caches, /Library/Caches, app caches
+    "DerivedData",      // Xcode build artifacts
+    "Backups.backupdb", // Time Machine bundle
+    "__MACOSX",         // zip-extract artifact
+    // Synology NAS system dirs. `@`-prefixed ones caught by traversal guard.
+    "#snapshot",        // Synology Btrfs snapshots (#recycle already listed)
 ];
 
 /// Additional directories to skip when not including Ableton backups/crashes.
@@ -315,8 +322,8 @@ fn walk_dir_parallel(
     {
         let mut ad = active_dirs.lock().unwrap_or_else(|e| e.into_inner());
         ad.push(dir_str.clone());
-        if ad.len() > 30 {
-            let excess = ad.len() - 30;
+        if ad.len() > 200 {
+            let excess = ad.len() - 200;
             ad.drain(..excess);
         }
     }
@@ -332,14 +339,24 @@ fn walk_dir_parallel(
     for entry in &entries {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if name_str.starts_with('.') || SKIP_DIRS.contains(&name_str.as_ref()) || exclude.contains(name_str.as_ref()) {
+        // `@` prefix = Synology NAS system dirs (@eaDir, @tmp, @syno*, etc.).
+        if name_str.starts_with('.')
+            || name_str.starts_with('@')
+            || SKIP_DIRS.contains(&name_str.as_ref())
+            || exclude.contains(name_str.as_ref())
+        {
             continue;
         }
         if !include_backups && BACKUP_DIRS.contains(&name_str.as_ref()) {
             continue;
         }
+        // Cached d_type from readdir — no extra stat() syscall per entry.
+        let ft = match entry.file_type() {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
         let path = entry.path();
-        if path.is_dir() {
+        if ft.is_dir() {
             // Skip plugin bundles entirely — they contain presets, not DAW projects
             let name_lower = name_str.to_lowercase();
             if PLUGIN_BUNDLE_EXTENSIONS
@@ -353,7 +370,7 @@ fn walk_dir_parallel(
             } else {
                 subdirs.push(path);
             }
-        } else if path.is_file() {
+        } else if ft.is_file() {
             files_and_packages.push((path, dir.to_path_buf(), false));
         }
     }
@@ -484,7 +501,16 @@ mod tests {
 
     #[test]
     fn test_skip_dirs_complete() {
-        for dir in &["node_modules", ".git", ".Trash"] {
+        for dir in &[
+            "node_modules",
+            ".git",
+            ".Trash",
+            "Caches",
+            "DerivedData",
+            "Backups.backupdb",
+            "__MACOSX",
+            "#snapshot",
+        ] {
             assert!(SKIP_DIRS.contains(dir), "SKIP_DIRS should contain {}", dir);
         }
     }

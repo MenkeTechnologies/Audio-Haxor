@@ -42,6 +42,15 @@ const SKIP_DIRS: &[&str] = &[
     "System Volume Information",
     ".cache",
     "__pycache__",
+    // Never contain user audio/preset/pdf/daw content.
+    "Caches",           // ~/Library/Caches, /Library/Caches, app caches
+    "DerivedData",      // Xcode build artifacts
+    "Backups.backupdb", // Time Machine bundle
+    "__MACOSX",         // zip-extract artifact
+    // Synology NAS system dirs. All `@`-prefixed dirs are handled by the
+    // `starts_with('@')` guard at the traversal site — this list only needs
+    // the `#`-prefixed user-visible Synology dirs.
+    "#snapshot",        // Synology Btrfs snapshots (#recycle already listed)
 ];
 
 pub fn format_size(bytes: u64) -> String {
@@ -184,8 +193,8 @@ fn walk_dir_parallel(
     {
         let mut ad = active_dirs.lock().unwrap_or_else(|e| e.into_inner());
         ad.push(dir_str.clone());
-        if ad.len() > 30 {
-            let excess = ad.len() - 30;
+        if ad.len() > 200 {
+            let excess = ad.len() - 200;
             ad.drain(..excess);
         }
     }
@@ -201,13 +210,27 @@ fn walk_dir_parallel(
     for entry in &entries {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if name_str.starts_with('.') || SKIP_DIRS.contains(&name_str.as_ref()) || exclude.contains(name_str.as_ref()) {
+        // `@` prefix = Synology NAS system dirs (`@eaDir` in every media folder,
+        // `@tmp`, `@syno*`, `@appstore`, `@docker`, etc.). `@eaDir` alone can
+        // double a scan's file count on Synology shares.
+        if name_str.starts_with('.')
+            || name_str.starts_with('@')
+            || SKIP_DIRS.contains(&name_str.as_ref())
+            || exclude.contains(name_str.as_ref())
+        {
             continue;
         }
+        // Use cached file_type() from readdir's d_type instead of path.is_dir()/
+        // is_file() — each of those triggers a stat() syscall (network roundtrip
+        // on SMB). file_type() is free on Unix when d_type is populated.
+        let ft = match entry.file_type() {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
         let path = entry.path();
-        if path.is_dir() {
+        if ft.is_dir() {
             subdirs.push(path);
-        } else if path.is_file() {
+        } else if ft.is_file() {
             files.push((path, dir.to_path_buf()));
         }
     }
@@ -616,7 +639,16 @@ mod tests {
 
     #[test]
     fn test_skip_dirs_complete() {
-        for dir in &["node_modules", ".git", ".Trash"] {
+        for dir in &[
+            "node_modules",
+            ".git",
+            ".Trash",
+            "Caches",
+            "DerivedData",
+            "Backups.backupdb",
+            "__MACOSX",
+            "#snapshot",
+        ] {
             assert!(SKIP_DIRS.contains(dir), "SKIP_DIRS should contain {}", dir);
         }
     }

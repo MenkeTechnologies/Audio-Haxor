@@ -96,36 +96,64 @@ function resetPdfStatsAccumulators() {
   _pdfStatsTotalBytes = 0;
 }
 
-function rebuildPdfStats() {
+let _lastPdfAggKey = null;
+let _pdfAggCache = null;
+async function rebuildPdfStats(force) {
   const statsEl = document.getElementById('pdfStats');
   if (!statsEl) return;
-  // When a filter/search is active (_pdfTotalCount < _pdfTotalUnfiltered) show
-  // filtered counts; otherwise show the full unfiltered scan totals. Size is
-  // summed from currently-loaded filtered rows (pagination-capped — honest).
-  const unfiltered = _pdfTotalUnfiltered || 0;
-  const filtered = _pdfTotalCount || 0;
-  const isFiltered = filtered > 0 && unfiltered > 0 && filtered < unfiltered;
-  let displayCount;
-  let displayBytes;
-  if (isFiltered) {
-    displayCount = filtered;
-    displayBytes = filteredPdfs.reduce((sum, p) => sum + (p.size || 0), 0);
+  const search = document.getElementById('pdfSearchInput')?.value || '';
+  const key = search.trim();
+  let displayCount = 0, displayBytes = 0, unfiltered = 0;
+  // During an active scan, the DB doesn't have the new data yet (save happens at
+  // scan-end). Use the in-memory accumulators so the counter reflects live progress.
+  if (pdfScanProgressCleanup) {
+    const needle = key.toLowerCase();
+    if (needle) {
+      let c = 0, b = 0;
+      for (const p of allPdfs) {
+        if ((p.name || '').toLowerCase().includes(needle) || (p.path || '').toLowerCase().includes(needle)) {
+          c++; b += (p.size || 0);
+        }
+      }
+      displayCount = c; displayBytes = b;
+    } else {
+      displayCount = allPdfs.length;
+      if (_pdfStatsTotalBytes === 0 && allPdfs.length > 0) accumulatePdfStats(allPdfs);
+      displayBytes = _pdfStatsTotalBytes;
+    }
+    unfiltered = allPdfs.length;
+    _pdfTotalCount = displayCount;
+    _pdfTotalUnfiltered = unfiltered;
   } else {
-    displayCount = unfiltered || filtered || allPdfs.length;
-    if (_pdfStatsTotalBytes === 0 && allPdfs.length > 0) accumulatePdfStats(allPdfs);
-    displayBytes = _pdfStatsTotalBytes;
+    const cacheHit = !force && key === _lastPdfAggKey && _pdfAggCache;
+    try {
+      const agg = cacheHit ? _pdfAggCache : await window.vstUpdater.dbPdfFilterStats(search.trim());
+      if (!cacheHit) { _lastPdfAggKey = key; _pdfAggCache = agg; }
+      displayCount = agg.count || 0;
+      displayBytes = agg.totalBytes || 0;
+      unfiltered = agg.totalUnfiltered || 0;
+      _pdfTotalCount = displayCount;
+      _pdfTotalUnfiltered = unfiltered;
+    } catch {
+      displayCount = allPdfs.length;
+      if (_pdfStatsTotalBytes === 0 && allPdfs.length > 0) accumulatePdfStats(allPdfs);
+      displayBytes = _pdfStatsTotalBytes;
+      unfiltered = allPdfs.length;
+    }
   }
-  statsEl.style.display = displayCount > 0 ? 'flex' : 'none';
+  const isFiltered = search.trim() && displayCount < unfiltered;
+  statsEl.style.display = (displayCount > 0 || unfiltered > 0) ? 'flex' : 'none';
   const countStr = isFiltered
     ? displayCount.toLocaleString() + ' / ' + unfiltered.toLocaleString()
-    : displayCount.toLocaleString();
+    : (unfiltered || displayCount).toLocaleString();
   document.getElementById('pdfCount').textContent = countStr;
   document.getElementById('pdfTotalSize').textContent = formatAudioSize(displayBytes);
   const btn = document.getElementById('btnExportPdf');
-  if (btn) btn.style.display = displayCount > 0 ? '' : 'none';
-  // Mirror into the global stats-bar counter (top of app)
+  if (btn) btn.style.display = (unfiltered > 0 || displayCount > 0) ? '' : 'none';
+  // Mirror into the global stats-bar counter (top of app). Always unfiltered —
+  // the top counter must not react to the active search/filter.
   const headerEl = document.getElementById('pdfCountHeader');
-  if (headerEl) headerEl.textContent = displayCount.toLocaleString();
+  if (headerEl) headerEl.textContent = (unfiltered || displayCount || 0).toLocaleString();
 }
 
 function pdfPagesUnknownHtml() {
@@ -148,7 +176,7 @@ function buildPdfRow(p) {
   return `<tr data-pdf-path="${hp}" data-pdf-name="${escapeHtml((p.name || '').toLowerCase())}" style="cursor: pointer;" title="${rowTt}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
     <td>${_lastPdfSearch ? highlightMatch(p.name, _lastPdfSearch, _lastPdfMode) : escapeHtml(p.name)}${typeof rowBadges === 'function' ? rowBadges(p.path) : ''}</td>
-    <td title="${hp}">${escapeHtml(p.directory)}</td>
+    <td title="${hp}">${_lastPdfSearch ? highlightMatch(p.directory, _lastPdfSearch, _lastPdfMode) : escapeHtml(p.directory)}</td>
     <td class="col-size">${p.sizeFormatted}</td>
     <td class="col-pages" data-pdf-pages-cell="${hp}" style="text-align:right;">${pagesCell}</td>
     <td class="col-date">${p.modified}</td>
@@ -254,7 +282,9 @@ function openPdfFile(path) {
     .catch(e => showToast(toastFmt('toast.failed', { err: e }), 4000, 'error'));
 }
 
-async function scanPdfs(resume = false) {
+// When `unifiedResult` is passed (by scanAll), skip this function's Tauri
+// invoke and consume the shared result from a single scan_unified call.
+async function scanPdfs(resume = false, unifiedResult = null) {
   showGlobalProgress();
   const scanBtn = document.querySelector('[data-action="scanPdfs"]');
   const resumeBtn = document.getElementById('btnResumePdf');
@@ -363,8 +393,9 @@ async function scanPdfs(resume = false) {
 
   try {
     const pdfRoots = (prefs.getItem('pdfScanDirs') || '').split('\n').map(s => s.trim()).filter(Boolean);
-    const result = await window.vstUpdater.scanPdfs(pdfRoots.length ? pdfRoots : undefined, excludePaths);
-    if (pdfScanProgressCleanup) { pdfScanProgressCleanup(); pdfScanProgressCleanup = null; }
+    const result = unifiedResult
+      ? await unifiedResult
+      : await window.vstUpdater.scanPdfs(pdfRoots.length ? pdfRoots : undefined, excludePaths);
     flushPending();
     if (resume) {
       allPdfs = [...allPdfs, ...result.pdfs];
@@ -372,8 +403,10 @@ async function scanPdfs(resume = false) {
       allPdfs = result.pdfs;
     }
     _pdfTotalUnfiltered = allPdfs.length;
-    rebuildPdfStats();
-    filterPdfs();
+    // Invalidate aggregate cache — fresh rows after save will be aggregated below.
+    _lastPdfAggKey = null; _pdfAggCache = null;
+    // Save BEFORE rebuildPdfStats/filterPdfs so the DB has the new rows; otherwise
+    // the filter-stats query hits stale/empty data and the top counter flickers.
     if (!result.stopped) {
       try {
         await window.vstUpdater.savePdfScan(allPdfs, result.roots);
@@ -381,6 +414,9 @@ async function scanPdfs(resume = false) {
         loadPdfPagesForVisible();
       } catch (e) { showToast(toastFmt('toast.failed_save_pdf_history', { err: e && e.message ? e.message : e }), 4000, 'error'); }
     }
+    if (pdfScanProgressCleanup) { pdfScanProgressCleanup(); pdfScanProgressCleanup = null; }
+    rebuildPdfStats(true);
+    filterPdfs();
     if (result.stopped && allPdfs.length > 0 && resumeBtn) {
       resumeBtn.style.display = '';
     }
