@@ -8,7 +8,7 @@ Usage:
 
 Fails if any key already exists (use to avoid accidental overwrites).
 
-For locale JSON (de/es/sv/fr/nl/pt/it/el/pl/ru/zh), re-run scripts/gen_app_i18n_*.py after updating English.
+For locale JSON (de/es/sv/fr/nl/pt/it/el/pl/ru/zh/ja), re-run scripts/gen_app_i18n_*.py after updating English.
 """
 from __future__ import annotations
 

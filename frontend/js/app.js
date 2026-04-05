@@ -47,7 +47,7 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
   await prefs.load();
   const uiLoc = prefs.getItem('uiLocale');
   if (typeof reloadAppStrings === 'function') {
-    await reloadAppStrings(['de', 'es', 'sv', 'fr', 'nl', 'pt', 'it', 'el', 'pl', 'ru', 'zh'].includes(uiLoc) ? uiLoc : 'en');
+    await reloadAppStrings(['de', 'es', 'sv', 'fr', 'nl', 'pt', 'it', 'el', 'pl', 'ru', 'zh', 'ja'].includes(uiLoc) ? uiLoc : 'en');
   }
   // Ensure stop/resume buttons are hidden on fresh start
   const _stopAll = document.getElementById('btnStopAll');
@@ -304,13 +304,65 @@ async function scanAll(resume = false) {
   scanAllRunning = true;
 
   try {
-    await Promise.all([
+    // Resolve per-type custom roots + resume excludes from prefs / current state.
+    const rootsOf = (k) => {
+      const v = (prefs.getItem(k) || '').split('\n').map(s => s.trim()).filter(Boolean);
+      return v.length ? v : null;
+    };
+    const audioCustomRoots = rootsOf('audioScanDirs');
+    const dawCustomRoots = rootsOf('dawScanDirs');
+    const presetCustomRoots = rootsOf('presetScanDirs');
+    const pdfCustomRoots = rootsOf('pdfScanDirs');
+    const audioExcludePaths = resume && typeof allAudioSamples !== 'undefined'
+      ? allAudioSamples.map(s => s.path) : null;
+    const dawExcludePaths = resume && typeof allDawProjects !== 'undefined'
+      ? allDawProjects.map(p => p.path) : null;
+    const presetExcludePaths = resume && typeof allPresets !== 'undefined'
+      ? allPresets.map(p => p.path) : null;
+    const pdfExcludePaths = resume && typeof allPdfs !== 'undefined'
+      ? allPdfs.map(p => p.path) : null;
+
+    // ONE backend walk for all four file types. We use a deferred promise so
+    // we can delay the actual backend invocation until AFTER every scanXxx
+    // has registered its `*-scan-progress` event listener. Tauri's `listen()`
+    // is async (needs a JS↔Rust roundtrip to subscribe); events emitted
+    // before registration are dropped. Each scanXxx registers its listener
+    // synchronously at the top of its body — so a short timer after Promise
+    // microtasks flush is sufficient.
+    let unifiedResolve, unifiedReject;
+    const unifiedP = new Promise((res, rej) => { unifiedResolve = res; unifiedReject = rej; });
+    const audioP = unifiedP.then(r => ({ samples: r.audio, roots: r.audioRoots, stopped: r.stopped }));
+    const dawP = unifiedP.then(r => ({ projects: r.daw, roots: r.dawRoots, stopped: r.stopped }));
+    const presetP = unifiedP.then(r => ({ presets: r.preset, roots: r.presetRoots, stopped: r.stopped }));
+    const pdfP = unifiedP.then(r => ({ pdfs: r.pdf, roots: r.pdfRoots, stopped: r.stopped }));
+
+    // Start per-tab scan functions — each registers its event listener + UI
+    // then awaits its derived promise.
+    const scansP = Promise.all([
       scanPlugins(resume),
-      scanAudioSamples(resume),
-      scanDawProjects(resume),
-      scanPresets(resume),
-      typeof scanPdfs === 'function' ? scanPdfs(resume) : Promise.resolve(),
+      scanAudioSamples(resume, audioP),
+      scanDawProjects(resume, dawP),
+      scanPresets(resume, presetP),
+      typeof scanPdfs === 'function' ? scanPdfs(resume, pdfP) : Promise.resolve(),
     ]);
+
+    // Kick off the backend walker after listeners are up (100ms is imperceptible
+    // next to a filesystem scan but comfortably covers the Tauri listen handshake).
+    setTimeout(async () => {
+      try {
+        unifiedResolve(await window.vstUpdater.scanUnified({
+          audioCustomRoots, audioExcludePaths,
+          dawCustomRoots, dawExcludePaths,
+          dawIncludeBackups: false,
+          presetCustomRoots, presetExcludePaths,
+          pdfCustomRoots, pdfExcludePaths,
+        }));
+      } catch (e) {
+        unifiedReject(e);
+      }
+    }, 100);
+
+    await scansP;
   } catch (err) {
     showToast(toastFmt('toast.scan_all_failed', { err: err.message || err }), 4000, 'error');
   }

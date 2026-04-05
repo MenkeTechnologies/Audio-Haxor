@@ -36,6 +36,7 @@ async function reloadAppStrings(locale) {
     locale === 'pl' ||
     locale === 'ru' ||
     locale === 'zh' ||
+    locale === 'ja' ||
     locale === 'en'
       ? locale
       : null;
@@ -563,6 +564,21 @@ window.vstUpdater = {
   // PDFs
   scanPdfs: (customRoots, excludePaths) => invoke('scan_pdfs', { customRoots: customRoots || null, excludePaths: excludePaths || null }),
   stopPdfScan: () => invoke('stop_pdf_scan'),
+  // Unified scan: walks the union of audio/daw/preset/pdf roots ONCE and
+  // classifies files in place. Emits the same per-type progress events as
+  // the individual scans, so existing frontend listeners work unchanged.
+  scanUnified: (args) => invoke('scan_unified', {
+    audioCustomRoots: args.audioCustomRoots || null,
+    audioExcludePaths: args.audioExcludePaths || null,
+    dawCustomRoots: args.dawCustomRoots || null,
+    dawExcludePaths: args.dawExcludePaths || null,
+    dawIncludeBackups: args.dawIncludeBackups || false,
+    presetCustomRoots: args.presetCustomRoots || null,
+    presetExcludePaths: args.presetExcludePaths || null,
+    pdfCustomRoots: args.pdfCustomRoots || null,
+    pdfExcludePaths: args.pdfExcludePaths || null,
+  }),
+  stopUnifiedScan: () => invoke('stop_unified_scan'),
   onPdfScanProgress: (callback) => {
     const p = listen('pdf-scan-progress', (event) => callback(event.payload));
     return () => { p.then(fn => fn()); };

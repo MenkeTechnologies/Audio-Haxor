@@ -14,7 +14,7 @@ The script fails if a key already exists (prevents accidental overwrites). Rebui
 
 **Settings → Interface language** only saves `uiLocale` to prefs. The **next app launch** runs `reloadAppStrings` (and `refresh_native_menu`) so the UI and native menu bar match the saved locale. Changing the dropdown does **not** reload strings in the current session. Editing `i18n/app_i18n_*.json` still requires a rebuild (and restart) for the bundled SQLite seed to change.
 
-## Other locales (`de`, `es`, `sv`, `fr`, `nl`, `pt`, `it`, `el`, `pl`, `ru`, `zh` — Simplified Chinese)
+## Other locales (`de`, `es`, `sv`, `fr`, `nl`, `pt`, `it`, `el`, `pl`, `ru`, `zh` — Simplified Chinese, `ja` — Japanese)
 
 - **Full machine translation** (slow; needs network):
 
@@ -32,6 +32,7 @@ python3 -m venv .venv-i18n
 .venv-i18n/bin/python scripts/gen_app_i18n_pl.py
 .venv-i18n/bin/python scripts/gen_app_i18n_ru.py
 .venv-i18n/bin/python scripts/gen_app_i18n_zh.py
+.venv-i18n/bin/python scripts/gen_app_i18n_ja.py
 ```
 
 - **German (`de`) — translate keys that still match English** (after stub sync or partial merges): `fill_de_i18n_gaps.py` calls Google Translate only for keys where the German value is still identical to English (skips `ui.ph.ui_ph_*` indirection strings and branding). Run `de_i18n_manual_overrides.py` afterward for hyphenation (`Plug-ins`), menu labels, localized `/pfad/zu/…` placeholders, and other strings machine translation leaves as English cognates.
@@ -51,7 +52,7 @@ Run the stub sync after adding keys to `app_i18n_en.json` if you cannot run the 
 
 ## Batch merge into non-English locales only
 
-If English already contains new keys and you need the same keys in `de`/`es`/`sv`/`fr`/`nl`/`pt`/`it`/`el`/`pl`/`ru`/`zh` with English placeholder text until a full `gen_app_i18n_*` run:
+If English already contains new keys and you need the same keys in `de`/`es`/`sv`/`fr`/`nl`/`pt`/`it`/`el`/`pl`/`ru`/`zh`/`ja` with English placeholder text until a full `gen_app_i18n_*` run:
 
 ```bash
 python3 scripts/merge_batch_into_locales.py scripts/i18n_batches/your_batch.json
@@ -63,7 +64,7 @@ python3 scripts/merge_batch_into_locales.py scripts/i18n_batches/your_batch.json
 - `test/i18n-js-keys.test.js` — string literals that look like catalog keys (`ui.*`, `menu.*`, `toast.*`, …) under `frontend/js` are defined in English.
 - `test/i18n-locales-and-shape.test.js` — every shipped locale JSON has the **same key set** as English and only non-empty string values.
 - `test/i18n-prove-all-locales-complete.test.js` — exhaustive proof: every English key exists in every locale with a non-empty value; every HTML- and JS-referenced catalog key exists in **every** locale (not only `en`).
-- `test/i18n-anchor-keys.test.js` — for keys where **de/el/es/fr/it/nl/pl/pt/ru/sv/zh** all differ from English, none of those locales may copy `en` verbatim.
+- `test/i18n-anchor-keys.test.js` — for keys where **de/el/es/fr/it/nl/pl/pt/ru/sv/zh/ja** all differ from English, none of those locales may copy `en` verbatim.
 - `test/i18n-no-raw-showtoast.test.js` — `showToast` is not called with a raw `'…'` / `"…"` first argument (use `toastFmt('toast.*')` or `String(err)`).
 - `test/i18n-catalog-files.test.js` — shipped locale JSON files match `app_i18n.rs` seeds, UTF-8, and **lexicographically sorted keys** (stable merges).
 
