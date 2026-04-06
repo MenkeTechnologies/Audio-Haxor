@@ -3474,7 +3474,7 @@ fn import_toml(file_path: String) -> Result<serde_json::Value, String> {
     serde_json::from_str(&json_str).map_err(|e| e.to_string())
 }
 
-// ── PDF export ──
+// ── PDF export (printpdf 0.9 — Op stream + PdfPage) ──
 
 #[tauri::command]
 fn export_pdf(
@@ -3491,23 +3491,21 @@ fn export_pdf(
         headers.len(),
         file_path
     ));
-    use printpdf::path::{PaintMode, WindingOrder};
     use printpdf::*;
 
-    // Load app icon for header (embedded at compile time)
     let icon_bytes: &[u8] = include_bytes!("../icons/32x32.png");
 
-    let page_w = Mm(297.0); // A4 landscape
-    let page_h = Mm(210.0);
+    let page_w_mm = Mm(297.0); // A4 landscape
+    let page_h_mm = Mm(210.0);
+    let page_w = page_w_mm.0;
+    let page_h = page_h_mm.0;
     let margin_x = 10.0_f32;
-    let _margin_top = 12.0_f32;
     let margin_bottom = 12.0_f32;
     let row_height = 4.5_f32;
     let header_row_h = 7.0_f32;
     let col_count = headers.len();
-    let usable_w = page_w.0 - margin_x * 2.0;
+    let usable_w = page_w - margin_x * 2.0;
 
-    // Cap at 10 000 rows to prevent OOM — printpdf holds all pages in memory
     const MAX_PDF_ROWS: usize = 10_000;
     let total_row_count = rows.len();
     let capped = total_row_count > MAX_PDF_ROWS;
@@ -3517,11 +3515,9 @@ fn export_pdf(
         &rows[..]
     };
 
-    // Calculate column widths by sampling up to 500 rows (avoids allocating len vectors for all rows)
     let col_widths: Vec<f32> = if col_count > 0 {
         let sample_step = (export_rows.len() / 500).max(1);
         let mut col_maxes: Vec<usize> = headers.iter().map(|h| h.len()).collect();
-        // Track sorted lengths for p90 via reservoir: just use max of sampled rows
         let mut col_sums: Vec<usize> = vec![0; col_count];
         let mut sample_count = 0_usize;
         for (idx, row) in export_rows.iter().enumerate() {
@@ -3539,7 +3535,6 @@ fn export_pdf(
                 }
             }
         }
-        // Use average * 1.3 (approximates p90 without sorting)
         let effective: Vec<usize> = col_sums
             .iter()
             .enumerate()
@@ -3573,37 +3568,12 @@ fn export_pdf(
     };
     let version = env!("CARGO_PKG_VERSION");
 
-    let (doc, page1, layer1) = PdfDocument::new(&title, page_w, page_h, "Layer 1");
-    let font = doc
-        .add_builtin_font(BuiltinFont::Helvetica)
-        .map_err(|e| e.to_string())?;
-    let font_bold = doc
-        .add_builtin_font(BuiltinFont::HelveticaBold)
-        .map_err(|e| e.to_string())?;
-    let font_italic = doc
-        .add_builtin_font(BuiltinFont::HelveticaOblique)
-        .map_err(|e| e.to_string())?;
-
-    let mut current_page = page1;
-    let mut current_layer = layer1;
-    let mut y: f32;
-    let mut page_num = 1_usize;
-    let mut row_idx = 0_usize;
-
-    macro_rules! layer {
-        () => {
-            doc.get_page(current_page).get_layer(current_layer)
-        };
-    }
-
-    // Color helper (Color doesn't impl Clone)
-    fn rgb(r: f32, g: f32, b: f32) -> Color {
+    fn rgb_color(r: f32, g: f32, b: f32) -> Color {
         Color::Rgb(Rgb::new(r, g, b, None))
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn fill_rect(
-        layer: &PdfLayerReference,
+    fn push_fill_rect(
+        ops: &mut Vec<Op>,
         x: f32,
         y: f32,
         w: f32,
@@ -3612,25 +3582,31 @@ fn export_pdf(
         g: f32,
         b: f32,
     ) {
-        layer.set_fill_color(rgb(r, g, b));
-        layer.set_outline_color(rgb(r, g, b));
-        layer.set_outline_thickness(0.0);
-        let points = vec![
-            (Point::new(Mm(x), Mm(y)), false),
-            (Point::new(Mm(x + w), Mm(y)), false),
-            (Point::new(Mm(x + w), Mm(y + h)), false),
-            (Point::new(Mm(x), Mm(y + h)), false),
-        ];
-        layer.add_polygon(Polygon {
-            rings: vec![points],
-            mode: PaintMode::FillStroke,
-            winding_order: WindingOrder::NonZero,
+        ops.push(Op::SetFillColor {
+            col: rgb_color(r, g, b),
+        });
+        let lp = |x: f32, y: f32| LinePoint {
+            p: Point::new(Mm(x), Mm(y)),
+            bezier: false,
+        };
+        ops.push(Op::DrawPolygon {
+            polygon: Polygon {
+                rings: vec![PolygonRing {
+                    points: vec![
+                        lp(x, y),
+                        lp(x + w, y),
+                        lp(x + w, y + h),
+                        lp(x, y + h),
+                    ],
+                }],
+                mode: PaintMode::Fill,
+                winding_order: WindingOrder::NonZero,
+            },
         });
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn stroke_line(
-        layer: &PdfLayerReference,
+    fn push_stroke_line(
+        ops: &mut Vec<Op>,
         x1: f32,
         y1: f32,
         x2: f32,
@@ -3638,126 +3614,135 @@ fn export_pdf(
         r: f32,
         g: f32,
         b: f32,
-        thickness: f32,
+        thick_pt: f32,
     ) {
-        layer.set_outline_color(rgb(r, g, b));
-        layer.set_outline_thickness(thickness);
-        let points = vec![
-            (Point::new(Mm(x1), Mm(y1)), false),
-            (Point::new(Mm(x2), Mm(y2)), false),
-        ];
-        layer.add_line(Line {
-            points,
-            is_closed: false,
+        ops.push(Op::SetOutlineColor {
+            col: rgb_color(r, g, b),
+        });
+        ops.push(Op::SetOutlineThickness {
+            pt: Pt(thick_pt),
+        });
+        ops.push(Op::DrawLine {
+            line: Line {
+                points: vec![
+                    LinePoint {
+                        p: Point::new(Mm(x1), Mm(y1)),
+                        bezier: false,
+                    },
+                    LinePoint {
+                        p: Point::new(Mm(x2), Mm(y2)),
+                        bezier: false,
+                    },
+                ],
+                is_closed: false,
+            },
         });
     }
 
-    // ── Decode icon PNG to raw RGB for embedding ──
-    let icon_rgb: Option<(Vec<u8>, u32, u32)> = {
-        let dimg =
-            image_crate::load_from_memory_with_format(icon_bytes, image_crate::ImageFormat::Png)
-                .ok();
-        dimg.map(|di| {
-            let w = di.width();
-            let h = di.height();
-            let rgb: Vec<u8> = di.to_rgb8().into_raw();
-            (rgb, w, h)
-        })
-    };
+    fn push_text(
+        ops: &mut Vec<Op>,
+        text: String,
+        font: BuiltinFont,
+        size_pt: f32,
+        x_mm: f32,
+        y_mm: f32,
+        color: Color,
+    ) {
+        ops.push(Op::StartTextSection);
+        ops.push(Op::SetTextCursor {
+            pos: Point::new(Mm(x_mm), Mm(y_mm)),
+        });
+        ops.push(Op::SetFont {
+            font: PdfFontHandle::Builtin(font),
+            size: Pt(size_pt),
+        });
+        ops.push(Op::SetLineHeight { lh: Pt(size_pt) });
+        ops.push(Op::SetFillColor { col: color });
+        ops.push(Op::ShowText {
+            items: vec![TextItem::Text(text)],
+        });
+        ops.push(Op::EndTextSection);
+    }
 
-    // ── Render page header ──
-    let render_header = |layer_ref: &PdfLayerReference, y: &mut f32, page: usize| {
-        // Dark header bar
-        fill_rect(
-            layer_ref,
-            0.0,
-            page_h.0 - 22.0,
-            page_w.0,
-            22.0,
-            0.02,
-            0.02,
-            0.04,
-        );
-
-        // Icon at top-left
-        let icon_offset = match icon_rgb {
-            Some((ref rgb, ref iw, ref ih)) => {
-                let icon_size = 6.0_f32;
-                let w = *iw as usize;
-                let h = *ih as usize;
-                let img = Image::from(ImageXObject {
-                    width: Px(w),
-                    height: Px(h),
-                    color_space: ColorSpace::Rgb,
-                    bits_per_component: ColorBits::Bit8,
-                    image_data: rgb.to_vec(),
-                    image_filter: None,
-                    clipping_bbox: None,
-                    interpolate: false,
-                    smask: None,
-                });
-                img.add_to_layer(
-                    layer_ref.clone(),
-                    ImageTransform {
-                        translate_x: Some(Mm(margin_x)),
-                        translate_y: Some(Mm(page_h.0 - 19.0)),
-                        scale_x: Some(icon_size / w as f32),
-                        scale_y: Some(icon_size / h as f32),
-                        ..Default::default()
-                    },
-                );
-                icon_size + 2.0
+    let mut doc = PdfDocument::new(title.as_str());
+    let mut decode_warnings = Vec::new();
+    let icon_info: Option<(XObjectId, f32, f32)> =
+        match RawImage::decode_from_bytes(icon_bytes, &mut decode_warnings) {
+            Ok(img) => {
+                let iw = img.width as f32;
+                let ih = img.height as f32;
+                let id = doc.add_image(&img);
+                Some((id, iw, ih))
             }
-            None => 0.0,
+            Err(_) => None,
         };
 
-        // App name (cyan)
-        layer_ref.set_fill_color(rgb(0.02, 0.85, 0.91));
-        layer_ref.use_text(
-            "AUDIO_HAXOR",
+    let mut pages: Vec<PdfPage> = Vec::new();
+    let mut ops: Vec<Op> = Vec::new();
+
+    let render_header = |ops: &mut Vec<Op>, y: &mut f32, page: usize| {
+        push_fill_rect(ops, 0.0, page_h - 22.0, page_w, 22.0, 0.02, 0.02, 0.04);
+
+        let mut icon_offset = 0.0_f32;
+        if let Some((ref id, iw, ih)) = icon_info {
+            let icon_size = 6.0_f32;
+            ops.push(Op::UseXobject {
+                id: id.clone(),
+                transform: XObjectTransform {
+                    translate_x: Some(Mm(margin_x).into_pt()),
+                    translate_y: Some(Mm(page_h - 19.0).into_pt()),
+                    scale_x: Some(icon_size / iw),
+                    scale_y: Some(icon_size / ih),
+                    dpi: Some(300.0),
+                    ..Default::default()
+                },
+            });
+            icon_offset = icon_size + 2.0;
+        }
+
+        push_text(
+            ops,
+            "AUDIO_HAXOR".to_string(),
+            BuiltinFont::HelveticaBold,
             14.0,
-            Mm(margin_x + icon_offset),
-            Mm(page_h.0 - 14.0),
-            &font_bold,
+            margin_x + icon_offset,
+            page_h - 14.0,
+            rgb_color(0.02, 0.85, 0.91),
         );
-
-        // Version (white)
-        layer_ref.set_fill_color(rgb(1.0, 1.0, 1.0));
-        layer_ref.use_text(
+        push_text(
+            ops,
             format!("v{}", version),
+            BuiltinFont::Helvetica,
             8.0,
-            Mm(margin_x + icon_offset + 58.0),
-            Mm(page_h.0 - 14.0),
-            &font,
+            margin_x + icon_offset + 58.0,
+            page_h - 14.0,
+            rgb_color(1.0, 1.0, 1.0),
         );
-
-        // Title on the right
-        layer_ref.use_text(
-            &title,
+        push_text(
+            ops,
+            title.clone(),
+            BuiltinFont::HelveticaBold,
             12.0,
-            Mm(page_w.0 - margin_x - 80.0),
-            Mm(page_h.0 - 14.0),
-            &font_bold,
+            page_w - margin_x - 80.0,
+            page_h - 14.0,
+            rgb_color(1.0, 1.0, 1.0),
         );
 
-        // Cyan accent line under header
-        stroke_line(
-            layer_ref,
+        push_stroke_line(
+            ops,
             0.0,
-            page_h.0 - 22.0,
-            page_w.0,
-            page_h.0 - 22.0,
+            page_h - 22.0,
+            page_w,
+            page_h - 22.0,
             0.02,
             0.85,
             0.91,
             1.5,
         );
 
-        *y = page_h.0 - 28.0;
+        *y = page_h - 28.0;
 
-        // Subtitle (only on first page)
         if page == 1 {
-            layer_ref.set_fill_color(rgb(0.4, 0.4, 0.45));
             let sub = if capped {
                 format!(
                     "Showing {} of {} items (capped)  |  Exported {}  |  by MenkeTechnologies",
@@ -3772,16 +3757,22 @@ fn export_pdf(
                     chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
                 )
             };
-            layer_ref.use_text(&sub, 8.0, Mm(margin_x), Mm(*y), &font_italic);
+            push_text(
+                ops,
+                sub,
+                BuiltinFont::HelveticaOblique,
+                8.0,
+                margin_x,
+                *y,
+                rgb_color(0.4, 0.4, 0.45),
+            );
             *y -= 6.0;
         }
     };
 
-    // ── Render column headers — cyberpunk dark style ──
-    let render_col_headers = |layer_ref: &PdfLayerReference, y: &mut f32| {
-        // Dark header background
-        fill_rect(
-            layer_ref,
+    let render_col_headers = |ops: &mut Vec<Op>, y: &mut f32| {
+        push_fill_rect(
+            ops,
             margin_x - 1.0,
             *y - 1.5,
             usable_w + 2.0,
@@ -3790,9 +3781,8 @@ fn export_pdf(
             0.04,
             0.08,
         );
-        // Cyan bottom accent line
-        stroke_line(
-            layer_ref,
+        push_stroke_line(
+            ops,
             margin_x - 1.0,
             *y - 1.5,
             margin_x + usable_w + 1.0,
@@ -3803,91 +3793,91 @@ fn export_pdf(
             0.5,
         );
 
-        // Cyan header text
-        layer_ref.set_fill_color(rgb(0.02, 0.85, 0.91));
         let mut x = margin_x + 1.0;
         for (i, h) in headers.iter().enumerate() {
-            layer_ref.use_text(h, 9.0, Mm(x), Mm(*y), &font_bold);
+            push_text(
+                ops,
+                h.clone(),
+                BuiltinFont::HelveticaBold,
+                9.0,
+                x,
+                *y,
+                rgb_color(0.02, 0.85, 0.91),
+            );
             x += col_widths[i];
         }
         *y -= header_row_h;
     };
 
-    // ── Render footer ──
-    let render_footer = |layer_ref: &PdfLayerReference, page: usize| {
+    let render_footer = |ops: &mut Vec<Op>, page: usize| {
         let footer_y = 8.0;
-        // Dark footer bar
-        fill_rect(
-            layer_ref,
+        push_fill_rect(
+            ops,
             0.0,
             0.0,
-            page_w.0,
+            page_w,
             footer_y + 4.0,
             0.02,
             0.02,
             0.04,
         );
-        // Cyan accent line
-        stroke_line(
-            layer_ref,
+        push_stroke_line(
+            ops,
             margin_x,
             footer_y + 3.0,
-            page_w.0 - margin_x,
+            page_w - margin_x,
             footer_y + 3.0,
             0.02,
             0.85,
             0.91,
             0.5,
         );
-
-        layer_ref.set_fill_color(rgb(0.4, 0.4, 0.45));
-        layer_ref.use_text(
+        push_text(
+            ops,
             format!("AUDIO_HAXOR v{} — {}", version, title),
+            BuiltinFont::Helvetica,
             7.0,
-            Mm(margin_x),
-            Mm(footer_y),
-            &font,
+            margin_x,
+            footer_y,
+            rgb_color(0.4, 0.4, 0.45),
         );
-
-        let page_str = format!("Page {}", page);
-        layer_ref.use_text(
-            &page_str,
+        push_text(
+            ops,
+            format!("Page {}", page),
+            BuiltinFont::Helvetica,
             7.0,
-            Mm(page_w.0 - margin_x - 25.0),
-            Mm(footer_y),
-            &font,
+            page_w - margin_x - 25.0,
+            footer_y,
+            rgb_color(0.4, 0.4, 0.45),
         );
     };
 
-    // ── First page ──
-    y = 0.0;
-    render_header(&layer!(), &mut y, page_num);
-    render_col_headers(&layer!(), &mut y);
+    let mut y = 0.0_f32;
+    let mut page_num = 1_usize;
+    let mut row_idx = 0_usize;
+
+    render_header(&mut ops, &mut y, page_num);
+    render_col_headers(&mut ops, &mut y);
     y -= 1.0;
 
-    // ── Data rows ──
     for row in export_rows {
         if y < margin_bottom + 5.0 {
-            render_footer(&layer!(), page_num);
-            let (new_page, new_layer) = doc.add_page(page_w, page_h, "Layer 1");
-            current_page = new_page;
-            current_layer = new_layer;
+            render_footer(&mut ops, page_num);
+            pages.push(PdfPage::new(page_w_mm, page_h_mm, std::mem::take(&mut ops)));
             page_num += 1;
             y = 0.0;
-            render_header(&layer!(), &mut y, page_num);
-            render_col_headers(&layer!(), &mut y);
+            render_header(&mut ops, &mut y, page_num);
+            render_col_headers(&mut ops, &mut y);
             y -= 1.0;
             row_idx = 0;
         }
 
-        // Dark page background
         if row_idx == 0 {
-            fill_rect(&layer!(), 0.0, 0.0, page_w.0, y + 2.0, 0.03, 0.03, 0.06);
+            push_fill_rect(&mut ops, 0.0, 0.0, page_w, y + 2.0, 0.03, 0.03, 0.06);
         }
-        // Alternating row stripe — dark cyberpunk
         if row_idx % 2 == 1 {
-            fill_rect(
-                &layer!(),
+            push_fill_rect(
+                &mut ops,
                 margin_x - 1.0,
                 y - 1.2,
                 usable_w + 2.0,
@@ -3897,8 +3887,8 @@ fn export_pdf(
                 0.10,
             );
         } else {
-            fill_rect(
-                &layer!(),
+            push_fill_rect(
+                &mut ops,
                 margin_x - 1.0,
                 y - 1.2,
                 usable_w + 2.0,
@@ -3909,8 +3899,6 @@ fn export_pdf(
             );
         }
 
-        // Light text on dark background
-        layer!().set_fill_color(rgb(0.85, 0.85, 0.90));
         let mut x = margin_x + 0.5;
         for (i, cell) in row.iter().enumerate() {
             let w = if i < col_widths.len() {
@@ -3918,14 +3906,21 @@ fn export_pdf(
             } else {
                 30.0
             };
-            // At 7pt Helvetica, avg char width ~1.2mm
             let max_chars = (w / 1.2) as usize;
-            if cell.len() > max_chars && max_chars > 3 {
-                let truncated = format!("{}...", &cell[..max_chars - 3]);
-                layer!().use_text(&truncated, 7.0, Mm(x), Mm(y), &font);
+            let cell_text = if cell.len() > max_chars && max_chars > 3 {
+                format!("{}...", &cell[..max_chars - 3])
             } else {
-                layer!().use_text(cell, 7.0, Mm(x), Mm(y), &font);
-            }
+                cell.clone()
+            };
+            push_text(
+                &mut ops,
+                cell_text,
+                BuiltinFont::Helvetica,
+                7.0,
+                x,
+                y,
+                rgb_color(0.85, 0.85, 0.90),
+            );
             x += w;
         }
 
@@ -3933,29 +3928,28 @@ fn export_pdf(
         row_idx += 1;
     }
 
-    // Capped notice
     if capped {
         y -= 3.0;
-        layer!().set_fill_color(rgb(0.83, 0.0, 0.77)); // magenta
-        layer!().use_text(
+        push_text(
+            &mut ops,
             format!(
                 "Export capped at {} of {} rows. Use CSV/JSON for the full dataset.",
                 MAX_PDF_ROWS, total_row_count
             ),
+            BuiltinFont::HelveticaBold,
             8.0,
-            Mm(margin_x),
-            Mm(y),
-            &font_bold,
+            margin_x,
+            y,
+            rgb_color(0.83, 0.0, 0.77),
         );
     }
 
-    // Final page footer
-    render_footer(&layer!(), page_num);
+    render_footer(&mut ops, page_num);
+    pages.push(PdfPage::new(page_w_mm, page_h_mm, ops));
 
-    doc.save(&mut std::io::BufWriter::new(
-        std::fs::File::create(&file_path).map_err(|e| e.to_string())?,
-    ))
-    .map_err(|e| e.to_string())
+    doc.with_pages(pages);
+    let bytes = doc.save(&PdfSaveOptions::default(), &mut decode_warnings);
+    std::fs::write(&file_path, bytes).map_err(|e| e.to_string())
 }
 
 // ── File browser ──

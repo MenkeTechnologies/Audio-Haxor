@@ -25,7 +25,8 @@ toml = "1.1"
 tauri-plugin-dialog = "2.7.0"
 libc = "0.2"
 num_cpus = "1"
-printpdf = "0.9"
+# default-features off avoids pulling the HTML/azul stack; we only need low-level ops + PNG images.
+printpdf = { version = "0.9", default-features = false, features = ["images", "png"] }
 lopdf = "0.40"
 flate2 = "1"
 symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "ogg", "pcm"] }

@@ -454,14 +454,14 @@ impl Database {
     pub fn vacuum_if_needed(&self) {
         let conn = self.conn.lock().unwrap();
         let page_size: u64 = conn
-            .query_row("PRAGMA page_size", [], |r| r.get(0))
-            .unwrap_or(4096);
+            .query_row("PRAGMA page_size", [], |r| r.get::<_, i64>(0))
+            .unwrap_or(4096) as u64;
         let page_count: u64 = conn
-            .query_row("PRAGMA page_count", [], |r| r.get(0))
-            .unwrap_or(0);
+            .query_row("PRAGMA page_count", [], |r| r.get::<_, i64>(0))
+            .unwrap_or(0) as u64;
         let free_count: u64 = conn
-            .query_row("PRAGMA freelist_count", [], |r| r.get(0))
-            .unwrap_or(0);
+            .query_row("PRAGMA freelist_count", [], |r| r.get::<_, i64>(0))
+            .unwrap_or(0) as u64;
         let pct = if page_count > 0 {
             free_count * 100 / page_count
         } else {
@@ -480,8 +480,8 @@ impl Database {
             let conn = self.conn.lock().unwrap();
             let _ = conn.execute_batch("VACUUM;");
             let after: u64 = conn
-                .query_row("PRAGMA page_count", [], |r| r.get(0))
-                .unwrap_or(0)
+                .query_row("PRAGMA page_count", [], |r| r.get::<_, i64>(0))
+                .unwrap_or(0) as u64
                 * page_size;
             crate::append_log(format!(
                 "DB VACUUM DONE — after: {}",
@@ -505,7 +505,7 @@ impl Database {
             .query_row(
                 "SELECT COALESCE(MAX(version), 0) FROM schema_version",
                 [],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0),
             )
             .unwrap_or(0);
 
@@ -912,7 +912,7 @@ impl Database {
         let fc_json = serde_json::to_string(format_counts).unwrap_or_default();
         conn.execute(
             "UPDATE audio_scans SET sample_count = ?2, total_bytes = ?3, format_counts = ?4 WHERE id = ?1",
-            params![id, sample_count, total_bytes, fc_json],
+            params![id, sample_count as i64, total_bytes as i64, fc_json],
         ).map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -948,7 +948,7 @@ impl Database {
                         s.path,
                         s.directory,
                         s.format,
-                        s.size,
+                        s.size as i64,
                         s.size_formatted,
                         s.modified,
                         s.duration,
@@ -972,7 +972,7 @@ impl Database {
         if inserted > 0 {
             tx.execute(
                 "UPDATE audio_scans SET sample_count = sample_count + ?2, total_bytes = total_bytes + ?3 WHERE id = ?1",
-                params![scan_id, inserted, batch_bytes],
+                params![scan_id, inserted as i64, batch_bytes as i64],
             ).map_err(|e| e.to_string())?;
         }
         tx.commit().map_err(|e| e.to_string())?;
@@ -999,8 +999,8 @@ impl Database {
             params![
                 id,
                 timestamp,
-                sample_count,
-                total_bytes,
+                sample_count as i64,
+                total_bytes as i64,
                 fc_json,
                 roots_json
             ],
@@ -1015,7 +1015,7 @@ impl Database {
         conn.query_row(
             "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
             [],
-            |row| row.get(0),
+            |row| row.get::<_, String>(0),
         )
         .optional()
         .map_err(|e| e.to_string())
@@ -1037,8 +1037,8 @@ impl Database {
                 Ok(ScanInfo {
                     id: row.get(0)?,
                     timestamp: row.get(1)?,
-                    sample_count: row.get(2)?,
-                    total_bytes: row.get(3)?,
+                    sample_count: row.get::<_, i64>(2)? as u64,
+                    total_bytes: row.get::<_, i64>(3)? as u64,
                     format_counts: serde_json::from_str(&fc_str).unwrap_or_default(),
                     roots: serde_json::from_str(&roots_str).unwrap_or_default(),
                 })
@@ -1134,7 +1134,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM audio_samples WHERE scan_id = ?1",
                 params![scan_id],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
 
@@ -1254,7 +1254,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM audio_samples WHERE scan_id = ?1",
                 params![sid],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
 
@@ -1262,7 +1262,7 @@ impl Database {
             .query_row(
                 "SELECT COALESCE(SUM(size), 0) FROM audio_samples WHERE scan_id = ?1",
                 params![sid],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
 
@@ -1274,7 +1274,7 @@ impl Database {
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map(params![sid], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as u64))
             })
             .map_err(|e| e.to_string())?;
         for (fmt, count) in rows.flatten() {
@@ -1285,7 +1285,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM audio_samples WHERE scan_id = ?1 AND bpm IS NOT NULL",
                 params![sid],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
 
@@ -1320,14 +1320,14 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM daw_projects WHERE scan_id = ?1",
                 params![sid],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
         let total_bytes: u64 = conn
             .query_row(
                 "SELECT COALESCE(SUM(size), 0) FROM daw_projects WHERE scan_id = ?1",
                 params![sid],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
         let mut daw_counts = HashMap::new();
@@ -1336,7 +1336,7 @@ impl Database {
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map(params![sid], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as u64))
             })
             .map_err(|e| e.to_string())?;
         for (daw, count) in rows.flatten() {
@@ -1376,14 +1376,14 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM presets WHERE scan_id = ?1 AND format NOT IN ('MID', 'MIDI')",
                 params![sid],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
         let total_bytes: u64 = conn
             .query_row(
                 "SELECT COALESCE(SUM(size), 0) FROM presets WHERE scan_id = ?1 AND format NOT IN ('MID', 'MIDI')",
                 params![sid],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
         let mut format_counts = HashMap::new();
@@ -1394,7 +1394,7 @@ impl Database {
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map(params![sid], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as u64))
             })
             .map_err(|e| e.to_string())?;
         for (fmt, count) in rows.flatten() {
@@ -1595,7 +1595,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM plugins WHERE scan_id = ?1",
                 params![scan_id],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
 
@@ -1668,7 +1668,7 @@ impl Database {
             let mut rows = stmt.raw_query();
             rows.next()
                 .map_err(|e| e.to_string())?
-                .map(|r| r.get::<_, u64>(0).unwrap_or(0))
+                .map(|r| r.get::<_, i64>(0).unwrap_or(0) as u64)
                 .unwrap_or(0)
         };
 
@@ -1742,7 +1742,7 @@ impl Database {
     ) -> Result<DawQueryResult, String> {
         let conn = self.conn.lock().unwrap();
         let scan_id: String = conn
-            .query_row(LATEST_DAW_SCAN_ID_SQL, [], |r| r.get(0))
+            .query_row(LATEST_DAW_SCAN_ID_SQL, [], |r| r.get::<_, String>(0))
             .optional()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
@@ -1759,7 +1759,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM daw_projects WHERE scan_id = ?1",
                 params![scan_id],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
 
@@ -1829,7 +1829,7 @@ impl Database {
             let mut rows = stmt.raw_query();
             rows.next()
                 .map_err(|e| e.to_string())?
-                .map(|r| r.get::<_, u64>(0).unwrap_or(0))
+                .map(|r| r.get::<_, i64>(0).unwrap_or(0) as u64)
                 .unwrap_or(0)
         };
 
@@ -1916,7 +1916,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM presets WHERE scan_id = ?1 AND format NOT IN ('MID', 'MIDI')",
                 params![scan_id],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
 
@@ -1987,7 +1987,7 @@ impl Database {
             let mut rows = stmt.raw_query();
             rows.next()
                 .map_err(|e| e.to_string())?
-                .map(|r| r.get::<_, u64>(0).unwrap_or(0))
+                .map(|r| r.get::<_, i64>(0).unwrap_or(0) as u64)
                 .unwrap_or(0)
         };
 
@@ -2046,7 +2046,7 @@ impl Database {
         let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
         conn.execute(
             "INSERT OR REPLACE INTO plugin_scans (id, timestamp, plugin_count, directories, roots) VALUES (?1,?2,?3,?4,?5)",
-            params![snap.id, snap.timestamp, snap.plugin_count, dirs_json, roots_json],
+            params![snap.id, snap.timestamp, snap.plugin_count as i64, dirs_json, roots_json],
         ).map_err(|e| e.to_string())?;
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         {
@@ -2066,7 +2066,7 @@ impl Database {
                     p.manufacturer,
                     p.manufacturer_url,
                     p.size,
-                    p.size_bytes,
+                    p.size_bytes as i64,
                     p.modified,
                     arch_json,
                     snap.id
@@ -2089,7 +2089,7 @@ impl Database {
                 Ok(serde_json::json!({
                     "id": row.get::<_,String>(0)?,
                     "timestamp": row.get::<_,String>(1)?,
-                    "pluginCount": row.get::<_,u64>(2)?,
+                    "pluginCount": row.get::<_, i64>(2)? as u64,
                     "roots": serde_json::from_str::<Vec<String>>(&roots_str).unwrap_or_default(),
                 }))
             })
@@ -2102,8 +2102,17 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let (ts, pc, dirs_json, roots_json): (String, usize, String, String) = conn.query_row(
             "SELECT timestamp, plugin_count, directories, roots FROM plugin_scans WHERE id = ?1",
-            params![id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-        ).map_err(|e| e.to_string())?;
+            params![id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, i64>(1)? as usize,
+                    row.get(2)?,
+                    row.get(3)?,
+                ))
+            },
+        )
+        .map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT name, path, plugin_type, version, manufacturer, manufacturer_url, size, size_bytes, modified, architectures FROM plugins WHERE scan_id = ?1").map_err(|e| e.to_string())?;
         let plugins = stmt
             .query_map(params![id], |row| {
@@ -2200,8 +2209,8 @@ impl Database {
             Ok(serde_json::json!({
                 "id": row.get::<_,String>(0)?,
                 "timestamp": row.get::<_,String>(1)?,
-                "sampleCount": row.get::<_,u64>(2)?,
-                "totalBytes": row.get::<_,u64>(3)?,
+                "sampleCount": row.get::<_, i64>(2)? as u64,
+                "totalBytes": row.get::<_, i64>(3)? as u64,
                 "formatCounts": serde_json::from_str::<HashMap<String,usize>>(&fc_str).unwrap_or_default(),
                 "roots": serde_json::from_str::<Vec<String>>(&roots_str).unwrap_or_default(),
             }))
@@ -2214,8 +2223,18 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let (ts, sc, tb, fc_str, roots_str): (String, usize, u64, String, String) = conn.query_row(
             "SELECT timestamp, sample_count, total_bytes, format_counts, roots FROM audio_scans WHERE id = ?1",
-            params![id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
-        ).map_err(|e| e.to_string())?;
+            params![id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, i64>(1)? as usize,
+                    row.get::<_, i64>(2)? as u64,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT name, path, directory, format, size, size_formatted, modified, duration, channels, sample_rate, bits_per_sample FROM audio_samples WHERE scan_id = ?1").map_err(|e| e.to_string())?;
         let samples = stmt
             .query_map(params![id], |row| {
@@ -2270,7 +2289,7 @@ impl Database {
             .query_row(
                 "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
-                |r| r.get(0),
+                |r| r.get::<_, String>(0),
             )
             .optional()
             .map_err(|e| e.to_string())?;
@@ -2326,7 +2345,7 @@ impl Database {
         let dc_json = serde_json::to_string(daw_counts).unwrap_or_default();
         conn.execute(
             "UPDATE daw_scans SET project_count = ?2, total_bytes = ?3, daw_counts = ?4 WHERE id = ?1",
-            params![id, project_count, total_bytes, dc_json],
+            params![id, project_count as i64, total_bytes as i64, dc_json],
         ).map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -2351,7 +2370,7 @@ impl Database {
                     p.directory,
                     p.format,
                     p.daw,
-                    p.size,
+                    p.size as i64,
                     p.size_formatted,
                     p.modified,
                     scan_id
@@ -2369,7 +2388,7 @@ impl Database {
         if inserted > 0 {
             tx.execute(
                 "UPDATE daw_scans SET project_count = project_count + ?2, total_bytes = total_bytes + ?3 WHERE id = ?1",
-                params![scan_id, inserted, batch_bytes],
+                params![scan_id, inserted as i64, batch_bytes as i64],
             ).map_err(|e| e.to_string())?;
         }
         tx.commit().map_err(|e| e.to_string())?;
@@ -2382,7 +2401,7 @@ impl Database {
         let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
         conn.execute(
             "INSERT OR REPLACE INTO daw_scans (id, timestamp, project_count, total_bytes, daw_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
-            params![snap.id, snap.timestamp, snap.project_count, snap.total_bytes, daw_json, roots_json],
+            params![snap.id, snap.timestamp, snap.project_count as i64, snap.total_bytes as i64, daw_json, roots_json],
         ).map_err(|e| e.to_string())?;
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         {
@@ -2405,7 +2424,7 @@ impl Database {
                     p.directory,
                     p.format,
                     p.daw,
-                    p.size,
+                    p.size as i64,
                     p.size_formatted,
                     p.modified,
                     snap.id
@@ -2434,8 +2453,8 @@ impl Database {
             Ok(serde_json::json!({
                 "id": row.get::<_,String>(0)?,
                 "timestamp": row.get::<_,String>(1)?,
-                "projectCount": row.get::<_,u64>(2)?,
-                "totalBytes": row.get::<_,u64>(3)?,
+                "projectCount": row.get::<_, i64>(2)? as u64,
+                "totalBytes": row.get::<_, i64>(3)? as u64,
                 "dawCounts": serde_json::from_str::<HashMap<String,usize>>(&dc_str).unwrap_or_default(),
                 "roots": serde_json::from_str::<Vec<String>>(&roots_str).unwrap_or_default(),
             }))
@@ -2448,8 +2467,18 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let (ts, pc, tb, dc_str, roots_str): (String, usize, u64, String, String) = conn.query_row(
             "SELECT timestamp, project_count, total_bytes, daw_counts, roots FROM daw_scans WHERE id = ?1",
-            params![id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
-        ).map_err(|e| e.to_string())?;
+            params![id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, i64>(1)? as usize,
+                    row.get::<_, i64>(2)? as u64,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT name, path, directory, format, daw, size, size_formatted, modified FROM daw_projects WHERE scan_id = ?1").map_err(|e| e.to_string())?;
         let projects = stmt
             .query_map(params![id], |row| {
@@ -2483,7 +2512,7 @@ impl Database {
     pub fn get_latest_daw_scan(&self) -> Result<Option<DawScanSnapshot>, String> {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
-            .query_row(LATEST_DAW_SCAN_ID_SQL, [], |r| r.get(0))
+            .query_row(LATEST_DAW_SCAN_ID_SQL, [], |r| r.get::<_, String>(0))
             .optional()
             .map_err(|e| e.to_string())?;
         drop(conn);
@@ -2540,7 +2569,7 @@ impl Database {
         let fc_json = serde_json::to_string(format_counts).unwrap_or_default();
         conn.execute(
             "UPDATE preset_scans SET preset_count = ?2, total_bytes = ?3, format_counts = ?4 WHERE id = ?1",
-            params![id, preset_count, total_bytes, fc_json],
+            params![id, preset_count as i64, total_bytes as i64, fc_json],
         ).map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -2563,7 +2592,7 @@ impl Database {
                     p.path,
                     p.directory,
                     p.format,
-                    p.size,
+                    p.size as i64,
                     p.size_formatted,
                     p.modified,
                     scan_id
@@ -2580,7 +2609,7 @@ impl Database {
         if inserted > 0 {
             tx.execute(
                 "UPDATE preset_scans SET preset_count = preset_count + ?2, total_bytes = total_bytes + ?3 WHERE id = ?1",
-                params![scan_id, inserted, batch_bytes],
+                params![scan_id, inserted as i64, batch_bytes as i64],
             ).map_err(|e| e.to_string())?;
         }
         tx.commit().map_err(|e| e.to_string())?;
@@ -2593,7 +2622,7 @@ impl Database {
         let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
         conn.execute(
             "INSERT OR REPLACE INTO preset_scans (id, timestamp, preset_count, total_bytes, format_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
-            params![snap.id, snap.timestamp, snap.preset_count, snap.total_bytes, fc_json, roots_json],
+            params![snap.id, snap.timestamp, snap.preset_count as i64, snap.total_bytes as i64, fc_json, roots_json],
         ).map_err(|e| e.to_string())?;
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         {
@@ -2609,7 +2638,7 @@ impl Database {
                     p.path,
                     p.directory,
                     p.format,
-                    p.size,
+                    p.size as i64,
                     p.size_formatted,
                     p.modified,
                     snap.id
@@ -2636,8 +2665,8 @@ impl Database {
             Ok(serde_json::json!({
                 "id": row.get::<_,String>(0)?,
                 "timestamp": row.get::<_,String>(1)?,
-                "presetCount": row.get::<_,u64>(2)?,
-                "totalBytes": row.get::<_,u64>(3)?,
+                "presetCount": row.get::<_, i64>(2)? as u64,
+                "totalBytes": row.get::<_, i64>(3)? as u64,
                 "formatCounts": serde_json::from_str::<HashMap<String,usize>>(&fc_str).unwrap_or_default(),
                 "roots": serde_json::from_str::<Vec<String>>(&roots_str).unwrap_or_default(),
             }))
@@ -2650,8 +2679,18 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let (ts, pc, tb, fc_str, roots_str): (String, usize, u64, String, String) = conn.query_row(
             "SELECT timestamp, preset_count, total_bytes, format_counts, roots FROM preset_scans WHERE id = ?1",
-            params![id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
-        ).map_err(|e| e.to_string())?;
+            params![id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, i64>(1)? as usize,
+                    row.get::<_, i64>(2)? as u64,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT name, path, directory, format, size, size_formatted, modified FROM presets WHERE scan_id = ?1").map_err(|e| e.to_string())?;
         let presets = stmt
             .query_map(params![id], |row| {
@@ -2745,7 +2784,7 @@ impl Database {
         let fc_json = serde_json::to_string(format_counts).unwrap_or_default();
         conn.execute(
             "UPDATE midi_scans SET midi_count = ?2, total_bytes = ?3, format_counts = ?4 WHERE id = ?1",
-            params![id, midi_count, total_bytes, fc_json],
+            params![id, midi_count as i64, total_bytes as i64, fc_json],
         ).map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -2768,7 +2807,7 @@ impl Database {
                     m.path,
                     m.directory,
                     m.format,
-                    m.size,
+                    m.size as i64,
                     m.size_formatted,
                     m.modified,
                     scan_id
@@ -2785,7 +2824,7 @@ impl Database {
         if inserted > 0 {
             tx.execute(
                 "UPDATE midi_scans SET midi_count = midi_count + ?2, total_bytes = total_bytes + ?3 WHERE id = ?1",
-                params![scan_id, inserted, batch_bytes],
+                params![scan_id, inserted as i64, batch_bytes as i64],
             ).map_err(|e| e.to_string())?;
         }
         tx.commit().map_err(|e| e.to_string())
@@ -2797,7 +2836,7 @@ impl Database {
         let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
         conn.execute(
             "INSERT OR REPLACE INTO midi_scans (id, timestamp, midi_count, total_bytes, format_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
-            params![snap.id, snap.timestamp, snap.midi_count, snap.total_bytes, fc_json, roots_json],
+            params![snap.id, snap.timestamp, snap.midi_count as i64, snap.total_bytes as i64, fc_json, roots_json],
         ).map_err(|e| e.to_string())?;
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         {
@@ -2819,7 +2858,7 @@ impl Database {
                     m.path,
                     m.directory,
                     m.format,
-                    m.size,
+                    m.size as i64,
                     m.size_formatted,
                     m.modified,
                     snap.id
@@ -2846,8 +2885,8 @@ impl Database {
             Ok(serde_json::json!({
                 "id": row.get::<_,String>(0)?,
                 "timestamp": row.get::<_,String>(1)?,
-                "midiCount": row.get::<_,u64>(2)?,
-                "totalBytes": row.get::<_,u64>(3)?,
+                "midiCount": row.get::<_, i64>(2)? as u64,
+                "totalBytes": row.get::<_, i64>(3)? as u64,
                 "formatCounts": serde_json::from_str::<HashMap<String,usize>>(&fc_str).unwrap_or_default(),
                 "roots": serde_json::from_str::<Vec<String>>(&roots_str).unwrap_or_default(),
             }))
@@ -2860,8 +2899,18 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let (ts, mc, tb, fc_str, roots_str): (String, usize, u64, String, String) = conn.query_row(
             "SELECT timestamp, midi_count, total_bytes, format_counts, roots FROM midi_scans WHERE id = ?1",
-            params![id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
-        ).map_err(|e| e.to_string())?;
+            params![id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get::<_, i64>(1)? as usize,
+                    row.get::<_, i64>(2)? as u64,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare("SELECT name, path, directory, format, size, size_formatted, modified FROM midi_files WHERE scan_id = ?1").map_err(|e| e.to_string())?;
         let midi_files = stmt
             .query_map(params![id], |row| {
@@ -2953,7 +3002,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM midi_files WHERE scan_id = ?1",
                 params![scan_id],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
 
@@ -3024,7 +3073,7 @@ impl Database {
             let mut rows = stmt.raw_query();
             rows.next()
                 .map_err(|e| e.to_string())?
-                .map(|r| r.get::<_, u64>(0).unwrap_or(0))
+                .map(|r| r.get::<_, i64>(0).unwrap_or(0) as u64)
                 .unwrap_or(0)
         };
 
@@ -3100,7 +3149,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM midi_files WHERE scan_id = ?1",
                 params![scan_id],
-                |r| r.get(0),
+                |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
@@ -3205,7 +3254,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE pdf_scans SET pdf_count = ?2, total_bytes = ?3 WHERE id = ?1",
-            params![id, pdf_count, total_bytes],
+            params![id, pdf_count as i64, total_bytes as i64],
         )
         .map_err(|e| e.to_string())?;
         Ok(())
@@ -3224,7 +3273,7 @@ impl Database {
                     p.name,
                     p.path,
                     p.directory,
-                    p.size,
+                    p.size as i64,
                     p.size_formatted,
                     p.modified,
                     scan_id
@@ -3241,7 +3290,7 @@ impl Database {
         if inserted > 0 {
             tx.execute(
                 "UPDATE pdf_scans SET pdf_count = pdf_count + ?2, total_bytes = total_bytes + ?3 WHERE id = ?1",
-                params![scan_id, inserted, batch_bytes],
+                params![scan_id, inserted as i64, batch_bytes as i64],
             ).map_err(|e| e.to_string())?;
         }
         tx.commit().map_err(|e| e.to_string())?;
@@ -3253,7 +3302,7 @@ impl Database {
         let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
         conn.execute(
             "INSERT OR REPLACE INTO pdf_scans (id, timestamp, pdf_count, total_bytes, roots) VALUES (?1,?2,?3,?4,?5)",
-            params![snap.id, snap.timestamp, snap.pdf_count, snap.total_bytes, roots_json],
+            params![snap.id, snap.timestamp, snap.pdf_count as i64, snap.total_bytes as i64, roots_json],
         ).map_err(|e| e.to_string())?;
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         {
@@ -3268,7 +3317,7 @@ impl Database {
                     p.name,
                     p.path,
                     p.directory,
-                    p.size,
+                    p.size as i64,
                     p.size_formatted,
                     p.modified,
                     snap.id
@@ -3295,8 +3344,8 @@ impl Database {
                 Ok(serde_json::json!({
                     "id": row.get::<_,String>(0)?,
                     "timestamp": row.get::<_,String>(1)?,
-                    "pdfCount": row.get::<_,u64>(2)?,
-                    "totalBytes": row.get::<_,u64>(3)?,
+                    "pdfCount": row.get::<_, i64>(2)? as u64,
+                    "totalBytes": row.get::<_, i64>(3)? as u64,
                     "roots": serde_json::from_str::<Vec<String>>(&roots_str).unwrap_or_default(),
                 }))
             })
@@ -3311,7 +3360,14 @@ impl Database {
             .query_row(
                 "SELECT timestamp, pdf_count, total_bytes, roots FROM pdf_scans WHERE id = ?1",
                 params![id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get::<_, i64>(1)? as usize,
+                        row.get::<_, i64>(2)? as u64,
+                        row.get(3)?,
+                    ))
+                },
             )
             .map_err(|e| e.to_string())?;
         let mut stmt = conn
@@ -3505,7 +3561,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM pdfs WHERE scan_id = ?1",
                 params![scan_id],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
 
@@ -3552,7 +3608,7 @@ impl Database {
             let mut rows = stmt.raw_query();
             rows.next()
                 .map_err(|e| e.to_string())?
-                .map(|r| r.get::<_, u64>(0).unwrap_or(0))
+                .map(|r| r.get::<_, i64>(0).unwrap_or(0) as u64)
                 .unwrap_or(0)
         };
 
@@ -3621,14 +3677,14 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM pdfs WHERE scan_id = ?1",
                 params![sid],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
         let total_bytes: u64 = conn
             .query_row(
                 "SELECT COALESCE(SUM(size), 0) FROM pdfs WHERE scan_id = ?1",
                 params![sid],
-                |row| row.get(0),
+                |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
             .map_err(|e| e.to_string())?;
         Ok(PdfStatsResult {
@@ -3670,10 +3726,15 @@ impl Database {
 
     fn get_latest_scan_id(&self, scan_table: &str, _count_col: &str) -> Result<String, String> {
         let conn = self.conn.lock().unwrap();
-        Ok(conn.query_row(
-            &format!("SELECT id FROM {scan_table} ORDER BY timestamp DESC LIMIT 1"),
-            [], |r| r.get(0)
-        ).optional().map_err(|e| e.to_string())?.unwrap_or_default())
+        Ok(conn
+            .query_row(
+                &format!("SELECT id FROM {scan_table} ORDER BY timestamp DESC LIMIT 1"),
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?
+            .unwrap_or_default())
     }
 
     pub fn audio_filter_stats(
@@ -3696,7 +3757,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM audio_samples WHERE scan_id = ?1",
                 params![scan_id],
-                |r| r.get(0),
+                |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
@@ -3789,7 +3850,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM daw_projects WHERE scan_id = ?1",
                 params![scan_id],
-                |r| r.get(0),
+                |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
@@ -3882,7 +3943,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM presets WHERE scan_id = ?1 AND format NOT IN ('MID','MIDI')",
                 params![scan_id],
-                |r| r.get(0),
+                |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
@@ -3979,7 +4040,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM plugins WHERE scan_id = ?1",
                 params![scan_id],
-                |r| r.get(0),
+                |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let search_pat = Self::fzf_like(search);
@@ -4055,7 +4116,7 @@ impl Database {
             .query_row(
                 "SELECT COUNT(*) FROM pdfs WHERE scan_id = ?1",
                 params![scan_id],
-                |r| r.get(0),
+                |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let fts_match = search.and_then(fts_phrase);
@@ -4312,7 +4373,9 @@ impl Database {
         let mut map = serde_json::Map::new();
         for t in &tables {
             let count: u64 = conn
-                .query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0))
+                .query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| {
+                    r.get::<_, i64>(0).map(|v| v as u64)
+                })
                 .unwrap_or(0);
             map.insert(t.to_string(), serde_json::json!(count));
         }
@@ -4323,15 +4386,17 @@ impl Database {
     pub fn cache_stats(&self) -> Result<Vec<CacheStat>, String> {
         let conn = self.conn.lock().unwrap();
         let page_size: u64 = conn
-            .query_row("PRAGMA page_size", [], |r| r.get(0))
-            .unwrap_or(4096);
+            .query_row("PRAGMA page_size", [], |r| r.get::<_, i64>(0))
+            .unwrap_or(4096) as u64;
         let mut stats = Vec::new();
 
         // Analysis caches (columns on audio_samples)
         let total_samples: u64 = conn.query_row(
             &format!("SELECT COUNT(*) FROM audio_samples WHERE scan_id = ({ACTIVE_AUDIO_SCAN_ID_SQL})"),
-            [], |r| r.get(0),
-        ).unwrap_or(0);
+            [],
+            |r| r.get::<_, i64>(0).map(|v| v as u64),
+        )
+        .unwrap_or(0);
         for (label, col, key) in [
             ("BPM", "bpm", "bpm"),
             ("Key", "key_name", "key"),
@@ -4339,8 +4404,10 @@ impl Database {
         ] {
             let count: u64 = conn.query_row(
                 &format!("SELECT COUNT(*) FROM audio_samples WHERE {col} IS NOT NULL AND scan_id = ({ACTIVE_AUDIO_SCAN_ID_SQL})"),
-                [], |r| r.get(0),
-            ).unwrap_or(0);
+                [],
+                |r| r.get::<_, i64>(0).map(|v| v as u64),
+            )
+            .unwrap_or(0);
             stats.push(CacheStat {
                 key: key.into(),
                 label: label.into(),
@@ -4374,7 +4441,7 @@ impl Database {
                 .query_row(
                     &format!("SELECT COUNT(*), COALESCE(SUM(LENGTH({val_col})), 0) FROM {table}"),
                     [],
-                    |r| Ok((r.get(0)?, r.get(1)?)),
+                    |r| Ok((r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as u64)),
                 )
                 .unwrap_or((0, 0));
             stats.push(CacheStat {
@@ -4397,19 +4464,19 @@ impl Database {
         ] {
             let scan_count: u64 = conn
                 .query_row(&format!("SELECT COUNT(*) FROM {scan_table}"), [], |r| {
-                    r.get(0)
+                    r.get::<_, i64>(0).map(|v| v as u64)
                 })
                 .unwrap_or(0);
             let item_count: u64 = conn
                 .query_row(&format!("SELECT COUNT(*) FROM {item_table}"), [], |r| {
-                    r.get(0)
+                    r.get::<_, i64>(0).map(|v| v as u64)
                 })
                 .unwrap_or(0);
             // Estimate size from number of items * avg row size
             let avg_row: u64 = if item_count > 0 {
                 let pages: u64 = conn
                     .query_row("SELECT page_count FROM pragma_page_count()", [], |r| {
-                        r.get(0)
+                        r.get::<_, i64>(0).map(|v| v as u64)
                     })
                     .unwrap_or(0);
                 if pages > 0 {
@@ -4517,7 +4584,7 @@ impl Database {
                             (SELECT COUNT(*) FROM daw_scans) +
                             (SELECT COUNT(*) FROM preset_scans)",
                     [],
-                    |row| row.get(0),
+                    |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
                 .unwrap_or(0);
             if count > 0 {
@@ -4636,7 +4703,7 @@ impl Database {
             let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
             conn.execute(
                 "INSERT OR REPLACE INTO plugin_scans (id, timestamp, plugin_count, directories, roots) VALUES (?1,?2,?3,?4,?5)",
-                params![snap.id, snap.timestamp, snap.plugin_count, dirs_json, roots_json],
+                params![snap.id, snap.timestamp, snap.plugin_count as i64, dirs_json, roots_json],
             ).map_err(|e| e.to_string())?;
 
             let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
@@ -4654,7 +4721,7 @@ impl Database {
                         p.manufacturer,
                         p.manufacturer_url,
                         p.size,
-                        p.size_bytes,
+                        p.size_bytes as i64,
                         p.modified,
                         arch_json,
                         snap.id
@@ -4683,7 +4750,7 @@ impl Database {
             let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
             conn.execute(
                 "INSERT OR REPLACE INTO daw_scans (id, timestamp, project_count, total_bytes, daw_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
-                params![snap.id, snap.timestamp, snap.project_count, snap.total_bytes, daw_json, roots_json],
+                params![snap.id, snap.timestamp, snap.project_count as i64, snap.total_bytes as i64, daw_json, roots_json],
             ).map_err(|e| e.to_string())?;
 
             let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
@@ -4698,7 +4765,7 @@ impl Database {
                         p.directory,
                         p.format,
                         p.daw,
-                        p.size,
+                        p.size as i64,
                         p.size_formatted,
                         p.modified,
                         snap.id
@@ -4727,7 +4794,7 @@ impl Database {
             let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
             conn.execute(
                 "INSERT OR REPLACE INTO preset_scans (id, timestamp, preset_count, total_bytes, format_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
-                params![snap.id, snap.timestamp, snap.preset_count, snap.total_bytes, fc_json, roots_json],
+                params![snap.id, snap.timestamp, snap.preset_count as i64, snap.total_bytes as i64, fc_json, roots_json],
             ).map_err(|e| e.to_string())?;
 
             let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
@@ -4741,7 +4808,7 @@ impl Database {
                         p.path,
                         p.directory,
                         p.format,
-                        p.size,
+                        p.size as i64,
                         p.size_formatted,
                         p.modified,
                         snap.id

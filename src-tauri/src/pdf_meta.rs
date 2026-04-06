@@ -52,18 +52,22 @@ mod tests {
     /// printpdf emits a valid file; lopdf must agree on page count (regression for bulk PDF indexing).
     #[test]
     fn extract_page_count_matches_printpdf_three_pages() {
-        use printpdf::{Mm, PdfDocument};
+        use printpdf::{Mm, Op, PdfDocument, PdfPage, PdfSaveOptions};
         use std::fs::File;
         use std::io::BufWriter;
 
         let tmp =
             std::env::temp_dir().join(format!("ah_pdf_meta_three_{}.pdf", std::process::id()));
-        let (doc, _p1, _l1) = PdfDocument::new("pdf_meta_test", Mm(40.0), Mm(40.0), "L1");
-        let _ = doc.add_page(Mm(40.0), Mm(40.0), "L2");
-        let _ = doc.add_page(Mm(40.0), Mm(40.0), "L3");
-        doc.save(&mut BufWriter::new(
-            File::create(&tmp).expect("temp pdf create"),
-        ))
+        let mut doc = PdfDocument::new("pdf_meta_test");
+        let p1 = PdfPage::new(Mm(40.0), Mm(40.0), vec![Op::SaveGraphicsState, Op::RestoreGraphicsState]);
+        let p2 = PdfPage::new(Mm(40.0), Mm(40.0), vec![Op::SaveGraphicsState, Op::RestoreGraphicsState]);
+        let p3 = PdfPage::new(Mm(40.0), Mm(40.0), vec![Op::SaveGraphicsState, Op::RestoreGraphicsState]);
+        doc.with_pages(vec![p1, p2, p3]);
+        let bytes = doc.save(&PdfSaveOptions::default(), &mut Vec::new());
+        std::io::Write::write_all(
+            &mut BufWriter::new(File::create(&tmp).expect("temp pdf create")),
+            &bytes,
+        )
         .expect("printpdf save");
 
         let n = extract_page_count(tmp.to_str().unwrap());
@@ -73,7 +77,7 @@ mod tests {
 
     #[test]
     fn extract_pages_batch_merges_valid_paths() {
-        use printpdf::{Mm, PdfDocument};
+        use printpdf::{Mm, Op, PdfDocument, PdfPage, PdfSaveOptions};
         use std::fs::File;
         use std::io::BufWriter;
 
@@ -81,13 +85,31 @@ mod tests {
         let a = std::env::temp_dir().join(format!("ah_pdf_batch_a_{id}.pdf"));
         let b = std::env::temp_dir().join(format!("ah_pdf_batch_b_{id}.pdf"));
 
-        let (doc, _, _) = PdfDocument::new("a", Mm(30.0), Mm(30.0), "L");
-        doc.save(&mut BufWriter::new(File::create(&a).unwrap()))
+        let mut doc_a = PdfDocument::new("a");
+        doc_a.with_pages(vec![PdfPage::new(
+            Mm(30.0),
+            Mm(30.0),
+            vec![Op::SaveGraphicsState, Op::RestoreGraphicsState],
+        )]);
+        let bytes = doc_a.save(&PdfSaveOptions::default(), &mut Vec::new());
+        std::io::Write::write_all(&mut BufWriter::new(File::create(&a).unwrap()), &bytes)
             .expect("save a");
 
-        let (doc, _, _) = PdfDocument::new("b", Mm(30.0), Mm(30.0), "L");
-        let _ = doc.add_page(Mm(30.0), Mm(30.0), "L2");
-        doc.save(&mut BufWriter::new(File::create(&b).unwrap()))
+        let mut doc_b = PdfDocument::new("b");
+        doc_b.with_pages(vec![
+            PdfPage::new(
+                Mm(30.0),
+                Mm(30.0),
+                vec![Op::SaveGraphicsState, Op::RestoreGraphicsState],
+            ),
+            PdfPage::new(
+                Mm(30.0),
+                Mm(30.0),
+                vec![Op::SaveGraphicsState, Op::RestoreGraphicsState],
+            ),
+        ]);
+        let bytes = doc_b.save(&PdfSaveOptions::default(), &mut Vec::new());
+        std::io::Write::write_all(&mut BufWriter::new(File::create(&b).unwrap()), &bytes)
             .expect("save b");
 
         let paths = vec![
