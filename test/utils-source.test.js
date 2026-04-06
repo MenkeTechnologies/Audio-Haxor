@@ -232,4 +232,26 @@ describe('frontend/js/utils.js (vm-loaded source)', () => {
     assert.strictEqual(U.findByPath([{ path: '/a.wav' }], ''), undefined);
     assert.strictEqual(U.findByPath([{ path: '/a.wav' }], null), undefined);
   });
+
+  it('applyFilter binds cfg so fetchFn can read this.lastSearch / this.lastMode', () => {
+    let capturedSearch = '';
+    let capturedMode = '';
+    const searchInput = { value: '  needle  ' };
+    const origGet = U.document.getElementById;
+    U.document.getElementById = (id) => (id === 'searchInput' ? searchInput : origGet(id));
+    try {
+      U.registerFilter('applyFilterBindTest', {
+        inputId: 'searchInput',
+        fetchFn() {
+          capturedSearch = this.lastSearch || '';
+          capturedMode = this.lastMode || '';
+        },
+      });
+      U.applyFilter('applyFilterBindTest');
+    } finally {
+      U.document.getElementById = origGet;
+    }
+    assert.strictEqual(capturedSearch, 'needle');
+    assert.strictEqual(capturedMode, 'fuzzy');
+  });
 });

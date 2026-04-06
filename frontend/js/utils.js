@@ -430,7 +430,8 @@ function applyFilter(action) {
   cfg.lastSearch = search;
   cfg.lastMode = mode;
   if (cfg.resetOffset) cfg.resetOffset();
-  if (cfg.fetchFn) cfg.fetchFn();
+  // Bind cfg so fetchFn can read this.lastSearch / this.lastMode (set above).
+  if (cfg.fetchFn) cfg.fetchFn.call(cfg);
 }
 
 function applyFilterDebounced(action) {
