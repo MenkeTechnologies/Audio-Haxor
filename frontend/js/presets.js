@@ -9,7 +9,6 @@ let presetRenderCount = 0;
 let _presetOffset = 0;
 let _presetTotalCount = 0;
 let _presetTotalUnfiltered = 0;
-let _presetScanFound = 0;
 // Incremental stats for presets — avoids O(N) rebuild on every scan flush.
 let _presetStatsTotalBytes = 0;
 let _presetStatsFormatCounts = {};
@@ -64,7 +63,7 @@ async function fetchPresetPage() {
         }
       }
       const hasFilter = !!(needle || fmtSet);
-      _presetTotalUnfiltered = _presetScanFound || allPresets.length;
+      _presetTotalUnfiltered = allPresets.length;
       _presetTotalCount = hasFilter ? visible : _presetTotalUnfiltered;
       rebuildPresetStats();
     }
@@ -369,7 +368,6 @@ async function scanPresets(resume = false, unifiedResult = null) {
   let firstBatch = true;
   let pendingPresets = [];
   let pendingFound = 0;
-  _presetScanFound = 0;
   const presetEta = createETA();
   presetEta.start();
   const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '100', 10);
@@ -452,7 +450,6 @@ async function scanPresets(resume = false, unifiedResult = null) {
     } else if (data.phase === 'scanning') {
       pendingPresets.push(...data.presets);
       pendingFound = data.found;
-      _presetScanFound = pendingFound;
       // Preset scanner does not emit MIDI (dedicated midi_scanner); found = preset files only.
       document.getElementById('presetCountHeader').textContent = pendingFound.toLocaleString();
       scheduleFlush();
@@ -485,7 +482,6 @@ async function scanPresets(resume = false, unifiedResult = null) {
       try { await window.vstUpdater.savePresetScan(allPresets, result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_preset_history', { err: e.message || e }), 4000, 'error'); }
     }
     if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
-    _presetScanFound = 0;
     rebuildPresetStats(true);
     filterPresets();
     // MIDI tab has its own independent scanner/DB — don't reload from preset scan.
@@ -494,7 +490,6 @@ async function scanPresets(resume = false, unifiedResult = null) {
     }
   } catch (err) {
     if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
-    _presetScanFound = 0;
     flushPending();
     const errMsg = err.message || err || 'Unknown error';
     tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;

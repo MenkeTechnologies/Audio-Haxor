@@ -18,7 +18,6 @@ let midiSortAsc = true;
 let _midiOffset = 0;
 let _midiTotalCount = 0;      // filtered count from DB
 let _midiTotalUnfiltered = 0; // unfiltered count from DB
-let _midiScanFound = 0;
 let _midiStatsSnapshot = null;
 const MIDI_PAGE_SIZE = 200;
 
@@ -58,7 +57,7 @@ async function fetchMidiPage() {
           if (pathCell) applyScanCellHighlight(pathCell, pathCell.title.replace(/[/\\][^/\\]*$/, ''), search, 'fuzzy', highlightMatch);
         }
       }
-      _midiTotalUnfiltered = _midiScanFound || allMidiFiles.length;
+      _midiTotalUnfiltered = allMidiFiles.length;
       _midiTotalCount = needle ? visible : _midiTotalUnfiltered;
       updateMidiCount();
     }
@@ -160,7 +159,6 @@ async function scanMidi(resume = false) {
 
   let pendingMidi = [];
   let pendingFound = 0;
-  _midiScanFound = 0;
   let firstMidiBatch = true;
   const midiEta = typeof createETA === 'function' ? createETA() : null;
   if (midiEta) midiEta.start();
@@ -209,7 +207,6 @@ async function scanMidi(resume = false) {
     if (data.phase === 'scanning') {
       if (data.midiFiles) pendingMidi.push(...data.midiFiles);
       pendingFound = data.found || 0;
-      _midiScanFound = pendingFound;
       syncMidiStatsBarCount(pendingFound);
       const elapsed = midiEta ? midiEta.elapsed() : '';
       const timeSuffix = elapsed ? ' — ' + elapsed : '';
@@ -240,7 +237,6 @@ async function scanMidi(resume = false) {
       catch (e) { if (typeof showToast === 'function' && typeof toastFmt === 'function') showToast(toastFmt('toast.failed_save_midi_history', { err: e.message || e }), 4000, 'error'); }
     }
     if (_midiScanProgressCleanup) { _midiScanProgressCleanup(); _midiScanProgressCleanup = null; }
-    _midiScanFound = 0;
     _midiTableInit = false;
     _midiRenderCount = 0;
     _midiOffset = 0;
@@ -256,7 +252,6 @@ async function scanMidi(resume = false) {
     }
   } catch (err) {
     if (_midiScanProgressCleanup) { _midiScanProgressCleanup(); _midiScanProgressCleanup = null; }
-    _midiScanFound = 0;
     const errMsg = err.message || err || 'Unknown error';
     if (tableWrap) tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
     if (typeof showToast === 'function' && typeof toastFmt === 'function') showToast(toastFmt('toast.midi_scan_failed', { err: errMsg }), 4000, 'error');
@@ -277,7 +272,7 @@ async function scanMidi(resume = false) {
 }
 
 function getMidiCount() {
-  return _midiScanProgressCleanup ? (_midiScanFound || allMidiFiles.length) : _midiTotalUnfiltered;
+  return _midiScanProgressCleanup ? (allMidiFiles.length) : _midiTotalUnfiltered;
 }
 
 /** Stats bar "MIDI Found" — must not rely on preset scan (MIDI has its own walker/DB). */
@@ -286,7 +281,7 @@ function syncMidiStatsBarCount(total) {
   if (!el) return;
   const n = typeof total === 'number'
     ? total
-    : (_midiScanProgressCleanup ? (_midiScanFound || allMidiFiles.length) : _midiTotalUnfiltered);
+    : (_midiScanProgressCleanup ? (allMidiFiles.length) : _midiTotalUnfiltered);
   el.textContent = n.toLocaleString();
 }
 
@@ -297,7 +292,7 @@ function updateMidiCount() {
   const scanning = !!_midiScanProgressCleanup;
   const search = _midiSearch || '';
   const hasFilter = scanning && !!search.trim();
-  const scanTotal = _midiScanFound || allMidiFiles.length;
+  const scanTotal = allMidiFiles.length;
   const filtered = scanning
     ? (hasFilter ? _midiTotalCount : scanTotal)
     : _midiTotalCount;
@@ -325,7 +320,7 @@ function updateMidiCount() {
 function updateMidiHeaderCount() {
   const el = document.getElementById('headerMidi');
   if (el) {
-    const n = _midiScanProgressCleanup ? (_midiScanFound || allMidiFiles.length) : _midiTotalUnfiltered;
+    const n = _midiScanProgressCleanup ? (allMidiFiles.length) : _midiTotalUnfiltered;
     el.textContent = n.toLocaleString();
   }
 }

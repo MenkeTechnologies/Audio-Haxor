@@ -12,7 +12,6 @@ let dawScanProgressCleanup = null;
 let _dawOffset = 0;
 let _dawTotalCount = 0;
 let _dawTotalUnfiltered = 0;
-let _dawScanFound = 0;
 
 let dawStatCounts = {};
 let dawStatBytes = 0;
@@ -54,7 +53,7 @@ async function fetchDawPage() {
       // capped at 2000 rendered so counting them would mismatch the scan
       // button counter (pendingFound) when the filter box is empty.
       const hasFilter = !!(needle || dawSet);
-      _dawTotalUnfiltered = _dawScanFound || allDawProjects.length;
+      _dawTotalUnfiltered = allDawProjects.length;
       _dawTotalCount = hasFilter ? visible : _dawTotalUnfiltered;
       updateDawStats();
     }
@@ -374,7 +373,6 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
   let firstDawBatch = true;
   let pendingProjects = [];
   let pendingFound = 0;
-  _dawScanFound = 0;
   const dawEta = createETA();
   dawEta.start();
   const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '100', 10);
@@ -433,7 +431,6 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
     } else if (data.phase === 'scanning') {
       pendingProjects.push(...data.projects);
       pendingFound = data.found;
-      _dawScanFound = pendingFound;
       // Immediately update header counter. Format with toLocaleString to
       // match updateDawStats's formatting — otherwise the counter flickers
       // between "1234" (here) and "1,234" (flush) as the two paths alternate.
@@ -448,7 +445,6 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
       ? await unifiedResult
       : await window.vstUpdater.scanDawProjects(dawRoots.length ? dawRoots : undefined, excludePaths);
     if (dawScanProgressCleanup) { dawScanProgressCleanup(); dawScanProgressCleanup = null; }
-    _dawScanFound = 0;
     flushPendingProjects();
     if (result.streamed) {
       // Backend streamed results live — allDawProjects was built from progress events.
@@ -471,7 +467,6 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
     }
   } catch (err) {
     if (dawScanProgressCleanup) { dawScanProgressCleanup(); dawScanProgressCleanup = null; }
-    _dawScanFound = 0;
     flushPendingProjects();
     const errMsg = err.message || err || 'Unknown error';
     tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
