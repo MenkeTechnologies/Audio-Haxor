@@ -1997,6 +1997,10 @@ function showPlayer() {
       if (geo.height > 100) np.style.height = geo.height + 'px';
     } catch {}
   }
+  // Force a synchronous reflow so the visualizer canvas has resolved
+  // dimensions on the very first rAF frame. Without this, release WebView
+  // defers layout and the canvas renders at 0px wide until a drag event.
+  void np.offsetWidth;
   renderRecentlyPlayed();
   updateNowPlayingBtn();
 }
