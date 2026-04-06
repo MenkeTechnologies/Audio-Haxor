@@ -1,9 +1,34 @@
 /**
  * Real command-palette.js: filterPaletteItems empty-query gating and fuzzy + lazy plugin rows.
  */
+const fs = require('fs');
+const path = require('path');
 const { describe, it, before } = require('node:test');
 const assert = require('node:assert/strict');
 const { loadFrontendScripts, defaultDocument } = require('./frontend-vm-harness.js');
+
+const COMMAND_PALETTE_PATH = path.join(__dirname, '..', 'frontend', 'js', 'command-palette.js');
+
+describe('frontend/js/command-palette.js collectPaletteItems (source)', () => {
+  it('does not register the same appFmt key twice (duplicate palette rows)', () => {
+    const src = fs.readFileSync(COMMAND_PALETTE_PATH, 'utf8');
+    const m = src.match(/function collectPaletteItems\(\) \{[\s\S]*?\n\}\n\nfunction filterPaletteItems/);
+    assert.ok(m, 'expected collectPaletteItems block before filterPaletteItems');
+    const body = m[0];
+    const keys = [];
+    const re = /appFmt\('([^']+)'\)/g;
+    let x;
+    while ((x = re.exec(body)) !== null) keys.push(x[1]);
+    const counts = new Map();
+    for (const k of keys) counts.set(k, (counts.get(k) || 0) + 1);
+    const dups = [...counts.entries()].filter(([, n]) => n > 1);
+    assert.deepStrictEqual(
+      dups,
+      [],
+      `duplicate appFmt keys in collectPaletteItems: ${dups.map(([k, n]) => `${k}×${n}`).join(', ')}`,
+    );
+  });
+});
 
 function loadPaletteSandbox(extra = {}) {
   return loadFrontendScripts(['utils.js', 'command-palette.js'], {

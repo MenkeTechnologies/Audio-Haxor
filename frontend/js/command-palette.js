@@ -131,7 +131,6 @@ function collectPaletteItems() {
   if (typeof clearRecentlyPlayed === 'function') items.push({ type: 'action', name: appFmt('menu.clear_play_history'), icon: '&#128465;', action: () => clearRecentlyPlayed() });
   if (typeof clearFavorites === 'function') items.push({ type: 'action', name: appFmt('menu.clear_favorites'), icon: '&#128465;', action: () => clearFavorites() });
   if (typeof clearAllNotes === 'function') items.push({ type: 'action', name: appFmt('menu.clear_all_notes_tags'), icon: '&#128465;', action: () => clearAllNotes() });
-  items.push({ type: 'action', name: appFmt('menu.preferences'), icon: '&#128196;', action: () => typeof window.vstUpdater.openPrefsFile === 'function' && window.vstUpdater.openPrefsFile() });
   items.push({ type: 'action', name: appFmt('menu.focus_search'), icon: '&#128269;', action: () => { const tab = document.querySelector('.tab-content.active'); const input = tab?.querySelector('input[type="text"]'); if (input) { input.focus(); input.select(); } } });
 
   // Player controls
@@ -168,9 +167,6 @@ function collectPaletteItems() {
       else { setAbLoopStart(); }
     }});
   }
-  if (typeof clearRecentlyPlayed === 'function') {
-    items.push({ type: 'action', name: appFmt('menu.clear_play_history'), icon: '&#128465;', action: () => clearRecentlyPlayed() });
-  }
 
   // Selection
   if (typeof selectAllVisible === 'function') {
@@ -178,14 +174,6 @@ function collectPaletteItems() {
   }
   if (typeof deselectAll === 'function') {
     items.push({ type: 'action', name: appFmt('menu.toggle_deselect_all'), icon: '&#9744;', action: () => deselectAll() });
-  }
-
-  // Effects toggles
-  if (typeof settingToggleCrt === 'function') {
-    items.push({ type: 'action', name: appFmt('menu.toggle_crt'), icon: '&#128250;', action: () => settingToggleCrt() });
-  }
-  if (typeof settingToggleNeonGlow === 'function') {
-    items.push({ type: 'action', name: appFmt('menu.toggle_neon_glow'), icon: '&#10024;', action: () => settingToggleNeonGlow() });
   }
 
   // Data items (plugins, samples, DAW, presets) are searched lazily
