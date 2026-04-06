@@ -383,14 +383,9 @@ function _renderNpFft() {
   const canvas = document.getElementById('npFftCanvas');
   if (!canvas || canvas.offsetParent === null) return; // skip if hidden
   const ctx = canvas.getContext('2d');
-  // Sync canvas resolution to CSS size (once or on resize)
-  const cw = canvas.clientWidth;
-  const ch = canvas.clientHeight;
-  if (cw > 0 && (canvas.width !== cw || canvas.height !== ch)) {
-    canvas.width = cw;
-    canvas.height = ch;
-    _npFftGrad = null; // rebuild gradient
-  }
+  // Fixed 600×48 buffer set in HTML attributes, CSS stretches to container.
+  // Never read clientWidth/clientHeight or set canvas.width/height in the
+  // render loop — release WebView returns wrong values and resets the bitmap.
   const w = canvas.width;
   const h = canvas.height;
   if (w === 0 || h === 0) return;
