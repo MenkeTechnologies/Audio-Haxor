@@ -3,7 +3,7 @@ name = "audio-haxor"
 version = "1.17.0"
 description = "Desktop app to scan and manage VST/VST3/AU audio plugins, samples, and DAW projects"
 authors = ["MenkeTechnologies <MenkeTechnologies@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
