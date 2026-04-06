@@ -480,6 +480,7 @@ async function findSimilarSamples(filePath) {
 }
 
 function closeSimilarPanel() {
+  if (_simDragAbort) { _simDragAbort.abort(); _simDragAbort = null; }
   const panel = document.getElementById('similarPanel');
   if (panel) panel.remove();
 }
@@ -493,11 +494,18 @@ function minimizeSimilarPanel() {
 }
 
 // Similar panel drag + resize + snap (same pattern as audio player)
+// AbortController kills all document-level listeners when the panel closes.
+let _simDragAbort = null;
 function initSimilarPanelDrag() {
   const panel = document.getElementById('similarPanel');
   if (!panel) return;
   const toolbar = document.getElementById('simToolbar');
   let dragging = false, startX, startY, origX, origY;
+
+  // Abort previous listeners if panel was re-opened without closing
+  if (_simDragAbort) _simDragAbort.abort();
+  _simDragAbort = new AbortController();
+  const sig = { signal: _simDragAbort.signal };
 
   function nearestDock(x, y) {
     const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
@@ -522,13 +530,13 @@ function initSimilarPanelDrag() {
     panel.style.bottom = 'auto';
     panel.classList.add('dragging');
     document.body.style.userSelect = 'none';
-  });
+  }, sig);
 
   document.addEventListener('mousemove', (e) => {
     if (!dragging) return;
     panel.style.left = (origX + e.clientX - startX) + 'px';
     panel.style.top = (origY + e.clientY - startY) + 'px';
-  });
+  }, sig);
 
   document.addEventListener('mouseup', (e) => {
     if (!dragging) return;
@@ -540,7 +548,7 @@ function initSimilarPanelDrag() {
     panel.style.right = ''; panel.style.bottom = '';
     panel.classList.add(dock);
     prefs.setItem('similarDock', dock);
-  });
+  }, sig);
 
   // Resize via edge handles
   let resizing = null;
@@ -557,7 +565,7 @@ function initSimilarPanelDrag() {
     panel.style.height = rect.height + 'px';
     document.body.style.userSelect = 'none';
     resizing = { edge: handle.dataset.simResize, startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top, origW: rect.width, origH: rect.height };
-  });
+  }, sig);
 
   document.addEventListener('mousemove', (e) => {
     if (!resizing) return;
@@ -569,7 +577,7 @@ function initSimilarPanelDrag() {
     if (s.edge.includes('n')) { h = Math.max(150, s.origH - dy); t = s.origTop + s.origH - h; }
     panel.style.left = l + 'px'; panel.style.top = t + 'px';
     panel.style.width = w + 'px'; panel.style.height = h + 'px';
-  });
+  }, sig);
 
   document.addEventListener('mouseup', () => {
     if (resizing) {
@@ -579,7 +587,7 @@ function initSimilarPanelDrag() {
       resizing = null;
       document.body.style.userSelect = '';
     }
-  });
+  }, sig);
 }
 
 // Similar panel event delegation
@@ -2535,7 +2543,15 @@ function updateMetaLine() {
     return -((y - h / 2) / (h / 2 - 10)) * GAIN_MAX;
   }
 
+  let _eqRafId = null;
   function draw() {
+    // Stop loop when EQ section is hidden or removed from DOM
+    const eqSec = document.getElementById('npEqSection');
+    if (!eqSec || !eqSec.classList.contains('visible')) {
+      _eqRafId = null;
+      _eqCanvasStarted = false;
+      return;
+    }
     // Check if container width changed (player resized)
     const wrap = canvas.parentElement;
     if (wrap) {
@@ -2657,7 +2673,7 @@ function updateMetaLine() {
       ctx.fillText(Math.round(band.filter.frequency.value) + 'Hz ' + band.filter.gain.value.toFixed(1) + 'dB', x + 10, y + 8);
     }
 
-    requestAnimationFrame(draw);
+    _eqRafId = requestAnimationFrame(draw);
   }
 
   // Start drawing when EQ section is visible
@@ -2678,11 +2694,10 @@ function updateMetaLine() {
 
   const eqSection = document.getElementById('npEqSection');
   if (eqSection) {
+    // Re-observe so draw loop restarts when EQ section is toggled visible again
     const observer = new MutationObserver(() => {
       if (eqSection.classList.contains('visible')) {
-        // Delay to let layout settle
         setTimeout(startEqCanvas, 50);
-        observer.disconnect();
       }
     });
     observer.observe(eqSection, { attributes: true, attributeFilter: ['class'] });
