@@ -680,12 +680,9 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
     allAudioSamples.push(...toAdd);
     // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data,
     // post-scan fetchAudioPage() reloads the visible page directly from SQLite.
-    if (allAudioSamples.length > 100000) allAudioSamples = allAudioSamples.slice(-100000);
+    // Use length truncation instead of .slice() to avoid O(n) copy every flush.
+    if (allAudioSamples.length > 100000) allAudioSamples.length = 100000;
     accumulateAudioStats(toAdd);
-    // Queue for background BPM/Key/LUFS analysis (cap at 50K to prevent unbounded growth)
-    _bgQueue.push(...toAdd);
-    if (_bgQueue.length > 50000) _bgQueue = _bgQueue.slice(-50000); // keep newest
-    if (!_bgAnalysisRunning) startBackgroundAnalysis();
     const audioElapsed = audioEta.elapsed();
     btn.innerHTML = catalogFmt('ui.audio.scan_progress_line', { n: pendingFound.toLocaleString(), elapsed: audioElapsed ? ' — ' + audioElapsed : '' });
     progressFill.style.width = '';
@@ -702,7 +699,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
     });
     if (matching.length > 0) {
       filteredAudioSamples.push(...matching);
-      if (filteredAudioSamples.length > 100000) filteredAudioSamples = filteredAudioSamples.slice(-100000);
+      if (filteredAudioSamples.length > 100000) filteredAudioSamples.length = 100000;
       const tbody = document.getElementById('audioTableBody');
       if (tbody && audioRenderCount < 2000) {
         const loadMore = document.getElementById('audioLoadMore');

@@ -169,8 +169,8 @@ async function scanMidi(resume = false) {
     if (firstMidiBatch) { firstMidiBatch = false; _midiTableInit = false; _midiRenderCount = 0; }
     allMidiFiles.push(...toAdd);
     // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data.
-    if (allMidiFiles.length > 100000) allMidiFiles = allMidiFiles.slice(-100000);
-    if (filteredMidi.length > 100000) filteredMidi = filteredMidi.slice(-100000);
+    if (allMidiFiles.length > 100000) allMidiFiles.length = 100000;
+    if (filteredMidi.length > 100000) filteredMidi.length = 100000;
     // Apply active search so streamed rows respect the user's current filter.
     const q = (typeof _midiSearch === 'string' && _midiSearch) ? _midiSearch : '';
     const mode = typeof getSearchMode === 'function' ? getSearchMode('regexMidi') : 'fuzzy';

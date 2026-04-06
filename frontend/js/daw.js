@@ -382,7 +382,7 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
 
     allDawProjects.push(...toAdd);
     // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data.
-    if (allDawProjects.length > 100000) allDawProjects = allDawProjects.slice(-100000);
+    if (allDawProjects.length > 100000) allDawProjects.length = 100000;
     accumulateDawStats(toAdd);
     const dawElapsed = dawEta.elapsed();
     btn.innerHTML = `&#8635; ${pendingFound.toLocaleString()} found${dawElapsed ? ' — ' + dawElapsed : ''}`;
@@ -399,7 +399,7 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
     });
     if (matching.length > 0) {
       filteredDawProjects.push(...matching);
-      if (filteredDawProjects.length > 100000) filteredDawProjects = filteredDawProjects.slice(-100000);
+      if (filteredDawProjects.length > 100000) filteredDawProjects.length = 100000;
       const tbody = document.getElementById('dawTableBody');
       if (tbody && dawRenderCount < 2000) {
         const loadMore = document.getElementById('dawLoadMore');

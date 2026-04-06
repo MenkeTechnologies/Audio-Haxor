@@ -386,15 +386,15 @@ async function scanPresets(resume = false, unifiedResult = null) {
     const presetBatch = batch.filter(p => !midiFormats.has(p.format));
     allPresets.push(...batch); // keep all in allPresets for export/history
     // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data.
-    if (allPresets.length > 100000) allPresets = allPresets.slice(-100000);
-    if (filteredPresets.length > 100000) filteredPresets = filteredPresets.slice(-100000);
+    if (allPresets.length > 100000) allPresets.length = 100000;
+    if (filteredPresets.length > 100000) filteredPresets.length = 100000;
     filteredPresets.push(...presetBatch);
     // Incrementally update stats — O(batch) not O(total).
     accumulatePresetStats(batch);
     // Stream MIDI files to MIDI tab incrementally
     if (midiBatch.length > 0 && typeof allMidiFiles !== 'undefined') {
       allMidiFiles.push(...midiBatch);
-      if (allMidiFiles.length > 100000) allMidiFiles = allMidiFiles.slice(-100000);
+      if (allMidiFiles.length > 100000) allMidiFiles.length = 100000;
       if (typeof filteredMidi !== 'undefined') filteredMidi.push(...midiBatch);
       // Append rows instead of full rebuild
       const midiTbody = document.getElementById('midiTableBody');

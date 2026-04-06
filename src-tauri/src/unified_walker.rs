@@ -315,13 +315,12 @@ pub fn walk_unified(
     // Log root set with network mount annotations so the user can verify
     // their SMB/NFS shares are included in the walk.
     for r in &union {
-        let net_tag = network_fs_type(r)
-            .map(|fs| format!(" [NETWORK: {}]", fs))
-            .unwrap_or_default();
-        crate::write_app_log(format!(
-            "SCAN ROOT — unified | {}{}",
-            r.display(), net_tag,
-        ));
+        if let Some(fs) = network_fs_type(r) {
+            crate::write_app_log(format!(
+                "SCAN ROOT — unified | {} [NETWORK: {}]",
+                r.display(), fs,
+            ));
+        }
     }
 
     let audio_found = Arc::new(AtomicUsize::new(0));
@@ -483,13 +482,15 @@ fn walk_dir_parallel(
                     e
                 }
                 Err(e2) => {
-                    let fsinfo = network_fs_type(dir)
-                        .map(|fs| format!(" (fs={})", fs))
-                        .unwrap_or_default();
-                    crate::write_app_log(format!(
-                        "SCAN READDIR ERROR — unified | {}{} | {} (retry: {})",
-                        dir.display(), fsinfo, e, e2,
-                    ));
+                    if is_net {
+                        let fsinfo = network_fs_type(dir)
+                            .map(|fs| format!(" (fs={})", fs))
+                            .unwrap_or_default();
+                        crate::write_app_log(format!(
+                            "SCAN READDIR ERROR — unified | {}{} | {} (retry: {})",
+                            dir.display(), fsinfo, e, e2,
+                        ));
+                    }
                     return;
                 }
             }
