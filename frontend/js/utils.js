@@ -316,11 +316,9 @@ function getMatchIndices(query, text, mode) {
   return [...allIndices].sort((a, b) => a - b);
 }
 
-// Highlight matched characters in text
-function highlightMatch(text, query, mode) {
-  if (!query || !text) return escapeHtml(text);
-  const indices = getMatchIndices(query, text, mode);
-  if (indices.length === 0) return escapeHtml(text);
+function highlightWithIndices(text, indices) {
+  if (!text) return '';
+  if (!indices || indices.length === 0) return escapeHtml(text);
   const idxSet = new Set(indices);
   let result = '';
   let inMark = false;
@@ -336,6 +334,49 @@ function highlightMatch(text, query, mode) {
   }
   if (inMark) result += '</mark>';
   return result;
+}
+
+// Highlight matched characters in text
+function highlightMatch(text, query, mode) {
+  if (!query || !text) return escapeHtml(text);
+  return highlightWithIndices(text, getMatchIndices(query, text, mode));
+}
+
+/**
+ * When the DB matches on full `path` (FTS) but the UI shows only the basename, match indices may
+ * exist only on `path`. Map those indices onto `name` when basename equals `name`.
+ */
+function highlightBasenameFromPath(path, name, query, mode) {
+  if (!query || !name) return escapeHtml(name);
+  let idx = getMatchIndices(query, name, mode);
+  if (idx.length) return highlightWithIndices(name, idx);
+  if (!path) return escapeHtml(name);
+  idx = getMatchIndices(query, path, mode);
+  if (!idx.length) return escapeHtml(name);
+  const basenameStart = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1;
+  const pBase = path.slice(basenameStart);
+  if (pBase.length !== name.length || pBase.toLowerCase() !== name.toLowerCase()) return escapeHtml(name);
+  const mapped = idx.filter(i => i >= basenameStart && i < path.length).map(i => i - basenameStart);
+  if (mapped.length === 0) return escapeHtml(name);
+  return highlightWithIndices(name, mapped);
+}
+
+/**
+ * Same idea for the directory column: matches may only appear in the full path prefix.
+ */
+function highlightPathPrefixFromPath(path, dirField, query, mode) {
+  if (!query || !dirField) return escapeHtml(dirField);
+  let idx = getMatchIndices(query, dirField, mode);
+  if (idx.length) return highlightWithIndices(dirField, idx);
+  if (!path) return escapeHtml(dirField);
+  idx = getMatchIndices(query, path, mode);
+  if (!idx.length) return escapeHtml(dirField);
+  const nPath = path.replace(/\\/g, '/');
+  const nDir = dirField.replace(/\\/g, '/');
+  if (!nPath.startsWith(nDir)) return escapeHtml(dirField);
+  const mapped = idx.filter(i => i < nDir.length);
+  if (mapped.length === 0) return escapeHtml(dirField);
+  return highlightWithIndices(dirField, mapped);
 }
 
 // Extension-to-dropdown value mapping for auto-select

@@ -178,6 +178,21 @@ describe('utils.js fzf comprehensive (vm)', () => {
       const h = U.highlightMatch('abc', 'zzz', 'fuzzy');
       assert.strictEqual(h, U.escapeHtml('abc'));
     });
+
+    it('highlights format badge text (e.g. Fla → FLAC)', () => {
+      const h = U.highlightMatch('FLAC', 'Fla', 'fuzzy');
+      assert.ok(h.includes('<mark class="fzf-hl">'));
+    });
+  });
+
+  describe('highlightPathPrefixFromPath', () => {
+    it('maps full-path indices onto directory prefix when match is only in path', () => {
+      const path = '/Users/music/projects/sample.flac';
+      const dir = '/Users/music';
+      const h = U.highlightPathPrefixFromPath(path, dir, 'music', 'fuzzy');
+      assert.ok(h.includes('<mark class="fzf-hl">'));
+      assert.ok(h.includes('music'));
+    });
   });
 
   describe('parseToken / parseFzfQuery', () => {
