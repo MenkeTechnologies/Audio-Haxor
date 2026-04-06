@@ -198,7 +198,8 @@ document.getElementById('headerStats')?.addEventListener('click', (e) => e.stopP
     if (typeof fetchPresetPage === 'function') {
         _presetOffset = 0;
         fetchPresetPage().then(() => {
-            document.getElementById('btnExportPresets').style.display = allPresets.length > 0 ? '' : 'none';
+            if (typeof updatePresetExportButton === 'function') updatePresetExportButton();
+            else document.getElementById('btnExportPresets').style.display = allPresets.length > 0 ? '' : 'none';
             if (typeof rebuildPresetStats === 'function') rebuildPresetStats();
             if (typeof loadMidiFiles === 'function') loadMidiFiles();
         }).catch(err => showToast(toastFmt('toast.failed_load_preset_scan', {err}), 4000, 'error'));

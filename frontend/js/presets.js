@@ -140,7 +140,10 @@ let _lastPresetAggKey = null;
 let _presetAggCache = null;
 async function rebuildPresetStats(force) {
   const statsEl = document.getElementById('presetStats');
-  if (!statsEl) return;
+  if (!statsEl) {
+    updatePresetExportButton();
+    return;
+  }
   const search = document.getElementById('presetSearchInput')?.value || '';
   const fmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('presetFormatFilter') : null;
   const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
@@ -183,6 +186,7 @@ async function rebuildPresetStats(force) {
     .map(([fmt, c]) => `<span class="format-badge format-default">${fmt}: ${c}</span>`)
     .join(' ');
   document.getElementById('presetFormatBreakdown').innerHTML = fmtHtml;
+  updatePresetExportButton();
 }
 
 function resetPresetStats() {
@@ -224,6 +228,47 @@ registerFilter('filterPresets', {
   },
 });
 function filterPresets() { applyFilter('filterPresets'); }
+
+/** Full list for export when SQLite-backed UI has only paginated rows (or scan-in-progress buffer). */
+const _PRESET_EXPORT_MAX = 100000;
+async function fetchPresetsForExport() {
+  if (typeof presetScanProgressCleanup !== 'undefined' && presetScanProgressCleanup) {
+    return typeof allPresets !== 'undefined' && allPresets.length > 0 ? allPresets.slice() : [];
+  }
+  const search = _lastPresetSearch || '';
+  const fmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('presetFormatFilter') : null;
+  const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
+  const total = Math.max(_presetTotalCount || 0, _presetTotalUnfiltered || 0);
+  const n = Math.min(total, _PRESET_EXPORT_MAX);
+  if (n <= 0) return [];
+  const result = await window.vstUpdater.dbQueryPresets({
+    search: search || null,
+    format_filter: formatFilter,
+    sort_key: presetSortKey,
+    sort_asc: presetSortAsc,
+    offset: 0,
+    limit: n,
+  });
+  let presets = result.presets || [];
+  if (search && presets.length > 1) {
+    const scored = presets.map((p) => ({ p, score: searchScore(search, [p.name], _lastPresetMode) }));
+    scored.sort((a, b) => b.score - a.score);
+    presets = scored.map((x) => x.p);
+  }
+  return presets;
+}
+
+function updatePresetExportButton() {
+  const btn = document.getElementById('btnExportPresets');
+  if (!btn) return;
+  let n = 0;
+  if (typeof presetScanProgressCleanup !== 'undefined' && presetScanProgressCleanup) {
+    n = typeof allPresets !== 'undefined' ? allPresets.length : 0;
+  } else {
+    n = Math.max(_presetTotalCount || 0, _presetTotalUnfiltered || 0, typeof allPresets !== 'undefined' ? allPresets.length : 0);
+  }
+  btn.style.display = n > 0 ? '' : 'none';
+}
 
 function _legacyFilterPresets() {
   // Kept for scan streaming — not used for user-initiated filter
@@ -487,7 +532,7 @@ async function scanPresets(resume = false, unifiedResult = null) {
   if (typeof btnLoading === 'function') btnLoading(btn, false);
   btn.innerHTML = '&#127924; Scan Presets';
   setBtnDisplay(stopBtn, 'none');
-  document.getElementById('btnExportPresets').style.display = allPresets.length > 0 ? '' : 'none';
+  updatePresetExportButton();
   progressBar.classList.remove('active');
   progressFill.style.width = '0%';
 }

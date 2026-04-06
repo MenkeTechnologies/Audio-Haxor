@@ -33,7 +33,12 @@ if (typeof window !== 'undefined') {
 }
 
 function updateExportButton() {
-  document.getElementById('btnExport').style.display = allPlugins.length > 0 ? '' : 'none';
+  const btn = document.getElementById('btnExport');
+  if (!btn) return;
+  const n = typeof getPluginExportableCount === 'function'
+    ? getPluginExportableCount()
+    : (typeof allPlugins !== 'undefined' ? allPlugins.length : 0);
+  btn.style.display = n > 0 ? '' : 'none';
 }
 
 async function showImportError(kind, err) {
@@ -200,11 +205,31 @@ document.addEventListener('click', (e) => {
 
 // ── Per-tab export functions (open modal) ──
 
-function exportPlugins() {
-  if (allPlugins.length === 0) return;
+async function exportPlugins() {
+  let plugins = null;
+  if (typeof scanProgressCleanup !== 'undefined' && scanProgressCleanup) {
+    plugins = typeof allPlugins !== 'undefined' && allPlugins.length > 0 ? allPlugins.slice() : null;
+  }
+  if (!plugins || plugins.length === 0) {
+    if (typeof fetchPluginsForExport === 'function') {
+      if (typeof showGlobalProgress === 'function') showGlobalProgress();
+      try {
+        plugins = await fetchPluginsForExport();
+      } catch (e) {
+        showToast(toastFmt('toast.plugin_query_failed', { err: e.message || e }), 4000, 'error');
+        return;
+      } finally {
+        if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
+      }
+    }
+  }
+  if (!plugins || plugins.length === 0) {
+    showToast(toastFmt('toast.no_list_export'));
+    return;
+  }
   _exportCtx = {
     titleKey: 'ui.export.title_plugin_inventory',
-    defaultName: exportFileName('plugins', allPlugins.length),
+    defaultName: exportFileName('plugins', plugins.length),
     exportFn: async (fmt, filePath) => {
       if (fmt === 'pdf') {
         const headers = pdfHeaders(
@@ -216,18 +241,18 @@ function exportPlugins() {
           'ui.export.col_size',
           'ui.export.col_modified',
         );
-        const rows = allPlugins.map(p => [p.name, p.type, p.version, p.manufacturer || '', (p.architectures || []).join(', '), p.size, p.modified]);
+        const rows = plugins.map(p => [p.name, p.type, p.version, p.manufacturer || '', (p.architectures || []).join(', '), p.size, p.modified]);
         await window.vstUpdater.exportPdf(_exportFmt('ui.export.title_plugin_inventory'), headers, rows, filePath);
       } else if (fmt === 'csv' || fmt === 'tsv') {
-        await window.vstUpdater.exportCsv(allPlugins, filePath);
+        await window.vstUpdater.exportCsv(plugins, filePath);
       } else if (fmt === 'toml') {
-        await window.vstUpdater.exportToml({ plugins: allPlugins }, filePath);
+        await window.vstUpdater.exportToml({ plugins }, filePath);
       } else {
-        await window.vstUpdater.exportJson(allPlugins, filePath.endsWith('.json') ? filePath : filePath + '.json');
+        await window.vstUpdater.exportJson(plugins, filePath.endsWith('.json') ? filePath : filePath + '.json');
       }
     }
   };
-  showExportModal('plugins', 'ui.export.title_plugin_inventory', allPlugins.length);
+  showExportModal('plugins', 'ui.export.title_plugin_inventory', plugins.length);
 }
 
 async function exportAudio() {
@@ -394,11 +419,31 @@ async function importPdfs() {
   } catch (err) { await showImportError('pdfs', err.message || String(err)); } finally { hideGlobalProgress(); }
 }
 
-function exportPresets() {
-  if (allPresets.length === 0) return;
+async function exportPresets() {
+  let presets = null;
+  if (typeof presetScanProgressCleanup !== 'undefined' && presetScanProgressCleanup) {
+    presets = typeof allPresets !== 'undefined' && allPresets.length > 0 ? allPresets.slice() : null;
+  }
+  if (!presets || presets.length === 0) {
+    if (typeof fetchPresetsForExport === 'function') {
+      if (typeof showGlobalProgress === 'function') showGlobalProgress();
+      try {
+        presets = await fetchPresetsForExport();
+      } catch (e) {
+        showToast(toastFmt('toast.preset_query_failed', { err: e }), 4000, 'error');
+        return;
+      } finally {
+        if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
+      }
+    }
+  }
+  if (!presets || presets.length === 0) {
+    showToast(toastFmt('toast.no_list_export'));
+    return;
+  }
   _exportCtx = {
     titleKey: 'ui.export.title_presets',
-    defaultName: exportFileName('presets', allPresets.length),
+    defaultName: exportFileName('presets', presets.length),
     exportFn: async (fmt, filePath) => {
       if (fmt === 'pdf') {
         const headers = pdfHeaders(
@@ -408,18 +453,18 @@ function exportPresets() {
           'ui.export.col_modified',
           'ui.export.col_path',
         );
-        const rows = allPresets.map(p => [p.name, p.format, p.sizeFormatted || '', p.modified, p.directory]);
+        const rows = presets.map(p => [p.name, p.format, p.sizeFormatted || '', p.modified, p.directory]);
         await window.vstUpdater.exportPdf(_exportFmt('ui.export.title_presets'), headers, rows, filePath);
       } else if (fmt === 'csv' || fmt === 'tsv') {
-        await window.vstUpdater.exportPresetsDsv(allPresets, filePath);
+        await window.vstUpdater.exportPresetsDsv(presets, filePath);
       } else if (fmt === 'toml') {
-        await window.vstUpdater.exportToml({ presets: allPresets }, filePath);
+        await window.vstUpdater.exportToml({ presets }, filePath);
       } else {
-        await window.vstUpdater.exportPresetsJson(allPresets, filePath.endsWith('.json') ? filePath : filePath + '.json');
+        await window.vstUpdater.exportPresetsJson(presets, filePath.endsWith('.json') ? filePath : filePath + '.json');
       }
     }
   };
-  showExportModal('presets', 'ui.export.title_presets', allPresets.length);
+  showExportModal('presets', 'ui.export.title_presets', presets.length);
 }
 
 // ── MIDI export ──
@@ -684,7 +729,8 @@ async function importPresets() {
     allPresets = imported;
     rebuildPresetStats();
     filterPresets();
-    document.getElementById('btnExportPresets').style.display = '';
+    if (typeof updatePresetExportButton === 'function') updatePresetExportButton();
+    else document.getElementById('btnExportPresets').style.display = '';
     showToast(toastFmt('toast.imported_n_presets', { n: imported.length }));
   } catch (err) { await showImportError('presets', err.message || String(err)); } finally { hideGlobalProgress(); }
 }

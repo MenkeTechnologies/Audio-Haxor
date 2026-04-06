@@ -488,7 +488,12 @@ document.addEventListener('contextmenu', (e) => {
       items.push({ icon: '&#8635;', label: appFmt('menu.scan_plugins'), action: () => scanPlugins() });
       items.push({ icon: '&#9889;', label: appFmt('menu.check_updates'), action: () => checkUpdates(), disabled: allPlugins.length === 0 });
       items.push('---');
-      items.push({ icon: '&#8615;', label: appFmt('menu.export_plugins'), action: () => exportPlugins(), disabled: allPlugins.length === 0 });
+      items.push({
+        icon: '&#8615;',
+        label: appFmt('menu.export_plugins'),
+        action: () => { if (typeof runExport === 'function') runExport(exportPlugins); else if (typeof exportPlugins === 'function') exportPlugins(); },
+        disabled: (typeof getPluginExportableCount === 'function' ? getPluginExportableCount() : allPlugins.length) === 0,
+      });
       items.push({ icon: '&#8613;', label: appFmt('menu.import_plugins'), action: () => importPlugins() });
     } else if (tabId === 'tabSamples') {
       items.push({ icon: '&#127925;', label: appFmt('menu.scan_samples'), action: () => scanAudioSamples() });
@@ -503,7 +508,12 @@ document.addEventListener('contextmenu', (e) => {
     } else if (tabId === 'tabPresets') {
       items.push({ icon: '&#127924;', label: appFmt('menu.scan_presets'), action: () => scanPresets() });
       items.push('---');
-      items.push({ icon: '&#8615;', label: appFmt('menu.export_presets'), action: () => exportPresets(), disabled: allPresets.length === 0 });
+      items.push({
+        icon: '&#8615;',
+        label: appFmt('menu.export_presets'),
+        action: () => { if (typeof runExport === 'function') runExport(exportPresets); else if (typeof exportPresets === 'function') exportPresets(); },
+        disabled: Math.max(_presetTotalCount || 0, _presetTotalUnfiltered || 0, allPresets.length) === 0,
+      });
       items.push({ icon: '&#8613;', label: appFmt('menu.import_presets'), action: () => importPresets() });
     } else if (tabId === 'tabMidi') {
       items.push({ icon: '&#127924;', label: appFmt('menu.scan_midi'), action: () => { if (typeof scanMidi === 'function') scanMidi(); } });
@@ -827,7 +837,15 @@ document.addEventListener('contextmenu', (e) => {
     }
     const exportFn = exportMap[tab];
     if (exportFn && typeof window[exportFn] === 'function') {
-      items.push({ icon: '&#8615;', label: appFmt('menu.export_tab_data'), action: () => window[exportFn]() });
+      items.push({
+        icon: '&#8615;',
+        label: appFmt('menu.export_tab_data'),
+        action: () => {
+          const fn = window[exportFn];
+          if (typeof runExport === 'function') runExport(fn);
+          else fn();
+        },
+      });
     }
     if (scanFn || exportFn) items.push('---');
     items.push({ icon: '&#8644;', label: appFmt('menu.reset_tabs'), action: () => settingResetTabOrder() });

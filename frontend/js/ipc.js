@@ -102,7 +102,7 @@ listen('menu-action', (event) => {
             stopAll();
             break;
         case 'export_plugins':
-            exportPlugins();
+            runExport(exportPlugins);
             break;
         case 'import_plugins':
             importPlugins();
@@ -120,7 +120,7 @@ listen('menu-action', (event) => {
             importDaw();
             break;
         case 'export_presets':
-            exportPresets();
+            runExport(exportPresets);
             break;
         case 'import_presets':
             importPresets();
@@ -507,7 +507,7 @@ document.addEventListener('click', (e) => {
                 deleteMidiScanEntry(el.dataset.id);
                 break;
             case 'exportPlugins':
-                exportPlugins();
+                runExport(exportPlugins);
                 break;
             case 'importPlugins':
                 importPlugins();
@@ -528,7 +528,7 @@ document.addEventListener('click', (e) => {
                 importDaw();
                 break;
             case 'exportPresets':
-                exportPresets();
+                runExport(exportPresets);
                 break;
             case 'importPresets':
                 importPresets();

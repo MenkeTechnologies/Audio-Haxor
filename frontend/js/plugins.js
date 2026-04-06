@@ -114,6 +114,42 @@ async function fetchPluginPage() {
   }
 }
 
+/** Full list for export when SQLite-backed UI has only paginated `allPlugins` (or scan-in-progress buffer). */
+const _PLUGIN_EXPORT_MAX = 100000;
+async function fetchPluginsForExport() {
+  if (typeof scanProgressCleanup !== 'undefined' && scanProgressCleanup) {
+    return typeof allPlugins !== 'undefined' && allPlugins.length > 0 ? allPlugins.slice() : [];
+  }
+  const search = document.getElementById('searchInput')?.value || '';
+  const typeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('typeFilter') : null;
+  const typeFilter = typeSet ? [...typeSet].join(',') : null;
+  const total = Math.max(_pluginTotalCount || 0, _pluginTotalUnfiltered || 0);
+  const n = Math.min(total, _PLUGIN_EXPORT_MAX);
+  if (n <= 0) return [];
+  const result = await window.vstUpdater.dbQueryPlugins({
+    search: search || null,
+    type_filter: typeFilter,
+    sort_key: _pluginSortKey,
+    sort_asc: _pluginSortAsc,
+    offset: 0,
+    limit: n,
+  });
+  let plugins = result.plugins || [];
+  if (search && plugins.length > 1) {
+    const scored = plugins.map((p) => ({ p, score: searchScore(search, [p.name, p.manufacturer || ''], _lastPluginMode) }));
+    scored.sort((a, b) => b.score - a.score);
+    plugins = scored.map((s) => s.p);
+  }
+  return plugins;
+}
+
+function getPluginExportableCount() {
+  if (typeof scanProgressCleanup !== 'undefined' && scanProgressCleanup) {
+    return typeof allPlugins !== 'undefined' ? allPlugins.length : 0;
+  }
+  return Math.max(_pluginTotalCount || 0, _pluginTotalUnfiltered || 0, typeof allPlugins !== 'undefined' ? allPlugins.length : 0);
+}
+
 async function scanPlugins(resume = false) {
   showGlobalProgress();
   const btn = document.getElementById('btnScan');
