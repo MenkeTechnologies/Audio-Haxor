@@ -45,6 +45,8 @@ const NON_EN = /** @type {const} */ ([
   'ru',
   'sv',
   'tr',
+  'uk',
+  'vi',
   'zh',
 ]);
 

@@ -1,7 +1,7 @@
 /**
  * Mirrors `src-tauri/src/app_i18n.rs` seed invariants that are not covered by
  * `i18n-locales-and-shape.test.js` / `i18n-placeholders.test.js`:
- * - `seed_json_appfmt_placeholders_preserved_de_el_es_fi_fr_it_nl_pl_pt_ru_sv_zh_ja_ko_da_nb_tr_cs_hu_ro` (Rust; here: strict token multiset parity for `de`/`el`/`es`/`fi`/`fr`/`it`/`nl`/`pl`/`pt`/`ru`/`sv`/`zh`/`ja`/`ko`/`da`/`nb`/`tr`/`cs`/`hu`/`ro`; JS multiset is stricter than Rust substring check)
+ * - `seed_json_appfmt_placeholders_preserved_…_uk_vi` (Rust; here: strict token multiset parity for `de`/`el`/`es`/`fi`/`fr`/`it`/`nl`/`pl`/`pt`/`ru`/`sv`/`zh`/`ja`/`ko`/`da`/`nb`/`tr`/`cs`/`hu`/`ro`/`uk`/`vi`; JS multiset is stricter than Rust substring check)
  * - `seed_json_es_critical_prefixes_match_en_placeholders`
  * - `seed_json_en_defines_all_native_menu_bar_keys` + `seed_json_en_defines_all_tray_keys`
  *
@@ -114,7 +114,7 @@ function isEsCriticalPrefix(k) {
   );
 }
 
-test('de, el, es, fi, fr, it, nl, pl, pt, ru, sv, zh, ja, ko, da, nb, tr, cs, hu, ro: appFmt placeholder token multiset matches English for every key', () => {
+test('de, el, es, fi, fr, it, nl, pl, pt, ru, sv, zh, ja, ko, da, nb, tr, cs, hu, ro, uk, vi: appFmt placeholder token multiset matches English for every key', () => {
   const en = loadMap('app_i18n_en.json');
   for (const loc of [
     'de',
@@ -137,6 +137,8 @@ test('de, el, es, fi, fr, it, nl, pl, pt, ru, sv, zh, ja, ko, da, nb, tr, cs, hu
     'cs',
     'hu',
     'ro',
+    'uk',
+    'vi',
   ]) {
     const m = loadMap(`app_i18n_${loc}.json`);
     const bad = [];

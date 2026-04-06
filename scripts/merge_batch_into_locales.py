@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Merge keys from a batch JSON into de/es/sv/fr/nl/pt/it/el/pl/ru/zh/ja/ko/fi/da/nb/tr/cs/hu/ro using English values for new keys.
+"""Merge keys from a batch JSON into de/es/sv/fr/nl/pt/it/el/pl/ru/zh/ja/ko/fi/da/nb/tr/cs/hu/ro/uk/vi using English values for new keys.
 
 Values are taken from app_i18n_en.json. Re-writes each locale file sorted by key
 (matching the English catalog style).
@@ -45,6 +45,8 @@ def main() -> None:
         "cs",
         "hu",
         "ro",
+        "uk",
+        "vi",
     ):
         path = I18N / f"app_i18n_{loc}.json"
         cur: dict[str, str] = json.loads(path.read_text(encoding="utf-8"))

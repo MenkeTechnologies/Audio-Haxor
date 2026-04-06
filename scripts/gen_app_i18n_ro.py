@@ -35,6 +35,8 @@ LANG_SELECTOR_NATIVE = {
     "ui.opt.lang_ru": "Русский",
     "ui.opt.lang_sv": "Svenska",
     "ui.opt.lang_tr": "Türkçe",
+    "ui.opt.lang_uk": "Українська",
+    "ui.opt.lang_vi": "Tiếng Việt",
     "ui.opt.lang_zh": "简体中文",
 }
 
