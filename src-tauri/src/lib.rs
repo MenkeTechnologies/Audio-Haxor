@@ -2030,9 +2030,10 @@ async fn measure_lufs(file_path: String) -> Result<Option<f64>, String> {
 }
 
 /// Batch analyze: BPM + Key + LUFS for multiple files in parallel, save to SQLite.
-/// Returns count of successfully analyzed files.
+/// Analyzes files in parallel (rayon), batch-writes to DB, returns results
+/// directly so the frontend can update visible rows without extra IPC.
 #[tauri::command]
-async fn batch_analyze(paths: Vec<String>) -> Result<u32, String> {
+async fn batch_analyze(paths: Vec<String>) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
         use rayon::prelude::*;
         let results: Vec<db::AnalysisBatchRow> = paths
@@ -2045,7 +2046,20 @@ async fn batch_analyze(paths: Vec<String>) -> Result<u32, String> {
             })
             .collect();
         // Batch all DB writes in a single transaction
-        db::global().batch_update_analysis(&results).unwrap_or(0)
+        let count = db::global().batch_update_analysis(&results).unwrap_or(0);
+        // Return results so frontend skips N individual dbGetAnalysis IPC calls
+        let items: Vec<serde_json::Value> = results
+            .iter()
+            .map(|(path, bpm, key, lufs)| {
+                serde_json::json!({
+                    "path": path,
+                    "bpm": bpm,
+                    "key": key,
+                    "lufs": lufs,
+                })
+            })
+            .collect();
+        serde_json::json!({ "count": count, "results": items })
     })
     .await
     .map_err(|e| e.to_string())

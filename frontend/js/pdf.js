@@ -345,8 +345,8 @@ async function scanPdfs(resume = false, unifiedResult = null) {
 
     allPdfs.push(...batch);
     // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data.
-    if (allPdfs.length > 100000) allPdfs = allPdfs.slice(-100000);
-    if (filteredPdfs.length > 100000) filteredPdfs = filteredPdfs.slice(-100000);
+    if (allPdfs.length > 100000) allPdfs.length = 100000;
+    if (filteredPdfs.length > 100000) filteredPdfs.length = 100000;
     filteredPdfs.push(...batch);
     accumulatePdfStats(batch);
 

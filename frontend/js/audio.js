@@ -683,6 +683,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
     // Use length truncation instead of .slice() to avoid O(n) copy every flush.
     if (allAudioSamples.length > 100000) allAudioSamples.length = 100000;
     accumulateAudioStats(toAdd);
+    if (!_bgAnalysisRunning) startBackgroundAnalysis();
     const audioElapsed = audioEta.elapsed();
     btn.innerHTML = catalogFmt('ui.audio.scan_progress_line', { n: pendingFound.toLocaleString(), elapsed: audioElapsed ? ' — ' + audioElapsed : '' });
     progressFill.style.width = '';
@@ -1631,27 +1632,26 @@ async function startBackgroundAnalysis() {
     if (!paths || paths.length === 0) break;
 
     // Single IPC call → Rust processes all in parallel (rayon) → saves to SQLite
+    // Returns results directly so we skip N individual dbGetAnalysis roundtrips.
+    let analysisResult;
     try {
-      const count = await window.vstUpdater.batchAnalyze(paths);
-      _bgDone += count;
+      analysisResult = await window.vstUpdater.batchAnalyze(paths);
+      _bgDone += analysisResult.count || 0;
     } catch (e) {
       if (typeof showToast === 'function') showToast(toastFmt('toast.analysis_batch_failed', { err: e.message || e }), 4000, 'error');
       break; // Stop loop on persistent failure
     }
 
-    // Update visible rows
-    for (const path of paths) {
-      const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(path)}"]`);
-      if (row) {
-        try {
-          const a = await window.vstUpdater.dbGetAnalysis(path);
-          const bpmCell = row.querySelector('.col-bpm');
-          const keyCell = row.querySelector('.col-key');
-          const lufsCell = row.querySelector('.col-lufs');
-          if (bpmCell && a.bpm) bpmCell.textContent = a.bpm;
-          if (keyCell && a.key) keyCell.textContent = a.key;
-          if (lufsCell && a.lufs != null) { lufsCell.textContent = a.lufs; lufsCell.classList.toggle('lufs-low', a.lufs < -25); }
-        } catch (e) { if (typeof showToast === 'function') showToast(toastFmt('toast.analysis_read_failed', { err: e.message || e }), 4000, 'error'); }
+    // Update visible rows from returned results (no extra IPC needed)
+    const tbody = document.getElementById('audioTableBody');
+    if (tbody && analysisResult.results) {
+      for (const a of analysisResult.results) {
+        const row = tbody.querySelector(`tr[data-audio-path="${CSS.escape(a.path)}"]`);
+        if (row) {
+          if (a.bpm) { const c = row.querySelector('.col-bpm'); if (c) c.textContent = a.bpm; }
+          if (a.key) { const c = row.querySelector('.col-key'); if (c) c.textContent = a.key; }
+          if (a.lufs != null) { const c = row.querySelector('.col-lufs'); if (c) { c.textContent = a.lufs; c.classList.toggle('lufs-low', a.lufs < -25); } }
+        }
       }
     }
 
