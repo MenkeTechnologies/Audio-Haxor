@@ -475,6 +475,7 @@
   "toast.neon_glow": "Lueur de néon : {state}",
   "toast.no_audio_samples_scan_first": "Aucun échantillon audio chargé. Scannez d'abord les échantillons.",
   "toast.no_favorites_export": "Aucun favori à exporter",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Aucun échantillon correspondant trouvé",
   "toast.no_midi_handler": "Pas de gestionnaire MIDI : {err}",
   "toast.no_notes_export": "Aucune note ou balise à exporter",

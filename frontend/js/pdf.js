@@ -263,6 +263,41 @@ registerFilter('filterPdfs', {
 });
 function filterPdfs() { applyFilter('filterPdfs'); }
 
+/** Full list for export when cold-loaded from SQLite left `allPdfs` empty (paginated DB model). */
+const _PDF_EXPORT_MAX = 100000;
+async function fetchPdfsForExport() {
+  if (typeof pdfScanProgressCleanup !== 'undefined' && pdfScanProgressCleanup) {
+    return typeof allPdfs !== 'undefined' && allPdfs.length > 0 ? allPdfs.slice() : [];
+  }
+  const search = _lastPdfSearch || '';
+  const total = Math.max(_pdfTotalCount || 0, _pdfTotalUnfiltered || 0);
+  const n = Math.min(total, _PDF_EXPORT_MAX);
+  if (n <= 0) return [];
+  const backendSortKey = pdfSortKey === 'pages' ? 'name' : pdfSortKey;
+  const result = await window.vstUpdater.dbQueryPdfs({
+    search: search || null,
+    sort_key: backendSortKey,
+    sort_asc: pdfSortAsc,
+    offset: 0,
+    limit: n,
+  });
+  let pdfs = result.pdfs || [];
+  if (search && pdfs.length > 1 && typeof searchScore === 'function') {
+    const scored = pdfs.map((p) => ({ p, score: searchScore(search, [p.name], _lastPdfMode) }));
+    scored.sort((a, b) => b.score - a.score);
+    pdfs = scored.map((x) => x.p);
+  }
+  if (pdfSortKey === 'pages') {
+    const dir = pdfSortAsc ? 1 : -1;
+    pdfs.sort((a, b) => {
+      const av = _pdfPagesCache[a.path] ?? -1;
+      const bv = _pdfPagesCache[b.path] ?? -1;
+      return (av - bv) * dir;
+    });
+  }
+  return pdfs;
+}
+
 function openPdfFile(path) {
   window.vstUpdater.openPdfFile(path)
     .then(() => showToast(toastFmt('toast.revealed_in_finder')))

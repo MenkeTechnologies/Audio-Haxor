@@ -475,6 +475,7 @@
   "toast.neon_glow": "Neonlicht: {state}",
   "toast.no_audio_samples_scan_first": "No audio samples loaded. Scan samples first.",
   "toast.no_favorites_export": "Keine Favoriten zum Exportieren",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Keine passenden Proben gefunden",
   "toast.no_midi_handler": "Kein MIDI-Handler: {err}",
   "toast.no_notes_export": "Keine Notizen oder Tags zum Exportieren",

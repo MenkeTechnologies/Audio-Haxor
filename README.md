@@ -418,7 +418,7 @@ frontend/
     daw.js             -- DAW project scanning + stats
     disk-usage.js      -- Stacked bar charts for storage breakdown
     duplicates.js      -- Duplicate detection modal
-    export.js          -- Export/import (JSON/TOML/CSV/TSV/PDF)
+    export.js          -- Export/import (JSON/TOML/CSV/TSV/PDF); samples/DAW/MIDI/PDF pull the full filtered result set from SQLite when the UI holds only a paginated page
     favorites.js       -- Favorites management
     file-browser.js    -- Filesystem navigation with tags + notes
     help-overlay.js    -- Keyboard shortcuts reference overlay

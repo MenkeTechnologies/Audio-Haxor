@@ -197,6 +197,7 @@ TOAST_EN: dict[str, str] = {
     "toast.exporting_title_as": "Exporting {title} as {ext}...",
     "toast.exported_title_as": "{title} exported as {ext}",
     "toast.export_failed": "Export failed — {err}",
+    "toast.no_list_export": "Nothing to export.",
     "toast.no_xref_build_index": "No xref data — build plugin index first",
     "toast.no_smart_playlists_export": "No smart playlists to export",
     "toast.imported_n_plugins": "Imported {n} plugins",

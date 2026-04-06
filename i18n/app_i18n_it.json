@@ -475,6 +475,7 @@
   "toast.neon_glow": "Bagliore al neon: {state}",
   "toast.no_audio_samples_scan_first": "No audio samples loaded. Scan samples first.",
   "toast.no_favorites_export": "Nessun preferito da esportare",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Nessun campione corrispondente trovato",
   "toast.no_midi_handler": "Nessun gestore MIDI: {err}",
   "toast.no_notes_export": "Nessuna nota o tag da esportare",

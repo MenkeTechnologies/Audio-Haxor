@@ -234,6 +234,35 @@ registerFilter('filterDawProjects', {
 });
 function filterDawProjects() { applyFilter('filterDawProjects'); }
 
+/** Full list for export when SQLite-backed UI has left `allDawProjects` empty (paginated DB model). */
+const _DAW_EXPORT_MAX = 100000;
+async function fetchDawProjectsForExport() {
+  if (typeof dawScanProgressCleanup !== 'undefined' && dawScanProgressCleanup) {
+    return typeof allDawProjects !== 'undefined' && allDawProjects.length > 0 ? allDawProjects.slice() : [];
+  }
+  const search = _lastDawSearch || '';
+  const dawSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('dawDawFilter') : null;
+  const dawFilter = dawSet ? [...dawSet].join(',') : null;
+  const total = Math.max(_dawTotalCount || 0, _dawTotalUnfiltered || 0);
+  const n = Math.min(total, _DAW_EXPORT_MAX);
+  if (n <= 0) return [];
+  const result = await window.vstUpdater.dbQueryDaw({
+    search: search || null,
+    daw_filter: dawFilter,
+    sort_key: dawSortKey,
+    sort_asc: dawSortAsc,
+    offset: 0,
+    limit: n,
+  });
+  let projects = result.projects || [];
+  if (search && projects.length > 1 && typeof searchScore === 'function') {
+    const scored = projects.map((p) => ({ p, score: searchScore(search, [p.name], _lastDawMode) }));
+    scored.sort((a, b) => b.score - a.score);
+    projects = scored.map((x) => x.p);
+  }
+  return projects;
+}
+
 function sortDaw(key) {
   if (dawSortKey === key) {
     dawSortAsc = !dawSortAsc;

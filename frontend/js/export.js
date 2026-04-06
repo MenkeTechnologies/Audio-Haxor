@@ -230,11 +230,28 @@ function exportPlugins() {
   showExportModal('plugins', 'ui.export.title_plugin_inventory', allPlugins.length);
 }
 
-function exportAudio() {
-  if (allAudioSamples.length === 0) return;
+async function exportAudio() {
+  let samples = typeof allAudioSamples !== 'undefined' && allAudioSamples.length > 0 ? allAudioSamples : null;
+  if (!samples || samples.length === 0) {
+    if (typeof fetchAudioSamplesForExport === 'function') {
+      if (typeof showGlobalProgress === 'function') showGlobalProgress();
+      try {
+        samples = await fetchAudioSamplesForExport();
+      } catch (e) {
+        showToast(toastFmt('toast.audio_query_failed', { err: e.message || e }), 4000, 'error');
+        return;
+      } finally {
+        if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
+      }
+    }
+  }
+  if (!samples || samples.length === 0) {
+    showToast(toastFmt('toast.no_list_export'));
+    return;
+  }
   _exportCtx = {
     titleKey: 'ui.export.title_audio_samples',
-    defaultName: exportFileName('samples', allAudioSamples.length),
+    defaultName: exportFileName('samples', samples.length),
     exportFn: async (fmt, filePath) => {
       if (fmt === 'pdf') {
         const headers = pdfHeaders(
@@ -244,25 +261,42 @@ function exportAudio() {
           'ui.export.col_modified',
           'ui.export.col_path',
         );
-        const rows = allAudioSamples.map(s => [s.name, s.format, s.sizeFormatted, s.modified, s.directory]);
+        const rows = samples.map(s => [s.name, s.format, s.sizeFormatted, s.modified, s.directory]);
         await window.vstUpdater.exportPdf(_exportFmt('ui.export.pdf_audio_library'), headers, rows, filePath);
       } else if (fmt === 'csv' || fmt === 'tsv') {
-        await window.vstUpdater.exportAudioDsv(allAudioSamples, filePath);
+        await window.vstUpdater.exportAudioDsv(samples, filePath);
       } else if (fmt === 'toml') {
-        await window.vstUpdater.exportToml({ samples: allAudioSamples }, filePath);
+        await window.vstUpdater.exportToml({ samples }, filePath);
       } else {
-        await window.vstUpdater.exportAudioJson(allAudioSamples, filePath.endsWith('.json') ? filePath : filePath + '.json');
+        await window.vstUpdater.exportAudioJson(samples, filePath.endsWith('.json') ? filePath : filePath + '.json');
       }
     }
   };
-  showExportModal('audio', 'ui.export.title_audio_samples', allAudioSamples.length);
+  showExportModal('audio', 'ui.export.title_audio_samples', samples.length);
 }
 
-function exportDaw() {
-  if (allDawProjects.length === 0) return;
+async function exportDaw() {
+  let projects = typeof allDawProjects !== 'undefined' && allDawProjects.length > 0 ? allDawProjects : null;
+  if (!projects || projects.length === 0) {
+    if (typeof fetchDawProjectsForExport === 'function') {
+      if (typeof showGlobalProgress === 'function') showGlobalProgress();
+      try {
+        projects = await fetchDawProjectsForExport();
+      } catch (e) {
+        showToast(toastFmt('toast.daw_query_failed', { err: e.message || e }), 4000, 'error');
+        return;
+      } finally {
+        if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
+      }
+    }
+  }
+  if (!projects || projects.length === 0) {
+    showToast(toastFmt('toast.no_list_export'));
+    return;
+  }
   _exportCtx = {
     titleKey: 'ui.export.title_daw_projects',
-    defaultName: exportFileName('daw-projects', allDawProjects.length),
+    defaultName: exportFileName('daw-projects', projects.length),
     exportFn: async (fmt, filePath) => {
       if (fmt === 'pdf') {
         const headers = pdfHeaders(
@@ -273,25 +307,42 @@ function exportDaw() {
           'ui.export.col_modified',
           'ui.export.col_path',
         );
-        const rows = allDawProjects.map(p => [p.name, p.daw, p.format, p.sizeFormatted, p.modified, p.directory]);
+        const rows = projects.map(p => [p.name, p.daw, p.format, p.sizeFormatted, p.modified, p.directory]);
         await window.vstUpdater.exportPdf(_exportFmt('ui.export.title_daw_projects'), headers, rows, filePath);
       } else if (fmt === 'csv' || fmt === 'tsv') {
-        await window.vstUpdater.exportDawDsv(allDawProjects, filePath);
+        await window.vstUpdater.exportDawDsv(projects, filePath);
       } else if (fmt === 'toml') {
-        await window.vstUpdater.exportToml({ projects: allDawProjects }, filePath);
+        await window.vstUpdater.exportToml({ projects }, filePath);
       } else {
-        await window.vstUpdater.exportDawJson(allDawProjects, filePath.endsWith('.json') ? filePath : filePath + '.json');
+        await window.vstUpdater.exportDawJson(projects, filePath.endsWith('.json') ? filePath : filePath + '.json');
       }
     }
   };
-  showExportModal('daw', 'ui.export.title_daw_projects', allDawProjects.length);
+  showExportModal('daw', 'ui.export.title_daw_projects', projects.length);
 }
 
-function exportPdfs() {
-  if (typeof allPdfs === 'undefined' || allPdfs.length === 0) return;
+async function exportPdfs() {
+  let pdfs = typeof allPdfs !== 'undefined' && allPdfs.length > 0 ? allPdfs : null;
+  if (!pdfs || pdfs.length === 0) {
+    if (typeof fetchPdfsForExport === 'function') {
+      if (typeof showGlobalProgress === 'function') showGlobalProgress();
+      try {
+        pdfs = await fetchPdfsForExport();
+      } catch (e) {
+        showToast(toastFmt('toast.pdf_query_failed', { err: e.message || e }), 4000, 'error');
+        return;
+      } finally {
+        if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
+      }
+    }
+  }
+  if (!pdfs || pdfs.length === 0) {
+    showToast(toastFmt('toast.no_list_export'));
+    return;
+  }
   _exportCtx = {
     titleKey: 'ui.export.title_pdfs',
-    defaultName: exportFileName('pdfs', allPdfs.length),
+    defaultName: exportFileName('pdfs', pdfs.length),
     exportFn: async (fmt, filePath) => {
       if (fmt === 'pdf') {
         const headers = pdfHeaders(
@@ -300,18 +351,18 @@ function exportPdfs() {
           'ui.export.col_modified',
           'ui.export.col_path',
         );
-        const rows = allPdfs.map(p => [p.name, p.sizeFormatted || '', p.modified, p.directory]);
+        const rows = pdfs.map(p => [p.name, p.sizeFormatted || '', p.modified, p.directory]);
         await window.vstUpdater.exportPdf(_exportFmt('ui.export.title_pdfs'), headers, rows, filePath);
       } else if (fmt === 'csv' || fmt === 'tsv') {
-        await window.vstUpdater.exportPdfsDsv(allPdfs, filePath);
+        await window.vstUpdater.exportPdfsDsv(pdfs, filePath);
       } else if (fmt === 'toml') {
-        await window.vstUpdater.exportToml({ pdfs: allPdfs }, filePath);
+        await window.vstUpdater.exportToml({ pdfs }, filePath);
       } else {
-        await window.vstUpdater.exportPdfsJson(allPdfs, filePath.endsWith('.json') ? filePath : filePath + '.json');
+        await window.vstUpdater.exportPdfsJson(pdfs, filePath.endsWith('.json') ? filePath : filePath + '.json');
       }
     }
   };
-  showExportModal('pdfs', 'ui.export.title_pdfs', allPdfs.length);
+  showExportModal('pdfs', 'ui.export.title_pdfs', pdfs.length);
 }
 
 async function importPdfs() {
@@ -373,13 +424,30 @@ function exportPresets() {
 
 // ── MIDI export ──
 
-function exportMidi() {
-  if (typeof allMidiFiles === 'undefined' || allMidiFiles.length === 0) return;
+async function exportMidi() {
+  let midiList = typeof allMidiFiles !== 'undefined' && allMidiFiles.length > 0 ? allMidiFiles : null;
+  if (!midiList || midiList.length === 0) {
+    if (typeof fetchMidiFilesForExport === 'function') {
+      if (typeof showGlobalProgress === 'function') showGlobalProgress();
+      try {
+        midiList = await fetchMidiFilesForExport();
+      } catch (e) {
+        showToast(toastFmt('toast.midi_load_failed', { err: e.message || e }), 4000, 'error');
+        return;
+      } finally {
+        if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
+      }
+    }
+  }
+  if (!midiList || midiList.length === 0) {
+    showToast(toastFmt('toast.no_list_export'));
+    return;
+  }
   _exportCtx = {
     titleKey: 'ui.export.title_midi',
-    defaultName: exportFileName('midi', allMidiFiles.length),
+    defaultName: exportFileName('midi', midiList.length),
     exportFn: async (fmt, filePath) => {
-      const data = allMidiFiles.map(s => {
+      const data = midiList.map(s => {
         const info = typeof _midiInfoCache !== 'undefined' ? _midiInfoCache[s.path] || {} : {};
         return { name: s.name, path: s.path, directory: s.directory, format: s.format, size: s.size, sizeFormatted: s.sizeFormatted, modified: s.modified, tracks: info.trackCount, tempo: info.tempo, timeSignature: info.timeSignature, keySignature: info.keySignature, noteCount: info.noteCount, channelsUsed: info.channelsUsed, duration: info.duration, trackNames: info.trackNames };
       });
@@ -424,7 +492,7 @@ function exportMidi() {
       }
     }
   };
-  showExportModal('midi', 'ui.export.title_midi', allMidiFiles.length);
+  showExportModal('midi', 'ui.export.title_midi', midiList.length);
 }
 
 // ── Xref/Dependency export ──

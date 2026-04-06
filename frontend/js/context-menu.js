@@ -493,12 +493,12 @@ document.addEventListener('contextmenu', (e) => {
     } else if (tabId === 'tabSamples') {
       items.push({ icon: '&#127925;', label: appFmt('menu.scan_samples'), action: () => scanAudioSamples() });
       items.push('---');
-      items.push({ icon: '&#8615;', label: appFmt('menu.export_samples'), action: () => exportAudio(), disabled: allAudioSamples.length === 0 });
+      items.push({ icon: '&#8615;', label: appFmt('menu.export_samples'), action: () => (typeof runExport === 'function' ? runExport(exportAudio) : exportAudio()), disabled: Math.max(audioTotalCount || 0, audioTotalUnfiltered || 0, allAudioSamples.length) === 0 });
       items.push({ icon: '&#8613;', label: appFmt('menu.import_samples'), action: () => importAudio() });
     } else if (tabId === 'tabDaw') {
       items.push({ icon: '&#127911;', label: appFmt('menu.scan_daw'), action: () => scanDawProjects() });
       items.push('---');
-      items.push({ icon: '&#8615;', label: appFmt('menu.export_projects'), action: () => exportDaw(), disabled: allDawProjects.length === 0 });
+      items.push({ icon: '&#8615;', label: appFmt('menu.export_projects'), action: () => (typeof runExport === 'function' ? runExport(exportDaw) : exportDaw()), disabled: Math.max(_dawTotalCount || 0, _dawTotalUnfiltered || 0, allDawProjects.length) === 0 });
       items.push({ icon: '&#8613;', label: appFmt('menu.import_projects_short'), action: () => importDaw() });
     } else if (tabId === 'tabPresets') {
       items.push({ icon: '&#127924;', label: appFmt('menu.scan_presets'), action: () => scanPresets() });
@@ -508,12 +508,12 @@ document.addEventListener('contextmenu', (e) => {
     } else if (tabId === 'tabMidi') {
       items.push({ icon: '&#127924;', label: appFmt('menu.scan_midi'), action: () => { if (typeof scanMidi === 'function') scanMidi(); } });
       items.push('---');
-      items.push({ icon: '&#8615;', label: appFmt('menu.export_midi_files'), action: () => { if (typeof exportMidi === 'function') exportMidi(); }, disabled: typeof allMidiFiles === 'undefined' || allMidiFiles.length === 0 });
+      items.push({ icon: '&#8615;', label: appFmt('menu.export_midi_files'), action: () => { if (typeof exportMidi === 'function' && typeof runExport === 'function') runExport(exportMidi); else if (typeof exportMidi === 'function') exportMidi(); }, disabled: Math.max(_midiTotalCount || 0, _midiTotalUnfiltered || 0, typeof allMidiFiles !== 'undefined' ? allMidiFiles.length : 0) === 0 });
       items.push({ icon: '&#8613;', label: appFmt('menu.import_midi_list'), action: () => { if (typeof importAudio === 'function') importAudio(); } });
     } else if (tabId === 'tabPdf') {
       items.push({ icon: '&#8635;', label: appFmt('menu.scan_pdf'), action: () => { if (typeof scanPdfs === 'function') scanPdfs(); } });
       items.push('---');
-      items.push({ icon: '&#8615;', label: appFmt('menu.export_pdfs'), action: () => { if (typeof exportPdfs === 'function') exportPdfs(); }, disabled: typeof allPdfs === 'undefined' || allPdfs.length === 0 });
+      items.push({ icon: '&#8615;', label: appFmt('menu.export_pdfs'), action: () => { if (typeof exportPdfs === 'function' && typeof runExport === 'function') runExport(exportPdfs); else if (typeof exportPdfs === 'function') exportPdfs(); }, disabled: Math.max(_pdfTotalCount || 0, _pdfTotalUnfiltered || 0, typeof allPdfs !== 'undefined' ? allPdfs.length : 0) === 0 });
       items.push({ icon: '&#8613;', label: appFmt('menu.import_pdfs'), action: () => { if (typeof importPdfs === 'function') importPdfs(); } });
     }
     if (items.length) {

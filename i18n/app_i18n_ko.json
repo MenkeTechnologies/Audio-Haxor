@@ -475,6 +475,7 @@
   "toast.neon_glow": "네온 글로우: {state}",
   "toast.no_audio_samples_scan_first": "로드된 오디오 샘플이 없습니다. 먼저 샘플을 스캔하세요.",
   "toast.no_favorites_export": "내보낼 즐겨찾기가 없습니다.",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "일치하는 샘플이 없습니다.",
   "toast.no_midi_handler": "MIDI 핸들러 없음: {err}",
   "toast.no_notes_export": "내보낼 메모나 태그가 없습니다.",

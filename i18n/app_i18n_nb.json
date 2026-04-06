@@ -475,6 +475,7 @@
   "toast.neon_glow": "Neonglød: {state}",
   "toast.no_audio_samples_scan_first": "Ingen lydeksempler er lastet inn. Skann prøver først.",
   "toast.no_favorites_export": "Ingen favoritter å eksportere",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Fant ingen samsvarende prøver",
   "toast.no_midi_handler": "Ingen MIDI-behandler: {err}",
   "toast.no_notes_export": "Ingen notater eller tagger å eksportere",

@@ -475,6 +475,7 @@
   "toast.neon_glow": "Neonová záře: {state}",
   "toast.no_audio_samples_scan_first": "Nebyly načteny žádné zvukové vzorky. Nejprve naskenujte vzorky.",
   "toast.no_favorites_export": "Žádné oblíbené položky k exportu",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Nebyly nalezeny žádné odpovídající vzorky",
   "toast.no_midi_handler": "Žádný MIDI handler: {err}",
   "toast.no_notes_export": "Žádné poznámky ani značky k exportu",

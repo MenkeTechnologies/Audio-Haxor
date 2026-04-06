@@ -475,6 +475,7 @@
   "toast.neon_glow": "霓虹灯发光：{state}",
   "toast.no_audio_samples_scan_first": "未加载音频样本。首先扫描样本。",
   "toast.no_favorites_export": "没有可导出的收藏夹",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "未找到匹配的样本",
   "toast.no_midi_handler": "无 MIDI 处理程序：{err}",
   "toast.no_notes_export": "没有要导出的注释或标签",

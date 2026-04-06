@@ -475,6 +475,7 @@
   "toast.neon_glow": "Λάμψη νέον: {state}",
   "toast.no_audio_samples_scan_first": "No audio samples loaded. Scan samples first.",
   "toast.no_favorites_export": "Δεν υπάρχουν αγαπημένα για εξαγωγή",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Δεν βρέθηκαν δείγματα που να ταιριάζουν",
   "toast.no_midi_handler": "Χωρίς πρόγραμμα χειρισμού MIDI: {err}",
   "toast.no_notes_export": "Δεν υπάρχουν σημειώσεις ή ετικέτες για εξαγωγή",

@@ -18,6 +18,17 @@ function appFmt(key, vars) {
 
 window.appFmt = appFmt;
 window.toastFmt = appFmt;
+
+/** Async exports return promises; catch so menu/click handlers never leave unhandled rejections. */
+function runExport(fn) {
+    if (typeof fn !== 'function') return;
+    Promise.resolve(fn()).catch((e) => {
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+            showToast(toastFmt('toast.export_failed', { err: e.message || e }), 4000, 'error');
+        }
+    });
+}
+window.runExport = runExport;
 window.__appReady = invoke('get_app_strings', {locale: null}).then((m) => {
     window.__appStr = m || {};
     window.__toastStr = window.__appStr;
@@ -97,13 +108,13 @@ listen('menu-action', (event) => {
             importPlugins();
             break;
         case 'export_audio':
-            exportAudio();
+            runExport(exportAudio);
             break;
         case 'import_audio':
             importAudio();
             break;
         case 'export_daw':
-            exportDaw();
+            runExport(exportDaw);
             break;
         case 'import_daw':
             importDaw();
@@ -451,7 +462,7 @@ document.addEventListener('click', (e) => {
                 filterPdfs();
                 break;
             case 'exportPdfs':
-                if (typeof exportPdfs === 'function') exportPdfs();
+                if (typeof exportPdfs === 'function') runExport(exportPdfs);
                 break;
             case 'importPdfs':
                 if (typeof importPdfs === 'function') importPdfs();
@@ -502,13 +513,13 @@ document.addEventListener('click', (e) => {
                 importPlugins();
                 break;
             case 'exportAudio':
-                exportAudio();
+                runExport(exportAudio);
                 break;
             case 'importAudio':
                 importAudio();
                 break;
             case 'exportDaw':
-                exportDaw();
+                runExport(exportDaw);
                 break;
             case 'exportXrefPlugins':
                 if (typeof exportXrefPlugins === 'function') exportXrefPlugins();
@@ -523,7 +534,7 @@ document.addEventListener('click', (e) => {
                 importPresets();
                 break;
             case 'exportMidi':
-                if (typeof exportMidi === 'function') exportMidi();
+                if (typeof exportMidi === 'function') runExport(exportMidi);
                 break;
             case 'exportXref':
                 if (typeof exportXref === 'function') exportXref();

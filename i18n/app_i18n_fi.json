@@ -475,6 +475,7 @@
   "toast.neon_glow": "Neonhehku: {state}",
   "toast.no_audio_samples_scan_first": "Ääninäytteitä ei ladattu. Skannaa näytteet ensin.",
   "toast.no_favorites_export": "Ei suosikkeja vietäväksi",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Vastaavia näytteitä ei löytynyt",
   "toast.no_midi_handler": "Ei MIDI-käsittelijää: {err}",
   "toast.no_notes_export": "Ei vietäviä muistiinpanoja tai tunnisteita",

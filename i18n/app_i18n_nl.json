@@ -475,6 +475,7 @@
   "toast.neon_glow": "Neongloed: {state}",
   "toast.no_audio_samples_scan_first": "No audio samples loaded. Scan samples first.",
   "toast.no_favorites_export": "Geen favorieten om te exporteren",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Geen overeenkomende monsters gevonden",
   "toast.no_midi_handler": "Geen MIDI-handler: {err}",
   "toast.no_notes_export": "Geen notities of tags om te exporteren",

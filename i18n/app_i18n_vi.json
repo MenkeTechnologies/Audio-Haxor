@@ -475,6 +475,7 @@
   "toast.neon_glow": "Ánh đèn neon: {state}",
   "toast.no_audio_samples_scan_first": "Không có mẫu âm thanh nào được tải. Quét mẫu trước.",
   "toast.no_favorites_export": "Không có mục yêu thích nào để xuất",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Không tìm thấy mẫu phù hợp",
   "toast.no_midi_handler": "Không có trình xử lý MIDI: {err}",
   "toast.no_notes_export": "Không có ghi chú hoặc thẻ để xuất",

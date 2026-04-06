@@ -475,6 +475,7 @@
   "toast.neon_glow": "Cahaya neon: {state}",
   "toast.no_audio_samples_scan_first": "Tidak ada sampel audio yang dimuat. Pindai sampel terlebih dahulu.",
   "toast.no_favorites_export": "Tidak ada favorit untuk diekspor",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Tidak ditemukan sampel yang cocok",
   "toast.no_midi_handler": "Tidak ada pengendali MIDI: {err}",
   "toast.no_notes_export": "Tidak ada catatan atau tag untuk diekspor",

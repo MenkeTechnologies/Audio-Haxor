@@ -383,13 +383,15 @@ function executeShortcut(id) {
 
 function _exportCurrentTab() {
   const active = document.querySelector('.tab-content.active')?.id;
+  const run = typeof runExport === 'function' ? runExport : (fn) => { if (typeof fn === 'function') fn(); };
   if (active === 'tabPlugins' && typeof exportPlugins === 'function') exportPlugins();
-  else if (active === 'tabSamples' && typeof exportAudio === 'function') exportAudio();
-  else if (active === 'tabDaw' && typeof exportDaw === 'function') exportDaw();
+  else if (active === 'tabSamples' && typeof exportAudio === 'function') run(exportAudio);
+  else if (active === 'tabDaw' && typeof exportDaw === 'function') run(exportDaw);
   else if (active === 'tabPresets' && typeof exportPresets === 'function') exportPresets();
   else if (active === 'tabFavorites' && typeof exportFavorites === 'function') exportFavorites();
   else if (active === 'tabNotes' && typeof exportNotes === 'function') exportNotes();
-  else if (active === 'tabMidi' && typeof exportMidi === 'function') exportMidi();
+  else if (active === 'tabMidi' && typeof exportMidi === 'function') run(exportMidi);
+  else if (active === 'tabPdf' && typeof exportPdfs === 'function') run(exportPdfs);
 }
 
 function _importCurrentTab() {

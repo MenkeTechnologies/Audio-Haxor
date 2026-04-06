@@ -36,7 +36,7 @@ function collectPaletteItems() {
   items.push({ type: 'action', name: appFmt('menu.scan_presets'), icon: '&#8635;', action: () => { showToast(toastFmt('toast.scanning_presets')); scanPresets(); } });
   items.push({ type: 'action', name: appFmt('ui.btn.scan_pdfs'), icon: '&#8635;', action: () => { showToast(toastFmt('toast.scanning_pdfs_progress')); scanPdfs(); } });
   items.push({ type: 'action', name: appFmt('menu.stop_pdf_scan'), icon: '&#9632;', action: () => { if (typeof stopPdfScan === 'function') stopPdfScan(); } });
-  items.push({ type: 'action', name: appFmt('menu.export_pdfs'), icon: '&#8615;', action: () => { if (typeof exportPdfs === 'function') exportPdfs(); } });
+  items.push({ type: 'action', name: appFmt('menu.export_pdfs'), icon: '&#8615;', action: () => { if (typeof exportPdfs === 'function' && typeof runExport === 'function') runExport(exportPdfs); else if (typeof exportPdfs === 'function') exportPdfs(); } });
   items.push({ type: 'action', name: appFmt('menu.import_pdfs'), icon: '&#8613;', action: () => { if (typeof importPdfs === 'function') importPdfs(); } });
   items.push({ type: 'action', name: appFmt('menu.extract_pdf_page_counts'), icon: '&#128196;', action: () => { if (typeof buildPdfPagesCache === 'function') buildPdfPagesCache(); } });
   items.push({ type: 'action', name: appFmt('menu.build_fingerprint_cache'), icon: '&#127925;', action: () => {
@@ -77,7 +77,7 @@ function collectPaletteItems() {
     items.push({ type: 'action', name: appFmt('menu.export_app_log'), icon: '&#128196;', action: () => { showToast(toastFmt('toast.exporting_log')); exportLogPdf(); } });
   }
   if (typeof exportMidi === 'function') {
-    items.push({ type: 'action', name: appFmt('menu.export_midi_files'), icon: '&#127924;', action: () => { showToast(toastFmt('toast.exporting_midi')); exportMidi(); } });
+    items.push({ type: 'action', name: appFmt('menu.export_midi_files'), icon: '&#127924;', action: () => { showToast(toastFmt('toast.exporting_midi')); if (typeof runExport === 'function') runExport(exportMidi); else exportMidi(); } });
   }
   if (typeof exportXref === 'function') {
     items.push({ type: 'action', name: appFmt('menu.export_plugin_xref'), icon: '&#9889;', action: () => { showToast(toastFmt('toast.exporting_xref')); exportXref(); } });

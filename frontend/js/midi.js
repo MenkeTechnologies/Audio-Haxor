@@ -322,6 +322,42 @@ registerFilter('filterMidi', {
 });
 function filterMidi() { applyFilter('filterMidi'); }
 
+/** Full list for export: after scan `allMidiFiles` is cleared and only paginated `filteredMidi` is loaded from DB. */
+const _MIDI_EXPORT_MAX = 100000;
+async function fetchMidiFilesForExport() {
+  if (typeof _midiScanProgressCleanup !== 'undefined' && _midiScanProgressCleanup) {
+    return typeof allMidiFiles !== 'undefined' && allMidiFiles.length > 0 ? allMidiFiles.slice() : [];
+  }
+  const search = _midiSearch || '';
+  const total = Math.max(_midiTotalCount || 0, _midiTotalUnfiltered || 0);
+  const n = Math.min(total, _MIDI_EXPORT_MAX);
+  if (n <= 0) return [];
+  const result = await window.vstUpdater.dbQueryMidi({
+    search: search || null,
+    format_filter: null,
+    sort_key: midiSortKey,
+    sort_asc: midiSortAsc,
+    offset: 0,
+    limit: n,
+  });
+  let files = result.midiFiles || [];
+  if (search && files.length > 1 && typeof searchScore === 'function') {
+    const mode = typeof getSearchMode === 'function' ? getSearchMode('regexMidi') : 'fuzzy';
+    const scored = files.map((s) => ({ s, score: searchScore(search, [s.name, s.directory || ''], mode) }));
+    scored.sort((a, b) => b.score - a.score);
+    files = scored.map((x) => x.s);
+  }
+  const metadataKeys = new Set(['tracks', 'bpm', 'time', 'key', 'notes', 'ch', 'duration']);
+  if (metadataKeys.has(midiSortKey)) {
+    const saved = filteredMidi;
+    filteredMidi = files;
+    sortMidiArray();
+    files = filteredMidi.slice();
+    filteredMidi = saved;
+  }
+  return files;
+}
+
 function sortMidi(key) {
   if (midiSortKey === key) { midiSortAsc = !midiSortAsc; } else { midiSortKey = key; midiSortAsc = true; }
   ['Name', 'Tracks', 'Bpm', 'Time', 'Key', 'Notes', 'Ch', 'Duration', 'Size', 'Path'].forEach(k => {

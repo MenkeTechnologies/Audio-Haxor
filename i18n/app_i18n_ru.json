@@ -475,6 +475,7 @@
   "toast.neon_glow": "Неоновое свечение: {state}",
   "toast.no_audio_samples_scan_first": "Аудио-сэмплы не загружены. Сначала отсканируйте образцы.",
   "toast.no_favorites_export": "Нет избранного для экспорта",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "Подходящих образцов не найдено",
   "toast.no_midi_handler": "Нет обработчика MIDI: {err}",
   "toast.no_notes_export": "Нет заметок или тегов для экспорта.",

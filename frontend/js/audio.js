@@ -1004,6 +1004,35 @@ registerFilter('filterAudioSamples', {
 });
 function filterAudioSamples() { applyFilter('filterAudioSamples'); }
 
+/** Full list for export when SQLite-backed UI has left `allAudioSamples` empty (paginated DB model). */
+const _AUDIO_EXPORT_MAX = 100000;
+async function fetchAudioSamplesForExport() {
+  if (typeof audioScanProgressCleanup !== 'undefined' && audioScanProgressCleanup) {
+    return typeof allAudioSamples !== 'undefined' && allAudioSamples.length > 0 ? allAudioSamples.slice() : [];
+  }
+  const search = _lastAudioSearch || '';
+  const fmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('audioFormatFilter') : null;
+  const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
+  const total = Math.max(audioTotalCount || 0, audioTotalUnfiltered || 0);
+  const n = Math.min(total, _AUDIO_EXPORT_MAX);
+  if (n <= 0) return [];
+  const result = await window.vstUpdater.dbQueryAudio({
+    search: search || null,
+    format_filter: formatFilter,
+    sort_key: audioSortKey,
+    sort_asc: audioSortAsc,
+    offset: 0,
+    limit: n,
+  });
+  let samples = result.samples || [];
+  if (search && samples.length > 1 && typeof searchScore === 'function') {
+    const scored = samples.map((s) => ({ s, score: searchScore(search, [s.name], _lastAudioMode) }));
+    scored.sort((a, b) => b.score - a.score);
+    samples = scored.map((x) => x.s);
+  }
+  return samples;
+}
+
 async function fetchAudioPage() {
   const search = _lastAudioSearch || '';
   const fmtSet = getMultiFilterValues('audioFormatFilter');

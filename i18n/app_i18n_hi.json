@@ -475,6 +475,7 @@
   "toast.neon_glow": "नियॉन चमक: {state}",
   "toast.no_audio_samples_scan_first": "कोई ऑडियो नमूना लोड नहीं किया गया. पहले नमूने स्कैन करें.",
   "toast.no_favorites_export": "निर्यात करने के लिए कोई पसंदीदा नहीं",
+  "toast.no_list_export": "Nothing to export.",
   "toast.no_matching_samples": "कोई मेल खाता हुआ नमूना नहीं मिला",
   "toast.no_midi_handler": "कोई MIDI हैंडलर नहीं: {err}",
   "toast.no_notes_export": "निर्यात करने के लिए कोई नोट या टैग नहीं",
