@@ -20,6 +20,14 @@ function historyCount(n, oneKey, otherKey) {
   return historyFmt(num === 1 ? oneKey : otherKey, { count: c });
 }
 
+/** Prefer camelCase from IPC; accept snake_case if a serializer ever emits it. */
+function historyScanCountField(s, camelKey, snakeKey) {
+  const raw = s[camelKey] ?? s[snakeKey];
+  if (raw == null || raw === '') return 0;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function historyEmptyDetailHtml() {
   return `<div class="empty-history"><div class="empty-history-icon">&#8592;</div><p>${escapeHtml(historyFmt('ui.history.select_scan_hint'))}</p></div>`;
 }
@@ -110,16 +118,16 @@ function renderHistoryList() {
     const isMidi = s._type === 'midi';
     const icon = isPreset ? '&#127924;' : isDaw ? '&#127911;' : isAudio ? '&#127925;' : isPdf ? '&#128196;' : isMidi ? '&#127932;' : '&#127911;';
     const label = isPreset
-      ? historyCount(s.presetCount, 'ui.history.presets_one', 'ui.history.presets_other')
+      ? historyCount(historyScanCountField(s, 'presetCount', 'preset_count'), 'ui.history.presets_one', 'ui.history.presets_other')
       : isDaw
-      ? historyCount(s.projectCount, 'ui.history.projects_one', 'ui.history.projects_other')
+      ? historyCount(historyScanCountField(s, 'projectCount', 'project_count'), 'ui.history.projects_one', 'ui.history.projects_other')
       : isAudio
-      ? historyCount(s.sampleCount, 'ui.history.samples_one', 'ui.history.samples_other')
+      ? historyCount(historyScanCountField(s, 'sampleCount', 'sample_count'), 'ui.history.samples_one', 'ui.history.samples_other')
       : isPdf
-      ? historyCount(s.pdfCount, 'ui.history.pdfs_one', 'ui.history.pdfs_other')
+      ? historyCount(historyScanCountField(s, 'pdfCount', 'pdf_count'), 'ui.history.pdfs_one', 'ui.history.pdfs_other')
       : isMidi
-      ? historyCount(s.midiCount, 'ui.history.midi_one', 'ui.history.midi_other')
-      : historyCount(s.pluginCount, 'ui.history.plugins_one', 'ui.history.plugins_other');
+      ? historyCount(historyScanCountField(s, 'midiCount', 'midi_count'), 'ui.history.midi_one', 'ui.history.midi_other')
+      : historyCount(historyScanCountField(s, 'pluginCount', 'plugin_count'), 'ui.history.plugins_one', 'ui.history.plugins_other');
     const typeTag = historyScanTypeLabel(s._type);
     const typeColor = isPreset ? 'var(--orange)' : isDaw ? 'var(--magenta)' : isAudio ? 'var(--yellow)' : isPdf ? 'var(--accent)' : isMidi ? 'var(--green)' : 'var(--cyan)';
     const rootsHint = s.roots && s.roots.length > 0

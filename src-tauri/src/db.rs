@@ -2007,7 +2007,10 @@ impl Database {
 
     pub fn get_plugin_scans(&self) -> Result<Vec<serde_json::Value>, String> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, timestamp, plugin_count, roots FROM plugin_scans ORDER BY timestamp DESC").map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT s.id, s.timestamp, (SELECT COUNT(*) FROM plugins WHERE scan_id = s.id), s.roots FROM plugin_scans s ORDER BY s.timestamp DESC",
+        )
+        .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |row| {
                 let roots_str: String = row.get(3)?;
@@ -2107,7 +2110,10 @@ impl Database {
 
     pub fn get_audio_scans_list(&self) -> Result<Vec<serde_json::Value>, String> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, timestamp, sample_count, total_bytes, format_counts, roots FROM audio_scans ORDER BY timestamp DESC").map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT s.id, s.timestamp, (SELECT COUNT(*) FROM audio_samples WHERE scan_id = s.id), s.total_bytes, s.format_counts, s.roots FROM audio_scans s ORDER BY s.timestamp DESC",
+        )
+        .map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| {
             let fc_str: String = row.get(4)?;
             let roots_str: String = row.get(5)?;
@@ -2319,7 +2325,12 @@ impl Database {
 
     pub fn get_daw_scans(&self) -> Result<Vec<serde_json::Value>, String> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, timestamp, project_count, total_bytes, daw_counts, roots FROM daw_scans ORDER BY timestamp DESC").map_err(|e| e.to_string())?;
+        // Count from child rows so the History tab stays correct even if parent totals
+        // were never finalized (streaming scans) or finalize failed silently.
+        let mut stmt = conn.prepare(
+            "SELECT s.id, s.timestamp, (SELECT COUNT(*) FROM daw_projects WHERE scan_id = s.id), s.total_bytes, s.daw_counts, s.roots FROM daw_scans s ORDER BY s.timestamp DESC",
+        )
+        .map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| {
             let dc_str: String = row.get(4)?;
             let roots_str: String = row.get(5)?;
@@ -2509,7 +2520,10 @@ impl Database {
 
     pub fn get_preset_scans(&self) -> Result<Vec<serde_json::Value>, String> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, timestamp, preset_count, total_bytes, format_counts, roots FROM preset_scans ORDER BY timestamp DESC").map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT s.id, s.timestamp, (SELECT COUNT(*) FROM presets WHERE scan_id = s.id), s.total_bytes, s.format_counts, s.roots FROM preset_scans s ORDER BY s.timestamp DESC",
+        )
+        .map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| {
             let fc_str: String = row.get(4)?;
             let roots_str: String = row.get(5)?;
@@ -2704,7 +2718,10 @@ impl Database {
 
     pub fn get_midi_scans(&self) -> Result<Vec<serde_json::Value>, String> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, timestamp, midi_count, total_bytes, format_counts, roots FROM midi_scans ORDER BY timestamp DESC").map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT s.id, s.timestamp, (SELECT COUNT(*) FROM midi_files WHERE scan_id = s.id), s.total_bytes, s.format_counts, s.roots FROM midi_scans s ORDER BY s.timestamp DESC",
+        )
+        .map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| {
             let fc_str: String = row.get(4)?;
             let roots_str: String = row.get(5)?;
@@ -3137,7 +3154,10 @@ impl Database {
 
     pub fn get_pdf_scans(&self) -> Result<Vec<serde_json::Value>, String> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, timestamp, pdf_count, total_bytes, roots FROM pdf_scans ORDER BY timestamp DESC").map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT s.id, s.timestamp, (SELECT COUNT(*) FROM pdfs WHERE scan_id = s.id), s.total_bytes, s.roots FROM pdf_scans s ORDER BY s.timestamp DESC",
+        )
+        .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |row| {
                 let roots_str: String = row.get(4)?;
@@ -5728,6 +5748,30 @@ mod tests {
         let detail = db.get_daw_scan_detail("ds1").unwrap();
         assert_eq!(detail.projects.len(), 2);
         assert_eq!(detail.projects[0].daw, "Ableton");
+    }
+
+    /// History list must show live row counts even if `daw_scan_parent_finalize` never ran
+    /// (parent row still has project_count = 0).
+    #[test]
+    fn test_get_daw_scans_project_count_from_child_table() {
+        let db = test_db();
+        let id = "daw-unfinalized";
+        let ts = "2024-06-01T00:00:00";
+        db.daw_scan_parent_create(id, ts, &["/roots".into()]).unwrap();
+        let p = DawProject {
+            name: "track.als".into(),
+            path: "/music/track.als".into(),
+            directory: "/music".into(),
+            format: "ALS".into(),
+            daw: "Ableton".into(),
+            size: 100,
+            size_formatted: "100 B".into(),
+            modified: "2024-01-01".into(),
+        };
+        db.insert_daw_batch(id, &[p]).unwrap();
+        let scans = db.get_daw_scans().unwrap();
+        assert_eq!(scans.len(), 1);
+        assert_eq!(scans[0]["projectCount"], 1);
     }
 
     /// Subsequence search on name/path + sort by file size DESC.
