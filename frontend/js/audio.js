@@ -637,6 +637,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
 
   const excludePaths = resume ? allAudioSamples.map(s => s.path) : null;
 
+  if (typeof btnLoading === 'function') btnLoading(btn, true);
   btn.disabled = true;
   btn.innerHTML = '&#8635; ' + catalogFmt(resume ? 'ui.js.resuming_btn' : 'ui.js.scanning_btn');
   resumeBtn.style.display = 'none';
@@ -759,6 +760,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
   _audioScanActive = false;
   hideGlobalProgress();
   btn.disabled = false;
+  if (typeof btnLoading === 'function') btnLoading(btn, false);
   btn.innerHTML = catalogFmt('ui.btn.127925_scan_samples');
   stopBtn.style.display = 'none';
   progressBar.classList.remove('active');
@@ -797,7 +799,11 @@ function updateAudioStats() {
   const mainFormats = wav + mp3 + aiff + flac;
   let accumulatedTotal = 0;
   for (const k in audioStatCounts) accumulatedTotal += audioStatCounts[k];
-  const total = Math.max(audioTotalCount || 0, accumulatedTotal);
+  // When a filter is active during a scan, audioTotalCount holds the filtered
+  // count (smaller than accumulatedTotal). Use it directly instead of Math.max
+  // so that the "filtered / total" display works.
+  const isFilterActive = audioTotalUnfiltered > 0 && audioTotalCount < audioTotalUnfiltered;
+  const total = isFilterActive ? audioTotalCount : Math.max(audioTotalCount || 0, accumulatedTotal);
   const unfiltered = audioTotalUnfiltered || 0;
   const isFiltered = unfiltered > 0 && total > 0 && total < unfiltered;
   const totalStr = isFiltered ? total.toLocaleString() + ' / ' + unfiltered.toLocaleString() : total.toLocaleString();
@@ -924,7 +930,10 @@ async function fetchAudioPage() {
           if (pathCell) applyScanCellHighlight(pathCell, pathCell.title.replace(/[/\\][^/\\]*$/, ''), search, mode, (t, q, m) => highlightPathPrefixFromPath(pathCell.title, t, q, m));
         }
       }
-      audioTotalCount = visible;
+      const hasFilter = !!(needle || fmtSet);
+      audioTotalUnfiltered = allAudioSamples.length;
+      audioTotalCount = hasFilter ? visible : allAudioSamples.length;
+      updateAudioStats();
     }
     return;
   }

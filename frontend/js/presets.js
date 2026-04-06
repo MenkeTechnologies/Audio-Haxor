@@ -62,7 +62,10 @@ async function fetchPresetPage() {
           if (pathCell) applyScanCellHighlight(pathCell, pathCell.title.replace(/[/\\][^/\\]*$/, ''), search, mode, highlightMatch);
         }
       }
-      _presetTotalCount = visible;
+      const hasFilter = !!(needle || fmtSet);
+      _presetTotalUnfiltered = allPresets.length;
+      _presetTotalCount = hasFilter ? visible : allPresets.length;
+      rebuildPresetStats();
     }
     return;
   }
@@ -152,8 +155,11 @@ async function rebuildPresetStats(force) {
   if (presetScanProgressCleanup) {
     bytes = _presetStatsTotalBytes;
     byType = _presetStatsFormatCounts;
-    count = Object.values(byType).reduce((a, b) => a + b, 0);
-    unfiltered = count;
+    const accTotal = Object.values(byType).reduce((a, b) => a + b, 0);
+    // Use authoritative counts set by the filter-during-scan path so
+    // "filtered / total" display works; fall back to accumulator total.
+    unfiltered = _presetTotalUnfiltered || accTotal;
+    count = _presetTotalCount != null ? _presetTotalCount : accTotal;
   } else {
     const cacheHit = !force && key === _lastPresetAggKey && _presetAggCache;
     try {
@@ -343,6 +349,7 @@ async function scanPresets(resume = false, unifiedResult = null) {
 
   const excludePaths = resume ? allPresets.map(p => p.path) : null;
 
+  if (typeof btnLoading === 'function') btnLoading(btn, true);
   setBtn(resume ? '&#8635; Resuming...' : '&#8635; Scanning...', true);
   setBtnDisplay(resumeBtn, 'none');
   setBtnDisplay(stopBtn, '');
@@ -491,6 +498,7 @@ async function scanPresets(resume = false, unifiedResult = null) {
 
   hideGlobalProgress();
   btn.disabled = false;
+  if (typeof btnLoading === 'function') btnLoading(btn, false);
   btn.innerHTML = '&#127924; Scan Presets';
   setBtnDisplay(stopBtn, 'none');
   document.getElementById('btnExportPresets').style.display = allPresets.length > 0 ? '' : 'none';

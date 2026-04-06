@@ -51,7 +51,9 @@ async function fetchPdfPage() {
           if (pathCell) applyScanCellHighlight(pathCell, pathCell.title.replace(/[/\\][^/\\]*$/, ''), search, mode, highlightMatch);
         }
       }
-      _pdfTotalCount = visible;
+      _pdfTotalUnfiltered = allPdfs.length;
+      _pdfTotalCount = needle ? visible : allPdfs.length;
+      rebuildPdfStats();
     }
     if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
     return;
@@ -303,6 +305,7 @@ async function scanPdfs(resume = false, unifiedResult = null) {
   const excludePaths = resume ? allPdfs.map(p => p.path) : null;
 
   if (scanBtn) {
+    if (typeof btnLoading === 'function') btnLoading(scanBtn, true);
     scanBtn.disabled = true;
     scanBtn.innerHTML = '&#8635; ' + catalogFmt(resume ? 'ui.js.resuming_btn' : 'ui.js.scanning_btn');
   }
@@ -433,6 +436,7 @@ async function scanPdfs(resume = false, unifiedResult = null) {
   hideGlobalProgress();
   if (scanBtn) {
     scanBtn.disabled = false;
+    if (typeof btnLoading === 'function') btnLoading(scanBtn, false);
     scanBtn.innerHTML = '&#8635; ' + catalogFmt('ui.btn.scan_pdfs');
   }
   if (stopBtn) stopBtn.style.display = 'none';

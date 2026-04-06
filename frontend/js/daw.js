@@ -49,7 +49,13 @@ async function fetchDawPage() {
           if (pathCell) applyScanCellHighlight(pathCell, pathCell.title.replace(/[/\\][^/\\]*$/, ''), search, mode, (t, q, m) => highlightMatch(t, q, m));
         }
       }
-      _dawTotalCount = visible;
+      // Use allDawProjects.length as the unfiltered total — DOM rows are
+      // capped at 2000 rendered so counting them would mismatch the scan
+      // button counter (pendingFound) when the filter box is empty.
+      const hasFilter = !!(needle || dawSet);
+      _dawTotalUnfiltered = allDawProjects.length;
+      _dawTotalCount = hasFilter ? visible : allDawProjects.length;
+      updateDawStats();
     }
     return;
   }
@@ -346,6 +352,7 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
 
   const excludePaths = resume ? allDawProjects.map(p => p.path) : null;
 
+  if (typeof btnLoading === 'function') btnLoading(btn, true);
   btn.disabled = true;
   btn.innerHTML = resume ? '&#8635; Resuming...' : '&#8635; Scanning...';
   resumeBtn.style.display = 'none';
@@ -468,6 +475,7 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
 
   hideGlobalProgress();
   btn.disabled = false;
+  if (typeof btnLoading === 'function') btnLoading(btn, false);
   btn.innerHTML = '&#127911; Scan DAW Projects';
   stopBtn.style.display = 'none';
   progressBar.classList.remove('active');

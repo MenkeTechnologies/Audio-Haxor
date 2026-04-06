@@ -86,9 +86,10 @@ fn network_fs_type(_path: &Path) -> Option<String> {
 }
 
 /// Quick check: is this path likely on a network share?
+/// Network mounts can be anywhere (not just /Volumes/ or /mnt/), so fall back
+/// to statfs(2) which is authoritative on macOS.
 fn is_network_path(path: &Path) -> bool {
-    let s = path.to_string_lossy();
-    s.contains("/mnt/") || s.ends_with("/mnt") || s.starts_with("/Volumes/")
+    network_fs_type(path).is_some()
 }
 
 // Re-exported from individual scanners to keep extension lists in sync. If
@@ -480,11 +481,11 @@ fn walk_dir_parallel(
     let is_net = is_network_path(dir);
     let entries: Vec<BulkEntry> = match read_dir_bulk(dir) {
         Ok(e) => e,
-        Err(e) => {
+        Err(first_err) => {
             // EPERM (os error 1) on macOS = TCC denial — retrying is futile,
             // the user must grant access in System Settings → Privacy & Security.
             // Log once per denied root, silently skip descendants.
-            if e.raw_os_error() == Some(1) {
+            if first_err.raw_os_error() == Some(1) {
                 let mut denied = tcc_denied.lock().unwrap();
                 if !denied.iter().any(|d| dir.starts_with(d)) {
                     denied.insert(dir.to_path_buf());
@@ -492,40 +493,53 @@ fn walk_dir_parallel(
                     crate::write_app_log(format!(
                         "SCAN TCC DENIED — unified | {} | {} \
                          (grant Full Disk Access or Files and Folders permission)",
-                        dir.display(), e,
+                        dir.display(), first_err,
                     ));
                 }
                 return;
             }
-            if is_net {
-                crate::write_app_log(format!(
-                    "SCAN NETWORK RETRY — unified | {} | first error: {} | retrying in 50ms",
-                    dir.display(), e,
-                ));
+            // Local filesystem errors are not transient — don't retry.
+            if !is_net {
+                return;
             }
-            // Retry once — SMB shares can return transient ETIMEDOUT / EIO on
-            // first access after idle, but succeed on the immediate retry.
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            match read_dir_bulk(dir) {
-                Ok(e) => {
-                    if is_net {
+            // Network shares (SMB/NFS/AFP) return transient ETIMEDOUT / EIO /
+            // ENOENT on first access after idle, wake-from-sleep, or auto-mount.
+            // Retry up to 3 times with exponential backoff (50ms, 100ms, 200ms).
+            const MAX_RETRIES: u32 = 3;
+            const BASE_DELAY_MS: u64 = 50;
+            crate::write_app_log(format!(
+                "SCAN NETWORK RETRY — unified | {} | first error: {} | up to {} retries",
+                dir.display(), first_err, MAX_RETRIES,
+            ));
+            let mut last_err = first_err;
+            let mut recovered = None;
+            for attempt in 0..MAX_RETRIES {
+                let delay = BASE_DELAY_MS * (1 << attempt); // 50, 100, 200
+                std::thread::sleep(std::time::Duration::from_millis(delay));
+                match read_dir_bulk(dir) {
+                    Ok(e) => {
                         crate::write_app_log(format!(
-                            "SCAN NETWORK RECOVERED — unified | {} | retry succeeded",
-                            dir.display(),
+                            "SCAN NETWORK RECOVERED — unified | {} | succeeded on retry {}",
+                            dir.display(), attempt + 1,
                         ));
+                        recovered = Some(e);
+                        break;
                     }
-                    e
+                    Err(e) => {
+                        last_err = e;
+                    }
                 }
-                Err(e2) => {
-                    if is_net {
-                        let fsinfo = network_fs_type(dir)
-                            .map(|fs| format!(" (fs={})", fs))
-                            .unwrap_or_default();
-                        crate::write_app_log(format!(
-                            "SCAN READDIR ERROR — unified | {}{} | {} (retry: {})",
-                            dir.display(), fsinfo, e, e2,
-                        ));
-                    }
+            }
+            match recovered {
+                Some(e) => e,
+                None => {
+                    let fsinfo = network_fs_type(dir)
+                        .map(|fs| format!(" (fs={})", fs))
+                        .unwrap_or_default();
+                    crate::write_app_log(format!(
+                        "SCAN READDIR ERROR — unified | {}{} | {} retries exhausted | last: {}",
+                        dir.display(), fsinfo, MAX_RETRIES, last_err,
+                    ));
                     return;
                 }
             }

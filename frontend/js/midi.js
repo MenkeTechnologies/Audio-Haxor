@@ -57,7 +57,9 @@ async function fetchMidiPage() {
           if (pathCell) applyScanCellHighlight(pathCell, pathCell.title.replace(/[/\\][^/\\]*$/, ''), search, 'fuzzy', highlightMatch);
         }
       }
-      _midiTotalCount = visible;
+      _midiTotalUnfiltered = allMidiFiles.length;
+      _midiTotalCount = needle ? visible : allMidiFiles.length;
+      updateMidiCount();
     }
     return;
   }
@@ -288,7 +290,11 @@ function updateMidiCount() {
   // when a filter is active, and just the total when unfiltered. During a scan
   // we fall back to allMidiFiles (streaming buffer); post-scan uses DB totals.
   const scanning = !!_midiScanProgressCleanup;
-  const filtered = scanning ? filteredMidi.length : _midiTotalCount;
+  const search = _midiSearch || '';
+  const hasFilter = scanning && !!search.trim();
+  const filtered = scanning
+    ? (hasFilter ? _midiTotalCount : allMidiFiles.length)
+    : _midiTotalCount;
   const total = scanning ? allMidiFiles.length : _midiTotalUnfiltered;
   const isFiltered = total > 0 && filtered < total;
   const totalEl = document.getElementById('midiTotalCount');
