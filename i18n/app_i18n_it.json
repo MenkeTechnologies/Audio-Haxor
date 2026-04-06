@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Mostra lettore audio",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Mostra automaticamente il lettore audio all'avvio dell'app",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Mostra il grafico delle dipendenze del plugin (esegui prima l'indice dei plugin)",
-  "ui.tt.shuffle": "Mescola",
+  "ui.tt.shuffle": "Mescola (S)",
   "ui.tt.skip_this_plugin_update": "Salta questo aggiornamento del plugin",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Campo stereo / Lissajous: fare clic con il pulsante destro del mouse per le opzioni",
   "ui.tt.stereo_field_show_only_this": "Campo stereo: mostra solo questo",

@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Visa ljudspelare",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Visa ljudspelare automatiskt vid appstart",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Visa plugin-beroendegraf (kör Plugin Index först)",
-  "ui.tt.shuffle": "Blanda",
+  "ui.tt.shuffle": "Blanda (S)",
   "ui.tt.skip_this_plugin_update": "Hoppa över denna plugin-uppdatering",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Stereofält / Lissajous — högerklicka för alternativ",
   "ui.tt.stereo_field_show_only_this": "Stereofält — visa endast detta",

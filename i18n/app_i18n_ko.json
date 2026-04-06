@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "오디오 플레이어 표시",
   "ui.tt.show_audio_player_automatically_on_app_launch": "앱 실행 시 자동으로 오디오 플레이어 표시",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "플러그인 종속성 그래프 표시(플러그인 인덱스를 먼저 실행)",
-  "ui.tt.shuffle": "혼합",
+  "ui.tt.shuffle": "혼합 (S)",
   "ui.tt.skip_this_plugin_update": "이 플러그인 업데이트 건너뛰기",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "스테레오 필드 / Lissajous - 옵션을 보려면 마우스 오른쪽 버튼을 클릭하세요.",
   "ui.tt.stereo_field_show_only_this": "스테레오 필드 - 이것만 표시",

@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Vis lydspiller",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Vis lydspiller automatisk ved appstart",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Vis graf for plugin-avhengighet (kjør Plugin Index først)",
-  "ui.tt.shuffle": "Bland",
+  "ui.tt.shuffle": "Bland (S)",
   "ui.tt.skip_this_plugin_update": "Hopp over denne plugin-oppdateringen",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Stereofelt / Lissajous — høyreklikk for alternativer",
   "ui.tt.stereo_field_show_only_this": "Stereofelt — vis kun dette",

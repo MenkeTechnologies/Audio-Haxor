@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Audioplayer anzeigen",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Audio-Player beim App-Start automatisch anzeigen",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Plugin-Abhängigkeitsdiagramm anzeigen (zuerst Plugin-Index ausführen)",
-  "ui.tt.shuffle": "Zufallswiedergabe",
+  "ui.tt.shuffle": "Zufallswiedergabe (S)",
   "ui.tt.skip_this_plugin_update": "Überspringen Sie dieses Plugin-Update",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Stereofeld / Lissajous – Rechtsklick für Optionen",
   "ui.tt.stereo_field_show_only_this": "Stereofeld – nur dieses anzeigen",

@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "オーディオプレーヤーを表示",
   "ui.tt.show_audio_player_automatically_on_app_launch": "アプリ起動時にオーディオプレーヤーを自動的に表示",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "プラグインの依存関係グラフを表示します (最初にプラグイン インデックスを実行します)",
-  "ui.tt.shuffle": "シャッフル",
+  "ui.tt.shuffle": "シャッフル (S)",
   "ui.tt.skip_this_plugin_update": "このプラグインの更新をスキップする",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "ステレオ フィールド / リサージュ — 右クリックしてオプションを表示します",
   "ui.tt.stereo_field_show_only_this": "ステレオフィールド — これのみを表示",

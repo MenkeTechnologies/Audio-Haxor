@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Afficher le lecteur audio",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Afficher automatiquement le lecteur audio au lancement de l'application",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Afficher le graphique de dépendance du plugin (exécutez d'abord Plugin Index)",
-  "ui.tt.shuffle": "Mélanger",
+  "ui.tt.shuffle": "Mélanger (S)",
   "ui.tt.skip_this_plugin_update": "Ignorer cette mise à jour du plugin",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Champ stéréo / Lissajous — clic droit pour les options",
   "ui.tt.stereo_field_show_only_this": "Champ stéréo — afficher uniquement ceci",

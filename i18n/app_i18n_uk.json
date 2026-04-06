@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Показати аудіоплеєр",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Показувати аудіопрогравач автоматично під час запуску програми",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Показати графік залежностей плагіна (спочатку запустіть індекс плагіна)",
-  "ui.tt.shuffle": "Перетасувати",
+  "ui.tt.shuffle": "Перетасувати (S)",
   "ui.tt.skip_this_plugin_update": "Пропустити це оновлення плагіна",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Стереополе / Lissajous — клацніть правою кнопкою миші для опцій",
   "ui.tt.stereo_field_show_only_this": "Стерео поле — показувати тільки це",

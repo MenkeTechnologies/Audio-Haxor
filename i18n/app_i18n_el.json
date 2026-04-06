@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Εμφάνιση αναπαραγωγής ήχου",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Εμφάνιση του προγράμματος αναπαραγωγής ήχου αυτόματα κατά την εκκίνηση της εφαρμογής",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Εμφάνιση γραφήματος εξάρτησης από την προσθήκη (τρέξτε πρώτα το Ευρετήριο προσθηκών)",
-  "ui.tt.shuffle": "Ανάμιξη",
+  "ui.tt.shuffle": "Ανάμιξη (S)",
   "ui.tt.skip_this_plugin_update": "Παράβλεψη αυτής της ενημέρωσης προσθήκης",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Στερεοφωνικό πεδίο / Lissajous — κάντε δεξί κλικ για επιλογές",
   "ui.tt.stereo_field_show_only_this": "Στερεοφωνικό πεδίο — εμφανίστε μόνο αυτό",

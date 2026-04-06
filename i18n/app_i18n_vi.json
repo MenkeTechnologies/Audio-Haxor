@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Hiển thị trình phát âm thanh",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Tự động hiển thị trình phát âm thanh khi khởi chạy ứng dụng",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Hiển thị biểu đồ phụ thuộc plugin (chạy Plugin Index trước)",
-  "ui.tt.shuffle": "Trộn bài",
+  "ui.tt.shuffle": "Trộn bài (S)",
   "ui.tt.skip_this_plugin_update": "Bỏ qua bản cập nhật plugin này",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Trường âm thanh nổi / Lissajous - nhấp chuột phải để xem các tùy chọn",
   "ui.tt.stereo_field_show_only_this": "Trường âm thanh nổi - chỉ hiển thị cái này",

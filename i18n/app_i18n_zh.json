@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "显示音频播放器",
   "ui.tt.show_audio_player_automatically_on_app_launch": "应用程序启动时自动显示音频播放器",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "显示插件依赖关系图（首先运行插件索引）",
-  "ui.tt.shuffle": "随机播放",
+  "ui.tt.shuffle": "随机播放 (S)",
   "ui.tt.skip_this_plugin_update": "跳过此插件更新",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "立体声场 / Lissajous — 右键单击​​查看选项",
   "ui.tt.stereo_field_show_only_this": "立体声场 — 仅显示此",

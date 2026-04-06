@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Zobrazit audio přehrávač",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Automaticky zobrazit přehrávač zvuku při spuštění aplikace",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Zobrazit graf závislosti pluginů (nejprve spusťte Index pluginů)",
-  "ui.tt.shuffle": "Zamíchat",
+  "ui.tt.shuffle": "Zamíchat (S)",
   "ui.tt.skip_this_plugin_update": "Přeskočte tuto aktualizaci pluginu",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Stereo pole / Lissajous — kliknutím pravým tlačítkem myši zobrazíte možnosti",
   "ui.tt.stereo_field_show_only_this": "Stereo pole – zobrazit pouze toto",

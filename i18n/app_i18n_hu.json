@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Audiolejátszó megjelenítése",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Az audiolejátszó automatikus megjelenítése az alkalmazás indításakor",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Beépülő modul-függőségi grafikon megjelenítése (először futtassa a Plugin Indexet)",
-  "ui.tt.shuffle": "Keverés",
+  "ui.tt.shuffle": "Keverés (S)",
   "ui.tt.skip_this_plugin_update": "Kihagyja ezt a bővítményfrissítést",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Sztereó mező / Lissajous – kattintson a jobb gombbal a lehetőségek megjelenítéséhez",
   "ui.tt.stereo_field_show_only_this": "Sztereó mező — csak ezt jelenítse meg",

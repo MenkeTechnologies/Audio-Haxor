@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Toon audiospeler",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Toon de audiospeler automatisch bij het starten van de app",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Toon de afhankelijkheidsgrafiek van plug-ins (voer eerst de plug-inindex uit)",
-  "ui.tt.shuffle": "Schudden",
+  "ui.tt.shuffle": "Schudden (S)",
   "ui.tt.skip_this_plugin_update": "Sla deze plug-in-update over",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Stereoveld / Lissajous — klik met de rechtermuisknop voor opties",
   "ui.tt.stereo_field_show_only_this": "Stereoveld — laat alleen dit zien",

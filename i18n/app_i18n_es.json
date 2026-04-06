@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Mostrar reproductor de audio",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Mostrar el reproductor de audio automáticamente al iniciar la aplicación",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Mostrar gráfico de dependencia de complementos (ejecute primero el índice de complementos)",
-  "ui.tt.shuffle": "Barajar",
+  "ui.tt.shuffle": "Barajar (S)",
   "ui.tt.skip_this_plugin_update": "Omitir esta actualización del complemento",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Campo estéreo / Lissajous: haga clic derecho para ver las opciones",
   "ui.tt.stereo_field_show_only_this": "Campo estéreo: muestra solo esto",

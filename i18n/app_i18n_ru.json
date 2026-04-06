@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Показать аудиоплеер",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Автоматически показывать аудиоплеер при запуске приложения",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Показать график зависимостей плагинов (сначала запустите Plugin Index)",
-  "ui.tt.shuffle": "Перетасовать",
+  "ui.tt.shuffle": "Перетасовать (S)",
   "ui.tt.skip_this_plugin_update": "Пропустить это обновление плагина",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Стереополе / Лиссажу — щелкните правой кнопкой мыши, чтобы увидеть параметры",
   "ui.tt.stereo_field_show_only_this": "Стереополе — показывать только это",

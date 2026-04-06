@@ -412,7 +412,7 @@ pub fn build_native_menu_bar<R: Runtime>(
         "toggle_shuffle",
         t("menu.toggle_shuffle", "Toggle Shuffle"),
         true,
-        None::<&str>,
+        Some("S"),
     )?;
     let toggle_mute = MenuItem::with_id(
         handle,

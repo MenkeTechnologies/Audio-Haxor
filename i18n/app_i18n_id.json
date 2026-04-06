@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Tampilkan pemutar audio",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Tampilkan pemutar audio secara otomatis saat peluncuran aplikasi",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Tampilkan grafik ketergantungan plugin (jalankan Indeks Plugin terlebih dahulu)",
-  "ui.tt.shuffle": "Acak",
+  "ui.tt.shuffle": "Acak (S)",
   "ui.tt.skip_this_plugin_update": "Lewati pembaruan plugin ini",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Bidang stereo / Lissajous — klik kanan untuk melihat opsi",
   "ui.tt.stereo_field_show_only_this": "Bidang stereo — tampilkan ini saja",

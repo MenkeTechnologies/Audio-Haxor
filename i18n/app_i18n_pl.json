@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Pokaż odtwarzacz audio",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Wyświetlaj odtwarzacz audio automatycznie po uruchomieniu aplikacji",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Pokaż wykres zależności wtyczek (najpierw uruchom Indeks wtyczek)",
-  "ui.tt.shuffle": "Człapać",
+  "ui.tt.shuffle": "Człapać (S)",
   "ui.tt.skip_this_plugin_update": "Pomiń tę aktualizację wtyczki",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Pole stereo / Lissajous — kliknij prawym przyciskiem myszy, aby wyświetlić opcje",
   "ui.tt.stereo_field_show_only_this": "Pole stereo — pokaż tylko to",

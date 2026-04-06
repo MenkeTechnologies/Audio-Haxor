@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Ses oynatıcısını göster",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Uygulama başlatıldığında ses oynatıcısını otomatik olarak göster",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Eklenti bağımlılığı grafiğini göster (önce Eklenti Dizinini çalıştırın)",
-  "ui.tt.shuffle": "Karıştır",
+  "ui.tt.shuffle": "Karıştır (S)",
   "ui.tt.skip_this_plugin_update": "Bu eklenti güncellemesini atla",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Stereo alanı / Lissajous — seçenekler için sağ tıklayın",
   "ui.tt.stereo_field_show_only_this": "Stereo alanı — yalnızca bunu göster",

@@ -1707,7 +1707,7 @@
   "ui.tt.show_audio_player": "Näytä audiosoitin",
   "ui.tt.show_audio_player_automatically_on_app_launch": "Näytä äänisoitin automaattisesti sovelluksen käynnistyksen yhteydessä",
   "ui.tt.show_plugin_dependency_graph_run_plugin_index_firs": "Näytä laajennuksen riippuvuuskaavio (suorita Plugin Index ensin)",
-  "ui.tt.shuffle": "Sekoita",
+  "ui.tt.shuffle": "Sekoita (S)",
   "ui.tt.skip_this_plugin_update": "Ohita tämä laajennuksen päivitys",
   "ui.tt.stereo_field_lissajous_right_click_for_options": "Stereokenttä / Lissajous — napsauta hiiren kakkospainikkeella vaihtoehtoja",
   "ui.tt.stereo_field_show_only_this": "Stereokenttä — näytä vain tämä",
