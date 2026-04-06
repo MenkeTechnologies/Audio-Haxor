@@ -406,7 +406,7 @@ async function scanPdfs(resume = false, unifiedResult = null) {
     } else {
       allPdfs = result.pdfs;
     }
-    _pdfTotalUnfiltered = _pdfScanFound || allPdfs.length;
+    _pdfTotalUnfiltered = allPdfs.length;
     // Invalidate aggregate cache — fresh rows after save will be aggregated below.
     _lastPdfAggKey = null; _pdfAggCache = null;
     // Save BEFORE rebuildPdfStats/filterPdfs so the DB has the new rows; otherwise
@@ -422,6 +422,7 @@ async function scanPdfs(resume = false, unifiedResult = null) {
       loadPdfPagesForVisible();
     }
     if (pdfScanProgressCleanup) { pdfScanProgressCleanup(); pdfScanProgressCleanup = null; }
+    _pdfScanFound = 0;
     rebuildPdfStats(true);
     filterPdfs();
     if (result.stopped && allPdfs.length > 0 && resumeBtn) {
@@ -429,6 +430,7 @@ async function scanPdfs(resume = false, unifiedResult = null) {
     }
   } catch (err) {
     if (pdfScanProgressCleanup) { pdfScanProgressCleanup(); pdfScanProgressCleanup = null; }
+    _pdfScanFound = 0;
     flushPending();
     const errMsg = err.message || err || catalogFmt('toast.unknown_error');
     const errTitle = typeof escapeHtml === 'function' ? escapeHtml(_pdfFmt('ui.audio.scan_error_title')) : _pdfFmt('ui.audio.scan_error_title');

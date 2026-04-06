@@ -448,6 +448,7 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
       ? await unifiedResult
       : await window.vstUpdater.scanDawProjects(dawRoots.length ? dawRoots : undefined, excludePaths);
     if (dawScanProgressCleanup) { dawScanProgressCleanup(); dawScanProgressCleanup = null; }
+    _dawScanFound = 0;
     flushPendingProjects();
     if (result.streamed) {
       // Backend streamed results live — allDawProjects was built from progress events.
@@ -457,7 +458,7 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
       allDawProjects = result.projects;
     }
     rebuildDawStats();
-    _dawTotalUnfiltered = _dawScanFound || allDawProjects.length;
+    _dawTotalUnfiltered = allDawProjects.length;
     filterDawProjects();
     // Backend already streamed-saved when result.streamed
     if (!result.streamed) {
@@ -470,6 +471,7 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
     }
   } catch (err) {
     if (dawScanProgressCleanup) { dawScanProgressCleanup(); dawScanProgressCleanup = null; }
+    _dawScanFound = 0;
     flushPendingProjects();
     const errMsg = err.message || err || 'Unknown error';
     tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;

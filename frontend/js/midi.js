@@ -240,6 +240,7 @@ async function scanMidi(resume = false) {
       catch (e) { if (typeof showToast === 'function' && typeof toastFmt === 'function') showToast(toastFmt('toast.failed_save_midi_history', { err: e.message || e }), 4000, 'error'); }
     }
     if (_midiScanProgressCleanup) { _midiScanProgressCleanup(); _midiScanProgressCleanup = null; }
+    _midiScanFound = 0;
     _midiTableInit = false;
     _midiRenderCount = 0;
     _midiOffset = 0;
@@ -255,6 +256,7 @@ async function scanMidi(resume = false) {
     }
   } catch (err) {
     if (_midiScanProgressCleanup) { _midiScanProgressCleanup(); _midiScanProgressCleanup = null; }
+    _midiScanFound = 0;
     const errMsg = err.message || err || 'Unknown error';
     if (tableWrap) tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
     if (typeof showToast === 'function' && typeof toastFmt === 'function') showToast(toastFmt('toast.midi_scan_failed', { err: errMsg }), 4000, 'error');

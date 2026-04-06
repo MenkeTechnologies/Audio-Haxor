@@ -739,6 +739,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
       ? await unifiedResult
       : await window.vstUpdater.scanAudioSamples(audioRoots.length ? audioRoots : undefined, excludePaths);
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
+    _audioScanFound = 0;
     flushPendingSamples();
     // Save scan results to SQLite (backend already streamed-saved when result.streamed)
     if (!result.streamed) {
@@ -754,6 +755,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
     }
   } catch (err) {
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
+    _audioScanFound = 0;
     flushPendingSamples();
     const errMsg = err.message || err || catalogFmt('toast.unknown_error');
     tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>${typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.scan_error_title')) : _audioFmt('ui.audio.scan_error_title')}</h2><p>${typeof escapeHtml === 'function' ? escapeHtml(errMsg) : errMsg}</p></div>`;

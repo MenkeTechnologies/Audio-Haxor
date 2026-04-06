@@ -477,9 +477,7 @@ async function scanPresets(resume = false, unifiedResult = null) {
     // Refresh header count immediately — don't wait for next fetchPresetPage.
     // Exclude MIDI since they live in their own tab (matches backend `total_unfiltered` definition).
     const midiFormats = new Set(['MID', 'MIDI']);
-    // _presetScanFound already excludes MIDI (backend strips them); fall back
-    // to in-memory array for non-streamed scans.
-    _presetTotalUnfiltered = _presetScanFound || allPresets.filter(p => !midiFormats.has(p.format)).length;
+    _presetTotalUnfiltered = allPresets.filter(p => !midiFormats.has(p.format)).length;
     // Save to the DB BEFORE rebuildPresetStats — otherwise the filter-stats
     // query hits stale/empty rows and the top counter flickers between the
     // previous scan's totals and zero/filtered values.
@@ -487,6 +485,7 @@ async function scanPresets(resume = false, unifiedResult = null) {
       try { await window.vstUpdater.savePresetScan(allPresets, result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_preset_history', { err: e.message || e }), 4000, 'error'); }
     }
     if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
+    _presetScanFound = 0;
     rebuildPresetStats(true);
     filterPresets();
     // MIDI tab has its own independent scanner/DB — don't reload from preset scan.
@@ -495,6 +494,7 @@ async function scanPresets(resume = false, unifiedResult = null) {
     }
   } catch (err) {
     if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
+    _presetScanFound = 0;
     flushPending();
     const errMsg = err.message || err || 'Unknown error';
     tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
