@@ -125,7 +125,8 @@ function updateDawStats() {
   document.getElementById('dawReaperCount').textContent = reaper;
   document.getElementById('dawOtherCount').textContent = Math.max(0, dawDisplayCount - mainDaws);
   document.getElementById('dawTotalSize').textContent = formatAudioSize(bytes);
-  document.getElementById('dawProjectCount').textContent = (unfiltered || dawDisplayCount).toLocaleString();
+  if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ daw: unfiltered || dawDisplayCount });
+  else document.getElementById('dawProjectCount').textContent = (unfiltered || dawDisplayCount).toLocaleString();
   document.getElementById('btnExportDaw').style.display = (unfiltered > 0 || dawDisplayCount > 0) ? '' : 'none';
   if (typeof updateDawDiskUsage === 'function') updateDawDiskUsage();
 }
@@ -446,10 +447,9 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
     } else if (data.phase === 'scanning') {
       pendingProjects.push(...data.projects);
       pendingFound = data.found;
-      // Immediately update header counter. Format with toLocaleString to
-      // match updateDawStats's formatting — otherwise the counter flickers
-      // between "1234" (here) and "1,234" (flush) as the two paths alternate.
-      document.getElementById('dawProjectCount').textContent = pendingFound.toLocaleString();
+      window.__dawScanPendingFound = pendingFound;
+      if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ daw: pendingFound });
+      else document.getElementById('dawProjectCount').textContent = pendingFound.toLocaleString();
       scheduleFlush();
     }
   });
@@ -488,6 +488,7 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
     showToast(toastFmt('toast.daw_scan_failed', { errMsg }), 4000, 'error');
   }
 
+  window.__dawScanPendingFound = 0;
   hideGlobalProgress();
   btn.disabled = false;
   if (typeof btnLoading === 'function') btnLoading(btn, false);

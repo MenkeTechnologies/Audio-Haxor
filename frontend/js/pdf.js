@@ -132,10 +132,12 @@ async function rebuildPdfStats(force) {
   document.getElementById('pdfTotalSize').textContent = formatAudioSize(displayBytes);
   const btn = document.getElementById('btnExportPdf');
   if (btn) btn.style.display = (unfiltered > 0 || displayCount > 0) ? '' : 'none';
-  // Mirror into the global stats-bar counter (top of app). Always unfiltered —
-  // the top counter must not react to the active search/filter.
-  const headerEl = document.getElementById('pdfCountHeader');
-  if (headerEl) headerEl.textContent = (unfiltered || displayCount || 0).toLocaleString();
+  const u = unfiltered || displayCount || 0;
+  if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ pdf: u });
+  else {
+    const headerEl = document.getElementById('pdfCountHeader');
+    if (headerEl) headerEl.textContent = u.toLocaleString();
+  }
 }
 
 function pdfPagesUnknownHtml() {
@@ -397,8 +399,12 @@ async function scanPdfs(resume = false, unifiedResult = null) {
     } else if (data.phase === 'scanning') {
       pendingPdfs.push(...data.pdfs);
       pendingFound = data.found;
-      const headerEl = document.getElementById('pdfCountHeader');
-      if (headerEl) headerEl.textContent = pendingFound.toLocaleString();
+      window.__pdfScanPendingFound = pendingFound;
+      if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ pdf: pendingFound });
+      else {
+        const headerEl = document.getElementById('pdfCountHeader');
+        if (headerEl) headerEl.textContent = pendingFound.toLocaleString();
+      }
       scheduleFlush();
     }
   });
@@ -446,6 +452,7 @@ async function scanPdfs(resume = false, unifiedResult = null) {
     showToast(toastFmt('toast.pdf_scan_failed', { err: errMsg }), 4000, 'error');
   }
 
+  window.__pdfScanPendingFound = 0;
   hideGlobalProgress();
   if (scanBtn) {
     scanBtn.disabled = false;

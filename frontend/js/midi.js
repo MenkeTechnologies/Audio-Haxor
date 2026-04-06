@@ -273,10 +273,13 @@ function getMidiCount() {
 }
 
 function syncMidiStatsBarCount(total) {
-  const el = document.getElementById('midiScanCount');
-  if (!el) return;
   const n = typeof total === 'number' ? total : _midiTotalUnfiltered;
-  el.textContent = n.toLocaleString();
+  window.__midiScanPendingFound = n;
+  if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ midi: n });
+  else {
+    const el = document.getElementById('midiScanCount');
+    if (el) el.textContent = n.toLocaleString();
+  }
 }
 
 function updateMidiCount() {
@@ -301,10 +304,11 @@ function updateMidiCount() {
 }
 
 function updateMidiHeaderCount() {
-  const el = document.getElementById('headerMidi');
-  if (el) {
-    const n = _midiTotalUnfiltered;
-    el.textContent = n.toLocaleString();
+  window.__midiScanPendingFound = _midiTotalUnfiltered;
+  if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ midi: _midiTotalUnfiltered });
+  else {
+    const el = document.getElementById('headerMidi');
+    if (el) el.textContent = _midiTotalUnfiltered.toLocaleString();
   }
 }
 

@@ -823,7 +823,16 @@ async function resetAllScans() {
     if (typeof _xrefCache !== 'undefined') { for (const k in _xrefCache) delete _xrefCache[k]; }
     // Reset plugin UI
     document.getElementById('pluginList').innerHTML = '<div class="state-message" id="emptyState"><div class="state-icon">&#128268;</div><h2>Audio Plugin Scanner</h2><p>Click <strong>"Scan Plugins"</strong> to discover all VST2, VST3, and Audio Unit plugins on your system.</p></div>';
-    document.getElementById('totalCount').textContent = '0';
+    if (typeof applyInventoryCounts === 'function') {
+      applyInventoryCounts({ plugins: 0, samples: 0, daw: 0, presets: 0, pdf: 0, midi: 0 });
+    } else {
+      document.getElementById('totalCount').textContent = '0';
+    }
+    window.__audioScanPendingFound = 0;
+    window.__dawScanPendingFound = 0;
+    window.__presetScanPendingFound = 0;
+    window.__pdfScanPendingFound = 0;
+    window.__midiScanPendingFound = 0;
     document.getElementById('dirsSection').style.display = 'none';
     document.getElementById('btnCheckUpdates').disabled = true;
     // Reset audio UI

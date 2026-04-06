@@ -24,7 +24,8 @@ async function loadPluginsFromDb() {
     await fetchPluginPage();
     _pluginsLoaded = true;
 
-    document.getElementById('totalCount').textContent = (_pluginTotalUnfiltered || allPlugins.length || 0).toLocaleString();
+    if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: _pluginTotalUnfiltered || allPlugins.length || 0 });
+    else document.getElementById('totalCount').textContent = (_pluginTotalUnfiltered || allPlugins.length || 0).toLocaleString();
     if (_pluginTotalCount > 0) {
       document.getElementById('btnCheckUpdates').disabled = false;
       const toolbar = document.getElementById('toolbar');
@@ -73,7 +74,8 @@ async function fetchPluginPage() {
         }
       }
       _pluginTotalCount = visible;
-      document.getElementById('totalCount').textContent = (_pluginTotalUnfiltered || allPlugins.length || 0).toLocaleString();
+      if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: _pluginTotalUnfiltered || allPlugins.length || 0 });
+      else document.getElementById('totalCount').textContent = (_pluginTotalUnfiltered || allPlugins.length || 0).toLocaleString();
     }
     return;
   }
@@ -108,7 +110,8 @@ async function fetchPluginPage() {
       // Append new batch to DOM without re-rendering everything
       loadMorePlugins();
     }
-    document.getElementById('totalCount').textContent = (_pluginTotalUnfiltered || allPlugins.length || 0).toLocaleString();
+    if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: _pluginTotalUnfiltered || allPlugins.length || 0 });
+    else document.getElementById('totalCount').textContent = (_pluginTotalUnfiltered || allPlugins.length || 0).toLocaleString();
   } catch (e) {
     showToast(toastFmt('toast.plugin_query_failed', { err: e }), 4000, 'error');
   }
@@ -191,7 +194,8 @@ async function scanPlugins(resume = false) {
       progressFill.style.width = pct + '%';
       const etaStr = eta.estimate(data.processed, data.total);
       btn.innerHTML = `&#8635; ${data.processed} / ${data.total}${etaStr ? ' — ' + etaStr : ''}`;
-      document.getElementById('totalCount').textContent = allPlugins.length.toLocaleString();
+      if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: allPlugins.length });
+      else document.getElementById('totalCount').textContent = allPlugins.length.toLocaleString();
 
       // Render the new batch directly into the list
       const fragment = document.createDocumentFragment();
@@ -228,7 +232,8 @@ async function scanPlugins(resume = false) {
       allPlugins = result.plugins;
     }
 
-    document.getElementById('totalCount').textContent = allPlugins.length;
+    if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: allPlugins.length });
+    else document.getElementById('totalCount').textContent = allPlugins.length;
     // Refresh header count immediately — scan already saved server-side; don't wait for next fetchPluginPage
     _pluginTotalUnfiltered = allPlugins.length;
     document.getElementById('btnCheckUpdates').disabled = allPlugins.length === 0;

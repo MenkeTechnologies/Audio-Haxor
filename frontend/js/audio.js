@@ -823,7 +823,9 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
     } else if (data.phase === 'scanning') {
       pendingSamples.push(...data.samples);
       pendingFound = data.found;
-      document.getElementById('sampleCount').textContent = pendingFound.toLocaleString();
+      window.__audioScanPendingFound = pendingFound;
+      if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ samples: pendingFound });
+      else document.getElementById('sampleCount').textContent = pendingFound.toLocaleString();
       scheduleFlush();
     }
   });
@@ -855,6 +857,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
     showToast(toastFmt('toast.audio_scan_failed', { errMsg }), 4000, 'error');
   }
 
+  window.__audioScanPendingFound = 0;
   _audioScanActive = false;
   hideGlobalProgress();
   btn.disabled = false;
@@ -907,7 +910,9 @@ function updateAudioStats() {
   document.getElementById('audioOtherCount').textContent = Math.max(0, total - mainFormats).toLocaleString();
   document.getElementById('audioTotalSize').textContent = formatAudioSize(audioStatBytes);
   if (!_audioScanActive) {
-    document.getElementById('sampleCount').textContent = (unfiltered || total).toLocaleString();
+    const sc = unfiltered || total;
+    if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ samples: sc });
+    else document.getElementById('sampleCount').textContent = sc.toLocaleString();
   }
   document.getElementById('btnExportAudio').style.display = total > 0 ? '' : 'none';
   if (typeof updateAudioDiskUsage === 'function') updateAudioDiskUsage();

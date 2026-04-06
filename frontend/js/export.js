@@ -639,7 +639,8 @@ async function importPlugins() {
       return;
     }
     allPlugins = imported;
-    document.getElementById('totalCount').textContent = allPlugins.length.toLocaleString();
+    if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: imported.length });
+    else document.getElementById('totalCount').textContent = allPlugins.length.toLocaleString();
     document.getElementById('btnCheckUpdates').disabled = false;
     document.getElementById('btnExport').style.display = '';
     renderPlugins(allPlugins);

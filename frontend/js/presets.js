@@ -178,8 +178,11 @@ async function rebuildPresetStats(force) {
     ? count.toLocaleString() + ' / ' + unfiltered.toLocaleString()
     : (unfiltered || count).toLocaleString();
   document.getElementById('presetCount').textContent = countStr;
-  const headerCount = document.getElementById('presetCountHeader');
-  if (headerCount) headerCount.textContent = (unfiltered || count).toLocaleString();
+  if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ presets: unfiltered || count });
+  else {
+    const headerCount = document.getElementById('presetCountHeader');
+    if (headerCount) headerCount.textContent = (unfiltered || count).toLocaleString();
+  }
   document.getElementById('presetTotalSize').textContent = formatPresetSize(bytes);
   const entries = Object.entries(byType).sort((a, b) => b[1] - a[1]);
   const fmtHtml = entries
@@ -481,8 +484,9 @@ async function scanPresets(resume = false, unifiedResult = null) {
     } else if (data.phase === 'scanning') {
       pendingPresets.push(...data.presets);
       pendingFound = data.found;
-      // Preset scanner does not emit MIDI (dedicated midi_scanner); found = preset files only.
-      document.getElementById('presetCountHeader').textContent = pendingFound.toLocaleString();
+      window.__presetScanPendingFound = pendingFound;
+      if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ presets: pendingFound });
+      else document.getElementById('presetCountHeader').textContent = pendingFound.toLocaleString();
       scheduleFlush();
     }
   });
@@ -527,6 +531,7 @@ async function scanPresets(resume = false, unifiedResult = null) {
     showToast(toastFmt('toast.preset_scan_failed', { errMsg }), 4000, 'error');
   }
 
+  window.__presetScanPendingFound = 0;
   hideGlobalProgress();
   btn.disabled = false;
   if (typeof btnLoading === 'function') btnLoading(btn, false);

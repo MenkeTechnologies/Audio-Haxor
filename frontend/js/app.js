@@ -291,6 +291,83 @@ function formatUptime(secs) {
     return h + u('ui.unit.hr', 'h') + ' ' + m + u('ui.unit.min', 'm');
 }
 
+/** Pairs: top header strip + stats bar — must stay identical for each category. */
+const INVENTORY_COUNT_PAIR_IDS = {
+    plugins: ['headerPlugins', 'totalCount'],
+    samples: ['headerSamples', 'sampleCount'],
+    daw: ['headerDaw', 'dawProjectCount'],
+    presets: ['headerPresets', 'presetCountHeader'],
+    midi: ['headerMidi', 'midiScanCount'],
+    pdf: ['headerPdf', 'pdfCountHeader'],
+};
+
+function _fmtInventoryCount(n) {
+    const x = Number(n);
+    if (!Number.isFinite(x) || x < 0) return '0';
+    return x.toLocaleString();
+}
+
+/**
+ * Canonical per-category totals for header + stats bar (library-wide unfiltered,
+ * or live scan progress when a scanner is active).
+ */
+function computeInventoryCounts(tc) {
+    const tc0 = tc || {};
+    let plugins = _pluginTotalUnfiltered || tc0.plugins || 0;
+    if (typeof scanProgressCleanup !== 'undefined' && scanProgressCleanup && typeof allPlugins !== 'undefined') {
+        plugins = Math.max(plugins, allPlugins.length);
+    }
+    let samples = audioTotalUnfiltered || tc0.audio_samples || 0;
+    if (typeof audioScanProgressCleanup !== 'undefined' && audioScanProgressCleanup) {
+        const p = typeof window.__audioScanPendingFound === 'number' ? window.__audioScanPendingFound : 0;
+        samples = Math.max(samples, p);
+    }
+    let daw = (typeof _dawTotalUnfiltered !== 'undefined' && _dawTotalUnfiltered) || tc0.daw_projects || 0;
+    if (typeof dawScanProgressCleanup !== 'undefined' && dawScanProgressCleanup) {
+        const p = typeof window.__dawScanPendingFound === 'number' ? window.__dawScanPendingFound : 0;
+        daw = Math.max(daw, p);
+    }
+    let presets = (typeof _presetTotalUnfiltered !== 'undefined' && _presetTotalUnfiltered) || tc0.presets || 0;
+    if (typeof presetScanProgressCleanup !== 'undefined' && presetScanProgressCleanup) {
+        const p = typeof window.__presetScanPendingFound === 'number' ? window.__presetScanPendingFound : 0;
+        presets = Math.max(presets, p);
+    }
+    let pdf = (typeof _pdfTotalUnfiltered !== 'undefined' && _pdfTotalUnfiltered) || tc0.pdfs || 0;
+    if (typeof pdfScanProgressCleanup !== 'undefined' && pdfScanProgressCleanup) {
+        const p = typeof window.__pdfScanPendingFound === 'number' ? window.__pdfScanPendingFound : 0;
+        pdf = Math.max(pdf, p);
+    }
+    let midi = typeof getMidiCount === 'function' ? getMidiCount() : (tc0.midi_files || 0);
+    if (typeof _midiScanProgressCleanup !== 'undefined' && _midiScanProgressCleanup) {
+        const p = typeof window.__midiScanPendingFound === 'number' ? window.__midiScanPendingFound : 0;
+        midi = Math.max(midi, p);
+    }
+    return { plugins, samples, daw, presets, pdf, midi };
+}
+
+function applyInventoryCounts(counts) {
+    if (!counts || typeof counts !== 'object') return;
+    const set = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    };
+    for (const [k, v] of Object.entries(counts)) {
+        const ids = INVENTORY_COUNT_PAIR_IDS[k];
+        if (!ids || v === undefined || v === null) continue;
+        const t = _fmtInventoryCount(v);
+        ids.forEach((id) => set(id, t));
+    }
+}
+
+/** Update one or more categories — always writes both header + stats bar for each key. */
+function applyInventoryCountsPartial(overrides) {
+    if (!overrides || typeof overrides !== 'object') return;
+    applyInventoryCounts(overrides);
+}
+
+window.applyInventoryCounts = applyInventoryCounts;
+window.applyInventoryCountsPartial = applyInventoryCountsPartial;
+
 async function updateHeaderInfo() {
     if (typeof document !== 'undefined' && document.hidden) return;
     try {
@@ -308,25 +385,8 @@ async function updateHeaderInfo() {
         set('headerFds', s.openFds);
         set('headerUptime', formatUptime(s.uptimeSecs));
         set('headerPid', s.pid);
-        // Scan counts — use DB table counts from process stats (always accurate)
         const tc = s.database?.tables || {};
-        const pluginCount = _pluginTotalUnfiltered || tc.plugins || 0;
-        const audioCount = audioTotalUnfiltered || tc.audio_samples || 0;
-        const dawCount = (typeof _dawTotalUnfiltered !== 'undefined' && _dawTotalUnfiltered) || tc.daw_projects || 0;
-        const presetCount = (typeof _presetTotalUnfiltered !== 'undefined' && _presetTotalUnfiltered) || tc.presets || 0;
-        const pdfCount = (typeof _pdfTotalUnfiltered !== 'undefined' && _pdfTotalUnfiltered) || tc.pdfs || 0;
-        const midiCount = typeof getMidiCount === 'function' ? getMidiCount() : (tc.midi_files || 0);
-        set('headerSamples', audioCount);
-        set('headerPlugins', pluginCount);
-        set('headerDaw', dawCount);
-        set('headerPresets', presetCount);
-        set('headerMidi', midiCount);
-        set('headerPdf', pdfCount);
-        // Also update stat-bar counters so they don't show 0 before tab-specific
-        // async chains complete.
-        set('dawProjectCount', dawCount);
-        set('presetCountHeader', presetCount);
-        set('pdfCountHeader', pdfCount);
+        applyInventoryCounts(computeInventoryCounts(tc));
 
         // Scan status badge
         const sc = s.scanner || {};

@@ -117,6 +117,7 @@ async function updatePluginDiskUsage(force) {
     set('pluginStatsAu', au.toLocaleString());
     set('pluginStatsOther', other.toLocaleString());
     set('pluginStatsSize', formatAudioSize(totalBytes));
+    if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: unfiltered });
   }
   const data = Object.entries(bytes).map(([label, b]) => ({
     label, bytes: b, sizeStr: formatAudioSize(b),
