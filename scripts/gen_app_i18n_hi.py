@@ -107,6 +107,10 @@ def main() -> None:
     for k in list(out_map.keys()):
         if "{Name}" in out_map[k]:
             out_map[k] = out_map[k].replace("{Name}", "{name}")
+    # MT often drops `{count}` for this string in Hindi; `appFmt` requires the English token name.
+    k_pdf = "ui.history.footer_pdfs_other"
+    if k_pdf in out_map and "{count}" not in out_map[k_pdf]:
+        out_map[k_pdf] = "{count} PDF इस स्कैन में"
 
     out_path.write_text(json.dumps(out_map, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"Wrote {len(out_map)} keys to {out_path}", file=sys.stderr)

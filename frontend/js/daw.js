@@ -112,11 +112,7 @@ function updateDawStats() {
   const fl = src['FL Studio'] || 0;
   const reaper = src['REAPER'] || 0;
   const mainDaws = ableton + logic + fl + reaper;
-  let accumulatedTotal = 0;
-  for (const k in src) accumulatedTotal += src[k];
-  // Authoritative filtered count from aggregate query — don't Math.max against
-  // allDawProjects.length (that's a page-size fallback that would eclipse the filter).
-  const dawDisplayCount = (_dawTotalCount != null ? _dawTotalCount : accumulatedTotal) || accumulatedTotal || allDawProjects.length;
+  const dawDisplayCount = _dawTotalCount || _dawTotalUnfiltered || 0;
   const unfiltered = _dawTotalUnfiltered || 0;
   const isFiltered = unfiltered > 0 && dawDisplayCount > 0 && dawDisplayCount < unfiltered;
   const countStr = isFiltered

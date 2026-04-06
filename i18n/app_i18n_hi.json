@@ -857,7 +857,7 @@
   "ui.history.footer_midi_one": "इस स्कैन में {count} MIDI फ़ाइल",
   "ui.history.footer_midi_other": "इस स्कैन में {count} MIDI फ़ाइलें",
   "ui.history.footer_pdfs_one": "इस स्कैन में {count} पीडीएफ",
-  "ui.history.footer_pdfs_other": "इस स्कैन में पीडीएफ़ की गिनती करें",
+  "ui.history.footer_pdfs_other": "{count} PDF इस स्कैन में",
   "ui.history.footer_plugins_one": "इस स्कैन में {count} प्लगइन",
   "ui.history.footer_plugins_other": "इस स्कैन में {count} प्लगइन्स",
   "ui.history.footer_presets_one": "इस स्कैन में {count} प्रीसेट",
