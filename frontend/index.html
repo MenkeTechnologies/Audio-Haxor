@@ -430,8 +430,8 @@
     .settings-container {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
-      gap: 8px;
-      padding: 16px 12px 120px;
+      gap: 5px;
+      padding: 10px 10px 80px;
       align-items: start;
     }
 
@@ -441,7 +441,7 @@
       margin-bottom: 0;
     }
     .settings-search-empty {
-      padding: 16px;
+      padding: 8px;
       text-align: center;
       color: var(--text-dim);
       font-size: 11px;
@@ -455,7 +455,7 @@
     .settings-search-hit { color: var(--accent); font-weight: 700; }
 
     @media (min-width: 600px) {
-      .settings-container { padding: 16px 16px 120px; }
+      .settings-container { padding: 10px 12px 80px; }
     }
 
     @media (min-width: 1100px) {
@@ -474,8 +474,8 @@
       overflow: visible;
       min-width: 0;
       border: 1px solid var(--cyan);
-      border-radius: 6px;
-      padding: 8px;
+      border-radius: 4px;
+      padding: 6px;
       margin-bottom: 0;
       background: var(--bg-card);
     }
@@ -488,8 +488,8 @@
       text-transform: uppercase;
       color: var(--cyan);
       text-shadow: 0 0 8px var(--cyan-glow);
-      margin-bottom: 6px;
-      padding-bottom: 4px;
+      margin-bottom: 4px;
+      padding-bottom: 3px;
       border-bottom: 1px solid var(--border);
     }
     /* No heading glow inside settings grid — reduces WebKit compositor churn next to perf/app panes */
@@ -502,12 +502,12 @@
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
-      padding: 6px 8px;
+      gap: 4px;
+      padding: 4px 6px;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-left: 3px solid var(--cyan);
-      margin-bottom: 2px;
+      margin-bottom: 1px;
       cursor: grab;
       animation: settings-row-glow 3s ease-in-out infinite;
     }
@@ -540,15 +540,15 @@
     .settings-row-placeholder {
       border: 2px dashed var(--cyan);
       background: rgba(5,217,232,0.04);
-      margin-bottom: 4px;
-      min-height: 40px;
+      margin-bottom: 2px;
+      min-height: 36px;
       border-radius: 2px;
     }
 
     .settings-label {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
       min-width: 0;
       flex: 1 1 200px;
     }
@@ -574,9 +574,9 @@
     .settings-row.settings-cache-bpm-wrap {
       flex-direction: column;
       align-items: flex-start;
-      gap: 8px;
+      gap: 5px;
       width: 100%;
-      margin-bottom: 8px;
+      margin-bottom: 5px;
     }
     .settings-cache-bpm-wrap .settings-label {
       flex: 0 1 auto;
@@ -593,7 +593,7 @@
     }
 
     .btn-settings-action {
-      padding: 6px 16px;
+      padding: 5px 12px;
       font-size: 11px;
     }
 
@@ -655,12 +655,12 @@
     .scheme-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 8px;
-      margin-top: 8px;
+      gap: 5px;
+      margin-top: 4px;
     }
 
     .scheme-btn {
-      padding: 12px;
+      padding: 8px 10px;
       background: var(--bg-secondary);
       border: 1px solid var(--border);
       border-radius: 2px;
@@ -687,7 +687,7 @@
       color: var(--text);
       text-transform: uppercase;
       letter-spacing: 1px;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
 
     .scheme-btn-desc {
@@ -698,7 +698,7 @@
     .scheme-btn-preview {
       display: flex;
       gap: 4px;
-      margin-top: 8px;
+      margin-top: 5px;
     }
 
     .scheme-dot {
@@ -6204,42 +6204,42 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=89318"></script>
-  <script src="js/ipc.js?v=89318"></script>
-  <script src="js/utils.js?v=89318"></script>
-  <script src="js/drag-reorder.js?v=89318"></script>
-  <script src="js/modal-drag.js?v=89318"></script>
-  <script src="js/columns.js?v=89318"></script>
-  <script src="js/notes.js?v=89318"></script>
-  <script src="js/favorites.js?v=89318"></script>
-  <script src="js/export.js?v=89318"></script>
-  <script src="js/plugins.js?v=89318"></script>
-  <script src="js/settings.js?v=89318"></script>
-  <script src="js/history.js?v=89318"></script>
-  <script src="js/kvr.js?v=89318"></script>
-  <script src="js/audio.js?v=89318"></script>
-  <script src="js/daw.js?v=89318"></script>
-  <script src="js/presets.js?v=89318"></script>
-  <script src="js/disk-usage.js?v=89318"></script>
-  <script src="js/batch-select.js?v=89318"></script>
-  <script src="js/sort-persist.js?v=89318"></script>
-  <script src="js/multi-filter.js?v=89318"></script>
-  <script src="js/file-browser.js?v=89318"></script>
-  <script src="js/duplicates.js?v=89318"></script>
-  <script src="js/command-palette.js?v=89318"></script>
-  <script src="js/xref.js?v=89318"></script>
-  <script src="js/dep-graph.js?v=89318"></script>
-  <script src="js/smart-playlists.js?v=89318"></script>
-  <script src="js/heatmap-dashboard.js?v=89318"></script>
-  <script src="js/midi.js?v=89318"></script>
-  <script src="js/pdf.js?v=89318"></script>
-  <script src="js/settings-search.js?v=89318"></script>
-  <script src="js/visualizer.js?v=89318"></script>
-  <script src="js/walker-status.js?v=89318"></script>
-  <script src="js/context-menu.js?v=89318"></script>
-  <script src="js/help-overlay.js?v=89318"></script>
-  <script src="js/shortcuts.js?v=89318"></script>
-  <script src="js/keyboard-nav.js?v=89318"></script>
-  <script src="js/app.js?v=89318"></script>
+  <script src="js/i18n-ui.js?v=89319"></script>
+  <script src="js/ipc.js?v=89319"></script>
+  <script src="js/utils.js?v=89319"></script>
+  <script src="js/drag-reorder.js?v=89319"></script>
+  <script src="js/modal-drag.js?v=89319"></script>
+  <script src="js/columns.js?v=89319"></script>
+  <script src="js/notes.js?v=89319"></script>
+  <script src="js/favorites.js?v=89319"></script>
+  <script src="js/export.js?v=89319"></script>
+  <script src="js/plugins.js?v=89319"></script>
+  <script src="js/settings.js?v=89319"></script>
+  <script src="js/history.js?v=89319"></script>
+  <script src="js/kvr.js?v=89319"></script>
+  <script src="js/audio.js?v=89319"></script>
+  <script src="js/daw.js?v=89319"></script>
+  <script src="js/presets.js?v=89319"></script>
+  <script src="js/disk-usage.js?v=89319"></script>
+  <script src="js/batch-select.js?v=89319"></script>
+  <script src="js/sort-persist.js?v=89319"></script>
+  <script src="js/multi-filter.js?v=89319"></script>
+  <script src="js/file-browser.js?v=89319"></script>
+  <script src="js/duplicates.js?v=89319"></script>
+  <script src="js/command-palette.js?v=89319"></script>
+  <script src="js/xref.js?v=89319"></script>
+  <script src="js/dep-graph.js?v=89319"></script>
+  <script src="js/smart-playlists.js?v=89319"></script>
+  <script src="js/heatmap-dashboard.js?v=89319"></script>
+  <script src="js/midi.js?v=89319"></script>
+  <script src="js/pdf.js?v=89319"></script>
+  <script src="js/settings-search.js?v=89319"></script>
+  <script src="js/visualizer.js?v=89319"></script>
+  <script src="js/walker-status.js?v=89319"></script>
+  <script src="js/context-menu.js?v=89319"></script>
+  <script src="js/help-overlay.js?v=89319"></script>
+  <script src="js/shortcuts.js?v=89319"></script>
+  <script src="js/keyboard-nav.js?v=89319"></script>
+  <script src="js/app.js?v=89319"></script>
 </body>
 </html>
