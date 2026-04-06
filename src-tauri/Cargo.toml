@@ -11,28 +11,28 @@ tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
-reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+reqwest = { version = "0.13", features = ["rustls"], default-features = false }
 regex = "1"
 walkdir = "2"
 rayon = "1"
-rand = "0.8"
-dirs = "5"
+rand = "0.10"
+dirs = "6"
 plist = "1"
-opener = "0.7"
+opener = "0.8"
 chrono = "0.4"
 urlencoding = "2"
-toml = "0.8"
+toml = "1.1"
 tauri-plugin-dialog = "2.7.0"
 libc = "0.2"
 num_cpus = "1"
-printpdf = "0.7"
-lopdf = "0.32"
+printpdf = "0.9"
+lopdf = "0.40"
 flate2 = "1"
 symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "ogg", "pcm"] }
-rusqlite = { version = "0.31", features = ["bundled"] }
-zip = { version = "2", default-features = false, features = ["deflate"] }
-notify = "7"
-sysinfo = "0.33"
+rusqlite = { version = "0.39", features = ["bundled"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
+notify = "8"
+sysinfo = "0.38"
 image_crate = { version = "0.25", default-features = false, features = ["png"], package = "image" }
 
 [build-dependencies]
@@ -43,7 +43,7 @@ name = "app_lib"
 crate-type = ["rlib"]
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 seq-macro = "0.3"
 
 [[bench]]
