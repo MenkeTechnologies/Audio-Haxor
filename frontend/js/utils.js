@@ -907,7 +907,15 @@ function switchTab(tab) {
     if (tab === 'tags') renderTagsManager();
     if (tab === 'files') initFileBrowser();
     if (tab === 'midi' && typeof loadMidiFiles === 'function' && !_midiLoaded) loadMidiFiles();
-    if (tab === 'settings') { refreshSettingsUI(); if (typeof renderCacheStats === 'function') renderCacheStats(); }
+    if (tab === 'settings') {
+      refreshSettingsUI();
+      if (typeof renderCacheStats === 'function') renderCacheStats();
+      // Force reflow so system-info and databases/caches panes resolve
+      // their layout in release WebView (without this, columns and
+      // percentage-based widths can render at 0 until a scroll/resize).
+      const settingsPanel = document.getElementById('tabSettings') || document.querySelector('.tab-content.active');
+      if (settingsPanel) void settingsPanel.offsetWidth;
+    }
   });
 }
 
