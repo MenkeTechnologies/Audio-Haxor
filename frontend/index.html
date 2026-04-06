@@ -425,20 +425,18 @@
     }
     .btn-stop:active { transform: translateY(1px) scale(0.98); }
 
-    /* Settings page — flexbox wrap: sections pack tightly without the
-       equal-row-height dead space that CSS grid forces.  Avoids CSS columns
-       which caused WebKit release flicker with animated rows + perf panes. */
+    /* Settings page — CSS columns for masonry packing (no dead space between
+       sections of different heights).  Animation/box-shadow/transition on
+       .settings-row are neutralised below so WebKit release doesn't flicker. */
     .settings-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px;
+      columns: 1;
+      column-gap: 3px;
       padding: 6px 6px 40px;
-      align-items: flex-start;
     }
 
-    /* Search bar spans full width */
+    /* Search bar spans full width across all columns */
     .settings-search-bar {
-      flex: 1 1 100%;
+      column-span: all;
       margin-bottom: 0;
     }
     .settings-search-empty {
@@ -455,9 +453,9 @@
     /* Hit-highlight for matched text */
     .settings-search-hit { color: var(--accent); font-weight: 700; }
 
-    /* Sections fill columns — single column by default */
+    /* Sections must not break across columns */
     .settings-section {
-      flex: 1 1 100%;
+      break-inside: avoid;
       min-width: 0;
     }
 
@@ -466,15 +464,15 @@
     }
 
     @media (min-width: 900px) {
-      .settings-section { flex: 1 1 calc(50% - 2px); max-width: calc(50% - 2px); }
+      .settings-container { columns: 2; }
     }
 
     @media (min-width: 1500px) {
-      .settings-section { flex: 1 1 calc(33.333% - 2px); max-width: calc(33.333% - 2px); }
+      .settings-container { columns: 3; }
     }
 
     @media (min-width: 2100px) {
-      .settings-section { flex: 1 1 calc(25% - 3px); max-width: calc(25% - 3px); }
+      .settings-container { columns: 4; }
     }
 
     .settings-section {
@@ -483,6 +481,7 @@
       border-radius: 4px;
       padding: 4px;
       background: var(--bg-card);
+      margin-bottom: 3px;
     }
 
     .settings-heading {
@@ -522,9 +521,16 @@
     }
     .settings-row:nth-child(2n) { animation-delay: 0.5s; }
     .settings-row:nth-child(3n) { animation-delay: 1.0s; }
-    /* Border glow animation + multicol was a WebKit flicker source; grid is primary layout now. */
+    /* Neutralise animation/box-shadow/transition inside CSS columns — WebKit release
+       creates compositing layers that corrupt child rendering otherwise. */
     .settings-container .settings-row {
       animation: none;
+      box-shadow: none;
+      transition: none;
+    }
+    .settings-container .settings-row:hover {
+      box-shadow: none;
+      transform: none;
     }
 
     .settings-row:hover {
