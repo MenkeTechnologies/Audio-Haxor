@@ -213,7 +213,7 @@ pub struct CacheStat {
 }
 
 /// Prefer the latest finalized audio scan; if none (e.g. streaming scan before parent row updated), use latest by timestamp.
-const ACTIVE_AUDIO_SCAN_ID_SQL: &str = "COALESCE((SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1),(SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1))";
+const ACTIVE_AUDIO_SCAN_ID_SQL: &str = "(SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1)";
 
 // ── Generic paginated query result for plugins/DAW/presets ──
 
@@ -1006,7 +1006,7 @@ impl Database {
     pub fn latest_scan_id(&self) -> Result<Option<String>, String> {
         let conn = self.conn.lock().unwrap();
         conn.query_row(
-            "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
+            "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
             [],
             |row| row.get(0),
         )
@@ -1048,23 +1048,15 @@ impl Database {
         // Resolve scan_id
         let scan_id = match &params.scan_id {
             Some(id) => id.clone(),
-            None => {
-                let id = conn
-                    .query_row(
-                        "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
-                        [],
-                        |row| row.get::<_, String>(0),
-                    )
-                    .optional()
-                    .map_err(|e| e.to_string())?
-                    .unwrap_or_default();
-                if id.is_empty() {
-                    conn.query_row(
-                        "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
-                        [], |r| r.get(0),
-                    ).optional().map_err(|e| e.to_string())?.unwrap_or_default()
-                } else { id }
-            }
+            None => conn
+                .query_row(
+                    "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?
+                .unwrap_or_default(),
         };
 
         if scan_id.is_empty() {
@@ -1233,7 +1225,7 @@ impl Database {
             Some(id) => id.to_string(),
             None => conn
                 .query_row(
-                    "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                    "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
                     [],
                     |row| row.get::<_, String>(0),
                 )
@@ -1306,7 +1298,7 @@ impl Database {
             Some(id) => id.to_string(),
             None => conn
                 .query_row(
-                    "SELECT id FROM daw_scans WHERE project_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                    "SELECT id FROM daw_scans ORDER BY timestamp DESC LIMIT 1",
                     [],
                     |row| row.get::<_, String>(0),
                 )
@@ -1362,7 +1354,7 @@ impl Database {
             Some(id) => id.to_string(),
             None => conn
                 .query_row(
-                    "SELECT id FROM preset_scans WHERE preset_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                    "SELECT id FROM preset_scans ORDER BY timestamp DESC LIMIT 1",
                     [],
                     |row| row.get::<_, String>(0),
                 )
@@ -1417,7 +1409,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET bpm = ?1 WHERE path = ?2 AND scan_id = (
-                SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
+                SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
             )",
             params![bpm, path],
         )
@@ -1430,7 +1422,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET key_name = ?1 WHERE path = ?2 AND scan_id = (
-                SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
+                SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
             )",
             params![key, path],
         )
@@ -1443,7 +1435,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET lufs = ?1 WHERE path = ?2 AND scan_id = (
-                SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
+                SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
             )",
             params![lufs, path],
         )
@@ -1458,7 +1450,7 @@ impl Database {
             .query_row(
                 "SELECT bpm, key_name, lufs, duration, channels, sample_rate, bits_per_sample
                  FROM audio_samples WHERE path = ?1 AND scan_id = (
-                    SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
+                    SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
                  )",
                 params![path],
                 |row| {
@@ -1485,7 +1477,7 @@ impl Database {
             .prepare(
                 "SELECT path FROM audio_samples
                  WHERE bpm IS NULL AND scan_id = (
-                    SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1
+                    SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1
                  )
                  LIMIT ?1",
             )
@@ -1525,7 +1517,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let scan_id: String = conn
             .query_row(
-                "SELECT id FROM plugin_scans WHERE plugin_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM plugin_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -1691,22 +1683,15 @@ impl Database {
         limit: u64,
     ) -> Result<DawQueryResult, String> {
         let conn = self.conn.lock().unwrap();
-        let mut scan_id: String = conn
+        let scan_id: String = conn
             .query_row(
-                "SELECT id FROM daw_scans WHERE project_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM daw_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
             .optional()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
-        // Fallback: during streaming scan, project_count is 0 but rows exist.
-        if scan_id.is_empty() {
-            scan_id = conn.query_row(
-                "SELECT id FROM daw_scans ORDER BY timestamp DESC LIMIT 1",
-                [], |r| r.get(0),
-            ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
-        }
         if scan_id.is_empty() {
             return Ok(DawQueryResult {
                 projects: vec![],
@@ -1855,21 +1840,15 @@ impl Database {
         limit: u64,
     ) -> Result<PresetQueryResult, String> {
         let conn = self.conn.lock().unwrap();
-        let mut scan_id: String = conn
+        let scan_id: String = conn
             .query_row(
-                "SELECT id FROM preset_scans WHERE preset_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM preset_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
             .optional()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
-        if scan_id.is_empty() {
-            scan_id = conn.query_row(
-                "SELECT id FROM preset_scans ORDER BY timestamp DESC LIMIT 1",
-                [], |r| r.get(0),
-            ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
-        }
         if scan_id.is_empty() {
             return Ok(PresetQueryResult {
                 presets: vec![],
@@ -2105,7 +2084,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
             .query_row(
-                "SELECT id FROM plugin_scans WHERE plugin_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM plugin_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -2235,7 +2214,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
             .query_row(
-                "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -2451,7 +2430,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
             .query_row(
-                "SELECT id FROM daw_scans WHERE project_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM daw_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -2656,7 +2635,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
             .query_row(
-                "SELECT id FROM preset_scans WHERE preset_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM preset_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -2866,7 +2845,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
             .query_row(
-                "SELECT id FROM midi_scans WHERE midi_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM midi_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -2904,21 +2883,15 @@ impl Database {
         limit: u64,
     ) -> Result<MidiQueryResult, String> {
         let conn = self.conn.lock().unwrap();
-        let mut scan_id: String = conn
+        let scan_id: String = conn
             .query_row(
-                "SELECT id FROM midi_scans WHERE midi_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM midi_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
             .optional()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
-        if scan_id.is_empty() {
-            scan_id = conn.query_row(
-                "SELECT id FROM midi_scans ORDER BY timestamp DESC LIMIT 1",
-                [], |r| r.get(0),
-            ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
-        }
         if scan_id.is_empty() {
             return Ok(MidiQueryResult {
                 midi_files: vec![],
@@ -3324,7 +3297,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let id: Option<String> = conn
             .query_row(
-                "SELECT id FROM pdf_scans WHERE pdf_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM pdf_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -3359,7 +3332,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let scan_id: String = conn
             .query_row(
-                "SELECT id FROM pdf_scans WHERE pdf_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM pdf_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -3461,21 +3434,15 @@ impl Database {
         limit: u64,
     ) -> Result<PdfQueryResult, String> {
         let conn = self.conn.lock().unwrap();
-        let mut scan_id: String = conn
+        let scan_id: String = conn
             .query_row(
-                "SELECT id FROM pdf_scans WHERE pdf_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM pdf_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
             .optional()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
-        if scan_id.is_empty() {
-            scan_id = conn.query_row(
-                "SELECT id FROM pdf_scans ORDER BY timestamp DESC LIMIT 1",
-                [], |r| r.get(0),
-            ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
-        }
         if scan_id.is_empty() {
             return Ok(PdfQueryResult {
                 pdfs: vec![],
@@ -3586,7 +3553,7 @@ impl Database {
             Some(id) => id.to_string(),
             None => conn
                 .query_row(
-                    "SELECT id FROM pdf_scans WHERE pdf_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                    "SELECT id FROM pdf_scans ORDER BY timestamp DESC LIMIT 1",
                     [],
                     |row| row.get::<_, String>(0),
                 )
@@ -3651,18 +3618,8 @@ impl Database {
             .join(",")
     }
 
-    fn get_latest_scan_id(&self, scan_table: &str, count_col: &str) -> Result<String, String> {
+    fn get_latest_scan_id(&self, scan_table: &str, _count_col: &str) -> Result<String, String> {
         let conn = self.conn.lock().unwrap();
-        // Prefer a scan whose count was finalized (count_col > 0). Fall back to
-        // the most recent scan regardless — during streaming the count column is
-        // 0 but the data table already has rows.
-        let id: String = conn.query_row(
-            &format!("SELECT id FROM {scan_table} WHERE {count_col} > 0 ORDER BY timestamp DESC LIMIT 1"),
-            [], |r| r.get(0)
-        ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
-        if !id.is_empty() {
-            return Ok(id);
-        }
         Ok(conn.query_row(
             &format!("SELECT id FROM {scan_table} ORDER BY timestamp DESC LIMIT 1"),
             [], |r| r.get(0)
@@ -4171,7 +4128,7 @@ impl Database {
         // Pre-resolve scan_id to avoid subquery on every row
         let sid: String = conn
             .query_row(
-                "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -4217,7 +4174,7 @@ impl Database {
         };
         let sid: String = conn
             .query_row(
-                "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
                 [],
                 |r| r.get(0),
             )
@@ -4443,7 +4400,7 @@ impl Database {
         let mut count = 0u32;
         {
             let mut stmt = tx.prepare_cached(
-                "UPDATE audio_samples SET bpm = ?1, key_name = ?2, lufs = ?3 WHERE path = ?4 AND scan_id = (SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1)"
+                "UPDATE audio_samples SET bpm = ?1, key_name = ?2, lufs = ?3 WHERE path = ?4 AND scan_id = (SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1)"
             ).map_err(|e| e.to_string())?;
             for (path, bpm, key, lufs) in results {
                 let _ = stmt.execute(params![bpm, key, lufs, path]);
