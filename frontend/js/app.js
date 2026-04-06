@@ -311,9 +311,9 @@ async function updateHeaderInfo() {
         const tc = s.database?.tables || {};
         const pluginCount = _pluginTotalUnfiltered || tc.plugins || 0;
         const audioCount = audioTotalUnfiltered || tc.audio_samples || 0;
-        const dawCount = _dawTotalUnfiltered || tc.daw_projects || 0;
-        const presetCount = _presetTotalUnfiltered || tc.presets || 0;
-        const pdfCount = _pdfTotalUnfiltered || tc.pdfs || 0;
+        const dawCount = (typeof _dawTotalUnfiltered !== 'undefined' && _dawTotalUnfiltered) || tc.daw_projects || 0;
+        const presetCount = (typeof _presetTotalUnfiltered !== 'undefined' && _presetTotalUnfiltered) || tc.presets || 0;
+        const pdfCount = (typeof _pdfTotalUnfiltered !== 'undefined' && _pdfTotalUnfiltered) || tc.pdfs || 0;
         const midiCount = typeof getMidiCount === 'function' ? getMidiCount() : (tc.midi_files || 0);
         set('headerSamples', audioCount);
         set('headerPlugins', pluginCount);
