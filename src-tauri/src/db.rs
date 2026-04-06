@@ -1048,15 +1048,23 @@ impl Database {
         // Resolve scan_id
         let scan_id = match &params.scan_id {
             Some(id) => id.clone(),
-            None => conn
-                .query_row(
-                    "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
-                    [],
-                    |row| row.get::<_, String>(0),
-                )
-                .optional()
-                .map_err(|e| e.to_string())?
-                .unwrap_or_default(),
+            None => {
+                let id = conn
+                    .query_row(
+                        "SELECT id FROM audio_scans WHERE sample_count > 0 ORDER BY timestamp DESC LIMIT 1",
+                        [],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()
+                    .map_err(|e| e.to_string())?
+                    .unwrap_or_default();
+                if id.is_empty() {
+                    conn.query_row(
+                        "SELECT id FROM audio_scans ORDER BY timestamp DESC LIMIT 1",
+                        [], |r| r.get(0),
+                    ).optional().map_err(|e| e.to_string())?.unwrap_or_default()
+                } else { id }
+            }
         };
 
         if scan_id.is_empty() {
@@ -1683,7 +1691,7 @@ impl Database {
         limit: u64,
     ) -> Result<DawQueryResult, String> {
         let conn = self.conn.lock().unwrap();
-        let scan_id: String = conn
+        let mut scan_id: String = conn
             .query_row(
                 "SELECT id FROM daw_scans WHERE project_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
@@ -1692,6 +1700,13 @@ impl Database {
             .optional()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
+        // Fallback: during streaming scan, project_count is 0 but rows exist.
+        if scan_id.is_empty() {
+            scan_id = conn.query_row(
+                "SELECT id FROM daw_scans ORDER BY timestamp DESC LIMIT 1",
+                [], |r| r.get(0),
+            ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
+        }
         if scan_id.is_empty() {
             return Ok(DawQueryResult {
                 projects: vec![],
@@ -1840,7 +1855,7 @@ impl Database {
         limit: u64,
     ) -> Result<PresetQueryResult, String> {
         let conn = self.conn.lock().unwrap();
-        let scan_id: String = conn
+        let mut scan_id: String = conn
             .query_row(
                 "SELECT id FROM preset_scans WHERE preset_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
@@ -1849,6 +1864,12 @@ impl Database {
             .optional()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
+        if scan_id.is_empty() {
+            scan_id = conn.query_row(
+                "SELECT id FROM preset_scans ORDER BY timestamp DESC LIMIT 1",
+                [], |r| r.get(0),
+            ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
+        }
         if scan_id.is_empty() {
             return Ok(PresetQueryResult {
                 presets: vec![],
@@ -2883,7 +2904,7 @@ impl Database {
         limit: u64,
     ) -> Result<MidiQueryResult, String> {
         let conn = self.conn.lock().unwrap();
-        let scan_id: String = conn
+        let mut scan_id: String = conn
             .query_row(
                 "SELECT id FROM midi_scans WHERE midi_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
@@ -2892,6 +2913,12 @@ impl Database {
             .optional()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
+        if scan_id.is_empty() {
+            scan_id = conn.query_row(
+                "SELECT id FROM midi_scans ORDER BY timestamp DESC LIMIT 1",
+                [], |r| r.get(0),
+            ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
+        }
         if scan_id.is_empty() {
             return Ok(MidiQueryResult {
                 midi_files: vec![],
@@ -3434,7 +3461,7 @@ impl Database {
         limit: u64,
     ) -> Result<PdfQueryResult, String> {
         let conn = self.conn.lock().unwrap();
-        let scan_id: String = conn
+        let mut scan_id: String = conn
             .query_row(
                 "SELECT id FROM pdf_scans WHERE pdf_count > 0 ORDER BY timestamp DESC LIMIT 1",
                 [],
@@ -3443,6 +3470,12 @@ impl Database {
             .optional()
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
+        if scan_id.is_empty() {
+            scan_id = conn.query_row(
+                "SELECT id FROM pdf_scans ORDER BY timestamp DESC LIMIT 1",
+                [], |r| r.get(0),
+            ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
+        }
         if scan_id.is_empty() {
             return Ok(PdfQueryResult {
                 pdfs: vec![],
@@ -3620,8 +3653,18 @@ impl Database {
 
     fn get_latest_scan_id(&self, scan_table: &str, count_col: &str) -> Result<String, String> {
         let conn = self.conn.lock().unwrap();
-        Ok(conn.query_row(
+        // Prefer a scan whose count was finalized (count_col > 0). Fall back to
+        // the most recent scan regardless — during streaming the count column is
+        // 0 but the data table already has rows.
+        let id: String = conn.query_row(
             &format!("SELECT id FROM {scan_table} WHERE {count_col} > 0 ORDER BY timestamp DESC LIMIT 1"),
+            [], |r| r.get(0)
+        ).optional().map_err(|e| e.to_string())?.unwrap_or_default();
+        if !id.is_empty() {
+            return Ok(id);
+        }
+        Ok(conn.query_row(
+            &format!("SELECT id FROM {scan_table} ORDER BY timestamp DESC LIMIT 1"),
             [], |r| r.get(0)
         ).optional().map_err(|e| e.to_string())?.unwrap_or_default())
     }
