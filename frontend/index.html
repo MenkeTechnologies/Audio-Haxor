@@ -4331,14 +4331,6 @@
       transition: none;
     }
 
-    .np-fft-canvas {
-      width: 64px;
-      height: 24px;
-      flex-shrink: 0;
-      border: 1px solid var(--border);
-      background: var(--bg-card);
-    }
-
     .now-playing-time {
       color: var(--text-dim);
       font-family: 'Orbitron', sans-serif;
@@ -4771,7 +4763,6 @@
             <div class="now-playing-progress" id="npProgress"></div>
             <div class="waveform-cursor" id="npCursor" style="left:0;display:none;"></div>
           </div>
-          <canvas class="np-fft-canvas" id="npFftCanvas" width="64" height="24"></canvas>
           <span class="now-playing-time" id="npTime">0:00 / 0:00</span>
         </div>
       </div>
@@ -4779,7 +4770,9 @@
         <div class="np-meta-line" id="npMetaLine"></div>
       </div>
       <div class="np-section" data-np-section="visualizer">
-        <div class="np-visualizer" id="npVisualizer"></div>
+        <div class="np-visualizer" id="npVisualizer">
+          <canvas id="npFftCanvas" style="width:100%;height:100%;display:block;"></canvas>
+        </div>
       </div>
       <div class="np-section" data-np-section="volume">
         <div class="now-playing-transport">

@@ -374,39 +374,76 @@ function _playbackRafLoop() {
   }
 }
 
-// Mini FFT frequency bar visualization next to the waveform bar.
-// Uses the existing _analyser (fftSize=4096) — draws ~16 bars covering
-// low-to-high frequencies on a 64×24 canvas.
+// Real-time FFT spectrum curve in the player's visualizer section.
+// Mirrors the parametric EQ's filled-curve style (magenta→cyan gradient).
 let _npFftBuf = null;
+let _npFftGrad = null;
 function _renderNpFft() {
   if (!_analyser) return;
   const canvas = document.getElementById('npFftCanvas');
-  if (!canvas) return;
+  if (!canvas || canvas.offsetParent === null) return; // skip if hidden
   const ctx = canvas.getContext('2d');
+  // Sync canvas resolution to CSS size (once or on resize)
+  const cw = canvas.clientWidth;
+  const ch = canvas.clientHeight;
+  if (cw > 0 && (canvas.width !== cw || canvas.height !== ch)) {
+    canvas.width = cw;
+    canvas.height = ch;
+    _npFftGrad = null; // rebuild gradient
+  }
   const w = canvas.width;
   const h = canvas.height;
+  if (w === 0 || h === 0) return;
   if (!_npFftBuf) _npFftBuf = new Uint8Array(_analyser.frequencyBinCount);
   _analyser.getByteFrequencyData(_npFftBuf);
   ctx.clearRect(0, 0, w, h);
-  // Draw 16 bars from logarithmically-spaced frequency bins
-  const bars = 16;
-  const barW = (w / bars) - 1;
-  const binCount = _npFftBuf.length;
-  for (let i = 0; i < bars; i++) {
-    // Log-scale: more bins for low frequencies, fewer for highs
-    const lo = Math.floor(Math.pow(i / bars, 2) * binCount);
-    const hi = Math.max(lo + 1, Math.floor(Math.pow((i + 1) / bars, 2) * binCount));
-    let sum = 0;
-    for (let b = lo; b < hi; b++) sum += _npFftBuf[b];
-    const avg = sum / (hi - lo);
-    const barH = (avg / 255) * h;
-    const t = i / bars;
-    const r = Math.round(5 + t * 250);
-    const g = Math.round(217 - t * 175);
-    const b2 = Math.round(232 - t * 123);
-    ctx.fillStyle = `rgb(${r},${g},${b2})`;
-    ctx.fillRect(i * (barW + 1), h - barH, barW, barH);
+
+  if (!_npFftGrad) {
+    _npFftGrad = ctx.createLinearGradient(0, 0, 0, h);
+    _npFftGrad.addColorStop(0, 'rgba(211,0,197,0.35)');
+    _npFftGrad.addColorStop(0.5, 'rgba(5,217,232,0.18)');
+    _npFftGrad.addColorStop(1, 'rgba(5,217,232,0.03)');
   }
+
+  const sampleRate = _playbackCtx ? _playbackCtx.sampleRate : 44100;
+  const binCount = _npFftBuf.length;
+  const fMin = 20;
+  const fMax = sampleRate / 2;
+  const logMin = Math.log10(fMin);
+  const logMax = Math.log10(fMax);
+
+  // Draw filled spectrum curve on log frequency scale
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  for (let i = 1; i < binCount; i++) {
+    const freq = (i * sampleRate) / (_analyser.fftSize);
+    if (freq < fMin) continue;
+    if (freq > fMax) break;
+    const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
+    const mag = _npFftBuf[i] / 255;
+    const y = h - mag * (h - 2);
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fillStyle = _npFftGrad;
+  ctx.fill();
+
+  // Bright top edge
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  for (let i = 1; i < binCount; i++) {
+    const freq = (i * sampleRate) / (_analyser.fftSize);
+    if (freq < fMin) continue;
+    if (freq > fMax) break;
+    const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
+    const mag = _npFftBuf[i] / 255;
+    const y = h - mag * (h - 2);
+    ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = 'rgba(5,217,232,0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
 }
 audioPlayer.addEventListener('play', () => {
   if (!_playbackRafId) _playbackRafId = requestAnimationFrame(_playbackRafLoop);
@@ -2399,26 +2436,7 @@ function updateMetaLine() {
   el.textContent = parts.join(' \u2022 ');
 }
 
-// ── Visualizer bars init ──
-(function initVisualizer() {
-  const viz = document.getElementById('npVisualizer');
-  if (!viz) return;
-  const BAR_COUNT = 24;
-  for (let i = 0; i < BAR_COUNT; i++) {
-    const bar = document.createElement('div');
-    bar.className = 'np-viz-bar';
-    // Randomize timing and height for organic look
-    const dur = (0.4 + Math.random() * 0.6).toFixed(2);
-    const minH = (3 + Math.random() * 4).toFixed(0);
-    const maxH = (12 + Math.random() * 20).toFixed(0);
-    const delay = (Math.random() * -1.5).toFixed(2);
-    bar.style.setProperty('--viz-dur', dur + 's');
-    bar.style.setProperty('--viz-min', minH + 'px');
-    bar.style.setProperty('--viz-max', maxH + 'px');
-    bar.style.animationDelay = delay + 's';
-    viz.appendChild(bar);
-  }
-})();
+// ── Visualizer init (canvas-based FFT replaces random CSS bars) ──
 
 // ── Player section drag-to-reorder (Trello-style) ──
 (function initPlayerSectionDrag() {
