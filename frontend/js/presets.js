@@ -33,7 +33,7 @@ function presetTableHeadHtml() {
 }
 
 async function fetchPresetPage() {
-  const search = document.getElementById('presetSearchInput')?.value || '';
+  const search = _lastPresetSearch || '';
   const fmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('presetFormatFilter') : null;
   const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
   // During an active scan, DOM-toggle filter existing rendered rows (O(visible))

@@ -20,7 +20,7 @@ let dawStatBytes = 0;
 let _dawStatsSnapshot = null;
 
 async function fetchDawPage() {
-  const search = document.getElementById('dawSearchInput')?.value || '';
+  const search = _lastDawSearch || '';
   const dawSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('dawDawFilter') : null;
   const dawFilter = dawSet ? [...dawSet].join(',') : null;
   // During an active scan, DOM-toggle filter existing rendered rows (O(visible))

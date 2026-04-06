@@ -26,7 +26,7 @@ let _lastPdfSearch = '';
 let _lastPdfMode = 'fuzzy';
 
 async function fetchPdfPage() {
-  const search = document.getElementById('pdfSearchInput')?.value || '';
+  const search = _lastPdfSearch || '';
   if (typeof showGlobalProgress === 'function') showGlobalProgress();
   // During an active scan, DOM-toggle filter existing rendered rows instead of
   // hitting the DB (scan isn't saved yet, query would wipe live results).
