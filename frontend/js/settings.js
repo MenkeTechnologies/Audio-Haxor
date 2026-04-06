@@ -1705,7 +1705,7 @@ function restoreSettingsSectionOrder() {
 function resetSettingsSectionOrder() {
   prefs.removeItem('settingsSectionOrder');
   const container = document.querySelector('.settings-container');
-  const defaultOrder = ['appearance', 'scanning', 'performance', 'exclusions', 'sorting', 'fuzzy-search', 'about', 'colorscheme', 'playback', 'scan-behavior', 'visualizer-settings', 'data', 'files', 'storage', 'caches', 'danger-zone', 'shortcuts', 'system-info', 'app-info'];
+  const defaultOrder = ['appearance', 'scanning', 'performance', 'exclusions', 'sorting', 'fuzzy-search', 'about', 'system-info', 'colorscheme', 'app-info', 'playback', 'scan-behavior', 'visualizer-settings', 'data', 'files', 'storage', 'caches', 'danger-zone', 'shortcuts'];
   const sectionMap = {};
   container.querySelectorAll('.settings-section[data-section]').forEach(s => {
     sectionMap[s.dataset.section] = s;
