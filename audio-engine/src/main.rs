@@ -291,6 +291,7 @@ fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
         "get_output_device_info" => get_output_device_info(req.device_id.as_deref()),
         "get_input_device_info" => get_input_device_info(req.device_id.as_deref()),
         "set_output_device" => set_output_device(req.device_id.as_deref()),
+        "set_input_device" => set_input_device(req.device_id.as_deref()),
         "start_output_stream" => {
             start_output_stream(req.device_id.as_deref(), req.tone, req.buffer_frames)
         }
@@ -561,6 +562,18 @@ fn set_output_device(device_id: Option<&str>) -> Result<serde_json::Value, Strin
         "ok": true,
         "device_id": id,
         "note": "validated; use start_output_stream to open the device",
+    }))
+}
+
+fn set_input_device(device_id: Option<&str>) -> Result<serde_json::Value, String> {
+    let Some(id) = device_id.filter(|s| !s.is_empty()) else {
+        return Err("device_id required".to_string());
+    };
+    let _device = find_input_device_by_id(id)?;
+    Ok(json!({
+        "ok": true,
+        "device_id": id,
+        "note": "validated; input capture stream not implemented yet",
     }))
 }
 

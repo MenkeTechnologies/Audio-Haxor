@@ -1341,7 +1341,7 @@ window.vstUpdater = {
     getFileWatcherStatus: () => invoke('get_file_watcher_status'),
     // MIDI
     getMidiInfo: (filePath) => invoke('get_midi_info', {filePath}),
-    /** Audio engine sidecar (persistent stdin loop): `{ cmd, device_id?, tone?, buffer_frames? }` → JSON. Commands include `engine_state`, `list_input_devices`, `get_input_device_info` (optional `device_id` = default), `get_output_device_info`, `set_output_tone`, `start_output_stream` (tone=F32 test sine; optional `buffer_frames`), stream fields + `tone_supported` / `tone_on` / `stream_buffer_frames`. */
+    /** Audio engine sidecar (persistent stdin loop): `{ cmd, device_id?, tone?, buffer_frames? }` → JSON. Commands include `engine_state`, `list_input_devices`, `get_input_device_info` (optional `device_id` = default), `get_output_device_info`, `set_input_device` / `set_output_device` (validate id), `set_output_tone`, `start_output_stream` (tone=F32 test sine; optional `buffer_frames`), stream fields + `tone_supported` / `tone_on` / `stream_buffer_frames`. */
     audioEngineInvoke: (request) => invoke('audio_engine_invoke', {request}),
     batchAnalyze: (paths) => invoke('batch_analyze', {paths}),
     dbQueryPlugins: (params) => invoke('db_query_plugins', params || {}),
