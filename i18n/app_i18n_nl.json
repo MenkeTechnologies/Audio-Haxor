@@ -632,6 +632,7 @@
   "ui.ae.output_device_tt": "System output device for the audio engine",
   "ui.ae.output_stream_off": "Output stream: stopped",
   "ui.ae.output_stream_on": "Output stream: active ({device})",
+  "ui.ae.output_stream_on_detail": "{name} · {rate} Hz · {channels} ch · {format} · {buffer}",
   "ui.ae.plugins_heading": "Insert plugins",
   "ui.ae.plugins_stub": "Reserved insert chain ({count} slots). Plugin hosting is not started yet.",
   "ui.ae.refresh_devices": "Refresh list",

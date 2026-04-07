@@ -79,7 +79,23 @@ async function fillAeStreamStatus(inv) {
     try {
         const st = await inv({cmd: 'output_stream_status'});
         if (st && st.ok === true && st.running === true && st.device_id != null && st.device_id !== '') {
-            el.textContent = catalogFmt('ui.ae.output_stream_on', {device: String(st.device_id)});
+            const name = st.device_name != null ? String(st.device_name) : String(st.device_id);
+            const rate = st.sample_rate_hz != null ? String(st.sample_rate_hz) : null;
+            const ch = st.channels != null ? String(st.channels) : null;
+            const fmt = st.sample_format != null ? String(st.sample_format) : '';
+            const buf = st.buffer_size != null ? String(st.buffer_size) : '';
+            if (rate != null && ch != null) {
+                el.textContent = catalogFmt('ui.ae.output_stream_on_detail', {
+                    name,
+                    device: String(st.device_id),
+                    rate,
+                    channels: ch,
+                    format: fmt,
+                    buffer: buf,
+                });
+            } else {
+                el.textContent = catalogFmt('ui.ae.output_stream_on', {device: String(st.device_id)});
+            }
         } else {
             el.textContent = catalogFmt('ui.ae.output_stream_off');
         }

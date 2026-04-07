@@ -30,10 +30,22 @@ struct OutputDeviceInfo {
     is_default: bool,
 }
 
+struct ActiveStream {
+    /// Held so [`Stream`] stays open; drop stops playback.
+    #[allow(dead_code)]
+    stream: Stream,
+    device_id: String,
+    device_name: String,
+    sample_rate_hz: u32,
+    channels: u16,
+    sample_format: String,
+    buffer_size: String,
+}
+
 enum AudioCmd {
     Start {
         device_id: Option<String>,
-        reply: mpsc::Sender<Result<String, String>>,
+        reply: mpsc::Sender<Result<serde_json::Value, String>>,
     },
     Stop {
         reply: mpsc::Sender<Result<bool, String>>,
@@ -53,30 +65,51 @@ fn audio_thread_tx() -> &'static Sender<AudioCmd> {
 }
 
 fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
-    let mut current: Option<(Stream, String)> = None;
+    let mut current: Option<ActiveStream> = None;
     while let Ok(cmd) = rx.recv() {
         match cmd {
             AudioCmd::Start { device_id, reply } => {
                 let res = (|| {
                     current.take();
                     let device = resolve_device(device_id.as_deref())?;
+                    let device_name = device.name().unwrap_or_default();
                     let resolved_id = match device_id.as_deref().filter(|s| !s.is_empty()) {
                         Some(id) => id.to_string(),
                         None => {
-                            let name = device.name().unwrap_or_default();
                             let rows = enumerate_output_devices()?;
                             rows.into_iter()
-                                .find(|d| d.name == name)
+                                .find(|d| d.name == device_name)
                                 .map(|d| d.id)
-                                .unwrap_or(name)
+                                .unwrap_or(device_name.clone())
                         }
                     };
                     let supported = device
                         .default_output_config()
                         .map_err(|e| format!("default_output_config: {e}"))?;
+                    let sample_rate_hz = supported.sample_rate().0;
+                    let channels = supported.channels();
+                    let sample_format = format!("{:?}", supported.sample_format());
+                    let buffer_size = format!("{:?}", supported.buffer_size());
                     let stream = build_silence_stream(&device, supported)?;
-                    current = Some((stream, resolved_id.clone()));
-                    Ok(resolved_id)
+                    current = Some(ActiveStream {
+                        stream,
+                        device_id: resolved_id.clone(),
+                        device_name: device_name.clone(),
+                        sample_rate_hz,
+                        channels,
+                        sample_format: sample_format.clone(),
+                        buffer_size: buffer_size.clone(),
+                    });
+                    Ok(json!({
+                        "ok": true,
+                        "device_id": resolved_id,
+                        "device_name": device_name,
+                        "sample_rate_hz": sample_rate_hz,
+                        "channels": channels,
+                        "sample_format": sample_format,
+                        "buffer_size": buffer_size,
+                        "note": "silence stream running (placeholder for mixer/plugin graph)",
+                    }))
                 })();
                 let _ = reply.send(res);
             }
@@ -86,15 +119,25 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
             }
             AudioCmd::Status { reply } => {
                 let v = match &current {
-                    Some((_, id)) => json!({
+                    Some(a) => json!({
                         "ok": true,
                         "running": true,
-                        "device_id": id,
+                        "device_id": a.device_id,
+                        "device_name": a.device_name,
+                        "sample_rate_hz": a.sample_rate_hz,
+                        "channels": a.channels,
+                        "sample_format": a.sample_format,
+                        "buffer_size": a.buffer_size,
                     }),
                     None => json!({
                         "ok": true,
                         "running": false,
                         "device_id": serde_json::Value::Null,
+                        "device_name": serde_json::Value::Null,
+                        "sample_rate_hz": serde_json::Value::Null,
+                        "channels": serde_json::Value::Null,
+                        "sample_format": serde_json::Value::Null,
+                        "buffer_size": serde_json::Value::Null,
                     }),
                 };
                 let _ = reply.send(Ok(v));
@@ -377,15 +420,9 @@ fn start_output_stream(device_id: Option<&str>) -> Result<serde_json::Value, Str
             reply: reply_tx,
         })
         .map_err(|_| "audio engine thread unavailable".to_string())?;
-    let id = reply_rx
+    reply_rx
         .recv()
-        .map_err(|_| "audio engine thread stopped".to_string())??;
-
-    Ok(json!({
-        "ok": true,
-        "device_id": id,
-        "note": "silence stream running (placeholder for mixer/plugin graph)",
-    }))
+        .map_err(|_| "audio engine thread stopped".to_string())?
 }
 
 fn stop_output_stream() -> Result<serde_json::Value, String> {
