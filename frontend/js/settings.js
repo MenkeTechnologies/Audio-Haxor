@@ -1910,7 +1910,7 @@ document.addEventListener('input', (e) => {
 
 // ── Settings Section Drag Reorder (Trello-style) ──
 function initSettingsSectionDrag() {
-    const container = document.querySelector('.settings-container');
+    const container = document.querySelector('#tabSettings .settings-container');
     if (!container) return;
 
     // Settings uses CSS Grid (see index.html); legacy hook kept for callers that still invoke it.
@@ -1941,7 +1941,7 @@ function restoreSettingsSectionOrder() {
     try {
         const order = JSON.parse(saved);
         if (!Array.isArray(order)) return;
-        const container = document.querySelector('.settings-container');
+        const container = document.querySelector('#tabSettings .settings-container');
         const sectionMap = {};
         container.querySelectorAll('.settings-section[data-section]').forEach(s => {
             sectionMap[s.dataset.section] = s;
@@ -1962,7 +1962,7 @@ function restoreSettingsSectionOrder() {
 
 function resetSettingsSectionOrder() {
     prefs.removeItem('settingsSectionOrder');
-    const container = document.querySelector('.settings-container');
+    const container = document.querySelector('#tabSettings .settings-container');
     const defaultOrder = ['appearance', 'scanning', 'performance', 'exclusions', 'sorting', 'fuzzy-search', 'about', 'system-info', 'colorscheme', 'app-info', 'playback', 'scan-behavior', 'visualizer-settings', 'data', 'files', 'storage', 'caches', 'danger-zone', 'shortcuts'];
     const sectionMap = {};
     container.querySelectorAll('.settings-section[data-section]').forEach(s => {

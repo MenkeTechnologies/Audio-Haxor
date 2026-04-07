@@ -457,7 +457,7 @@ frontend/
     dep-graph.js       -- Plugin dependency graph visualization
     visualizer.js      -- 6 real-time audio displays (FFT, waveform, spectrogram, Lissajous, levels, bands)
     walker-status.js   -- 4-tile live scanner thread status view
-    audio-engine.js    -- Audio Engine tab + `enginePlaybackStart` / `playback_*` for library output through the sidecar; mirrors floating-player EQ/volume/speed/pan and engine transport (play/pause, ±5s seek, reverse); tab uses cyberpunk panel styling (`ae-panel`, Orbitron headers, neon borders)
+    audio-engine.js    -- Audio Engine tab + `enginePlaybackStart` / `playback_*` for library output through the sidecar; mirrors floating-player EQ/volume/speed/pan and engine transport (play/pause, ±5s seek, reverse); tab layout matches **Settings** (`settings-container` / `settings-section` / `settings-row`)
     heatmap-dashboard.js -- 8-card analytics dashboard
     smart-playlists.js -- Rule-based auto-playlists (10 rule types)
     drag-reorder.js    -- Unified Trello-style drag/drop + table column reorder
