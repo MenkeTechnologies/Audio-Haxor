@@ -2344,12 +2344,25 @@ function _cachePlaybackEls() {
     _npCursorEl = document.getElementById('npCursor');
 }
 
+/** Effective duration (seconds) for engine-routed playback — poll + load may lag or return 0 for some files. */
+function enginePlaybackDurationSec() {
+    let dur =
+        typeof window._enginePlaybackDurSec === 'number' && window._enginePlaybackDurSec > 0
+            ? window._enginePlaybackDurSec
+            : 0;
+    if (dur <= 0 && typeof findByPath === 'function' && typeof allAudioSamples !== 'undefined' && audioPlayerPath) {
+        const s = findByPath(allAudioSamples, audioPlayerPath);
+        if (s && typeof s.duration === 'number' && s.duration > 0) dur = s.duration;
+    }
+    return dur;
+}
+
 function updatePlaybackTime() {
     let cur;
     let dur;
     if (_enginePlaybackActive && typeof window !== 'undefined' && typeof window._enginePlaybackPosSec === 'number') {
         cur = window._enginePlaybackPosSec;
-        dur = typeof window._enginePlaybackDurSec === 'number' ? window._enginePlaybackDurSec : 0;
+        dur = enginePlaybackDurationSec();
     } else if (audioReverseMode && _reversedBuf && _bufPlaying) {
         dur = _reversedBuf.duration;
         const elapsed = _playbackCtx.currentTime - _bufSegStartCtx;
@@ -2406,9 +2419,9 @@ function seekPlaybackToPercent(pct) {
     if (!audioPlayerPath) return;
     const p = Math.max(0, Math.min(1, pct));
     if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
-        const dur = typeof window._enginePlaybackDurSec === 'number' ? window._enginePlaybackDurSec : 0;
-        const pos = dur > 0 ? p * dur : 0;
-        void window.vstUpdater.audioEngineInvoke({cmd: 'playback_seek', position_sec: pos});
+        const dur = enginePlaybackDurationSec();
+        if (dur <= 0) return;
+        void window.vstUpdater.audioEngineInvoke({cmd: 'playback_seek', position_sec: p * dur});
         return;
     }
     if (audioReverseMode && _reversedBuf) {

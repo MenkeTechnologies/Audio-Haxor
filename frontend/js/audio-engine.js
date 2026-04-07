@@ -918,6 +918,10 @@ async function enginePlaybackStart(filePath) {
     if (!inv) throw new Error('audio engine IPC unavailable');
     let r = await inv({cmd: 'playback_load', path: filePath});
     throwIfAeNotOk(r, 'playback_load failed');
+    /* Seek math (`seekPlaybackToPercent`) needs duration before the first `playback_status` poll (~100ms). */
+    window._enginePlaybackPosSec = 0;
+    window._enginePlaybackDurSec =
+        typeof r.duration_sec === 'number' && !Number.isNaN(r.duration_sec) ? r.duration_sec : 0;
     const deviceId =
         typeof prefs !== 'undefined' && typeof prefs.getItem === 'function'
             ? prefs.getItem(AE_PREFS_DEVICE) || ''
