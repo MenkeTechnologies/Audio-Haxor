@@ -6525,9 +6525,19 @@
         #tabAudioEngine .ae-eq-canvas-col {
             display: flex;
             flex-direction: column;
-            flex: 1 1 280px;
+            flex: 1 1 100%;
             min-width: 0;
             max-width: 100%;
+        }
+
+        #tabAudioEngine .ae-eq-gain-pan-row {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+            flex: 1 1 100%;
+            min-width: 0;
         }
 
         #tabAudioEngine .ae-eq-param-wrap canvas {
@@ -8873,15 +8883,17 @@
                                 </div>
                                 <div class="ae-eq-resize-handle" id="aeEqCanvasResizeHandle" data-i18n-title="ui.tt.resize_fft_spectrum" role="separator" aria-orientation="horizontal"></div>
                             </div>
-                            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-                                <span style="font-size:9px;color:var(--magenta);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.np.label_gain">Gain</span>
-                                <input class="eq-slider" id="aeGainSlider" type="range" min="0" max="2" step="0.01" value="1" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--magenta);" />
-                                <span id="aeGainVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--magenta);">100%</span>
-                            </div>
-                            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-                                <span style="font-size:9px;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.np.label_pan">Pan</span>
-                                <input class="eq-slider" id="aePanSlider" type="range" min="-1" max="1" step="0.01" value="0" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--cyan);" />
-                                <span id="aePanVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--cyan);">C</span>
+                            <div class="ae-eq-gain-pan-row">
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+                                    <span style="font-size:9px;color:var(--magenta);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.np.label_gain">Gain</span>
+                                    <input class="eq-slider" id="aeGainSlider" type="range" min="0" max="2" step="0.01" value="1" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--magenta);" />
+                                    <span id="aeGainVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--magenta);">100%</span>
+                                </div>
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+                                    <span style="font-size:9px;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.np.label_pan">Pan</span>
+                                    <input class="eq-slider" id="aePanSlider" type="range" min="-1" max="1" step="0.01" value="0" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--cyan);" />
+                                    <span id="aePanVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--cyan);">C</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -10145,44 +10157,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=97978"></script>
-<script src="js/utils.js?v=97978"></script>
-<script src="js/ipc.js?v=97978"></script>
-<script src="js/drag-reorder.js?v=97978"></script>
-<script src="js/modal-drag.js?v=97978"></script>
-<script src="js/columns.js?v=97978"></script>
-<script src="js/notes.js?v=97978"></script>
-<script src="js/favorites.js?v=97978"></script>
-<script src="js/export.js?v=97978"></script>
-<script src="js/plugins.js?v=97978"></script>
-<script src="js/settings.js?v=97978"></script>
-<script src="js/history.js?v=97978"></script>
-<script src="js/kvr.js?v=97978"></script>
-<script src="js/audio.js?v=97978"></script>
-<script src="js/daw.js?v=97978"></script>
-<script src="js/presets.js?v=97978"></script>
-<script src="js/disk-usage.js?v=97978"></script>
-<script src="js/batch-select.js?v=97978"></script>
-<script src="js/native-file-drag.js?v=97978"></script>
-<script src="js/sort-persist.js?v=97978"></script>
-<script src="js/multi-filter.js?v=97978"></script>
-<script src="js/file-browser.js?v=97978"></script>
-<script src="js/duplicates.js?v=97978"></script>
-<script src="js/command-palette.js?v=97978"></script>
-<script src="js/xref.js?v=97978"></script>
-<script src="js/dep-graph.js?v=97978"></script>
-<script src="js/smart-playlists.js?v=97978"></script>
-<script src="js/heatmap-dashboard.js?v=97978"></script>
-<script src="js/midi.js?v=97978"></script>
-<script src="js/pdf.js?v=97978"></script>
-<script src="js/settings-search.js?v=97978"></script>
-<script src="js/visualizer.js?v=97978"></script>
-<script src="js/walker-status.js?v=97978"></script>
-<script src="js/audio-engine.js?v=97978"></script>
-<script src="js/context-menu.js?v=97978"></script>
-<script src="js/shortcuts.js?v=97978"></script>
-<script src="js/help-overlay.js?v=97978"></script>
-<script src="js/keyboard-nav.js?v=97978"></script>
-<script src="js/app.js?v=97978"></script>
+<script src="js/i18n-ui.js?v=97979"></script>
+<script src="js/utils.js?v=97979"></script>
+<script src="js/ipc.js?v=97979"></script>
+<script src="js/drag-reorder.js?v=97979"></script>
+<script src="js/modal-drag.js?v=97979"></script>
+<script src="js/columns.js?v=97979"></script>
+<script src="js/notes.js?v=97979"></script>
+<script src="js/favorites.js?v=97979"></script>
+<script src="js/export.js?v=97979"></script>
+<script src="js/plugins.js?v=97979"></script>
+<script src="js/settings.js?v=97979"></script>
+<script src="js/history.js?v=97979"></script>
+<script src="js/kvr.js?v=97979"></script>
+<script src="js/audio.js?v=97979"></script>
+<script src="js/daw.js?v=97979"></script>
+<script src="js/presets.js?v=97979"></script>
+<script src="js/disk-usage.js?v=97979"></script>
+<script src="js/batch-select.js?v=97979"></script>
+<script src="js/native-file-drag.js?v=97979"></script>
+<script src="js/sort-persist.js?v=97979"></script>
+<script src="js/multi-filter.js?v=97979"></script>
+<script src="js/file-browser.js?v=97979"></script>
+<script src="js/duplicates.js?v=97979"></script>
+<script src="js/command-palette.js?v=97979"></script>
+<script src="js/xref.js?v=97979"></script>
+<script src="js/dep-graph.js?v=97979"></script>
+<script src="js/smart-playlists.js?v=97979"></script>
+<script src="js/heatmap-dashboard.js?v=97979"></script>
+<script src="js/midi.js?v=97979"></script>
+<script src="js/pdf.js?v=97979"></script>
+<script src="js/settings-search.js?v=97979"></script>
+<script src="js/visualizer.js?v=97979"></script>
+<script src="js/walker-status.js?v=97979"></script>
+<script src="js/audio-engine.js?v=97979"></script>
+<script src="js/context-menu.js?v=97979"></script>
+<script src="js/shortcuts.js?v=97979"></script>
+<script src="js/help-overlay.js?v=97979"></script>
+<script src="js/keyboard-nav.js?v=97979"></script>
+<script src="js/app.js?v=97979"></script>
 </body>
 </html>
