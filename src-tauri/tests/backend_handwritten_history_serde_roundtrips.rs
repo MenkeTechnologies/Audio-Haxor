@@ -404,7 +404,7 @@ fn scanner_module_format_size_matches_lib() {
 fn scanner_discover_plugins_empty_directory() {
     let tmp = std::env::temp_dir().join(format!("ah_disc_empty_{}", std::process::id()));
     std::fs::create_dir_all(&tmp).unwrap();
-    let out = app_lib::scanner::discover_plugins(&[tmp.to_string_lossy().into_owned()]);
+    let out = app_lib::scanner::discover_plugins(&[tmp.to_string_lossy().into_owned()], None);
     let _ = std::fs::remove_dir_all(&tmp);
     assert!(out.is_empty());
 }

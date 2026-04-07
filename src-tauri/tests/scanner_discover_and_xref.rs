@@ -13,7 +13,7 @@ fn unique_temp(prefix: &str) -> std::path::PathBuf {
 #[test]
 fn discover_plugins_nonexistent_directory_yields_empty() {
     let dirs = vec!["/nonexistent/audio_haxor_discover_plugins_path".to_string()];
-    let found = app_lib::scanner::discover_plugins(&dirs);
+    let found = app_lib::scanner::discover_plugins(&dirs, None);
     assert!(found.is_empty());
 }
 
@@ -28,7 +28,7 @@ fn discover_plugins_only_includes_vst_vst3_component_dll() {
     let _ = std::fs::create_dir_all(base.join("Other.component"));
 
     let dirs = vec![base.to_string_lossy().to_string()];
-    let mut paths: Vec<String> = app_lib::scanner::discover_plugins(&dirs)
+    let mut paths: Vec<String> = app_lib::scanner::discover_plugins(&dirs, None)
         .into_iter()
         .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
         .collect();

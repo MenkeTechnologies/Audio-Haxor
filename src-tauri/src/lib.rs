@@ -57,6 +57,51 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
+/// Domain string for SQLite `directory_scan_state` — shared by unified and standalone walkers.
+pub const DIRECTORY_SCAN_INCREMENTAL_DOMAIN: &str = "unified";
+
+fn incremental_directory_scan_enabled() -> bool {
+    let prefs = history::load_preferences();
+    prefs
+        .get("incrementalDirectoryScan")
+        .and_then(|v| v.as_str())
+        .map(|s| s != "off")
+        .unwrap_or(true)
+}
+
+fn load_incremental_dir_state_for_walk() -> Option<Arc<unified_walker::IncrementalDirState>> {
+    if !incremental_directory_scan_enabled() {
+        return None;
+    }
+    match db::global().load_directory_scan_snapshot(DIRECTORY_SCAN_INCREMENTAL_DOMAIN) {
+        Ok(m) => Some(Arc::new(unified_walker::IncrementalDirState::new(m))),
+        Err(e) => {
+            crate::write_app_log(format!(
+                "SCAN INCREMENTAL — load directory snapshot failed ({e}); full walk",
+            ));
+            None
+        }
+    }
+}
+
+fn persist_incremental_dir_state_after_walk(
+    inc: Option<&Arc<unified_walker::IncrementalDirState>>,
+    scan_id_for_audit: &str,
+) {
+    let Some(inc) = inc else {
+        return;
+    };
+    let pending = inc.take_pending();
+    if pending.is_empty() {
+        return;
+    }
+    let _ = db::global().upsert_directory_scan_batch(
+        DIRECTORY_SCAN_INCREMENTAL_DOMAIN,
+        &pending,
+        Some(scan_id_for_audit),
+    );
+}
+
 // ── Export / Import types ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -265,12 +310,14 @@ async fn scan_plugins(
         } else {
             scanner::get_vst_directories()
         };
-        let plugin_paths = scanner::discover_plugins(&directories);
-        let total = plugin_paths.len();
-
         let plugin_scan_id = history::gen_id();
         let now_iso = history::now_iso();
         let db = db::global();
+        let incremental_state = load_incremental_dir_state_for_walk();
+        let plugin_paths =
+            scanner::discover_plugins(&directories, incremental_state.as_deref());
+        let total = plugin_paths.len();
+
         let _ = db.plugin_scan_parent_create(&plugin_scan_id, &now_iso, &directories);
 
         let _ = app_handle.emit(
@@ -415,6 +462,7 @@ async fn scan_plugins(
             &directories,
             &roots,
         );
+        persist_incremental_dir_state_after_walk(incremental_state.as_ref(), &plugin_scan_id);
         db.checkpoint();
 
         serde_json::json!({
@@ -719,6 +767,7 @@ async fn scan_audio_samples(
         let mut audio_bytes: u64 = 0;
         let mut audio_format_counts: HashMap<String, usize> = HashMap::new();
         let exclude_set = exclude_paths.map(|v| v.into_iter().collect::<HashSet<String>>());
+        let incremental_state = load_incremental_dir_state_for_walk();
 
         audio_scanner::walk_for_audio(
             &roots,
@@ -741,7 +790,10 @@ async fn scan_audio_samples(
             &|| audio_state.stop_scan.load(Ordering::SeqCst),
             exclude_set,
             Some(Arc::clone(&app_handle.state::<WalkerStatus>().audio_dirs)),
+            incremental_state.clone(),
         );
+
+        persist_incremental_dir_state_after_walk(incremental_state.as_ref(), &audio_scan_id);
 
         // Clear walker status
         {
@@ -908,6 +960,7 @@ async fn scan_daw_projects(
         let mut daw_bytes: u64 = 0;
         let mut daw_daw_counts: HashMap<String, usize> = HashMap::new();
         let exclude_set = exclude_paths.map(|v| v.into_iter().collect::<HashSet<String>>());
+        let incremental_state = load_incremental_dir_state_for_walk();
 
         daw_scanner::walk_for_daw(
             &roots,
@@ -939,7 +992,10 @@ async fn scan_daw_projects(
                     .unwrap_or(false)
             },
             Some(Arc::clone(&app_handle.state::<WalkerStatus>().daw_dirs)),
+            incremental_state.clone(),
         );
+
+        persist_incremental_dir_state_after_walk(incremental_state.as_ref(), &daw_scan_id);
 
         {
             let ws = app_handle.state::<WalkerStatus>();
@@ -1095,6 +1151,7 @@ async fn scan_presets(
         let mut preset_bytes: u64 = 0;
         let mut preset_format_counts: HashMap<String, usize> = HashMap::new();
         let exclude_set = exclude_paths.map(|v| v.into_iter().collect::<HashSet<String>>());
+        let incremental_state = load_incremental_dir_state_for_walk();
 
         preset_scanner::walk_for_presets(
             &roots,
@@ -1117,7 +1174,10 @@ async fn scan_presets(
             &|| preset_state.stop_scan.load(Ordering::SeqCst),
             exclude_set,
             Some(Arc::clone(&app_handle.state::<WalkerStatus>().preset_dirs)),
+            incremental_state.clone(),
         );
+
+        persist_incremental_dir_state_after_walk(incremental_state.as_ref(), &preset_scan_id);
 
         {
             let ws = app_handle.state::<WalkerStatus>();
@@ -1280,6 +1340,7 @@ async fn scan_midi_files(
         let mut midi_count: u64 = 0;
         let mut midi_bytes: u64 = 0;
         let mut midi_format_counts: HashMap<String, usize> = HashMap::new();
+        let incremental_state = load_incremental_dir_state_for_walk();
 
         midi_scanner::walk_for_midi(
             &roots,
@@ -1302,7 +1363,10 @@ async fn scan_midi_files(
             &|| midi_state.stop_scan.load(Ordering::SeqCst),
             exclude_set,
             Some(Arc::clone(&app_handle.state::<WalkerStatus>().midi_dirs)),
+            incremental_state.clone(),
         );
+
+        persist_incremental_dir_state_after_walk(incremental_state.as_ref(), &midi_scan_id);
 
         {
             let ws = app_handle.state::<WalkerStatus>();
@@ -1479,6 +1543,7 @@ async fn scan_pdfs(
         let mut pdf_count: u64 = 0;
         let mut pdf_bytes: u64 = 0;
         let exclude_set = exclude_paths.map(|v| v.into_iter().collect::<HashSet<String>>());
+        let incremental_state = load_incremental_dir_state_for_walk();
 
         pdf_scanner::walk_for_pdfs(
             &roots,
@@ -1500,7 +1565,10 @@ async fn scan_pdfs(
             &|| pdf_state.stop_scan.load(Ordering::SeqCst),
             exclude_set,
             Some(Arc::clone(&app_handle.state::<WalkerStatus>().pdf_dirs)),
+            incremental_state.clone(),
         );
+
+        persist_incremental_dir_state_after_walk(incremental_state.as_ref(), &pdf_scan_id);
 
         {
             let ws = app_handle.state::<WalkerStatus>();
@@ -1681,26 +1749,7 @@ async fn scan_unified(
         let pdf_roots_strs = to_strs(&pdf_roots);
 
         let db = db::global();
-        let prefs = history::load_preferences();
-        let incremental_enabled = prefs
-            .get("incrementalDirectoryScan")
-            .and_then(|v| v.as_str())
-            .map(|s| s != "off")
-            .unwrap_or(true);
-        let incremental_state: Option<Arc<unified_walker::IncrementalDirState>> =
-            if incremental_enabled {
-                match db.load_directory_scan_snapshot("unified") {
-                    Ok(m) => Some(Arc::new(unified_walker::IncrementalDirState::new(m))),
-                    Err(e) => {
-                        crate::write_app_log(format!(
-                            "SCAN INCREMENTAL — load directory snapshot failed ({e}); full walk",
-                        ));
-                        None
-                    }
-                }
-            } else {
-                None
-            };
+        let incremental_state = load_incremental_dir_state_for_walk();
 
         let _ = db.audio_scan_parent_create(&audio_scan_id, &now_iso, &audio_roots_strs);
         let _ = db.daw_scan_parent_create(&daw_scan_id, &now_iso, &daw_roots_strs);
@@ -1816,12 +1865,7 @@ async fn scan_unified(
             incremental_state.clone(),
         );
 
-        if let Some(ref inc) = incremental_state {
-            let pending = inc.take_pending();
-            if !pending.is_empty() {
-                let _ = db.upsert_directory_scan_batch("unified", &pending, Some(&audio_scan_id));
-            }
-        }
+        persist_incremental_dir_state_after_walk(incremental_state.as_ref(), &audio_scan_id);
 
         let stopped = audio_state2.stop_scan.load(Ordering::Relaxed)
             || daw_state2.stop_scan.load(Ordering::Relaxed)

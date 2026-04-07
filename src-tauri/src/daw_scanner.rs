@@ -7,6 +7,7 @@
 
 use crate::history::DawProject;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
+use crate::unified_walker::IncrementalDirState;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
@@ -215,6 +216,7 @@ pub fn walk_for_daw(
     exclude: Option<HashSet<String>>,
     include_backups: bool,
     active_dirs: Option<Arc<Mutex<Vec<String>>>>,
+    incremental: Option<Arc<IncrementalDirState>>,
 ) {
     let batch_size = 100;
     let stop = Arc::new(AtomicBool::new(false));
@@ -227,6 +229,7 @@ pub fn walk_for_daw(
     let roots_owned: Vec<PathBuf> = roots.to_vec();
     let stop2 = stop.clone();
     let found2 = found.clone();
+    let incremental = incremental.clone();
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_cpus::get().max(4))
         .build()
@@ -248,6 +251,7 @@ pub fn walk_for_daw(
                     &exclude,
                     include_backups,
                     &active,
+                    incremental.clone(),
                 );
             });
         });
@@ -284,6 +288,7 @@ fn walk_dir_parallel(
     exclude: &Arc<HashSet<String>>,
     include_backups: bool,
     active_dirs: &Arc<Mutex<Vec<String>>>,
+    incremental: Option<Arc<IncrementalDirState>>,
 ) {
     if depth > 30 || stop.load(Ordering::Relaxed) {
         return;
@@ -299,6 +304,12 @@ fn walk_dir_parallel(
             return;
         }
         vis.insert(orig); // also mark original to prevent re-entry via different route
+    }
+
+    if let Some(ref inc) = incremental {
+        if inc.should_skip(dir) {
+            return;
+        }
     }
 
     let dir_str = dir.to_string_lossy().to_string();
@@ -423,6 +434,10 @@ fn walk_dir_parallel(
         let _ = tx.send(batch);
     }
 
+    if let Some(ref inc) = incremental {
+        inc.record_scanned_dir(dir);
+    }
+
     subdirs.par_iter().for_each(|subdir| {
         walk_dir_parallel(
             subdir,
@@ -435,6 +450,7 @@ fn walk_dir_parallel(
             exclude,
             include_backups,
             active_dirs,
+            incremental.clone(),
         );
     });
 }
@@ -604,6 +620,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         assert_eq!(total, 0);
         let _ = fs::remove_dir_all(&tmp);
@@ -626,6 +643,7 @@ mod tests {
             &|| false,
             None,
             false,
+            None,
             None,
         );
         assert_eq!(found.len(), 1);
@@ -655,6 +673,7 @@ mod tests {
             Some(ex),
             false,
             None,
+            None,
         );
         assert_eq!(found.len(), 1);
         assert!(found[0].path.contains("keep.als"));
@@ -679,6 +698,7 @@ mod tests {
             &|| false,
             None,
             false,
+            None,
             None,
         );
         assert_eq!(found.len(), 3);
@@ -706,6 +726,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         assert_eq!(found.len(), 0);
         let _ = fs::remove_dir_all(&tmp);
@@ -729,6 +750,7 @@ mod tests {
             &|| false,
             None,
             false,
+            None,
             None,
         );
         assert_eq!(found.len(), 1);
@@ -761,6 +783,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         assert_eq!(found.len(), 2);
         let formats: Vec<&str> = found.iter().map(|d| d.format.as_str()).collect();
@@ -788,6 +811,7 @@ mod tests {
             &|| false,
             None,
             false,
+            None,
             None,
         );
         assert!(
@@ -821,6 +845,7 @@ mod tests {
                 None,
                 false,
                 None,
+                None,
             );
             let count = found.iter().filter(|d| d.name == "test").count();
             assert_eq!(
@@ -849,6 +874,7 @@ mod tests {
             &|| false,
             None,
             false,
+            None,
             None,
         );
         let overlap_count = found.iter().filter(|d| d.name == "overlap").count();
@@ -884,6 +910,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         let mut count2 = 0;
         walk_for_daw(
@@ -892,6 +919,7 @@ mod tests {
             &|| false,
             None,
             false,
+            None,
             None,
         );
 
@@ -924,6 +952,7 @@ mod tests {
             None,
             false, // include_backups = false
             None,
+            None,
         );
         // Should only find main.als, not backup or crash
         assert_eq!(
@@ -955,6 +984,7 @@ mod tests {
             None,
             true, // include_backups = true
             None,
+            None,
         );
         assert_eq!(found.len(), 2);
         let _ = fs::remove_dir_all(&tmp);
@@ -984,6 +1014,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].name, "real");
@@ -1007,6 +1038,7 @@ mod tests {
             &|| false,
             None,
             false,
+            None,
             None,
         );
         assert_eq!(found.len(), 0, "Plain .band file should be rejected");

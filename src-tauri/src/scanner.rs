@@ -4,6 +4,7 @@
 //! and manufacturer info from macOS Info.plist bundles, and detects binary
 //! architectures by reading Mach-O/PE headers directly.
 
+use crate::unified_walker::IncrementalDirState;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -323,12 +324,21 @@ pub fn get_plugin_info(file_path: &Path) -> Option<PluginInfo> {
     })
 }
 
-pub fn discover_plugins(directories: &[String]) -> Vec<PathBuf> {
+pub fn discover_plugins(
+    directories: &[String],
+    incremental: Option<&IncrementalDirState>,
+) -> Vec<PathBuf> {
     let valid_extensions = [".vst", ".vst3", ".component", ".dll"];
     let mut plugin_paths = Vec::new();
 
     for dir in directories {
-        if let Ok(entries) = fs::read_dir(dir) {
+        let root = Path::new(dir);
+        if let Some(inc) = incremental {
+            if inc.should_skip(root) {
+                continue;
+            }
+        }
+        if let Ok(entries) = fs::read_dir(root) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 let ext = path
@@ -338,6 +348,9 @@ pub fn discover_plugins(directories: &[String]) -> Vec<PathBuf> {
                 if valid_extensions.contains(&ext.as_str()) {
                     plugin_paths.push(path);
                 }
+            }
+            if let Some(inc) = incremental {
+                inc.record_scanned_dir(root);
             }
         }
     }
@@ -376,7 +389,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_discover_empty");
         let _ = fs::create_dir_all(&tmp);
         let dirs = vec![tmp.to_string_lossy().to_string()];
-        let result = discover_plugins(&dirs);
+        let result = discover_plugins(&dirs, None);
         assert!(result.is_empty());
         let _ = fs::remove_dir_all(&tmp);
     }
@@ -398,7 +411,7 @@ mod tests {
         let _ = fs::write(&txt, "not a plugin");
 
         let dirs = vec![tmp.to_string_lossy().to_string()];
-        let mut result = discover_plugins(&dirs);
+        let mut result = discover_plugins(&dirs, None);
         result.sort();
 
         assert_eq!(result.len(), 3);
@@ -417,7 +430,7 @@ mod tests {
         let plug = tmp.join("UpperCase.VST3");
         fs::create_dir_all(&plug).unwrap();
 
-        let result = discover_plugins(&[tmp.to_string_lossy().to_string()]);
+        let result = discover_plugins(&[tmp.to_string_lossy().to_string()], None);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].extension().and_then(|e| e.to_str()), Some("VST3"));
 
@@ -427,7 +440,7 @@ mod tests {
     #[test]
     fn test_discover_plugins_nonexistent_dir() {
         let dirs = vec!["/nonexistent/path/that/does/not/exist".to_string()];
-        let result = discover_plugins(&dirs);
+        let result = discover_plugins(&dirs, None);
         assert!(result.is_empty());
     }
 
@@ -441,7 +454,7 @@ mod tests {
         let top = tmp.join("Shallow.vst3");
         let _ = fs::create_dir_all(&top);
         let dirs = vec![tmp.to_string_lossy().to_string()];
-        let mut result = discover_plugins(&dirs);
+        let mut result = discover_plugins(&dirs, None);
         result.sort();
         assert_eq!(result.len(), 1);
         assert!(result[0].ends_with("Shallow.vst3"));
@@ -553,7 +566,7 @@ mod tests {
             tmp1.to_string_lossy().to_string(),
             tmp2.to_string_lossy().to_string(),
         ];
-        let result = discover_plugins(&dirs);
+        let result = discover_plugins(&dirs, None);
         assert_eq!(result.len(), 3, "Should find all plugins across both dirs");
 
         let _ = fs::remove_dir_all(&tmp1);
@@ -577,7 +590,7 @@ mod tests {
         fs::create_dir_all(tmp.join("Something.app")).unwrap();
 
         let dirs = vec![tmp.to_string_lossy().to_string()];
-        let result = discover_plugins(&dirs);
+        let result = discover_plugins(&dirs, None);
         assert_eq!(
             result.len(),
             4,
@@ -602,7 +615,7 @@ mod tests {
 
         // discover_plugins should only scan one level deep from the given directories
         let dirs = vec![tmp.to_string_lossy().to_string()];
-        let result = discover_plugins(&dirs);
+        let result = discover_plugins(&dirs, None);
         // "subdir" has no plugin extension, and Nested.vst3 is inside subdir, not at top level of tmp
         assert!(
             result.is_empty(),

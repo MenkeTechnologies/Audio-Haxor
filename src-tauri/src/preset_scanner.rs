@@ -8,6 +8,7 @@
 
 use crate::history::PresetFile;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
+use crate::unified_walker::IncrementalDirState;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
@@ -79,6 +80,7 @@ pub fn walk_for_presets(
     should_stop: &(dyn Fn() -> bool + Sync),
     exclude: Option<HashSet<String>>,
     active_dirs: Option<Arc<Mutex<Vec<String>>>>,
+    incremental: Option<Arc<IncrementalDirState>>,
 ) {
     let batch_size = 100;
     let stop = Arc::new(AtomicBool::new(false));
@@ -91,6 +93,7 @@ pub fn walk_for_presets(
     let roots_owned: Vec<PathBuf> = roots.to_vec();
     let stop2 = stop.clone();
     let found2 = found.clone();
+    let incremental = incremental.clone();
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_cpus::get().max(4))
         .build()
@@ -102,7 +105,16 @@ pub fn walk_for_presets(
                     return;
                 }
                 walk_dir_parallel(
-                    root, 0, &visited, &tx, &found2, batch_size, &stop2, &exclude, &active,
+                    root,
+                    0,
+                    &visited,
+                    &tx,
+                    &found2,
+                    batch_size,
+                    &stop2,
+                    &exclude,
+                    &active,
+                    incremental.clone(),
                 );
             });
         });
@@ -138,6 +150,7 @@ fn walk_dir_parallel(
     stop: &Arc<AtomicBool>,
     exclude: &Arc<HashSet<String>>,
     active_dirs: &Arc<Mutex<Vec<String>>>,
+    incremental: Option<Arc<IncrementalDirState>>,
 ) {
     if depth > 30 || stop.load(Ordering::Relaxed) {
         return;
@@ -152,6 +165,12 @@ fn walk_dir_parallel(
             return;
         }
         vis.insert(orig);
+    }
+
+    if let Some(ref inc) = incremental {
+        if inc.should_skip(dir) {
+            return;
+        }
     }
 
     let dir_str = dir.to_string_lossy().to_string();
@@ -246,6 +265,10 @@ fn walk_dir_parallel(
         let _ = tx.send(batch);
     }
 
+    if let Some(ref inc) = incremental {
+        inc.record_scanned_dir(dir);
+    }
+
     subdirs.par_iter().for_each(|subdir| {
         walk_dir_parallel(
             subdir,
@@ -257,6 +280,7 @@ fn walk_dir_parallel(
             stop,
             exclude,
             active_dirs,
+            incremental.clone(),
         );
     });
 }
@@ -355,6 +379,7 @@ mod tests {
             &|| false,
             None,
             None,
+            None,
         );
         assert!(found.is_empty());
         let _ = fs::remove_dir_all(&tmp);
@@ -373,6 +398,7 @@ mod tests {
             from_ref(&tmp),
             &mut |batch, _count| found.extend_from_slice(batch),
             &|| false,
+            None,
             None,
             None,
         );
@@ -394,6 +420,7 @@ mod tests {
             from_ref(&tmp),
             &mut |batch, _count| found.extend_from_slice(batch),
             &|| false,
+            None,
             None,
             None,
         );
@@ -419,6 +446,7 @@ mod tests {
                 found.extend_from_slice(batch);
             },
             &|| false,
+            None,
             None,
             None,
         );
@@ -453,6 +481,7 @@ mod tests {
             &|| stop_after.load(std::sync::atomic::Ordering::Relaxed),
             None,
             None,
+            None,
         );
         // Should have stopped — may have found some but scan should terminate
         let _ = fs::remove_dir_all(&tmp);
@@ -480,6 +509,7 @@ mod tests {
             &|| false,
             Some(exclude),
             None,
+            None,
         );
         assert_eq!(found.len(), 1);
         assert!(found[0].path.contains("keep.fxp"));
@@ -502,6 +532,7 @@ mod tests {
             from_ref(&tmp),
             &mut |batch, _count| found.extend_from_slice(batch),
             &|| false,
+            None,
             None,
             None,
         );
@@ -527,6 +558,7 @@ mod tests {
                 &|| false,
                 None,
                 None,
+                None,
             );
             assert_eq!(found.len(), 1, "Symlinked duplicate should be deduped");
         }
@@ -547,6 +579,7 @@ mod tests {
             &[tmp.clone(), child.clone()],
             &mut |batch, _| found.extend_from_slice(batch),
             &|| false,
+            None,
             None,
             None,
         );
@@ -576,12 +609,14 @@ mod tests {
             &|| false,
             None,
             None,
+            None,
         );
         let mut c2 = 0;
         walk_for_presets(
             &[tmp.clone()],
             &mut |b, _| c2 += b.len(),
             &|| false,
+            None,
             None,
             None,
         );
@@ -607,6 +642,7 @@ mod tests {
                 total = count;
             },
             &|| false,
+            None,
             None,
             None,
         );

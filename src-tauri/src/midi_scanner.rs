@@ -6,6 +6,7 @@
 
 use crate::history::MidiFile;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
+use crate::unified_walker::IncrementalDirState;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
@@ -54,6 +55,7 @@ pub fn walk_for_midi(
     should_stop: &(dyn Fn() -> bool + Sync),
     exclude: Option<HashSet<String>>,
     active_dirs: Option<Arc<Mutex<Vec<String>>>>,
+    incremental: Option<Arc<IncrementalDirState>>,
 ) {
     let batch_size = 100;
     let stop = Arc::new(AtomicBool::new(false));
@@ -66,6 +68,7 @@ pub fn walk_for_midi(
     let roots_owned: Vec<PathBuf> = roots.to_vec();
     let stop2 = stop.clone();
     let found2 = found.clone();
+    let incremental = incremental.clone();
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_cpus::get().max(4))
         .build()
@@ -77,7 +80,17 @@ pub fn walk_for_midi(
                     return;
                 }
                 walk_dir_parallel(
-                    root, 0, None, &visited, &tx, &found2, batch_size, &stop2, &exclude, &active,
+                    root,
+                    0,
+                    None,
+                    &visited,
+                    &tx,
+                    &found2,
+                    batch_size,
+                    &stop2,
+                    &exclude,
+                    &active,
+                    incremental.clone(),
                 );
             });
         });
@@ -114,6 +127,7 @@ fn walk_dir_parallel(
     stop: &Arc<AtomicBool>,
     exclude: &Arc<HashSet<String>>,
     active_dirs: &Arc<Mutex<Vec<String>>>,
+    incremental: Option<Arc<IncrementalDirState>>,
 ) {
     if depth > 30 || stop.load(Ordering::Relaxed) {
         return;
@@ -173,6 +187,12 @@ fn walk_dir_parallel(
             return;
         }
         vis.insert(orig);
+    }
+
+    if let Some(ref inc) = incremental {
+        if inc.should_skip(dir) {
+            return;
+        }
     }
 
     let dir_str = dir.to_string_lossy().to_string();
@@ -268,6 +288,10 @@ fn walk_dir_parallel(
         let _ = tx.send(batch);
     }
 
+    if let Some(ref inc) = incremental {
+        inc.record_scanned_dir(dir);
+    }
+
     subdirs.par_iter().for_each(|subdir| {
         walk_dir_parallel(
             subdir,
@@ -280,6 +304,7 @@ fn walk_dir_parallel(
             stop,
             exclude,
             active_dirs,
+            incremental.clone(),
         );
     });
 }
@@ -343,6 +368,7 @@ mod tests {
             &|| false,
             None,
             None,
+            None,
         );
         found_names.sort();
         assert_eq!(found_names, vec!["another".to_string(), "song".to_string()]);
@@ -368,6 +394,7 @@ mod tests {
             &|| false,
             Some(excl),
             None,
+            None,
         );
         assert_eq!(names, vec!["keep".to_string()]);
         let _ = fs::remove_dir_all(&root);
@@ -392,6 +419,7 @@ mod tests {
             &|| false,
             None,
             None,
+            None,
         );
         assert_eq!(names, vec!["visible".to_string()]);
         let _ = fs::remove_dir_all(&root);
@@ -407,6 +435,7 @@ mod tests {
             &[root.clone()],
             &mut |batch, _| files.extend_from_slice(batch),
             &|| false,
+            None,
             None,
             None,
         );

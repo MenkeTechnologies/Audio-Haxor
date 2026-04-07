@@ -48,7 +48,9 @@ fn dir_mtime_secs(dir: &Path) -> i64 {
         .unwrap_or(0)
 }
 
-/// Snapshot + in-scan updates for incremental directory skipping (unified walker).
+/// Snapshot + in-scan updates for incremental directory skipping (`scan_unified` and
+/// standalone per-type walkers). Persisted in SQLite under domain `"unified"` so all scan modes
+/// share one mtime map.
 pub struct IncrementalDirState {
     mtimes: Arc<Mutex<HashMap<String, i64>>>,
     pending: Arc<Mutex<Vec<(String, i64)>>>,
@@ -62,7 +64,9 @@ impl IncrementalDirState {
         }
     }
 
-    fn should_skip(&self, dir: &Path) -> bool {
+    /// Skip this directory (and its subtree) when stored mtime ≥ current — same rule as
+    /// `scan_unified`.
+    pub fn should_skip(&self, dir: &Path) -> bool {
         let key = directory_incremental_key(dir);
         let cur = dir_mtime_secs(dir);
         if cur <= 0 {
@@ -77,7 +81,9 @@ impl IncrementalDirState {
         false
     }
 
-    fn record_scanned_dir(&self, dir: &Path) {
+    /// Call after successfully listing/processing a directory so the next run can skip it if
+    /// unchanged.
+    pub fn record_scanned_dir(&self, dir: &Path) {
         let key = directory_incremental_key(dir);
         let cur = dir_mtime_secs(dir);
         if cur <= 0 {
