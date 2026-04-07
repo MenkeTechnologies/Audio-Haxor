@@ -1345,11 +1345,25 @@ let _npFftPts = null;
  */
 let _npFftEngineAxisSrHz = null;
 let _npFftEngineAxisFftSize = null;
+/** Pinned once per Web Audio session so fMax / bin→Hz mapping does not jitter frame-to-frame. */
+let _npFftWebAxisSrHz = null;
+let _npFftWebAxisFftSize = null;
+/** `'engine'` | `'web'` — changing source resets both pin sets (see `syncNpFftSpectrumAxisPins`). */
+let _npFftSpectrumSourceMode = null;
+
+function syncNpFftSpectrumAxisPins(useEngineSpectrum) {
+    const mode = useEngineSpectrum ? 'engine' : 'web';
+    if (_npFftSpectrumSourceMode !== mode) {
+        _npFftSpectrumSourceMode = mode;
+        _npFftEngineAxisSrHz = null;
+        _npFftEngineAxisFftSize = null;
+        _npFftWebAxisSrHz = null;
+        _npFftWebAxisFftSize = null;
+    }
+}
 
 function getPinnedEngineSpectrumAxis() {
     if (typeof window === 'undefined' || !engineSpectrumLive()) {
-        _npFftEngineAxisSrHz = null;
-        _npFftEngineAxisFftSize = null;
         return null;
     }
     if (_npFftEngineAxisSrHz == null) {
@@ -1390,6 +1404,7 @@ function getPinnedEngineSpectrumAxis() {
 
 function _renderNpFft() {
     const useEngineSpectrum = engineSpectrumLive();
+    syncNpFftSpectrumAxisPins(useEngineSpectrum);
     if (!useEngineSpectrum) {
         ensureAudioGraph();
         if (
@@ -1426,8 +1441,12 @@ function _renderNpFft() {
     } else {
         if (!_npFftBuf) _npFftBuf = new Uint8Array(_analyser.frequencyBinCount);
         _analyser.getByteFrequencyData(_npFftBuf);
-        sampleRate = _playbackCtx ? _playbackCtx.sampleRate : 44100;
-        fftSize = _analyser.fftSize;
+        if (_npFftWebAxisSrHz == null) {
+            _npFftWebAxisSrHz = _playbackCtx ? _playbackCtx.sampleRate : 44100;
+            _npFftWebAxisFftSize = _analyser.fftSize;
+        }
+        sampleRate = _npFftWebAxisSrHz;
+        fftSize = _npFftWebAxisFftSize;
         binCount = _npFftBuf.length;
     }
     ctx.clearRect(0, 0, w, h);
@@ -4781,15 +4800,12 @@ function updateMetaLine() {
     function drawParametricEqOnCanvas(canvas) {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        const wrap = canvas.parentElement;
-        if (wrap) {
-            const br = wrap.getBoundingClientRect();
-            const cw = Math.round(br.width > 1 ? br.width : wrap.clientWidth);
-            const ch = Math.round(br.height > 1 ? br.height : wrap.clientHeight);
-            if (cw > 0 && ch > 0 && (Math.abs(cw - canvas.width) > 1 || Math.abs(ch - canvas.height) > 1)) {
-                canvas.width = cw;
-                canvas.height = ch;
-            }
+        const useEngineEqSpectrum = engineSpectrumLive();
+        syncNpFftSpectrumAxisPins(useEngineEqSpectrum);
+        /* Canvas size is synced via ResizeObserver → primeCanvasSize only — not here (per-frame
+         * getBoundingClientRect + width/height writes reset the bitmap and can fight layout). */
+        if ((canvas.width || 0) < 2 || (canvas.height || 0) < 2) {
+            primeCanvasSize(canvas);
         }
         const w = canvas.width || 800;
         const h = canvas.height || 120;
@@ -4813,8 +4829,6 @@ function updateMetaLine() {
         ctx.moveTo(0, zeroY);
         ctx.lineTo(w, zeroY);
         ctx.stroke();
-
-        const useEngineEqSpectrum = engineSpectrumLive();
 
         if (useEngineEqSpectrum) {
             const axis = getPinnedEngineSpectrumAxis();
@@ -4862,12 +4876,17 @@ function updateMetaLine() {
                 _analyser.getByteFrequencyData(_eqSpectrumBuf);
             }
             if (_eqSpectrumBuf && _eqSpectrumBuf.length === bufLen) {
-                const sampleRate = _playbackCtx.sampleRate;
+                if (_npFftWebAxisSrHz == null) {
+                    _npFftWebAxisSrHz = _playbackCtx.sampleRate;
+                    _npFftWebAxisFftSize = _analyser.fftSize;
+                }
+                const sampleRate = _npFftWebAxisSrHz;
+                const fftSizeForBins = _npFftWebAxisFftSize;
 
                 ctx.beginPath();
                 ctx.moveTo(0, h);
                 for (let i = 1; i < bufLen; i++) {
-                    const freq = (i * sampleRate) / (_analyser.fftSize);
+                    const freq = (i * sampleRate) / fftSizeForBins;
                     if (freq < FREQ_MIN || freq > FREQ_MAX) continue;
                     const x = freqToX(freq, w);
                     const magnitude = _eqSpectrumBuf[i] / 255;
@@ -4980,8 +4999,12 @@ function updateMetaLine() {
         const w = Math.round(br.width > 1 ? br.width : wrap.clientWidth);
         const h = Math.round(br.height > 1 ? br.height : wrap.clientHeight);
         if (w > 0 && h > 0) {
-            canvas.width = w;
-            canvas.height = h;
+            const dw = Math.abs(w - canvas.width);
+            const dh = Math.abs(h - canvas.height);
+            if (dw > 1 || dh > 1) {
+                canvas.width = w;
+                canvas.height = h;
+            }
         }
     }
 
