@@ -95,7 +95,15 @@ function _getSelectedName() {
 document.addEventListener('keydown', (e) => {
   // Don't navigate when typing in inputs
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (e.target.isContentEditable || e.target.closest('[contenteditable]')) return;
   if (e.target.closest('.ctx-menu')) return;
+
+  const isMac = typeof navigator !== 'undefined' && navigator.platform && navigator.platform.includes('Mac');
+  const mod = isMac ? e.metaKey : e.ctrlKey;
+  // Let shortcuts.js own Cmd/Ctrl+Arrow (volume, prev/next track) — do not also move row selection.
+  if (mod && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    return;
+  }
 
   const activeTab = document.querySelector('.tab-content.active')?.id;
   if (!activeTab) return;
@@ -209,7 +217,7 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     toggleHelpOverlay();
   }
-});
+}, true); // capture: run before nested scroll regions (e.g. audio player recently played) steal Arrow keys on Samples tab
 
 // Reset nav index on tab switch
 const _origSwitchTab = switchTab;
