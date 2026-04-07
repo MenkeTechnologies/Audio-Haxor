@@ -216,31 +216,18 @@ let _npWaveformIdleId = null;
 let _metaPanelIdleId = null;
 
 /**
- * Lowest-priority UI work: run when the main thread is idle so playback and input stay first.
- * Uses `requestIdleCallback` with a long `timeout` so work still runs eventually if the system stays busy.
+ * Defer waveform/spectrogram work to after the current task. Do not use `requestIdleCallback`:
+ * in Tauri/WKWebView it is often starved so callbacks never run and `drawWaveform` /
+ * `drawMetaPanelVisuals` never execute.
  */
 function scheduleIdleVisualWork(fn, opts) {
-    const idleTimeout = opts && typeof opts.idleTimeout === 'number' ? opts.idleTimeout : 20000;
-    const fallbackMs = opts && typeof opts.fallbackMs === 'number' ? opts.fallbackMs : 1500;
-    if (typeof requestIdleCallback === 'function') {
-        return requestIdleCallback(() => {
-            fn();
-        }, { timeout: idleTimeout });
-    }
-    return setTimeout(fn, fallbackMs);
+    const ms = opts && typeof opts.delayMs === 'number' ? opts.delayMs : 0;
+    return setTimeout(fn, ms);
 }
 
 function cancelIdleSchedule(id) {
     if (id == null) return;
-    if (typeof cancelIdleCallback === 'function') {
-        try {
-            cancelIdleCallback(id);
-        } catch (_) {
-            clearTimeout(id);
-        }
-    } else {
-        clearTimeout(id);
-    }
+    clearTimeout(id);
 }
 
 /** `appFmt` wrapper — same pattern as `plugins.js` `_ui`. */
@@ -2014,7 +2001,7 @@ async function previewAudio(filePath) {
         _npWaveformIdleId = scheduleIdleVisualWork(() => {
             _npWaveformIdleId = null;
             void drawWaveform(filePath, wfSeq);
-        }, { idleTimeout: 20000, fallbackMs: 1500 });
+        }, { delayMs: 0 });
     } catch (err) {
         showToast(toastFmt('toast.playback_failed', {
             ext: ext.toUpperCase(),
@@ -2361,7 +2348,7 @@ async function expandMetaForPath(filePath) {
         _metaPanelIdleId = scheduleIdleVisualWork(() => {
             _metaPanelIdleId = null;
             void drawMetaPanelVisuals(filePath, metaSeq);
-        }, { idleTimeout: 25000, fallbackMs: 2000 });
+        }, { delayMs: 0 });
 
         // Sync cursor if already playing this track
         if (audioPlayerPath === filePath && audioPlayer.duration > 0) {
