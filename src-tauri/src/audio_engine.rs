@@ -41,35 +41,30 @@ fn binary_name() -> &'static str {
 
 /// Resolve path to the `audio-engine` executable.
 ///
-/// In **debug** builds, prefer `workspace/target/debug/audio-engine` (from `CARGO_MANIFEST_DIR`) so
-/// `pnpm dev` / `tauri dev` always runs the sidecar produced by `beforeDevCommand`, not a stale copy
-/// next to `current_exe()` (e.g. old `externalBin` beside a macOS bundle or a leftover binary).
-/// Release builds use only the sibling of the main executable (bundled sidecar layout).
+/// Prefer a `target/debug` or `target/release` build found by walking **up** from [`std::env::current_exe`].
+/// That covers `pnpm dev` when the app runs inside a macOS **bundle** (`…/target/debug/bundle/…/Contents/MacOS/audio-haxor`)
+/// where the sibling `audio-engine` can be stale, while the real sidecar from `beforeDevCommand` lives
+/// at the workspace `target/debug/audio-engine`. Also works when `CARGO_TARGET_DIR` is non-default
+/// (compile-time `CARGO_MANIFEST_DIR` alone is insufficient).
+///
+/// Override for debugging: set `AUDIO_HAXOR_AUDIO_ENGINE` to an absolute path to the sidecar binary.
+/// Release installs use the sibling next to the main executable when no workspace `target/` is found.
 pub fn resolve_audio_engine_binary() -> Result<PathBuf, String> {
+    if let Ok(p) = std::env::var("AUDIO_HAXOR_AUDIO_ENGINE") {
+        let p = PathBuf::from(p.trim());
+        if p.is_file() {
+            return Ok(p);
+        }
+    }
+
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let dir = exe
         .parent()
         .ok_or_else(|| "current_exe has no parent directory".to_string())?;
     let sibling = dir.join(binary_name());
 
-    #[cfg(debug_assertions)]
-    {
-        let dev = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("target")
-            .join("debug")
-            .join(binary_name());
-        if dev.is_file() {
-            return Ok(dev);
-        }
-        let rel = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("target")
-            .join("release")
-            .join(binary_name());
-        if rel.is_file() {
-            return Ok(rel);
-        }
+    if let Some(p) = find_audio_engine_under_target_ancestors(&exe) {
+        return Ok(p);
     }
 
     if sibling.is_file() {
@@ -77,9 +72,27 @@ pub fn resolve_audio_engine_binary() -> Result<PathBuf, String> {
     }
 
     Err(format!(
-        "audio engine binary not found (expected {} or workspace target build)",
-        sibling.display()
+        "audio engine binary not found (expected {} or workspace target/**/{})",
+        sibling.display(),
+        binary_name()
     ))
+}
+
+/// Walk parents of `exe` until `dir/target/debug|release/<binary>` exists (workspace root).
+fn find_audio_engine_under_target_ancestors(exe: &Path) -> Option<PathBuf> {
+    let mut dir = exe.parent()?;
+    for _ in 0..40 {
+        let dbg = dir.join("target").join("debug").join(binary_name());
+        if dbg.is_file() {
+            return Some(dbg);
+        }
+        let rel = dir.join("target").join("release").join(binary_name());
+        if rel.is_file() {
+            return Some(rel);
+        }
+        dir = dir.parent()?;
+    }
+    None
 }
 
 fn child_dead(child: &mut Child) -> bool {
@@ -124,18 +137,15 @@ fn ensure_engine_child(path: &Path) -> Result<(), String> {
 
 /// Run one request against the audio-engine subprocess (stdin / stdout JSON lines).
 pub fn spawn_audio_engine_request(request: &serde_json::Value) -> Result<serde_json::Value, String> {
-    let path = resolve_audio_engine_binary()?;
-    spawn_audio_engine_request_at(&path, request)
+    spawn_audio_engine_request_at(request)
 }
 
-fn spawn_audio_engine_request_at(
-    path: &Path,
-    request: &serde_json::Value,
-) -> Result<serde_json::Value, String> {
+fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_json::Value, String> {
     let payload = serde_json::to_string(request).map_err(|e| e.to_string())?;
 
     for attempt in 0..2 {
-        ensure_engine_child(path)?;
+        let path = resolve_audio_engine_binary()?;
+        ensure_engine_child(&path)?;
         let mut guard = ENGINE_CHILD
             .lock()
             .map_err(|_| "audio-engine child mutex poisoned")?;
