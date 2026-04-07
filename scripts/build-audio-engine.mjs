@@ -7,7 +7,7 @@
  * rest of the process inherits `cl`/Windows SDK without polluting CI (e.g. `cargo test` would hit
  * STATUS_ENTRYPOINT_NOT_FOUND if the job used a global MSVC PATH from `msvc-dev-cmd`).
  */
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,10 +40,17 @@ if (process.platform === 'win32' && !process.env.__AUDIO_ENGINE_VCVARS) {
     process.exit(1);
   }
   const node = process.execPath;
-  // Use shell: true — spawnSync('cmd.exe', ['/c', ...]) can mangle quotes on GitHub windows-latest (pwsh).
+  // Invoke cmd.exe explicitly — execSync(..., { shell: true }) still failed on GitHub windows-latest
+  // (vcvars path quoted incorrectly). One /c string lets cmd parse `call "…\vcvars64.bat" && …` reliably.
   const line = `call "${vcvars}" && set __AUDIO_ENGINE_VCVARS=1&& "${node}" "${scriptPath}"`;
+  const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+  const cmdExe = path.join(sysRoot, 'System32', 'cmd.exe');
+  if (!fs.existsSync(cmdExe)) {
+    console.error(`build-audio-engine: missing ${cmdExe}`);
+    process.exit(1);
+  }
   try {
-    execSync(line, { stdio: 'inherit', cwd: root, env: process.env, shell: true });
+    execFileSync(cmdExe, ['/d', '/c', line], { stdio: 'inherit', cwd: root, env: process.env });
   } catch (e) {
     process.exit(e && typeof e.status === 'number' ? e.status : 1);
   }
