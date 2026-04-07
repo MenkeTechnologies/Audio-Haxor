@@ -1027,6 +1027,104 @@ impl Database {
         }
     }
 
+    /// One-time migration: normalize `plugins.path` and `plugin_scans` directories/roots JSON to
+    /// [`normalize_path_for_db`] form; remove duplicate `(canonical path, scan_id)` rows (keep max `id`).
+    fn migrate_plugin_paths_canonical(conn: &Connection) -> Result<(), String> {
+        use std::collections::{HashMap, HashSet};
+
+        let mut stmt = conn
+            .prepare("SELECT id, path, scan_id FROM plugins")
+            .map_err(|e| e.to_string())?;
+        let rows: Vec<(i64, String, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        let mut by_key: HashMap<(String, String), Vec<i64>> = HashMap::new();
+        for (id, path, scan_id) in &rows {
+            let canon = normalize_path_for_db(path);
+            by_key
+                .entry((canon, scan_id.clone()))
+                .or_default()
+                .push(*id);
+        }
+
+        let mut to_delete = HashSet::new();
+        for ids in by_key.values() {
+            if ids.len() <= 1 {
+                continue;
+            }
+            let mut v = ids.clone();
+            v.sort_unstable();
+            for id in &v[..v.len() - 1] {
+                to_delete.insert(*id);
+            }
+        }
+
+        let deleted = to_delete.len();
+        if !to_delete.is_empty() {
+            let mut ids: Vec<i64> = to_delete.iter().copied().collect();
+            ids.sort_unstable();
+            let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            conn.execute(
+                &format!("DELETE FROM plugins WHERE id IN ({placeholders})"),
+                rusqlite::params_from_iter(ids.iter().copied()),
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        let mut path_updates = 0usize;
+        for (id, path, _) in &rows {
+            if to_delete.contains(id) {
+                continue;
+            }
+            let canon = normalize_path_for_db(path);
+            if canon != *path {
+                conn
+                    .execute(
+                        "UPDATE plugins SET path = ?1 WHERE id = ?2",
+                        params![canon, id],
+                    )
+                    .map_err(|e| e.to_string())?;
+                path_updates += 1;
+            }
+        }
+
+        let mut json_updates = 0usize;
+        let mut stmt = conn
+            .prepare("SELECT id, directories, roots FROM plugin_scans")
+            .map_err(|e| e.to_string())?;
+        let scan_rows: Vec<(String, String, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        for (id, dirs, roots) in scan_rows {
+            let dirs_vec: Vec<String> = serde_json::from_str(&dirs).unwrap_or_default();
+            let roots_vec: Vec<String> = serde_json::from_str(&roots).unwrap_or_default();
+            let d2 = path_strings_json_normalized(&dirs_vec);
+            let r2 = path_strings_json_normalized(&roots_vec);
+            if d2 != dirs || r2 != roots {
+                conn.execute(
+                    "UPDATE plugin_scans SET directories = ?1, roots = ?2 WHERE id = ?3",
+                    params![d2, r2, id],
+                )
+                .map_err(|e| e.to_string())?;
+                json_updates += 1;
+            }
+        }
+
+        if deleted > 0 || path_updates > 0 || json_updates > 0 {
+            crate::append_log(format!(
+                "DB migration v17: plugins deduped={deleted}, path rewrites={path_updates}, plugin_scans JSON rows={json_updates}"
+            ));
+        }
+
+        Ok(())
+    }
+
     /// Run schema migrations.
     fn migrate(&self) -> Result<(), String> {
         let conn = self.read_conn();
@@ -1529,6 +1627,16 @@ impl Database {
             .map_err(|e| format!("Migration v16 (daw_library) failed: {e}"))?;
             conn.execute("INSERT INTO schema_version (version) VALUES (16)", [])
                 .map_err(|e| format!("Migration v16 schema_version failed: {e}"))?;
+        }
+
+        if current < 17 {
+            // Backfill `plugins.path` + `plugin_scans` JSON path arrays to match
+            // `normalize_path_for_db` (macOS `/System/Volumes/Data` strip). Deduplicate
+            // `(path, scan_id)` on the canonical key by keeping the highest `id` per group.
+            Self::migrate_plugin_paths_canonical(&conn)
+                .map_err(|e| format!("Migration v17 (plugin path canonicalization) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (17)", [])
+                .map_err(|e| format!("Migration v17 schema_version failed: {e}"))?;
         }
 
         if conn
