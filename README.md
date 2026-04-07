@@ -178,6 +178,8 @@ Requires [Node.js](https://nodejs.org/), [pnpm](https://pnpm.io/), and [Rust](ht
 
 ### Differences
 
+**Library playback (`start_playback`):** The sidecar prefers an **F32** `cpal` output configuration whose sample rate matches the loaded file’s **`src_rate`** (from **`playback_load`**) when the device reports a range that includes it, so playback is not forced through **`default_output_config()`** (often 48 kHz) when the file is e.g. 44.1 kHz. See `audio-engine/README.md`.
+
 | | Dev | Build |
 |---|---|---|
 | Audio engine sidecar | Host resolves `target/debug` or `target/release` by walking up from `current_exe()` (covers macOS dev bundles where the sibling `audio-engine` can be stale). Optional override: `AUDIO_HAXOR_AUDIO_ENGINE` (absolute path). | Bundled next to the app binary (`externalBin`) |

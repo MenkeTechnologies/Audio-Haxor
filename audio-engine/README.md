@@ -8,12 +8,12 @@ Each line is a JSON object with at least `cmd`. Optional fields include `device_
 
 ### Library playback (decode + ring + DSP)
 
-Symphonia decodes the file on a **decoder thread**; resampling is linear from the file’s sample rate to the device rate. The resample ratio prefers **`decoded.spec().rate`** from the first decoded packet when it disagrees with **`codec_params.sample_rate`** (some MP3 probes report the wrong rate). The real-time callback applies **3-band EQ** (lowshelf / peaking / highshelf, same corner frequencies as the Web Audio now‑playing graph), **gain**, and **constant-power stereo pan**, then writes interleaved samples to the cpal buffer.
+Symphonia decodes the file on a **decoder thread**; resampling is linear from the file’s sample rate to the device rate. The resample ratio prefers **`decoded.spec().rate`** from the first decoded packet when it disagrees with **`codec_params.sample_rate`** (some MP3 probes report the wrong rate). When **`start_playback`** opens the output stream, the sidecar enumerates **`supported_output_configs()`** and prefers an **F32** config whose rate range includes the session **`src_rate`** (from **`playback_load`**) so the cpal stream often matches the file (e.g. 44.1 kHz file on a 48 kHz default device) and avoids an unnecessary large resample ratio. The real-time callback applies **3-band EQ** (lowshelf / peaking / highshelf, same corner frequencies as the Web Audio now‑playing graph), **gain**, and **constant-power stereo pan**, then writes interleaved samples to the cpal buffer.
 
 | Command | Fields | Purpose |
 |--------|--------|---------|
 | `playback_load` | `path` (absolute file path) | Probe track; store session + duration; does **not** open cpal. |
-| `start_output_stream` | `start_playback: true`, `device_id`, optional `buffer_frames` | After **`playback_load`**, starts output stream and the decoder thread at the device’s sample rate. |
+| `start_output_stream` | `start_playback: true`, `device_id`, optional `buffer_frames` | After **`playback_load`**, starts output stream and the decoder thread; device stream rate is chosen to match **`src_rate`** when the device reports an F32 range that includes it, otherwise closest F32 rate in range, else **`default_output_config`**. |
 | `playback_pause` | `paused` (bool) | Pause / resume decode (ring may underrun to silence while paused). |
 | `playback_seek` | `position_sec` | Seek (symphonia `SeekMode::Accurate`). |
 | `playback_set_dsp` | `gain`, `pan`, `eq_low_db`, `eq_mid_db`, `eq_high_db` | Update DSP atomics read in the callback. |
@@ -31,7 +31,7 @@ Notable commands (devices + I/O):
 | `list_output_devices` / `list_input_devices` | Enumerate devices with stable string ids |
 | `get_output_device_info` / `get_input_device_info` | Default config + `buffer_size` object (`kind`: `range` \| `unknown`). Omit `device_id` to query the host default input/output device. |
 | `set_output_device` / `set_input_device` | Validate `device_id` only (no stream opened) |
-| `start_output_stream` | Open default **output** config; optional `buffer_frames`, **`start_playback`**; **F32** supports `tone` (440 Hz sine) **or** file PCM when `start_playback` is set. |
+| `start_output_stream` | Open **output** config (with **`start_playback`**, prefer F32 at loaded **`src_rate`** when supported); optional `buffer_frames`, **`start_playback`**; **F32** supports `tone` (440 Hz sine) **or** file PCM when `start_playback` is set. |
 | `stop_output_stream` | Drop output stream |
 | `output_stream_status` | Running + `tone_supported` / `tone_on` + `stream_buffer_frames` (null when idle or driver default) |
 | `start_input_stream` | Open default **input** config; optional `buffer_frames`; callback discards samples and updates **`input_peak`** (0..1 linear, block peak + decay). |

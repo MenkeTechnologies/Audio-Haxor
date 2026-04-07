@@ -14,7 +14,8 @@ use std::thread;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{
-    BufferSize, Device, SampleFormat, Stream, StreamConfig, SupportedBufferSize, SupportedStreamConfig,
+    BufferSize, Device, SampleFormat, SampleRate, Stream, StreamConfig, SupportedBufferSize,
+    SupportedStreamConfig,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -126,6 +127,44 @@ enum AudioCmd {
     },
 }
 
+/// Prefer opening the output device at `prefer_hz` (from `playback_load`) when the device reports
+/// an F32 config that includes that rate — avoids large `src_rate`/`device_rate` ratios when the
+/// default device config is e.g. 48 kHz but the file is 44.1 kHz.
+fn pick_output_config_for_playback(device: &Device, prefer_hz: u32) -> Result<SupportedStreamConfig, String> {
+    let ranges: Vec<_> = device
+        .supported_output_configs()
+        .map_err(|e| format!("supported_output_configs: {e}"))?
+        .collect();
+    for r in &ranges {
+        if r.sample_format() != SampleFormat::F32 {
+            continue;
+        }
+        if let Some(cfg) = r.try_with_sample_rate(SampleRate(prefer_hz)) {
+            return Ok(cfg);
+        }
+    }
+    let mut best: Option<(SupportedStreamConfig, u32)> = None;
+    for r in ranges {
+        if r.sample_format() != SampleFormat::F32 {
+            continue;
+        }
+        let mn = r.min_sample_rate().0;
+        let mx = r.max_sample_rate().0;
+        let target = prefer_hz.clamp(mn, mx);
+        let cfg = r.with_sample_rate(SampleRate(target));
+        let diff = target.abs_diff(prefer_hz);
+        match &best {
+            None => best = Some((cfg, diff)),
+            Some((_, d)) if diff < *d => best = Some((cfg, diff)),
+            _ => {}
+        }
+    }
+    if let Some((cfg, _)) = best {
+        return Ok(cfg);
+    }
+    device.default_output_config().map_err(|e| e.to_string())
+}
+
 fn audio_thread_tx() -> &'static Sender<AudioCmd> {
     static TX: OnceLock<Sender<AudioCmd>> = OnceLock::new();
     TX.get_or_init(|| {
@@ -161,17 +200,32 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                                 .unwrap_or(device_name.clone())
                         }
                     };
-                    let supported = device
-                        .default_output_config()
-                        .map_err(|e| format!("default_output_config: {e}"))?;
-                    let channels = supported.channels();
-                    let sample_format = format!("{:?}", supported.sample_format());
-                    let buffer_size = buffer_size_json(supported.buffer_size());
                     let file_pb = if start_playback {
                         playback::current_playback_shared()
                     } else {
                         None
                     };
+                    let want_hz = file_pb
+                        .as_ref()
+                        .map(|p| p.src_rate.load(Ordering::Relaxed))
+                        .filter(|&r| r > 0);
+                    let supported = match want_hz {
+                        Some(want) => match pick_output_config_for_playback(&device, want) {
+                            Ok(cfg) => cfg,
+                            Err(e) => {
+                                eprintln!("audio-engine: pick_output_config_for_playback ({want} Hz): {e}; using default_output_config");
+                                device
+                                    .default_output_config()
+                                    .map_err(|e2| format!("default_output_config: {e2}"))?
+                            }
+                        },
+                        None => device
+                            .default_output_config()
+                            .map_err(|e| format!("default_output_config: {e}"))?,
+                    };
+                    let channels = supported.channels();
+                    let sample_format = format!("{:?}", supported.sample_format());
+                    let buffer_size = buffer_size_json(supported.buffer_size());
                     let (stream, tone_flag, stream_buffer_frames, stream_sr) = build_playback_stream(
                         &device,
                         supported,
