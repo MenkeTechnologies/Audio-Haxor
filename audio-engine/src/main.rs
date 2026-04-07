@@ -1,7 +1,7 @@
-//! Separate **audio-engine** process: output device discovery (via cpal) and low-latency output.
-//! Reads JSON lines on stdin until EOF; prints one JSON line per request. The host keeps one
-//! child process and reuses stdin/stdout. **Output streams** are owned on a dedicated thread because
-//! `cpal::Stream` is not `Send` on macOS.
+//! Separate **audio-engine** process: input/output device discovery (via cpal) and streams on a
+//! dedicated thread. Reads JSON lines on stdin until EOF; prints one JSON line per request. The
+//! host keeps one child process and reuses stdin/stdout. **`cpal::Stream` is not `Send` on macOS**,
+//! so output and input streams live on the same audio thread.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -57,6 +57,18 @@ struct ActiveStream {
     tone_flag: Option<Arc<AtomicBool>>,
 }
 
+struct ActiveInputStream {
+    #[allow(dead_code)]
+    stream: Stream,
+    device_id: String,
+    device_name: String,
+    sample_rate_hz: u32,
+    channels: u16,
+    sample_format: String,
+    buffer_size: serde_json::Value,
+    stream_buffer_frames: Option<u32>,
+}
+
 enum AudioCmd {
     Start {
         device_id: Option<String>,
@@ -64,10 +76,21 @@ enum AudioCmd {
         buffer_frames: Option<u32>,
         reply: mpsc::Sender<Result<serde_json::Value, String>>,
     },
+    StartInput {
+        device_id: Option<String>,
+        buffer_frames: Option<u32>,
+        reply: mpsc::Sender<Result<serde_json::Value, String>>,
+    },
     Stop {
         reply: mpsc::Sender<Result<bool, String>>,
     },
+    StopInput {
+        reply: mpsc::Sender<Result<bool, String>>,
+    },
     Status {
+        reply: mpsc::Sender<Result<serde_json::Value, String>>,
+    },
+    InputStatus {
         reply: mpsc::Sender<Result<serde_json::Value, String>>,
     },
     SetTone {
@@ -87,6 +110,7 @@ fn audio_thread_tx() -> &'static Sender<AudioCmd> {
 
 fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
     let mut current: Option<ActiveStream> = None;
+    let mut current_input: Option<ActiveInputStream> = None;
     while let Ok(cmd) = rx.recv() {
         match cmd {
             AudioCmd::Start {
@@ -150,8 +174,64 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                 })();
                 let _ = reply.send(res);
             }
+            AudioCmd::StartInput {
+                device_id,
+                buffer_frames,
+                reply,
+            } => {
+                let res = (|| {
+                    current_input.take();
+                    let device = resolve_input_device(device_id.as_deref())?;
+                    let device_name = device.name().unwrap_or_default();
+                    let resolved_id = match device_id.as_deref().filter(|s| !s.is_empty()) {
+                        Some(id) => id.to_string(),
+                        None => {
+                            let rows = enumerate_input_devices()?;
+                            rows.into_iter()
+                                .find(|d| d.name == device_name)
+                                .map(|d| d.id)
+                                .unwrap_or(device_name.clone())
+                        }
+                    };
+                    let supported = device
+                        .default_input_config()
+                        .map_err(|e| format!("default_input_config: {e}"))?;
+                    let sample_rate_hz = supported.sample_rate().0;
+                    let channels = supported.channels();
+                    let sample_format = format!("{:?}", supported.sample_format());
+                    let buffer_size = buffer_size_json(supported.buffer_size());
+                    let (stream, stream_buffer_frames) =
+                        build_capture_stream(&device, supported, buffer_frames)?;
+                    current_input = Some(ActiveInputStream {
+                        stream,
+                        device_id: resolved_id.clone(),
+                        device_name: device_name.clone(),
+                        sample_rate_hz,
+                        channels,
+                        sample_format: sample_format.clone(),
+                        buffer_size: buffer_size.clone(),
+                        stream_buffer_frames,
+                    });
+                    Ok(json!({
+                        "ok": true,
+                        "device_id": resolved_id,
+                        "device_name": device_name,
+                        "sample_rate_hz": sample_rate_hz,
+                        "channels": channels,
+                        "sample_format": sample_format,
+                        "buffer_size": buffer_size,
+                        "stream_buffer_frames": stream_buffer_frames,
+                        "note": "input capture running (samples discarded); metering / DSP TBD",
+                    }))
+                })();
+                let _ = reply.send(res);
+            }
             AudioCmd::Stop { reply } => {
                 let had = current.take().is_some();
+                let _ = reply.send(Ok(had));
+            }
+            AudioCmd::StopInput { reply } => {
+                let had = current_input.take().is_some();
                 let _ = reply.send(Ok(had));
             }
             AudioCmd::Status { reply } => {
@@ -188,6 +268,33 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         "stream_buffer_frames": serde_json::Value::Null,
                         "tone_supported": serde_json::Value::Null,
                         "tone_on": serde_json::Value::Null,
+                    }),
+                };
+                let _ = reply.send(Ok(v));
+            }
+            AudioCmd::InputStatus { reply } => {
+                let v = match &current_input {
+                    Some(a) => json!({
+                        "ok": true,
+                        "running": true,
+                        "device_id": a.device_id,
+                        "device_name": a.device_name,
+                        "sample_rate_hz": a.sample_rate_hz,
+                        "channels": a.channels,
+                        "sample_format": a.sample_format,
+                        "buffer_size": a.buffer_size,
+                        "stream_buffer_frames": a.stream_buffer_frames,
+                    }),
+                    None => json!({
+                        "ok": true,
+                        "running": false,
+                        "device_id": serde_json::Value::Null,
+                        "device_name": serde_json::Value::Null,
+                        "sample_rate_hz": serde_json::Value::Null,
+                        "channels": serde_json::Value::Null,
+                        "sample_format": serde_json::Value::Null,
+                        "buffer_size": serde_json::Value::Null,
+                        "stream_buffer_frames": serde_json::Value::Null,
                     }),
                 };
                 let _ = reply.send(Ok(v));
@@ -292,10 +399,13 @@ fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
         "get_input_device_info" => get_input_device_info(req.device_id.as_deref()),
         "set_output_device" => set_output_device(req.device_id.as_deref()),
         "set_input_device" => set_input_device(req.device_id.as_deref()),
+        "start_input_stream" => start_input_stream(req.device_id.as_deref(), req.buffer_frames),
         "start_output_stream" => {
             start_output_stream(req.device_id.as_deref(), req.tone, req.buffer_frames)
         }
+        "stop_input_stream" => stop_input_stream(),
         "stop_output_stream" => stop_output_stream(),
+        "input_stream_status" => input_stream_status(),
         "output_stream_status" => output_stream_status(),
         "set_output_tone" => set_output_tone(req.tone),
         "plugin_chain" => Ok(json!({
@@ -309,11 +419,13 @@ fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
 
 fn engine_state() -> Result<serde_json::Value, String> {
     let stream = output_stream_status()?;
+    let input_stream = input_stream_status()?;
     Ok(json!({
         "ok": true,
         "version": ENGINE_VERSION,
         "host": cpal::default_host().id().name(),
         "stream": stream,
+        "input_stream": input_stream,
     }))
 }
 
@@ -573,8 +685,144 @@ fn set_input_device(device_id: Option<&str>) -> Result<serde_json::Value, String
     Ok(json!({
         "ok": true,
         "device_id": id,
-        "note": "validated; input capture stream not implemented yet",
+        "note": "validated; use start_input_stream to open capture",
     }))
+}
+
+/// Input: consume buffers (discard) until metering / DSP is wired.
+fn build_capture_stream(
+    device: &Device,
+    supported: SupportedStreamConfig,
+    buffer_frames: Option<u32>,
+) -> Result<(Stream, Option<u32>), String> {
+    let sf = supported.sample_format();
+    let bs = supported.buffer_size();
+    let mut stream_config = supported.config();
+    let stream_buffer_frames = apply_buffer_frames_request(&mut stream_config, bs, buffer_frames);
+    let err = |e| eprintln!("audio-engine input stream error: {e}");
+    match sf {
+        SampleFormat::F32 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[f32], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        SampleFormat::I16 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[i16], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        SampleFormat::U16 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[u16], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        SampleFormat::I8 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[i8], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        SampleFormat::U8 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[u8], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        SampleFormat::I32 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[i32], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        SampleFormat::U32 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[u32], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        SampleFormat::I64 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[i64], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        SampleFormat::U64 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[u64], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        SampleFormat::F64 => {
+            let stream = device
+                .build_input_stream(
+                    &stream_config,
+                    |_data: &[f64], _: &cpal::InputCallbackInfo| {},
+                    err,
+                    None,
+                )
+                .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, stream_buffer_frames))
+        }
+        _ => Err(format!("unsupported sample format {:?}", sf)),
+    }
 }
 
 /// F32: optional test tone via `tone_flag`. Other formats: silence only, `tone_flag` = None.
@@ -764,10 +1012,52 @@ fn stop_output_stream() -> Result<serde_json::Value, String> {
     }))
 }
 
+fn start_input_stream(
+    device_id: Option<&str>,
+    buffer_frames: Option<u32>,
+) -> Result<serde_json::Value, String> {
+    let (reply_tx, reply_rx) = mpsc::channel();
+    audio_thread_tx()
+        .send(AudioCmd::StartInput {
+            device_id: device_id.map(|s| s.to_string()),
+            buffer_frames,
+            reply: reply_tx,
+        })
+        .map_err(|_| "audio engine thread unavailable".to_string())?;
+    reply_rx
+        .recv()
+        .map_err(|_| "audio engine thread stopped".to_string())?
+}
+
+fn stop_input_stream() -> Result<serde_json::Value, String> {
+    let (reply_tx, reply_rx) = mpsc::channel();
+    audio_thread_tx()
+        .send(AudioCmd::StopInput { reply: reply_tx })
+        .map_err(|_| "audio engine thread unavailable".to_string())?;
+    let had = reply_rx
+        .recv()
+        .map_err(|_| "audio engine thread stopped".to_string())??;
+
+    Ok(json!({
+        "ok": true,
+        "was_running": had,
+    }))
+}
+
 fn output_stream_status() -> Result<serde_json::Value, String> {
     let (reply_tx, reply_rx) = mpsc::channel();
     audio_thread_tx()
         .send(AudioCmd::Status { reply: reply_tx })
+        .map_err(|_| "audio engine thread unavailable".to_string())?;
+    reply_rx
+        .recv()
+        .map_err(|_| "audio engine thread stopped".to_string())?
+}
+
+fn input_stream_status() -> Result<serde_json::Value, String> {
+    let (reply_tx, reply_rx) = mpsc::channel();
+    audio_thread_tx()
+        .send(AudioCmd::InputStatus { reply: reply_tx })
         .map_err(|_| "audio engine thread unavailable".to_string())?;
     reply_rx
         .recv()

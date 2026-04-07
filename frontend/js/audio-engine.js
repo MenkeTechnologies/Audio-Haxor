@@ -123,6 +123,19 @@ function initAudioEngineTab() {
         });
     }
 
+    const startInBtn = document.getElementById('aeStartInputCapture');
+    if (startInBtn && typeof startInBtn.addEventListener === 'function') {
+        startInBtn.addEventListener('click', () => {
+            void startAeInputCapture();
+        });
+    }
+    const stopInBtn = document.getElementById('aeStopInputCapture');
+    if (stopInBtn && typeof stopInBtn.addEventListener === 'function') {
+        stopInBtn.addEventListener('click', () => {
+            void stopAeInputCapture();
+        });
+    }
+
     void refreshAudioEnginePanel();
 }
 
@@ -217,6 +230,63 @@ function fillAeStreamLineFromPayload(st, el) {
 }
 
 /**
+ * @param {object} st — `engine_state.input_stream` or `input_stream_status`
+ * @param {HTMLElement} el
+ */
+function fillAeInputStreamLineFromPayload(st, el) {
+    if (!el) return;
+    if (typeof catalogFmt !== 'function') {
+        el.textContent = '—';
+        return;
+    }
+    if (!st || st.ok !== true) {
+        el.textContent = '—';
+        return;
+    }
+    if (st.running === true && st.device_id != null && st.device_id !== '') {
+        const name = st.device_name != null ? String(st.device_name) : String(st.device_id);
+        const rate = st.sample_rate_hz != null ? String(st.sample_rate_hz) : null;
+        const ch = st.channels != null ? String(st.channels) : null;
+        const fmt = st.sample_format != null ? String(st.sample_format) : '';
+        const buf = formatAeBufferSize(st.buffer_size);
+        let line;
+        if (rate != null && ch != null) {
+            line = catalogFmt('ui.ae.input_stream_on_detail', {
+                name,
+                device: String(st.device_id),
+                rate,
+                channels: ch,
+                format: fmt,
+                buffer: buf,
+            });
+        } else {
+            line = catalogFmt('ui.ae.input_stream_on', {device: String(st.device_id)});
+        }
+        const sbf = st.stream_buffer_frames;
+        if (sbf != null && typeof sbf === 'number' && Number.isFinite(sbf) && typeof catalogFmt === 'function') {
+            line += catalogFmt('ui.ae.stream_buffer_fixed', {frames: String(sbf)});
+        }
+        el.textContent = line;
+    } else {
+        el.textContent = catalogFmt('ui.ae.input_stream_off');
+    }
+}
+
+/**
+ * @param {object} es — `engine_state` payload
+ */
+function fillAeStreamsFromEngineState(es) {
+    const streamEl = document.getElementById('aeStreamStatus');
+    const inputStreamEl = document.getElementById('aeInputStreamStatus');
+    if (es && es.stream && streamEl) {
+        fillAeStreamLineFromPayload(es.stream, streamEl);
+    }
+    if (es && es.input_stream && inputStreamEl) {
+        fillAeInputStreamLineFromPayload(es.input_stream, inputStreamEl);
+    }
+}
+
+/**
  * @param {function} inv — `window.vstUpdater.audioEngineInvoke`
  */
 async function fillAeStreamStatus(inv) {
@@ -268,9 +338,7 @@ async function refreshAudioEnginePanel() {
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
         }
-        if (streamEl && es.stream) {
-            fillAeStreamLineFromPayload(es.stream, streamEl);
-        }
+        fillAeStreamsFromEngineState(es);
         if (toneCb && typeof toneCb.disabled === 'boolean') {
             const ts = es.stream;
             const canTone = ts && ts.running === true && ts.tone_supported === true;
@@ -417,9 +485,7 @@ async function toggleAeTestTone(enabled) {
             throw new Error(err);
         }
         const es = await inv({cmd: 'engine_state'});
-        if (es && es.stream && streamEl) {
-            fillAeStreamLineFromPayload(es.stream, streamEl);
-        }
+        fillAeStreamsFromEngineState(es);
         const toneCb = document.getElementById('aeTestTone');
         if (toneCb && es && es.stream && es.stream.tone_on != null) {
             toneCb.checked = es.stream.tone_on === true;
@@ -475,9 +541,7 @@ async function applyAudioEngineDevice() {
         }
         await fillAeDeviceCaps(inv, id);
         const es = await inv({cmd: 'engine_state'});
-        if (es && es.stream && streamEl) {
-            fillAeStreamLineFromPayload(es.stream, streamEl);
-        }
+        fillAeStreamsFromEngineState(es);
         if (toneCb && es && es.stream) {
             toneCb.disabled = !(es.stream.running === true && es.stream.tone_supported === true);
             if (es.stream.tone_on != null) toneCb.checked = es.stream.tone_on === true;
@@ -486,6 +550,77 @@ async function applyAudioEngineDevice() {
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
+        }
+    }
+}
+
+async function startAeInputCapture() {
+    const inputStreamEl = document.getElementById('aeInputStreamStatus');
+    const statusEl = document.getElementById('aeEngineStatus');
+    const inSel = document.getElementById('aeInputDevice');
+    const bufIn = document.getElementById('aeBufferFrames');
+    const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
+        ? window.vstUpdater.audioEngineInvoke
+        : null;
+    if (!inv) return;
+
+    const id = inSel && inSel.value != null ? String(inSel.value) : '';
+    const bfRaw = bufIn && typeof bufIn.value === 'string' ? bufIn.value : '';
+    const bufferFrames = parseAeBufferFramesPref(bfRaw);
+
+    try {
+        const payload = {cmd: 'start_input_stream'};
+        if (id !== '') {
+            payload.device_id = id;
+        }
+        if (bufferFrames !== undefined) {
+            payload.buffer_frames = bufferFrames;
+        }
+        const r = await inv(payload);
+        if (!r || r.ok !== true) {
+            const err = (r && r.error) ? String(r.error) : 'start_input_stream failed';
+            throw new Error(err);
+        }
+        const es = await inv({cmd: 'engine_state'});
+        fillAeStreamsFromEngineState(es);
+        if (statusEl && es && es.ok === true && typeof catalogFmt === 'function') {
+            const ver = es.version != null ? String(es.version) : '?';
+            const host = es.host != null ? String(es.host) : '?';
+            statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
+        }
+    } catch (e) {
+        const msg = e && e.message ? String(e.message) : String(e);
+        if (inputStreamEl && typeof catalogFmt === 'function') {
+            inputStreamEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
+        }
+    }
+}
+
+async function stopAeInputCapture() {
+    const inputStreamEl = document.getElementById('aeInputStreamStatus');
+    const statusEl = document.getElementById('aeEngineStatus');
+    const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
+        ? window.vstUpdater.audioEngineInvoke
+        : null;
+    if (!inv) return;
+
+    try {
+        const r = await inv({cmd: 'stop_input_stream'});
+        if (!r || r.ok !== true) {
+            const err = (r && r.error) ? String(r.error) : 'stop_input_stream failed';
+            throw new Error(err);
+        }
+        const es = await inv({cmd: 'engine_state'});
+        fillAeStreamsFromEngineState(es);
+        if (statusEl && es && es.ok === true && typeof catalogFmt === 'function') {
+            const ver = es.version != null ? String(es.version) : '?';
+            const host = es.host != null ? String(es.host) : '?';
+            statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
+        }
+    } catch (e) {
+        const msg = e && e.message ? String(e.message) : String(e);
+        if (inputStreamEl && typeof catalogFmt === 'function') {
+            inputStreamEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
         }
     }
 }
@@ -511,9 +646,7 @@ async function stopAeOutputStream() {
             const host = es.host != null ? String(es.host) : '?';
             statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
         }
-        if (streamEl && es && es.stream) {
-            fillAeStreamLineFromPayload(es.stream, streamEl);
-        }
+        fillAeStreamsFromEngineState(es);
         if (toneCb) {
             toneCb.disabled = true;
             toneCb.checked = false;
