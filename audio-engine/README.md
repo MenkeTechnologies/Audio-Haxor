@@ -91,4 +91,4 @@ The app keeps **one** long-lived `audio-engine` child. After rebuilding, an old 
 
 ## Host app (WEB UI)
 
-`frontend/js/audio-engine.js` drives the Audio Engine tab and coordinates **`playback_*`** with the floating player. Behavior matches the root **`README.md`** Audio Engine / dev-vs-build sections (IPC guards, `engine_state` resync, input peak polling, etc.).
+`frontend/js/audio-engine.js` drives the Audio Engine tab and coordinates **`playback_*`** with the floating player. Behavior matches the root **`README.md`** Audio Engine / dev-vs-build sections (IPC guards, `engine_state` resync, input peak polling, etc.). The **panel refresh** completes after device lists and caps; **VST3/AU directory scan** (`plugin_chain` → `phase: scanning`) continues in the **background** so the tab does not stay on “loading” for the full scan duration.

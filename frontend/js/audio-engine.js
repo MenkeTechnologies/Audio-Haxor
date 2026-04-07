@@ -18,6 +18,9 @@ const AE_INSERT_EDITOR_IDS = ['aeInsertEditor0', 'aeInsertEditor1', 'aeInsertEdi
 /** After first successful `list_audio_device_types`, restore saved driver from prefs once per page load (and again after sidecar restart). */
 let aeInitialDeviceTypeRestored = false;
 
+/** Incremented at the start of each `refreshAudioEnginePanel` so in-flight plugin-scan polls do not apply stale results. */
+let aePluginChainPollGeneration = 0;
+
 function migrateAeBufferPrefs() {
     if (typeof prefs === 'undefined' || typeof prefs.getItem !== 'function' || typeof prefs.setItem !== 'function') {
         return;
@@ -505,16 +508,20 @@ function aePopulateInsertSlotSelects(chain) {
 /**
  * Poll `plugin_chain` until the sidecar finishes scanning (`phase` !== `scanning`) or attempts exhausted.
  * @param {function} inv — `audioEngineInvoke`
+ * @param {object} [initialChain] — if set, skip the first `plugin_chain` IPC (caller already fetched it).
  * @returns {Promise<object>}
  */
-async function fetchPluginChainUntilSettled(inv) {
+async function fetchPluginChainUntilSettled(inv, initialChain) {
     const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     const toast = (key, params, ms, kind) => {
         if (typeof showToast !== 'function' || typeof toastFmt !== 'function') return;
         showToast(toastFmt(key, params || {}), ms, kind);
     };
 
-    let chain = await inv({cmd: 'plugin_chain'});
+    let chain =
+        initialChain !== undefined && initialChain !== null
+            ? initialChain
+            : await inv({cmd: 'plugin_chain'});
     const sawScanning = chain && chain.phase === 'scanning';
     if (sawScanning) {
         toast('toast.ae_plugin_scan_started', {}, 4200, 'info');
@@ -1152,6 +1159,9 @@ async function refreshAudioEnginePanel() {
         return;
     }
 
+    aePluginChainPollGeneration++;
+    const pollGen = aePluginChainPollGeneration;
+
     if (statusEl && typeof catalogFmt === 'function') {
         statusEl.textContent = catalogFmt('ui.ae.status_loading');
     }
@@ -1221,8 +1231,14 @@ async function refreshAudioEnginePanel() {
         const selId = selectEl && selectEl.value ? String(selectEl.value) : '';
         await fillAeDeviceCaps(inv, selId);
 
-        const chain = await fetchPluginChainUntilSettled(inv);
+        const chain = await inv({cmd: 'plugin_chain'});
         fillAePluginSection(chain);
+        if (chain && chain.phase === 'scanning') {
+            void fetchPluginChainUntilSettled(inv, chain).then((finalChain) => {
+                if (pollGen !== aePluginChainPollGeneration) return;
+                fillAePluginSection(finalChain);
+            });
+        }
 
         syncAePlaybackControlsFromPrefs();
 
