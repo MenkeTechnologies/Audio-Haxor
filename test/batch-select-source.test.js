@@ -8,6 +8,10 @@ const { loadFrontendScripts, defaultDocument } = require('./frontend-vm-harness.
 function loadBatchSandbox() {
   const bar = { style: { display: 'none' } };
   const countEl = { textContent: '' };
+  const activeTab = {
+    id: 'tabSamples',
+    classList: { contains: (c) => c === 'active' },
+  };
   return loadFrontendScripts(['utils.js', 'batch-select.js'], {
     appFmt: (key, vars) => (vars && vars.n != null ? `${key}:${vars.n}` : key),
     toastFmt: (k) => k,
@@ -20,7 +24,10 @@ function loadBatchSandbox() {
         if (id === 'batchSelectionCount') return countEl;
         return null;
       },
-      querySelector: () => null,
+      querySelector(sel) {
+        if (sel === '.tab-content.active') return activeTab;
+        return null;
+      },
       querySelectorAll: () => [],
       addEventListener: () => {},
     },

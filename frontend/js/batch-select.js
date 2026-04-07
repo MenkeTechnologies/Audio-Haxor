@@ -48,11 +48,123 @@ function getPathFromBatchRow(el) {
     );
 }
 
+/** @param {string} trId */
+function _isLoadMoreRow(tr, trId) {
+    return !!(trId && (trId === 'audioLoadMore' || trId === 'dawLoadMore' || trId.endsWith('LoadMore')));
+}
+
+/**
+ * Resolve batch paths to row objects: try filtered + full in-memory arrays (paginated SQLite tabs),
+ * then visible table rows for paths from earlier "load more" pages not in the current filtered slice.
+ * @param {Set<string>} set
+ * @param {string} tabId — `tabSamples`, `tabDaw`, …
+ * @returns {unknown[]}
+ */
+function resolveBatchInventoryItems(set, tabId) {
+    const pools = [];
+    let tbodyId = null;
+    /** @type {((tr: HTMLElement, path: string) => Record<string, unknown>) | null} */
+    let shallow = null;
+
+    if (tabId === 'tabSamples') {
+        if (typeof filteredAudioSamples !== 'undefined') pools.push(filteredAudioSamples);
+        if (typeof allAudioSamples !== 'undefined') pools.push(allAudioSamples);
+        tbodyId = 'audioTableBody';
+        shallow = (tr, path) => {
+            const name =
+                tr.querySelector('.col-name')?.getAttribute('title')?.trim() ||
+                tr.querySelector('.col-name')?.textContent?.trim() ||
+                path.split('/').pop();
+            const format = tr.querySelector('.format-badge')?.textContent?.trim() || '';
+            return { path, name, format };
+        };
+    } else if (tabId === 'tabDaw') {
+        if (typeof filteredDawProjects !== 'undefined') pools.push(filteredDawProjects);
+        if (typeof allDawProjects !== 'undefined') pools.push(allDawProjects);
+        tbodyId = 'dawTableBody';
+        shallow = (tr, path) => {
+            const name =
+                tr.querySelector('.col-name')?.getAttribute('title')?.trim() ||
+                tr.querySelector('.col-name')?.textContent?.trim() ||
+                path.split('/').pop();
+            const badges = tr.querySelectorAll('.col-format .format-badge');
+            const daw = (badges[0]?.textContent || tr.dataset.dawName || '').trim();
+            const format = (badges[1]?.textContent || '').trim();
+            return { path, name, format, daw };
+        };
+    } else if (tabId === 'tabPresets') {
+        if (typeof filteredPresets !== 'undefined') pools.push(filteredPresets);
+        if (typeof allPresets !== 'undefined') pools.push(allPresets);
+        tbodyId = 'presetTableBody';
+        shallow = (tr, path) => {
+            const name =
+                tr.querySelector('.col-name')?.getAttribute('title')?.trim() ||
+                tr.querySelector('.col-name')?.textContent?.trim() ||
+                path.split('/').pop();
+            const format = (tr.dataset.presetFormat || tr.querySelector('.format-badge')?.textContent || '').trim();
+            return { path, name, format };
+        };
+    } else if (tabId === 'tabMidi') {
+        if (typeof filteredMidi !== 'undefined') pools.push(filteredMidi);
+        if (typeof allMidiFiles !== 'undefined') pools.push(allMidiFiles);
+        tbodyId = 'midiTableBody';
+        shallow = (tr, path) => {
+            const name =
+                tr.querySelector('.col-name')?.getAttribute('title')?.trim() ||
+                tr.querySelector('.col-name')?.textContent?.trim() ||
+                path.split('/').pop();
+            return { path, name, format: 'MIDI', sizeFormatted: tr.querySelector('.col-size')?.textContent?.trim() || '' };
+        };
+    } else if (tabId === 'tabPdf') {
+        if (typeof filteredPdfs !== 'undefined') pools.push(filteredPdfs);
+        if (typeof allPdfs !== 'undefined') pools.push(allPdfs);
+        tbodyId = 'pdfTableBody';
+        shallow = (tr, path) => {
+            const name =
+                tr.querySelector('.col-name')?.getAttribute('title')?.trim() ||
+                tr.querySelector('.col-name')?.textContent?.trim() ||
+                path.split('/').pop();
+            return { path, name, format: 'PDF', sizeFormatted: tr.querySelector('.col-size')?.textContent?.trim() || '' };
+        };
+    } else {
+        return [];
+    }
+
+    const out = [];
+    const findFn = typeof findByPath === 'function' ? findByPath : null;
+
+    for (const path of set) {
+        if (path == null || path === '') continue;
+        let item = null;
+        for (const arr of pools) {
+            if (!arr || !arr.length) continue;
+            item = findFn ? findFn(arr, path) : arr.find((i) => i && i.path === path);
+            if (item) break;
+        }
+        if (!item && tbodyId && typeof shallow === 'function') {
+            const tb = document.getElementById(tbodyId);
+            if (tb) {
+                for (const tr of tb.querySelectorAll('tr')) {
+                    const tid = tr.id || '';
+                    if (_isLoadMoreRow(tr, tid)) continue;
+                    if (getPathFromBatchRow(tr) === path) {
+                        item = shallow(tr, path);
+                        break;
+                    }
+                }
+            }
+        }
+        if (item) out.push(item);
+    }
+    return out;
+}
+
 function rowElementFromBatchCheckbox(cb) {
     return cb.closest('tr') || cb.closest('.plugin-card') || cb.closest('.fav-item');
 }
 
 function toggleBatchSelect(path, checked) {
+    if (path == null || path === '') return;
     const set = getActiveBatchSet();
     if (!set) return;
     if (checked) {
@@ -120,37 +232,44 @@ function batchFavoriteAll() {
     const set = getActiveBatchSet();
     if (!set || set.size === 0) return;
 
-    let type = 'sample',
-        items = typeof allAudioSamples !== 'undefined' ? allAudioSamples : [];
-    if (activeTab.id === 'tabPlugins') {
-        type = 'plugin';
-        items = typeof allPlugins !== 'undefined' ? allPlugins : [];
-    } else if (activeTab.id === 'tabDaw') {
-        type = 'daw';
-        items = typeof allDawProjects !== 'undefined' ? allDawProjects : [];
-    } else if (activeTab.id === 'tabPresets') {
-        type = 'preset';
-        items = typeof allPresets !== 'undefined' ? allPresets : [];
-    } else if (activeTab.id === 'tabMidi') {
-        type = 'midi';
-        items = typeof allMidiFiles !== 'undefined' ? allMidiFiles : [];
-    } else if (activeTab.id === 'tabPdf') {
-        type = 'pdf';
-        items = typeof allPdfs !== 'undefined' ? allPdfs : [];
+    const tid = activeTab.id;
+    if (tid === 'tabPlugins') {
+        const plugins = typeof allPlugins !== 'undefined' ? allPlugins : [];
+        let added = 0;
+        for (const path of set) {
+            if (isFavorite(path)) continue;
+            const item = typeof findByPath === 'function' ? findByPath(plugins, path) : plugins.find((i) => i.path === path);
+            if (item) {
+                addFavorite('plugin', path, item.name, {format: item.type || item.format || ''});
+                added++;
+            }
+        }
+        showToast(toastFmt('toast.added_favorites_batch', {n: added}));
+        deselectAll();
+        return;
     }
 
+    const typeMap = {
+        tabSamples: 'sample',
+        tabDaw: 'daw',
+        tabPresets: 'preset',
+        tabMidi: 'midi',
+        tabPdf: 'pdf',
+    };
+    const type = typeMap[tid];
+    if (!type) return;
+
+    const items = resolveBatchInventoryItems(set, tid);
     let added = 0;
-    for (const path of set) {
-        if (isFavorite(path)) continue;
-        const item = typeof findByPath === 'function' ? findByPath(items, path) : items.find(i => i.path === path);
-        if (item) {
-            if (type === 'plugin') {
-                addFavorite(type, path, item.name, {format: item.type || item.format || ''});
-            } else {
-                addFavorite(type, path, item.name, {format: item.format, daw: item.daw});
-            }
-            added++;
-        }
+    for (const item of items) {
+        if (!item || !item.path) continue;
+        if (isFavorite(item.path)) continue;
+        addFavorite(type, item.path, item.name, {format: item.format, daw: item.daw});
+        added++;
+    }
+    if (set.size > 0 && items.length === 0) {
+        showToast(toastFmt('toast.no_matching_samples'), 3500, 'warning');
+        return;
     }
     showToast(toastFmt('toast.added_favorites_batch', {n: added}));
     deselectAll();
@@ -171,30 +290,24 @@ function batchExportSelected() {
     const set = getActiveBatchSet();
     if (!set || set.size === 0) return;
 
-    const pickByPaths = (arr) => {
-        const out = [];
-        for (const path of set) {
-            const item = findByPath(arr, path);
-            if (item) out.push(item);
-        }
-        return out;
-    };
+    const tid = activeTab.id;
     let items = [];
-    if (activeTab.id === 'tabPlugins') {
-        items = pickByPaths(typeof allPlugins !== 'undefined' ? allPlugins : []);
-    } else if (activeTab.id === 'tabSamples') {
-        items = pickByPaths(allAudioSamples);
-    } else if (activeTab.id === 'tabDaw') {
-        items = pickByPaths(allDawProjects);
-    } else if (activeTab.id === 'tabPresets') {
-        items = pickByPaths(allPresets);
-    } else if (activeTab.id === 'tabMidi') {
-        items = pickByPaths(typeof allMidiFiles !== 'undefined' ? allMidiFiles : []);
-    } else if (activeTab.id === 'tabPdf') {
-        items = pickByPaths(typeof allPdfs !== 'undefined' ? allPdfs : []);
+    if (tid === 'tabPlugins') {
+        const plugins = typeof allPlugins !== 'undefined' ? allPlugins : [];
+        for (const path of set) {
+            const item = typeof findByPath === 'function' ? findByPath(plugins, path) : plugins.find((i) => i.path === path);
+            if (item) items.push(item);
+        }
+    } else if (TABS_WITH_BATCH.has(tid)) {
+        items = resolveBatchInventoryItems(set, tid);
     }
 
-    if (items.length === 0) return;
+    if (items.length === 0) {
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+            showToast(toastFmt('toast.no_list_export'), 3500, 'warning');
+        }
+        return;
+    }
     if (typeof copyToClipboard !== 'function') return;
     copyToClipboard(JSON.stringify(items, null, 2));
     showToast(toastFmt('toast.copied_n_json', {n: items.length}));
@@ -223,6 +336,8 @@ function batchRevealAll() {
 
 // Wire up checkbox changes and batch action buttons
 document.addEventListener('change', (e) => {
+    // Header "select all" uses both `batch-cb-all` and `batch-cb` — ignore here (click handler sets rows).
+    if (e.target.classList.contains('batch-cb-all')) return;
     if (e.target.classList.contains('batch-cb')) {
         const path = getPathFromBatchRow(rowElementFromBatchCheckbox(e.target));
         if (path) toggleBatchSelect(path, e.target.checked);
@@ -260,4 +375,8 @@ if (typeof window !== 'undefined') {
     window.batchSetForTabId = batchSetForTabId;
     window.getActiveBatchSet = getActiveBatchSet;
     window.activeBatchCount = activeBatchCount;
+    window.getRowPath = getPathFromBatchRow;
+    window.toggleBatchSelect = toggleBatchSelect;
+    window.deselectAll = deselectAll;
+    window.selectAllVisible = selectAllVisible;
 }
