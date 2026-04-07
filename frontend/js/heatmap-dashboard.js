@@ -64,7 +64,7 @@ function _hmPartialSampleHintCard(agg, samples) {
 </div>`;
 }
 
-async function showHeatmapDashboard() {
+function showHeatmapDashboard() {
     let existing = document.getElementById('heatmapDashModal');
     if (existing) existing.remove();
 
@@ -73,14 +73,7 @@ async function showHeatmapDashboard() {
     const projects = typeof allDawProjects !== 'undefined' ? allDawProjects : [];
     const presets = typeof allPresets !== 'undefined' ? allPresets : [];
 
-    if (typeof showGlobalProgress === 'function') showGlobalProgress();
-    let agg = null;
-    try {
-        agg = await fetchHeatmapDbAggregates();
-    } finally {
-        if (typeof hideGlobalProgress === 'function') hideGlobalProgress();
-    }
-
+    const loadingLine = escapeHtml(_hmFmt('ui.js.query_loading'));
     const html = `<div class="modal-overlay" id="heatmapDashModal" data-action-modal="closeHeatmapDash">
     <div class="modal-content modal-wide" style="max-width:95vw;width:95vw;max-height:95vh;height:95vh;">
       <div class="modal-header">
@@ -88,17 +81,25 @@ async function showHeatmapDashboard() {
         <button class="modal-close" data-action-modal="closeHeatmapDash" title="${escapeHtml(_hmFmt('ui.hm.close'))}">&#10005;</button>
       </div>
       <div class="modal-body" style="overflow-y:auto;max-height:calc(90vh - 60px);">
-        <div class="hm-overview" id="hmOverview"></div>
-        <div class="hm-grid" id="hmGrid"></div>
+        <div class="hm-overview" id="hmOverview"><div class="hm-loading" style="padding:12px 4px;color:var(--text-muted);">${loadingLine}</div></div>
+        <div class="hm-grid" id="hmGrid"><div class="hm-loading" style="padding:8px 4px;color:var(--text-muted);">${loadingLine}</div></div>
       </div>
     </div>
   </div>`;
     document.body.insertAdjacentHTML('beforeend', html);
 
-    // Double-rAF: first frame makes modal visible, second frame renders with correct widths
+    // DB aggregates were blocking modal insert; fetch after paint so the shell appears immediately.
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-            renderDashboard(samples, plugins, projects, presets, agg);
+            void (async () => {
+                let agg = null;
+                try {
+                    agg = await fetchHeatmapDbAggregates();
+                } catch (e) {
+                    if (typeof console !== 'undefined' && console.warn) console.warn('heatmap DB aggregates', e);
+                }
+                renderDashboard(samples, plugins, projects, presets, agg);
+            })();
         });
     });
 }
