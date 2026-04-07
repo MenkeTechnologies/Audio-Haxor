@@ -1840,7 +1840,7 @@
   "ui.tt.next_track_cmd_right": "下一曲目（Cmd+向右键）",
   "ui.tt.notes_amp_tags_cmd_6": "注释和标签 (Cmd+6)",
   "ui.tt.notes_tags_cmd_6": "Notes & tags (Cmd+6)",
-  "ui.tt.np_fft_rclick_freeze": "Right-click to freeze or resume the spectrum (saved).",
+  "ui.tt.np_fft_rclick_freeze": "Right-click for the floating menu: play/pause, loop, and animate or freeze the spectrum (saved).",
   "ui.tt.number_of_items_per_page_in_tables": "表格中每页的项目数",
   "ui.tt.octave_band_analyzer_right_click_for_options": "倍频程分析仪 — 右键单击​​查看选项",
   "ui.tt.octave_bands_show_only_this": "倍频程频带 — 仅显示此",

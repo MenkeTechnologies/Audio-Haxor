@@ -1119,6 +1119,7 @@ document.addEventListener('contextmenu', (e) => {
             const isPlaying = audioPlayerPath && (typeof isAudioPlaying === 'function' ? isAudioPlaying() : !audioPlayer.paused);
             const isExpanded = player.classList.contains('expanded');
             const items = [];
+            const onMiniFft = typeof e.target.closest === 'function' && e.target.closest('#npFftCanvas');
             if (audioPlayerPath) {
                 items.push({
                     icon: isPlaying ? '&#9646;&#9646;' : '&#9654;',
@@ -1130,6 +1131,20 @@ document.addEventListener('contextmenu', (e) => {
                     label: audioLooping ? appFmt('menu.disable_loop') : appFmt('menu.enable_loop'), ..._noEcho,
                     action: () => toggleAudioLoop()
                 });
+            }
+            if (onMiniFft) {
+                const animOn = !(typeof window.isFftAnimationPaused === 'function' && window.isFftAnimationPaused());
+                items.push({
+                    icon: animOn ? '&#10003;' : '&#9634;',
+                    label: appFmt('menu.viz_fft_animate'),
+                    action: () => {
+                        if (typeof window.toggleFftAnimationPaused === 'function') window.toggleFftAnimationPaused();
+                    },
+                    ..._noEcho,
+                });
+                items.push('---');
+            }
+            if (audioPlayerPath) {
                 items.push({
                     icon: '&#128193;',
                     label: appFmt('menu.reveal_in_finder'), ..._noEcho,

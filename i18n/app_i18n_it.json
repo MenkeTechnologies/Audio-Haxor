@@ -1840,7 +1840,7 @@
   "ui.tt.next_track_cmd_right": "Traccia successiva (Cmd+Destra)",
   "ui.tt.notes_amp_tags_cmd_6": "Note e tag (Cmd+6)",
   "ui.tt.notes_tags_cmd_6": "Notes & tags (Cmd+6)",
-  "ui.tt.np_fft_rclick_freeze": "Right-click to freeze or resume the spectrum (saved).",
+  "ui.tt.np_fft_rclick_freeze": "Right-click for the floating menu: play/pause, loop, and animate or freeze the spectrum (saved).",
   "ui.tt.number_of_items_per_page_in_tables": "Numero di elementi per pagina nelle tabelle",
   "ui.tt.octave_band_analyzer_right_click_for_options": "Analizzatore di bande d'ottava: fare clic con il pulsante destro del mouse per le opzioni",
   "ui.tt.octave_bands_show_only_this": "Bande d'ottava: mostra solo questo",

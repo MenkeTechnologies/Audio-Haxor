@@ -1267,9 +1267,9 @@ function _enginePlaybackFftLoop() {
     _enginePlaybackFftRafId = null;
     if (typeof _renderNpFft === 'function') _renderNpFft();
     if (typeof window.scheduleParametricEqFrame === 'function') window.scheduleParametricEqFrame();
-    if (shouldRunEngineSpectrumRaf()) {
-        _enginePlaybackFftRafId = requestAnimationFrame(_enginePlaybackFftLoop);
-    }
+    if (!shouldRunEngineSpectrumRaf()) return;
+    if (typeof isFftAnimationPaused === 'function' && isFftAnimationPaused()) return;
+    _enginePlaybackFftRafId = requestAnimationFrame(_enginePlaybackFftLoop);
 }
 
 function ensureEnginePlaybackFftRaf() {
@@ -1304,6 +1304,11 @@ function isFftAnimationPaused() {
 function setFftAnimationPaused(on) {
     if (typeof prefs === 'undefined' || !prefs.setItem) return;
     prefs.setItem(FFT_ANIM_PREF_KEY, on ? '1' : '0');
+    if (on) {
+        if (typeof stopEnginePlaybackFftRaf === 'function') stopEnginePlaybackFftRaf();
+    } else if (typeof ensureEnginePlaybackFftRaf === 'function') {
+        ensureEnginePlaybackFftRaf();
+    }
 }
 
 function toggleFftAnimationPaused() {
@@ -1381,23 +1386,6 @@ function getPinnedEngineSpectrumAxis() {
     const ro = new ResizeObserver(() => requestAnimationFrame(scheduleFftCanvasSize));
     ro.observe(parent);
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(applyFftCanvasSize);
-})();
-
-(function initNpFftCanvasContextMenu() {
-    const canvas = document.getElementById('npFftCanvas');
-    if (!canvas) return;
-    canvas.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        if (typeof toggleFftAnimationPaused !== 'function') return;
-        toggleFftAnimationPaused();
-        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
-            showToast(
-                toastFmt(isFftAnimationPaused() ? 'toast.fft_animation_paused' : 'toast.fft_animation_resumed'),
-                2200,
-                'info'
-            );
-        }
-    });
 })();
 
 function _renderNpFft() {

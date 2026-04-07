@@ -1840,7 +1840,7 @@
   "ui.tt.next_track_cmd_right": "次のトラック (Cmd+右キー)",
   "ui.tt.notes_amp_tags_cmd_6": "メモとタグ (Cmd+6)",
   "ui.tt.notes_tags_cmd_6": "Notes & tags (Cmd+6)",
-  "ui.tt.np_fft_rclick_freeze": "Right-click to freeze or resume the spectrum (saved).",
+  "ui.tt.np_fft_rclick_freeze": "Right-click for the floating menu: play/pause, loop, and animate or freeze the spectrum (saved).",
   "ui.tt.number_of_items_per_page_in_tables": "表内のページごとの項目数",
   "ui.tt.octave_band_analyzer_right_click_for_options": "オクターブ バンド アナライザー — 右クリックしてオプションを表示します",
   "ui.tt.octave_bands_show_only_this": "オクターブバンド — これのみを表示",

@@ -1840,7 +1840,7 @@
   "ui.tt.next_track_cmd_right": "다음 트랙(Cmd+오른쪽)",
   "ui.tt.notes_amp_tags_cmd_6": "메모 및 태그(Cmd+6)",
   "ui.tt.notes_tags_cmd_6": "Notes & tags (Cmd+6)",
-  "ui.tt.np_fft_rclick_freeze": "Right-click to freeze or resume the spectrum (saved).",
+  "ui.tt.np_fft_rclick_freeze": "Right-click for the floating menu: play/pause, loop, and animate or freeze the spectrum (saved).",
   "ui.tt.number_of_items_per_page_in_tables": "테이블의 페이지당 항목 수",
   "ui.tt.octave_band_analyzer_right_click_for_options": "옥타브 밴드 분석기 - 옵션을 보려면 마우스 오른쪽 버튼을 클릭하세요.",
   "ui.tt.octave_bands_show_only_this": "옥타브 밴드 - 이것만 표시",
