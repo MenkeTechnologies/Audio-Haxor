@@ -2081,6 +2081,8 @@ async function previewAudio(filePath) {
             typeof window.vstUpdater.audioEngineInvoke === 'function' &&
             typeof window.enginePlaybackStart === 'function';
         if (canEngine) {
+            /* Mute / disconnect `<audio>` before sidecar audio starts so WebView path cannot overlap. */
+            silenceWebViewAudioForEngine();
             await window.enginePlaybackStart(filePath);
             _enginePlaybackActive = true;
             stopReverseBufferPlayback();
@@ -2088,7 +2090,6 @@ async function previewAudio(filePath) {
             _reversedBuf = null;
             _decodedBufPath = null;
             _pausedOffsetInRev = 0;
-            silenceWebViewAudioForEngine();
             audioPlayerPath = filePath;
             audioPlayer.loop = false;
         } else {

@@ -500,6 +500,17 @@ struct PlaybackSession {
     join: Option<JoinHandle<()>>,
 }
 
+impl Drop for PlaybackSession {
+    fn drop(&mut self) {
+        // `JoinHandle` drop without `join` detaches the thread — orphan decoders keep writing PCM
+        // after `playback_load` replaces SESSION or after the output stream is dropped.
+        self.shared.stop_decoder.store(true, Ordering::Relaxed);
+        if let Some(j) = self.join.take() {
+            let _ = j.join();
+        }
+    }
+}
+
 pub fn playback_load(path: String) -> Result<serde_json::Value, String> {
     let p = Path::new(&path);
     if !p.is_file() {

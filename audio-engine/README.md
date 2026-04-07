@@ -14,7 +14,7 @@ Symphonia decodes the file on a **decoder thread**; resampling is linear from th
 
 | Command | Fields | Purpose |
 |--------|--------|---------|
-| `playback_load` | `path` (absolute file path) | Probe track; store session + duration; does **not** open cpal. |
+| `playback_load` | `path` (absolute file path) | Probe track; store session + duration; does **not** open cpal. Replacing a session **joins** the previous decoder thread (`PlaybackSession` `Drop`) so orphan decoders cannot keep writing PCM after a new load or after the stream stops. |
 | `start_output_stream` | `start_playback: true`, `device_id`, optional `buffer_frames` | After **`playback_load`**, starts output stream and the decoder thread; device stream rate is chosen to match **`src_rate`** when the device reports an F32 range that includes it, otherwise closest F32 rate in range, else **`default_output_config`**. |
 | `playback_pause` | `paused` (bool) | Pause / resume decode (ring may underrun to silence while paused). |
 | `playback_seek` | `position_sec` | Seek (symphonia `SeekMode::Accurate`). |
