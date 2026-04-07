@@ -1393,7 +1393,7 @@
   "ui.ph.search_notes_and_tags": "Fuzzy search notes and tags...",
   "ui.ph.search_settings": "Sökinställningar...",
   "ui.ph.search_songs": "Sök låtar...",
-  "ui.ph.search_tags": "Sök taggar...",
+  "ui.ph.search_tags": "Fuzzy search tags...",
   "ui.ph.ui_ph_filter_files": "ui.ph.filter_files",
   "ui.ph.ui_ph_fuzzy_search_midi_files": "ui.ph.fuzzy_search_midi_files",
   "ui.ph.ui_ph_fuzzy_search_pdfs": "ui.ph.fuzzy_search_pdfs",

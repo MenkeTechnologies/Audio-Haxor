@@ -518,11 +518,14 @@ function clearAllNotes() {
 
 // ── Tags Manager Tab ──
 let _tagsSearch = '';
+let _lastTagsMode = 'fuzzy';
 
 registerFilter('filterTags', {
     inputId: 'tagSearchInput',
+    regexToggleId: 'regexTags',
     fetchFn() {
         _tagsSearch = this.lastSearch || '';
+        _lastTagsMode = this.lastMode || 'fuzzy';
         renderTagsManager();
     },
 });
@@ -537,7 +540,7 @@ function renderTagsManager() {
     const search = _tagsSearch || (document.getElementById('tagSearchInput')?.value || '').trim();
     let filtered;
     if (search) {
-        const scored = allTags.map(t => ({t, score: searchScore(search, [t], 'fuzzy')})).filter(s => s.score > 0);
+        const scored = allTags.map(t => ({t, score: searchScore(search, [t], _lastTagsMode)})).filter(s => s.score > 0);
         scored.sort((a, b) => b.score - a.score);
         filtered = scored.map(s => s.t);
     } else {
@@ -564,7 +567,7 @@ function renderTagsManager() {
         const items = getItemsWithTag(tag);
         return `<div class="tag-manager-card">
       <div class="tag-manager-header">
-        <span class="tag-manager-name">${_tagsSearch ? highlightMatch(tag, _tagsSearch, 'fuzzy') : escapeHtml(tag)}</span>
+        <span class="tag-manager-name">${_tagsSearch ? highlightMatch(tag, _tagsSearch, _lastTagsMode) : escapeHtml(tag)}</span>
         <span class="tag-manager-count">${count} item${count !== 1 ? 's' : ''}</span>
         <button class="btn-small btn-secondary" data-tag-action="rename" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Rename this tag">Rename</button>
         <button class="btn-small btn-secondary" data-tag-action="filter" data-tag="${escapeHtml(tag)}" style="padding:3px 8px;font-size:10px;" title="Filter all tabs by this tag">Filter All Tabs</button>
