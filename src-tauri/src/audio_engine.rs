@@ -1,6 +1,8 @@
 //! **Audio engine** subprocess: the main app spawns the **`audio-engine`** JUCE sidecar (`audio-engine/` CMake target),
 //! sends JSON lines on stdin, reads one JSON line per request. Keeps **one** child process alive
 //! (stdin loop in the sidecar) so stream state and IPC stay cheap.
+//! On app quit, [`shutdown_audio_engine_child`] runs from Tauri `RunEvent::Exit` / `ExitRequested` and from `libc::atexit`
+//! so the sidecar is always terminated with the host.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -214,6 +216,19 @@ pub fn restart_audio_engine_child() -> Result<(), String> {
         let _ = eng.child.wait();
     }
     crate::write_app_log("audio-engine: sidecar process restarted (user request)".to_string());
+    Ok(())
+}
+
+/// Kill the JUCE sidecar when the host app exits. Idempotent (safe if no child was spawned).
+pub fn shutdown_audio_engine_child() -> Result<(), String> {
+    let mut guard = ENGINE_CHILD
+        .lock()
+        .map_err(|_| "audio-engine child mutex poisoned".to_string())?;
+    if let Some(mut eng) = guard.take() {
+        let _ = eng.child.kill();
+        let _ = eng.child.wait();
+        crate::write_app_log("audio-engine: sidecar terminated (app shutdown)".to_string());
+    }
     Ok(())
 }
 

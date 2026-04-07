@@ -6662,8 +6662,9 @@ pub fn run() {
     // Initialize app start time for uptime tracking
     APP_START.get_or_init(Instant::now);
 
-    // Register atexit handler for shutdown logging (Cmd+Q, SIGTERM, etc.)
+    // Register atexit handler: terminate audio-engine sidecar, then shutdown logging (Cmd+Q, SIGTERM, etc.)
     extern "C" fn on_exit() {
+        let _ = audio_engine::shutdown_audio_engine_child();
         log_shutdown();
     }
     unsafe {
@@ -7113,6 +7114,7 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|_app, event| match event {
             tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+                let _ = audio_engine::shutdown_audio_engine_child();
                 log_shutdown();
             }
             _ => {}
