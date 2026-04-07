@@ -1,5 +1,7 @@
 // ── Audio Visualizer Tab ──
 // 6 real-time displays: FFT, waveform, spectrogram, stereo, levels, bands.
+// Primary data: audio-engine `playback_status.spectrum` (see `applyPlaybackStatusSpectrum` in
+// audio-engine.js). Web Audio `AnalyserNode` is only used when the sidecar is not supplying spectrum.
 // Grid (all) or single mode. Fullscreen. Trello drag to rearrange. Context menus.
 
 let _vizMode = 'all';
@@ -22,6 +24,84 @@ let _vizParams = {
 };
 let _vizPeakHold = -96;
 let _vizPeakTimer = null;
+
+/** Sidecar is sending usable spectrum bins (`playback_status.spectrum`). */
+function _vizEngineSpectrumOk() {
+    if (typeof window === 'undefined' || !window._engineSpectrumU8 || window._engineSpectrumU8.length < 1024) {
+        return false;
+    }
+    /* Library / floating player playback through JUCE */
+    if (window._enginePlaybackActive === true && typeof isAudioPlaying === 'function' && isAudioPlaying()) {
+        return true;
+    }
+    /* Any engine output with FFT tap (Audio Engine tab: tone, file preview, etc.) */
+    if (window._aeOutputStreamRunning === true) {
+        return true;
+    }
+    return false;
+}
+
+function _vizOutputSampleRateHz() {
+    if (
+        typeof window !== 'undefined' &&
+        typeof window._engineSpectrumSrHz === 'number' &&
+        window._engineSpectrumSrHz > 0 &&
+        (window._enginePlaybackActive === true || window._aeOutputStreamRunning === true)
+    ) {
+        return window._engineSpectrumSrHz;
+    }
+    if (typeof _playbackCtx !== 'undefined' && _playbackCtx && typeof _playbackCtx.sampleRate === 'number') {
+        return _playbackCtx.sampleRate;
+    }
+    if (typeof window !== 'undefined' && typeof window._engineSpectrumSrHz === 'number' && window._engineSpectrumSrHz > 0) {
+        return window._engineSpectrumSrHz;
+    }
+    return 44100;
+}
+
+/**
+ * Minimal AnalyserNode stand-in backed by `window._engineSpectrumU8` (engine FFT tap).
+ * Waveform is synthetic; stereo/levels tiles use dedicated engine paths when spectrum is live.
+ */
+const _vizEngineShim = {
+    frequencyBinCount: 1024,
+    fftSize: 2048,
+    getByteFrequencyData(arr) {
+        const u8 = window._engineSpectrumU8;
+        if (!u8 || u8.length < 1024) {
+            arr.fill(0);
+            return;
+        }
+        const n = Math.min(arr.length, u8.length);
+        arr.set(u8.subarray(0, n));
+        if (n < arr.length) arr.fill(0, n);
+    },
+    getFloatTimeDomainData(arr) {
+        const u8 = window._engineSpectrumU8;
+        const len = arr.length;
+        if (!u8 || u8.length < 1024) {
+            arr.fill(0);
+            return;
+        }
+        let sum = 0;
+        for (let i = 0; i < u8.length; i++) sum += u8[i];
+        const avg = sum / (u8.length * 255);
+        const pk =
+            typeof window._enginePlaybackPeak === 'number' && !Number.isNaN(window._enginePlaybackPeak)
+                ? window._enginePlaybackPeak
+                : avg;
+        const t0 = performance.now() * 0.0025;
+        for (let i = 0; i < len; i++) {
+            arr[i] = pk * 0.6 * Math.sin((i / len) * Math.PI * 24 + t0) * (0.85 + 0.15 * Math.sin(i * 0.07));
+        }
+    },
+};
+
+function _vizResolveAnalyser() {
+    if (_vizEngineSpectrumOk()) return _vizEngineShim;
+    const web = typeof _analyser !== 'undefined' ? _analyser : null;
+    return web;
+}
 
 /** Dark HUD backdrop + faint tech grid (replaces flat clear). */
 function _vizHudBackdrop(ctx, w, h) {
@@ -196,33 +276,38 @@ function _vizLoop(timestamp) {
     if (timestamp - _vizLastFrame < interval) return;
     _vizLastFrame = timestamp;
 
-    const analyser = typeof _analyser !== 'undefined' ? _analyser : null;
+    const vizAnalyser = _vizResolveAnalyser();
     const isPlaying = typeof isAudioPlaying === 'function' ? isAudioPlaying() : typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused;
+    const engineOut = typeof window !== 'undefined' && window._aeOutputStreamRunning === true;
+    /* Engine tone/preview has no `<audio>` “playing” — still animate from sidecar spectrum. */
+    const vizActive = isPlaying || engineOut;
     const empty = document.getElementById('vizEmpty');
-    if (empty) empty.style.display = (analyser && isPlaying) ? 'none' : '';
+    if (empty) empty.style.display = vizAnalyser && vizActive ? 'none' : '';
 
-    if (!analyser || !isPlaying) return;
+    if (!vizAnalyser || !vizActive) return;
 
     // Ensure pre-allocated buffers match analyser
-    if (!_vizFreqData || _vizFreqData.length !== analyser.frequencyBinCount) {
-        _vizFreqData = new Uint8Array(analyser.frequencyBinCount);
-        _vizTimeData = new Float32Array(analyser.fftSize);
+    if (!_vizFreqData || _vizFreqData.length !== vizAnalyser.frequencyBinCount) {
+        _vizFreqData = new Uint8Array(vizAnalyser.frequencyBinCount);
+        _vizTimeData = new Float32Array(vizAnalyser.fftSize);
     }
-    // Smoothing only affects frequency data, not time domain — set for FFT/bands
-    analyser.smoothingTimeConstant = _vizParams.fftSmoothing;
+    // Smoothing only affects frequency data, not time domain — set for FFT/bands (real Web Audio analyser only)
+    if (vizAnalyser !== _vizEngineShim && typeof vizAnalyser.smoothingTimeConstant === 'number') {
+        vizAnalyser.smoothingTimeConstant = _vizParams.fftSmoothing;
+    }
 
     if (_vizMode === 'all') {
         // Read data once, share across all tiles
-        analyser.getByteFrequencyData(_vizFreqData);
-        analyser.getFloatTimeDomainData(_vizTimeData);
-        _drawTile('fft', analyser);
-        _drawTile('waveform', analyser);
-        _drawTile('spectrogram', analyser);
-        _drawTile('stereo', analyser);
-        _drawTile('levels', analyser);
-        _drawTile('bands', analyser);
+        vizAnalyser.getByteFrequencyData(_vizFreqData);
+        vizAnalyser.getFloatTimeDomainData(_vizTimeData);
+        _drawTile('fft', vizAnalyser);
+        _drawTile('waveform', vizAnalyser);
+        _drawTile('spectrogram', vizAnalyser);
+        _drawTile('stereo', vizAnalyser);
+        _drawTile('levels', vizAnalyser);
+        _drawTile('bands', vizAnalyser);
     } else {
-        _drawTile(_vizMode, analyser);
+        _drawTile(_vizMode, vizAnalyser);
     }
 }
 
@@ -273,7 +358,7 @@ function _drawFFT(ctx, w, h, analyser) {
         // Log-frequency display — cap columns so retina-wide canvases do not do O(width) pow/log per frame
         const minF = 20, maxF = 20000;
         const logMin = Math.log10(minF), logMax = Math.log10(maxF);
-        const sr = 44100;
+        const sr = _vizOutputSampleRateHz();
         const maxCols = Math.min(w, 1024);
         const colW = w / maxCols;
         for (let c = 0; c < maxCols; c++) {
@@ -412,6 +497,10 @@ let _vizLeftData = null;
 let _vizRightData = null;
 
 function _drawStereo(ctx, w, h, analyser) {
+    if (_vizEngineSpectrumOk()) {
+        _drawStereoEngine(ctx, w, h, window._engineSpectrumU8);
+        return;
+    }
     const aL = window._analyserL;
     const aR = window._analyserR;
     if (!aL || !aR) return;
@@ -482,8 +571,66 @@ function _drawStereo(ctx, w, h, analyser) {
     ctx.fillText('MONO', cx, 14);
 }
 
+/** L/R energy split from spectrum bins (mono tap from sidecar — illustrative only). */
+function _drawStereoEngine(ctx, w, h, u8) {
+    _vizHudBackdrop(ctx, w, h);
+    const cx = w / 2;
+    const cy = h / 2;
+    const scale = Math.min(cx, cy) * 0.8;
+    const third = Math.floor(u8.length / 3);
+    let low = 0;
+    let mid = 0;
+    let high = 0;
+    for (let i = 0; i < third; i++) low += u8[i];
+    for (let i = third; i < 2 * third; i++) mid += u8[i];
+    for (let i = 2 * third; i < u8.length; i++) high += u8[i];
+    const t = low + mid + high + 1e-6;
+    const side = (low - high) / t;
+    const vert = (mid * 1.15 - (low + high) * 0.48) / t;
+
+    ctx.strokeStyle = 'rgba(122,139,168,0.1)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    ctx.moveTo(cx, 0);
+    ctx.lineTo(cx, h);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, cy);
+    ctx.lineTo(w, cy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const px = cx + side * scale * 0.55;
+    const py = cy - vert * scale * 0.55;
+    const a = 0.14 + Math.min(0.55, (mid / t) * 0.85);
+    const rad = 1.2 + Math.min(3.5, (Math.abs(side) + Math.abs(vert)) * 2.2);
+    const prev = ctx.globalCompositeOperation;
+    ctx.globalCompositeOperation = 'lighter';
+    const grd = ctx.createRadialGradient(px, py, 0, px, py, rad);
+    grd.addColorStop(0, `rgba(5,217,232,${a})`);
+    grd.addColorStop(0.55, `rgba(211,0,197,${a * 0.45})`);
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(px, py, rad, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = prev;
+
+    ctx.fillStyle = 'rgba(122,139,168,0.5)';
+    ctx.font = `${Math.max(9, h / 30)}px "Share Tech Mono", ui-monospace, monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText('L', 12, cy + 4);
+    ctx.fillText('R', w - 12, cy + 4);
+    ctx.fillText('ENGINE', cx, 14);
+}
+
 // ── Level Meters ──
 function _drawLevels(ctx, w, h, analyser) {
+    if (_vizEngineSpectrumOk()) {
+        _drawLevelsEngine(ctx, w, h, window._engineSpectrumU8);
+        return;
+    }
     const bufLen = analyser.fftSize;
     if (_vizMode !== 'all') {
         if (!_vizTimeData || _vizTimeData.length !== bufLen) _vizTimeData = new Float32Array(bufLen);
@@ -579,6 +726,95 @@ function _drawLevels(ctx, w, h, analyser) {
     }
 }
 
+function _drawLevelsEngine(ctx, w, h, u8) {
+    let sumSq = 0;
+    for (let i = 0; i < u8.length; i++) {
+        const n = u8[i] / 255;
+        sumSq += n * n;
+    }
+    const rms = Math.sqrt(sumSq / u8.length);
+    const rmsDb = rms > 0 ? 20 * Math.log10(rms) : -96;
+    const pk =
+        typeof window._enginePlaybackPeak === 'number' && !Number.isNaN(window._enginePlaybackPeak)
+            ? window._enginePlaybackPeak
+            : rms;
+    const peakDb = pk > 0 ? 20 * Math.log10(pk) : -96;
+
+    if (_vizParams.levelsHold) {
+        if (peakDb > _vizPeakHold) {
+            _vizPeakHold = peakDb;
+            clearTimeout(_vizPeakTimer);
+            _vizPeakTimer = setTimeout(() => {
+                _vizPeakHold = -96;
+            }, 2000);
+        }
+    }
+
+    _vizHudBackdrop(ctx, w, h);
+    const meterW = Math.min(80, w / 4);
+    const meterH = h - 50;
+    const startY = 25;
+    const rr = 5;
+
+    const drawMeter = (x, db, label) => {
+        const pct = Math.max(0, Math.min(1, (db + 60) / 60));
+        const barH = pct * meterH;
+        ctx.fillStyle = 'rgba(6,8,22,0.75)';
+        ctx.beginPath();
+        ctx.moveTo(x + rr, startY);
+        ctx.lineTo(x + meterW - rr, startY);
+        ctx.quadraticCurveTo(x + meterW, startY, x + meterW, startY + rr);
+        ctx.lineTo(x + meterW, startY + meterH - rr);
+        ctx.quadraticCurveTo(x + meterW, startY + meterH, x + meterW - rr, startY + meterH);
+        ctx.lineTo(x + rr, startY + meterH);
+        ctx.quadraticCurveTo(x, startY + meterH, x, startY + meterH - rr);
+        ctx.lineTo(x, startY + rr);
+        ctx.quadraticCurveTo(x, startY, x + rr, startY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(5,217,232,0.22)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        if (barH > 1) {
+            const y1 = startY + meterH - barH;
+            const gbar = ctx.createLinearGradient(0, y1, 0, startY + meterH);
+            gbar.addColorStop(0, 'rgba(57,255,20,0.92)');
+            gbar.addColorStop(0.55, 'rgba(249,240,2,0.88)');
+            gbar.addColorStop(0.82, 'rgba(255,107,53,0.88)');
+            gbar.addColorStop(1, 'rgba(255,7,58,0.95)');
+            _vizFillRoundTopBar(ctx, x + 2, y1, meterW - 4, barH, gbar);
+        }
+        ctx.fillStyle = 'rgba(224,240,255,0.88)';
+        ctx.font = `${Math.max(10, h / 30)}px Orbitron, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(label, x + meterW / 2, startY - 6);
+        ctx.font = `${Math.max(9, h / 35)}px "Share Tech Mono", ui-monospace, monospace`;
+        ctx.fillText(db.toFixed(1) + ' dB', x + meterW / 2, startY + meterH + 16);
+    };
+
+    drawMeter(w / 2 - meterW - 15, rmsDb, 'RMS');
+    drawMeter(w / 2 + 15, peakDb, 'PEAK');
+
+    if (_vizParams.levelsHold && _vizPeakHold > -96) {
+        const holdPct = Math.max(0, Math.min(1, (_vizPeakHold + 60) / 60));
+        const holdY = startY + meterH - holdPct * meterH;
+        ctx.strokeStyle = 'rgba(255,7,58,0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(w / 2 + 15, holdY);
+        ctx.lineTo(w / 2 + 15 + meterW, holdY);
+        ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(122,139,168,0.38)';
+    ctx.font = '8px "Share Tech Mono", ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    for (let db = 0; db >= -60; db -= 6) {
+        const y = startY + meterH * (1 - (db + 60) / 60);
+        ctx.fillText(db + '', w / 2 - meterW - 20, y + 3);
+    }
+}
+
 // ── Octave Bands ──
 function _drawBands(ctx, w, h, analyser) {
     const bufLen = analyser.frequencyBinCount;
@@ -588,7 +824,7 @@ function _drawBands(ctx, w, h, analyser) {
     }
     const data = _vizFreqData;
 
-    const sr = 44100;
+    const sr = _vizOutputSampleRateHz();
     const binFreq = sr / analyser.fftSize;
     const bands = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
     const labels = ['31', '63', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
