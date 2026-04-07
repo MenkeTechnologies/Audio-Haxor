@@ -1,6 +1,6 @@
 # audio-engine — JUCE-based sidecar (stdin/stdout JSON) for device I/O, file playback, VST3 scan.
 cmake_minimum_required(VERSION 3.22)
-project(audio_engine VERSION 2.1.0 LANGUAGES C CXX)
+project(audio_engine VERSION 2.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -24,7 +24,7 @@ namespace audio_haxor {
 namespace {
 
 #ifndef AUDIO_ENGINE_VERSION_STRING
-#define AUDIO_ENGINE_VERSION_STRING "2.1.0"
+#define AUDIO_ENGINE_VERSION_STRING "2.2.0"
 #endif
 
 static constexpr float kTestToneHz = 440.0f;
@@ -446,6 +446,9 @@ class DspStereoFileSource final : public juce::PositionableAudioSource
 {
 public:
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
+    /** Forward playback only: wraps `readerSource` for tape-style speed (pitch follows rate). */
+    std::unique_ptr<juce::ResamplingAudioSource> speedResampler;
+    std::atomic<float>* playbackSpeed = nullptr;
     juce::AudioBuffer<float> reverseStereo;
     bool reverseMode = false;
     int reverseFrame = 0;
@@ -470,12 +473,16 @@ public:
         hiR.prepare(spec);
         if (readerSource != nullptr)
             readerSource->prepareToPlay(samplesPerBlockExpected, sampleRate);
+        if (speedResampler != nullptr)
+            speedResampler->prepareToPlay(samplesPerBlockExpected, sampleRate);
         if (insertChain != nullptr)
             insertChain->prepare(sampleRate, samplesPerBlockExpected);
     }
 
     void releaseResources() override
     {
+        if (speedResampler != nullptr)
+            speedResampler->releaseResources();
         if (readerSource != nullptr)
             readerSource->releaseResources();
         if (insertChain != nullptr)
@@ -495,6 +502,8 @@ public:
         else if (readerSource != nullptr)
         {
             readerSource->setNextReadPosition(newPosition);
+            if (speedResampler != nullptr)
+                speedResampler->flushBuffers();
         }
     }
 
@@ -569,7 +578,19 @@ public:
             return;
         }
 
-        readerSource->getNextAudioBlock(bufferToFill);
+        if (speedResampler != nullptr)
+        {
+            if (playbackSpeed != nullptr)
+            {
+                const double r = (double) playbackSpeed->load();
+                speedResampler->setResamplingRatio(juce::jlimit(0.25, 2.0, r));
+            }
+            speedResampler->getNextAudioBlock(bufferToFill);
+        }
+        else
+        {
+            readerSource->getNextAudioBlock(bufferToFill);
+        }
 
         if (readerSource->getAudioFormatReader() != nullptr && readerSource->getAudioFormatReader()->numChannels == 1)
         {
@@ -643,6 +664,8 @@ struct Engine::Impl
     ToneAudioSource toneSource;
     std::unique_ptr<DspStereoFileSource> fileSource;
     std::atomic<float> playbackPeak{0.0f};
+    /** 0.25–2.0, tape-style playback (`juce::ResamplingAudioSource`); ignored in reverse mode. */
+    std::atomic<float> playbackSpeed{1.0f};
     DspAtomics dsp;
 
     InputPeakCallback inputCb;
@@ -1182,6 +1205,10 @@ struct Engine::Impl
                     return errObj("open file failed");
                 auto* raw = reader.release();
                 fileSource->readerSource = std::make_unique<juce::AudioFormatReaderSource>(raw, true);
+                fileSource->speedResampler =
+                    std::make_unique<juce::ResamplingAudioSource>(fileSource->readerSource.get(), false, 2);
+                fileSource->speedResampler->setResamplingRatio((double) juce::jlimit(0.25f, 2.0f, playbackSpeed.load()));
+                fileSource->playbackSpeed = &playbackSpeed;
             }
 
             transport.setSource(fileSource.get(), 0, nullptr, (double) sessionSrcRate);
@@ -1298,6 +1325,7 @@ struct Engine::Impl
         o->setProperty("sample_rate_hz", (int) deviceRate.load());
         o->setProperty("src_rate_hz", (int) sessionSrcRate);
         o->setProperty("reverse", reverseWanted);
+        o->setProperty("speed", (double) juce::jlimit(0.25f, 2.0f, playbackSpeed.load()));
         if (!playbackMode)
         {
             o->setProperty("position_sec", 0.0);
@@ -1306,7 +1334,13 @@ struct Engine::Impl
             o->setProperty("eof", false);
             return out;
         }
-        const double posSrc = transport.getCurrentPosition();
+        /* Forward + resampler: timeline from reader samples (transport time drifts vs. ResamplingAudioSource). */
+        double posSrc = transport.getCurrentPosition();
+        if (!reverseWanted && fileSource != nullptr && fileSource->readerSource != nullptr)
+        {
+            const juce::int64 sp = fileSource->readerSource->getNextReadPosition();
+            posSrc = (double) sp / juce::jmax(1.0e-9, (double) sessionSrcRate);
+        }
         double pos = reverseWanted ? (sessionDurationSec - posSrc) : posSrc;
         pos = juce::jlimit(0.0, sessionDurationSec, pos);
         o->setProperty("position_sec", pos);
@@ -1720,12 +1754,13 @@ juce::var Engine::dispatch(const juce::var& req)
     {
         float s = req["speed"].isVoid() ? 1.0f : (float) req["speed"];
         s = juce::jlimit(0.25f, 2.0f, s);
-        // JUCE AudioTransportSource has no setSpeed; rodio-style pitch-change would need a ResamplingAudioSource wrapper.
+        impl->playbackSpeed.store(s);
         juce::var out = okObj();
         if (auto* o = out.getDynamicObject())
         {
             o->setProperty("speed", s);
-            o->setProperty("note", "speed stored; playback rate change not yet wired in JUCE engine");
+            if (impl->reverseWanted)
+                o->setProperty("note", "speed stored; reverse path plays at 1× (resampler skipped)");
         }
         return out;
     }

@@ -1559,7 +1559,7 @@ function syncEnginePlaybackDspFromPrefs() {
     });
 }
 
-/** Now-playing speed (0.25–2x) → rodio `Player::set_speed` (same pitch behavior as `<audio>.playbackRate`). */
+/** Now-playing speed (0.25–2×) → sidecar `playback_set_speed` (`ResamplingAudioSource`; pitch follows speed like `<audio>.playbackRate`). */
 function syncEnginePlaybackSpeedFromPrefs() {
     const inv = getAeAudioEngineInvoke();
     if (!inv) return;
