@@ -10,6 +10,7 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
@@ -31,6 +32,13 @@ jobs:
       - name: Install Ninja (Windows)
         if: matrix.os == 'windows-latest'
         run: choco install ninja --yes
+
+      # CMake otherwise picks MinGW GCC; JUCE 8 no longer supports MinGW (see juce_TargetPlatform.h).
+      - name: MSVC dev environment (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -66,6 +74,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
 
@@ -87,6 +96,12 @@ jobs:
       - name: Install Ninja (Windows)
         if: matrix.os == 'windows-latest'
         run: choco install ninja --yes
+
+      - name: MSVC dev environment (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
