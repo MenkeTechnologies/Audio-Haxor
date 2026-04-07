@@ -375,11 +375,30 @@ thread_local! {
     static TEST_DATA_DIR: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
 }
 
+/// Bundle / data subdir — must match `identifier` in `tauri.conf.json` and Tauri `app_data_dir()`.
+const APP_DATA_IDENTIFIER: &str = "com.menketechnologies.audio-haxor";
+
 /// Process-wide test override so [`get_data_dir`] matches on **all** threads (spawned threads
 /// do not inherit `thread_local` storage — required for `init_global` stress tests and parallel
 /// `cargo test` workers that share one temp directory).
 #[cfg(test)]
 static TEST_DATA_DIR_GLOBAL: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// When `dirs::data_dir()` is unavailable, resolve under the home directory — **never** use the
+/// process working directory. A cwd-based path changes with how the app is launched (Finder vs
+/// Terminal vs IDE), so prefs and DB would appear to "reset" every run.
+fn app_data_dir_from_home(home: &std::path::Path) -> PathBuf {
+    let base = if cfg!(target_os = "macos") {
+        home.join("Library/Application Support")
+    } else if cfg!(target_os = "linux") {
+        home.join(".local/share")
+    } else if cfg!(target_os = "windows") {
+        home.join("AppData/Roaming")
+    } else {
+        home.join(".local/share")
+    };
+    base.join(APP_DATA_IDENTIFIER)
+}
 
 pub fn get_data_dir() -> PathBuf {
     #[cfg(test)]
@@ -393,9 +412,14 @@ pub fn get_data_dir() -> PathBuf {
             return dir;
         }
     }
-    dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("com.menketechnologies.audio-haxor")
+    if let Some(base) = dirs::data_dir() {
+        return base.join(APP_DATA_IDENTIFIER);
+    }
+    if let Some(home) = dirs::home_dir() {
+        return app_data_dir_from_home(&home);
+    }
+    // Last resort: temp dir is stable for the lifetime of the process; still better than cwd.
+    std::env::temp_dir().join(format!("audio-haxor-{APP_DATA_IDENTIFIER}"))
 }
 
 /// Redirect [`get_data_dir`] for unit tests (e.g. `lib.rs` log tests). Clear when done.
@@ -711,10 +735,20 @@ fn load_preferences_from_disk() -> PrefsMap {
     }
 
     if path.exists() {
-        if let Ok(data) = fs::read_to_string(&path) {
-            let user = toml_to_flat(&data);
-            let defaults = default_config();
-            return merge_prefs(&defaults, &user);
+        match fs::read_to_string(&path) {
+            Ok(data) => {
+                let user = toml_to_flat(&data);
+                let defaults = default_config();
+                return merge_prefs(&defaults, &user);
+            }
+            Err(e) => {
+                crate::append_log(format!(
+                    "preferences: read failed {} — using defaults in memory without overwriting ({e})",
+                    path.display()
+                ));
+                let defaults = default_config();
+                return merge_prefs(&defaults, &PrefsMap::new());
+            }
         }
     }
     let defaults = default_config();
