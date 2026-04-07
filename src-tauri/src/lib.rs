@@ -5757,6 +5757,8 @@ fn db_pdf_filter_stats(search: Option<String>) -> Result<db::FilterStatsResult, 
     db::global().pdf_filter_stats(search.as_deref())
 }
 
+/// Per-category row counts for the header strip — **library** scope (one row per `path`), not the
+/// current in-progress `scan_id`. See [`db::Database::active_scan_inventory_counts`].
 #[tauri::command]
 fn get_active_scan_inventory_counts() -> Result<serde_json::Value, String> {
     db::global().active_scan_inventory_counts()

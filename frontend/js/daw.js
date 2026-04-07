@@ -15,8 +15,8 @@ let _dawTotalUnfiltered = 0;
 
 let dawStatCounts = {};
 let dawStatBytes = 0;
-// Snapshot of unfiltered per-DAW counts + total bytes from the latest scan.
-// Set once on mount / post-scan via dbDawStats so filter changes DON'T wipe it.
+// Snapshot of unfiltered per-DAW counts + total bytes from the library (deduped by path).
+// Set once on mount / post-scan via dbDawFilterStats so filter changes DON'T wipe it.
 let _dawStatsSnapshot = null;
 
 async function fetchDawPage() {

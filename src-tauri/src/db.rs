@@ -165,7 +165,8 @@ pub struct AudioStatsResult {
     pub analyzed_count: u64,
 }
 
-/// Aggregate stats for a DAW scan — latest scan, unfiltered.
+/// Aggregate DAW stats from [`Database::daw_stats`]: library totals (deduped by `path`) when
+/// `scan_id` is omitted or empty; otherwise that scan only.
 #[derive(Debug, Serialize)]
 pub struct DawStatsResult {
     #[serde(rename = "projectCount")]
@@ -176,7 +177,8 @@ pub struct DawStatsResult {
     pub daw_counts: HashMap<String, u64>,
 }
 
-/// Aggregate stats for a preset scan — latest scan, unfiltered, excluding MIDI.
+/// Aggregate preset stats from [`Database::preset_stats`]: library totals (deduped by `path`, MIDI
+/// formats excluded) when `scan_id` is omitted or empty; otherwise that scan only.
 #[derive(Debug, Serialize)]
 pub struct PresetStatsResult {
     #[serde(rename = "presetCount")]
@@ -3977,7 +3979,7 @@ impl Database {
 
     // ── Filter-aware aggregate stats ──
     // Each returns count + total_bytes + per-type breakdown reflecting the active
-    // search/filter. Uses a single GROUP BY query for the breakdown (O(latest_scan)).
+    // search/filter over library rows (deduped by path). Uses GROUP BY for the breakdown.
 
     fn fzf_like(s: Option<&str>) -> Option<String> {
         s.and_then(|t| {
@@ -5896,7 +5898,7 @@ mod tests {
     }
 
     #[test]
-    fn test_batch_update_analysis_updates_latest_scan_and_audio_stats() {
+    fn test_batch_update_analysis_and_audio_stats() {
         let db = test_db();
         let samples = vec![
             sample("a.wav", "/a.wav", "WAV", 100),
@@ -6641,7 +6643,7 @@ mod tests {
         assert_eq!(res.total_count, 0);
         assert_eq!(
             res.total_unfiltered, 3,
-            "unfiltered count must include all 3 projects in latest scan"
+            "unfiltered count must include all 3 projects in the library scope"
         );
     }
 
@@ -6880,9 +6882,9 @@ mod tests {
 
     // ── Multi-scan semantics ──
     //
-    // Each new scan inserts rows with a fresh scan_id (daw_projects/presets/plugins
-    // accumulate rows across history). Queries must return the LATEST scan's count,
-    // not the cumulative total.
+    // Each new scan inserts rows with a fresh scan_id (tables accumulate rows across history).
+    // Default UI queries use the **library** (one row per `path` via `MAX(id) GROUP BY path`),
+    // not “latest scan only” and not raw `COUNT(*)` of all rows.
 
     fn daw_snap(id: &str, ts: &str, projects: Vec<DawProject>) -> DawScanSnapshot {
         let mut daw_counts = HashMap::new();
@@ -7294,9 +7296,9 @@ mod tests {
     }
 
     #[test]
-    fn test_query_daw_empty_latest_scan_ignored() {
-        // Latest scan is the newest scan with ≥1 `daw_projects` row — a zero-result
-        // scan saved after a successful one must NOT clobber the header count.
+    fn test_query_daw_empty_scan_does_not_hide_library() {
+        // A later empty DAW scan (no project rows) must not make the library query return zero
+        // when prior scans already inserted projects (rows remain keyed by older scan_ids).
         let db = test_db();
         db.save_daw_scan(&daw_snap(
             "ds-real",
@@ -7311,7 +7313,7 @@ mod tests {
         let res = db.query_daw(None, None, "name", true, 0, 100).unwrap();
         assert_eq!(
             res.total_unfiltered, 1,
-            "empty scans with project_count=0 must not hide the real latest scan"
+            "empty scans with project_count=0 must not hide existing library projects"
         );
         assert_eq!(res.projects.len(), 1);
         assert_eq!(res.projects[0].name, "only.als");
@@ -7707,7 +7709,7 @@ mod tests {
     // independent of any table filter the user has applied.
 
     #[test]
-    fn test_daw_stats_returns_latest_scan_aggregates() {
+    fn test_daw_stats_returns_library_aggregates() {
         let db = test_db();
         db.save_daw_scan(&daw_snap(
             "ds-stats",

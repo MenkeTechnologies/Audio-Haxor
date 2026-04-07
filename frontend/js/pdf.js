@@ -536,7 +536,7 @@ async function startPdfMetadataExtraction() {
 
 // Triggered from command palette / context menu to force re-extraction.
 async function buildPdfPagesCache() {
-  // Force re-scan of ALL latest-scan paths
+  // Force re-scan of all paths currently loaded in the PDF table
   for (const p of allPdfs) delete _pdfPagesCache[p.path];
   _pdfMetaRunning = false;
   if (typeof showToast === 'function') showToast(toastFmt('toast.pdf_extracting_page_counts'), 3000);
