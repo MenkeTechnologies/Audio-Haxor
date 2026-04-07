@@ -506,6 +506,28 @@ function isAudioPlaying() {
     return typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused;
 }
 
+/**
+ * True when `window._engineSpectrumU8` should drive the floating mini FFT, parametric EQ fill, etc.
+ * Matches `visualizer.js` `_vizEngineSpectrumOk`: library playback through the sidecar, or any
+ * Audio Engine output with an FFT tap (`_aeOutputStreamRunning`).
+ */
+function engineSpectrumLive() {
+    if (typeof window === 'undefined' || !window._engineSpectrumU8 || window._engineSpectrumU8.length < 1024) {
+        return false;
+    }
+    if (window._enginePlaybackActive === true && typeof isAudioPlaying === 'function' && isAudioPlaying()) {
+        return true;
+    }
+    if (window._aeOutputStreamRunning === true) {
+        return true;
+    }
+    return false;
+}
+
+if (typeof window !== 'undefined') {
+    window.engineSpectrumLive = engineSpectrumLive;
+}
+
 /** Reverse PCM in chunks with event-loop yields so multi-hour WAVs do not freeze the WebView. */
 async function reverseAudioBufferAsync(ctx, buf) {
     const len = buf.length;
@@ -1293,12 +1315,11 @@ let _npFftEngineAxisSrHz = null;
 let _npFftEngineAxisFftSize = null;
 
 function getPinnedEngineSpectrumAxis() {
-    if (typeof window === 'undefined' || !_enginePlaybackActive) {
+    if (typeof window === 'undefined' || !engineSpectrumLive()) {
         _npFftEngineAxisSrHz = null;
         _npFftEngineAxisFftSize = null;
         return null;
     }
-    if (!window._engineSpectrumU8 || window._engineSpectrumU8.length < 1024) return null;
     if (_npFftEngineAxisSrHz == null) {
         _npFftEngineAxisSrHz = typeof window._engineSpectrumSrHz === 'number' ? window._engineSpectrumSrHz : 44100;
         _npFftEngineAxisFftSize = typeof window._engineSpectrumFftSize === 'number' ? window._engineSpectrumFftSize : 2048;
@@ -1336,11 +1357,7 @@ function getPinnedEngineSpectrumAxis() {
 })();
 
 function _renderNpFft() {
-    const useEngineSpectrum =
-        _enginePlaybackActive === true &&
-        typeof window !== 'undefined' &&
-        window._engineSpectrumU8 &&
-        window._engineSpectrumU8.length >= 1024;
+    const useEngineSpectrum = engineSpectrumLive();
     if (!useEngineSpectrum) {
         ensureAudioGraph();
         if (
@@ -4761,13 +4778,7 @@ function updateMetaLine() {
         ctx.lineTo(w, zeroY);
         ctx.stroke();
 
-        const useEngineEqSpectrum =
-            typeof window !== 'undefined' &&
-            window._engineSpectrumU8 &&
-            window._engineSpectrumU8.length >= 1024 &&
-            (canvas.id === 'aeEqCanvas'
-                ? window._aeOutputStreamRunning === true || _enginePlaybackActive === true
-                : _enginePlaybackActive === true && typeof isAudioPlaying === 'function' && isAudioPlaying());
+        const useEngineEqSpectrum = engineSpectrumLive();
 
         if (useEngineEqSpectrum) {
             const axis = getPinnedEngineSpectrumAxis();

@@ -27,6 +27,9 @@ let _vizPeakTimer = null;
 
 /** Sidecar is sending usable spectrum bins (`playback_status.spectrum`). */
 function _vizEngineSpectrumOk() {
+    if (typeof window !== 'undefined' && typeof window.engineSpectrumLive === 'function') {
+        return window.engineSpectrumLive();
+    }
     if (typeof window === 'undefined' || !window._engineSpectrumU8 || window._engineSpectrumU8.length < 1024) {
         return false;
     }
