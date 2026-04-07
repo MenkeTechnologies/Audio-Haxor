@@ -469,20 +469,12 @@ async function fillAeStreamsAfterEngineError(inv) {
     }
 }
 
-/**
- * @param {function} inv — `window.vstUpdater.audioEngineInvoke`
- */
-async function fillAeStreamStatus(inv) {
-    const el = document.getElementById('aeStreamStatus');
-    if (!el || typeof inv !== 'function') {
-        if (el) el.textContent = '—';
-        return;
-    }
-    try {
-        const st = await inv({cmd: 'output_stream_status'});
-        fillAeStreamLineFromPayload(st, el);
-    } catch {
-        el.textContent = '—';
+/** Clear stream lines and show `ui.ae.err_no_ipc` on `#aeEngineStatus` (no `audioEngineInvoke`). */
+function aeNotifyNoAudioEngineIpc() {
+    fillAeStreamsFromEngineState(null);
+    const statusEl = document.getElementById('aeEngineStatus');
+    if (statusEl && typeof catalogFmt === 'function') {
+        statusEl.textContent = catalogFmt('ui.ae.err_no_ipc');
     }
 }
 
@@ -499,10 +491,7 @@ async function refreshAudioEnginePanel() {
         : null;
 
     if (!inv) {
-        fillAeStreamsFromEngineState(null);
-        if (statusEl && typeof catalogFmt === 'function') {
-            statusEl.textContent = catalogFmt('ui.ae.err_no_ipc');
-        }
+        aeNotifyNoAudioEngineIpc();
         return;
     }
 
@@ -662,7 +651,7 @@ async function toggleAeTestTone(enabled) {
         : null;
     const statusEl = document.getElementById('aeEngineStatus');
     if (!inv) {
-        fillAeStreamsFromEngineState(null);
+        aeNotifyNoAudioEngineIpc();
         return;
     }
     try {
@@ -703,7 +692,7 @@ async function applyAudioEngineDevice() {
         ? window.vstUpdater.audioEngineInvoke
         : null;
     if (!inv || !selectEl) {
-        if (!inv) fillAeStreamsFromEngineState(null);
+        if (!inv) aeNotifyNoAudioEngineIpc();
         return;
     }
 
@@ -763,7 +752,7 @@ async function startAeInputCapture() {
         ? window.vstUpdater.audioEngineInvoke
         : null;
     if (!inv) {
-        fillAeStreamsFromEngineState(null);
+        aeNotifyNoAudioEngineIpc();
         return;
     }
 
@@ -809,7 +798,7 @@ async function stopAeInputCapture() {
         ? window.vstUpdater.audioEngineInvoke
         : null;
     if (!inv) {
-        fillAeStreamsFromEngineState(null);
+        aeNotifyNoAudioEngineIpc();
         return;
     }
 
@@ -842,7 +831,7 @@ async function stopAeOutputStream() {
         ? window.vstUpdater.audioEngineInvoke
         : null;
     if (!inv) {
-        fillAeStreamsFromEngineState(null);
+        aeNotifyNoAudioEngineIpc();
         return;
     }
 
