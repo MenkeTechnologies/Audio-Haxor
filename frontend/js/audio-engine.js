@@ -24,6 +24,86 @@ function migrateAeBufferPrefs() {
     }
 }
 
+/** @type {ReturnType<typeof setInterval> | null} */
+let aeInputPeakPollTimer = null;
+const AE_INPUT_PEAK_POLL_MS = 100;
+
+function aeAudioEngineTabIsActive() {
+    const root = document.getElementById('tabAudioEngine');
+    return root != null && root.classList.contains('active');
+}
+
+function stopAeInputPeakPoll() {
+    if (aeInputPeakPollTimer != null) {
+        clearInterval(aeInputPeakPollTimer);
+        aeInputPeakPollTimer = null;
+    }
+}
+
+/**
+ * @param {object|null|undefined} es — `engine_state` payload (or `{ input_stream }` from status)
+ */
+function syncAeInputPeakPollFromEngineState(es) {
+    if (es && es.input_stream && es.input_stream.running === true) {
+        startAeInputPeakPoll();
+    } else {
+        stopAeInputPeakPoll();
+    }
+}
+
+function startAeInputPeakPoll() {
+    stopAeInputPeakPoll();
+    const tick = () => {
+        void tickAeInputPeakPoll();
+    };
+    aeInputPeakPollTimer = setInterval(tick, AE_INPUT_PEAK_POLL_MS);
+    void tickAeInputPeakPoll();
+}
+
+async function tickAeInputPeakPoll() {
+    if (!aeAudioEngineTabIsActive()) {
+        stopAeInputPeakPoll();
+        return;
+    }
+    const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
+        ? window.vstUpdater.audioEngineInvoke
+        : null;
+    if (!inv) {
+        stopAeInputPeakPoll();
+        return;
+    }
+    try {
+        const st = await inv({cmd: 'input_stream_status'});
+        const el = document.getElementById('aeInputStreamStatus');
+        if (el && st && st.ok === true) {
+            fillAeInputStreamLineFromPayload(st, el);
+            if (st.running !== true) {
+                stopAeInputPeakPoll();
+            }
+        } else {
+            stopAeInputPeakPoll();
+        }
+    } catch {
+        stopAeInputPeakPoll();
+    }
+}
+
+/** When the tab was already initialized, re-sync input line + peak poll (e.g. user left tab and returned). */
+async function resumeAeInputPeakPollIfNeeded() {
+    const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
+        ? window.vstUpdater.audioEngineInvoke
+        : null;
+    if (!inv) return;
+    try {
+        const st = await inv({cmd: 'input_stream_status'});
+        const el = document.getElementById('aeInputStreamStatus');
+        if (el) fillAeInputStreamLineFromPayload(st, el);
+        syncAeInputPeakPollFromEngineState({ input_stream: st });
+    } catch {
+        /* ignore */
+    }
+}
+
 /**
  * @param {string} raw
  * @returns {number|undefined} positive integer frame count, or undefined to use driver default
@@ -84,7 +164,11 @@ function buildAeDeviceCapsLine(info) {
  */
 function initAudioEngineTab() {
     const root = document.getElementById('tabAudioEngine');
-    if (!root || root.dataset.aeInit === '1') return;
+    if (!root) return;
+    if (root.dataset.aeInit === '1') {
+        void resumeAeInputPeakPollIfNeeded();
+        return;
+    }
     root.dataset.aeInit = '1';
 
     const refreshBtn = document.getElementById('aeRefreshDevices');
@@ -320,6 +404,7 @@ function fillAeStreamsFromEngineState(es) {
     if (es && es.input_stream && inputStreamEl) {
         fillAeInputStreamLineFromPayload(es.input_stream, inputStreamEl);
     }
+    syncAeInputPeakPollFromEngineState(es);
 }
 
 /**
@@ -353,6 +438,7 @@ async function refreshAudioEnginePanel() {
         : null;
 
     if (!inv) {
+        stopAeInputPeakPoll();
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.err_no_ipc');
         }
@@ -497,6 +583,7 @@ async function refreshAudioEnginePanel() {
             await fillAeInputDeviceCaps(inv, '');
         }
     } catch (e) {
+        stopAeInputPeakPoll();
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
@@ -628,6 +715,7 @@ async function startAeInputCapture() {
             statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
         }
     } catch (e) {
+        stopAeInputPeakPoll();
         const msg = e && e.message ? String(e.message) : String(e);
         if (inputStreamEl && typeof catalogFmt === 'function') {
             inputStreamEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});

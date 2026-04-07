@@ -20,7 +20,7 @@ Notable commands:
 | `output_stream_status` | Running + `tone_supported` / `tone_on` + `stream_buffer_frames` (null when idle or driver default) |
 | `start_input_stream` | Open default **input** config; optional `buffer_frames`; callback discards samples and updates **`input_peak`** (0..1 linear, block peak + decay). |
 | `stop_input_stream` | Drop input stream |
-| `input_stream_status` | Running + `stream_buffer_frames` + **`input_peak`** (null when idle); no tone fields |
+| `input_stream_status` | Running + `stream_buffer_frames` + **`input_peak`** (null when idle); no tone fields. Host UI may poll this while the Audio Engine tab is active and input capture is running (~100ms) so **`input_peak`** updates live. |
 | `set_output_tone` | Toggle tone while output stream is running (F32 only) |
 
 ## Build
