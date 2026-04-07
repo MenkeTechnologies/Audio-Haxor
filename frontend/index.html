@@ -7710,6 +7710,9 @@
                 data-tab="visualizer"
                 title="Real-time audio analyzer and visualizer">&#127911; <span
                 data-i18n="ui.btn.127911_visualizer">Visualizer</span></button>
+        <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.live_directory_walker_status" data-tab="walkers"
+                title="Live directory walker status">&#128270; <span data-i18n="ui.btn.128270_walkers">Walkers</span>
+        </button>
         <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.audio_engine_tab" data-tab="audioEngine"
                 title="Audio engine — output device and plugin graph (planned)">&#127898; <span
                 data-i18n="menu.tab_audio_engine">Audio Engine</span></button>
@@ -8422,7 +8425,22 @@
                     <button class="btn" type="button" id="aeRefreshDevices" data-i18n="ui.ae.refresh_devices" style="padding:8px 14px;">Refresh list</button>
                     <button class="btn" type="button" id="aeApplyDevice" data-i18n="ui.ae.apply_device" style="padding:8px 14px;">Apply</button>
                     <button class="btn" type="button" id="aeStopStream" data-i18n="ui.ae.stop_stream" data-i18n-title="ui.ae.stop_stream_tt" style="padding:8px 14px;" title="Stop cpal output stream">Stop stream</button>
+                    <label data-i18n-title="ui.ae.test_tone_tt" style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:pointer;user-select:none;" title="Low-level sine on F32 default stream; toggle live if supported">
+                        <input type="checkbox" id="aeTestTone" />
+                        <span data-i18n="ui.ae.test_tone_label">Test tone (440 Hz)</span>
+                    </label>
                 </div>
+                <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                    <label for="aeBufferFrames" data-i18n-title="ui.ae.buffer_frames_tt" style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:default;user-select:none;" title="Optional fixed buffer size in frames">
+                        <span data-i18n="ui.ae.buffer_frames_label">Buffer (frames)</span>
+                        <input type="number" id="aeBufferFrames" min="1" step="1" inputmode="numeric" placeholder="" style="width:100px;padding:6px 8px;border-radius:6px;border:1px solid var(--border-dim);background:var(--bg-panel);color:var(--text);font-size:13px;font-family:var(--font-mono,monospace);" />
+                    </label>
+                </div>
+                <details id="aeInputDevicesDetails" style="margin-top:12px;">
+                    <summary style="cursor:pointer;font-size:13px;color:var(--text-muted);user-select:none;" data-i18n="ui.ae.input_devices_heading">Input devices</summary>
+                    <p style="font-size:12px;color:var(--text-dim);margin:8px 0 6px 0;line-height:1.45;" data-i18n="ui.ae.input_devices_intro">Sidecar list (capture/debug).</p>
+                    <pre id="aeInputDevicesList" style="margin:0;padding:10px 12px;border-radius:6px;border:1px solid var(--border-dim);background:var(--bg-panel);font-size:12px;line-height:1.4;color:var(--text-dim);font-family:var(--font-mono,monospace);white-space:pre-wrap;word-break:break-word;">—</pre>
+                </details>
                 <div id="aeDeviceCaps" style="margin-top:12px;font-size:12px;color:var(--text-dim);font-family:var(--font-mono,monospace);line-height:1.4;">—</div>
             </div>
             <div class="hm-card" style="padding:16px;border:1px solid var(--border-dim);border-radius:8px;">
@@ -9647,44 +9665,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=14639"></script>
-<script src="js/utils.js?v=14639"></script>
-<script src="js/ipc.js?v=14639"></script>
-<script src="js/drag-reorder.js?v=14639"></script>
-<script src="js/modal-drag.js?v=14639"></script>
-<script src="js/columns.js?v=14639"></script>
-<script src="js/notes.js?v=14639"></script>
-<script src="js/favorites.js?v=14639"></script>
-<script src="js/export.js?v=14639"></script>
-<script src="js/plugins.js?v=14639"></script>
-<script src="js/settings.js?v=14639"></script>
-<script src="js/history.js?v=14639"></script>
-<script src="js/kvr.js?v=14639"></script>
-<script src="js/audio.js?v=14639"></script>
-<script src="js/daw.js?v=14639"></script>
-<script src="js/presets.js?v=14639"></script>
-<script src="js/disk-usage.js?v=14639"></script>
-<script src="js/batch-select.js?v=14639"></script>
-<script src="js/native-file-drag.js?v=14639"></script>
-<script src="js/sort-persist.js?v=14639"></script>
-<script src="js/multi-filter.js?v=14639"></script>
-<script src="js/file-browser.js?v=14639"></script>
-<script src="js/duplicates.js?v=14639"></script>
-<script src="js/command-palette.js?v=14639"></script>
-<script src="js/xref.js?v=14639"></script>
-<script src="js/dep-graph.js?v=14639"></script>
-<script src="js/smart-playlists.js?v=14639"></script>
-<script src="js/heatmap-dashboard.js?v=14639"></script>
-<script src="js/midi.js?v=14639"></script>
-<script src="js/pdf.js?v=14639"></script>
-<script src="js/settings-search.js?v=14639"></script>
-<script src="js/visualizer.js?v=14639"></script>
-<script src="js/walker-status.js?v=14639"></script>
-<script src="js/audio-engine.js?v=14639"></script>
-<script src="js/context-menu.js?v=14639"></script>
-<script src="js/shortcuts.js?v=14639"></script>
-<script src="js/help-overlay.js?v=14639"></script>
-<script src="js/keyboard-nav.js?v=14639"></script>
-<script src="js/app.js?v=14639"></script>
+<script src="js/i18n-ui.js?v=3519"></script>
+<script src="js/utils.js?v=3519"></script>
+<script src="js/ipc.js?v=3519"></script>
+<script src="js/drag-reorder.js?v=3519"></script>
+<script src="js/modal-drag.js?v=3519"></script>
+<script src="js/columns.js?v=3519"></script>
+<script src="js/notes.js?v=3519"></script>
+<script src="js/favorites.js?v=3519"></script>
+<script src="js/export.js?v=3519"></script>
+<script src="js/plugins.js?v=3519"></script>
+<script src="js/settings.js?v=3519"></script>
+<script src="js/history.js?v=3519"></script>
+<script src="js/kvr.js?v=3519"></script>
+<script src="js/audio.js?v=3519"></script>
+<script src="js/daw.js?v=3519"></script>
+<script src="js/presets.js?v=3519"></script>
+<script src="js/disk-usage.js?v=3519"></script>
+<script src="js/batch-select.js?v=3519"></script>
+<script src="js/native-file-drag.js?v=3519"></script>
+<script src="js/sort-persist.js?v=3519"></script>
+<script src="js/multi-filter.js?v=3519"></script>
+<script src="js/file-browser.js?v=3519"></script>
+<script src="js/duplicates.js?v=3519"></script>
+<script src="js/command-palette.js?v=3519"></script>
+<script src="js/xref.js?v=3519"></script>
+<script src="js/dep-graph.js?v=3519"></script>
+<script src="js/smart-playlists.js?v=3519"></script>
+<script src="js/heatmap-dashboard.js?v=3519"></script>
+<script src="js/midi.js?v=3519"></script>
+<script src="js/pdf.js?v=3519"></script>
+<script src="js/settings-search.js?v=3519"></script>
+<script src="js/visualizer.js?v=3519"></script>
+<script src="js/walker-status.js?v=3519"></script>
+<script src="js/audio-engine.js?v=3519"></script>
+<script src="js/context-menu.js?v=3519"></script>
+<script src="js/shortcuts.js?v=3519"></script>
+<script src="js/help-overlay.js?v=3519"></script>
+<script src="js/keyboard-nav.js?v=3519"></script>
+<script src="js/app.js?v=3519"></script>
 </body>
 </html>

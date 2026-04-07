@@ -11,7 +11,9 @@ use std::sync::{Arc, OnceLock};
 use std::thread;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Device, SampleFormat, Stream, SupportedBufferSize, SupportedStreamConfig};
+use cpal::{
+    BufferSize, Device, SampleFormat, Stream, StreamConfig, SupportedBufferSize, SupportedStreamConfig,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -27,6 +29,9 @@ struct Request {
     /// When starting the output stream, enable 440 Hz test tone (F32 only).
     #[serde(default)]
     tone: bool,
+    /// Optional hardware buffer size in frames (clamped to device `buffer_size` range).
+    #[serde(default)]
+    buffer_frames: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -46,6 +51,8 @@ struct ActiveStream {
     channels: u16,
     sample_format: String,
     buffer_size: serde_json::Value,
+    /// `Some` when `BufferSize::Fixed` was requested/applied.
+    stream_buffer_frames: Option<u32>,
     /// F32 streams only: toggles silence vs test tone in the callback.
     tone_flag: Option<Arc<AtomicBool>>,
 }
@@ -54,6 +61,7 @@ enum AudioCmd {
     Start {
         device_id: Option<String>,
         tone: bool,
+        buffer_frames: Option<u32>,
         reply: mpsc::Sender<Result<serde_json::Value, String>>,
     },
     Stop {
@@ -84,6 +92,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
             AudioCmd::Start {
                 device_id,
                 tone,
+                buffer_frames,
                 reply,
             } => {
                 let res = (|| {
@@ -107,8 +116,8 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                     let channels = supported.channels();
                     let sample_format = format!("{:?}", supported.sample_format());
                     let buffer_size = buffer_size_json(supported.buffer_size());
-                    let (stream, tone_flag) =
-                        build_playback_stream(&device, supported, tone)?;
+                    let (stream, tone_flag, stream_buffer_frames) =
+                        build_playback_stream(&device, supported, tone, buffer_frames)?;
                     let tone_supported = tone_flag.is_some();
                     let tone_on = tone_flag
                         .as_ref()
@@ -122,6 +131,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         channels,
                         sample_format: sample_format.clone(),
                         buffer_size: buffer_size.clone(),
+                        stream_buffer_frames,
                         tone_flag,
                     });
                     Ok(json!({
@@ -132,6 +142,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         "channels": channels,
                         "sample_format": sample_format,
                         "buffer_size": buffer_size,
+                        "stream_buffer_frames": stream_buffer_frames,
                         "tone_supported": tone_supported,
                         "tone_on": tone_on,
                         "note": "output stream running (silence or test tone); mixer/plugin graph TBD",
@@ -160,6 +171,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                             "channels": a.channels,
                             "sample_format": a.sample_format,
                             "buffer_size": a.buffer_size,
+                            "stream_buffer_frames": a.stream_buffer_frames,
                             "tone_supported": a.tone_flag.is_some(),
                             "tone_on": tone_on,
                         })
@@ -173,6 +185,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         "channels": serde_json::Value::Null,
                         "sample_format": serde_json::Value::Null,
                         "buffer_size": serde_json::Value::Null,
+                        "stream_buffer_frames": serde_json::Value::Null,
                         "tone_supported": serde_json::Value::Null,
                         "tone_on": serde_json::Value::Null,
                     }),
@@ -205,6 +218,29 @@ fn buffer_size_json(bs: &SupportedBufferSize) -> serde_json::Value {
             "max": max,
         }),
         SupportedBufferSize::Unknown => json!({ "kind": "unknown" }),
+    }
+}
+
+/// Sets `cfg.buffer_size` to [`BufferSize::Fixed`] when `requested` is present; returns the frame count applied.
+fn apply_buffer_frames_request(
+    cfg: &mut StreamConfig,
+    supported_bs: &SupportedBufferSize,
+    requested: Option<u32>,
+) -> Option<u32> {
+    let Some(req) = requested.filter(|n| *n > 0) else {
+        return None;
+    };
+    match supported_bs {
+        SupportedBufferSize::Range { min, max } => {
+            let f = req.clamp(*min, *max);
+            cfg.buffer_size = BufferSize::Fixed(f);
+            Some(f)
+        }
+        SupportedBufferSize::Unknown => {
+            let f = req.max(1);
+            cfg.buffer_size = BufferSize::Fixed(f);
+            Some(f)
+        }
     }
 }
 
@@ -253,8 +289,11 @@ fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
         "list_output_devices" => list_output_devices(),
         "list_input_devices" => list_input_devices(),
         "get_output_device_info" => get_output_device_info(req.device_id.as_deref()),
+        "get_input_device_info" => get_input_device_info(req.device_id.as_deref()),
         "set_output_device" => set_output_device(req.device_id.as_deref()),
-        "start_output_stream" => start_output_stream(req.device_id.as_deref(), req.tone),
+        "start_output_stream" => {
+            start_output_stream(req.device_id.as_deref(), req.tone, req.buffer_frames)
+        }
         "stop_output_stream" => stop_output_stream(),
         "output_stream_status" => output_stream_status(),
         "set_output_tone" => set_output_tone(req.tone),
@@ -298,7 +337,7 @@ fn list_output_devices() -> Result<serde_json::Value, String> {
     }))
 }
 
-fn list_input_devices() -> Result<serde_json::Value, String> {
+fn enumerate_input_devices() -> Result<Vec<OutputDeviceInfo>, String> {
     let host = cpal::default_host();
     let default_dev = host.default_input_device();
     let default_name = default_dev.as_ref().and_then(|d| d.name().ok());
@@ -324,12 +363,17 @@ fn list_input_devices() -> Result<serde_json::Value, String> {
         });
     }
 
-    let default_id = out.iter().find(|d| d.is_default).map(|d| d.id.clone());
+    Ok(out)
+}
+
+fn list_input_devices() -> Result<serde_json::Value, String> {
+    let rows = enumerate_input_devices()?;
+    let default_id = rows.iter().find(|d| d.is_default).map(|d| d.id.clone());
 
     Ok(json!({
         "ok": true,
         "default_device_id": default_id,
-        "devices": out,
+        "devices": rows,
     }))
 }
 
@@ -399,6 +443,43 @@ fn resolve_device(device_id: Option<&str>) -> Result<Device, String> {
     }
 }
 
+fn find_input_device_by_id(id: &str) -> Result<Device, String> {
+    let host = cpal::default_host();
+
+    if let Ok(idx) = id.parse::<usize>() {
+        let list: Vec<_> = host
+            .input_devices()
+            .map_err(|e| format!("cpal input_devices: {e}"))?
+            .collect();
+        return list
+            .into_iter()
+            .nth(idx)
+            .ok_or_else(|| format!("device_id out of range: {id}"));
+    }
+
+    let mut seen = HashMap::new();
+    for dev in host
+        .input_devices()
+        .map_err(|e| format!("cpal input_devices: {e}"))?
+    {
+        let name = dev.name().unwrap_or_else(|_| String::new());
+        let uid = unique_device_id(&name, &mut seen);
+        if uid == id {
+            return Ok(dev);
+        }
+    }
+    Err(format!("unknown device_id: {id}"))
+}
+
+fn resolve_input_device(device_id: Option<&str>) -> Result<Device, String> {
+    match device_id.filter(|s| !s.is_empty()) {
+        None => cpal::default_host()
+            .default_input_device()
+            .ok_or_else(|| "no default input device".to_string()),
+        Some(id) => find_input_device_by_id(id),
+    }
+}
+
 fn get_output_device_info(device_id: Option<&str>) -> Result<serde_json::Value, String> {
     let device = resolve_device(device_id)?;
 
@@ -410,6 +491,42 @@ fn get_output_device_info(device_id: Option<&str>) -> Result<serde_json::Value, 
     let mut rate_min = None::<u32>;
     let mut rate_max = None::<u32>;
     if let Ok(configs) = device.supported_output_configs() {
+        for range in configs {
+            let mn = range.min_sample_rate().0;
+            let mx = range.max_sample_rate().0;
+            rate_min = Some(rate_min.map_or(mn, |a: u32| a.min(mn)));
+            rate_max = Some(rate_max.map_or(mx, |a: u32| a.max(mx)));
+        }
+    }
+
+    let mut j = json!({
+        "ok": true,
+        "device_name": name,
+        "sample_rate_hz": cfg.sample_rate().0,
+        "channels": cfg.channels(),
+        "sample_format": format!("{:?}", cfg.sample_format()),
+        "buffer_size": buffer_size_json(cfg.buffer_size()),
+    });
+    if let (Some(lo), Some(hi)) = (rate_min, rate_max) {
+        j.as_object_mut().unwrap().insert(
+            "sample_rate_range_hz".to_string(),
+            json!({ "min": lo, "max": hi }),
+        );
+    }
+    Ok(j)
+}
+
+fn get_input_device_info(device_id: Option<&str>) -> Result<serde_json::Value, String> {
+    let device = resolve_input_device(device_id)?;
+
+    let name = device.name().unwrap_or_default();
+    let cfg = device
+        .default_input_config()
+        .map_err(|e| format!("default_input_config: {e}"))?;
+
+    let mut rate_min = None::<u32>;
+    let mut rate_max = None::<u32>;
+    if let Ok(configs) = device.supported_input_configs() {
         for range in configs {
             let mn = range.min_sample_rate().0;
             let mx = range.max_sample_rate().0;
@@ -452,10 +569,14 @@ fn build_playback_stream(
     device: &Device,
     supported: SupportedStreamConfig,
     tone_initial: bool,
-) -> Result<(Stream, Option<Arc<AtomicBool>>), String> {
-    let cfg = supported.config();
+    buffer_frames: Option<u32>,
+) -> Result<(Stream, Option<Arc<AtomicBool>>, Option<u32>), String> {
+    let sf = supported.sample_format();
+    let bs = supported.buffer_size();
+    let mut stream_config = supported.config();
+    let stream_buffer_frames = apply_buffer_frames_request(&mut stream_config, bs, buffer_frames);
     let err = |e| eprintln!("audio-engine stream error: {e}");
-    let tone_out = match supported.sample_format() {
+    match sf {
         SampleFormat::F32 => {
             let sr = supported.sample_rate().0 as f32;
             let ch = supported.channels() as usize;
@@ -464,7 +585,7 @@ fn build_playback_stream(
             let t = tone_flag.clone();
             let p = phase.clone();
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
                     let ch = ch.max(1);
                     let frames = data.len() / ch;
@@ -491,123 +612,122 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, Some(tone_flag)))
+            Ok((stream, Some(tone_flag), stream_buffer_frames))
         }
         SampleFormat::I16 => {
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 |data: &mut [i16], _: &cpal::OutputCallbackInfo| data.fill(0),
                 err,
                 None,
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None))
+            Ok((stream, None, stream_buffer_frames))
         }
         SampleFormat::U16 => {
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 |data: &mut [u16], _: &cpal::OutputCallbackInfo| data.fill(32768),
                 err,
                 None,
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None))
+            Ok((stream, None, stream_buffer_frames))
         }
         SampleFormat::I8 => {
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 |data: &mut [i8], _: &cpal::OutputCallbackInfo| data.fill(0),
                 err,
                 None,
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None))
+            Ok((stream, None, stream_buffer_frames))
         }
         SampleFormat::U8 => {
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 |data: &mut [u8], _: &cpal::OutputCallbackInfo| data.fill(128),
                 err,
                 None,
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None))
+            Ok((stream, None, stream_buffer_frames))
         }
         SampleFormat::I32 => {
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 |data: &mut [i32], _: &cpal::OutputCallbackInfo| data.fill(0),
                 err,
                 None,
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None))
+            Ok((stream, None, stream_buffer_frames))
         }
         SampleFormat::U32 => {
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 |data: &mut [u32], _: &cpal::OutputCallbackInfo| data.fill(1u32 << 31),
                 err,
                 None,
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None))
+            Ok((stream, None, stream_buffer_frames))
         }
         SampleFormat::I64 => {
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 |data: &mut [i64], _: &cpal::OutputCallbackInfo| data.fill(0),
                 err,
                 None,
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None))
+            Ok((stream, None, stream_buffer_frames))
         }
         SampleFormat::U64 => {
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 |data: &mut [u64], _: &cpal::OutputCallbackInfo| data.fill(1u64 << 63),
                 err,
                 None,
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None))
+            Ok((stream, None, stream_buffer_frames))
         }
         SampleFormat::F64 => {
             let stream = device.build_output_stream(
-                &cfg,
+                &stream_config,
                 |data: &mut [f64], _: &cpal::OutputCallbackInfo| data.fill(0.0),
                 err,
                 None,
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None))
+            Ok((stream, None, stream_buffer_frames))
         }
-        _ => {
-            return Err(format!(
-                "unsupported sample format {:?}",
-                supported.sample_format()
-            ));
-        }
-    }?;
-    tone_out
+        _ => Err(format!("unsupported sample format {:?}", sf)),
+    }
 }
 
-fn start_output_stream(device_id: Option<&str>, tone: bool) -> Result<serde_json::Value, String> {
+fn start_output_stream(
+    device_id: Option<&str>,
+    tone: bool,
+    buffer_frames: Option<u32>,
+) -> Result<serde_json::Value, String> {
     let (reply_tx, reply_rx) = mpsc::channel();
     audio_thread_tx()
         .send(AudioCmd::Start {
             device_id: device_id.map(|s| s.to_string()),
             tone,
+            buffer_frames,
             reply: reply_tx,
         })
         .map_err(|_| "audio engine thread unavailable".to_string())?;
@@ -661,6 +781,7 @@ fn set_output_tone(enabled: bool) -> Result<serde_json::Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cpal::SampleRate;
 
     #[test]
     fn unique_device_id_counts_duplicates() {
@@ -679,5 +800,37 @@ mod tests {
         assert_eq!(j["max"], 512);
         let u = buffer_size_json(&SupportedBufferSize::Unknown);
         assert_eq!(u["kind"], "unknown");
+    }
+
+    #[test]
+    fn apply_buffer_frames_clamps_to_range() {
+        let mut cfg = StreamConfig {
+            channels: 2,
+            sample_rate: SampleRate(48_000),
+            buffer_size: BufferSize::Default,
+        };
+        let r = apply_buffer_frames_request(
+            &mut cfg,
+            &SupportedBufferSize::Range { min: 64, max: 512 },
+            Some(10_000),
+        );
+        assert_eq!(r, Some(512));
+        assert_eq!(cfg.buffer_size, BufferSize::Fixed(512));
+    }
+
+    #[test]
+    fn apply_buffer_frames_none_leaves_default() {
+        let mut cfg = StreamConfig {
+            channels: 2,
+            sample_rate: SampleRate(48_000),
+            buffer_size: BufferSize::Default,
+        };
+        let r = apply_buffer_frames_request(
+            &mut cfg,
+            &SupportedBufferSize::Range { min: 64, max: 512 },
+            None,
+        );
+        assert_eq!(r, None);
+        assert_eq!(cfg.buffer_size, BufferSize::Default);
     }
 }
