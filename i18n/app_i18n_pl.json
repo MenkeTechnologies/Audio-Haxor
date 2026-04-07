@@ -684,6 +684,7 @@
   "ui.ae.plugins_scan_cache_prefix": "Cache · ",
   "ui.ae.plugins_scan_failed": "Plugin scan failed: {err}",
   "ui.ae.plugins_scan_progress": "{cache}{done}/{total} · skipped {skipped} · {format}: {name}",
+  "ui.ae.plugins_scan_stuck_hint": " — Stalled: JUCE may be hung inside this plug-in (not the same as a crash). Restart Audio Engine sidecar if this never advances.",
   "ui.ae.plugins_scanning_list": "Scanning system plug-in folders…",
   "ui.ae.plugins_scanning_note": "Scanning VST3/AU plug-ins in the background (bad modules are skipped).",
   "ui.ae.plugins_slot_empty": "No slots loaded yet.",
