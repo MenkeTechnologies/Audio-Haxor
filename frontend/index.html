@@ -5644,6 +5644,18 @@
           </div>
           <div class="settings-row">
             <div class="settings-label">
+              <span class="settings-title" data-i18n="ui.st.midi_scan_directories">MIDI Scan Directories</span>
+              <span class="settings-desc" data-i18n="ui.sd.additional_directories_to_scan_for_midi_files">Additional directories to scan for MIDI files (one per line)</span>
+            </div>
+            <div class="settings-control">
+              <textarea class="settings-textarea" id="settingMidiScanDirs" rows="6" placeholder="/path/to/midi&#10;/another/path" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Additional directories to scan for MIDI files, one path per line" data-i18n-placeholder="ui.ph.path_to_midi_10_another_path" data-i18n-title="ui.tt.additional_directories_to_scan_for_midi_files_o"></textarea>
+              <button class="btn btn-secondary btn-settings-action" data-action="browseDir" data-target="settingMidiScanDirs" style="margin-top: 6px;" title="Browse for folder (grants macOS access)" data-i18n-title="ui.tt.browse_for_folder_grants_macos_access" data-i18n="ui.btn.browse">Browse</button>
+              <button class="btn btn-secondary btn-settings-action" data-action="saveMidiScanDirs" style="margin-top: 6px;" title="Save custom MIDI scan directories" data-i18n-title="ui.tt.save_custom_midi_scan_directories" data-i18n="ui.btn.save">Save</button>
+              <span class="settings-saved-msg" id="savedMsgMidiScanDirs"></span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
               <span class="settings-title" data-i18n="ui.st.pdf_scan_directories">PDF Scan Directories</span>
               <span class="settings-desc" data-i18n="ui.sd.additional_directories_to_scan_for_pdf_documents">Additional directories to scan for PDF documents (one per line)</span>
             </div>
@@ -6285,42 +6297,42 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=98068"></script>
-  <script src="js/ipc.js?v=98068"></script>
-  <script src="js/utils.js?v=98068"></script>
-  <script src="js/drag-reorder.js?v=98068"></script>
-  <script src="js/modal-drag.js?v=98068"></script>
-  <script src="js/columns.js?v=98068"></script>
-  <script src="js/notes.js?v=98068"></script>
-  <script src="js/favorites.js?v=98068"></script>
-  <script src="js/export.js?v=98068"></script>
-  <script src="js/plugins.js?v=98068"></script>
-  <script src="js/settings.js?v=98068"></script>
-  <script src="js/history.js?v=98068"></script>
-  <script src="js/kvr.js?v=98068"></script>
-  <script src="js/audio.js?v=98068"></script>
-  <script src="js/daw.js?v=98068"></script>
-  <script src="js/presets.js?v=98068"></script>
-  <script src="js/disk-usage.js?v=98068"></script>
-  <script src="js/batch-select.js?v=98068"></script>
-  <script src="js/sort-persist.js?v=98068"></script>
-  <script src="js/multi-filter.js?v=98068"></script>
-  <script src="js/file-browser.js?v=98068"></script>
-  <script src="js/duplicates.js?v=98068"></script>
-  <script src="js/command-palette.js?v=98068"></script>
-  <script src="js/xref.js?v=98068"></script>
-  <script src="js/dep-graph.js?v=98068"></script>
-  <script src="js/smart-playlists.js?v=98068"></script>
-  <script src="js/heatmap-dashboard.js?v=98068"></script>
-  <script src="js/midi.js?v=98068"></script>
-  <script src="js/pdf.js?v=98068"></script>
-  <script src="js/settings-search.js?v=98068"></script>
-  <script src="js/visualizer.js?v=98068"></script>
-  <script src="js/walker-status.js?v=98068"></script>
-  <script src="js/context-menu.js?v=98068"></script>
-  <script src="js/help-overlay.js?v=98068"></script>
-  <script src="js/shortcuts.js?v=98068"></script>
-  <script src="js/keyboard-nav.js?v=98068"></script>
-  <script src="js/app.js?v=98068"></script>
+  <script src="js/i18n-ui.js?v=97659"></script>
+  <script src="js/ipc.js?v=97659"></script>
+  <script src="js/utils.js?v=97659"></script>
+  <script src="js/drag-reorder.js?v=97659"></script>
+  <script src="js/modal-drag.js?v=97659"></script>
+  <script src="js/columns.js?v=97659"></script>
+  <script src="js/notes.js?v=97659"></script>
+  <script src="js/favorites.js?v=97659"></script>
+  <script src="js/export.js?v=97659"></script>
+  <script src="js/plugins.js?v=97659"></script>
+  <script src="js/settings.js?v=97659"></script>
+  <script src="js/history.js?v=97659"></script>
+  <script src="js/kvr.js?v=97659"></script>
+  <script src="js/audio.js?v=97659"></script>
+  <script src="js/daw.js?v=97659"></script>
+  <script src="js/presets.js?v=97659"></script>
+  <script src="js/disk-usage.js?v=97659"></script>
+  <script src="js/batch-select.js?v=97659"></script>
+  <script src="js/sort-persist.js?v=97659"></script>
+  <script src="js/multi-filter.js?v=97659"></script>
+  <script src="js/file-browser.js?v=97659"></script>
+  <script src="js/duplicates.js?v=98070"></script>
+  <script src="js/command-palette.js?v=97659"></script>
+  <script src="js/xref.js?v=97659"></script>
+  <script src="js/dep-graph.js?v=97659"></script>
+  <script src="js/smart-playlists.js?v=97659"></script>
+  <script src="js/heatmap-dashboard.js?v=97659"></script>
+  <script src="js/midi.js?v=97659"></script>
+  <script src="js/pdf.js?v=97659"></script>
+  <script src="js/settings-search.js?v=97659"></script>
+  <script src="js/visualizer.js?v=97659"></script>
+  <script src="js/walker-status.js?v=97659"></script>
+  <script src="js/context-menu.js?v=97659"></script>
+  <script src="js/help-overlay.js?v=97659"></script>
+  <script src="js/shortcuts.js?v=97659"></script>
+  <script src="js/keyboard-nav.js?v=97659"></script>
+  <script src="js/app.js?v=97659"></script>
 </body>
 </html>
