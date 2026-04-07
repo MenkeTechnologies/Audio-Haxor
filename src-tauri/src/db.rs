@@ -6863,7 +6863,7 @@ mod tests {
         db.save_plugin_scan(&snap).unwrap();
 
         let res = db
-            .query_plugins(Some("ser"), None, "size", false, 0, 100)
+            .query_plugins(Some("ser"), None, None, "size", false, 0, 100)
             .unwrap();
         assert_eq!(res.total_count, 2);
         assert_eq!(res.plugins[0].name, "big_serum_bank");
@@ -7321,7 +7321,7 @@ mod tests {
 
         // Filter that matches nothing → filtered count 0, unfiltered stays 3
         let res = db
-            .query_plugins(Some("nonexistent_xyz"), None, "name", true, 0, 100)
+            .query_plugins(Some("nonexistent_xyz"), None, None, "name", true, 0, 100)
             .unwrap();
         assert_eq!(res.total_count, 0, "filtered count should be 0");
         assert_eq!(
@@ -7347,7 +7347,7 @@ mod tests {
         };
         db.save_plugin_scan(&snap).unwrap();
 
-        let res = db.query_plugins(None, None, "name", true, 0, 100).unwrap();
+        let res = db.query_plugins(None, None, None, "name", true, 0, 100).unwrap();
         assert_eq!(res.total_count, 2);
         assert_eq!(res.total_unfiltered, 2);
     }
@@ -7355,7 +7355,7 @@ mod tests {
     #[test]
     fn test_query_plugins_total_unfiltered_empty_db() {
         let db = test_db();
-        let res = db.query_plugins(None, None, "name", true, 0, 100).unwrap();
+        let res = db.query_plugins(None, None, None, "name", true, 0, 100).unwrap();
         assert_eq!(res.total_count, 0);
         assert_eq!(res.total_unfiltered, 0);
         assert!(res.plugins.is_empty());
@@ -8330,7 +8330,7 @@ mod tests {
         ))
         .unwrap();
 
-        let res = db.query_plugins(None, None, "name", true, 0, 100).unwrap();
+        let res = db.query_plugins(None, None, None, "name", true, 0, 100).unwrap();
         assert_eq!(res.total_unfiltered, 4);
         assert_eq!(res.plugins.len(), 4);
         assert_eq!(res.plugins[0].name, "New1");
@@ -8357,7 +8357,7 @@ mod tests {
         .unwrap();
 
         let res = db
-            .query_plugins(None, Some("VST3,AU"), "name", true, 0, 100)
+            .query_plugins(None, Some("VST3,AU"), None, "name", true, 0, 100)
             .unwrap();
         assert_eq!(res.total_count, 4);
         assert_eq!(
@@ -8390,7 +8390,7 @@ mod tests {
         .unwrap();
 
         let res = db
-            .query_plugins(Some("al"), Some("VST3,AU"), "name", true, 0, 2)
+            .query_plugins(Some("al"), Some("VST3,AU"), None, "name", true, 0, 2)
             .unwrap();
         assert_eq!(res.total_count, 4); // alpha, alpen, alto, alps
         assert_eq!(res.plugins.len(), 2, "LIMIT must be respected");
@@ -8412,16 +8412,85 @@ mod tests {
         .unwrap();
 
         let res = db
-            .query_plugins(None, Some("VST3"), "name", true, 0, 100)
+            .query_plugins(None, Some("VST3"), None, "name", true, 0, 100)
             .unwrap();
         assert_eq!(res.total_count, 2);
         assert_eq!(res.total_unfiltered, 4);
 
         let res = db
-            .query_plugins(None, Some("VST3,AU"), "name", true, 0, 100)
+            .query_plugins(None, Some("VST3,AU"), None, "name", true, 0, 100)
             .unwrap();
         assert_eq!(res.total_count, 3);
         assert_eq!(res.total_unfiltered, 4);
+    }
+
+    #[test]
+    fn test_query_plugins_status_filter_kvr_join() {
+        use crate::history::KvrCacheUpdateEntry;
+        let db = test_db();
+        db.save_plugin_scan(&plugin_snap(
+            "ps-kvr-status",
+            "2024-06-01T00:00:00",
+            vec![
+                plugin_info("HasUpdate", "VST3", "Mfg"),
+                plugin_info("Current", "VST3", "Mfg"),
+                plugin_info("UnknownKvr", "VST3", "Mfg"),
+                plugin_info("NoCache", "VST3", "Mfg"),
+            ],
+        ))
+        .unwrap();
+        db.update_kvr_cache(&[
+            KvrCacheUpdateEntry {
+                key: "mfg|||hasupdate".into(),
+                kvr_url: Some("u".into()),
+                update_url: None,
+                latest_version: Some("2".into()),
+                has_update: Some(true),
+                source: Some("kvr".into()),
+            },
+            KvrCacheUpdateEntry {
+                key: "mfg|||current".into(),
+                kvr_url: Some("u".into()),
+                update_url: None,
+                latest_version: Some("1.0".into()),
+                has_update: Some(false),
+                source: Some("kvr".into()),
+            },
+            KvrCacheUpdateEntry {
+                key: "mfg|||unknownkvr".into(),
+                kvr_url: None,
+                update_url: None,
+                latest_version: None,
+                has_update: Some(false),
+                source: Some("not-found".into()),
+            },
+        ])
+        .unwrap();
+
+        let r_up = db
+            .query_plugins(None, None, Some("update"), "name", true, 0, 100)
+            .unwrap();
+        assert_eq!(r_up.total_count, 1);
+        assert_eq!(r_up.plugins[0].name, "HasUpdate");
+
+        let r_cur = db
+            .query_plugins(None, None, Some("current"), "name", true, 0, 100)
+            .unwrap();
+        assert_eq!(r_cur.total_count, 1);
+        assert_eq!(r_cur.plugins[0].name, "Current");
+
+        let r_unk = db
+            .query_plugins(None, None, Some("unknown"), "name", true, 0, 100)
+            .unwrap();
+        assert_eq!(r_unk.total_count, 2);
+        let names: Vec<_> = r_unk.plugins.iter().map(|p| p.name.as_str()).collect();
+        assert!(names.contains(&"UnknownKvr"));
+        assert!(names.contains(&"NoCache"));
+
+        let r_all = db
+            .query_plugins(None, None, Some("update,current,unknown"), "name", true, 0, 100)
+            .unwrap();
+        assert_eq!(r_all.total_count, 4);
     }
 
     #[test]
@@ -8433,8 +8502,8 @@ mod tests {
         db.save_plugin_scan(&plugin_snap("ps-page", "2024-06-01T00:00:00", plugins))
             .unwrap();
 
-        let p1 = db.query_plugins(None, None, "name", true, 0, 15).unwrap();
-        let p2 = db.query_plugins(None, None, "name", true, 15, 15).unwrap();
+        let p1 = db.query_plugins(None, None, None, "name", true, 0, 15).unwrap();
+        let p2 = db.query_plugins(None, None, None, "name", true, 15, 15).unwrap();
 
         assert_eq!(p1.total_unfiltered, 40);
         assert_eq!(p2.total_unfiltered, 40);
@@ -8457,7 +8526,7 @@ mod tests {
         .unwrap();
 
         let res = db
-            .query_plugins(Some("Xfer"), None, "name", true, 0, 100)
+            .query_plugins(Some("Xfer"), None, None, "name", true, 0, 100)
             .unwrap();
         assert_eq!(res.total_count, 2);
         assert_eq!(res.total_unfiltered, 3);

@@ -2378,7 +2378,7 @@ async fn extract_project_plugins(file_path: String) -> Result<Vec<xref::PluginRe
     let mut result = xref::extract_plugins(&file_path);
     // Enrich empty manufacturers from scanned plugin database
     if result.iter().any(|p| p.manufacturer.is_empty()) {
-        if let Ok(all) = db::global().query_plugins(None, None, "name", true, 0, 100000) {
+        if let Ok(all) = db::global().query_plugins(None, None, None, "name", true, 0, 100000) {
             let mfg_map: std::collections::HashMap<String, String> = all
                 .plugins
                 .iter()
@@ -6052,6 +6052,7 @@ async fn db_query_audio(params: db::AudioQueryParams) -> Result<db::AudioQueryRe
 async fn db_query_plugins(
     search: Option<String>,
     type_filter: Option<String>,
+    status_filter: Option<String>,
     sort_key: Option<String>,
     sort_asc: Option<bool>,
     offset: Option<u64>,
@@ -6061,6 +6062,7 @@ async fn db_query_plugins(
         db::global().query_plugins(
             search.as_deref(),
             type_filter.as_deref(),
+            status_filter.as_deref(),
             &sort_key.unwrap_or("name".into()),
             sort_asc.unwrap_or(true),
             offset.unwrap_or(0),
@@ -6207,7 +6209,7 @@ async fn db_query_palette_preview(search: String) -> Result<PalettePreviewResult
     }
     tokio::task::spawn_blocking(move || {
         let db = db::global();
-        let plugins = db.query_plugins(Some(&search), None, "name", true, 0, 6)?;
+        let plugins = db.query_plugins(Some(&search), None, None, "name", true, 0, 6)?;
         let audio = db.query_audio(&db::AudioQueryParams {
             scan_id: None,
             search: Some(search.clone()),

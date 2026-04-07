@@ -74,6 +74,8 @@ async function fetchPluginPage() {
   const search = document.getElementById('searchInput')?.value || '';
   const typeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('typeFilter') : null;
   const typeFilter = typeSet ? [...typeSet].join(',') : null;
+  const statusSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('statusFilter') : null;
+  const statusFilter = statusSet ? [...statusSet].join(',') : null;
   // During an active scan, DOM-toggle filter existing cards (O(visible)) instead
   // of iterating the full in-memory list.
   if (scanProgressCleanup) {
@@ -88,6 +90,7 @@ async function fetchPluginPage() {
         const t = c.dataset.pluginType;
         let match = true;
         if (typeSet && !typeSet.has(t)) match = false;
+        if (match && statusSet && c.dataset.pluginStatus && !statusSet.has(c.dataset.pluginStatus)) match = false;
         if (match && needle && !c.dataset.pluginName.includes(needle) && !c.dataset.pluginMfg.includes(needle)) match = false;
         c.style.display = match ? '' : 'none';
         if (match) {
@@ -115,6 +118,7 @@ async function fetchPluginPage() {
     const result = await window.vstUpdater.dbQueryPlugins({
       search: search || null,
       type_filter: typeFilter,
+      status_filter: statusFilter,
       sort_key: _pluginSortKey,
       sort_asc: _pluginSortAsc,
       offset: _pluginOffset,
@@ -166,12 +170,15 @@ async function fetchPluginsForExport() {
   const search = document.getElementById('searchInput')?.value || '';
   const typeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('typeFilter') : null;
   const typeFilter = typeSet ? [...typeSet].join(',') : null;
+  const statusSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('statusFilter') : null;
+  const statusFilter = statusSet ? [...statusSet].join(',') : null;
   const total = Math.max(_pluginTotalCount || 0, _pluginTotalUnfiltered || 0);
   const n = Math.min(total, _PLUGIN_EXPORT_MAX);
   if (n <= 0) return [];
   const result = await window.vstUpdater.dbQueryPlugins({
     search: search || null,
     type_filter: typeFilter,
+    status_filter: statusFilter,
     sort_key: _pluginSortKey,
     sort_asc: _pluginSortAsc,
     offset: 0,
@@ -246,8 +253,9 @@ async function scanPlugins(resume = false) {
         temp.innerHTML = data.plugins.map(p => buildPluginCardHtml(p)).join('');
         // Apply active filter so newly-streamed cards respect user's checkbox/search.
         const scanTypeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('typeFilter') : null;
+        const scanStatusSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('statusFilter') : null;
         const scanSearch = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
-        const hasFilter = !!(scanTypeSet || scanSearch);
+        const hasFilter = !!(scanTypeSet || scanStatusSet || scanSearch);
         while (temp.firstChild) {
           const c = temp.firstChild;
           if (hasFilter && c.dataset) {
@@ -256,6 +264,7 @@ async function scanPlugins(resume = false) {
             const m = c.dataset.pluginMfg || '';
             let match = true;
             if (scanTypeSet && t && !scanTypeSet.has(t)) match = false;
+            if (match && scanStatusSet && c.dataset.pluginStatus && !scanStatusSet.has(c.dataset.pluginStatus)) match = false;
             if (match && scanSearch && !n.includes(scanSearch) && !m.includes(scanSearch)) match = false;
             if (!match) c.style.display = 'none';
           }
@@ -325,6 +334,14 @@ async function scanPlugins(resume = false) {
   }
 }
 
+/** Matches `kvr_cache` + SQL `query_plugins` status_filter (update / current / unknown). */
+function pluginStatusCategory(p) {
+  if (p.hasUpdate === true) return 'update';
+  if (p.hasUpdate === undefined) return 'unknown';
+  if (p.source === 'not-found') return 'unknown';
+  return 'current';
+}
+
 function buildPluginCardHtml(p) {
   const typeClass = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : p.type === 'CLAP' ? 'type-clap' : 'type-au';
   let versionHtml = `<span class="version-current">v${p.version}</span>`;
@@ -356,7 +373,7 @@ function buildPluginCardHtml(p) {
   }
 
   return `
-    <div class="plugin-card" data-path="${escapeHtml(p.path)}" data-plugin-type="${escapeHtml(p.type)}" data-plugin-name="${escapeHtml((p.name || '').toLowerCase())}" data-plugin-mfg="${escapeHtml((p.manufacturer || '').toLowerCase())}">
+    <div class="plugin-card" data-path="${escapeHtml(p.path)}" data-plugin-type="${escapeHtml(p.type)}" data-plugin-status="${escapeHtml(pluginStatusCategory(p))}" data-plugin-name="${escapeHtml((p.name || '').toLowerCase())}" data-plugin-mfg="${escapeHtml((p.manufacturer || '').toLowerCase())}">
       <div class="plugin-info">
         <h3 title="${escapeHtml(p.name)}">${_lastPluginSearch ? highlightMatch(p.name, _lastPluginSearch, _lastPluginMode) : escapeHtml(p.name)}${typeof rowBadges === 'function' ? ' ' + rowBadges(p.path) : ''}</h3>
         <div class="plugin-meta">

@@ -128,10 +128,10 @@ function renderFavorites() {
 
   const favs = getFavorites();
   const search = _favSearch || (document.getElementById('favSearchInput')?.value || '').trim();
-  const typeFilter = document.getElementById('favTypeFilter')?.value || 'all';
+  const typeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('favTypeFilter') : null;
 
   let filtered = favs.filter(f => {
-    if (typeFilter !== 'all' && f.type !== typeFilter) return false;
+    if (typeSet && !typeSet.has(f.type)) return false;
     return true;
   });
   if (search) {
