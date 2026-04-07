@@ -897,7 +897,12 @@ async function renderPaletteResults() {
     const q = _paletteQuery;
     const qTrim = q.trim();
 
-    let merged = filterPaletteItems(q, allItems);
+    let merged = filterPaletteItems(qTrim, allItems);
+
+    // Paint in-memory fuzzy matches immediately. The 2+ char branch used to await SQLite
+    // before any paint, so typed queries looked ignored until IPC returned.
+    _paletteResults = merged;
+    paintPaletteRows(container);
 
     if (qTrim.length >= 2 && typeof window.vstUpdater?.dbQueryPalettePreview === 'function') {
         const seq = ++_paletteDbSeq;
@@ -915,10 +920,9 @@ async function renderPaletteResults() {
         }
         scored.sort((a, b) => b.score - a.score);
         merged = scored.slice(0, PALETTE_MAX).map((s) => s.item);
+        _paletteResults = merged;
+        paintPaletteRows(container);
     }
-
-    _paletteResults = merged;
-    paintPaletteRows(container);
 }
 
 function executePaletteItem(idx) {
