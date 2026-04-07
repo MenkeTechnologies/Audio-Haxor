@@ -285,11 +285,11 @@ async function fetchDawProjectsForExport() {
     const search = _lastDawSearch || '';
     const dawSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('dawDawFilter') : null;
     const dawFilter = dawSet ? [...dawSet].join(',') : null;
-    let total = Math.max(Number(_dawTotalCount) || 0, Number(_dawTotalUnfiltered) || 0);
+    let total = Number(_dawTotalCount) || 0;
     if (total <= 0 && window.vstUpdater && typeof window.vstUpdater.dbDawFilterStats === 'function') {
         try {
             const agg = await window.vstUpdater.dbDawFilterStats(search.trim(), dawFilter);
-            total = Math.max(agg.count || 0, agg.totalUnfiltered || 0);
+            total = agg.count || 0;
         } catch { /* stale in-memory totals */ }
     }
     if (total <= 0 && window.vstUpdater && typeof window.vstUpdater.dbQueryDaw === 'function') {
@@ -302,7 +302,7 @@ async function fetchDawProjectsForExport() {
                 offset: 0,
                 limit: 1,
             });
-            total = Math.max(probe.totalCount || 0, probe.totalUnfiltered || 0);
+            total = probe.totalCount || 0;
         } catch { /* empty library */ }
     }
     const n = Math.min(total, _DAW_EXPORT_MAX);

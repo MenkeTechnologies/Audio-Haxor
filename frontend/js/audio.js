@@ -1489,7 +1489,22 @@ async function fetchAudioSamplesForExport() {
     const search = _lastAudioSearch || '';
     const fmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('audioFormatFilter') : null;
     const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
-    const total = Math.max(audioTotalCount || 0, audioTotalUnfiltered || 0);
+    let total = audioTotalCount || 0;
+    if (total <= 0) {
+        try {
+            const probe = await window.vstUpdater.dbQueryAudio({
+                search: search || null,
+                format_filter: formatFilter,
+                sort_key: audioSortKey,
+                sort_asc: audioSortAsc,
+                offset: 0,
+                limit: 1,
+            });
+            total = probe.totalCount || 0;
+        } catch {
+            return [];
+        }
+    }
     const n = Math.min(total, _AUDIO_EXPORT_MAX);
     if (n <= 0) return [];
     const result = await window.vstUpdater.dbQueryAudio({

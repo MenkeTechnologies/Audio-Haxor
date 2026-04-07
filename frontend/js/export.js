@@ -263,12 +263,10 @@ async function exportAudio() {
     if (typeof audioScanProgressCleanup === 'undefined' || !audioScanProgressCleanup) {
         samples = typeof allAudioSamples !== 'undefined' && allAudioSamples.length > 0 ? allAudioSamples : null;
     }
+    const pageHint = typeof filteredAudioSamples !== 'undefined' && filteredAudioSamples ? filteredAudioSamples.length : 0;
     const countForModal = samples && samples.length > 0
         ? samples.length
-        : Math.max(
-            typeof audioTotalCount !== 'undefined' ? audioTotalCount : 0,
-            typeof audioTotalUnfiltered !== 'undefined' ? audioTotalUnfiltered : 0
-        );
+        : Math.max(Number(typeof audioTotalCount !== 'undefined' ? audioTotalCount : 0) || 0, pageHint);
     if (countForModal === 0) {
         showToast(toastFmt('toast.no_list_export'));
         return;
@@ -317,11 +315,7 @@ async function exportDaw() {
     const pageHint = typeof filteredDawProjects !== 'undefined' && filteredDawProjects ? filteredDawProjects.length : 0;
     const countForModal = projects && projects.length > 0
         ? projects.length
-        : Math.max(
-            Number(_dawTotalCount) || 0,
-            Number(_dawTotalUnfiltered) || 0,
-            pageHint
-        );
+        : Math.max(Number(_dawTotalCount) || 0, pageHint);
     if (countForModal === 0) {
         showToast(toastFmt('toast.no_list_export'));
         return;
@@ -368,12 +362,10 @@ async function exportPdfs() {
     if (typeof pdfScanProgressCleanup === 'undefined' || !pdfScanProgressCleanup) {
         pdfs = typeof allPdfs !== 'undefined' && allPdfs.length > 0 ? allPdfs : null;
     }
+    const pageHint = typeof filteredPdfs !== 'undefined' && filteredPdfs ? filteredPdfs.length : 0;
     const countForModal = pdfs && pdfs.length > 0
         ? pdfs.length
-        : Math.max(
-            typeof _pdfTotalCount !== 'undefined' ? _pdfTotalCount : 0,
-            typeof _pdfTotalUnfiltered !== 'undefined' ? _pdfTotalUnfiltered : 0
-        );
+        : Math.max(Number(typeof _pdfTotalCount !== 'undefined' ? _pdfTotalCount : 0) || 0, pageHint);
     if (countForModal === 0) {
         showToast(toastFmt('toast.no_list_export'));
         return;
@@ -455,12 +447,10 @@ async function exportPresets() {
     if (typeof presetScanProgressCleanup === 'undefined' || !presetScanProgressCleanup) {
         presets = typeof allPresets !== 'undefined' && allPresets.length > 0 ? allPresets.slice() : null;
     }
+    const pageHint = typeof filteredPresets !== 'undefined' && filteredPresets ? filteredPresets.length : 0;
     const countForModal = presets && presets.length > 0
         ? presets.length
-        : Math.max(
-            typeof _presetTotalCount !== 'undefined' ? _presetTotalCount : 0,
-            typeof _presetTotalUnfiltered !== 'undefined' ? _presetTotalUnfiltered : 0
-        );
+        : Math.max(Number(typeof _presetTotalCount !== 'undefined' ? _presetTotalCount : 0) || 0, pageHint);
     if (countForModal === 0) {
         showToast(toastFmt('toast.no_list_export'));
         return;
@@ -508,12 +498,10 @@ async function exportMidi() {
     if (typeof _midiScanProgressCleanup === 'undefined' || !_midiScanProgressCleanup) {
         midiList = typeof allMidiFiles !== 'undefined' && allMidiFiles.length > 0 ? allMidiFiles : null;
     }
+    const pageHint = typeof filteredMidi !== 'undefined' && filteredMidi ? filteredMidi.length : 0;
     const countForModal = midiList && midiList.length > 0
         ? midiList.length
-        : Math.max(
-            typeof _midiTotalCount !== 'undefined' ? _midiTotalCount : 0,
-            typeof _midiTotalUnfiltered !== 'undefined' ? _midiTotalUnfiltered : 0
-        );
+        : Math.max(Number(typeof _midiTotalCount !== 'undefined' ? _midiTotalCount : 0) || 0, pageHint);
     if (countForModal === 0) {
         showToast(toastFmt('toast.no_list_export'));
         return;

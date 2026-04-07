@@ -291,7 +291,22 @@ const _PDF_EXPORT_MAX = 100000;
 
 async function fetchPdfsForExport() {
     const search = _lastPdfSearch || '';
-    const total = Math.max(_pdfTotalCount || 0, _pdfTotalUnfiltered || 0);
+    let total = _pdfTotalCount || 0;
+    if (total <= 0) {
+        try {
+            const backendSortKey = pdfSortKey === 'pages' ? 'name' : pdfSortKey;
+            const probe = await window.vstUpdater.dbQueryPdfs({
+                search: search || null,
+                sort_key: backendSortKey,
+                sort_asc: pdfSortAsc,
+                offset: 0,
+                limit: 1,
+            });
+            total = probe.totalCount || 0;
+        } catch {
+            return [];
+        }
+    }
     const n = Math.min(total, _PDF_EXPORT_MAX);
     if (n <= 0) return [];
     const backendSortKey = pdfSortKey === 'pages' ? 'name' : pdfSortKey;

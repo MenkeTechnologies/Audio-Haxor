@@ -147,7 +147,23 @@ async function fetchPluginsForExport() {
     const typeFilter = typeSet ? [...typeSet].join(',') : null;
     const statusSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('statusFilter') : null;
     const statusFilter = statusSet ? [...statusSet].join(',') : null;
-    const total = Math.max(_pluginTotalCount || 0, _pluginTotalUnfiltered || 0);
+    let total = _pluginTotalCount || 0;
+    if (total <= 0) {
+        try {
+            const probe = await window.vstUpdater.dbQueryPlugins({
+                search: search || null,
+                type_filter: typeFilter,
+                status_filter: statusFilter,
+                sort_key: _pluginSortKey,
+                sort_asc: _pluginSortAsc,
+                offset: 0,
+                limit: 1,
+            });
+            total = probe.totalCount || 0;
+        } catch {
+            return [];
+        }
+    }
     const n = Math.min(total, _PLUGIN_EXPORT_MAX);
     if (n <= 0) return [];
     const result = await window.vstUpdater.dbQueryPlugins({
@@ -174,11 +190,11 @@ async function fetchPluginsForExport() {
 function getPluginExportableCount() {
     if (typeof scanProgressCleanup !== 'undefined' && scanProgressCleanup) {
         if (typeof _pluginScanDbView !== 'undefined' && _pluginScanDbView) {
-            return Math.max(_pluginTotalCount || 0, _pluginTotalUnfiltered || 0, typeof allPlugins !== 'undefined' ? allPlugins.length : 0);
+            return Math.max(_pluginTotalCount || 0, typeof allPlugins !== 'undefined' ? allPlugins.length : 0);
         }
         return typeof allPlugins !== 'undefined' ? allPlugins.length : 0;
     }
-    return Math.max(_pluginTotalCount || 0, _pluginTotalUnfiltered || 0, typeof allPlugins !== 'undefined' ? allPlugins.length : 0);
+    return Math.max(_pluginTotalCount || 0, typeof allPlugins !== 'undefined' ? allPlugins.length : 0);
 }
 
 async function scanPlugins(resume = false, overrideRoots = null) {

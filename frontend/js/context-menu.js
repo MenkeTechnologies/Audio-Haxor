@@ -943,7 +943,7 @@ document.addEventListener('contextmenu', (e) => {
                     icon: '&#8615;',
                     label: appFmt('menu.export_samples'),
                     action: () => (typeof runExport === 'function' ? runExport(exportAudio) : exportAudio()),
-                    disabled: Math.max(audioTotalCount || 0, audioTotalUnfiltered || 0, allAudioSamples.length) === 0
+                    disabled: Math.max(audioTotalCount || 0, allAudioSamples.length) === 0
                 });
                 items.push({icon: '&#8613;', label: appFmt('menu.import_samples'), action: () => importAudio()});
             } else if (tabId === 'tabDaw') {
@@ -953,7 +953,7 @@ document.addEventListener('contextmenu', (e) => {
                     icon: '&#8615;',
                     label: appFmt('menu.export_projects'),
                     action: () => (typeof runExport === 'function' ? runExport(exportDaw) : exportDaw()),
-                    disabled: Math.max(_dawTotalCount || 0, _dawTotalUnfiltered || 0, allDawProjects.length) === 0
+                    disabled: Math.max(_dawTotalCount || 0, allDawProjects.length) === 0
                 });
                 items.push({icon: '&#8613;', label: appFmt('menu.import_projects_short'), action: () => importDaw()});
             } else if (tabId === 'tabPresets') {
@@ -965,7 +965,7 @@ document.addEventListener('contextmenu', (e) => {
                     action: () => {
                         if (typeof runExport === 'function') runExport(exportPresets); else if (typeof exportPresets === 'function') exportPresets();
                     },
-                    disabled: Math.max(_presetTotalCount || 0, _presetTotalUnfiltered || 0, allPresets.length) === 0,
+                    disabled: Math.max(_presetTotalCount || 0, allPresets.length) === 0,
                 });
                 items.push({icon: '&#8613;', label: appFmt('menu.import_presets'), action: () => importPresets()});
             } else if (tabId === 'tabMidi') {
@@ -981,7 +981,7 @@ document.addEventListener('contextmenu', (e) => {
                     action: () => {
                         if (typeof exportMidi === 'function' && typeof runExport === 'function') runExport(exportMidi); else if (typeof exportMidi === 'function') exportMidi();
                     },
-                    disabled: Math.max(_midiTotalCount || 0, _midiTotalUnfiltered || 0, typeof allMidiFiles !== 'undefined' ? allMidiFiles.length : 0) === 0
+                    disabled: Math.max(_midiTotalCount || 0, typeof allMidiFiles !== 'undefined' ? allMidiFiles.length : 0) === 0
                 });
                 items.push({
                     icon: '&#8613;', label: appFmt('menu.import_midi_list'), action: () => {
@@ -1001,7 +1001,7 @@ document.addEventListener('contextmenu', (e) => {
                     action: () => {
                         if (typeof exportPdfs === 'function' && typeof runExport === 'function') runExport(exportPdfs); else if (typeof exportPdfs === 'function') exportPdfs();
                     },
-                    disabled: Math.max(_pdfTotalCount || 0, _pdfTotalUnfiltered || 0, typeof allPdfs !== 'undefined' ? allPdfs.length : 0) === 0
+                    disabled: Math.max(_pdfTotalCount || 0, typeof allPdfs !== 'undefined' ? allPdfs.length : 0) === 0
                 });
                 items.push({
                     icon: '&#8613;', label: appFmt('menu.import_pdfs'), action: () => {

@@ -440,7 +440,22 @@ const _MIDI_EXPORT_MAX = 100000;
 
 async function fetchMidiFilesForExport() {
     const search = _midiSearch || '';
-    const total = Math.max(_midiTotalCount || 0, _midiTotalUnfiltered || 0);
+    let total = _midiTotalCount || 0;
+    if (total <= 0) {
+        try {
+            const probe = await window.vstUpdater.dbQueryMidi({
+                search: search || null,
+                format_filter: null,
+                sort_key: midiSortKey,
+                sort_asc: midiSortAsc,
+                offset: 0,
+                limit: 1,
+            });
+            total = probe.totalCount || 0;
+        } catch {
+            return [];
+        }
+    }
     const n = Math.min(total, _MIDI_EXPORT_MAX);
     if (n <= 0) return [];
     const result = await window.vstUpdater.dbQueryMidi({

@@ -264,7 +264,22 @@ async function fetchPresetsForExport() {
     const search = _lastPresetSearch || '';
     const fmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('presetFormatFilter') : null;
     const formatFilter = fmtSet ? [...fmtSet].join(',') : null;
-    const total = Math.max(_presetTotalCount || 0, _presetTotalUnfiltered || 0);
+    let total = _presetTotalCount || 0;
+    if (total <= 0) {
+        try {
+            const probe = await window.vstUpdater.dbQueryPresets({
+                search: search || null,
+                format_filter: formatFilter,
+                sort_key: presetSortKey,
+                sort_asc: presetSortAsc,
+                offset: 0,
+                limit: 1,
+            });
+            total = probe.totalCount || 0;
+        } catch {
+            return [];
+        }
+    }
     const n = Math.min(total, _PRESET_EXPORT_MAX);
     if (n <= 0) return [];
     const result = await window.vstUpdater.dbQueryPresets({
@@ -287,7 +302,7 @@ async function fetchPresetsForExport() {
 function updatePresetExportButton() {
     const btn = document.getElementById('btnExportPresets');
     if (!btn) return;
-    const n = Math.max(_presetTotalCount || 0, _presetTotalUnfiltered || 0, typeof allPresets !== 'undefined' ? allPresets.length : 0);
+    const n = Math.max(_presetTotalCount || 0, typeof allPresets !== 'undefined' ? allPresets.length : 0);
     btn.style.display = n > 0 ? '' : 'none';
 }
 
