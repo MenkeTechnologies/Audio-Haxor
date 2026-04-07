@@ -1779,6 +1779,7 @@
   "ui.tt.export_presets_to_json": "Eksporter forudindstillinger til JSON",
   "ui.tt.export_projects_to_json": "Eksporter projekter til JSON",
   "ui.tt.export_samples_to_json": "Eksporter prøver til JSON",
+  "ui.tt.export_selected_rows": "Export selected rows (same dialog as the tab toolbar: JSON, TOML, CSV, PDF)",
   "ui.tt.export_settings_and_keybindings_to_text_file": "Eksporter indstillinger og tastebindinger til tekstfil",
   "ui.tt.favorited_items_cmd_5": "Favoritter (Cmd+5)",
   "ui.tt.fft_spectrum_analyzer_right_click_for_options": "FFT Spectrum Analyzer — højreklik for valgmuligheder",

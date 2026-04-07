@@ -1779,6 +1779,7 @@
   "ui.tt.export_presets_to_json": "Xuất cài đặt trước sang JSON",
   "ui.tt.export_projects_to_json": "Xuất dự án sang JSON",
   "ui.tt.export_samples_to_json": "Xuất mẫu sang JSON",
+  "ui.tt.export_selected_rows": "Export selected rows (same dialog as the tab toolbar: JSON, TOML, CSV, PDF)",
   "ui.tt.export_settings_and_keybindings_to_text_file": "Xuất cài đặt và tổ hợp phím sang tệp văn bản",
   "ui.tt.favorited_items_cmd_5": "Mục yêu thích (Cmd+5)",
   "ui.tt.fft_spectrum_analyzer_right_click_for_options": "Trình phân tích phổ FFT - nhấp chuột phải để xem các tùy chọn",

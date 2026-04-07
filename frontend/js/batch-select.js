@@ -313,6 +313,33 @@ function batchExportSelected() {
     showToast(toastFmt('toast.copied_n_json', {n: items.length}));
 }
 
+function batchExportToFile() {
+    const activeTab = document.querySelector('.tab-content.active');
+    if (!activeTab) return;
+    const set = getActiveBatchSet();
+    if (!set || set.size === 0) return;
+    const tid = activeTab.id;
+    const items = resolveBatchInventoryItems(set, tid);
+    if (items.length === 0) {
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+            showToast(toastFmt('toast.no_list_export'), 3500, 'warning');
+        }
+        return;
+    }
+    const run = typeof runExport === 'function' ? runExport : (fn) => void fn();
+    if (tid === 'tabSamples' && typeof exportAudioSubset === 'function') {
+        run(() => exportAudioSubset(items));
+    } else if (tid === 'tabDaw' && typeof exportDawSubset === 'function') {
+        run(() => exportDawSubset(items));
+    } else if (tid === 'tabPresets' && typeof exportPresetsSubset === 'function') {
+        run(() => exportPresetsSubset(items));
+    } else if (tid === 'tabMidi' && typeof exportMidiSubset === 'function') {
+        run(() => exportMidiSubset(items));
+    } else if (tid === 'tabPdf' && typeof exportPdfsSubset === 'function') {
+        run(() => exportPdfsSubset(items));
+    }
+}
+
 function batchRevealAll() {
     const activeTab = document.querySelector('.tab-content.active');
     const set = getActiveBatchSet();
@@ -367,6 +394,7 @@ document.addEventListener('click', (e) => {
         else if (act === 'favorite') batchFavoriteAll();
         else if (act === 'copyPaths') batchCopyPaths();
         else if (act === 'exportJson') batchExportSelected();
+        else if (act === 'exportFile') batchExportToFile();
         else if (act === 'reveal') batchRevealAll();
     }
 });

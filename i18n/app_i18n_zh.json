@@ -1779,6 +1779,7 @@
   "ui.tt.export_presets_to_json": "将预设导出为 JSON",
   "ui.tt.export_projects_to_json": "将项目导出为 JSON",
   "ui.tt.export_samples_to_json": "将示例导出为 JSON",
+  "ui.tt.export_selected_rows": "Export selected rows (same dialog as the tab toolbar: JSON, TOML, CSV, PDF)",
   "ui.tt.export_settings_and_keybindings_to_text_file": "将设置和按键绑定导出到文本文件",
   "ui.tt.favorited_items_cmd_5": "收藏的项目 (Cmd+5)",
   "ui.tt.fft_spectrum_analyzer_right_click_for_options": "FFT 频谱分析仪 — 右键单击​​查看选项",

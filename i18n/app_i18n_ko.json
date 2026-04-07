@@ -1779,6 +1779,7 @@
   "ui.tt.export_presets_to_json": "사전 설정을 JSON으로 내보내기",
   "ui.tt.export_projects_to_json": "프로젝트를 JSON으로 내보내기",
   "ui.tt.export_samples_to_json": "샘플을 JSON으로 내보내기",
+  "ui.tt.export_selected_rows": "Export selected rows (same dialog as the tab toolbar: JSON, TOML, CSV, PDF)",
   "ui.tt.export_settings_and_keybindings_to_text_file": "설정 및 키 바인딩을 텍스트 파일로 내보내기",
   "ui.tt.favorited_items_cmd_5": "즐겨찾는 항목(Cmd+5)",
   "ui.tt.fft_spectrum_analyzer_right_click_for_options": "FFT 스펙트럼 분석기 - 옵션을 보려면 마우스 오른쪽 버튼을 클릭하세요.",

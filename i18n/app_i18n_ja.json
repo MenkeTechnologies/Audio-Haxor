@@ -1779,6 +1779,7 @@
   "ui.tt.export_presets_to_json": "プリセットをJSONにエクスポート",
   "ui.tt.export_projects_to_json": "プロジェクトを JSON にエクスポートする",
   "ui.tt.export_samples_to_json": "サンプルを JSON にエクスポートする",
+  "ui.tt.export_selected_rows": "Export selected rows (same dialog as the tab toolbar: JSON, TOML, CSV, PDF)",
   "ui.tt.export_settings_and_keybindings_to_text_file": "設定とキーバインドをテキスト ファイルにエクスポート",
   "ui.tt.favorited_items_cmd_5": "お気に入りのアイテム (Cmd+5)",
   "ui.tt.fft_spectrum_analyzer_right_click_for_options": "FFT スペクトラム アナライザー — 右クリックしてオプションを表示します",

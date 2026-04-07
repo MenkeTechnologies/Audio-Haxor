@@ -1779,6 +1779,7 @@
   "ui.tt.export_presets_to_json": "Ekspor preset ke JSON",
   "ui.tt.export_projects_to_json": "Ekspor proyek ke JSON",
   "ui.tt.export_samples_to_json": "Ekspor sampel ke JSON",
+  "ui.tt.export_selected_rows": "Export selected rows (same dialog as the tab toolbar: JSON, TOML, CSV, PDF)",
   "ui.tt.export_settings_and_keybindings_to_text_file": "Ekspor pengaturan dan pengikatan kunci ke file teks",
   "ui.tt.favorited_items_cmd_5": "Item favorit (Cmd+5)",
   "ui.tt.fft_spectrum_analyzer_right_click_for_options": "FFT Spectrum Analyzer — klik kanan untuk melihat opsi",

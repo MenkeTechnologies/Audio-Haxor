@@ -1779,6 +1779,7 @@
   "ui.tt.export_presets_to_json": "प्रीसेट को JSON में निर्यात करें",
   "ui.tt.export_projects_to_json": "परियोजनाओं को JSON में निर्यात करें",
   "ui.tt.export_samples_to_json": "JSON में नमूने निर्यात करें",
+  "ui.tt.export_selected_rows": "Export selected rows (same dialog as the tab toolbar: JSON, TOML, CSV, PDF)",
   "ui.tt.export_settings_and_keybindings_to_text_file": "टेक्स्ट फ़ाइल में सेटिंग्स और कीबाइंडिंग निर्यात करें",
   "ui.tt.favorited_items_cmd_5": "पसंदीदा आइटम (Cmd+5)",
   "ui.tt.fft_spectrum_analyzer_right_click_for_options": "एफएफटी स्पेक्ट्रम विश्लेषक - विकल्पों के लिए राइट-क्लिक करें",

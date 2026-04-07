@@ -1779,6 +1779,7 @@
   "ui.tt.export_presets_to_json": "Exportujte předvolby do JSON",
   "ui.tt.export_projects_to_json": "Exportujte projekty do JSON",
   "ui.tt.export_samples_to_json": "Exportujte vzorky do JSON",
+  "ui.tt.export_selected_rows": "Export selected rows (same dialog as the tab toolbar: JSON, TOML, CSV, PDF)",
   "ui.tt.export_settings_and_keybindings_to_text_file": "Export nastavení a klávesových zkratek do textového souboru",
   "ui.tt.favorited_items_cmd_5": "Oblíbené položky (Cmd+5)",
   "ui.tt.fft_spectrum_analyzer_right_click_for_options": "FFT Spectrum Analyzer – možnosti zobrazíte kliknutím pravým tlačítkem myši",
