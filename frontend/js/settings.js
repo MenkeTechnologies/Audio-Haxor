@@ -1295,7 +1295,7 @@ function refreshSettingsUI() {
   }
 
   // Page size
-  const pageSize = getSettingValue('pageSize', '500');
+  const pageSize = getSettingValue('pageSize', '200');
   const pageSizeEl = document.getElementById('settingPageSize');
   const pageSizeValEl = document.getElementById('settingPageSizeValue');
   if (pageSizeEl) {
@@ -1635,7 +1635,7 @@ function restoreSettings() {
   } else if (scheme && scheme !== 'cyberpunk') {
     applyColorScheme(scheme);
   }
-  const pageSize = parseInt(prefs.getItem('pageSize') || '500', 10);
+  const pageSize = parseInt(prefs.getItem('pageSize') || '200', 10);
   AUDIO_PAGE_SIZE = pageSize;
   DAW_PAGE_SIZE = pageSize;
   PRESET_PAGE_SIZE = pageSize;

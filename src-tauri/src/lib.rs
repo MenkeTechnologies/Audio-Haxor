@@ -3512,7 +3512,7 @@ fn build_process_stats(app: AppHandle) -> serde_json::Value {
                 .and_then(|s| s.parse::<usize>().ok())
                 .or(v.as_u64().map(|n| n as usize))
         })
-        .unwrap_or(500);
+        .unwrap_or(200);
 
     let data_dir = history::get_data_dir();
     let (disk_total, disk_free, db_bytes, prefs_bytes, db_table_counts) =
@@ -6484,7 +6484,7 @@ pub fn run() {
     let page_size = prefs
         .get("pageSize")
         .and_then(|v| v.as_str())
-        .unwrap_or("500");
+        .unwrap_or("200");
     let auto_scan = prefs
         .get("autoScan")
         .and_then(|v| v.as_str())

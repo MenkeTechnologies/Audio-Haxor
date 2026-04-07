@@ -1217,15 +1217,15 @@ describe('getSettingValue', () => {
   }
 
   it('returns default when key missing', () => {
-    assert.strictEqual(getSettingValue({}, 'pageSize', '500'), '500');
+    assert.strictEqual(getSettingValue({}, 'pageSize', '200'), '200');
   });
 
   it('returns stored value when present', () => {
-    assert.strictEqual(getSettingValue({ pageSize: '1000' }, 'pageSize', '500'), '1000');
+    assert.strictEqual(getSettingValue({ pageSize: '1000' }, 'pageSize', '200'), '1000');
   });
 
   it('returns default for falsy stored value', () => {
-    assert.strictEqual(getSettingValue({ pageSize: '' }, 'pageSize', '500'), '500');
+    assert.strictEqual(getSettingValue({ pageSize: '' }, 'pageSize', '200'), '200');
   });
 });
 

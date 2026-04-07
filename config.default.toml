@@ -28,7 +28,7 @@ audioSort = "name"
 dawSort = "name"
 
 [performance]
-pageSize = "500"
+pageSize = "200"
 flushInterval = "100"
 threadMultiplier = "4"
 channelBuffer = "512"
