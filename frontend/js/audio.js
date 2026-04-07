@@ -431,6 +431,41 @@ function connectMediaToEq() {
     _sourceNode.connect(_eqLow);
 }
 
+/** Sidecar playback: keep `<audio>` disconnected from Web Audio + muted so nothing doubles through the WebView. */
+function silenceWebViewAudioForEngine() {
+    if (typeof audioPlayer === 'undefined' || !audioPlayer) return;
+    try {
+        audioPlayer.pause();
+    } catch (_) {}
+    audioPlayer.muted = true;
+    audioPlayer.volume = 0;
+    try {
+        audioPlayer.removeAttribute('src');
+        audioPlayer.src = '';
+    } catch (_) {}
+    disconnectMediaFromEq();
+    if (_gainNode) {
+        _gainNode.gain.value = 0;
+    }
+}
+
+/** Restore HTML / Web Audio path after engine stops or when falling back to `<audio>` decode. */
+function restoreWebViewAudioAfterEngine() {
+    if (typeof audioPlayer === 'undefined' || !audioPlayer) return;
+    audioPlayer.muted = false;
+    let vol = 1;
+    if (typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
+        const v = parseInt(prefs.getItem('audioVolume') || '100', 10);
+        vol = Math.max(0, Math.min(1, v / 100));
+    }
+    audioPlayer.volume = vol;
+    connectMediaToEq();
+    if (_gainNode) {
+        const pre = parseFloat(document.getElementById('npGainSlider')?.value || '1');
+        _gainNode.gain.value = vol * pre;
+    }
+}
+
 function getPlaybackSpeedValue() {
     const sel = document.getElementById('npSpeed');
     const v = parseFloat(sel?.value || '1');
@@ -1999,13 +2034,6 @@ function buildAudioRow(s) {
 
 // ── Audio Preview / Playback ──
 async function previewAudio(filePath) {
-    // Always resume suspended audio context
-    if (_playbackCtx && _playbackCtx.state === 'suspended') {
-        await _playbackCtx.resume().catch(e => {
-            if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
-        });
-    }
-
     if (audioPlayerPath === filePath && isAudioPlaying()) {
         if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
             void window.vstUpdater.audioEngineInvoke({cmd: 'playback_pause', paused: true});
@@ -2022,6 +2050,11 @@ async function previewAudio(filePath) {
         } else if (audioReverseMode) {
             startReverseBufferFromOffset(_pausedOffsetInRev);
         } else {
+            if (_playbackCtx && _playbackCtx.state === 'suspended') {
+                await _playbackCtx.resume().catch(e => {
+                    if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
+                });
+            }
             await audioPlayer.play().catch(e => {
                 if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
             });
@@ -2055,12 +2088,15 @@ async function previewAudio(filePath) {
             _reversedBuf = null;
             _decodedBufPath = null;
             _pausedOffsetInRev = 0;
-            audioPlayer.pause();
-            audioPlayer.src = '';
-            audioPlayer.removeAttribute('src');
+            silenceWebViewAudioForEngine();
             audioPlayerPath = filePath;
             audioPlayer.loop = false;
         } else {
+            if (_enginePlaybackActive && typeof window.enginePlaybackStop === 'function') {
+                void window.enginePlaybackStop();
+                _enginePlaybackActive = false;
+            }
+            restoreWebViewAudioAfterEngine();
             ensureAudioGraph();
             if (_playbackCtx.state === 'suspended') await _playbackCtx.resume().catch(e => {
                 if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
@@ -2191,7 +2227,7 @@ function stopAudioPlayback() {
         _enginePlaybackActive = false;
     }
     stopReverseBufferPlayback();
-    connectMediaToEq();
+    restoreWebViewAudioAfterEngine();
     _decodedBuf = null;
     _reversedBuf = null;
     _decodedBufPath = null;
@@ -2350,9 +2386,8 @@ function seekPlaybackToPercent(pct) {
     const p = Math.max(0, Math.min(1, pct));
     if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
         const dur = typeof window._enginePlaybackDurSec === 'number' ? window._enginePlaybackDurSec : 0;
-        if (dur > 0) {
-            void window.vstUpdater.audioEngineInvoke({cmd: 'playback_seek', position_sec: p * dur});
-        }
+        const pos = dur > 0 ? p * dur : 0;
+        void window.vstUpdater.audioEngineInvoke({cmd: 'playback_seek', position_sec: pos});
         return;
     }
     if (audioReverseMode && _reversedBuf) {
@@ -2378,12 +2413,21 @@ function seekAudio(event) {
 
 function setAudioVolume(value) {
     const vol = parseInt(value, 10) / 100;
+    document.getElementById('npVolumePct').textContent = value + '%';
+    prefs.setItem('audioVolume', value);
+    if (_enginePlaybackActive && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
+        audioPlayer.volume = 0;
+        audioPlayer.muted = true;
+        if (_gainNode) {
+            _gainNode.gain.value = 0;
+        }
+        window.syncEnginePlaybackDspFromPrefs();
+        return;
+    }
     audioPlayer.volume = Math.max(0, Math.min(1, vol));
     if (_gainNode) {
         _gainNode.gain.value = vol * parseFloat(document.getElementById('npGainSlider')?.value || '1');
     }
-    document.getElementById('npVolumePct').textContent = value + '%';
-    prefs.setItem('audioVolume', value);
 }
 
 function setPlaybackSpeed(value) {

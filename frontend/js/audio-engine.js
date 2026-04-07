@@ -866,7 +866,9 @@ function startEnginePlaybackPoll() {
 function syncEnginePlaybackDspFromPrefs() {
     const inv = getAeAudioEngineInvoke();
     if (!inv || typeof prefs === 'undefined' || typeof prefs.getItem !== 'function') return;
-    const g = parseFloat(prefs.getItem('preampGain') || '1') || 1;
+    const volPct = parseInt(prefs.getItem('audioVolume') || '100', 10);
+    const vol = Math.max(0, Math.min(1, volPct / 100));
+    const g = (parseFloat(prefs.getItem('preampGain') || '1') || 1) * vol;
     const pan = parseFloat(prefs.getItem('audioPan') || '0') || 0;
     const low = parseFloat(prefs.getItem('eqLow') || '0') || 0;
     const mid = parseFloat(prefs.getItem('eqMid') || '0') || 0;
