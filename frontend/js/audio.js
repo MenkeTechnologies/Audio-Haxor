@@ -13,7 +13,12 @@ function _audioDecodeWorkerScriptUrl() {
             /* fall through */
         }
     }
-    return 'js/audio-decode-worker.js';
+    try {
+        const base = typeof location !== 'undefined' && location.href ? location.href : '';
+        return base ? new URL('js/audio-decode-worker.js', base).href : 'js/audio-decode-worker.js';
+    } catch (_) {
+        return 'js/audio-decode-worker.js';
+    }
 }
 
 let _audioDecodeWorker = null;
@@ -111,8 +116,9 @@ async function decodePeaksInWorker(url, bars) {
  * does not run on the UI thread. If `Worker` is unavailable, decode on main (rare).
  */
 async function decodePeaksViaWorker(url, bars) {
+    const nBars = Math.max(1, Math.min(Math.floor(Number(bars)) || 1, 800));
     try {
-        return await decodePeaksInWorker(url, bars);
+        return await decodePeaksInWorker(url, nBars);
     } catch {
         /* fall through */
     }
@@ -121,9 +127,9 @@ async function decodePeaksViaWorker(url, bars) {
         if (!_audioCtx) _audioCtx = new AudioContext();
         const audioBuf = await _audioCtx.decodeAudioData(ab.slice(0));
         const raw = audioBuf.getChannelData(0);
-        const step = Math.floor(raw.length / bars);
+        const step = Math.floor(raw.length / nBars);
         const peaks = [];
-        for (let i = 0; i < bars; i++) {
+        for (let i = 0; i < nBars; i++) {
             let max = 0;
             let min = 0;
             const start = i * step;
@@ -136,7 +142,7 @@ async function decodePeaksViaWorker(url, bars) {
         return peaks;
     }
     const ab = await fetchAudioArrayBuffer(url);
-    return await decodePeaksFromArrayBuffer(ab, bars);
+    return await decodePeaksFromArrayBuffer(ab, nBars);
 }
 
 async function decodeMetaVisualsInWorker(url, bars) {
@@ -145,8 +151,9 @@ async function decodeMetaVisualsInWorker(url, bars) {
 }
 
 async function decodeMetaVisualsViaWorker(url, bars) {
+    const nBars = Math.max(1, Math.min(Math.floor(Number(bars)) || 1, 800));
     try {
-        return await decodeMetaVisualsInWorker(url, bars);
+        return await decodeMetaVisualsInWorker(url, nBars);
     } catch {
         /* fall through */
     }
@@ -154,7 +161,7 @@ async function decodeMetaVisualsViaWorker(url, bars) {
         throw new Error('no worker');
     }
     const ab = await fetchAudioArrayBuffer(url);
-    return await decodeMetaFromArrayBuffer(ab, bars);
+    return await decodeMetaFromArrayBuffer(ab, nBars);
 }
 
 async function decodeSpectrogramInWorker(url) {
@@ -230,14 +237,16 @@ function cancelIdleSchedule(id) {
     clearTimeout(id);
 }
 
-/** Asset URL for fetch/decode — prefers global Tauri helper, then `window.convertFileSrc` from `ipc.js`. */
+/** Asset URL for fetch/decode — prefers `__TAURI__.core` (always correct in app), then `ipc.js` `window` shim. */
 function fileSrcForDecode(path) {
-    if (typeof convertFileSrc === 'function') return convertFileSrc(path);
+    const tauri = typeof window !== 'undefined' ? window.__TAURI__ : null;
+    if (tauri?.core?.convertFileSrc && typeof tauri.core.convertFileSrc === 'function') {
+        return tauri.core.convertFileSrc(path);
+    }
     if (typeof window !== 'undefined' && typeof window.convertFileSrc === 'function') {
         return window.convertFileSrc(path);
     }
-    const c = typeof window !== 'undefined' ? window.__TAURI__?.core?.convertFileSrc : null;
-    if (typeof c === 'function') return c(path);
+    if (typeof convertFileSrc === 'function') return convertFileSrc(path);
     return path;
 }
 
