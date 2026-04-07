@@ -1,4 +1,98 @@
 // ── Audio Samples (paginated via SQLite) ──
+/** Same directory as this script (for `audio-decode-worker.js`); set while this file executes. */
+const _AUDIO_JS_BASE =
+    typeof document !== 'undefined' && document.currentScript && document.currentScript.src
+        ? document.currentScript.src
+        : '';
+
+function _audioDecodeWorkerScriptUrl() {
+    if (_AUDIO_JS_BASE) {
+        try {
+            return new URL('audio-decode-worker.js', _AUDIO_JS_BASE).href;
+        } catch (_) {
+            /* fall through */
+        }
+    }
+    return 'js/audio-decode-worker.js';
+}
+
+let _audioDecodeWorker = null;
+let _audioDecodeWorkerJobId = 0;
+const _audioDecodeWorkerPending = new Map();
+
+function _audioDecodeWorkerOnMessage(ev) {
+    const d = ev.data;
+    if (!d || typeof d.id !== 'number') return;
+    const pending = _audioDecodeWorkerPending.get(d.id);
+    if (!pending) return;
+    _audioDecodeWorkerPending.delete(d.id);
+    if (d.ok) pending.resolve(d);
+    else pending.reject(new Error(d.error || 'worker decode failed'));
+}
+
+function getAudioDecodeWorker() {
+    if (typeof Worker !== 'function') return null;
+    if (_audioDecodeWorker) return _audioDecodeWorker;
+    try {
+        _audioDecodeWorker = new Worker(_audioDecodeWorkerScriptUrl());
+        _audioDecodeWorker.onmessage = _audioDecodeWorkerOnMessage;
+        _audioDecodeWorker.onerror = () => {
+            for (const [, p] of _audioDecodeWorkerPending) {
+                p.reject(new Error('audio decode worker failed'));
+            }
+            _audioDecodeWorkerPending.clear();
+            try {
+                _audioDecodeWorker.terminate();
+            } catch (_) {
+                /* ignore */
+            }
+            _audioDecodeWorker = null;
+        };
+    } catch (_) {
+        _audioDecodeWorker = null;
+    }
+    return _audioDecodeWorker;
+}
+
+function postAudioDecodeWorker(payload) {
+    const w = getAudioDecodeWorker();
+    if (!w) return Promise.reject(new Error('no worker'));
+    return new Promise((resolve, reject) => {
+        const id = ++_audioDecodeWorkerJobId;
+        _audioDecodeWorkerPending.set(id, { resolve, reject });
+        try {
+            w.postMessage({ ...payload, id });
+        } catch (e) {
+            _audioDecodeWorkerPending.delete(id);
+            reject(e);
+        }
+    });
+}
+
+async function decodePeaksInWorker(url, bars) {
+    const res = await postAudioDecodeWorker({ type: 'peaks', url, bars });
+    return res.peaks;
+}
+
+async function decodeMetaVisualsInWorker(url, bars) {
+    const res = await postAudioDecodeWorker({ type: 'meta', url, bars });
+    return { peaks: res.peaks, sgData: res.sgData };
+}
+
+async function decodeSpectrogramInWorker(url) {
+    const res = await postAudioDecodeWorker({ type: 'spectrogram', url, bars: 0 });
+    return res.sgData;
+}
+
+async function decodeChannelsInWorker(url) {
+    const res = await postAudioDecodeWorker({ type: 'channels', url, bars: 0 });
+    return {
+        sampleRate: res.sampleRate,
+        length: res.length,
+        channels: res.channels,
+    };
+}
+
 let allAudioSamples = []; // kept for export/compatibility — lazily populated
 let filteredAudioSamples = []; // current visible page from DB
 let audioTotalCount = 0; // total matching rows in DB
@@ -115,9 +209,18 @@ async function ensureReversedBufferForPath(path) {
     if (_reversedBuf && _decodedBufPath === path) return _reversedBuf;
     ensureAudioGraph();
     const url = convertFileSrc(path);
-    const resp = await fetch(url);
-    const arr = await resp.arrayBuffer();
-    const buf = await _playbackCtx.decodeAudioData(arr.slice(0));
+    let buf = null;
+    try {
+        const dec = await decodeChannelsInWorker(url);
+        buf = _playbackCtx.createBuffer(dec.channels.length, dec.length, dec.sampleRate);
+        for (let c = 0; c < dec.channels.length; c++) {
+            buf.copyToChannel(dec.channels[c], c);
+        }
+    } catch {
+        const resp = await fetch(url);
+        const arr = await resp.arrayBuffer();
+        buf = await _playbackCtx.decodeAudioData(arr.slice(0));
+    }
     _decodedBuf = buf;
     _decodedBufPath = path;
     _reversedBuf = reverseAudioBuffer(_playbackCtx, buf);
@@ -2125,10 +2228,7 @@ async function expandMetaForPath(filePath) {
         const metaSeq = _metaPanelDrawSeq;
         _metaPanelIdleId = scheduleIdleVisualWork(() => {
             _metaPanelIdleId = null;
-            void (async () => {
-                await drawMetaWaveform(filePath, metaSeq);
-                await drawSpectrogram(filePath, metaSeq);
-            })();
+            void drawMetaPanelVisuals(filePath, metaSeq);
         }, { idleTimeout: 25000, fallbackMs: 2000 });
 
         // Sync cursor if already playing this track
@@ -2862,31 +2962,39 @@ async function drawWaveform(filePath, wfSeq) {
         return;
     }
 
+    const bars = Math.min(Math.floor(canvas.width), 800);
+    const src = convertFileSrc(filePath);
     try {
         if (typeof yieldToBrowser === 'function') await yieldToBrowser();
         if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
-        if (!_audioCtx) _audioCtx = new AudioContext();
-        const src = convertFileSrc(filePath);
-        const resp = await fetch(src);
-        if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
-        const buf = await resp.arrayBuffer();
-        if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
-        const audioBuf = await _audioCtx.decodeAudioData(buf);
-        if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
-        const raw = audioBuf.getChannelData(0);
-
-        // Downsample to canvas width — use full resolution
-        const bars = Math.min(Math.floor(canvas.width), 800);
-        const step = Math.floor(raw.length / bars);
-        const peaks = [];
-        for (let i = 0; i < bars; i++) {
-            let max = 0, min = 0;
-            const start = i * step;
-            for (let j = start; j < start + step && j < raw.length; j++) {
-                if (raw[j] > max) max = raw[j];
-                if (raw[j] < min) min = raw[j];
+        let peaks = null;
+        try {
+            peaks = await decodePeaksInWorker(src, bars);
+        } catch {
+            peaks = null;
+        }
+        if (!peaks) {
+            if (typeof yieldToBrowser === 'function') await yieldToBrowser();
+            if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
+            if (!_audioCtx) _audioCtx = new AudioContext();
+            const resp = await fetch(src);
+            if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
+            const buf = await resp.arrayBuffer();
+            if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
+            const audioBuf = await _audioCtx.decodeAudioData(buf);
+            if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
+            const raw = audioBuf.getChannelData(0);
+            const step = Math.floor(raw.length / bars);
+            peaks = [];
+            for (let i = 0; i < bars; i++) {
+                let max = 0, min = 0;
+                const start = i * step;
+                for (let j = start; j < start + step && j < raw.length; j++) {
+                    if (raw[j] > max) max = raw[j];
+                    if (raw[j] < min) min = raw[j];
+                }
+                peaks.push({ max, min });
             }
-            peaks.push({max, min});
         }
 
         if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
@@ -2978,6 +3086,97 @@ function renderWaveformData(ctx, canvas, peaks) {
 
 function _metaPanelStale(metaSeq, filePath) {
     return (metaSeq !== undefined && metaSeq !== _metaPanelDrawSeq) || expandedMetaPath !== filePath;
+}
+
+/**
+ * Expanded-row waveform + spectrogram: decode off the main thread when possible (Web Worker),
+ * with sequential main-thread fallback matching `drawMetaWaveform` + `drawSpectrogram`.
+ */
+async function drawMetaPanelVisuals(filePath, metaSeq) {
+    const wfCanvas = document.getElementById('metaWaveformCanvas');
+    const sgCanvas = document.getElementById('metaSpectrogramCanvas');
+    if (!wfCanvas || !sgCanvas) return;
+    if (_metaPanelStale(metaSeq, filePath)) return;
+
+    const wfCached = _waveformCache[filePath];
+    const sgCached = _spectrogramCache[filePath];
+
+    const container = wfCanvas.parentElement;
+    wfCanvas.width = container.offsetWidth * (window.devicePixelRatio || 1);
+    wfCanvas.height = container.offsetHeight * (window.devicePixelRatio || 1);
+    const wfCtx = wfCanvas.getContext('2d');
+    wfCtx.clearRect(0, 0, wfCanvas.width, wfCanvas.height);
+    const sgCtx = sgCanvas.getContext('2d');
+    const sgW = 800;
+    const sgH = 80;
+    sgCtx.clearRect(0, 0, sgW, sgH);
+
+    if (wfCached && sgCached) {
+        if (_metaPanelStale(metaSeq, filePath)) return;
+        renderWaveformData(wfCtx, wfCanvas, wfCached);
+        _metaSharedDecoded.path = filePath;
+        _metaSharedDecoded.buffer = null;
+        renderSpectrogramData(sgCtx, sgW, sgH, sgCached);
+        _metaSharedDecoded.path = null;
+        _metaSharedDecoded.buffer = null;
+        return;
+    }
+
+    const url = convertFileSrc(filePath);
+    const bars = Math.min(Math.floor(wfCanvas.width), 800);
+
+    try {
+        if (typeof yieldToBrowser === 'function') await yieldToBrowser();
+        if (_metaPanelStale(metaSeq, filePath)) return;
+        if (!wfCached && !sgCached) {
+            const { peaks, sgData } = await decodeMetaVisualsInWorker(url, bars);
+            if (_metaPanelStale(metaSeq, filePath)) return;
+            _waveformCache[filePath] = peaks;
+            _spectrogramCache[filePath] = sgData;
+            _evictCache(_waveformCache);
+            _evictCache(_spectrogramCache);
+            _debounceWfSave();
+            renderWaveformData(wfCtx, wfCanvas, peaks);
+            _metaSharedDecoded.path = filePath;
+            _metaSharedDecoded.buffer = null;
+            renderSpectrogramData(sgCtx, sgW, sgH, sgData);
+            _metaSharedDecoded.path = null;
+            _metaSharedDecoded.buffer = null;
+            return;
+        }
+        if (wfCached && !sgCached) {
+            const sgData = await decodeSpectrogramInWorker(url);
+            if (_metaPanelStale(metaSeq, filePath)) return;
+            _spectrogramCache[filePath] = sgData;
+            _evictCache(_spectrogramCache);
+            _debounceWfSave();
+            renderWaveformData(wfCtx, wfCanvas, wfCached);
+            _metaSharedDecoded.path = filePath;
+            _metaSharedDecoded.buffer = null;
+            renderSpectrogramData(sgCtx, sgW, sgH, sgData);
+            _metaSharedDecoded.path = null;
+            _metaSharedDecoded.buffer = null;
+            return;
+        }
+        if (!wfCached && sgCached) {
+            const peaks = await decodePeaksInWorker(url, bars);
+            if (_metaPanelStale(metaSeq, filePath)) return;
+            _waveformCache[filePath] = peaks;
+            _evictCache(_waveformCache);
+            _debounceWfSave();
+            renderWaveformData(wfCtx, wfCanvas, peaks);
+            _metaSharedDecoded.path = filePath;
+            _metaSharedDecoded.buffer = null;
+            renderSpectrogramData(sgCtx, sgW, sgH, sgCached);
+            _metaSharedDecoded.path = null;
+            _metaSharedDecoded.buffer = null;
+            return;
+        }
+    } catch {
+        /* main-thread fallback */
+    }
+    await drawMetaWaveform(filePath, metaSeq);
+    await drawSpectrogram(filePath, metaSeq);
 }
 
 async function drawMetaWaveform(filePath, metaSeq) {
