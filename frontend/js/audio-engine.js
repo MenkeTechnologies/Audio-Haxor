@@ -15,7 +15,7 @@ const AE_LEGACY_BUFFER_FRAMES = 'audioEngineBufferFrames';
 const AE_INSERT_SLOT_IDS = ['aeInsertSlot0', 'aeInsertSlot1', 'aeInsertSlot2', 'aeInsertSlot3'];
 const AE_INSERT_EDITOR_IDS = ['aeInsertEditor0', 'aeInsertEditor1', 'aeInsertEditor2', 'aeInsertEditor3'];
 
-/** After first successful `list_audio_device_types`, restore saved driver from prefs once per page load (and again after sidecar restart). */
+/** After first successful `list_audio_device_types`, restore saved driver from prefs once per page load (and again after AudioEngine restart). */
 let aeInitialDeviceTypeRestored = false;
 
 /** Incremented at the start of each `refreshAudioEnginePanel` so in-flight plugin-scan polls do not apply stale results. */
@@ -187,7 +187,7 @@ function bindAeInputPeakVisibilityOnce() {
  * @param {string} raw
  * @returns {number|undefined} positive integer frame count, or undefined to use driver default
  */
-/** Matches sidecar `MAX_BUFFER_FRAMES` — typos like 144000 are ~3s @ 48 kHz and sound like delayed mute after stop. */
+/** Matches AudioEngine `MAX_BUFFER_FRAMES` — typos like 144000 are ~3s @ 48 kHz and sound like delayed mute after stop. */
 const AE_MAX_BUFFER_FRAMES = 8192;
 
 /**
@@ -279,7 +279,7 @@ function parseAeBufferFramesPref(raw) {
 }
 
 /**
- * @param {unknown} buf — `buffer_size` from sidecar (object or legacy string)
+ * @param {unknown} buf — `buffer_size` from AudioEngine (object or legacy string)
  * @returns {string}
  */
 function formatAeBufferSize(buf) {
@@ -524,7 +524,7 @@ function aePopulateInsertSlotSelects(chain) {
 }
 
 /**
- * Poll `plugin_chain` until the sidecar finishes scanning (`phase` !== `scanning`) or attempts exhausted.
+ * Poll `plugin_chain` until the AudioEngine finishes scanning (`phase` !== `scanning`) or attempts exhausted.
  * @param {function} inv — `audioEngineInvoke`
  * @param {object} [initialChain] — if set, skip the first `plugin_chain` IPC (caller already fetched it).
  * @param {number} [expectedGen] — if set, stop when `aePluginChainPollGeneration` changes (stale panel refresh).
@@ -795,7 +795,7 @@ async function applyAePlaybackInserts() {
 /**
  * Kill the `audio-engine` subprocess; next IPC spawns a fresh process. Clears JS engine playback state.
  */
-async function restartAeSidecar() {
+async function restartAeAudioEngine() {
     const u = typeof window !== 'undefined' ? window.vstUpdater : undefined;
     const restart =
         u && typeof u.audioEngineRestart === 'function' ? u.audioEngineRestart.bind(u) : null;
@@ -806,20 +806,20 @@ async function restartAeSidecar() {
     try {
         await restart();
         aeInitialDeviceTypeRestored = false;
-        if (typeof window !== 'undefined' && typeof window.syncEnginePlaybackStoppedFromSidecar === 'function') {
-            window.syncEnginePlaybackStoppedFromSidecar();
+        if (typeof window !== 'undefined' && typeof window.syncEnginePlaybackStoppedFromAudioEngine === 'function') {
+            window.syncEnginePlaybackStoppedFromAudioEngine();
         }
         if (typeof window !== 'undefined' && typeof window.stopEnginePlaybackPoll === 'function') {
             window.stopEnginePlaybackPoll();
         }
         if (typeof showToast === 'function' && typeof toastFmt === 'function') {
-            showToast(toastFmt('toast.ae_sidecar_restarted'), 3000, 'success');
+            showToast(toastFmt('toast.ae_audioengine_restarted'), 3000, 'success');
         }
         void refreshAudioEnginePanel();
     } catch (e) {
         const err = e && e.message ? String(e.message) : String(e);
         if (typeof showToast === 'function' && typeof toastFmt === 'function') {
-            showToast(toastFmt('toast.ae_sidecar_restart_failed', {err}), 5000, 'error');
+            showToast(toastFmt('toast.ae_audioengine_restart_failed', {err}), 5000, 'error');
         }
         void refreshAudioEnginePanel();
     }
@@ -848,10 +848,10 @@ function initAudioEngineTab() {
             void refreshAudioEnginePanel();
         });
     }
-    const restartSidecarBtn = document.getElementById('aeRestartSidecar');
-    if (restartSidecarBtn && typeof restartSidecarBtn.addEventListener === 'function') {
-        restartSidecarBtn.addEventListener('click', () => {
-            void restartAeSidecar();
+    const restartAudioEngineBtn = document.getElementById('aeRestartAudioEngine');
+    if (restartAudioEngineBtn && typeof restartAudioEngineBtn.addEventListener === 'function') {
+        restartAudioEngineBtn.addEventListener('click', () => {
+            void restartAeAudioEngine();
         });
     }
     const applyBtn = document.getElementById('aeApplyDevice');
@@ -971,7 +971,7 @@ function initAudioEngineTab() {
 
 /**
  * @param {function} inv — `window.vstUpdater.audioEngineInvoke`
- * @param {string} deviceId — sidecar device id (stable name-based or legacy index)
+ * @param {string} deviceId — AudioEngine device id (stable name-based or legacy index)
  */
 async function fillAeDeviceCaps(inv, deviceId) {
     const capsEl = document.getElementById('aeDeviceCaps');
@@ -1008,7 +1008,7 @@ async function fillAeDeviceCaps(inv, deviceId) {
 /**
  * `get_input_device_info`: omit `device_id` when empty for system default input.
  * @param {function} inv — `window.vstUpdater.audioEngineInvoke`
- * @param {string} [deviceId] — sidecar id or "" for default
+ * @param {string} [deviceId] — AudioEngine id or "" for default
  */
 async function fillAeInputDeviceCaps(inv, deviceId) {
     const el = document.getElementById('aeInputDeviceCaps');
@@ -1110,7 +1110,7 @@ function fillAeStreamsFromEngineState(es) {
 }
 
 /**
- * After a failed IPC action, re-read `engine_state` when possible so stream lines match the sidecar; else clear.
+ * After a failed IPC action, re-read `engine_state` when possible so stream lines match the AudioEngine; else clear.
  * @returns {Promise<object|null>} last `engine_state` payload when `ok === true`, else `null`
  */
 async function fillAeStreamsAfterEngineError() {
@@ -1593,8 +1593,8 @@ async function stopAeOutputStream() {
         } catch {
             /* session may already be clear */
         }
-        if (typeof window.syncEnginePlaybackStoppedFromSidecar === 'function') {
-            window.syncEnginePlaybackStoppedFromSidecar();
+        if (typeof window.syncEnginePlaybackStoppedFromAudioEngine === 'function') {
+            window.syncEnginePlaybackStoppedFromAudioEngine();
         }
         const es = await inv({cmd: 'engine_state'});
         fillAeEngineStatusOkFromState(statusEl, es);
@@ -1610,7 +1610,7 @@ async function stopAeOutputStream() {
     }
 }
 
-// ── Library playback via sidecar (PCM + EQ in engine; WebView stays silent) ──
+// ── Library playback via AudioEngine (PCM + EQ in engine; WebView stays silent) ──
 
 /** @type {ReturnType<typeof setInterval> | null} */
 let _enginePlaybackPollTimer = null;
@@ -1692,7 +1692,7 @@ function syncEnginePlaybackDspFromPrefs() {
     });
 }
 
-/** Now-playing speed (0.25–2×) → sidecar `playback_set_speed` (`ResamplingAudioSource`; pitch follows speed like `<audio>.playbackRate`). */
+/** Now-playing speed (0.25–2×) → AudioEngine `playback_set_speed` (`ResamplingAudioSource`; pitch follows speed like `<audio>.playbackRate`). */
 function syncEnginePlaybackSpeedFromPrefs() {
     const inv = getAeAudioEngineInvoke();
     if (!inv) return;
@@ -1703,7 +1703,7 @@ function syncEnginePlaybackSpeedFromPrefs() {
 }
 
 /**
- * Reopen output with `start_playback: true` (sidecar `start_output_stream` stops any prior stream first).
+ * Reopen output with `start_playback: true` (AudioEngine `start_output_stream` stops any prior stream first).
  * Used when reverse mode toggles (new rodio source).
  */
 async function enginePlaybackRestartStream() {
@@ -1731,7 +1731,7 @@ async function enginePlaybackRestartStream() {
     syncEnginePlaybackSpeedFromPrefs();
 }
 
-/** Pref `audioReverse` on at load: decode reversed PCM in sidecar and reopen stream (see `playback_set_reverse`). */
+/** Pref `audioReverse` on at load: decode reversed PCM in AudioEngine and reopen stream (see `playback_set_reverse`). */
 async function engineApplyReversePrefPlayback() {
     const inv = getAeAudioEngineInvoke();
     if (!inv) return;

@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../frontend",
     "beforeDevCommand": "node scripts/build-audio-engine.mjs",
-    "beforeBuildCommand": "node scripts/prepare-audio-engine-sidecar.mjs"
+    "beforeBuildCommand": "node scripts/prepare-audio-engine-audioengine.mjs"
   },
   "app": {
     "withGlobalTauri": true,

@@ -78,7 +78,7 @@ void initAppLogFromEnv()
     }
 }
 
-juce::File appDataDirectoryForSidecar()
+juce::File appDataDirectoryForAudioEngine()
 {
     if (g_appDataDirFromLogEnv.getFullPathName().isNotEmpty())
         return g_appDataDirFromLogEnv;

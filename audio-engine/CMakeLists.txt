@@ -1,4 +1,4 @@
-# audio-engine — JUCE-based sidecar (stdin/stdout JSON) for device I/O, file playback, VST3 scan.
+# audio-engine — JUCE-based AudioEngine (stdin/stdout JSON) for device I/O, file playback, VST3 scan.
 cmake_minimum_required(VERSION 3.22)
 project(audio_engine VERSION 2.4.0 LANGUAGES C CXX)
 
@@ -18,7 +18,7 @@ juce_add_console_app(audio_engine
   COMPANY_NAME "MenkeTechnologies"
 )
 
-# Tauri sidecar must be named `audio-engine` (hyphen), not CMake target `audio_engine`.
+# Tauri AudioEngine must be named `audio-engine` (hyphen), not CMake target `audio_engine`.
 set_target_properties(audio_engine PROPERTIES OUTPUT_NAME "audio-engine")
 
 target_sources(audio_engine PRIVATE

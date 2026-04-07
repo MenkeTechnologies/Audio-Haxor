@@ -222,7 +222,7 @@ function spectrogramEngineRowsToSgData(rows) {
     return sgData;
 }
 
-/** Modest `width_px` / `height_px` for sidecar spectrogram JSON (smaller payloads on weak devices). */
+/** Modest `width_px` / `height_px` for AudioEngine spectrogram JSON (smaller payloads on weak devices). */
 function metaSpectrogramEnginePixelDims() {
     const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 8;
     const memGb = typeof navigator !== 'undefined' && navigator.deviceMemory ? navigator.deviceMemory : 8;
@@ -425,7 +425,7 @@ let _bufPlaybackRate = 1;
 let _pausedOffsetInRev = 0;
 let _reverseDecodeBusy = false;
 
-/** Library playback through `audio-engine` sidecar (no Web Audio output). */
+/** Library playback through `audio-engine` AudioEngine (no Web Audio output). */
 let _enginePlaybackActive = false;
 
 function setEnginePlaybackActive(value) {
@@ -451,7 +451,7 @@ function logWaveformSeek(phase, detail) {
 }
 
 /** Audio Engine tab "Stop stream" calls `stop_output_stream` + `playback_stop`; sync JS so `isAudioPlaying()` matches. */
-function syncEnginePlaybackStoppedFromSidecar() {
+function syncEnginePlaybackStoppedFromAudioEngine() {
     setEnginePlaybackActive(false);
     if (typeof window.stopEnginePlaybackPoll === 'function') {
         window.stopEnginePlaybackPoll();
@@ -494,7 +494,7 @@ function resumeEnginePlaybackAfterApply(loadMeta) {
 }
 
 if (typeof window !== 'undefined') {
-    window.syncEnginePlaybackStoppedFromSidecar = syncEnginePlaybackStoppedFromSidecar;
+    window.syncEnginePlaybackStoppedFromAudioEngine = syncEnginePlaybackStoppedFromAudioEngine;
     window.resumeEnginePlaybackAfterApply = resumeEnginePlaybackAfterApply;
 }
 
@@ -508,7 +508,7 @@ function isAudioPlaying() {
 
 /**
  * True when `window._engineSpectrumU8` should drive the floating mini FFT, parametric EQ fill, etc.
- * Matches `visualizer.js` `_vizEngineSpectrumOk`: library playback through the sidecar, or any
+ * Matches `visualizer.js` `_vizEngineSpectrumOk`: library playback through the AudioEngine, or any
  * Audio Engine output with an FFT tap (`_aeOutputStreamRunning`).
  */
 function engineSpectrumLive() {
@@ -606,7 +606,7 @@ function connectMediaToEq() {
     _sourceNode.connect(_eqLow);
 }
 
-/** Sidecar playback: keep `<audio>` disconnected from Web Audio + muted so nothing doubles through the WebView. */
+/** AudioEngine playback: keep `<audio>` disconnected from Web Audio + muted so nothing doubles through the WebView. */
 function silenceWebViewAudioForEngine() {
     if (typeof audioPlayer === 'undefined' || !audioPlayer) return;
     try {
@@ -1252,7 +1252,7 @@ audioPlayer.addEventListener('ended', () => {
 // Use rAF loop instead of timeupdate for smooth 60fps playhead
 let _playbackRafId = null;
 
-/** Sidecar output spectrum (np FFT + parametric EQ) when Web Audio analyser has no signal. */
+/** AudioEngine output spectrum (np FFT + parametric EQ) when Web Audio analyser has no signal. */
 let _enginePlaybackFftRafId = null;
 
 function shouldRunEngineSpectrumRaf() {
@@ -2439,7 +2439,7 @@ async function previewAudio(filePath) {
             typeof window.vstUpdater.audioEngineInvoke === 'function' &&
             typeof window.enginePlaybackStart === 'function';
         if (canEngine) {
-            /* Mute / disconnect `<audio>` before sidecar audio starts so WebView path cannot overlap. */
+            /* Mute / disconnect `<audio>` before AudioEngine audio starts so WebView path cannot overlap. */
             silenceWebViewAudioForEngine();
             await window.enginePlaybackStart(filePath);
             setEnginePlaybackActive(true);
@@ -3961,7 +3961,7 @@ function _metaPanelStale(metaSeq, filePath) {
  * Expanded-row waveform + spectrogram: prefer `audio_engine_invoke` (`waveform_preview` +
  * `spectrogram_preview`) when `vstUpdater.audioEngineInvoke` is available, else worker
  * (`decodeMetaVisualsViaWorker` / related). On failure, main-thread `drawMetaWaveform` →
- * `drawSpectrogram`. Spectrogram sidecar size uses `metaSpectrogramEnginePixelDims` (modest JSON).
+ * `drawSpectrogram`. Spectrogram AudioEngine size uses `metaSpectrogramEnginePixelDims` (modest JSON).
  */
 async function drawMetaPanelVisuals(filePath, metaSeq) {
     const wfCanvas = document.getElementById('metaWaveformCanvas');

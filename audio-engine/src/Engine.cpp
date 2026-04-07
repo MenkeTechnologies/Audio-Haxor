@@ -61,7 +61,7 @@ static juce::String cmdKey(const juce::var& req)
 /** JUCE dead-man's-pedal: plugins that crash during scan are deferred to the end on later runs. */
 static juce::File deadMansPedalFilePath()
 {
-    juce::File dir = audio_haxor::appDataDirectoryForSidecar();
+    juce::File dir = audio_haxor::appDataDirectoryForAudioEngine();
     (void) dir.createDirectory();
     return dir.getChildFile("plugin-scan-dead-mans-pedal.txt");
 }
@@ -69,7 +69,7 @@ static juce::File deadMansPedalFilePath()
 /** Persisted `KnownPluginList` so restarts skip unchanged modules (paired with `dontRescanIfAlreadyInList`). */
 static juce::File knownPluginListCacheFilePath()
 {
-    return audio_haxor::appDataDirectoryForSidecar().getChildFile("known-plugin-list.xml");
+    return audio_haxor::appDataDirectoryForAudioEngine().getChildFile("known-plugin-list.xml");
 }
 
 /** Called after each scan step so a hang or crash mid-scan still leaves a useful cache on disk. */
@@ -95,7 +95,7 @@ static juce::StringArray readDeadMansPedalLines(const juce::File& deadMans)
 /** One plugin identifier per line — modules that threw during `scanNextFile` or were manually listed; never rescanned. */
 static juce::File pluginScanSkipFilePath()
 {
-    return audio_haxor::appDataDirectoryForSidecar().getChildFile("plugin-scan-skip.txt");
+    return audio_haxor::appDataDirectoryForAudioEngine().getChildFile("plugin-scan-skip.txt");
 }
 
 /** File lines + built-in IDs (hangs that never throw) + `AUDIO_HAXOR_PLUGIN_SCAN_SKIP` (comma-separated). */

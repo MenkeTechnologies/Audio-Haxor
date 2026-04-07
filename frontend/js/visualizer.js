@@ -1,7 +1,7 @@
 // ── Audio Visualizer Tab ──
 // 6 real-time displays: FFT, waveform, spectrogram, stereo, levels, bands.
 // Primary data: audio-engine `playback_status.spectrum` (see `applyPlaybackStatusSpectrum` in
-// audio-engine.js). Web Audio `AnalyserNode` is only used when the sidecar is not supplying spectrum.
+// audio-engine.js). Web Audio `AnalyserNode` is only used when the AudioEngine is not supplying spectrum.
 // Grid (all) or single mode. Fullscreen. Trello drag to rearrange. Context menus.
 
 let _vizMode = 'all';
@@ -25,7 +25,7 @@ let _vizParams = {
 let _vizPeakHold = -96;
 let _vizPeakTimer = null;
 
-/** Sidecar is sending usable spectrum bins (`playback_status.spectrum`). */
+/** AudioEngine is sending usable spectrum bins (`playback_status.spectrum`). */
 function _vizEngineSpectrumOk() {
     if (typeof window !== 'undefined' && typeof window.engineSpectrumLive === 'function') {
         return window.engineSpectrumLive();
@@ -282,7 +282,7 @@ function _vizLoop(timestamp) {
     const vizAnalyser = _vizResolveAnalyser();
     const isPlaying = typeof isAudioPlaying === 'function' ? isAudioPlaying() : typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused;
     const engineOut = typeof window !== 'undefined' && window._aeOutputStreamRunning === true;
-    /* Engine tone/preview has no `<audio>` “playing” — still animate from sidecar spectrum. */
+    /* Engine tone/preview has no `<audio>` “playing” — still animate from AudioEngine spectrum. */
     const vizActive = isPlaying || engineOut;
     const empty = document.getElementById('vizEmpty');
     if (empty) empty.style.display = vizAnalyser && vizActive ? 'none' : '';
@@ -575,7 +575,7 @@ function _drawStereo(ctx, w, h, analyser) {
 }
 
 /**
- * Sidecar spectrum is a mono FFT tap — no true L/R. Split each frequency slice into two
+ * AudioEngine spectrum is a mono FFT tap — no true L/R. Split each frequency slice into two
  * half-band energies so we get many (L,R) pairs and stack phosphor dots like the Web Audio path.
  * Radii scale with canvas size (single 1–3px dot was invisible on retina-sized bitmaps).
  */

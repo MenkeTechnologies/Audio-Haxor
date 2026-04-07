@@ -8727,16 +8727,16 @@
                 <h2 class="settings-heading">&#9776; <span data-i18n="ui.ae.heading">Audio Engine</span></h2>
                 <div class="settings-row ae-settings-row-full">
                     <div class="settings-label">
-                        <span class="settings-desc" data-i18n="ui.ae.intro">Low-latency JUCE sidecar: pick driver (device type), optional sample rate, then output device — Apply opens an output stream (silence or optional 440 Hz test tone on F32 devices). Input section can start a capture stream (samples discarded until metering/DSP). engine_state returns output `stream` and `input_stream`. Optional buffer_frames applies to both directions. Playback output & EQ mirror the floating player; VST3/AU inserts run after the built-in EQ when you Apply inserts (stop the output stream first).</span>
+                        <span class="settings-desc" data-i18n="ui.ae.intro">Low-latency JUCE AudioEngine: pick driver (device type), optional sample rate, then output device — Apply opens an output stream (silence or optional 440 Hz test tone on F32 devices). Input section can start a capture stream (samples discarded until metering/DSP). engine_state returns output `stream` and `input_stream`. Optional buffer_frames applies to both directions. Playback output & EQ mirror the floating player; VST3/AU inserts run after the built-in EQ when you Apply inserts (stop the output stream first).</span>
                     </div>
                 </div>
                 <div class="settings-row">
                     <div class="settings-label">
                         <span class="settings-title" data-i18n="ui.ae.status_label">Engine status</span>
-                        <span class="settings-desc" data-i18n="ui.ae.status_row_desc">Sidecar version, output stream, and input capture status (read-only).</span>
+                        <span class="settings-desc" data-i18n="ui.ae.status_row_desc">AudioEngine version, output stream, and input capture status (read-only).</span>
                     </div>
                     <div class="settings-control">
-                        <button class="btn btn-secondary btn-settings-action" type="button" id="aeRestartSidecar" data-i18n="ui.ae.restart_sidecar" data-i18n-title="ui.ae.restart_sidecar_tt">Restart sidecar</button>
+                        <button class="btn btn-secondary btn-settings-action" type="button" id="aeRestartAudioEngine" data-i18n="ui.ae.restart_audioengine" data-i18n-title="ui.ae.restart_audioengine_tt">Restart AudioEngine</button>
                     </div>
                 </div>
                 <div class="settings-row ae-settings-row-full">
@@ -8794,7 +8794,7 @@
                 </div>
                 <details id="aeInputDevicesDetails" class="ae-settings-details">
                     <summary class="settings-heading" style="cursor:pointer;list-style:none;font-size:12px;margin:0 0 8px 0;" data-i18n="ui.ae.input_devices_heading">Input devices</summary>
-                    <p style="font-size:12px;color:var(--text-dim);margin:8px 0 6px 0;line-height:1.45;" data-i18n="ui.ae.input_devices_intro">Sidecar list (capture/debug).</p>
+                    <p style="font-size:12px;color:var(--text-dim);margin:8px 0 6px 0;line-height:1.45;" data-i18n="ui.ae.input_devices_intro">AudioEngine list (capture/debug).</p>
                     <div class="settings-row">
                         <div class="settings-label">
                             <span class="settings-title" data-i18n="ui.ae.input_device_label">Input device</span>
@@ -8842,7 +8842,7 @@
                 <h2 class="settings-heading">&#9776; <span data-i18n="ui.ae.playback_dsp_heading">Playback output &amp; EQ</span></h2>
                 <div class="settings-row ae-settings-row-full">
                     <div class="settings-label">
-                        <span class="settings-desc ae-dsp-intro" data-i18n="ui.ae.playback_dsp_intro">Same settings as the floating player (saved in preferences). Applies to library playback through the sidecar when a track is playing.</span>
+                        <span class="settings-desc ae-dsp-intro" data-i18n="ui.ae.playback_dsp_intro">Same settings as the floating player (saved in preferences). Applies to library playback through the AudioEngine when a track is playing.</span>
                         <span class="settings-desc ae-transport-blurb" data-i18n="ui.ae.playback_transport_intro" style="display:block;margin-top:8px;">Rodio transport: play/pause, seek ±5s, reverse (same behavior as the floating player).</span>
                     </div>
                 </div>
@@ -10167,44 +10167,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=96047"></script>
-<script src="js/utils.js?v=96047"></script>
-<script src="js/ipc.js?v=96047"></script>
-<script src="js/drag-reorder.js?v=96047"></script>
-<script src="js/modal-drag.js?v=96047"></script>
-<script src="js/columns.js?v=96047"></script>
-<script src="js/notes.js?v=96047"></script>
-<script src="js/favorites.js?v=96047"></script>
-<script src="js/export.js?v=96047"></script>
-<script src="js/plugins.js?v=96047"></script>
-<script src="js/settings.js?v=96047"></script>
-<script src="js/history.js?v=96047"></script>
-<script src="js/kvr.js?v=96047"></script>
-<script src="js/audio.js?v=96047"></script>
-<script src="js/daw.js?v=96047"></script>
-<script src="js/presets.js?v=96047"></script>
-<script src="js/disk-usage.js?v=96047"></script>
-<script src="js/batch-select.js?v=96047"></script>
-<script src="js/native-file-drag.js?v=96047"></script>
-<script src="js/sort-persist.js?v=96047"></script>
-<script src="js/multi-filter.js?v=96047"></script>
-<script src="js/file-browser.js?v=96047"></script>
-<script src="js/duplicates.js?v=96047"></script>
-<script src="js/command-palette.js?v=96047"></script>
-<script src="js/xref.js?v=96047"></script>
-<script src="js/dep-graph.js?v=96047"></script>
-<script src="js/smart-playlists.js?v=96047"></script>
-<script src="js/heatmap-dashboard.js?v=96047"></script>
-<script src="js/midi.js?v=96047"></script>
-<script src="js/pdf.js?v=96047"></script>
-<script src="js/settings-search.js?v=96047"></script>
-<script src="js/visualizer.js?v=96047"></script>
-<script src="js/walker-status.js?v=96047"></script>
-<script src="js/audio-engine.js?v=96047"></script>
-<script src="js/context-menu.js?v=96047"></script>
-<script src="js/shortcuts.js?v=96047"></script>
-<script src="js/help-overlay.js?v=96047"></script>
-<script src="js/keyboard-nav.js?v=96047"></script>
-<script src="js/app.js?v=96047"></script>
+<script src="js/i18n-ui.js?v=68843"></script>
+<script src="js/utils.js?v=68843"></script>
+<script src="js/ipc.js?v=68843"></script>
+<script src="js/drag-reorder.js?v=68843"></script>
+<script src="js/modal-drag.js?v=68843"></script>
+<script src="js/columns.js?v=68843"></script>
+<script src="js/notes.js?v=68843"></script>
+<script src="js/favorites.js?v=68843"></script>
+<script src="js/export.js?v=68843"></script>
+<script src="js/plugins.js?v=68843"></script>
+<script src="js/settings.js?v=68843"></script>
+<script src="js/history.js?v=68843"></script>
+<script src="js/kvr.js?v=68843"></script>
+<script src="js/audio.js?v=68843"></script>
+<script src="js/daw.js?v=68843"></script>
+<script src="js/presets.js?v=68843"></script>
+<script src="js/disk-usage.js?v=68843"></script>
+<script src="js/batch-select.js?v=68843"></script>
+<script src="js/native-file-drag.js?v=68843"></script>
+<script src="js/sort-persist.js?v=68843"></script>
+<script src="js/multi-filter.js?v=68843"></script>
+<script src="js/file-browser.js?v=68843"></script>
+<script src="js/duplicates.js?v=68843"></script>
+<script src="js/command-palette.js?v=68843"></script>
+<script src="js/xref.js?v=68843"></script>
+<script src="js/dep-graph.js?v=68843"></script>
+<script src="js/smart-playlists.js?v=68843"></script>
+<script src="js/heatmap-dashboard.js?v=68843"></script>
+<script src="js/midi.js?v=68843"></script>
+<script src="js/pdf.js?v=68843"></script>
+<script src="js/settings-search.js?v=68843"></script>
+<script src="js/visualizer.js?v=68843"></script>
+<script src="js/walker-status.js?v=68843"></script>
+<script src="js/audio-engine.js?v=68843"></script>
+<script src="js/context-menu.js?v=68843"></script>
+<script src="js/shortcuts.js?v=68843"></script>
+<script src="js/help-overlay.js?v=68843"></script>
+<script src="js/keyboard-nav.js?v=68843"></script>
+<script src="js/app.js?v=68843"></script>
 </body>
 </html>

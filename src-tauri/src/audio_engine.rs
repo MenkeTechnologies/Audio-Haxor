@@ -1,13 +1,13 @@
-//! **Audio engine** subprocess: the main app spawns the **`audio-engine`** JUCE sidecar (`audio-engine/` CMake target),
+//! **AudioEngine** subprocess: the main app spawns the **`audio-engine`** JUCE binary (`audio-engine/` CMake target),
 //! sends JSON lines on stdin, reads one JSON line per request. Keeps **one** child process alive
-//! (stdin loop in the sidecar) so stream state and IPC stay cheap.
+//! (stdin loop in the AudioEngine) so stream state and IPC stay cheap.
 //! On app quit, [`shutdown_audio_engine_child`] runs from Tauri `RunEvent::Exit` / `ExitRequested` and from `libc::atexit`
-//! so the sidecar is always terminated with the host. **`AUDIO_HAXOR_PARENT_PID`** is set at spawn so the sidecar can
+//! so the AudioEngine is always terminated with the host. **`AUDIO_HAXOR_PARENT_PID`** is set at spawn so the AudioEngine can
 //! exit if the host disappears without cleanup (e.g. macOS force quit / SIGKILL).
 //!
 //! **Shutdown must not take [`ENGINE_CHILD`] before killing the OS process.** Another thread can
 //! hold that mutex while blocked on `stdout.read_line()`; waiting on the mutex first deadlocks
-//! quit (sidecar never receives `kill`). We keep the child PID in [`ENGINE_CHILD_PID`] and send
+//! quit (AudioEngine never receives `kill`). We keep the child PID in [`ENGINE_CHILD_PID`] and send
 //! `SIGKILL` / `taskkill /F` first, then clear the slot.
 
 use std::io::{BufRead, BufReader, Read, Write};
@@ -36,11 +36,11 @@ struct EngineChild {
     child: Child,
     stdin: std::process::ChildStdin,
     stdout: BufReader<std::process::ChildStdout>,
-    /// Recent stderr from the sidecar (crash/assert output) for `app.log` when IPC fails.
+    /// Recent stderr from the AudioEngine (crash/assert output) for `app.log` when IPC fails.
     stderr_tail: Arc<Mutex<String>>,
     /// Which binary we spawned; must respawn if [`resolve_audio_engine_binary`] starts returning a different path.
     binary_path: PathBuf,
-    /// `metadata().modified()` + `len()` when spawned — same path can be overwritten when the sidecar is rebuilt.
+    /// `metadata().modified()` + `len()` when spawned — same path can be overwritten when the AudioEngine is rebuilt.
     binary_identity: Option<(SystemTime, u64)>,
 }
 
@@ -61,7 +61,7 @@ fn format_stderr_suffix(tail: &Arc<Mutex<String>>) -> String {
         .unwrap_or_default()
 }
 
-/// Log host-side IPC failure to `app.log`, appending recent sidecar stderr when available.
+/// Log host-side IPC failure to `app.log`, appending recent AudioEngine stderr when available.
 fn log_ipc_failure(msg: impl Into<String>, tail: Option<&Arc<Mutex<String>>>) {
     let msg = msg.into();
     let suffix = tail.map(format_stderr_suffix).unwrap_or_default();
@@ -69,7 +69,7 @@ fn log_ipc_failure(msg: impl Into<String>, tail: Option<&Arc<Mutex<String>>>) {
 }
 
 static ENGINE_CHILD: Mutex<Option<EngineChild>> = Mutex::new(None);
-/// OS PID of the current sidecar (`Child::id`), or `0` if none. Used for kill-on-exit without
+/// OS PID of the current AudioEngine (`Child::id`), or `0` if none. Used for kill-on-exit without
 /// waiting on [`ENGINE_CHILD`] (see module comment).
 static ENGINE_CHILD_PID: AtomicU32 = AtomicU32::new(0);
 
@@ -125,11 +125,11 @@ fn binary_name() -> &'static str {
 ///
 /// Prefer a `target/debug` or `target/release` build found by walking **up** from [`std::env::current_exe`].
 /// That covers `pnpm dev` when the app runs inside a macOS **bundle** (`…/target/debug/bundle/…/Contents/MacOS/audio-haxor`)
-/// where the sibling `audio-engine` can be stale, while the real sidecar from `beforeDevCommand` lives
+/// where the sibling `audio-engine` can be stale, while the real AudioEngine from `beforeDevCommand` lives
 /// at the workspace `target/debug/audio-engine`. Also works when `CARGO_TARGET_DIR` is non-default
 /// (compile-time `CARGO_MANIFEST_DIR` alone is insufficient).
 ///
-/// Override for debugging: set `AUDIO_HAXOR_AUDIO_ENGINE` to an absolute path to the sidecar binary.
+/// Override for debugging: set `AUDIO_HAXOR_AUDIO_ENGINE` to an absolute path to the AudioEngine binary.
 /// Release installs use the sibling next to the main executable when no workspace `target/` is found.
 pub fn resolve_audio_engine_binary() -> Result<PathBuf, String> {
     if let Ok(p) = std::env::var("AUDIO_HAXOR_AUDIO_ENGINE") {
@@ -267,7 +267,7 @@ fn ensure_engine_child(path: &Path) -> Result<(), String> {
 }
 
 /// Drop the long-lived `audio-engine` child so the next IPC spawns a fresh process.
-/// Use after a crash or when the sidecar stops responding.
+/// Use after a crash or when the AudioEngine stops responding.
 ///
 /// Returns immediately after sending SIGKILL so the UI / toast is not blocked by mutex cleanup
 /// (which can take many seconds if an IPC thread still holds [`ENGINE_CHILD`]). Reaping runs on
@@ -280,7 +280,7 @@ pub fn restart_audio_engine_child() -> Result<(), String> {
     std::thread::spawn(|| {
         let reaped = clear_engine_slot_after_os_kill();
         if reaped {
-            crate::write_app_log("audio-engine: sidecar process restarted (user request)".to_string());
+            crate::write_app_log("audio-engine: AudioEngine process restarted (user request)".to_string());
         } else {
             log_ipc_failure(
                 "ENGINE_CHILD mutex not acquired after OS kill (timeout); next IPC may respawn",
@@ -305,14 +305,14 @@ fn clear_engine_slot_after_os_kill() -> bool {
     false
 }
 
-/// Kill the JUCE sidecar when the host app exits. Idempotent (safe if no child was spawned).
+/// Kill the JUCE AudioEngine when the host app exits. Idempotent (safe if no child was spawned).
 pub fn shutdown_audio_engine_child() -> Result<(), String> {
     let pid = ENGINE_CHILD_PID.swap(0, Ordering::SeqCst);
     if pid != 0 {
         kill_pid_raw(pid);
     }
     let _ = clear_engine_slot_after_os_kill();
-    crate::write_app_log("audio-engine: sidecar terminated (app shutdown)".to_string());
+    crate::write_app_log("audio-engine: AudioEngine terminated (app shutdown)".to_string());
     Ok(())
 }
 
@@ -401,7 +401,7 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
                     }
                 };
                 // Long-lived child can outlive a fresh `node scripts/build-audio-engine.mjs`; the old process may
-                // return `unknown cmd` for verbs added in a newer sidecar. Respawn once (see also
+                // return `unknown cmd` for verbs added in a newer AudioEngine. Respawn once (see also
                 // [`ensure_engine_child`] binary identity). Retry even if `ok` is missing — some
                 // older builds only set `error`.
                 if attempt == 0 {
@@ -423,7 +423,7 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
                 if attempt == 1 {
                     if is_eof {
                         log_ipc_failure(
-                            "sidecar closed stdout (process exited or crashed)",
+                            "AudioEngine closed stdout (process exited or crashed)",
                             Some(&stderr_tail),
                         );
                     } else {

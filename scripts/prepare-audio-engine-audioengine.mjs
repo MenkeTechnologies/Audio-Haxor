@@ -4,7 +4,7 @@
  * required by Tauri `bundle.externalBin`. Run before `pnpm tauri build` (see `tauri.conf.json`).
  *
  * Tauri runs `beforeBuildCommand` with cwd = repository root (parent of `src-tauri/`), so
- * `tauri.conf.json` must invoke `node scripts/prepare-audio-engine-sidecar.mjs`, not `../scripts/...`.
+ * `tauri.conf.json` must invoke `node scripts/prepare-audio-engine-audioengine.mjs`, not `../scripts/...`.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -17,7 +17,7 @@ const triple = execFileSync('rustc', ['--print', 'host-tuple'], {
   encoding: 'utf8',
 }).trim();
 if (!triple) {
-  console.error('prepare-audio-engine-sidecar: could not read rustc host tuple');
+  console.error('prepare-audio-engine-audioengine: could not read rustc host tuple');
   process.exit(1);
 }
 
@@ -36,10 +36,10 @@ execFileSync(process.execPath, [path.join(root, 'scripts', 'build-audio-engine.m
 });
 
 if (!fs.existsSync(built)) {
-  console.error(`prepare-audio-engine-sidecar: missing ${built}`);
+  console.error(`prepare-audio-engine-audioengine: missing ${built}`);
   process.exit(1);
 }
 
 fs.mkdirSync(outDir, { recursive: true });
 fs.copyFileSync(built, dest);
-console.log(`prepare-audio-engine-sidecar: ${dest}`);
+console.log(`prepare-audio-engine-audioengine: ${dest}`);

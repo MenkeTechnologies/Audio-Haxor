@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Build the JUCE `audio-engine` sidecar (CMake + Ninja) into `target/<debug|release>/audio-engine`.
- * Used by `beforeDevCommand` (debug) and `prepare-audio-engine-sidecar.mjs` (release).
+ * Build the JUCE `audio-engine` AudioEngine (CMake + Ninja) into `target/<debug|release>/audio-engine`.
+ * Used by `beforeDevCommand` (debug) and `prepare-audio-engine-audioengine.mjs` (release).
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';

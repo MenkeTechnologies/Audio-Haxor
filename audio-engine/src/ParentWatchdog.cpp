@@ -21,7 +21,7 @@ namespace audio_haxor {
 namespace {
 
 #if defined(_WIN32)
-static void exitSidecar(const char* reason)
+static void exitAudioEngine(const char* reason)
 {
     audio_haxor::appLogLine(juce::String("parent watchdog: ") + reason);
     std::_Exit(0);
@@ -37,17 +37,17 @@ static void watchdogLoopWin(DWORD parentPid)
         {
             const DWORD err = GetLastError();
             if (err == ERROR_INVALID_PARAMETER)
-                exitSidecar("OpenProcess: parent gone or invalid PID");
+                exitAudioEngine("OpenProcess: parent gone or invalid PID");
             continue;
         }
         const DWORD w = WaitForSingleObject(h, 0);
         CloseHandle(h);
         if (w == WAIT_OBJECT_0)
-            exitSidecar("parent process exited");
+            exitAudioEngine("parent process exited");
     }
 }
 #else
-static void exitSidecar(const char* reason)
+static void exitAudioEngine(const char* reason)
 {
     audio_haxor::appLogLine(juce::String("parent watchdog: ") + reason);
     std::_Exit(0);
@@ -61,7 +61,7 @@ static void watchdogLoopPosix(pid_t parentPid)
         if (kill(parentPid, 0) != 0)
         {
             if (errno == ESRCH)
-                exitSidecar("parent PID no longer exists");
+                exitAudioEngine("parent PID no longer exists");
             continue;
         }
     }

@@ -11,7 +11,7 @@
 //! - [`audio_scanner`] — Audio sample discovery and metadata extraction
 //! - [`daw_scanner`] — DAW project scanner (14+ formats)
 //! - [`preset_scanner`] — Plugin preset discovery
-//! - [`audio_engine`] — Spawns the `audio-engine` sidecar (JUCE: devices, playback, VST3/AU scan) via stdin/stdout JSON
+//! - [`audio_engine`] — Spawns the `audio-engine` AudioEngine (JUCE: devices, playback, VST3/AU scan) via stdin/stdout JSON
 //! - [`kvr`] — KVR Audio scraper and version checker
 //! - [`history`] — Scan history persistence, diffing, and preferences
 //! - [`content_hash`] — SHA-256 file hashing for byte-identical duplicate detection
@@ -6685,7 +6685,7 @@ pub fn run() {
     // Initialize app start time for uptime tracking
     APP_START.get_or_init(Instant::now);
 
-    // Register atexit handler: terminate audio-engine sidecar, then shutdown logging (Cmd+Q, SIGTERM, etc.)
+    // Register atexit handler: terminate the AudioEngine, then shutdown logging (Cmd+Q, SIGTERM, etc.)
     extern "C" fn on_exit() {
         let _ = audio_engine::shutdown_audio_engine_child();
         log_shutdown();
