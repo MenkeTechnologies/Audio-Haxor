@@ -166,6 +166,10 @@ async function handleFileWatcherChange(event) {
         }
         splash.classList.add('fade-out');
         setTimeout(() => splash.remove(), 600);
+        // Prewarm audio decode worker after shell paint so the first play gesture does not pay worker script compile on the click path.
+        setTimeout(() => {
+            if (typeof window.preloadAudioDecodeWorker === 'function') window.preloadAudioDecodeWorker();
+        }, 650);
     }
 
     // Restore last active tab after splash

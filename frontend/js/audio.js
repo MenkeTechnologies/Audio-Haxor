@@ -335,28 +335,64 @@ function isAudioPlaying() {
     return typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused;
 }
 
-function reverseAudioBuffer(ctx, buf) {
+/** Reverse PCM in chunks with event-loop yields so multi-hour WAVs do not freeze the WebView. */
+async function reverseAudioBufferAsync(ctx, buf) {
     const len = buf.length;
     const ch = buf.numberOfChannels;
     const out = ctx.createBuffer(ch, len, buf.sampleRate);
+    const yieldEvery = 250000;
+    let op = 0;
     for (let c = 0; c < ch; c++) {
         const s = buf.getChannelData(c);
         const d = out.getChannelData(c);
-        for (let i = 0; i < len; i++) d[i] = s[len - 1 - i];
+        for (let i = 0; i < len; i++) {
+            d[i] = s[len - 1 - i];
+            op++;
+            if (op % yieldEvery === 0 && typeof yieldToBrowser === 'function') {
+                await yieldToBrowser();
+            }
+        }
     }
     return out;
+}
+
+/** Copy decoded PCM into an `AudioBuffer` in slices so one huge `set` does not freeze the WebView on multi‑GB WAVs. */
+async function copyFloat32ToBufferChannelAsync(buf, channelIndex, src) {
+    const dst = buf.getChannelData(channelIndex);
+    const len = Math.min(src.length, dst.length);
+    const chunk = 524288;
+    for (let i = 0; i < len; i += chunk) {
+        const n = Math.min(chunk, len - i);
+        dst.set(src.subarray(i, i + n), i);
+        if (i + n < len && typeof yieldToBrowser === 'function') {
+            await yieldToBrowser();
+        }
+    }
 }
 
 async function ensureReversedBufferForPath(path) {
     if (_reversedBuf && _decodedBufPath === path) return _reversedBuf;
     ensureAudioGraph();
     const url = fileSrcForDecode(path);
-    const resp = await fetch(url);
-    const arr = await resp.arrayBuffer();
-    const buf = await _playbackCtx.decodeAudioData(arr.slice(0));
+    let buf = null;
+    try {
+        const dec = await decodeChannelsViaWorker(url);
+        buf = _playbackCtx.createBuffer(dec.channels.length, dec.length, dec.sampleRate);
+        for (let c = 0; c < dec.channels.length; c++) {
+            await copyFloat32ToBufferChannelAsync(buf, c, dec.channels[c]);
+        }
+    } catch (e) {
+        if (!getAudioDecodeWorker()) {
+            const resp = await fetch(url);
+            const arr = await resp.arrayBuffer();
+            buf = await _playbackCtx.decodeAudioData(arr.slice(0));
+        } else {
+            throw e;
+        }
+    }
     _decodedBuf = buf;
     _decodedBufPath = path;
-    _reversedBuf = reverseAudioBuffer(_playbackCtx, buf);
+    _reversedBuf = await reverseAudioBufferAsync(_playbackCtx, buf);
     return _reversedBuf;
 }
 
@@ -3963,3 +3999,28 @@ function updateMetaLine() {
 
 window.isAudioPlaying = isAudioPlaying;
 window._decodePeaksViaWorker = decodePeaksViaWorker;
+
+/**
+ * Compile/load `audio-decode-worker.js` after first paint — avoids paying V8 worker script
+ * compile on the first play click. Also scheduled from idle + ~650ms post-splash (`app.js`).
+ */
+function preloadAudioDecodeWorker() {
+    try {
+        getAudioDecodeWorker();
+    } catch (_) {
+        /* ignore */
+    }
+}
+window.preloadAudioDecodeWorker = preloadAudioDecodeWorker;
+
+(function schedulePrewarmAudioDecodeWorker() {
+    function run() {
+        preloadAudioDecodeWorker();
+    }
+    if (typeof window === 'undefined') return;
+    if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(run, { timeout: 5000 });
+    } else if (typeof globalThis !== 'undefined' && typeof globalThis.setTimeout === 'function') {
+        globalThis.setTimeout(run, 2500);
+    }
+})();
