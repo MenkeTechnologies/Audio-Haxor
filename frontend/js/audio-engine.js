@@ -476,7 +476,7 @@ async function refreshAudioEnginePanel() {
         : null;
 
     if (!inv) {
-        stopAeInputPeakPoll();
+        fillAeStreamsFromEngineState(null);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.err_no_ipc');
         }
@@ -621,7 +621,7 @@ async function refreshAudioEnginePanel() {
             await fillAeInputDeviceCaps(inv, '');
         }
     } catch (e) {
-        stopAeInputPeakPoll();
+        fillAeStreamsFromEngineState(null);
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
