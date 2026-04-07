@@ -1,4 +1,4 @@
-//! **Audio engine** subprocess: the main app spawns `audio-engine` (crate `audio-engine/`),
+//! **Audio engine** subprocess: the main app spawns the **`audio-engine`** JUCE sidecar (`audio-engine/` CMake target),
 //! sends JSON lines on stdin, reads one JSON line per request. Keeps **one** child process alive
 //! (stdin loop in the sidecar) so stream state and IPC stay cheap.
 
@@ -28,7 +28,7 @@ struct EngineChild {
     stdout: BufReader<std::process::ChildStdout>,
     /// Which binary we spawned; must respawn if [`resolve_audio_engine_binary`] starts returning a different path.
     binary_path: PathBuf,
-    /// `metadata().modified()` + `len()` when spawned — same path can be overwritten by `cargo build`.
+    /// `metadata().modified()` + `len()` when spawned — same path can be overwritten when the sidecar is rebuilt.
     binary_identity: Option<(SystemTime, u64)>,
 }
 
@@ -200,7 +200,7 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
                 }
                 let v: serde_json::Value = serde_json::from_str(line)
                     .map_err(|e| format!("audio-engine JSON: {e}: {line}"))?;
-                // Long-lived child can outlive `cargo build -p audio-engine`; the old process may
+                // Long-lived child can outlive a fresh `node scripts/build-audio-engine.mjs`; the old process may
                 // return `unknown cmd` for verbs added in a newer sidecar. Respawn once (see also
                 // [`ensure_engine_child`] binary identity). Retry even if `ok` is missing — some
                 // older builds only set `error`.

@@ -11,7 +11,7 @@
 //! - [`audio_scanner`] — Audio sample discovery and metadata extraction
 //! - [`daw_scanner`] — DAW project scanner (14+ formats)
 //! - [`preset_scanner`] — Plugin preset discovery
-//! - [`audio_engine`] — Spawns the `audio-engine` sidecar for device discovery (cpal) and future IPC
+//! - [`audio_engine`] — Spawns the `audio-engine` sidecar (JUCE: devices, playback, VST3/AU scan) via stdin/stdout JSON
 //! - [`kvr`] — KVR Audio scraper and version checker
 //! - [`history`] — Scan history persistence, diffing, and preferences
 //! - [`content_hash`] — SHA-256 file hashing for byte-identical duplicate detection

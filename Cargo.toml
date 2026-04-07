@@ -1,5 +1,5 @@
 [workspace]
-members = ["src-tauri", "audio-engine"]
+members = ["src-tauri"]
 resolver = "2"
 
 [profile.dev]

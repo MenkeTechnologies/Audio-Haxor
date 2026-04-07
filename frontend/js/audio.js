@@ -2526,6 +2526,12 @@ function updatePlaybackTime() {
             window._fbCursorEl.style.left = pct + '%';
         }
     }
+    if (typeof window.syncAeTransportFromPlayback === 'function') {
+        const aeTab = document.getElementById('tabAudioEngine');
+        if (aeTab && aeTab.classList.contains('active')) {
+            window.syncAeTransportFromPlayback();
+        }
+    }
 }
 
 /** Seek current playback to a normalized position [0, 1]. Used by now-playing and metadata waveforms. */
@@ -2560,6 +2566,46 @@ function seekPlaybackToPercent(pct) {
     }
     if (!audioPlayer.duration) return;
     audioPlayer.currentTime = p * audioPlayer.duration;
+}
+
+/**
+ * Nudge playback along the forward timeline (seconds). Engine: `playback_status` + `playback_seek`.
+ * Web Audio reverse buffer and &lt;audio&gt;: reuse `seekPlaybackToPercent`.
+ */
+async function skipPlaybackSeconds(delta) {
+    const d = Number(delta);
+    if (!Number.isFinite(d)) return;
+    if (!audioPlayerPath) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.reverse_no_track'), 3000, 'error');
+        return;
+    }
+    if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
+        try {
+            const st = await window.vstUpdater.audioEngineInvoke({cmd: 'playback_status'});
+            if (!st || st.ok !== true || st.loaded !== true) return;
+            const dur = typeof st.duration_sec === 'number' ? st.duration_sec : 0;
+            if (dur <= 0) return;
+            const cur = typeof st.position_sec === 'number' ? st.position_sec : 0;
+            const next = Math.max(0, Math.min(dur, cur + d));
+            await window.vstUpdater.audioEngineInvoke({cmd: 'playback_seek', position_sec: next});
+        } catch {
+            /* ignore */
+        }
+        return;
+    }
+    let cur = 0;
+    let dur = 0;
+    if (audioReverseMode && _reversedBuf) {
+        dur = _reversedBuf.duration;
+        if (!(dur > 0)) return;
+        cur = _bufPlaying ? getOriginalTimeFromReverseBuffer() : Math.max(0, dur - _pausedOffsetInRev);
+    } else {
+        dur = audioPlayer.duration;
+        if (!dur || Number.isNaN(dur)) return;
+        cur = audioPlayer.currentTime;
+    }
+    const next = Math.max(0, Math.min(dur, cur + d));
+    seekPlaybackToPercent(next / dur);
 }
 
 function seekAudio(event) {

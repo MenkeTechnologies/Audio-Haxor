@@ -16,13 +16,6 @@
             box-sizing: border-box;
         }
 
-        body {
-            background: var(--bg-primary);
-            background-image: radial-gradient(ellipse at 20% 50%, rgba(5, 217, 232, 0.03) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 20%, rgba(211, 0, 197, 0.03) 0%, transparent 50%),
-            radial-gradient(ellipse at 50% 80%, rgba(255, 42, 109, 0.02) 0%, transparent 50%);
-        }
-
         ::selection {
             background: rgba(5, 217, 232, 0.3);
             color: #fff;
@@ -53,6 +46,8 @@
             --text-muted: #3d4f6a;
             --border: #1a1a3e;
             --border-glow: #2a1a4e;
+            --cyber-grid-line: rgba(5, 217, 232, 0.042);
+            --cyber-grid-cross: rgba(5, 217, 232, 0.034);
         }
 
         [data-theme="light"] {
@@ -80,6 +75,8 @@
             --text-muted: #94a3b8;
             --border: #cbd5e1;
             --border-glow: #a5b4c8;
+            --cyber-grid-line: rgba(8, 145, 178, 0.08);
+            --cyber-grid-cross: rgba(8, 145, 178, 0.055);
         }
 
         [data-theme="light"] .app::after {
@@ -120,10 +117,28 @@
 
         body {
             font-family: 'Share Tech Mono', 'SF Mono', 'Fira Code', monospace;
-            background: var(--bg-primary);
+            background-color: var(--bg-primary);
+            background-image:
+                radial-gradient(ellipse at 20% 50%, rgba(5, 217, 232, 0.045) 0%, transparent 52%),
+                radial-gradient(ellipse at 80% 20%, rgba(211, 0, 197, 0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 82%, rgba(255, 42, 109, 0.035) 0%, transparent 48%),
+                linear-gradient(var(--cyber-grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--cyber-grid-cross) 1px, transparent 1px);
+            background-size: auto, auto, auto, 52px 52px, 52px 52px;
+            background-attachment: fixed;
             color: var(--text);
             height: 100vh;
             overflow: hidden;
+        }
+
+        [data-theme="light"] body {
+            background-image:
+                radial-gradient(ellipse at 22% 48%, rgba(8, 145, 178, 0.09) 0%, transparent 52%),
+                radial-gradient(ellipse at 78% 22%, rgba(163, 0, 163, 0.07) 0%, transparent 50%),
+                linear-gradient(var(--cyber-grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--cyber-grid-cross) 1px, transparent 1px);
+            background-size: auto, auto, 44px 44px, 44px 44px;
+            background-attachment: fixed;
         }
 
         /* Horizontal scanline overlay */
@@ -245,10 +260,13 @@
         .header {
             padding: 20px 24px 16px;
             border-bottom: 1px solid var(--border);
-            background: linear-gradient(180deg, #0d0d1f 0%, var(--bg-secondary) 100%);
+            background: linear-gradient(180deg, #070714 0%, #0d0d22 42%, var(--bg-secondary) 100%);
             position: relative;
             -webkit-app-region: drag;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(5, 217, 232, 0.08);
+            box-shadow:
+                0 4px 28px rgba(0, 0, 0, 0.55),
+                0 1px 0 rgba(5, 217, 232, 0.1),
+                inset 0 1px 0 rgba(5, 217, 232, 0.06);
         }
 
         /* Frosted glass effect for overlays — must follow `--bg-card` (light theme was ignored when this used fixed dark rgba). */
@@ -2172,20 +2190,6 @@
             transform: translateX(2px);
         }
 
-        .tab-btn {
-            transition: all 0.15s;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-        }
-
-        .tab-btn:hover {
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 6px var(--cyan-dim);
-            transform: translateY(-1px);
-        }
-
-        .tab-btn.active {
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 8px var(--cyan-glow);
-        }
-
         .fav-item {
             transition: box-shadow 0.2s, transform 0.15s;
         }
@@ -2434,8 +2438,33 @@
             display: flex;
             gap: 0;
             border-bottom: 1px solid var(--border);
-            background: var(--bg-secondary);
+            border-top: 1px solid rgba(5, 217, 232, 0.14);
+            background: linear-gradient(180deg, rgba(5, 217, 232, 0.055) 0%, var(--bg-secondary) 52%);
             padding: 0 24px;
+            position: relative;
+            box-shadow: inset 0 1px 0 rgba(5, 217, 232, 0.16);
+        }
+
+        .tab-nav::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 5%, var(--cyan), var(--magenta), var(--cyan), transparent 95%);
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        [data-theme="light"] .tab-nav {
+            border-top-color: rgba(8, 145, 178, 0.22);
+            background: linear-gradient(180deg, rgba(8, 145, 178, 0.07) 0%, var(--bg-secondary) 52%);
+            box-shadow: inset 0 1px 0 rgba(8, 145, 178, 0.14);
+        }
+
+        [data-theme="light"] .tab-nav::before {
+            opacity: 0.45;
         }
 
         .tab-btn {
@@ -2463,6 +2492,15 @@
             color: var(--cyan);
             border-bottom-color: var(--cyan);
             text-shadow: 0 0 10px var(--cyan-glow);
+        }
+
+        .tab-nav .tab-btn {
+            transition: color 0.2s, border-color 0.2s, text-shadow 0.2s, transform 0.15s, box-shadow 0.15s;
+        }
+
+        .tab-nav .tab-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.38), 0 0 14px var(--cyan-dim);
         }
 
         .tab-btn.tab-dragging {
@@ -2515,6 +2553,11 @@
 
         .tab-content.active {
             display: flex;
+            background-image: linear-gradient(180deg, rgba(5, 217, 232, 0.028) 0%, transparent 100px);
+        }
+
+        [data-theme="light"] .tab-content.active {
+            background-image: linear-gradient(180deg, rgba(8, 145, 178, 0.06) 0%, transparent 96px);
         }
 
         /* History view */
@@ -5512,7 +5555,12 @@
             background: var(--bg-primary);
             border: 1px solid var(--cyan);
             border-radius: 2px;
-            box-shadow: 0 0 20px var(--cyan-glow), 0 4px 24px rgba(0, 0, 0, 0.5);
+            box-shadow:
+                0 0 0 1px rgba(211, 0, 197, 0.35),
+                0 0 24px var(--cyan-glow),
+                0 0 48px rgba(255, 42, 109, 0.08),
+                0 6px 28px rgba(0, 0, 0, 0.55),
+                inset 0 1px 0 rgba(255, 255, 255, 0.07);
             flex-direction: column;
             font-size: 11px;
             -webkit-app-region: no-drag;
@@ -6314,6 +6362,234 @@
             to {
                 opacity: 1;
             }
+        }
+
+        /* ── Audio Engine tab — cyberpunk panels (viz-tile / neon stack) ── */
+        #tabAudioEngine .audio-engine-tab {
+            position: relative;
+            padding: 28px 24px 40px;
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        #tabAudioEngine .audio-engine-tab::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(135deg, rgba(5, 217, 232, 0.04) 0%, transparent 42%),
+                linear-gradient(225deg, rgba(211, 0, 197, 0.05) 0%, transparent 38%),
+                radial-gradient(ellipse 90% 45% at 50% -15%, rgba(5, 217, 232, 0.1), transparent 72%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        #tabAudioEngine .audio-engine-tab > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        #tabAudioEngine .ae-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 21px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            margin: 0 0 14px 0;
+            line-height: 1.25;
+            background: linear-gradient(92deg, var(--cyan) 0%, #e8fdff 42%, var(--magenta) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            filter: drop-shadow(0 0 14px var(--cyan-glow));
+        }
+
+        #tabAudioEngine .ae-intro {
+            font-size: 13px;
+            line-height: 1.55;
+            color: var(--text-muted);
+            margin: 0 0 24px 0;
+            padding: 12px 16px 12px 18px;
+            border-left: 3px solid var(--cyan);
+            background: linear-gradient(90deg, rgba(5, 217, 232, 0.08) 0%, transparent 65%);
+            box-shadow: inset 0 0 0 1px rgba(5, 217, 232, 0.12);
+        }
+
+        #tabAudioEngine .hm-card.ae-panel {
+            padding: 18px 18px 20px;
+            margin-bottom: 18px;
+            border-radius: 2px;
+            border: 1px solid rgba(5, 217, 232, 0.28);
+            background: linear-gradient(155deg, rgba(6, 14, 32, 0.9) 0%, rgba(2, 6, 20, 0.96) 100%);
+            box-shadow:
+                inset 0 1px 0 rgba(5, 217, 232, 0.14),
+                inset 0 -1px 0 rgba(211, 0, 197, 0.07),
+                0 4px 28px rgba(0, 0, 0, 0.48),
+                0 0 22px rgba(5, 217, 232, 0.07);
+            transition: border-color 0.22s ease, box-shadow 0.22s ease;
+        }
+
+        #tabAudioEngine .hm-card.ae-panel:hover {
+            border-color: rgba(5, 217, 232, 0.42);
+            box-shadow:
+                inset 0 1px 0 rgba(5, 217, 232, 0.2),
+                0 6px 32px rgba(0, 0, 0, 0.52),
+                0 0 30px rgba(5, 217, 232, 0.12);
+        }
+
+        #tabAudioEngine .ae-panel-head {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--cyan);
+            margin: 0 0 10px 0;
+            padding-bottom: 8px;
+            border-bottom: 1px solid transparent;
+            border-image: linear-gradient(90deg, rgba(5, 217, 232, 0.55), rgba(211, 0, 197, 0.28), transparent 88%) 1;
+            text-shadow: 0 0 10px rgba(5, 217, 232, 0.3);
+        }
+
+        #tabAudioEngine .ae-panel-head::before {
+            content: '//';
+            margin-right: 8px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0;
+            color: var(--magenta);
+            opacity: 0.85;
+        }
+
+        #tabAudioEngine .ae-mono,
+        #tabAudioEngine #aeEngineStatus,
+        #tabAudioEngine #aeStreamStatus,
+        #tabAudioEngine #aeInputStreamStatus,
+        #tabAudioEngine #aeDeviceCaps,
+        #tabAudioEngine #aeInputDeviceCaps {
+            font-family: 'Share Tech Mono', monospace !important;
+            color: rgba(180, 240, 255, 0.92) !important;
+            text-shadow: 0 0 8px rgba(5, 217, 232, 0.2);
+        }
+
+        #tabAudioEngine .ae-subhead {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin: 0 0 8px 0;
+        }
+
+        #tabAudioEngine select.ae-input,
+        #tabAudioEngine input[type="number"].ae-input {
+            border: 1px solid rgba(5, 217, 232, 0.4);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.45);
+            color: var(--text);
+            box-shadow: 0 0 10px rgba(5, 217, 232, 0.1);
+        }
+
+        #tabAudioEngine select.ae-input:focus,
+        #tabAudioEngine input[type="number"].ae-input:focus {
+            outline: none;
+            border-color: var(--cyan);
+            box-shadow: 0 0 14px var(--cyan-dim);
+        }
+
+        #tabAudioEngine #aeInputDevicesDetails > summary {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            color: var(--cyan);
+            text-shadow: 0 0 8px rgba(5, 217, 232, 0.25);
+        }
+
+        #tabAudioEngine #aeInputDevicesDetails > summary:hover {
+            color: #fff;
+        }
+
+        #tabAudioEngine pre#aeInputDevicesList {
+            border: 1px solid rgba(5, 217, 232, 0.25) !important;
+            background: rgba(0, 0, 0, 0.5) !important;
+            box-shadow: inset 0 0 20px rgba(5, 217, 232, 0.06);
+        }
+
+        #tabAudioEngine .ae-dsp-intro,
+        #tabAudioEngine .ae-transport-blurb {
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text-dim);
+            margin: 0 0 12px 0;
+        }
+
+        #tabAudioEngine .ae-transport-blurb {
+            font-size: 11px;
+            margin-bottom: 10px;
+            font-family: 'Share Tech Mono', monospace;
+            opacity: 0.95;
+        }
+
+        #tabAudioEngine .ae-transport-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        #tabAudioEngine .ae-transport-row .btn {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            letter-spacing: 0.06em;
+        }
+
+        #tabAudioEngine #aePlaybackPlayPause.playing {
+            border-color: var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 16px var(--cyan-glow);
+        }
+
+        #tabAudioEngine #aePlaybackReverse.active {
+            border-color: var(--magenta);
+            color: var(--magenta);
+            box-shadow: 0 0 16px var(--magenta-glow);
+        }
+
+        #tabAudioEngine .ae-eq-rack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+            margin-bottom: 10px;
+        }
+
+        #tabAudioEngine .ae-eq-rack .eq-slider {
+            filter: drop-shadow(0 0 4px var(--cyan-dim));
+        }
+
+        [data-theme="light"] #tabAudioEngine .hm-card.ae-panel {
+            background: linear-gradient(155deg, rgba(255, 255, 255, 0.97) 0%, rgba(241, 245, 249, 0.99) 100%);
+            border-color: rgba(8, 145, 178, 0.35);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.9),
+                0 4px 20px rgba(0, 0, 0, 0.08),
+                0 0 18px rgba(8, 145, 178, 0.1);
+        }
+
+        [data-theme="light"] #tabAudioEngine .ae-mono,
+        [data-theme="light"] #tabAudioEngine #aeEngineStatus,
+        [data-theme="light"] #tabAudioEngine #aeStreamStatus,
+        [data-theme="light"] #tabAudioEngine #aeInputStreamStatus,
+        [data-theme="light"] #tabAudioEngine #aeDeviceCaps,
+        [data-theme="light"] #tabAudioEngine #aeInputDeviceCaps {
+            color: var(--text) !important;
+            text-shadow: none;
+        }
+
+        [data-theme="light"] #tabAudioEngine .ae-intro {
+            background: linear-gradient(90deg, rgba(8, 145, 178, 0.1) 0%, transparent 70%);
+            border-left-color: var(--cyan);
         }
 
         .scan-btns-group {
@@ -8409,24 +8685,24 @@
     </div>
 
     <div class="tab-content" id="tabAudioEngine">
-        <div class="audio-engine-tab" style="padding:24px;max-width:960px;">
-            <h2 style="margin:0 0 12px 0;font-size:18px;color:var(--cyan);" data-i18n="ui.ae.heading">Audio Engine</h2>
-            <p style="color:var(--text-muted);font-size:13px;line-height:1.5;margin:0 0 20px 0;" data-i18n="ui.ae.intro">
+        <div class="audio-engine-tab">
+            <h2 class="ae-title" data-i18n="ui.ae.heading">Audio Engine</h2>
+            <p class="ae-intro" data-i18n="ui.ae.intro">
                 Separate process for low-latency output: choose the system output device and (later) an insert plugin chain. The sidecar binary talks to the UI over JSON.
             </p>
-            <div class="hm-card" style="padding:16px;border:1px solid var(--border-dim);border-radius:8px;margin-bottom:16px;">
-                <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;" data-i18n="ui.ae.status_label">Engine status</div>
-                <div id="aeEngineStatus" style="font-family:var(--font-mono,monospace);font-size:13px;color:var(--text-muted);">—</div>
-                <div id="aeStreamStatus" style="margin-top:8px;font-family:var(--font-mono,monospace);font-size:12px;color:var(--text-dim);">—</div>
-                <div id="aeInputStreamStatus" style="margin-top:8px;font-family:var(--font-mono,monospace);font-size:12px;color:var(--text-dim);line-height:1.4;">—</div>
+            <div class="hm-card ae-panel">
+                <div class="ae-panel-head" data-i18n="ui.ae.status_label">Engine status</div>
+                <div id="aeEngineStatus" class="ae-mono" style="font-size:13px;">—</div>
+                <div id="aeStreamStatus" class="ae-mono" style="margin-top:8px;font-size:12px;">—</div>
+                <div id="aeInputStreamStatus" class="ae-mono" style="margin-top:8px;font-size:12px;line-height:1.4;">—</div>
             </div>
-            <div class="hm-card" style="padding:16px;border:1px solid var(--border-dim);border-radius:8px;margin-bottom:16px;">
-                <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;" data-i18n="ui.ae.output_device_label">Output device</div>
+            <div class="hm-card ae-panel">
+                <div class="ae-panel-head" data-i18n="ui.ae.output_device_label">Output device</div>
                 <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-                    <select id="aeOutputDevice" data-i18n-title="ui.ae.output_device_tt" style="min-width:280px;max-width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border-dim);background:var(--bg-panel);color:var(--text);font-size:13px;" title="System output device for the engine"></select>
-                    <button class="btn" type="button" id="aeRefreshDevices" data-i18n="ui.ae.refresh_devices" style="padding:8px 14px;">Refresh list</button>
-                    <button class="btn" type="button" id="aeApplyDevice" data-i18n="ui.ae.apply_device" style="padding:8px 14px;">Apply</button>
-                    <button class="btn" type="button" id="aeStopStream" data-i18n="ui.ae.stop_stream" data-i18n-title="ui.ae.stop_stream_tt" style="padding:8px 14px;" title="Stop cpal output stream">Stop stream</button>
+                    <select id="aeOutputDevice" class="ae-input" data-i18n-title="ui.ae.output_device_tt" style="min-width:280px;max-width:100%;padding:8px 10px;font-size:13px;" title="System output device for the engine"></select>
+                    <button class="btn btn-secondary" type="button" id="aeRefreshDevices" data-i18n="ui.ae.refresh_devices" style="padding:8px 14px;">Refresh list</button>
+                    <button class="btn btn-primary" type="button" id="aeApplyDevice" data-i18n="ui.ae.apply_device" style="padding:8px 14px;">Apply</button>
+                    <button class="btn btn-stop" type="button" id="aeStopStream" data-i18n="ui.ae.stop_stream" data-i18n-title="ui.ae.stop_stream_tt" style="padding:8px 14px;" title="Stop cpal output stream">Stop stream</button>
                     <label data-i18n-title="ui.ae.test_tone_tt" style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:pointer;user-select:none;" title="Low-level sine on F32 default stream; toggle live if supported">
                         <input type="checkbox" id="aeTestTone" />
                         <span data-i18n="ui.ae.test_tone_label">Test tone (440 Hz)</span>
@@ -8435,33 +8711,93 @@
                 <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
                     <label for="aeBufferFramesOutput" data-i18n-title="ui.ae.buffer_frames_output_tt" style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:default;user-select:none;">
                         <span data-i18n="ui.ae.buffer_frames_output_label">Output buffer (frames)</span>
-                        <input type="number" id="aeBufferFramesOutput" min="1" step="1" inputmode="numeric" placeholder="" style="width:100px;padding:6px 8px;border-radius:6px;border:1px solid var(--border-dim);background:var(--bg-panel);color:var(--text);font-size:13px;font-family:var(--font-mono,monospace);" />
+                        <input type="number" class="ae-input" id="aeBufferFramesOutput" min="1" step="1" inputmode="numeric" placeholder="" style="width:100px;padding:6px 8px;font-size:13px;" />
                     </label>
                 </div>
                 <details id="aeInputDevicesDetails" style="margin-top:12px;">
-                    <summary style="cursor:pointer;font-size:13px;color:var(--text-muted);user-select:none;" data-i18n="ui.ae.input_devices_heading">Input devices</summary>
+                    <summary data-i18n="ui.ae.input_devices_heading">Input devices</summary>
                     <p style="font-size:12px;color:var(--text-dim);margin:8px 0 6px 0;line-height:1.45;" data-i18n="ui.ae.input_devices_intro">Sidecar list (capture/debug).</p>
-                    <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;" data-i18n="ui.ae.input_device_label">Input device</div>
-                    <select id="aeInputDevice" data-i18n-title="ui.ae.input_device_tt" style="min-width:280px;max-width:100%;margin-bottom:10px;padding:8px 10px;border-radius:6px;border:1px solid var(--border-dim);background:var(--bg-panel);color:var(--text);font-size:13px;"></select>
+                    <div class="ae-subhead" data-i18n="ui.ae.input_device_label">Input device</div>
+                    <select id="aeInputDevice" class="ae-input" data-i18n-title="ui.ae.input_device_tt" style="min-width:280px;max-width:100%;margin-bottom:10px;padding:8px 10px;font-size:13px;"></select>
                     <div style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
                         <label for="aeBufferFramesInput" data-i18n-title="ui.ae.buffer_frames_input_tt" style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:default;user-select:none;">
                             <span data-i18n="ui.ae.buffer_frames_input_label">Input buffer (frames)</span>
-                            <input type="number" id="aeBufferFramesInput" min="1" step="1" inputmode="numeric" placeholder="" style="width:100px;padding:6px 8px;border-radius:6px;border:1px solid var(--border-dim);background:var(--bg-panel);color:var(--text);font-size:13px;font-family:var(--font-mono,monospace);" />
+                            <input type="number" class="ae-input" id="aeBufferFramesInput" min="1" step="1" inputmode="numeric" placeholder="" style="width:100px;padding:6px 8px;font-size:13px;" />
                         </label>
                     </div>
-                    <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;" data-i18n="ui.ae.input_default_caps_label">Selected input caps</div>
-                    <div id="aeInputDeviceCaps" style="margin:0 0 10px 0;font-size:12px;color:var(--text-dim);font-family:var(--font-mono,monospace);line-height:1.4;">—</div>
+                    <div class="ae-subhead" data-i18n="ui.ae.input_default_caps_label">Selected input caps</div>
+                    <div id="aeInputDeviceCaps" class="ae-mono" style="margin:0 0 10px 0;font-size:12px;line-height:1.4;">—</div>
                     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:8px;">
-                        <button class="btn" type="button" id="aeStartInputCapture" data-i18n="ui.ae.start_input_capture" data-i18n-title="ui.ae.start_input_capture_tt" style="padding:8px 14px;">Start input capture</button>
-                        <button class="btn" type="button" id="aeStopInputCapture" data-i18n="ui.ae.stop_input_capture" data-i18n-title="ui.ae.stop_input_capture_tt" style="padding:8px 14px;">Stop input capture</button>
+                        <button class="btn btn-secondary" type="button" id="aeStartInputCapture" data-i18n="ui.ae.start_input_capture" data-i18n-title="ui.ae.start_input_capture_tt" style="padding:8px 14px;">Start input capture</button>
+                        <button class="btn btn-stop" type="button" id="aeStopInputCapture" data-i18n="ui.ae.stop_input_capture" data-i18n-title="ui.ae.stop_input_capture_tt" style="padding:8px 14px;">Stop input capture</button>
                     </div>
-                    <pre id="aeInputDevicesList" style="margin:0;padding:10px 12px;border-radius:6px;border:1px solid var(--border-dim);background:var(--bg-panel);font-size:12px;line-height:1.4;color:var(--text-dim);font-family:var(--font-mono,monospace);white-space:pre-wrap;word-break:break-word;">—</pre>
+                    <pre id="aeInputDevicesList" style="margin:0;padding:10px 12px;border-radius:4px;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word;">—</pre>
                 </details>
-                <div id="aeDeviceCaps" style="margin-top:12px;font-size:12px;color:var(--text-dim);font-family:var(--font-mono,monospace);line-height:1.4;">—</div>
+                <div id="aeDeviceCaps" class="ae-mono" style="margin-top:12px;font-size:12px;line-height:1.4;">—</div>
             </div>
-            <div class="hm-card" style="padding:16px;border:1px solid var(--border-dim);border-radius:8px;">
-                <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;" data-i18n="ui.ae.plugins_heading">Insert plugins</div>
-                <p id="aePluginStub" style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.5;">—</p>
+            <div class="hm-card ae-panel">
+                <div class="ae-panel-head" data-i18n="ui.ae.playback_dsp_heading">Playback output &amp; EQ</div>
+                <p class="ae-dsp-intro" data-i18n="ui.ae.playback_dsp_intro">Same settings as the floating player (saved in preferences). Applies to library playback through the sidecar when a track is playing.</p>
+                <p class="ae-transport-blurb" data-i18n="ui.ae.playback_transport_intro">Rodio transport: play/pause, seek ±5s, reverse (same as the floating player).</p>
+                <div class="ae-transport-row">
+                    <button type="button" class="btn btn-secondary" id="aePlaybackPlayPause" data-i18n-title="ui.ae.transport_play_pause_tt" style="min-width:44px;padding:8px 14px;font-size:15px;line-height:1;">&#9654;</button>
+                    <button type="button" class="btn btn-secondary" id="aeSkipBack5" data-i18n-title="ui.ae.transport_skip_back_tt" style="padding:8px 14px;"><span data-i18n="ui.ae.transport_skip_back_label">−5s</span></button>
+                    <button type="button" class="btn btn-secondary" id="aeSkipForward5" data-i18n-title="ui.ae.transport_skip_forward_tt" style="padding:8px 14px;"><span data-i18n="ui.ae.transport_skip_forward_label">+5s</span></button>
+                    <button type="button" class="btn btn-secondary" id="aePlaybackReverse" data-i18n="ui.ae.transport_reverse_label" data-i18n-title="ui.ae.transport_reverse_tt" style="padding:8px 14px;">Reverse</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:14px;">
+                    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-muted);">
+                        <span data-i18n="ui.ae.playback_volume_label">Volume</span>
+                        <span style="display:flex;align-items:center;gap:8px;">
+                            <input type="range" id="aeVolume" min="0" max="100" value="100" style="width:140px;accent-color:var(--cyan);" />
+                            <span id="aeVolumePct" style="min-width:36px;font-family:var(--font-mono,monospace);font-size:12px;color:var(--cyan);text-shadow:0 0 6px var(--cyan-dim);">100%</span>
+                        </span>
+                    </label>
+                    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-muted);">
+                        <span data-i18n="ui.np.label_speed">Speed</span>
+                        <select id="aePlaybackSpeed" class="ae-input" style="min-width:88px;padding:6px 8px;font-size:13px;">
+                            <option data-i18n="ui.opt.0_25x" value="0.25">0.25x</option>
+                            <option data-i18n="ui.opt.0_5x" value="0.5">0.5x</option>
+                            <option data-i18n="ui.opt.0_75x" value="0.75">0.75x</option>
+                            <option data-i18n="ui.opt.1x" selected value="1">1x</option>
+                            <option data-i18n="ui.opt.1_25x" value="1.25">1.25x</option>
+                            <option data-i18n="ui.opt.1_5x" value="1.5">1.5x</option>
+                            <option data-i18n="ui.opt.2x" value="2">2x</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="ae-eq-rack">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+                        <span style="font-size:9px;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.tt.low_eq_200_hz_12_to_12_db">Low 200 Hz</span>
+                        <input class="eq-slider" id="aeEqLow" type="range" min="-12" max="12" step="1" value="0" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--cyan);" />
+                        <span id="aeEqLowVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--cyan);">0 dB</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+                        <span style="font-size:9px;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.tt.mid_eq_1_khz_12_to_12_db">Mid 1 kHz</span>
+                        <input class="eq-slider" id="aeEqMid" type="range" min="-12" max="12" step="1" value="0" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--cyan);" />
+                        <span id="aeEqMidVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--cyan);">0 dB</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+                        <span style="font-size:9px;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.tt.high_eq_8_khz_12_to_12_db">High 8 kHz</span>
+                        <input class="eq-slider" id="aeEqHigh" type="range" min="-12" max="12" step="1" value="0" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--cyan);" />
+                        <span id="aeEqHighVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--cyan);">0 dB</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+                        <span style="font-size:9px;color:var(--magenta);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.np.label_gain">Gain</span>
+                        <input class="eq-slider" id="aeGainSlider" type="range" min="0" max="2" step="0.01" value="1" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--magenta);" />
+                        <span id="aeGainVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--magenta);">100%</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+                        <span style="font-size:9px;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.np.label_pan">Pan</span>
+                        <input class="eq-slider" id="aePanSlider" type="range" min="-1" max="1" step="0.01" value="0" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--cyan);" />
+                        <span id="aePanVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--cyan);">C</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hm-card ae-panel">
+                <div class="ae-panel-head" data-i18n="ui.ae.plugins_heading">Insert plugins</div>
+                <p id="aePluginStub" style="margin:0 0 10px 0;font-size:13px;color:var(--text-muted);line-height:1.5;">—</p>
+                <ul id="aePluginSlotList" style="margin:0;padding:0;list-style:none;font-size:12px;color:var(--text-dim);font-family:var(--font-mono,monospace);line-height:1.6;"></ul>
             </div>
         </div>
     </div>
@@ -9681,44 +10017,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=61493"></script>
-<script src="js/utils.js?v=61493"></script>
-<script src="js/ipc.js?v=61493"></script>
-<script src="js/drag-reorder.js?v=61493"></script>
-<script src="js/modal-drag.js?v=61493"></script>
-<script src="js/columns.js?v=61493"></script>
-<script src="js/notes.js?v=61493"></script>
-<script src="js/favorites.js?v=61493"></script>
-<script src="js/export.js?v=61493"></script>
-<script src="js/plugins.js?v=61493"></script>
-<script src="js/settings.js?v=61493"></script>
-<script src="js/history.js?v=61493"></script>
-<script src="js/kvr.js?v=61493"></script>
-<script src="js/audio.js?v=61493"></script>
-<script src="js/daw.js?v=61493"></script>
-<script src="js/presets.js?v=61493"></script>
-<script src="js/disk-usage.js?v=61493"></script>
-<script src="js/batch-select.js?v=61493"></script>
-<script src="js/native-file-drag.js?v=61493"></script>
-<script src="js/sort-persist.js?v=61493"></script>
-<script src="js/multi-filter.js?v=61493"></script>
-<script src="js/file-browser.js?v=61493"></script>
-<script src="js/duplicates.js?v=61493"></script>
-<script src="js/command-palette.js?v=61493"></script>
-<script src="js/xref.js?v=61493"></script>
-<script src="js/dep-graph.js?v=61493"></script>
-<script src="js/smart-playlists.js?v=61493"></script>
-<script src="js/heatmap-dashboard.js?v=61493"></script>
-<script src="js/midi.js?v=61493"></script>
-<script src="js/pdf.js?v=61493"></script>
-<script src="js/settings-search.js?v=61493"></script>
-<script src="js/visualizer.js?v=61493"></script>
-<script src="js/walker-status.js?v=61493"></script>
-<script src="js/audio-engine.js?v=61493"></script>
-<script src="js/context-menu.js?v=61493"></script>
-<script src="js/shortcuts.js?v=61493"></script>
-<script src="js/help-overlay.js?v=61493"></script>
-<script src="js/keyboard-nav.js?v=61493"></script>
-<script src="js/app.js?v=61493"></script>
+<script src="js/i18n-ui.js?v=27688"></script>
+<script src="js/utils.js?v=27688"></script>
+<script src="js/ipc.js?v=27688"></script>
+<script src="js/drag-reorder.js?v=27688"></script>
+<script src="js/modal-drag.js?v=27688"></script>
+<script src="js/columns.js?v=27688"></script>
+<script src="js/notes.js?v=27688"></script>
+<script src="js/favorites.js?v=27688"></script>
+<script src="js/export.js?v=27688"></script>
+<script src="js/plugins.js?v=27688"></script>
+<script src="js/settings.js?v=27688"></script>
+<script src="js/history.js?v=27688"></script>
+<script src="js/kvr.js?v=27688"></script>
+<script src="js/audio.js?v=27688"></script>
+<script src="js/daw.js?v=27688"></script>
+<script src="js/presets.js?v=27688"></script>
+<script src="js/disk-usage.js?v=27688"></script>
+<script src="js/batch-select.js?v=27688"></script>
+<script src="js/native-file-drag.js?v=27688"></script>
+<script src="js/sort-persist.js?v=27688"></script>
+<script src="js/multi-filter.js?v=27688"></script>
+<script src="js/file-browser.js?v=27688"></script>
+<script src="js/duplicates.js?v=27688"></script>
+<script src="js/command-palette.js?v=27688"></script>
+<script src="js/xref.js?v=27688"></script>
+<script src="js/dep-graph.js?v=27688"></script>
+<script src="js/smart-playlists.js?v=27688"></script>
+<script src="js/heatmap-dashboard.js?v=27688"></script>
+<script src="js/midi.js?v=27688"></script>
+<script src="js/pdf.js?v=27688"></script>
+<script src="js/settings-search.js?v=27688"></script>
+<script src="js/visualizer.js?v=27688"></script>
+<script src="js/walker-status.js?v=27688"></script>
+<script src="js/audio-engine.js?v=27688"></script>
+<script src="js/context-menu.js?v=27688"></script>
+<script src="js/shortcuts.js?v=27688"></script>
+<script src="js/help-overlay.js?v=27688"></script>
+<script src="js/keyboard-nav.js?v=27688"></script>
+<script src="js/app.js?v=27688"></script>
 </body>
 </html>

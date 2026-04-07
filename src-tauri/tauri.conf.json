@@ -5,7 +5,7 @@
   "identifier": "com.menketechnologies.audio-haxor",
   "build": {
     "frontendDist": "../frontend",
-    "beforeDevCommand": "cargo build -p audio-engine",
+    "beforeDevCommand": "node scripts/build-audio-engine.mjs",
     "beforeBuildCommand": "node scripts/prepare-audio-engine-sidecar.mjs"
   },
   "app": {

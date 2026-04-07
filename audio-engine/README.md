@@ -1,63 +1,73 @@
 # audio-engine
 
-Sidecar binary for **AUDIO_HAXOR**: **cpal**-based **input and output** device discovery, a **persistent** stdin line protocol (one JSON request in → one JSON line out), and a **single** thread that owns active output handles. **Library file playback** uses **[rodio](https://github.com/RustAudio/rodio)** (`DeviceSinkBuilder` → `MixerDeviceSink` / `Player` → `Decoder`); test tone and silence still use a **`cpal::Stream`** when `start_playback` is false (`Stream` is not `Send` on macOS, so streams stay on this thread).
+Sidecar binary for **AUDIO_HAXOR**: **JUCE 8** (`AudioDeviceManager`, `AudioTransportSource`, `AudioFormatReader`) for **input/output** device discovery, **library file playback** with 3-band EQ / gain / pan, **VST3** + **AU** (macOS) **plugin scanning** via `KnownPluginList` + `PluginDirectoryScanner`, and a **persistent** stdin line protocol (one JSON request in → one JSON line out).
+
+## License (JUCE)
+
+JUCE is distributed under the **GPLv3** (or a **commercial** license from Raw Material Software). Building and distributing this sidecar **without** a JUCE commercial license generally implies **GPL obligations** for the combined work. Confirm your licensing model before shipping binaries.
 
 ## Protocol
 
-Each line is a JSON object with at least `cmd`. Optional fields include `device_id`, `tone` (bool, output only), `buffer_frames` (positive `u32`, fixed hardware buffer size in frames — **capped at 8192** before the device’s range clamp; prevents typos like `144000` which are ~**3** seconds at 48 kHz per callback and sound like audio continuing after **stop**), and **`start_playback`** (bool, output only): when `true` after **`playback_load`**, output is driven by **rodio** on the selected device (not the F32 cpal callback).
+Each line is a JSON object with at least `cmd`. Optional fields include `device_id`, `tone` (bool, output only), `buffer_frames` (positive `u32`, **capped at 8192**), and **`start_playback`** (bool, output only): when `true` after **`playback_load`**, output is driven by **JUCE** transport on the selected device (not the test-tone path).
 
-### Library playback (rodio + DSP)
+### Library playback (JUCE + DSP)
 
-**`playback_load`** uses **symphonia** only to probe the file (duration, **`src_rate`** from the first decoded packet when it differs from **`codec_params.sample_rate`** — some MP3/LAME probes disagree with the bitstream). **`start_output_stream`** with **`start_playback: true`** opens **`rodio::stream::DeviceSinkBuilder`** on the resolved device, applies the same **F32** **`supported_output_configs()`** preference as before (rate range including **`src_rate`**, stereo preferred when multiple ranges match), optional **`buffer_frames`**, then **`Player::connect_new`**, **`Decoder::try_from`**, and a custom **`Source`** that applies **3-band EQ** (lowshelf / peaking / highshelf, same corner frequencies as the Web Audio now‑playing graph), **gain**, and **constant-power stereo pan** on interleaved samples. Resampling and mixing are handled inside rodio/cpal.
+**`playback_load`** opens the path with **`AudioFormatManager`** (`registerBasicFormats`). Duration and source sample rate come from the reader. **`start_output_stream`** with **`start_playback: true`** wires **`AudioTransportSource`** → **`AudioSourcePlayer`** → **`AudioDeviceManager`** output callback. DSP (EQ / gain / pan) runs in **`DspStereoFileSource`** before the transport.
 
 | Command | Fields | Purpose |
 |--------|--------|---------|
-| `playback_load` | `path` (absolute file path) | Probe track; store session + duration; does **not** open output. Replacing a session clears the previous **`Player`** via **`stop_playback_thread`**. |
-| `start_output_stream` | `start_playback: true`, `device_id`, optional `buffer_frames` | After **`playback_load`**, opens rodio on the device and appends the decoded source. |
-| `playback_pause` | `paused` (bool) | **`Player::pause`** / **`Player::play`**. |
-| `playback_seek` | `position_sec` | **`Player::try_seek`**. **`position_sec` is always the normal (forward) timeline** (0 = start of track). In **reverse** mode the sidecar maps to the reversed buffer position (`duration - position`). |
-| `playback_set_dsp` | `gain`, `pan`, `eq_low_db`, `eq_mid_db`, `eq_high_db` | Update DSP atomics read in the rodio **`Source`** iterator. |
-| `playback_set_speed` | `speed` (float, clamped **0.25–2**) | **`Player::set_speed`** — same pitch behavior as `<audio>.playbackRate`. |
-| `playback_set_reverse` | `reverse` (bool) | When `true`, **fully decodes** the loaded file to stereo **f32** in RAM, reverses frame order, and uses **`SamplesBuffer`** on the next **`start_playback`** instead of streaming from disk. When `false`, clears the buffer. Large files use significant memory. |
-| `playback_status` | — | **`Player::get_pos`**, `duration_sec`, `peak`, **`Player::is_paused`**, **`Player::empty`** (`eof`), `reverse` (bool), `sample_rate_hz` (device), `src_rate_hz` (file probe). **`position_sec`** is mapped to the forward timeline when `reverse` is true. |
-| `playback_stop` | — | Stop **`Player`** and clear session (host should **`stop_output_stream`** first). |
+| `playback_load` | `path` (absolute) | Open file; store session; does **not** open output. |
+| `start_output_stream` | `start_playback: true`, `device_id`, optional `buffer_frames` | After **`playback_load`**, start transport on the device. |
+| `playback_pause` | `paused` (bool) | Pause / resume transport. |
+| `playback_seek` | `position_sec` | Seek (seconds on the forward timeline). |
+| `playback_set_dsp` | `gain`, `pan`, `eq_low_db`, `eq_mid_db`, `eq_high_db` | Update DSP parameters. |
+| `playback_set_speed` | `speed` (float) | Accepted; **rate change is not wired** — response may include a **note** (no resampler yet). |
+| `playback_set_reverse` | `reverse` (bool) | When `true`, full-decode-to-RAM reverse path for the next playback. |
+| `playback_status` | — | Position, duration, peak, pause, EOF, reverse, sample rates. |
+| `playback_stop` | — | Stop transport and clear session. |
 
-`stop_output_stream` drops the cpal stream **or** rodio sink handle and calls **`stop_playback_thread`** so the **`Player`** is cleared before a new output starts.
-
-Notable commands (devices + I/O):
+`stop_output_stream` tears down the output device graph and clears playback as needed.
 
 | Command | Purpose |
-|--------|--------|
+|--------|---------|
 | `ping` | Version + host id |
-| `engine_state` | `version`, `host`, `stream` (output, same shape as `output_stream_status`), `input_stream` (same shape as `input_stream_status`) |
-| `list_output_devices` / `list_input_devices` | Enumerate devices with stable string ids |
-| `get_output_device_info` / `get_input_device_info` | Default config + `buffer_size` object (`kind`: `range` \| `unknown`). Omit `device_id` to query the host default input/output device. |
-| `set_output_device` / `set_input_device` | Validate `device_id` only (no stream opened) |
-| `start_output_stream` | Open **output** config (with **`start_playback`**, prefer F32 at loaded **`src_rate`** when supported); optional `buffer_frames`, **`start_playback`**; **F32** supports `tone` (440 Hz sine) **or** rodio file playback when `start_playback` is set. |
-| `stop_output_stream` | Drop output stream / rodio sink. The host Audio Engine tab also sends **`playback_stop`** so the library session is cleared and the floating player state stays in sync. |
-| `output_stream_status` | Running + `tone_supported` / `tone_on` + `stream_buffer_frames` (null when idle or driver default) |
-| `start_input_stream` | Open default **input** config; optional `buffer_frames`; callback discards samples and updates **`input_peak`** (0..1 linear, block peak + decay). |
-| `stop_input_stream` | Drop input stream |
-| `input_stream_status` | Running + `stream_buffer_frames` + **`input_peak`** (null when idle); no tone fields. Host UI may poll this while the Audio Engine tab is active and input capture is running (~100ms) so **`input_peak`** updates live; polling pauses when the tab or window is not visible. |
-| `set_output_tone` | Toggle tone while output stream is running (F32 only; not available when **`start_playback`** file playback is active — no cpal tone path). |
-| `plugin_chain` | Discovery / UI: returns **`phase`**, **`api_version`**, **`slots`** (empty until hosting exists), **`formats_planned`** (e.g. VST3/AU/CLAP), **`note`**. Real plugin processing is not wired yet. |
-
-The **Audio Engine** tab in the app mirrors **volume, speed, 3-band EQ, preamp, and pan** from the same preferences as the floating player; changing either surface updates **`playback_set_dsp`** (and speed) when library playback is active.
+| `engine_state` | Aggregated stream snapshot |
+| `list_output_devices` / `list_input_devices` | Enumerate devices |
+| `get_output_device_info` / `get_input_device_info` | Default config + `buffer_size` |
+| `set_output_device` / `set_input_device` | Validate `device_id` |
+| `start_output_stream` / `stop_output_stream` | Output; optional tone or file playback |
+| `start_input_stream` / `stop_input_stream` | Input; peak meter |
+| `output_stream_status` / `input_stream_status` | Status lines |
+| `set_output_tone` | 440 Hz sine when F32 output + not in file playback mode |
+| `plugin_chain` | Scan progress + plugin list metadata; **live insert processing** is not wired yet |
 
 ## Build
 
-From the repo root (workspace):
+**Prerequisites:** **CMake** ≥ 3.22, **Ninja**, and a C++20 toolchain. Platform libs (e.g. **ALSA** on Linux) must match your JUCE audio backend expectations.
+
+From the **repository root**:
 
 ```bash
-cargo build -p audio-engine --release
+# Debug (matches pnpm tauri dev — beforeDevCommand)
+node scripts/build-audio-engine.mjs
+
+# Release (matches prepare sidecar)
+AUDIO_ENGINE_BUILD_TYPE=release node scripts/build-audio-engine.mjs
 ```
 
-Tauri bundles this via `scripts/prepare-audio-engine-sidecar.mjs` and `bundle.externalBin`.
+Artifacts land at **`target/debug/audio-engine`** or **`target/release/audio-engine`** (same layout as the old Cargo output). **Release** bundles use `scripts/prepare-audio-engine-sidecar.mjs` → `src-tauri/binaries/audio-engine-<triple>` for Tauri `externalBin`.
 
-### Stale sidecar / `unknown cmd: playback_load`
+### Linux (typical)
 
-The app keeps **one** long-lived `audio-engine` child. After you **`cargo build -p audio-engine`**, the on-disk binary updates, but an old process could still answer stdin until replaced. The Tauri host respawns when the resolved binary’s **size/mtime** changes, and retries once if a response’s **`error`** contains `unknown cmd`. If you still see **`unknown cmd`** for a valid verb, **fully quit and reopen the app**, or set **`AUDIO_HAXOR_AUDIO_ENGINE`** to an absolute path to a fresh `target/debug/audio-engine` (or `release`) so the host spawns that binary.
+```bash
+sudo apt-get install -y cmake ninja-build build-essential \
+  libasound2-dev libfreetype6-dev libx11-dev libxinerama-dev libxrandr-dev libxcursor-dev libgl1-mesa-dev
+```
+
+### Stale sidecar / `unknown cmd`
+
+The app keeps **one** long-lived `audio-engine` child. After rebuilding, an old process can still answer stdin until replaced. The Tauri host respawns when the resolved binary’s **size/mtime** changes. If IPC looks wrong, quit the app or set **`AUDIO_HAXOR_AUDIO_ENGINE`** to an absolute path to a fresh `target/debug/audio-engine` or `target/release/audio-engine`.
 
 ## Host app (WEB UI)
 
-`frontend/js/audio-engine.js` drives the Audio Engine tab and exports **`enginePlaybackStart`**, **`enginePlaybackStop`**, **`syncEnginePlaybackDspFromPrefs`**, **`stopEnginePlaybackPoll`**, **`startEnginePlaybackPoll`** on `window` for **`frontend/js/audio.js`** — **`resumeEnginePlaybackAfterApply`** lives in **`audio.js`**. When IPC exists, **library preview** uses **`playback_load`** + **`start_output_stream`** with **`start_playback: true`** so audible output comes **only** from the sidecar (the `<audio>` element stays disconnected). **Apply** (`applyAudioEngineDevice`) queries **`playback_status`** first; if **`loaded`**, it passes **`start_playback: true`** when restarting **`start_output_stream`** so changing device, buffer size, or test tone does **not** replace the stream with silence/tone-only while a session still exists (which previously broke preview until **Stop stream** or a new **`playback_load`**). If **`loaded`** is **false** (e.g. **Stop stream** ran **`playback_stop`**), **`applyAudioEngineDevice`** runs **`playback_load`** on **`window._enginePlaybackResumePath`** (set when a library track was last started via the engine), then **`start_playback: true`**, and calls **`resumeEnginePlaybackAfterApply`** so **`_enginePlaybackActive`**, position polling, and waveform seek line up with the sidecar again. **Now‑playing mute** for engine playback uses **`prefs.audioVolume`** (same as the volume slider) so **`playback_set_dsp`** actually silences the sidecar. On **`start_output_stream`** with **`start_playback`**, the sidecar calls **`stop_playback_thread`** after replacing output so the previous **`Player`** is stopped before attaching a new one — matching the **`stop_output_stream`** step in **`enginePlaybackStart`** and avoiding a stuck decoder or duplicate playback on Apply. **`getAeAudioEngineInvoke()`** returns the preload `audioEngineInvoke` or `null` (guards missing `window.vstUpdater` / release load order). **`fillAeEngineStatusOkFromState`** / **`fillAeEngineStatusFromError`** / **`syncAeToneCheckboxFromStream`** centralize **`ui.ae.status_ok`**, **`ui.ae.status_error`**, and test-tone checkbox updates from **`engine_state`**. **`throwIfAeNotOk`** normalizes IPC `{ ok, error }` failures into **`Error`**s for the shared catch paths. Running stream lines share **`buildAeStreamStatusLineCore`** (output vs input catalog keys) and **`appendAeStreamBufferFixedSuffix`** for the fixed **`stream_buffer_frames`** segment (`ui.ae.stream_buffer_fixed`). Refresh rebuilds the input device **`<select>`** via **`aePopulateInputDeviceSelectOptions`** (system-default option + devices + pick validation). After Apply / tone / capture / stop failures, **`fillAeStreamsAfterEngineError`** (uses **`getAeAudioEngineInvoke`**) re-invokes `engine_state` so the output/input stream lines match the sidecar. If **`audioEngineInvoke`** is unavailable, **`aeNotifyNoAudioEngineIpc`** clears stream lines to `—` and sets **`ui.ae.err_no_ipc`** on the engine status line (same pattern as Refresh with no IPC). **Web Audio** analysers / spectrum in the now‑playing UI do not see engine‑routed audio (the graph is not in the signal path); position/time use **`playback_status`** polling (~100 ms).
+`frontend/js/audio-engine.js` drives the Audio Engine tab and coordinates **`playback_*`** with the floating player. Behavior matches the root **`README.md`** Audio Engine / dev-vs-build sections (IPC guards, `engine_state` resync, input peak polling, etc.).

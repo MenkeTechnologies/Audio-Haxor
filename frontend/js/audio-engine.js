@@ -1,4 +1,4 @@
-// ── Audio Engine tab: separate `audio-engine` process (cpal devices, future plugin graph) ──
+// ── Audio Engine tab: separate `audio-engine` process (JUCE devices + playback; VST3/AU scan; plugin insert graph planned) ──
 
 const AE_PREFS_DEVICE = 'audioEngineOutputDeviceId';
 const AE_PREFS_INPUT_DEVICE = 'audioEngineInputDeviceId';
@@ -282,6 +282,34 @@ function syncAePlaybackControlsFromPrefs() {
                 Math.abs(p) < 0.05 ? 'C' : p < 0 ? Math.round(Math.abs(p) * 100) + 'L' : Math.round(p * 100) + 'R';
         }
     }
+    syncAeTransportFromPlayback();
+}
+
+/**
+ * Keep Audio Engine transport buttons aligned with floating player / rodio (`playback_pause`, reverse pref).
+ */
+function syncAeTransportFromPlayback() {
+    const playBtn = document.getElementById('aePlaybackPlayPause');
+    const revBtn = document.getElementById('aePlaybackReverse');
+    const sb = document.getElementById('aeSkipBack5');
+    const sf = document.getElementById('aeSkipForward5');
+    const hasPath =
+        typeof audioPlayerPath !== 'undefined' && audioPlayerPath != null && String(audioPlayerPath) !== '';
+    for (const b of [revBtn, sb, sf]) {
+        if (b) b.disabled = !hasPath;
+    }
+    if (revBtn && typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
+        revBtn.classList.toggle('active', prefs.getItem('audioReverse') === 'on');
+    }
+    if (playBtn && typeof isAudioPlaying === 'function') {
+        const playing = isAudioPlaying();
+        const prev = playBtn.dataset.aePlaying === '1';
+        if (playing !== prev) {
+            playBtn.dataset.aePlaying = playing ? '1' : '0';
+            playBtn.innerHTML = playing ? '&#9646;&#9646;' : '&#9654;';
+            playBtn.classList.toggle('playing', playing);
+        }
+    }
 }
 
 function bindAePlaybackControls() {
@@ -307,6 +335,33 @@ function bindAePlaybackControls() {
     const pan = document.getElementById('aePanSlider');
     if (pan && typeof pan.addEventListener === 'function' && typeof setPan === 'function') {
         pan.addEventListener('input', () => setPan(pan.value));
+    }
+    const playBtn = document.getElementById('aePlaybackPlayPause');
+    if (playBtn && typeof playBtn.addEventListener === 'function') {
+        playBtn.addEventListener('click', () => {
+            if (typeof toggleAudioPlayback === 'function') toggleAudioPlayback();
+            syncAeTransportFromPlayback();
+        });
+    }
+    const revBtn = document.getElementById('aePlaybackReverse');
+    if (revBtn && typeof revBtn.addEventListener === 'function') {
+        revBtn.addEventListener('click', () => {
+            if (typeof toggleReversePlayback === 'function') {
+                void toggleReversePlayback().then(() => syncAeTransportFromPlayback());
+            }
+        });
+    }
+    const sb = document.getElementById('aeSkipBack5');
+    if (sb && typeof sb.addEventListener === 'function') {
+        sb.addEventListener('click', () => {
+            if (typeof skipPlaybackSeconds === 'function') void skipPlaybackSeconds(-5);
+        });
+    }
+    const sf = document.getElementById('aeSkipForward5');
+    if (sf && typeof sf.addEventListener === 'function') {
+        sf.addEventListener('click', () => {
+            if (typeof skipPlaybackSeconds === 'function') void skipPlaybackSeconds(5);
+        });
     }
 }
 
@@ -1162,4 +1217,5 @@ if (typeof window !== 'undefined') {
     window.engineApplyReversePrefPlayback = engineApplyReversePrefPlayback;
     window.stopEnginePlaybackPoll = stopEnginePlaybackPoll;
     window.startEnginePlaybackPoll = startEnginePlaybackPoll;
+    window.syncAeTransportFromPlayback = syncAeTransportFromPlayback;
 }
