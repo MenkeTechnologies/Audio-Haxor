@@ -1,5 +1,5 @@
 // ── Audio Visualizer Tab ──
-// 6 real-time displays: FFT, waveform, spectrogram, stereo, levels, bands.
+// 6 real-time displays: FFT, oscilloscope, spectrogram, stereo, levels, bands.
 // Primary data: audio-engine `playback_status.spectrum` (see `applyPlaybackStatusSpectrum` in
 // audio-engine.js). Web Audio `AnalyserNode` is only used when the AudioEngine is not supplying spectrum.
 // Grid (all) or single mode. Fullscreen. Trello drag to rearrange. Context menus.
@@ -17,7 +17,7 @@ let _vizTimeData = null;
 let _vizParams = {
     fftSmoothing: 0.8,
     fftLogScale: true,
-    waveformColor: 'cyan',
+    oscilloscopeTraceColor: 'cyan',
     spectrogramSpeed: 1,
     levelsHold: true,
     bandsCount: 10,
@@ -66,7 +66,7 @@ function _vizOutputSampleRateHz() {
 
 /**
  * Minimal AnalyserNode stand-in backed by `window._engineSpectrumU8` (engine FFT tap).
- * Waveform is synthetic; stereo/levels tiles use dedicated engine paths when spectrum is live.
+ * Time-domain trace is synthetic from spectrum when using the shim; stereo/levels tiles use dedicated engine paths when spectrum is live.
  */
 const _vizEngineShim = {
     frequencyBinCount: 1024,
@@ -172,7 +172,7 @@ function _vizFillRoundTopBar(ctx, x, yTop, bw, bh, fillStyle) {
 }
 
 /** Cached canvas + 2D context per tile mode — avoids `querySelector` every frame. */
-const _VIZ_TILE_MODES = ['fft', 'waveform', 'spectrogram', 'stereo', 'levels', 'bands'];
+const _VIZ_TILE_MODES = ['fft', 'oscilloscope', 'spectrogram', 'stereo', 'levels', 'bands'];
 const _vizTileCache = new Map();
 
 function _refreshVizTileCache() {
@@ -312,7 +312,7 @@ function _vizLoop(timestamp) {
         vizAnalyser.getByteFrequencyData(_vizFreqData);
         vizAnalyser.getFloatTimeDomainData(_vizTimeData);
         _drawTile('fft', vizAnalyser);
-        _drawTile('waveform', vizAnalyser);
+        _drawTile('oscilloscope', vizAnalyser);
         _drawTile('spectrogram', vizAnalyser);
         _drawTile('stereo', vizAnalyser);
         _drawTile('levels', vizAnalyser);
@@ -337,8 +337,8 @@ function _drawTile(mode, analyser) {
         case 'fft':
             _drawFFT(ctx, w, h, analyser);
             break;
-        case 'waveform':
-            _drawWaveform(ctx, w, h, analyser);
+        case 'oscilloscope':
+            _drawOscilloscope(ctx, w, h, analyser);
             break;
         case 'spectrogram':
             _drawSpectrogram(ctx, w, h, analyser);
@@ -411,8 +411,8 @@ function _drawFFT(ctx, w, h, analyser) {
     }
 }
 
-// ── Waveform / Oscilloscope ──
-function _drawWaveform(ctx, w, h, analyser) {
+// ── Oscilloscope (time-domain trace) ──
+function _drawOscilloscope(ctx, w, h, analyser) {
     const bufLen = analyser.fftSize;
     if (_vizMode !== 'all') {
         if (!_vizTimeData || _vizTimeData.length !== bufLen) _vizTimeData = new Float32Array(bufLen);
@@ -421,10 +421,10 @@ function _drawWaveform(ctx, w, h, analyser) {
     const data = _vizTimeData;
     _vizHudBackdrop(ctx, w, h);
 
-    const color = _vizParams.waveformColor === 'magenta' ? 'rgba(211,0,197,0.92)' :
-        _vizParams.waveformColor === 'green' ? 'rgba(57,255,20,0.9)' : 'rgba(5,217,232,0.92)';
-    const glow = _vizParams.waveformColor === 'magenta' ? 'rgba(211,0,197,0.35)' :
-        _vizParams.waveformColor === 'green' ? 'rgba(57,255,20,0.35)' : 'rgba(5,217,232,0.4)';
+    const color = _vizParams.oscilloscopeTraceColor === 'magenta' ? 'rgba(211,0,197,0.92)' :
+        _vizParams.oscilloscopeTraceColor === 'green' ? 'rgba(57,255,20,0.9)' : 'rgba(5,217,232,0.92)';
+    const glow = _vizParams.oscilloscopeTraceColor === 'magenta' ? 'rgba(211,0,197,0.35)' :
+        _vizParams.oscilloscopeTraceColor === 'green' ? 'rgba(57,255,20,0.35)' : 'rgba(5,217,232,0.4)';
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
@@ -995,20 +995,20 @@ document.addEventListener('contextmenu', (e) => {
             }
         });
     }
-    if (mode === 'waveform') {
+    if (mode === 'oscilloscope') {
         items.push({
             icon: '&#127912;', label: appFmt('menu.viz_color_cyan'), action: () => {
-                _vizParams.waveformColor = 'cyan';
+                _vizParams.oscilloscopeTraceColor = 'cyan';
             }
         });
         items.push({
             icon: '&#127912;', label: appFmt('menu.viz_color_magenta'), action: () => {
-                _vizParams.waveformColor = 'magenta';
+                _vizParams.oscilloscopeTraceColor = 'magenta';
             }
         });
         items.push({
             icon: '&#127912;', label: appFmt('menu.viz_color_green'), action: () => {
-                _vizParams.waveformColor = 'green';
+                _vizParams.oscilloscopeTraceColor = 'green';
             }
         });
     }
@@ -1048,6 +1048,15 @@ document.addEventListener('contextmenu', (e) => {
 
 // ── Trello drag to rearrange tiles ──
 document.addEventListener('DOMContentLoaded', () => {
+    if (typeof prefs !== 'undefined' && typeof prefs.getObject === 'function' && typeof prefs.setItem === 'function') {
+        const saved = prefs.getObject('vizTileOrder', null);
+        if (Array.isArray(saved) && saved.includes('waveform')) {
+            prefs.setItem(
+                'vizTileOrder',
+                saved.map((k) => (k === 'waveform' ? 'oscilloscope' : k))
+            );
+        }
+    }
     const grid = document.getElementById('vizGrid');
     if (grid && typeof initDragReorder === 'function') {
         initDragReorder(grid, '.viz-tile', 'vizTileOrder', {
