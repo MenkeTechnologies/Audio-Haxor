@@ -2,7 +2,7 @@
 
 ## English catalog
 
-- **Source of truth:** `i18n/app_i18n_en.json` (sorted keys).
+- **Source of truth:** `i18n/app_i18n_en.json` (sorted keys). **CI** (`test/i18n-catalog-files.test.js`) asserts every shipped `app_i18n_*.json` has **lexicographically sorted** top-level keys — `merge_i18n_keys.py` / `sync_locale_keys_from_en.py` emit sorted maps; if you hand-edit JSON, re-sort before push (e.g. `python3 -c "import json, pathlib; p=pathlib.Path('i18n/app_i18n_en.json'); d=json.loads(p.read_text(encoding='utf-8')); p.write_text(json.dumps(dict(sorted(d.items())), ensure_ascii=False, indent=2)+chr(10), encoding='utf-8')"`) or CI fails with “keys must be sorted”.
 - **Action vs. noun compounds:** English strings like **“Scan Plugins”** (and the matching keys `menu.scan_plugins`, `ui.btn.8635_scan_plugins`, `ui.js.scan_plugins_btn`) describe a **button action** — *scan for plugins* — not a category of plugin (“scanning plugins”, “analysis plugins”, etc.). Automated translation often inverts word order or picks the wrong sense; keep `toast.scanning_plugins` consistent (progress wording).
 - **Runtime:** Strings are seeded into SQLite (`app_i18n`) from the bundled JSON at build time (`src-tauri/src/app_i18n.rs`).
 - **Adding keys:** Prefer a small JSON batch file under `scripts/i18n_batches/` and merge:
