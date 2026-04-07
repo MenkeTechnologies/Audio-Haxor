@@ -77,10 +77,49 @@ function copyToClipboard(text) {
   }).catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
 }
 
+/**
+ * When no specific surface matched, still offer copy / navigation so every app chrome
+ * surface gets a context menu (dock overlay, empty tab panels, chrome between cards, etc.).
+ */
+function buildFallbackShellContextMenu(e) {
+  const t = e.target;
+  const items = [];
+  const sel = window.getSelection?.()?.toString?.()?.trim();
+  if (sel) {
+    items.push({ icon: '&#128203;', label: appFmt('menu.copy'), ..._noEcho, action: () => copyToClipboard(sel) });
+  }
+  if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') {
+    const iv = t.value || '';
+    if (iv) items.push({ icon: '&#128203;', label: appFmt('menu.copy'), ..._noEcho, action: () => copyToClipboard(iv) });
+  }
+  const actionable = t.closest('[data-action]');
+  if (actionable && typeof actionable.click === 'function') {
+    const tag = actionable.tagName;
+    if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) {
+      items.push({ icon: '&#9654;', label: appFmt('menu.ctx_activate'), ..._noEcho, action: () => actionable.click() });
+    }
+  }
+  const focusable = t.closest('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusable && typeof focusable.focus === 'function') {
+    items.push({ icon: '&#128269;', label: appFmt('menu.ctx_focus'), ..._noEcho, action: () => { try { focusable.focus(); } catch (_) {} } });
+  }
+  if (!sel && t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA') {
+    const vis = (t.innerText || t.textContent || '').trim().replace(/\s+/g, ' ');
+    if (vis.length > 0 && vis.length <= 10000) {
+      items.push({ icon: '&#128203;', label: appFmt('menu.ctx_copy_visible_text'), ..._noEcho, action: () => copyToClipboard(vis.slice(0, 16000)) });
+    }
+  }
+  if (items.length > 0) items.push('---');
+  items.push({ icon: '&#128179;', label: appFmt('menu.cmd_palette'), action: () => { if (typeof openPalette === 'function') openPalette(); } });
+  items.push({ icon: '&#10068;', label: appFmt('menu.help_keyboard_shortcuts'), action: () => { if (typeof toggleHelpOverlay === 'function') toggleHelpOverlay(); } });
+  items.push({ icon: '&#9881;', label: appFmt('menu.tab_settings'), action: () => switchTab('settings') });
+  return items;
+}
+
 // ── Right-click handlers ──
 document.addEventListener('contextmenu', (e) => {
   // Always suppress default browser menu on app content
-  if (e.target.closest('.app, .audio-now-playing, .header, .stats-bar, .tab-nav')) {
+  if (e.target.closest('.app, .audio-now-playing, .header, .stats-bar, .tab-nav, #dockOverlay, .dock-zone-overlay, #splashScreen')) {
     e.preventDefault();
   }
 
@@ -868,6 +907,9 @@ document.addEventListener('contextmenu', (e) => {
   if (settingsRow) {
     const toggle = settingsRow.querySelector('.settings-toggle');
     const textarea = settingsRow.querySelector('.settings-textarea');
+    const selectEl = settingsRow.querySelector('select');
+    const rangeEl = settingsRow.querySelector('input[type="range"]');
+    const rowTitle = settingsRow.querySelector('.settings-title')?.textContent?.trim() || '';
     const items = [];
     if (toggle) {
       const isOn = toggle.classList.contains('active');
@@ -877,7 +919,32 @@ document.addEventListener('contextmenu', (e) => {
       items.push({ icon: '&#10005;', label: appFmt('menu.clear'), ..._noEcho, action: () => { textarea.value = ''; } });
       items.push({ icon: '&#128203;', label: appFmt('menu.copy'), ..._noEcho, action: () => copyToClipboard(textarea.value) });
     }
-    if (items.length === 0) return; // no special actions
+    if (selectEl) {
+      const optLabel = selectEl.options[selectEl.selectedIndex]?.text || selectEl.value;
+      items.push({ icon: '&#128203;', label: rowTitle ? appFmt('menu.copy_field_label', { label: rowTitle }) : appFmt('menu.copy'), ..._noEcho, action: () => copyToClipboard(optLabel) });
+      items.push({ icon: '&#128269;', label: appFmt('menu.ctx_focus'), ..._noEcho, action: () => { try { selectEl.focus(); } catch (_) {} } });
+    }
+    if (rangeEl) {
+      items.push({ icon: '&#8634;', label: appFmt('menu.ctx_reset_default'), action: () => {
+        rangeEl.value = rangeEl.defaultValue;
+        rangeEl.dispatchEvent(new Event('input', { bubbles: true }));
+        rangeEl.dispatchEvent(new Event('change', { bubbles: true }));
+      } });
+      items.push({ icon: '&#128203;', label: appFmt('menu.copy_quoted_label_val', { label: rowTitle || 'value', val: rangeEl.value }), ..._noEcho, action: () => copyToClipboard(String(rangeEl.value)) });
+      items.push({ icon: '&#128269;', label: appFmt('menu.ctx_focus'), ..._noEcho, action: () => { try { rangeEl.focus(); } catch (_) {} } });
+    }
+    const extraBtns = settingsRow.querySelectorAll('.settings-control button:not(.settings-toggle)');
+    for (const b of extraBtns) {
+      const bl = b.textContent?.trim().replace(/\s+/g, ' ') || '';
+      items.push({ icon: '&#9654;', label: bl ? `${appFmt('menu.ctx_activate')}: ${bl}` : appFmt('menu.ctx_activate'), action: () => b.click() });
+    }
+    if (rowTitle) {
+      items.push({ icon: '&#128203;', label: appFmt('menu.copy_section_name'), ..._noEcho, action: () => copyToClipboard(rowTitle) });
+    }
+    if (items.length === 0) {
+      const flat = settingsRow.textContent.trim().replace(/\s+/g, ' ');
+      if (flat) items.push({ icon: '&#128203;', label: appFmt('menu.ctx_copy_visible_text'), ..._noEcho, action: () => copyToClipboard(flat.slice(0, 8000)) });
+    }
     showContextMenu(e, items);
     return;
   }
@@ -1221,6 +1288,17 @@ document.addEventListener('contextmenu', (e) => {
       }},
     ];
     showContextMenu(e, items);
+    return;
+  }
+
+  // ── Universal fallback (empty tab panels, chrome gaps, tag bar, dock overlay, etc.) ──
+  const shell = e.target.closest('.app, .audio-now-playing, #dockOverlay, .dock-zone-overlay');
+  if (shell) {
+    if (e.target.closest('#ctxMenu')) return;
+    if (e.target.closest('.viz-tile')) return;
+    if (e.target.closest('.sp-item')) return;
+    e.preventDefault();
+    showContextMenu(e, buildFallbackShellContextMenu(e));
     return;
   }
 
