@@ -322,7 +322,7 @@ function mapActiveScanInv(raw) {
 
 /**
  * Fallback when IPC is unavailable: table_counts-style totals + in-memory scan progress.
- * Prefer `get_active_scan_inventory_counts` (latest scan_id per domain) for idle UI.
+ * Prefer `get_active_scan_inventory_counts` (library: one row per path, all scans) for idle UI.
  */
 function computeInventoryCountsLegacy(tc) {
     const tc0 = tc || {};

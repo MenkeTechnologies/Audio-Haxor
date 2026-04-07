@@ -4558,8 +4558,10 @@ impl Database {
         Ok(serde_json::Value::Object(map))
     }
 
-    /// Row counts per inventory category for the **latest** scan in each domain (same `scan_id`
-    /// scope as paginated queries and `*_filter_stats`). Not raw `COUNT(*)` on whole tables.
+    /// Row counts per inventory category for the **library** view: one canonical row per `path`
+    /// (`id IN (SELECT MAX(id) FROM … GROUP BY path)`), not scoped to a single `scan_id`. Presets
+    /// exclude `MID`/`MIDI` (same tab rules as elsewhere). This matches default `scan_id` handling
+    /// on paginated queries and `*_filter_stats`, not raw `COUNT(*)` on whole tables.
     pub fn active_scan_inventory_counts(&self) -> Result<serde_json::Value, String> {
         let conn = self.conn.lock().unwrap();
         let count_plugins: u64 = conn
