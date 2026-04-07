@@ -444,7 +444,8 @@ fn main() {
 }
 
 fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
-    match req.cmd.as_str() {
+    let cmd = req.cmd.trim().to_ascii_lowercase();
+    match cmd.as_str() {
         "ping" => Ok(json!({
             "ok": true,
             "version": ENGINE_VERSION,
