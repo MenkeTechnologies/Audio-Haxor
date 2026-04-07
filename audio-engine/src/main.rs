@@ -58,6 +58,12 @@ struct Request {
     /// `playback_pause` { "paused": true|false }
     #[serde(default)]
     paused: Option<bool>,
+    /// `playback_set_reverse` { "reverse": true|false }
+    #[serde(default)]
+    reverse: Option<bool>,
+    /// `playback_set_speed` { "speed": 0.25..=2.0 }
+    #[serde(default)]
+    speed: Option<f32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -610,6 +616,8 @@ fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
             req.eq_mid_db.unwrap_or(0.0),
             req.eq_high_db.unwrap_or(0.0),
         ),
+        "playback_set_speed" => playback::playback_set_speed(req.speed.unwrap_or(1.0)),
+        "playback_set_reverse" => playback::playback_set_reverse(req.reverse.unwrap_or(false)),
         "playback_status" => playback::playback_status(),
         "stop_input_stream" => stop_input_stream(),
         "stop_output_stream" => stop_output_stream(),

@@ -581,9 +581,67 @@ async function toggleReversePlayback() {
         return;
     }
     if (_enginePlaybackActive) {
-        if (typeof showToast === 'function') {
-            showToast(typeof toastFmt === 'function' ? toastFmt('toast.reverse_engine_unsupported') : 'Reverse playback is not available for engine output.', 4000, 'error');
+        const inv =
+            typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
+                ? window.vstUpdater.audioEngineInvoke.bind(window.vstUpdater)
+                : null;
+        const restart =
+            typeof window !== 'undefined' && typeof window.enginePlaybackRestartStream === 'function'
+                ? window.enginePlaybackRestartStream
+                : null;
+        if (!inv || !restart) {
+            if (typeof showToast === 'function') showToast(toastFmt('toast.reverse_no_track'), 3000, 'error');
+            return;
         }
+        if (_reverseDecodeBusy) return;
+        if (audioReverseMode) {
+            audioReverseMode = false;
+            prefs.setItem('audioReverse', 'off');
+            if (btn) btn.classList.remove('active');
+            const cur =
+                typeof window._enginePlaybackPosSec === 'number' && !Number.isNaN(window._enginePlaybackPosSec)
+                    ? window._enginePlaybackPosSec
+                    : 0;
+            _reverseDecodeBusy = true;
+            try {
+                await inv({cmd: 'playback_set_reverse', reverse: false});
+                await restart();
+                await inv({cmd: 'playback_seek', position_sec: cur});
+            } catch (e) {
+                if (typeof showToast === 'function') {
+                    showToast(toastFmt('toast.reverse_playback_failed', {err: e.message || String(e)}), 4000, 'error');
+                }
+            } finally {
+                _reverseDecodeBusy = false;
+            }
+            updatePlayBtnStates();
+            updateNowPlayingBtn();
+            return;
+        }
+        audioReverseMode = true;
+        prefs.setItem('audioReverse', 'on');
+        if (btn) btn.classList.add('active');
+        const cur =
+            typeof window._enginePlaybackPosSec === 'number' && !Number.isNaN(window._enginePlaybackPosSec)
+                ? window._enginePlaybackPosSec
+                : 0;
+        _reverseDecodeBusy = true;
+        try {
+            await inv({cmd: 'playback_set_reverse', reverse: true});
+            await restart();
+            await inv({cmd: 'playback_seek', position_sec: cur});
+        } catch (e) {
+            audioReverseMode = false;
+            prefs.setItem('audioReverse', 'off');
+            if (btn) btn.classList.remove('active');
+            if (typeof showToast === 'function') {
+                showToast(toastFmt('toast.reverse_playback_failed', {err: e.message || String(e)}), 4000, 'error');
+            }
+        } finally {
+            _reverseDecodeBusy = false;
+        }
+        updatePlayBtnStates();
+        updateNowPlayingBtn();
         return;
     }
     if (_reverseDecodeBusy) return;
@@ -2112,6 +2170,16 @@ async function previewAudio(filePath) {
             _pausedOffsetInRev = 0;
             audioPlayerPath = filePath;
             audioPlayer.loop = false;
+            if (prefs.getItem('audioReverse') === 'on' && typeof window.engineApplyReversePrefPlayback === 'function') {
+                await window.engineApplyReversePrefPlayback();
+                audioReverseMode = true;
+                const rb = document.getElementById('npBtnReverse');
+                if (rb) rb.classList.add('active');
+            } else {
+                audioReverseMode = false;
+                const rb = document.getElementById('npBtnReverse');
+                if (rb) rb.classList.remove('active');
+            }
         } else {
             if (_enginePlaybackActive && typeof window.enginePlaybackStop === 'function') {
                 void window.enginePlaybackStop();
@@ -2467,6 +2535,11 @@ function setAudioVolume(value) {
 function setPlaybackSpeed(value) {
     const v = parseFloat(value);
     prefs.setItem('audioSpeed', value);
+    if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
+        const s = Number.isFinite(v) ? Math.max(0.25, Math.min(2, v)) : 1;
+        void window.vstUpdater.audioEngineInvoke({cmd: 'playback_set_speed', speed: s});
+        return;
+    }
     if (audioReverseMode && _bufSrc && _bufPlaying) {
         const clamped = Math.max(0.0625, Math.min(16, v));
         _bufSrc.playbackRate.value = clamped;

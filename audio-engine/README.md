@@ -15,9 +15,11 @@ Each line is a JSON object with at least `cmd`. Optional fields include `device_
 | `playback_load` | `path` (absolute file path) | Probe track; store session + duration; does **not** open output. Replacing a session clears the previous **`Player`** via **`stop_playback_thread`**. |
 | `start_output_stream` | `start_playback: true`, `device_id`, optional `buffer_frames` | After **`playback_load`**, opens rodio on the device and appends the decoded source. |
 | `playback_pause` | `paused` (bool) | **`Player::pause`** / **`Player::play`**. |
-| `playback_seek` | `position_sec` | **`Player::try_seek`**. |
+| `playback_seek` | `position_sec` | **`Player::try_seek`**. **`position_sec` is always the normal (forward) timeline** (0 = start of track). In **reverse** mode the sidecar maps to the reversed buffer position (`duration - position`). |
 | `playback_set_dsp` | `gain`, `pan`, `eq_low_db`, `eq_mid_db`, `eq_high_db` | Update DSP atomics read in the rodio **`Source`** iterator. |
-| `playback_status` | — | **`Player::get_pos`**, `duration_sec`, `peak`, **`Player::is_paused`**, **`Player::empty`** (`eof`), `sample_rate_hz` (device), `src_rate_hz` (file probe). |
+| `playback_set_speed` | `speed` (float, clamped **0.25–2**) | **`Player::set_speed`** — same pitch behavior as `<audio>.playbackRate`. |
+| `playback_set_reverse` | `reverse` (bool) | When `true`, **fully decodes** the loaded file to stereo **f32** in RAM, reverses frame order, and uses **`SamplesBuffer`** on the next **`start_playback`** instead of streaming from disk. When `false`, clears the buffer. Large files use significant memory. |
+| `playback_status` | — | **`Player::get_pos`**, `duration_sec`, `peak`, **`Player::is_paused`**, **`Player::empty`** (`eof`), `reverse` (bool), `sample_rate_hz` (device), `src_rate_hz` (file probe). **`position_sec`** is mapped to the forward timeline when `reverse` is true. |
 | `playback_stop` | — | Stop **`Player`** and clear session (host should **`stop_output_stream`** first). |
 
 `stop_output_stream` drops the cpal stream **or** rodio sink handle and calls **`stop_playback_thread`** so the **`Player`** is cleared before a new output starts.

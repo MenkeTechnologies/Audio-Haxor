@@ -745,8 +745,13 @@ async function applyAudioEngineDevice() {
         }
         const start = await inv(startPayload);
         throwIfAeNotOk(start, 'start_output_stream failed');
-        if (playbackLoaded && typeof window !== 'undefined' && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
-            window.syncEnginePlaybackDspFromPrefs();
+        if (playbackLoaded && typeof window !== 'undefined') {
+            if (typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
+                window.syncEnginePlaybackDspFromPrefs();
+            }
+            if (typeof window.syncEnginePlaybackSpeedFromPrefs === 'function') {
+                window.syncEnginePlaybackSpeedFromPrefs();
+            }
         }
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_applied_stream', {id});
@@ -909,6 +914,60 @@ function syncEnginePlaybackDspFromPrefs() {
     });
 }
 
+/** Now-playing speed (0.25–2x) → rodio `Player::set_speed` (same pitch behavior as `<audio>.playbackRate`). */
+function syncEnginePlaybackSpeedFromPrefs() {
+    const inv = getAeAudioEngineInvoke();
+    if (!inv) return;
+    const sel = document.getElementById('npSpeed');
+    const v = parseFloat(sel && typeof sel.value === 'string' ? sel.value : '1');
+    const s = Number.isFinite(v) ? Math.max(0.25, Math.min(2, v)) : 1;
+    void inv({cmd: 'playback_set_speed', speed: s});
+}
+
+/**
+ * After `stop_output_stream`, reconnect the same device and restart library PCM (`start_playback: true`).
+ * Used when reverse mode toggles (new rodio source).
+ */
+async function enginePlaybackRestartStream() {
+    const inv = getAeAudioEngineInvoke();
+    if (!inv) throw new Error('audio engine IPC unavailable');
+    const deviceId =
+        typeof prefs !== 'undefined' && typeof prefs.getItem === 'function'
+            ? prefs.getItem(AE_PREFS_DEVICE) || ''
+            : '';
+    const bufOut = document.getElementById('aeBufferFramesOutput');
+    const bfRaw = bufOut && typeof bufOut.value === 'string' ? bufOut.value : '';
+    const bufferFrames = parseAeBufferFramesPref(bfRaw);
+    await inv({cmd: 'stop_output_stream'});
+    await inv({cmd: 'set_output_device', device_id: deviceId});
+    const payload = {
+        cmd: 'start_output_stream',
+        device_id: deviceId,
+        tone: false,
+        start_playback: true,
+    };
+    if (bufferFrames !== undefined) {
+        payload.buffer_frames = bufferFrames;
+    }
+    const r = await inv(payload);
+    throwIfAeNotOk(r, 'start_output_stream failed');
+    syncEnginePlaybackDspFromPrefs();
+    syncEnginePlaybackSpeedFromPrefs();
+}
+
+/** Pref `audioReverse` on at load: decode reversed PCM in sidecar and reopen stream (see `playback_set_reverse`). */
+async function engineApplyReversePrefPlayback() {
+    const inv = getAeAudioEngineInvoke();
+    if (!inv) return;
+    try {
+        await inv({cmd: 'playback_set_reverse', reverse: true});
+        await enginePlaybackRestartStream();
+        await inv({cmd: 'playback_seek', position_sec: 0});
+    } catch {
+        /* best-effort */
+    }
+}
+
 /**
  * Load file + start cpal output with `start_playback` (see audio-engine README).
  * @param {string} filePath — absolute host path
@@ -943,6 +1002,7 @@ async function enginePlaybackStart(filePath) {
     r = await inv(payload);
     throwIfAeNotOk(r, 'start_output_stream failed');
     syncEnginePlaybackDspFromPrefs();
+    syncEnginePlaybackSpeedFromPrefs();
     startEnginePlaybackPoll();
 }
 
@@ -968,6 +1028,9 @@ async function enginePlaybackStop() {
 if (typeof window !== 'undefined') {
     window.enginePlaybackStart = enginePlaybackStart;
     window.enginePlaybackStop = enginePlaybackStop;
+    window.enginePlaybackRestartStream = enginePlaybackRestartStream;
     window.syncEnginePlaybackDspFromPrefs = syncEnginePlaybackDspFromPrefs;
+    window.syncEnginePlaybackSpeedFromPrefs = syncEnginePlaybackSpeedFromPrefs;
+    window.engineApplyReversePrefPlayback = engineApplyReversePrefPlayback;
     window.stopEnginePlaybackPoll = stopEnginePlaybackPoll;
 }

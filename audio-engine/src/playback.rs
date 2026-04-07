@@ -6,10 +6,12 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+use std::num::NonZero;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use rodio::buffer::SamplesBuffer;
 use rodio::source::Source;
 use rodio::stream::DeviceSinkBuilder;
 use rodio::{Decoder, Player};
@@ -270,6 +272,11 @@ struct PlaybackSession {
     shared: Arc<PlaybackShared>,
     #[allow(dead_code)]
     track_id: u32,
+    /// When true, [`Self::reverse_pcm`] is played instead of streaming from disk.
+    reverse_mode: bool,
+    /// Stereo interleaved f32 at file decode rate (reversed in time).
+    reverse_pcm: Option<Arc<Vec<f32>>>,
+    reverse_pcm_rate: u32,
 }
 
 /// Wraps a [`Source`] and applies EQ / gain / pan for each stereo frame (interleaved samples).
@@ -394,6 +401,9 @@ pub fn playback_load(path: String) -> Result<serde_json::Value, String> {
         path,
         shared: shared.clone(),
         track_id,
+        reverse_mode: false,
+        reverse_pcm: None,
+        reverse_pcm_rate: 0,
     });
 
     Ok(serde_json::json!({
@@ -424,10 +434,45 @@ pub fn open_rodio_output(
 /// Decode `path`, apply DSP, append to `player`, register [`Player`] for pause/seek/status.
 pub fn start_rodio_playback(path: &str, player: Player, shared: Arc<PlaybackShared>) -> Result<(), String> {
     stop_rodio_player();
-    let file = File::open(path).map_err(|e| e.to_string())?;
-    let decoder = Decoder::try_from(BufReader::new(file)).map_err(|e| format!("rodio decode open: {e}"))?;
-    let src = DspStereoSource::new(decoder, shared.clone());
-    player.append(src);
+    let reverse_mode = {
+        let sess = SESSION.lock().map_err(|_| "playback mutex poisoned")?;
+        let Some(ref session) = *sess else {
+            return Err("no session".to_string());
+        };
+        if session.path != path {
+            return Err("session path mismatch".to_string());
+        }
+        session.reverse_mode
+    };
+
+    if reverse_mode {
+        let (pcm, rate) = {
+            let sess = SESSION.lock().map_err(|_| "playback mutex poisoned")?;
+            let Some(ref session) = *sess else {
+                return Err("no session".to_string());
+            };
+            let pcm = session
+                .reverse_pcm
+                .as_ref()
+                .ok_or_else(|| "reverse pcm missing".to_string())?
+                .clone();
+            let rate = session.reverse_pcm_rate;
+            if rate == 0 {
+                return Err("reverse pcm rate missing".to_string());
+            }
+            (pcm, rate)
+        };
+        let ch = NonZero::new(2u16).ok_or_else(|| "bad channel count".to_string())?;
+        let sr = NonZero::new(rate).ok_or_else(|| "bad sample rate".to_string())?;
+        let buf = SamplesBuffer::new(ch, sr, pcm.to_vec());
+        let src = DspStereoSource::new(buf, shared);
+        player.append(src);
+    } else {
+        let file = File::open(path).map_err(|e| e.to_string())?;
+        let decoder = Decoder::try_from(BufReader::new(file)).map_err(|e| format!("rodio decode open: {e}"))?;
+        let src = DspStereoSource::new(decoder, shared);
+        player.append(src);
+    }
     *RODIO_PLAYER.lock().map_err(|_| "rodio player mutex poisoned")? = Some(player);
     Ok(())
 }
@@ -466,11 +511,24 @@ pub fn playback_pause(set: bool) -> Result<serde_json::Value, String> {
 }
 
 pub fn playback_seek(position_sec: f64) -> Result<serde_json::Value, String> {
+    let seek_in_source = {
+        let sg = SESSION.lock().map_err(|_| "playback mutex poisoned")?;
+        let Some(s) = sg.as_ref() else {
+            return Err("no session".to_string());
+        };
+        let dur = s.shared.duration_sec_f64();
+        let t = position_sec.max(0.0).min(dur);
+        if s.reverse_mode {
+            (dur - t).max(0.0)
+        } else {
+            t
+        }
+    };
     let g = RODIO_PLAYER.lock().map_err(|_| "rodio player mutex poisoned")?;
     let Some(p) = g.as_ref() else {
         return Err("no active rodio player".to_string());
     };
-    p.try_seek(Duration::from_secs_f64(position_sec.max(0.0)))
+    p.try_seek(Duration::from_secs_f64(seek_in_source))
         .map_err(|e| format!("seek: {e:?}"))?;
     Ok(serde_json::json!({ "ok": true }))
 }
@@ -487,6 +545,70 @@ pub fn playback_set_dsp(gain: f32, pan: f32, low: f32, mid: f32, high: f32) -> R
     Ok(serde_json::json!({ "ok": true }))
 }
 
+/// Matches now-playing speed UI (0.25x–2x). Rodio changes pitch with speed (same as `<audio>.playbackRate`).
+pub fn playback_set_speed(speed: f32) -> Result<serde_json::Value, String> {
+    let s = speed.clamp(0.25, 2.0);
+    let g = RODIO_PLAYER.lock().map_err(|_| "rodio player mutex poisoned")?;
+    let Some(p) = g.as_ref() else {
+        return Err("no active rodio player".to_string());
+    };
+    p.set_speed(s);
+    Ok(serde_json::json!({ "ok": true, "speed": s }))
+}
+
+fn decode_file_to_interleaved_f32(path: &str) -> Result<(Vec<f32>, u32), String> {
+    let file = File::open(path).map_err(|e| e.to_string())?;
+    let decoder = Decoder::try_from(BufReader::new(file)).map_err(|e| format!("rodio decode open: {e}"))?;
+    let ch = decoder.channels().get();
+    let rate = decoder.sample_rate().get();
+    let mut out = Vec::new();
+    match ch {
+        1 => {
+            for s in decoder {
+                out.push(s);
+                out.push(s);
+            }
+        }
+        2 => {
+            out.extend(decoder);
+        }
+        _ => return Err(format!("unsupported channel count {ch}")),
+    }
+    Ok((out, rate))
+}
+
+fn reverse_stereo_interleaved(v: &mut [f32]) {
+    let frames = v.len() / 2;
+    for i in 0..frames / 2 {
+        let a = i * 2;
+        let b = (frames - 1 - i) * 2;
+        v.swap(a, b);
+        v.swap(a + 1, b + 1);
+    }
+}
+
+/// Prepare reversed PCM for [`start_rodio_playback`] (full-file decode; large files use significant RAM).
+pub fn playback_set_reverse(enabled: bool) -> Result<serde_json::Value, String> {
+    let mut g = SESSION.lock().map_err(|_| "playback mutex poisoned")?;
+    let Some(sess) = g.as_mut() else {
+        return Err("no session".to_string());
+    };
+    if enabled == sess.reverse_mode {
+        return Ok(serde_json::json!({ "ok": true, "reverse": enabled }));
+    }
+    sess.reverse_mode = enabled;
+    if enabled {
+        let (mut pcm, rate) = decode_file_to_interleaved_f32(&sess.path)?;
+        reverse_stereo_interleaved(&mut pcm);
+        sess.reverse_pcm = Some(Arc::new(pcm));
+        sess.reverse_pcm_rate = rate;
+    } else {
+        sess.reverse_pcm = None;
+        sess.reverse_pcm_rate = 0;
+    }
+    Ok(serde_json::json!({ "ok": true, "reverse": enabled }))
+}
+
 pub fn playback_status() -> Result<serde_json::Value, String> {
     let g = SESSION.lock().map_err(|_| "playback mutex poisoned")?;
     let Some(sess) = g.as_ref() else {
@@ -495,6 +617,7 @@ pub fn playback_status() -> Result<serde_json::Value, String> {
             "loaded": false,
         }));
     };
+    let rev = sess.reverse_mode;
     let dr = sess.shared.device_rate.load(Ordering::Relaxed);
     let dur = sess.shared.duration_sec_f64();
     let pk = f32::from_bits(sess.shared.peak.load(Ordering::Relaxed));
@@ -509,12 +632,18 @@ pub fn playback_status() -> Result<serde_json::Value, String> {
             "peak": pk,
             "paused": false,
             "eof": false,
+            "reverse": rev,
             "sample_rate_hz": dr,
             "src_rate_hz": sess.shared.src_rate.load(Ordering::Relaxed),
         }));
     };
 
-    let pos = p.get_pos().as_secs_f64();
+    let pos_src = p.get_pos().as_secs_f64();
+    let pos = if rev {
+        (dur - pos_src).max(0.0)
+    } else {
+        pos_src
+    };
     let eof = p.empty();
     sess.shared.eof.store(eof, Ordering::Relaxed);
 
@@ -526,6 +655,7 @@ pub fn playback_status() -> Result<serde_json::Value, String> {
         "peak": pk,
         "paused": p.is_paused(),
         "eof": eof,
+        "reverse": rev,
         "sample_rate_hz": dr,
         "src_rate_hz": sess.shared.src_rate.load(Ordering::Relaxed),
     }))

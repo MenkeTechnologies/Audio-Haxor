@@ -1,6 +1,6 @@
 [package]
 name = "audio-engine"
-version = "1.20.0"
+version = "1.21.0"
 edition = "2024"
 description = "AUDIO_HAXOR sidecar: cpal input/output device discovery and stream IPC"
 authors = ["MenkeTechnologies <MenkeTechnologies@gmail.com>"]
