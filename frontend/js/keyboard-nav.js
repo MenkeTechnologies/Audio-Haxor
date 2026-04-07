@@ -123,11 +123,11 @@ document.addEventListener('keydown', (e) => {
         }
     }
 
-    // ── Movement ──
-    if (e.key === 'ArrowDown' || e.key === 'j') {
+    // ── Movement ── (j/k only without Cmd/Ctrl — Cmd+K is command palette)
+    if (e.key === 'ArrowDown' || (e.key === 'j' && !e.metaKey && !e.ctrlKey)) {
         e.preventDefault();
         setNavIndex(_navIndex + 1);
-    } else if (e.key === 'ArrowUp' || e.key === 'k') {
+    } else if (e.key === 'ArrowUp' || (e.key === 'k' && !e.metaKey && !e.ctrlKey)) {
         e.preventDefault();
         setNavIndex(_navIndex - 1);
     } else if (e.key === 'Home') {

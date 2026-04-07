@@ -913,6 +913,7 @@ document.addEventListener('keydown', (e) => {
     const mod = isMac ? e.metaKey : e.ctrlKey;
     if (mod && e.key === 'k') {
         e.preventDefault();
+        e.stopPropagation();
         if (_paletteOpen) closePalette();
         else openPalette();
         return;

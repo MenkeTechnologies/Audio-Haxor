@@ -777,10 +777,10 @@ document.addEventListener('keydown', (e) => {
     const rows = getFileRows();
     if (rows.length === 0) return;
 
-    if (e.key === 'ArrowDown' || e.key === 'j') {
+    if (e.key === 'ArrowDown' || (e.key === 'j' && !e.metaKey && !e.ctrlKey)) {
         e.preventDefault();
         fileNavSelect(_fileNavIdx + 1);
-    } else if (e.key === 'ArrowUp' || e.key === 'k') {
+    } else if (e.key === 'ArrowUp' || (e.key === 'k' && !e.metaKey && !e.ctrlKey)) {
         e.preventDefault();
         fileNavSelect(_fileNavIdx - 1);
     } else if (e.key === 'Home') {
