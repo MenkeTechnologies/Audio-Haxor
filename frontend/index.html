@@ -8413,6 +8413,7 @@
             <div class="hm-card" style="padding:16px;border:1px solid var(--border-dim);border-radius:8px;margin-bottom:16px;">
                 <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;" data-i18n="ui.ae.status_label">Engine status</div>
                 <div id="aeEngineStatus" style="font-family:var(--font-mono,monospace);font-size:13px;color:var(--text-muted);">—</div>
+                <div id="aeStreamStatus" style="margin-top:8px;font-family:var(--font-mono,monospace);font-size:12px;color:var(--text-dim);">—</div>
             </div>
             <div class="hm-card" style="padding:16px;border:1px solid var(--border-dim);border-radius:8px;margin-bottom:16px;">
                 <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;" data-i18n="ui.ae.output_device_label">Output device</div>
@@ -8420,6 +8421,7 @@
                     <select id="aeOutputDevice" data-i18n-title="ui.ae.output_device_tt" style="min-width:280px;max-width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border-dim);background:var(--bg-panel);color:var(--text);font-size:13px;" title="System output device for the engine"></select>
                     <button class="btn" type="button" id="aeRefreshDevices" data-i18n="ui.ae.refresh_devices" style="padding:8px 14px;">Refresh list</button>
                     <button class="btn" type="button" id="aeApplyDevice" data-i18n="ui.ae.apply_device" style="padding:8px 14px;">Apply</button>
+                    <button class="btn" type="button" id="aeStopStream" data-i18n="ui.ae.stop_stream" data-i18n-title="ui.ae.stop_stream_tt" style="padding:8px 14px;" title="Stop cpal output stream">Stop stream</button>
                 </div>
                 <div id="aeDeviceCaps" style="margin-top:12px;font-size:12px;color:var(--text-dim);font-family:var(--font-mono,monospace);line-height:1.4;">—</div>
             </div>

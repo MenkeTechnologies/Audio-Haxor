@@ -444,7 +444,8 @@ pub struct CacheStat {
 /// Canonical inventory: one row per `path` (highest `id` wins — newest insert for that path).
 /// Materialized in `audio_library` (migration v14) so library queries avoid `GROUP BY path` on hot paths.
 const AUDIO_LIBRARY_IDS: &str = "id IN (SELECT sample_id FROM audio_library)";
-const DAW_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)";
+/// Same semantics as `MAX(id) GROUP BY path`, materialized in `daw_library` (migration v16).
+const DAW_LIBRARY_IDS: &str = "id IN (SELECT project_id FROM daw_library)";
 /// Migration v15 — same semantics as `MAX(id) GROUP BY path`, maintained on insert and deletes.
 const PRESET_LIBRARY_IDS: &str = "id IN (SELECT preset_id FROM preset_library)";
 const PDF_LIBRARY_IDS: &str = "id IN (SELECT pdf_id FROM pdf_library)";
@@ -785,15 +786,45 @@ impl Database {
         Ok(())
     }
 
+    /// `_dl_refresh_paths` lists paths touched by removing `daw_projects` rows for a scan; those rows
+    /// must already be deleted. Reconciles `daw_library` with remaining `daw_projects` rows.
+    fn sync_daw_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
+        conn.execute(
+            "DELETE FROM daw_library WHERE path IN (SELECT path FROM _dl_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM daw_projects)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR REPLACE INTO daw_library (path, project_id)
+             SELECT path, MAX(id) FROM daw_projects WHERE path IN (SELECT path FROM _dl_refresh_paths) GROUP BY path",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute("DROP TABLE _dl_refresh_paths", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn rebuild_daw_library(conn: &Connection) -> Result<(), String> {
+        conn.execute_batch(
+            "DELETE FROM daw_library;
+             INSERT INTO daw_library (path, project_id) SELECT path, MAX(id) FROM daw_projects GROUP BY path;",
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Full rebuild after bulk deletes (e.g. `prune_old_scans`) where per-path sync is impractical.
-    fn rebuild_pdf_midi_preset_libraries(conn: &Connection) -> Result<(), String> {
+    fn rebuild_pdf_midi_preset_daw_libraries(conn: &Connection) -> Result<(), String> {
         conn.execute_batch(
             "DELETE FROM pdf_library;
              INSERT INTO pdf_library (path, pdf_id) SELECT path, MAX(id) FROM pdfs GROUP BY path;
              DELETE FROM midi_library;
              INSERT INTO midi_library (path, midi_id) SELECT path, MAX(id) FROM midi_files GROUP BY path;
              DELETE FROM preset_library;
-             INSERT INTO preset_library (path, preset_id) SELECT path, MAX(id) FROM presets GROUP BY path;",
+             INSERT INTO preset_library (path, preset_id) SELECT path, MAX(id) FROM presets GROUP BY path;
+             DELETE FROM daw_library;
+             INSERT INTO daw_library (path, project_id) SELECT path, MAX(id) FROM daw_projects GROUP BY path;",
         )
         .map_err(|e| e.to_string())?;
         Ok(())
@@ -856,7 +887,7 @@ impl Database {
                 );"
             ));
         }
-        let _ = Self::rebuild_pdf_midi_preset_libraries(&conn);
+        let _ = Self::rebuild_pdf_midi_preset_daw_libraries(&conn);
     }
 
     /// Mark whether a streaming scan finished normally (`complete`) or was user-stopped (partial).
@@ -1483,6 +1514,23 @@ impl Database {
                 .map_err(|e| format!("Migration v15 schema_version failed: {e}"))?;
         }
 
+        if current < 16 {
+            // One canonical `daw_projects` row id per filesystem path (same semantics as
+            // `MAX(id) GROUP BY path`), maintained on insert and after scan deletes.
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS daw_library (
+                    path TEXT PRIMARY KEY NOT NULL,
+                    project_id INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_daw_library_project_id ON daw_library(project_id);
+                INSERT OR REPLACE INTO daw_library (path, project_id)
+                SELECT path, MAX(id) AS project_id FROM daw_projects GROUP BY path;",
+            )
+            .map_err(|e| format!("Migration v16 (daw_library) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (16)", [])
+                .map_err(|e| format!("Migration v16 schema_version failed: {e}"))?;
+        }
+
         if conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_i18n'",
@@ -2090,14 +2138,14 @@ impl Database {
         if library {
             let project_count: u64 = conn
                 .query_row(
-                    "SELECT COUNT(*) FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)",
+                    "SELECT COUNT(*) FROM daw_library",
                     [],
                     |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
                 .unwrap_or(0);
             let total_bytes: u64 = conn
                 .query_row(
-                    "SELECT COALESCE(SUM(size), 0) FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)",
+                    "SELECT COALESCE(SUM(s.size), 0) FROM daw_projects s INNER JOIN daw_library lib ON s.id = lib.project_id",
                     [],
                     |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
@@ -2105,7 +2153,7 @@ impl Database {
             let mut daw_counts = HashMap::new();
             let mut stmt = conn
                 .prepare(
-                    "SELECT daw, COUNT(*) FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path) GROUP BY daw",
+                    "SELECT s.daw, COUNT(*) FROM daw_projects s INNER JOIN daw_library lib ON s.id = lib.project_id GROUP BY s.daw",
                 )
                 .map_err(|e| e.to_string())?;
             let rows = stmt
@@ -2618,7 +2666,7 @@ impl Database {
         let conn = self.read_conn();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)",
+                "SELECT COUNT(*) FROM daw_library",
                 [],
                 |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -3282,10 +3330,18 @@ impl Database {
             "INSERT OR REPLACE INTO daw_scans (id, timestamp, project_count, total_bytes, daw_counts, roots, scan_complete) VALUES (?1,?2,0,0,'{}',?3,0)",
             params![id, timestamp, roots_json],
         ).map_err(|e| e.to_string())?;
+        conn.execute("CREATE TEMP TABLE _dl_refresh_paths (path TEXT PRIMARY KEY)", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _dl_refresh_paths SELECT DISTINCT path FROM daw_projects WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM daw_projects WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM daw_projects_fts WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
+        Self::sync_daw_library_after_paths_refresh(&conn)?;
         Ok(())
     }
 
@@ -3299,15 +3355,11 @@ impl Database {
     ) -> Result<(), String> {
         let conn = self.read_conn();
         let project_count: i64 = conn
-            .query_row(
-                "SELECT COUNT(DISTINCT path) FROM daw_projects",
-                [],
-                |r| r.get(0),
-            )
+            .query_row("SELECT COUNT(*) FROM daw_library", [], |r| r.get(0))
             .unwrap_or(0);
         let total_bytes: i64 = conn
             .query_row(
-                "SELECT COALESCE(SUM(size), 0) FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)",
+                "SELECT COALESCE(SUM(s.size), 0) FROM daw_projects s INNER JOIN daw_library lib ON s.id = lib.project_id",
                 [],
                 |r| r.get(0),
             )
@@ -3315,7 +3367,7 @@ impl Database {
         let mut daw_map: HashMap<String, usize> = HashMap::new();
         let mut stmt = conn
             .prepare(
-                "SELECT daw, COUNT(*) FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path) GROUP BY daw",
+                "SELECT s.daw, COUNT(*) FROM daw_projects s INNER JOIN daw_library lib ON s.id = lib.project_id GROUP BY s.daw",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
@@ -3348,6 +3400,14 @@ impl Database {
         {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO daw_projects (name, path, directory, format, daw, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO daw_projects_fts(rowid, name, path, daw, scan_id) VALUES (?1,?2,?3,?4,?5)").map_err(|e| e.to_string())?;
+            let mut lib_stmt = tx
+                .prepare_cached(
+                    "INSERT INTO daw_library (path, project_id) VALUES (?1, ?2)
+                     ON CONFLICT(path) DO UPDATE SET project_id = CASE
+                       WHEN excluded.project_id > daw_library.project_id THEN excluded.project_id
+                       ELSE daw_library.project_id END",
+                )
+                .map_err(|e| e.to_string())?;
             for (i, p) in projects.iter().enumerate() {
                 let path = normalize_path_for_db(&p.path);
                 let directory = normalize_path_for_db(&p.directory);
@@ -3366,6 +3426,7 @@ impl Database {
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
                     fts_stmt.execute(params![id, p.name, path, p.daw, scan_id]).map_err(|e| e.to_string())?;
+                    lib_stmt.execute(params![path, id]).map_err(|e| e.to_string())?;
                     inserted_idx.push(i);
                     batch_bytes += p.size;
                 }
@@ -3425,7 +3486,9 @@ impl Database {
                 }
             }
         }
-        tx.commit().map_err(|e| e.to_string())
+        tx.commit().map_err(|e| e.to_string())?;
+        Self::rebuild_daw_library(&conn)?;
+        Ok(())
     }
 
     pub fn get_daw_scans(&self) -> Result<Vec<serde_json::Value>, String> {
@@ -3513,17 +3576,32 @@ impl Database {
 
     pub fn delete_daw_scan(&self, id: &str) -> Result<(), String> {
         let conn = self.read_conn();
+        conn.execute("CREATE TEMP TABLE _dl_refresh_paths (path TEXT PRIMARY KEY)", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _dl_refresh_paths SELECT DISTINCT path FROM daw_projects WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM daw_projects_fts WHERE scan_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM daw_projects WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM daw_scans WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
+        Self::sync_daw_library_after_paths_refresh(&conn)?;
         Ok(())
     }
 
     pub fn clear_daw_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
-        conn.execute_batch("DELETE FROM daw_projects; DELETE FROM daw_scans;")
-            .map_err(|e| e.to_string())
+        conn.execute_batch(
+            "DELETE FROM daw_library;
+             DELETE FROM daw_projects_fts;
+             DELETE FROM daw_projects;
+             DELETE FROM daw_scans;",
+        )
+        .map_err(|e| e.to_string())
     }
 
     // ── Preset scan CRUD ──
@@ -5207,7 +5285,7 @@ impl Database {
         let conn = self.read_conn();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)",
+                "SELECT COUNT(*) FROM daw_library",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -5674,6 +5752,7 @@ impl Database {
             "plugins",
             "plugin_scans",
             "daw_projects",
+            "daw_library",
             "daw_scans",
             "presets",
             "preset_scans",
@@ -5718,7 +5797,7 @@ impl Database {
             .unwrap_or(0);
         let daw_lib: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)",
+                "SELECT COUNT(*) FROM daw_library",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -5756,8 +5835,8 @@ impl Database {
     }
 
     /// Row counts per inventory category for the **library** view: one canonical row per `path`.
-    /// Audio uses `audio_library` (v14); PDF, MIDI, and presets use `pdf_library`, `midi_library`,
-    /// and `preset_library` (v15). Plugins and DAW still use `MAX(id) GROUP BY path` in SQL.
+    /// Audio uses `audio_library` (v14); DAW uses `daw_library` (v16); PDF, MIDI, and presets use
+    /// `pdf_library`, `midi_library`, and `preset_library` (v15). Plugins still use `MAX(id) GROUP BY path` in SQL.
     /// Not scoped to a single `scan_id`. Presets exclude `MID`/`MIDI` (same tab rules as elsewhere).
     /// Matches default `scan_id` handling on paginated queries and `*_filter_stats`, not raw
     /// `COUNT(*)` on whole tables.
@@ -5779,7 +5858,7 @@ impl Database {
             .unwrap_or(0);
         let count_daw: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)",
+                "SELECT COUNT(*) FROM daw_library",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -5846,7 +5925,7 @@ impl Database {
             "audio",
         )?;
         push_sql(
-            "SELECT path, size FROM daw_projects WHERE id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)",
+            &format!("SELECT path, size FROM daw_projects WHERE {DAW_LIBRARY_IDS}"),
             "daw",
         )?;
         push_sql(
@@ -6264,6 +6343,7 @@ impl Database {
             tx.commit().map_err(|e| e.to_string())?;
             count += snap.projects.len();
         }
+        Self::rebuild_daw_library(&conn)?;
         Ok(count)
     }
 
@@ -8262,8 +8342,9 @@ mod tests {
     // ── Multi-scan semantics ──
     //
     // Each new scan inserts rows with a fresh scan_id (tables accumulate rows across history).
-    // Default UI queries use the **library** (one row per `path` — audio: `audio_library`; PDF/MIDI/presets:
-    // `pdf_library` / `midi_library` / `preset_library`; plugins/DAW: `MAX(id) GROUP BY path` in SQL),
+    // Default UI queries use the **library** (one row per `path` — audio: `audio_library`; DAW:
+    // `daw_library`; PDF/MIDI/presets: `pdf_library` / `midi_library` / `preset_library`; plugins:
+    // `MAX(id) GROUP BY path` in SQL),
     // not “latest scan only” and not raw `COUNT(*)` of all rows.
 
     fn daw_snap(id: &str, ts: &str, projects: Vec<DawProject>) -> DawScanSnapshot {

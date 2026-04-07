@@ -206,7 +206,6 @@ async function handleFileWatcherChange(event) {
         _startupLibTasks.push((async () => {
             try {
                 await fetchDawPage();
-                if (typeof refreshDawStatsSnapshot === 'function') refreshDawStatsSnapshot();
             } catch (err) {
                 showToast(toastFmt('toast.failed_load_daw_scan', {err}), 4000, 'error');
             }

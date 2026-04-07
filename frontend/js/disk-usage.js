@@ -54,7 +54,7 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
 }
 
 // Reads already-fetched aggregate bytesByType from module caches populated by
-// rebuildAudioStats / refreshDawStatsSnapshot — no extra IPC round-trip.
+// rebuildAudioStats / rebuildDawFilterStats — no extra IPC round-trip.
 function updateAudioDiskUsage() {
     const bytes = (typeof _audioBytesByType !== 'undefined' ? _audioBytesByType : null) || {};
     const total = Object.values(bytes).reduce((a, b) => a + b, 0);

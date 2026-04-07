@@ -1,11 +1,16 @@
-//! Separate **audio-engine** process: output device discovery (via cpal) and stubs for future
-//! real-time I/O and plugin hosting. Invoked by the main app with one JSON line on stdin; responds
-//! with one JSON line on stdout.
+//! Separate **audio-engine** process: output device discovery (via cpal) and low-latency output.
+//! Reads JSON lines on stdin until EOF; prints one JSON line per request. The host keeps one
+//! child process and reuses stdin/stdout. **Output streams** are owned on a dedicated thread because
+//! `cpal::Stream` is not `Send` on macOS.
 
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Write};
+use std::sync::mpsc::{self, Sender};
+use std::sync::OnceLock;
+use std::thread;
 
-use cpal::traits::{DeviceTrait, HostTrait};
-use cpal::Device;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{Device, SampleFormat, Stream, SupportedStreamConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -25,29 +30,111 @@ struct OutputDeviceInfo {
     is_default: bool,
 }
 
-fn main() {
-    let mut line = String::new();
-    if let Err(e) = std::io::stdin().read_line(&mut line) {
-        eprintln!("audio-engine: stdin read failed: {e}");
-        std::process::exit(1);
-    }
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        eprintln!("audio-engine: empty request");
-        std::process::exit(1);
-    }
-    let req: Request = match serde_json::from_str(trimmed) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("audio-engine: bad JSON: {e}");
-            std::process::exit(1);
+enum AudioCmd {
+    Start {
+        device_id: Option<String>,
+        reply: mpsc::Sender<Result<String, String>>,
+    },
+    Stop {
+        reply: mpsc::Sender<Result<bool, String>>,
+    },
+    Status {
+        reply: mpsc::Sender<Result<serde_json::Value, String>>,
+    },
+}
+
+fn audio_thread_tx() -> &'static Sender<AudioCmd> {
+    static TX: OnceLock<Sender<AudioCmd>> = OnceLock::new();
+    TX.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<AudioCmd>();
+        thread::spawn(move || audio_thread_main(rx));
+        tx
+    })
+}
+
+fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
+    let mut current: Option<(Stream, String)> = None;
+    while let Ok(cmd) = rx.recv() {
+        match cmd {
+            AudioCmd::Start { device_id, reply } => {
+                let res = (|| {
+                    current.take();
+                    let device = resolve_device(device_id.as_deref())?;
+                    let resolved_id = match device_id.as_deref().filter(|s| !s.is_empty()) {
+                        Some(id) => id.to_string(),
+                        None => {
+                            let name = device.name().unwrap_or_default();
+                            let rows = enumerate_output_devices()?;
+                            rows.into_iter()
+                                .find(|d| d.name == name)
+                                .map(|d| d.id)
+                                .unwrap_or(name)
+                        }
+                    };
+                    let supported = device
+                        .default_output_config()
+                        .map_err(|e| format!("default_output_config: {e}"))?;
+                    let stream = build_silence_stream(&device, supported)?;
+                    current = Some((stream, resolved_id.clone()));
+                    Ok(resolved_id)
+                })();
+                let _ = reply.send(res);
+            }
+            AudioCmd::Stop { reply } => {
+                let had = current.take().is_some();
+                let _ = reply.send(Ok(had));
+            }
+            AudioCmd::Status { reply } => {
+                let v = match &current {
+                    Some((_, id)) => json!({
+                        "ok": true,
+                        "running": true,
+                        "device_id": id,
+                    }),
+                    None => json!({
+                        "ok": true,
+                        "running": false,
+                        "device_id": serde_json::Value::Null,
+                    }),
+                };
+                let _ = reply.send(Ok(v));
+            }
         }
-    };
-    let resp = match dispatch(&req) {
-        Ok(v) => v,
-        Err(msg) => json!({ "ok": false, "error": msg }),
-    };
-    println!("{}", resp);
+    }
+}
+
+fn main() {
+    let stdin = std::io::stdin();
+    let mut reader = BufReader::new(stdin.lock());
+    let stdout = std::io::stdout();
+    let mut out = std::io::LineWriter::new(stdout.lock());
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let n = reader.read_line(&mut line).unwrap_or(0);
+        if n == 0 {
+            break;
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let req: Request = match serde_json::from_str(trimmed) {
+            Ok(r) => r,
+            Err(e) => {
+                let resp = json!({"ok": false, "error": format!("bad JSON: {e}")});
+                writeln!(out, "{resp}").ok();
+                out.flush().ok();
+                continue;
+            }
+        };
+        let resp = match dispatch(&req) {
+            Ok(v) => v,
+            Err(msg) => json!({ "ok": false, "error": msg }),
+        };
+        writeln!(out, "{resp}").ok();
+        out.flush().ok();
+    }
 }
 
 fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
@@ -60,6 +147,9 @@ fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
         "list_output_devices" => list_output_devices(),
         "get_output_device_info" => get_output_device_info(req.device_id.as_deref()),
         "set_output_device" => set_output_device(req.device_id.as_deref()),
+        "start_output_stream" => start_output_stream(req.device_id.as_deref()),
+        "stop_output_stream" => stop_output_stream(),
+        "output_stream_status" => output_stream_status(),
         "plugin_chain" => Ok(json!({
             "ok": true,
             "slots": [],
@@ -69,7 +159,6 @@ fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
     }
 }
 
-/// Stable id across one enumeration pass: first "Name", then "Name#2", "Name#3", …
 fn unique_device_id(name: &str, seen: &mut HashMap<String, u32>) -> String {
     let n = seen.entry(name.to_string()).or_insert(0);
     *n += 1;
@@ -123,7 +212,6 @@ fn enumerate_output_devices() -> Result<Vec<OutputDeviceInfo>, String> {
 fn find_output_device_by_id(id: &str) -> Result<Device, String> {
     let host = cpal::default_host();
 
-    // Legacy: numeric index (same ordering as enumeration without id dedup — approximate).
     if let Ok(idx) = id.parse::<usize>() {
         let list: Vec<_> = host
             .output_devices()
@@ -149,13 +237,17 @@ fn find_output_device_by_id(id: &str) -> Result<Device, String> {
     Err(format!("unknown device_id: {id}"))
 }
 
-fn get_output_device_info(device_id: Option<&str>) -> Result<serde_json::Value, String> {
-    let device = match device_id.filter(|s| !s.is_empty()) {
+fn resolve_device(device_id: Option<&str>) -> Result<Device, String> {
+    match device_id.filter(|s| !s.is_empty()) {
         None => cpal::default_host()
             .default_output_device()
-            .ok_or_else(|| "no default output device".to_string())?,
-        Some(id) => find_output_device_by_id(id)?,
-    };
+            .ok_or_else(|| "no default output device".to_string()),
+        Some(id) => find_output_device_by_id(id),
+    }
+}
+
+fn get_output_device_info(device_id: Option<&str>) -> Result<serde_json::Value, String> {
+    let device = resolve_device(device_id)?;
 
     let name = device.name().unwrap_or_default();
     let cfg = device
@@ -164,8 +256,8 @@ fn get_output_device_info(device_id: Option<&str>) -> Result<serde_json::Value, 
 
     let mut rate_min = None::<u32>;
     let mut rate_max = None::<u32>;
-    if let Ok(mut configs) = device.supported_output_configs() {
-        for range in configs.by_ref() {
+    if let Ok(configs) = device.supported_output_configs() {
+        for range in configs {
             let mn = range.min_sample_rate().0;
             let mx = range.max_sample_rate().0;
             rate_min = Some(rate_min.map_or(mn, |a: u32| a.min(mn)));
@@ -197,8 +289,128 @@ fn set_output_device(device_id: Option<&str>) -> Result<serde_json::Value, Strin
     Ok(json!({
         "ok": true,
         "device_id": id,
-        "note": "selection stored by UI; real-time stream not started yet",
+        "note": "validated; use start_output_stream to open the device",
     }))
+}
+
+fn build_silence_stream(device: &Device, supported: SupportedStreamConfig) -> Result<Stream, String> {
+    let cfg = supported.config();
+    let err = |e| eprintln!("audio-engine stream error: {e}");
+    let stream = match supported.sample_format() {
+        SampleFormat::F32 => device.build_output_stream(
+            &cfg,
+            |data: &mut [f32], _: &cpal::OutputCallbackInfo| data.fill(0.0),
+            err,
+            None,
+        ),
+        SampleFormat::I16 => device.build_output_stream(
+            &cfg,
+            |data: &mut [i16], _: &cpal::OutputCallbackInfo| data.fill(0),
+            err,
+            None,
+        ),
+        SampleFormat::U16 => device.build_output_stream(
+            &cfg,
+            |data: &mut [u16], _: &cpal::OutputCallbackInfo| data.fill(32768),
+            err,
+            None,
+        ),
+        SampleFormat::I8 => device.build_output_stream(
+            &cfg,
+            |data: &mut [i8], _: &cpal::OutputCallbackInfo| data.fill(0),
+            err,
+            None,
+        ),
+        SampleFormat::U8 => device.build_output_stream(
+            &cfg,
+            |data: &mut [u8], _: &cpal::OutputCallbackInfo| data.fill(128),
+            err,
+            None,
+        ),
+        SampleFormat::I32 => device.build_output_stream(
+            &cfg,
+            |data: &mut [i32], _: &cpal::OutputCallbackInfo| data.fill(0),
+            err,
+            None,
+        ),
+        SampleFormat::U32 => device.build_output_stream(
+            &cfg,
+            |data: &mut [u32], _: &cpal::OutputCallbackInfo| data.fill(1 << 31),
+            err,
+            None,
+        ),
+        SampleFormat::I64 => device.build_output_stream(
+            &cfg,
+            |data: &mut [i64], _: &cpal::OutputCallbackInfo| data.fill(0),
+            err,
+            None,
+        ),
+        SampleFormat::U64 => device.build_output_stream(
+            &cfg,
+            |data: &mut [u64], _: &cpal::OutputCallbackInfo| data.fill(1u64 << 63),
+            err,
+            None,
+        ),
+        SampleFormat::F64 => device.build_output_stream(
+            &cfg,
+            |data: &mut [f64], _: &cpal::OutputCallbackInfo| data.fill(0.0),
+            err,
+            None,
+        ),
+        _ => {
+            return Err(format!(
+                "unsupported sample format {:?}",
+                supported.sample_format()
+            ));
+        }
+    }
+    .map_err(|e| e.to_string())?;
+    stream.play().map_err(|e| e.to_string())?;
+    Ok(stream)
+}
+
+fn start_output_stream(device_id: Option<&str>) -> Result<serde_json::Value, String> {
+    let (reply_tx, reply_rx) = mpsc::channel();
+    audio_thread_tx()
+        .send(AudioCmd::Start {
+            device_id: device_id.map(|s| s.to_string()),
+            reply: reply_tx,
+        })
+        .map_err(|_| "audio engine thread unavailable".to_string())?;
+    let id = reply_rx
+        .recv()
+        .map_err(|_| "audio engine thread stopped".to_string())??;
+
+    Ok(json!({
+        "ok": true,
+        "device_id": id,
+        "note": "silence stream running (placeholder for mixer/plugin graph)",
+    }))
+}
+
+fn stop_output_stream() -> Result<serde_json::Value, String> {
+    let (reply_tx, reply_rx) = mpsc::channel();
+    audio_thread_tx()
+        .send(AudioCmd::Stop { reply: reply_tx })
+        .map_err(|_| "audio engine thread unavailable".to_string())?;
+    let had = reply_rx
+        .recv()
+        .map_err(|_| "audio engine thread stopped".to_string())??;
+
+    Ok(json!({
+        "ok": true,
+        "was_running": had,
+    }))
+}
+
+fn output_stream_status() -> Result<serde_json::Value, String> {
+    let (reply_tx, reply_rx) = mpsc::channel();
+    audio_thread_tx()
+        .send(AudioCmd::Status { reply: reply_tx })
+        .map_err(|_| "audio engine thread unavailable".to_string())?;
+    reply_rx
+        .recv()
+        .map_err(|_| "audio engine thread stopped".to_string())?
 }
 
 #[cfg(test)]

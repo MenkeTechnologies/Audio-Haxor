@@ -53,6 +53,7 @@ async function fetchDawPage() {
         const result = await window.vstUpdater.dbQueryDaw({
             search: search || null,
             daw_filter: dawFilter,
+            search_regex: _lastDawMode === 'regex',
             sort_key: dawSortKey,
             sort_asc: dawSortAsc,
             offset: _dawOffset,
@@ -75,8 +76,9 @@ async function fetchDawPage() {
         if (seq !== _dawQuerySeq) return;
         renderDawTable();
         if (dawScanProgressCleanup) _dawScanDbView = true;
-        // Counts + per-DAW breakdown + size reflect current filter via one aggregate query.
-        refreshDawStatsSnapshot();
+        // Header totals from paginated query; per-DAW toolbar breakdown debounced (matches Samples tab).
+        updateDawStats();
+        rebuildDawFilterStats();
     } catch (e) {
         if (seq !== _dawQuerySeq) return;
         clearTableQueryLoadingRow('dawQueryLoadingRow', 'dawTable');
@@ -96,6 +98,11 @@ function resetDawStats() {
     // dawStatCounts, causing the stats row to lag the scan button counter.
     _dawStatsSnapshot = null;
     _lastDawAggKey = null;
+    _pendingDawAggKey = '';
+    if (_dawStatsDebounceTimer !== null) {
+        clearTimeout(_dawStatsDebounceTimer);
+        _dawStatsDebounceTimer = null;
+    }
 }
 
 function accumulateDawStats(projects) {
@@ -136,19 +143,66 @@ function updateDawStats() {
 }
 
 let _lastDawAggKey = null;
+let _pendingDawAggKey = '';
+/** Debounce heavy `GROUP BY daw` stats IPC so typing a filter does not stack a second round-trip every keystroke. */
+let _dawStatsDebounceTimer = null;
+const DAW_STATS_DEBOUNCE_MS = 450;
 
-async function refreshDawStatsSnapshot(force) {
+async function rebuildDawFilterStats(force) {
     try {
-        const search = document.getElementById('dawSearchInput')?.value || '';
+        const search = (_lastDawSearch || '').trim();
         const dawSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('dawDawFilter') : null;
         const dawFilter = dawSet ? [...dawSet].join(',') : null;
-        const key = search.trim() + '|' + (dawFilter || '');
+        const key = search + '|' + (dawFilter || '') + '|' + (_lastDawMode === 'regex' ? 'r' : 'f');
         if (!force && key === _lastDawAggKey) {
             updateDawStats();
             return;
         }
-        const agg = await window.vstUpdater.dbDawFilterStats(search.trim(), dawFilter);
+        _pendingDawAggKey = key;
+        updateDawStats();
+
+        if (force) {
+            if (_dawStatsDebounceTimer !== null) {
+                clearTimeout(_dawStatsDebounceTimer);
+                _dawStatsDebounceTimer = null;
+            }
+            await _runDawFilterStatsAgg();
+            return;
+        }
+        if (_dawStatsDebounceTimer !== null) {
+            clearTimeout(_dawStatsDebounceTimer);
+        }
+        _dawStatsDebounceTimer = setTimeout(() => {
+            _dawStatsDebounceTimer = null;
+            void _runDawFilterStatsAgg();
+        }, DAW_STATS_DEBOUNCE_MS);
+    } catch {
+        resetDawStats();
+        updateDawStats();
+    }
+}
+
+async function _runDawFilterStatsAgg() {
+    try {
+        const search = (_lastDawSearch || '').trim();
+        const dawSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('dawDawFilter') : null;
+        const dawFilter = dawSet ? [...dawSet].join(',') : null;
+        const key = search + '|' + (dawFilter || '') + '|' + (_lastDawMode === 'regex' ? 'r' : 'f');
+        if (key !== _pendingDawAggKey) {
+            return;
+        }
+        const agg = await window.vstUpdater.dbDawFilterStats(
+            search || null,
+            dawFilter,
+            _lastDawMode === 'regex',
+        );
+        if (key !== _pendingDawAggKey) {
+            return;
+        }
         if (typeof yieldToBrowser === 'function') await yieldToBrowser();
+        if (key !== _pendingDawAggKey) {
+            return;
+        }
         _lastDawAggKey = key;
         _dawStatsSnapshot = {
             counts: agg.byType || {},
@@ -159,11 +213,13 @@ async function refreshDawStatsSnapshot(force) {
         _dawTotalCount = agg.count || 0;
         _dawTotalUnfiltered = agg.totalUnfiltered || 0;
         updateDawStats();
-    } catch { /* fall through — updateDawStats() still works with incremental state */
+    } catch {
+        resetDawStats();
+        updateDawStats();
     }
 }
 
-function rebuildDawStats() {
+function refreshDawStatsFromMemory() {
     resetDawStats();
     accumulateDawStats(allDawProjects);
     updateDawStats();
@@ -236,6 +292,8 @@ registerFilter('filterDawProjects', {
     inputId: 'dawSearchInput',
     regexToggleId: 'regexDaw',
     formatDropdownId: 'dawDawFilter',
+    // Match Samples tab: at 3+ chars backend uses FTS5 MATCH (heavier than LIKE).
+    debounceMs: 400,
     resetOffset() {
         _dawOffset = 0;
     },
@@ -262,7 +320,7 @@ async function fetchAllDawProjectsForXref() {
     let total = _dawTotalUnfiltered || _dawTotalCount || 0;
     if (total <= 0) {
         try {
-            const agg = await window.vstUpdater.dbDawFilterStats('', null);
+            const agg = await window.vstUpdater.dbDawFilterStats('', null, false);
             total = agg.totalUnfiltered || agg.count || 0;
         } catch {
             return [];
@@ -273,6 +331,7 @@ async function fetchAllDawProjectsForXref() {
     const result = await window.vstUpdater.dbQueryDaw({
         search: null,
         daw_filter: null,
+        search_regex: false,
         sort_key: dawSortKey,
         sort_asc: dawSortAsc,
         offset: 0,
@@ -288,7 +347,7 @@ async function fetchDawProjectsForExport() {
     let total = Number(_dawTotalCount) || 0;
     if (total <= 0 && window.vstUpdater && typeof window.vstUpdater.dbDawFilterStats === 'function') {
         try {
-            const agg = await window.vstUpdater.dbDawFilterStats(search.trim(), dawFilter);
+            const agg = await window.vstUpdater.dbDawFilterStats(search.trim(), dawFilter, _lastDawMode === 'regex');
             total = agg.count || 0;
         } catch { /* stale in-memory totals */ }
     }
@@ -297,6 +356,7 @@ async function fetchDawProjectsForExport() {
             const probe = await window.vstUpdater.dbQueryDaw({
                 search: search || null,
                 daw_filter: dawFilter,
+                search_regex: _lastDawMode === 'regex',
                 sort_key: dawSortKey,
                 sort_asc: dawSortAsc,
                 offset: 0,
@@ -310,6 +370,7 @@ async function fetchDawProjectsForExport() {
     const result = await window.vstUpdater.dbQueryDaw({
         search: search || null,
         daw_filter: dawFilter,
+        search_regex: _lastDawMode === 'regex',
         sort_key: dawSortKey,
         sort_asc: dawSortAsc,
         offset: 0,
@@ -569,8 +630,8 @@ async function scanDawProjects(resume = false, unifiedResult = null, overrideRoo
             }
         }
         _dawOffset = 0;
-        await refreshDawStatsSnapshot(true);
         await fetchDawPage();
+        await rebuildDawFilterStats(true);
         if (result.stopped && (_dawTotalUnfiltered || 0) > 0) {
             resumeBtn.style.display = '';
         }

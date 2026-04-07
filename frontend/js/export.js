@@ -774,7 +774,7 @@ async function importDaw() {
             return;
         }
         allDawProjects = imported;
-        rebuildDawStats();
+        refreshDawStatsFromMemory();
         filterDawProjects();
         document.getElementById('btnExportDaw').style.display = '';
         showToast(toastFmt('toast.imported_n_daw', {n: imported.length}));

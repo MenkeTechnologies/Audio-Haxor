@@ -1358,9 +1358,10 @@ window.vstUpdater = {
         format_filter: formatFilter || null,
         search_regex: !!searchRegex,
     }),
-    dbDawFilterStats: (search, dawFilter) => invoke('db_daw_filter_stats', {
+    dbDawFilterStats: (search, dawFilter, searchRegex) => invoke('db_daw_filter_stats', {
         search: search || null,
-        daw_filter: dawFilter || null
+        daw_filter: dawFilter || null,
+        search_regex: !!searchRegex,
     }),
     dbPresetFilterStats: (search, formatFilter) => invoke('db_preset_filter_stats', {
         search: search || null,
