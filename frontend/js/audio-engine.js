@@ -343,18 +343,12 @@ function syncAePlaybackControlsFromPrefs() {
     const sp = prefs.getItem('audioSpeed') || '1';
     const aeSp = document.getElementById('aePlaybackSpeed');
     if (aeSp) aeSp.value = sp;
-    const fmtDb = (x) => {
-        const db = parseFloat(x);
-        if (Number.isNaN(db)) return '0 dB';
-        return (db >= 0 ? '+' : '') + db.toFixed(0) + ' dB';
-    };
-    for (const band of ['Low', 'Mid', 'High']) {
-        const key = 'eq' + band;
-        const raw = prefs.getItem(key);
-        const sl = document.getElementById('aeEq' + band);
-        const lab = document.getElementById('aeEq' + band + 'Val');
-        if (raw != null && sl) sl.value = raw;
-        if (raw != null && lab) lab.textContent = fmtDb(raw);
+    if (typeof setEqBand === 'function') {
+        for (const band of ['low', 'mid', 'high']) {
+            const cap = band.charAt(0).toUpperCase() + band.slice(1);
+            const raw = prefs.getItem('eq' + cap);
+            if (raw != null && raw !== '') setEqBand(band, raw);
+        }
     }
     const pg = prefs.getItem('preampGain');
     if (pg != null) {
@@ -413,13 +407,6 @@ function bindAePlaybackControls() {
     const sp = document.getElementById('aePlaybackSpeed');
     if (sp && typeof sp.addEventListener === 'function' && typeof setPlaybackSpeed === 'function') {
         sp.addEventListener('change', () => setPlaybackSpeed(sp.value));
-    }
-    for (const band of ['low', 'mid', 'high']) {
-        const cap = band.charAt(0).toUpperCase() + band.slice(1);
-        const el = document.getElementById('aeEq' + cap);
-        if (el && typeof el.addEventListener === 'function' && typeof setEqBand === 'function') {
-            el.addEventListener('input', () => setEqBand(band, el.value));
-        }
     }
     const gain = document.getElementById('aeGainSlider');
     if (gain && typeof gain.addEventListener === 'function' && typeof setPreampGain === 'function') {

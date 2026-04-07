@@ -6505,6 +6505,29 @@
             margin-bottom: 10px;
         }
 
+        #tabAudioEngine .ae-eq-param-wrap {
+            position: relative;
+            flex: 1 1 280px;
+            min-width: 200px;
+            max-width: 100%;
+            height: 120px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #tabAudioEngine .ae-eq-param-wrap canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
         #tabAudioEngine .ae-eq-rack .eq-slider {
             filter: drop-shadow(0 0 4px var(--cyan-dim));
         }
@@ -8781,20 +8804,8 @@
                     </div>
                     <div class="settings-control">
                         <div class="ae-eq-rack">
-                            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-                                <span style="font-size:9px;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.tt.low_eq_200_hz_12_to_12_db">Low 200 Hz</span>
-                                <input class="eq-slider" id="aeEqLow" type="range" min="-12" max="12" step="1" value="0" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--cyan);" />
-                                <span id="aeEqLowVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--cyan);">0 dB</span>
-                            </div>
-                            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-                                <span style="font-size:9px;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.tt.mid_eq_1_khz_12_to_12_db">Mid 1 kHz</span>
-                                <input class="eq-slider" id="aeEqMid" type="range" min="-12" max="12" step="1" value="0" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--cyan);" />
-                                <span id="aeEqMidVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--cyan);">0 dB</span>
-                            </div>
-                            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-                                <span style="font-size:9px;color:var(--cyan);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.tt.high_eq_8_khz_12_to_12_db">High 8 kHz</span>
-                                <input class="eq-slider" id="aeEqHigh" type="range" min="-12" max="12" step="1" value="0" orient="vertical" style="width:28px;height:100px;writing-mode:vertical-lr;direction:rtl;accent-color:var(--cyan);" />
-                                <span id="aeEqHighVal" style="font-size:11px;font-family:var(--font-mono,monospace);color:var(--cyan);">0 dB</span>
+                            <div class="ae-eq-param-wrap" data-i18n-title="ui.tt.drag_band_nodes_to_adjust_frequency_and_gain" title="Drag band nodes to adjust frequency and gain">
+                                <canvas data-i18n-title="ui.tt.drag_band_nodes_to_adjust_frequency_and_gain" height="120" id="aeEqCanvas" width="800"></canvas>
                             </div>
                             <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
                                 <span style="font-size:9px;color:var(--magenta);text-transform:uppercase;letter-spacing:0.08em;font-family:'Orbitron',sans-serif;" data-i18n="ui.np.label_gain">Gain</span>
@@ -10067,44 +10078,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=8635"></script>
-<script src="js/utils.js?v=8635"></script>
-<script src="js/ipc.js?v=8635"></script>
-<script src="js/drag-reorder.js?v=8635"></script>
-<script src="js/modal-drag.js?v=8635"></script>
-<script src="js/columns.js?v=8635"></script>
-<script src="js/notes.js?v=8635"></script>
-<script src="js/favorites.js?v=8635"></script>
-<script src="js/export.js?v=8635"></script>
-<script src="js/plugins.js?v=8635"></script>
-<script src="js/settings.js?v=8635"></script>
-<script src="js/history.js?v=8635"></script>
-<script src="js/kvr.js?v=8635"></script>
-<script src="js/audio.js?v=8635"></script>
-<script src="js/daw.js?v=8635"></script>
-<script src="js/presets.js?v=8635"></script>
-<script src="js/disk-usage.js?v=8635"></script>
-<script src="js/batch-select.js?v=8635"></script>
-<script src="js/native-file-drag.js?v=8635"></script>
-<script src="js/sort-persist.js?v=8635"></script>
-<script src="js/multi-filter.js?v=8635"></script>
-<script src="js/file-browser.js?v=8635"></script>
-<script src="js/duplicates.js?v=8635"></script>
-<script src="js/command-palette.js?v=8635"></script>
-<script src="js/xref.js?v=8635"></script>
-<script src="js/dep-graph.js?v=8635"></script>
-<script src="js/smart-playlists.js?v=8635"></script>
-<script src="js/heatmap-dashboard.js?v=8635"></script>
-<script src="js/midi.js?v=8635"></script>
-<script src="js/pdf.js?v=8635"></script>
-<script src="js/settings-search.js?v=8635"></script>
-<script src="js/visualizer.js?v=8635"></script>
-<script src="js/walker-status.js?v=8635"></script>
-<script src="js/audio-engine.js?v=8635"></script>
-<script src="js/context-menu.js?v=8635"></script>
-<script src="js/shortcuts.js?v=8635"></script>
-<script src="js/help-overlay.js?v=8635"></script>
-<script src="js/keyboard-nav.js?v=8635"></script>
-<script src="js/app.js?v=8635"></script>
+<script src="js/i18n-ui.js?v=8636"></script>
+<script src="js/utils.js?v=8636"></script>
+<script src="js/ipc.js?v=8636"></script>
+<script src="js/drag-reorder.js?v=8636"></script>
+<script src="js/modal-drag.js?v=8636"></script>
+<script src="js/columns.js?v=8636"></script>
+<script src="js/notes.js?v=8636"></script>
+<script src="js/favorites.js?v=8636"></script>
+<script src="js/export.js?v=8636"></script>
+<script src="js/plugins.js?v=8636"></script>
+<script src="js/settings.js?v=8636"></script>
+<script src="js/history.js?v=8636"></script>
+<script src="js/kvr.js?v=8636"></script>
+<script src="js/audio.js?v=8636"></script>
+<script src="js/daw.js?v=8636"></script>
+<script src="js/presets.js?v=8636"></script>
+<script src="js/disk-usage.js?v=8636"></script>
+<script src="js/batch-select.js?v=8636"></script>
+<script src="js/native-file-drag.js?v=8636"></script>
+<script src="js/sort-persist.js?v=8636"></script>
+<script src="js/multi-filter.js?v=8636"></script>
+<script src="js/file-browser.js?v=8636"></script>
+<script src="js/duplicates.js?v=8636"></script>
+<script src="js/command-palette.js?v=8636"></script>
+<script src="js/xref.js?v=8636"></script>
+<script src="js/dep-graph.js?v=8636"></script>
+<script src="js/smart-playlists.js?v=8636"></script>
+<script src="js/heatmap-dashboard.js?v=8636"></script>
+<script src="js/midi.js?v=8636"></script>
+<script src="js/pdf.js?v=8636"></script>
+<script src="js/settings-search.js?v=8636"></script>
+<script src="js/visualizer.js?v=8636"></script>
+<script src="js/walker-status.js?v=8636"></script>
+<script src="js/audio-engine.js?v=8636"></script>
+<script src="js/context-menu.js?v=8636"></script>
+<script src="js/shortcuts.js?v=8636"></script>
+<script src="js/help-overlay.js?v=8636"></script>
+<script src="js/keyboard-nav.js?v=8636"></script>
+<script src="js/app.js?v=8636"></script>
 </body>
 </html>

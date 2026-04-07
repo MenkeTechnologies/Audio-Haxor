@@ -880,10 +880,6 @@ function setEqBand(band, value) {
     const cap = band.charAt(0).toUpperCase() + band.slice(1);
     const label = document.getElementById('npEq' + cap + 'Val');
     if (label) label.textContent = (db >= 0 ? '+' : '') + db.toFixed(0) + ' dB';
-    const aeS = document.getElementById('aeEq' + cap);
-    if (aeS) aeS.value = String(db);
-    const aeLab = document.getElementById('aeEq' + cap + 'Val');
-    if (aeLab) aeLab.textContent = (db >= 0 ? '+' : '') + db.toFixed(0) + ' dB';
     prefs.setItem('eq' + cap, String(value));
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
         window.syncEnginePlaybackDspFromPrefs();
@@ -4429,13 +4425,12 @@ function updateMetaLine() {
     });
 })();
 
-// ── Parametric EQ Visualization ──
+// ── Parametric EQ Visualization (floating player + Audio Engine tab; shared Web Audio graph + FFT) ──
 (function initParametricEQ() {
-    const canvas = document.getElementById('npEqCanvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const npCanvas = document.getElementById('npEqCanvas');
+    const aeCanvas = document.getElementById('aeEqCanvas');
+    if (!npCanvas && !aeCanvas) return;
 
-    // Band definitions: { filter, color, id } — labels from ui.eq.band_*
     function eqBandLabel(id) {
         const k = id === 'low' ? 'ui.eq.band_low' : id === 'mid' ? 'ui.eq.band_mid' : 'ui.eq.band_high';
         return typeof appFmt === 'function' ? appFmt(k) : id.toUpperCase();
@@ -4478,17 +4473,12 @@ function updateMetaLine() {
         return -((y - h / 2) / (h / 2 - 10)) * GAIN_MAX;
     }
 
-    let _eqRafId = null;
+    let _paramEqRafId = null;
+    let _dragState = null;
 
-    function draw() {
-        // Stop loop when EQ section is hidden or removed from DOM
-        const eqSec = document.getElementById('npEqSection');
-        if (!eqSec || !eqSec.classList.contains('visible')) {
-            _eqRafId = null;
-            _eqCanvasStarted = false;
-            return;
-        }
-        // Check if container width changed (player resized)
+    function drawParametricEqOnCanvas(canvas) {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
         const wrap = canvas.parentElement;
         if (wrap) {
             const cw = wrap.offsetWidth;
@@ -4501,10 +4491,8 @@ function updateMetaLine() {
         const h = canvas.height || 120;
         ctx.clearRect(0, 0, w, h);
 
-        // Grid lines
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
         ctx.lineWidth = 1;
-        // Frequency grid: 100, 1k, 10k
         for (const f of [100, 1000, 10000]) {
             const x = freqToX(f, w);
             ctx.beginPath();
@@ -4515,7 +4503,6 @@ function updateMetaLine() {
             ctx.font = '9px sans-serif';
             ctx.fillText(f >= 1000 ? (f / 1000) + 'k' : f, x + 2, h - 3);
         }
-        // 0dB line
         const zeroY = gainToY(0, h);
         ctx.strokeStyle = 'rgba(255,255,255,0.1)';
         ctx.beginPath();
@@ -4523,8 +4510,7 @@ function updateMetaLine() {
         ctx.lineTo(w, zeroY);
         ctx.stroke();
 
-        // Draw FFT spectrum (behind EQ curve)
-        if (_analyser && typeof isAudioPlaying === 'function' && isAudioPlaying()) {
+        if (_analyser && _playbackCtx && typeof isAudioPlaying === 'function' && isAudioPlaying()) {
             const bufLen = _analyser.frequencyBinCount;
             const dataArr = new Uint8Array(bufLen);
             _analyser.getByteFrequencyData(dataArr);
@@ -4550,7 +4536,6 @@ function updateMetaLine() {
             ctx.fill();
         }
 
-        // Draw frequency response curve
         if (_eqLow && _eqMid && _eqHigh) {
             const nPoints = 200;
             const freqs = new Float32Array(nPoints);
@@ -4564,7 +4549,6 @@ function updateMetaLine() {
             _eqMid.getFrequencyResponse(freqs, magMid, phaseMid);
             _eqHigh.getFrequencyResponse(freqs, magHigh, phaseHigh);
 
-            // Combined response
             ctx.beginPath();
             ctx.strokeStyle = 'rgba(5,217,232,0.6)';
             ctx.lineWidth = 2;
@@ -4576,7 +4560,6 @@ function updateMetaLine() {
             }
             ctx.stroke();
 
-            // Fill under curve
             const lastX = freqToX(freqs[nPoints - 1], w);
             ctx.lineTo(lastX, zeroY);
             ctx.lineTo(freqToX(freqs[0], w), zeroY);
@@ -4585,19 +4568,16 @@ function updateMetaLine() {
             ctx.fill();
         }
 
-        // Draw band nodes
         for (const band of bands) {
             if (!band.filter) continue;
             const x = freqToX(band.filter.frequency.value, w);
             const y = gainToY(band.filter.gain.value, h);
 
-            // Glow
             ctx.beginPath();
             ctx.arc(x, y, 12, 0, Math.PI * 2);
             ctx.fillStyle = band.color + '15';
             ctx.fill();
 
-            // Node circle
             ctx.beginPath();
             ctx.arc(x, y, 6, 0, Math.PI * 2);
             ctx.fillStyle = band.color;
@@ -4606,7 +4586,6 @@ function updateMetaLine() {
             ctx.lineWidth = 1.5;
             ctx.stroke();
 
-            // Label
             ctx.fillStyle = band.color;
             ctx.font = 'bold 8px Orbitron, sans-serif';
             ctx.fillText(eqBandLabel(band.id), x + 10, y - 4);
@@ -4614,84 +4593,141 @@ function updateMetaLine() {
             ctx.font = '8px sans-serif';
             ctx.fillText(Math.round(band.filter.frequency.value) + 'Hz ' + band.filter.gain.value.toFixed(1) + 'dB', x + 10, y + 8);
         }
-
-        _eqRafId = requestAnimationFrame(draw);
     }
 
-    // Start drawing when EQ section is visible
-    let _eqCanvasStarted = false;
+    function parametricEqTick() {
+        _paramEqRafId = null;
+        const canvases = [];
+        const eqSec = document.getElementById('npEqSection');
+        if (npCanvas && eqSec && eqSec.classList.contains('visible')) canvases.push(npCanvas);
+        const aeTab = document.getElementById('tabAudioEngine');
+        if (aeCanvas && aeTab && aeTab.classList.contains('active')) canvases.push(aeCanvas);
 
-    function startEqCanvas() {
-        if (_eqCanvasStarted) return;
+        if (canvases.length === 0) return;
+
+        ensureAudioGraph();
+        for (const c of canvases) {
+            drawParametricEqOnCanvas(c);
+        }
+        _paramEqRafId = requestAnimationFrame(parametricEqTick);
+    }
+
+    function scheduleParametricEqFrame() {
+        if (_paramEqRafId != null) return;
+        _paramEqRafId = requestAnimationFrame(parametricEqTick);
+    }
+
+    function primeCanvasSize(canvas) {
+        if (!canvas) return;
         const wrap = canvas.parentElement;
         if (!wrap) return;
         const w = wrap.offsetWidth;
         if (w > 0) {
             canvas.width = w;
             canvas.height = 120;
-            _eqCanvasStarted = true;
-            ensureAudioGraph();
-            draw();
         }
     }
 
-    const eqSection = document.getElementById('npEqSection');
-    if (eqSection) {
-        // Re-observe so draw loop restarts when EQ section is toggled visible again
-        const observer = new MutationObserver(() => {
-            if (eqSection.classList.contains('visible')) {
-                setTimeout(startEqCanvas, 50);
+    function bindCanvasDrag(canvas) {
+        if (!canvas) return;
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            ensureAudioGraph();
+            const rect = canvas.getBoundingClientRect();
+            const cw = canvas.width || 800, ch = canvas.height || 120;
+            const scaleX = cw / rect.width, scaleY = ch / rect.height;
+            const mx = (e.clientX - rect.left) * scaleX, my = (e.clientY - rect.top) * scaleY;
+            for (const band of bands) {
+                if (!band.filter) continue;
+                const bx = freqToX(band.filter.frequency.value, cw);
+                const by = gainToY(band.filter.gain.value, ch);
+                if (Math.hypot(mx - bx, my - by) < 14) {
+                    _dragState = {band, canvas};
+                    e.preventDefault();
+                    return;
+                }
             }
         });
-        observer.observe(eqSection, {attributes: true, attributeFilter: ['class']});
     }
 
-    // Drag bands
-    let _dragBand = null;
-    canvas.addEventListener('mousedown', (e) => {
-        ensureAudioGraph();
-        const rect = canvas.getBoundingClientRect();
-        const w = canvas.width || 800, h = canvas.height || 120;
-        const scaleX = w / rect.width, scaleY = h / rect.height;
-        const mx = (e.clientX - rect.left) * scaleX, my = (e.clientY - rect.top) * scaleY;
-        for (const band of bands) {
-            if (!band.filter) continue;
-            const bx = freqToX(band.filter.frequency.value, w);
-            const by = gainToY(band.filter.gain.value, h);
-            if (Math.hypot(mx - bx, my - by) < 14) {
-                _dragBand = band;
-                e.preventDefault();
-                return;
-            }
-        }
-    });
+    if (npCanvas) bindCanvasDrag(npCanvas);
+    if (aeCanvas) bindCanvasDrag(aeCanvas);
 
     document.addEventListener('mousemove', (e) => {
-        if (!_dragBand) return;
+        if (!_dragState || !_dragState.band || !_dragState.canvas) return;
+        const canvas = _dragState.canvas;
         const rect = canvas.getBoundingClientRect();
         const w = canvas.width || 800, h = canvas.height || 120;
         const scaleX = w / rect.width, scaleY = h / rect.height;
         const mx = (e.clientX - rect.left) * scaleX, my = (e.clientY - rect.top) * scaleY;
         const freq = Math.max(FREQ_MIN, Math.min(FREQ_MAX, xToFreq(mx, w)));
         const gain = Math.max(GAIN_MIN, Math.min(GAIN_MAX, yToGain(my, h)));
-        _dragBand.filter.frequency.value = freq;
-        _dragBand.filter.gain.value = Math.round(gain * 10) / 10;
-        // Sync sliders
-        if (_dragBand.id === 'low') {
-            document.getElementById('npEqLow').value = Math.round(gain);
-            document.getElementById('npEqLowVal').textContent = Math.round(gain) + ' dB';
-        } else if (_dragBand.id === 'mid') {
-            document.getElementById('npEqMid').value = Math.round(gain);
-            document.getElementById('npEqMidVal').textContent = Math.round(gain) + ' dB';
-        } else if (_dragBand.id === 'high') {
-            document.getElementById('npEqHigh').value = Math.round(gain);
-            document.getElementById('npEqHighVal').textContent = Math.round(gain) + ' dB';
+        _dragState.band.filter.frequency.value = freq;
+        _dragState.band.filter.gain.value = Math.round(gain * 10) / 10;
+        const id = _dragState.band.id;
+        if (id === 'low') {
+            const el = document.getElementById('npEqLow');
+            const lab = document.getElementById('npEqLowVal');
+            if (el) el.value = Math.round(gain);
+            if (lab) lab.textContent = Math.round(gain) + ' dB';
+        } else if (id === 'mid') {
+            const el = document.getElementById('npEqMid');
+            const lab = document.getElementById('npEqMidVal');
+            if (el) el.value = Math.round(gain);
+            if (lab) lab.textContent = Math.round(gain) + ' dB';
+        } else if (id === 'high') {
+            const el = document.getElementById('npEqHigh');
+            const lab = document.getElementById('npEqHighVal');
+            if (el) el.value = Math.round(gain);
+            if (lab) lab.textContent = Math.round(gain) + ' dB';
         }
     });
 
     document.addEventListener('mouseup', () => {
-        _dragBand = null;
+        if (_dragState && _dragState.band && typeof setEqBand === 'function') {
+            setEqBand(_dragState.band.id, String(_dragState.band.filter.gain.value));
+        }
+        _dragState = null;
     });
+
+    const eqSection = document.getElementById('npEqSection');
+    if (eqSection) {
+        const observer = new MutationObserver(() => {
+            if (eqSection.classList.contains('visible')) {
+                setTimeout(() => {
+                    primeCanvasSize(npCanvas);
+                    scheduleParametricEqFrame();
+                }, 50);
+            }
+        });
+        observer.observe(eqSection, {attributes: true, attributeFilter: ['class']});
+    }
+
+    const aeTab = document.getElementById('tabAudioEngine');
+    if (aeTab) {
+        const observer = new MutationObserver(() => {
+            if (aeTab.classList.contains('active')) {
+                setTimeout(() => {
+                    primeCanvasSize(aeCanvas);
+                    scheduleParametricEqFrame();
+                }, 50);
+            }
+        });
+        observer.observe(aeTab, {attributes: true, attributeFilter: ['class']});
+    }
+
+    if (eqSection && eqSection.classList.contains('visible')) {
+        setTimeout(() => {
+            primeCanvasSize(npCanvas);
+            scheduleParametricEqFrame();
+        }, 50);
+    }
+    if (aeTab && aeTab.classList.contains('active')) {
+        setTimeout(() => {
+            primeCanvasSize(aeCanvas);
+            scheduleParametricEqFrame();
+        }, 50);
+    }
 })();
 
 window.isAudioPlaying = isAudioPlaying;
