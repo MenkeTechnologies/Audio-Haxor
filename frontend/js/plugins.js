@@ -327,7 +327,7 @@ async function scanPlugins(resume = false) {
 }
 
 function buildPluginCardHtml(p) {
-  const typeClass = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : 'type-au';
+  const typeClass = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : p.type === 'CLAP' ? 'type-clap' : 'type-au';
   let versionHtml = `<span class="version-current">v${p.version}</span>`;
   let badgeHtml = '';
   const mfgUrl = p.manufacturerUrl || null;

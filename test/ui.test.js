@@ -56,7 +56,7 @@ function kvrCacheKey(plugin) {
 }
 
 function buildPluginCardHtml(p) {
-  const typeClass = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : 'type-au';
+  const typeClass = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : p.type === 'CLAP' ? 'type-clap' : 'type-au';
   let versionHtml = `<span class="version-current">v${p.version}</span>`;
   let badgeHtml = '';
   const mfgUrl = p.manufacturerUrl || null;
@@ -110,7 +110,7 @@ function buildDirsTable(directories, plugins) {
       types[p.type] = (types[p.type] || 0) + 1;
     });
     const typeStr = Object.entries(types)
-      .map(([t, c]) => `<span class="plugin-type ${t === 'VST2' ? 'type-vst2' : t === 'VST3' ? 'type-vst3' : 'type-au'}">${t}: ${c}</span>`)
+      .map(([t, c]) => `<span class="plugin-type ${t === 'VST2' ? 'type-vst2' : t === 'VST3' ? 'type-vst3' : t === 'CLAP' ? 'type-clap' : 'type-au'}">${t}: ${c}</span>`)
       .join(' ');
     return `<tr>
           <td style="padding: 4px 8px 4px 0; color: var(--cyan); opacity: 0.7;">${dir}</td>

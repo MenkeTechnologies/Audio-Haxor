@@ -9,7 +9,7 @@ describe('scanner helpers', () => {
   describe('getPluginType', () => {
     // Replicate the function locally for testing
     function getPluginType(ext) {
-      const map = { '.vst': 'VST2', '.vst3': 'VST3', '.component': 'AU', '.dll': 'VST2' };
+      const map = { '.vst': 'VST2', '.vst3': 'VST3', '.component': 'AU', '.clap': 'CLAP', '.dll': 'VST2' };
       return map[ext] || 'Unknown';
     }
 
@@ -135,7 +135,7 @@ describe('scanner helpers', () => {
 
   describe('getPluginType extended', () => {
     function getPluginType(ext) {
-      const map = { '.vst': 'VST2', '.vst3': 'VST3', '.component': 'AU', '.dll': 'VST2' };
+      const map = { '.vst': 'VST2', '.vst3': 'VST3', '.component': 'AU', '.clap': 'CLAP', '.dll': 'VST2' };
       return map[ext] || 'Unknown';
     }
 
@@ -143,8 +143,8 @@ describe('scanner helpers', () => {
       assert.strictEqual(getPluginType('.aaxplugin'), 'Unknown');
     });
 
-    it('maps .clap to Unknown (not in map)', () => {
-      assert.strictEqual(getPluginType('.clap'), 'Unknown');
+    it('maps .clap to CLAP', () => {
+      assert.strictEqual(getPluginType('.clap'), 'CLAP');
     });
   });
 });

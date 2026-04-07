@@ -15,7 +15,7 @@
 
 > **// SYSTEM ONLINE -- AUDIO_HAXOR v1.11.0 // by MenkeTechnologies**
 
-A high-voltage **Tauri v2** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
+A high-voltage **Tauri v2** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU/CLAP module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
 
 ---
 
@@ -60,7 +60,7 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 
 | Module | Function |
 |--------|----------|
-| **Plugin Scanner** | Detects VST2, VST3, and AU plugins from platform-specific directories on macOS, Windows, and Linux. Shows architecture badges (ARM64, x86_64, Universal) per plugin via direct Mach-O/PE header parsing. Tracks raw byte sizes for accurate disk usage charts. Runs in a background worker thread -- UI stays fully responsive |
+| **Plugin Scanner** | Detects VST2, VST3, AU, and CLAP plugins from platform-specific directories on macOS, Windows, and Linux. Shows architecture badges (ARM64, x86_64, Universal) per plugin via direct Mach-O/PE header parsing. Tracks raw byte sizes for accurate disk usage charts. Runs in a background worker thread -- UI stays fully responsive |
 | **Audio Scanner** | Discovers audio samples (WAV, FLAC, AIFF, MP3, OGG, etc.) with metadata extraction including duration, channels, sample rate, bit depth from file headers. Symlink deduplication via canonicalize with string-based fallback. By default, **Single-Click Sample Playback** and **Play on Keyboard Selection** are on (Settings → Playback to disable). With keyboard selection, if the metadata row is expanded, it follows the highlighted row. Double-click still works when single-click is off. Floating music player with volume, playback speed, seek bar, and loop controls persists across all tabs |
 | **DAW Scanner** | Finds DAW project files across 14+ formats -- Ableton (.als), Logic (.logicx), FL Studio (.flp), REAPER (.rpp), Cubase/Nuendo (.cpr/.npr), Pro Tools (.ptx/.ptf), Bitwig (.bwproject), Studio One (.song), Reason (.reason), Audacity (.aup/.aup3), GarageBand (.band), Ardour (.ardour), and dawproject (.dawproject). Double-click any project row to open it directly in its DAW |
 | **Plugin Cross-Reference** | Extracts plugin references from 11 DAW formats: Ableton (.als — gzip XML), REAPER (.rpp — plaintext), Bitwig (.bwproject — binary scan), FL Studio (.flp — ASCII + UTF-16LE), Logic Pro (.logicx — plist + AU name matching), Cubase/Nuendo (.cpr — Plugin Name markers), Studio One (.song — ZIP XML), DAWproject (ZIP XML), Pro Tools (.ptx/.ptf — binary scan), Reason (.reason — binary scan). Detects VST2/VST3/AU/CLAP/AAX. Shows plugin count badges on DAW rows. Click to see full plugin list. Reverse lookup: right-click any plugin to find which projects use it. Build full index across all supported projects with one click |
@@ -330,10 +330,10 @@ Built packages land in `src-tauri/target/release/bundle/`:
 ## // HOW IT WORKS //
 
 ```
-[1] SCAN -----> Rust backend crawls platform-specific plugin directories.
-                Streams results to the WebView via Tauri events in batches
-                of 10. Collects name, type, version, manufacturer, website,
-                size, and mod date.
+[1] SCAN -----> Rust backend crawls platform-specific plugin directories
+                (VST2, VST3, AU, CLAP). Streams results to the WebView via
+                Tauri events in batches of 10. Collects name, type, version,
+                manufacturer, website, size, and mod date.
 
 [2] AUDIO ----> Separate scanner discovers audio samples (WAV, FLAC, AIFF,
                 MP3, OGG) with metadata extraction. Inline playback via
@@ -392,7 +392,7 @@ src-tauri/
     main.rs            -- Tauri entry point
     lib.rs             -- IPC command handlers, export/import, file ops
     bpm.rs             -- BPM estimation via onset-strength autocorrelation
-    scanner.rs         -- Plugin filesystem scanner (VST2/VST3/AU)
+    scanner.rs         -- Plugin filesystem scanner (VST2/VST3/AU/CLAP)
     scanner_skip_dirs.rs -- Shared directory-name blocklist for all recursive scanners
     audio_scanner.rs   -- Audio sample discovery + metadata extraction
     daw_scanner.rs     -- DAW project scanner (14+ formats)
@@ -456,25 +456,32 @@ macOS
   /Library/Audio/Plug-Ins/VST
   /Library/Audio/Plug-Ins/VST3
   /Library/Audio/Plug-Ins/Components
+  /Library/Audio/Plug-Ins/CLAP
   ~/Library/Audio/Plug-Ins/VST
   ~/Library/Audio/Plug-Ins/VST3
   ~/Library/Audio/Plug-Ins/Components
+  ~/Library/Audio/Plug-Ins/CLAP
 
 Windows
   C:\Program Files\Common Files\VST3
+  C:\Program Files\Common Files\CLAP
   C:\Program Files\VSTPlugins
   C:\Program Files\Steinberg\VSTPlugins
   C:\Program Files (x86)\Common Files\VST3
+  C:\Program Files (x86)\Common Files\CLAP
   C:\Program Files (x86)\VSTPlugins
   C:\Program Files (x86)\Steinberg\VSTPlugins
 
 Linux
   /usr/lib/vst
   /usr/lib/vst3
+  /usr/lib/clap
   /usr/local/lib/vst
   /usr/local/lib/vst3
+  /usr/local/lib/clap
   ~/.vst
   ~/.vst3
+  ~/.clap
 ```
 
 ---

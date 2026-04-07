@@ -551,7 +551,7 @@ const EXT_TO_FILTER = {
   'wav': 'WAV', 'mp3': 'MP3', 'aiff': 'AIFF', 'aif': 'AIF',
   'flac': 'FLAC', 'ogg': 'OGG', 'm4a': 'M4A', 'aac': 'AAC',
   // Plugin types
-  'vst2': 'VST2', 'vst3': 'VST3', 'au': 'Audio Units', 'component': 'Audio Units',
+  'vst2': 'VST2', 'vst3': 'VST3', 'au': 'Audio Units', 'component': 'Audio Units', 'clap': 'CLAP',
   // DAW formats → DAW names
   'als': 'Ableton Live', 'alp': 'Ableton Live', 'ableton': 'Ableton Live',
   'logicx': 'Logic Pro', 'logic': 'Logic Pro',
@@ -826,7 +826,7 @@ function buildDirsTable(directories, plugins) {
       types[p.type] = (types[p.type] || 0) + 1;
     });
     const typeStr = Object.entries(types)
-      .map(([t, c]) => `<span class="plugin-type ${t === 'VST2' ? 'type-vst2' : t === 'VST3' ? 'type-vst3' : 'type-au'}">${t}: ${c}</span>`)
+      .map(([t, c]) => `<span class="plugin-type ${t === 'VST2' ? 'type-vst2' : t === 'VST3' ? 'type-vst3' : t === 'CLAP' ? 'type-clap' : 'type-au'}">${t}: ${c}</span>`)
       .join(' ');
     return `<tr>
       <td style="padding: 4px 8px 4px 0; color: var(--cyan); opacity: 0.7;">${dir}</td>

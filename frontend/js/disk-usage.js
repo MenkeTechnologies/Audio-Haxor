@@ -14,7 +14,7 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
     'WAV': 'var(--cyan)', 'MP3': 'var(--accent)', 'AIFF': 'var(--green)',
     'AIF': 'var(--green)', 'FLAC': 'var(--yellow)', 'OGG': 'var(--magenta)',
     'M4A': 'var(--orange)', 'AAC': 'var(--orange)',
-    'VST2': 'var(--cyan)', 'VST3': 'var(--accent)', 'AU': 'var(--green)',
+    'VST2': 'var(--cyan)', 'VST3': 'var(--accent)', 'AU': 'var(--green)', 'CLAP': 'var(--orange)',
     'Ableton Live': 'var(--cyan)', 'Logic Pro': 'var(--green)',
     'FL Studio': 'var(--orange)', 'REAPER': 'var(--yellow)',
     'Cubase': 'var(--accent)', 'Pro Tools': 'var(--magenta)',
@@ -71,7 +71,7 @@ function updateDawDiskUsage() {
 }
 
 // Build disk usage data from plugin types + populate the plugin stats row
-// (styled like the samples-tab audio-stats row: Total, VST3, VST2, AU, Other, Size).
+// (styled like the samples-tab audio-stats row: Total, VST3, VST2, AU, CLAP, Other, Size).
 // Reflects the current search + type filter via db_plugin_filter_stats.
 let _lastPluginAggKey = null;
 let _pluginAggCache = null;
@@ -107,7 +107,8 @@ async function updatePluginDiskUsage(force) {
     const vst3 = counts['VST3'] || 0;
     const vst2 = counts['VST2'] || 0;
     const au = counts['AU'] || 0;
-    const other = Math.max(0, total - vst3 - vst2 - au);
+    const clap = counts['CLAP'] || 0;
+    const other = Math.max(0, total - vst3 - vst2 - au - clap);
     statsEl.style.display = (total > 0 || unfiltered > 0) ? 'flex' : 'none';
     const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     const isFiltered = unfiltered > 0 && total > 0 && total < unfiltered;
@@ -115,6 +116,7 @@ async function updatePluginDiskUsage(force) {
     set('pluginStatsVst3', vst3.toLocaleString());
     set('pluginStatsVst2', vst2.toLocaleString());
     set('pluginStatsAu', au.toLocaleString());
+    set('pluginStatsClap', clap.toLocaleString());
     set('pluginStatsOther', other.toLocaleString());
     set('pluginStatsSize', formatAudioSize(totalBytes));
     if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: unfiltered });

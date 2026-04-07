@@ -822,7 +822,7 @@ async function resetAllScans() {
     // Clear xref cache
     if (typeof _xrefCache !== 'undefined') { for (const k in _xrefCache) delete _xrefCache[k]; }
     // Reset plugin UI
-    document.getElementById('pluginList').innerHTML = '<div class="state-message" id="emptyState"><div class="state-icon">&#128268;</div><h2>Audio Plugin Scanner</h2><p>Click <strong>"Scan Plugins"</strong> to discover all VST2, VST3, and Audio Unit plugins on your system.</p></div>';
+    document.getElementById('pluginList').innerHTML = '<div class="state-message" id="emptyState"><div class="state-icon">&#128268;</div><h2>Audio Plugin Scanner</h2><p>Click <strong>"Scan Plugins"</strong> to discover all VST2, VST3, CLAP, and Audio Unit plugins on your system.</p></div>';
     if (typeof applyInventoryCounts === 'function') {
       const z = { plugins: 0, samples: 0, daw: 0, presets: 0, pdf: 0, midi: 0 };
       window.__inventoryCounts = z;

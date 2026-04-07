@@ -226,7 +226,7 @@ async function selectScan(id, type) {
   const types = {};
   detail.plugins.forEach(p => { types[p.type] = (types[p.type] || 0) + 1; });
   const typeBreakdown = Object.entries(types).map(([t, c]) => {
-    const cls = t === 'VST2' ? 'type-vst2' : t === 'VST3' ? 'type-vst3' : 'type-au';
+    const cls = t === 'VST2' ? 'type-vst2' : t === 'VST3' ? 'type-vst3' : t === 'CLAP' ? 'type-clap' : 'type-au';
     return `<span class="plugin-type ${cls}">${t}: ${c}</span>`;
   }).join(' ');
 
@@ -255,7 +255,7 @@ async function selectScan(id, type) {
     function _renderPlugBatch() {
       const batch = plugListEl._items.slice(_r, _r + 200);
       plugListEl.insertAdjacentHTML('beforeend', batch.map(p => {
-        const tc = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : 'type-au';
+        const tc = p.type === 'VST2' ? 'type-vst2' : p.type === 'VST3' ? 'type-vst3' : p.type === 'CLAP' ? 'type-clap' : 'type-au';
         return `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;">
           <span class="plugin-type ${tc}" style="font-size:9px;">${p.type}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name)}</span>

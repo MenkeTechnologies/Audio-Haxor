@@ -39,9 +39,9 @@ describe('frontend/js/plugins.js buildPluginCardHtml (vm-loaded)', () => {
     assert.ok(P.buildPluginCardHtml(basePlugin({ type: 'AU' })).includes('type-au'));
   });
 
-  it('maps non-VST2/VST3 types to the same badge class as AU (CLAP uses type-au)', () => {
+  it('uses type-clap badge class for CLAP plugins', () => {
     const html = P.buildPluginCardHtml(basePlugin({ type: 'CLAP' }));
-    assert.ok(html.includes('type-au'));
+    assert.ok(html.includes('type-clap'));
     assert.ok(html.includes('>CLAP<'));
   });
 
