@@ -187,13 +187,8 @@ async function scanMidi(resume = false, overrideRoots = null) {
 
   if (!resume) {
     _midiScanDbView = false;
-    allMidiFiles = [];
-    filteredMidi = [];
-    _midiInfoCache = {};
-    _midiRenderCount = 0;
-    _midiTableInit = false;
-    if (tableWrap) tableWrap.innerHTML = '<div class="state-message"><div class="spinner"></div><h2>Scanning for MIDI files...</h2><p>Walking filesystem directories parallelized...</p></div>';
   }
+  let pendingMidiClear = !resume;
 
   let pendingMidi = [];
   let pendingFound = 0;
@@ -206,6 +201,16 @@ async function scanMidi(resume = false, overrideRoots = null) {
     if (pendingMidi.length === 0) return;
     const toAdd = pendingMidi;
     pendingMidi = [];
+    if (pendingMidiClear && toAdd.length > 0) {
+      pendingMidiClear = false;
+      allMidiFiles = [];
+      filteredMidi = [];
+      _midiInfoCache = {};
+      _midiRenderCount = 0;
+      _midiTableInit = false;
+      const tbody = document.getElementById('midiTableBody');
+      if (tbody) tbody.innerHTML = '';
+    }
     if (firstMidiBatch) { firstMidiBatch = false; _midiTableInit = false; _midiRenderCount = 0; }
     allMidiFiles.push(...toAdd);
     // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data.
@@ -262,6 +267,12 @@ async function scanMidi(resume = false, overrideRoots = null) {
     const result = await window.vstUpdater.scanMidiFiles(midiRoots.length ? midiRoots : undefined, excludePaths);
     // Drain any remaining buffered batch that didn't hit the flush timer.
     flushPendingMidi();
+    if (pendingMidiClear) {
+      pendingMidiClear = false;
+      allMidiFiles = [];
+      filteredMidi = [];
+      _midiInfoCache = {};
+    }
     if (result.streamed) {
       // Backend streamed results live — allMidiFiles was built from progress events.
     } else {
@@ -305,6 +316,12 @@ async function scanMidi(resume = false, overrideRoots = null) {
   } catch (err) {
     if (_midiScanProgressCleanup) { _midiScanProgressCleanup(); _midiScanProgressCleanup = null; }
     _midiScanDbView = false;
+    if (pendingMidiClear) {
+      pendingMidiClear = false;
+      allMidiFiles = [];
+      filteredMidi = [];
+      _midiInfoCache = {};
+    }
     const errMsg = err.message || err || 'Unknown error';
     if (tableWrap) tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
     if (typeof showToast === 'function' && typeof toastFmt === 'function') showToast(toastFmt('toast.midi_scan_failed', { err: errMsg }), 4000, 'error');
