@@ -11,11 +11,13 @@
 //! - [`audio_scanner`] — Audio sample discovery and metadata extraction
 //! - [`daw_scanner`] — DAW project scanner (14+ formats)
 //! - [`preset_scanner`] — Plugin preset discovery
+//! - [`audio_engine`] — Placeholder for future dedicated audio engine process (device / plugin graph IPC)
 //! - [`kvr`] — KVR Audio scraper and version checker
 //! - [`history`] — Scan history persistence, diffing, and preferences
 //! - [`content_hash`] — SHA-256 file hashing for byte-identical duplicate detection
 
 pub mod app_i18n;
+pub mod audio_engine;
 pub mod audio_scanner;
 pub mod bpm;
 pub mod bulk_stat;

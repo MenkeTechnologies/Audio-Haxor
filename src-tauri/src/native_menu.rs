@@ -308,6 +308,13 @@ pub fn build_native_menu_bar<R: Runtime>(
         true,
         Some("CmdOrCtrl+9"),
     )?;
+    let tab_audio_engine = MenuItem::with_id(
+        handle,
+        "tab_audio_engine",
+        t("menu.tab_audio_engine", "Audio Engine"),
+        true,
+        None::<&str>,
+    )?;
     let view_sep = PredefinedMenuItem::separator(handle)?;
     let toggle_theme = MenuItem::with_id(
         handle,
@@ -354,6 +361,7 @@ pub fn build_native_menu_bar<R: Runtime>(
             &tab_history,
             &tab_settings,
             &tab_files,
+            &tab_audio_engine,
             &view_sep,
             &toggle_theme,
             &toggle_crt,

@@ -1126,7 +1126,7 @@ function restoreTabOrder() {
 function settingResetTabOrder() {
     prefs.removeItem('tabOrder');
     const nav = document.querySelector('.tab-nav');
-    const defaultOrder = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'settings'];
+    const defaultOrder = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'audioEngine', 'settings'];
     const tabMap = {};
     nav.querySelectorAll('.tab-btn').forEach(btn => {
         tabMap[btn.dataset.tab] = btn;
@@ -1152,11 +1152,11 @@ function _ensureTabButtonCache() {
     _tabButtonsCache = nav ? [...nav.querySelectorAll('.tab-btn')] : [];
 }
 
-// Cache tab panel elements once — avoids 14 getElementById calls per switch.
+// Cache tab panel elements once — avoids N getElementById calls per switch.
 const _tabPanels = {};
 const _tabPanelIds = [
     'plugins', 'history', 'samples', 'daw', 'presets', 'favorites',
-    'notes', 'tags', 'files', 'midi', 'pdf', 'visualizer', 'walkers', 'settings',
+    'notes', 'tags', 'files', 'midi', 'pdf', 'visualizer', 'walkers', 'audioEngine', 'settings',
 ];
 
 function _ensureTabCache() {
@@ -1197,6 +1197,7 @@ function switchTab(tab) {
                 if (expectedTab !== 'visualizer' && typeof stopVisualizer === 'function') stopVisualizer();
                 if (expectedTab === 'visualizer' && typeof startVisualizer === 'function') startVisualizer();
                 if (expectedTab === 'walkers' && typeof startWalkerPolling === 'function') startWalkerPolling();
+                if (expectedTab === 'audioEngine' && typeof initAudioEngineTab === 'function') initAudioEngineTab();
                 if (expectedTab === 'history' && typeof loadHistory === 'function') loadHistory({preferCache: true});
                 if (expectedTab === 'favorites') renderFavorites();
                 if (expectedTab === 'notes') renderNotesTab();

@@ -217,6 +217,7 @@ function buildPaletteStaticItems() {
             action: () => _paletteSwitchTab('visualizer')
         },
         {type: 'tab', name: appFmt('menu.tab_walkers'), icon: '&#128270;', action: () => _paletteSwitchTab('walkers')},
+        {type: 'tab', name: appFmt('menu.tab_audio_engine'), icon: '&#127898;', action: () => _paletteSwitchTab('audioEngine')},
         {type: 'tab', name: appFmt('menu.tab_midi'), icon: '&#127924;', action: () => _paletteSwitchTab('midi')},
         {type: 'tab', name: appFmt('menu.tab_pdf'), icon: '&#128196;', action: () => _paletteSwitchTab('pdf')},
         {type: 'tab', name: appFmt('menu.tab_settings'), icon: '&#9881;', action: () => _paletteSwitchTab('settings')},

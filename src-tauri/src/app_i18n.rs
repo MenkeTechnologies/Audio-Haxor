@@ -169,6 +169,7 @@ mod tests {
         "menu.stop_all",
         "menu.stop_playback",
         "menu.tab_daw",
+        "menu.tab_audio_engine",
         "menu.tab_favorites",
         "menu.tab_files",
         "menu.tab_history",

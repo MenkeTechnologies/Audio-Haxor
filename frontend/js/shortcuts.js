@@ -14,6 +14,7 @@ const SHORTCUT_LABEL_KEYS = {
     tab11: 'ui.shortcut.history_tab',
     tab12: 'ui.shortcut.visualizer_tab',
     tab13: 'ui.shortcut.walkers_tab',
+    tab14: 'ui.shortcut.audio_engine_tab',
     search: 'ui.shortcut.focus_search',
     help: 'ui.shortcut.help_overlay',
     playPause: 'ui.shortcut.play_pause',
@@ -71,6 +72,7 @@ const DEFAULT_SHORTCUT_DEFS = {
     tab11: {key: 'F3', mod: false},
     tab12: {key: 'F4', mod: false},
     tab13: {key: 'F5', mod: false},
+    tab14: {key: 'F6', mod: false},
     search: {key: 'f', mod: true},
     help: {key: '?', mod: false},
     playPause: {key: ' ', mod: false},
@@ -114,7 +116,7 @@ const DEFAULT_SHORTCUT_DEFS = {
     clearPlayHistory: {key: 'h', mod: true},
 };
 
-const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'midi', 'pdf', 'favorites', 'notes', 'tags', 'files', 'history', 'visualizer', 'walkers', 'settings'];
+const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'midi', 'pdf', 'favorites', 'notes', 'tags', 'files', 'history', 'visualizer', 'walkers', 'audioEngine', 'settings'];
 
 function getShortcuts() {
     const saved = prefs.getObject('customShortcuts', null);

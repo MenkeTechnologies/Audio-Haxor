@@ -14,13 +14,15 @@ const PALETTE_TAB_NAMES = [
   'Files',
   'Visualizer',
   'Walkers',
+  'Audio Engine',
   'MIDI',
+  'PDFs',
   'Settings',
 ];
 
 describe('palette tab catalog', () => {
-  it('has 13 tab commands', () => {
-    assert.strictEqual(PALETTE_TAB_NAMES.length, 13);
+  it('has 15 tab commands', () => {
+    assert.strictEqual(PALETTE_TAB_NAMES.length, 15);
   });
 
   it('includes core workflow tabs', () => {
@@ -29,8 +31,9 @@ describe('palette tab catalog', () => {
     assert.ok(PALETTE_TAB_NAMES.includes('Settings'));
   });
 
-  it('MIDI appears once', () => {
+  it('MIDI and Audio Engine appear once', () => {
     assert.strictEqual(PALETTE_TAB_NAMES.filter(n => n === 'MIDI').length, 1);
+    assert.strictEqual(PALETTE_TAB_NAMES.filter(n => n === 'Audio Engine').length, 1);
   });
 
   it('order: Files before Visualizer', () => {

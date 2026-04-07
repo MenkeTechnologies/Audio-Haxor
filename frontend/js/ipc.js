@@ -165,6 +165,9 @@ listen('menu-action', (event) => {
         case 'tab_files':
             if (typeof switchTab === 'function') switchTab('files');
             break;
+        case 'tab_audio_engine':
+            if (typeof switchTab === 'function') switchTab('audioEngine');
+            break;
         // View — appearance
         case 'toggle_theme':
             if (typeof settingToggleTheme === 'function') settingToggleTheme();

@@ -39,7 +39,7 @@ function _helpModKbdKey(key) {
 
 /** Keys listed in Settings → Keyboard Shortcuts that are not covered above */
 const HELP_MORE_SHORTCUT_IDS = [
-    'tab11', 'tab12', 'tab13',
+    'tab11', 'tab12', 'tab13', 'tab14',
     'newSmartPlaylist', 'togglePlayerExpand', 'toggleEq', 'toggleMono',
     'toggleABLoop', 'heatmapDash', 'togglePlayer', 'toggleCrt', 'toggleNeonGlow',
     'clearPlayHistory', 'deselectAll', 'openPrefs',
@@ -84,7 +84,7 @@ function toggleHelpOverlay() {
             <h3>${h('help.section.navigation')}</h3>
             <div class="help-row">${k19} <span>${h('help.nav.switch_tabs_1_9_desc')}</span></div>
             <div class="help-row">${k0} <span>${h('help.nav.switch_tabs_10_desc')}</span></div>
-            <div class="help-row"><kbd>F3</kbd> <kbd>F4</kbd> <kbd>F5</kbd> <span>${h('help.nav.switch_tabs_f_keys_desc')}</span></div>
+            <div class="help-row"><kbd>F3</kbd> <kbd>F4</kbd> <kbd>F5</kbd> <kbd>F6</kbd> <span>${h('help.nav.switch_tabs_f_keys_desc')}</span></div>
             <div class="help-row">${_helpModKbdComma()} <span>${h('help.nav.switch_tabs_settings_desc')}</span></div>
             <div class="help-row">${_helpModKbdLetter('k')} <span>${h('help.nav.cmd_palette')}</span></div>
             <div class="help-row">${_helpModKbdLetter('f')} <span>${h('help.nav.focus_search')}</span></div>

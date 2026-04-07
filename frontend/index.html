@@ -7710,9 +7710,9 @@
                 data-tab="visualizer"
                 title="Real-time audio analyzer and visualizer">&#127911; <span
                 data-i18n="ui.btn.127911_visualizer">Visualizer</span></button>
-        <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.live_directory_walker_status" data-tab="walkers"
-                title="Live directory walker status">&#128270; <span data-i18n="ui.btn.128270_walkers">Walkers</span>
-        </button>
+        <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.audio_engine_tab" data-tab="audioEngine"
+                title="Audio engine — output device and plugin graph (planned)">&#127898; <span
+                data-i18n="menu.tab_audio_engine">Audio Engine</span></button>
         <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.app_settings_cmd_0" data-tab="settings"
                 title="App settings (Cmd+0)">&#9881; <span
                 data-i18n="ui.btn.9881_settings">Settings</span></button>
@@ -8400,6 +8400,19 @@
                 <div class="walker-tile-header" style="color:var(--accent);">&#9881; Unified File Walker</div>
                 <div class="walker-tile-status">idle</div>
                 <div class="walker-tile-body" id="walkerUnifiedBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content" id="tabAudioEngine">
+        <div class="audio-engine-tab" style="padding:24px;max-width:960px;">
+            <h2 style="margin:0 0 12px 0;font-size:18px;color:var(--cyan);" data-i18n="ui.ae.heading">Audio Engine</h2>
+            <p style="color:var(--text-muted);font-size:13px;line-height:1.5;margin:0 0 20px 0;" data-i18n="ui.ae.intro">
+                Dedicated audio process for system output, device selection, and insert effects. Implementation in progress.
+            </p>
+            <div class="hm-card" style="padding:16px;border:1px solid var(--border-dim);border-radius:8px;">
+                <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;" data-i18n="ui.ae.status_label">Engine status</div>
+                <div id="aeEngineStatus" style="font-family:var(--font-mono,monospace);font-size:13px;color:var(--text-muted);">—</div>
             </div>
         </div>
     </div>
@@ -9619,43 +9632,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=36463"></script>
-<script src="js/utils.js?v=36463"></script>
-<script src="js/ipc.js?v=36463"></script>
-<script src="js/drag-reorder.js?v=36463"></script>
-<script src="js/modal-drag.js?v=36463"></script>
-<script src="js/columns.js?v=36463"></script>
-<script src="js/notes.js?v=36463"></script>
-<script src="js/favorites.js?v=36463"></script>
-<script src="js/export.js?v=36463"></script>
-<script src="js/plugins.js?v=36463"></script>
-<script src="js/settings.js?v=36463"></script>
-<script src="js/history.js?v=36463"></script>
-<script src="js/kvr.js?v=36463"></script>
-<script src="js/audio.js?v=36464"></script>
-<script src="js/daw.js?v=36463"></script>
-<script src="js/presets.js?v=36463"></script>
-<script src="js/disk-usage.js?v=36463"></script>
-<script src="js/batch-select.js?v=36463"></script>
-<script src="js/native-file-drag.js?v=36463"></script>
-<script src="js/sort-persist.js?v=36463"></script>
-<script src="js/multi-filter.js?v=36463"></script>
-<script src="js/file-browser.js?v=36463"></script>
-<script src="js/duplicates.js?v=36463"></script>
-<script src="js/command-palette.js?v=36463"></script>
-<script src="js/xref.js?v=36463"></script>
-<script src="js/dep-graph.js?v=36463"></script>
-<script src="js/smart-playlists.js?v=36463"></script>
-<script src="js/heatmap-dashboard.js?v=36463"></script>
-<script src="js/midi.js?v=36463"></script>
-<script src="js/pdf.js?v=36463"></script>
-<script src="js/settings-search.js?v=36463"></script>
-<script src="js/visualizer.js?v=36463"></script>
-<script src="js/walker-status.js?v=36463"></script>
-<script src="js/context-menu.js?v=36463"></script>
-<script src="js/shortcuts.js?v=36463"></script>
-<script src="js/help-overlay.js?v=36463"></script>
-<script src="js/keyboard-nav.js?v=36463"></script>
-<script src="js/app.js?v=36464"></script>
+<script src="js/i18n-ui.js?v=57743"></script>
+<script src="js/utils.js?v=57743"></script>
+<script src="js/ipc.js?v=57743"></script>
+<script src="js/drag-reorder.js?v=57743"></script>
+<script src="js/modal-drag.js?v=57743"></script>
+<script src="js/columns.js?v=57743"></script>
+<script src="js/notes.js?v=57743"></script>
+<script src="js/favorites.js?v=57743"></script>
+<script src="js/export.js?v=57743"></script>
+<script src="js/plugins.js?v=57743"></script>
+<script src="js/settings.js?v=57743"></script>
+<script src="js/history.js?v=57743"></script>
+<script src="js/kvr.js?v=57743"></script>
+<script src="js/audio.js?v=57743"></script>
+<script src="js/daw.js?v=57743"></script>
+<script src="js/presets.js?v=57743"></script>
+<script src="js/disk-usage.js?v=57743"></script>
+<script src="js/batch-select.js?v=57743"></script>
+<script src="js/native-file-drag.js?v=57743"></script>
+<script src="js/sort-persist.js?v=57743"></script>
+<script src="js/multi-filter.js?v=57743"></script>
+<script src="js/file-browser.js?v=57743"></script>
+<script src="js/duplicates.js?v=57743"></script>
+<script src="js/command-palette.js?v=57743"></script>
+<script src="js/xref.js?v=57743"></script>
+<script src="js/dep-graph.js?v=57743"></script>
+<script src="js/smart-playlists.js?v=57743"></script>
+<script src="js/heatmap-dashboard.js?v=57743"></script>
+<script src="js/midi.js?v=57743"></script>
+<script src="js/pdf.js?v=57743"></script>
+<script src="js/settings-search.js?v=57743"></script>
+<script src="js/visualizer.js?v=57743"></script>
+<script src="js/walker-status.js?v=57743"></script>
+<script src="js/audio-engine.js?v=57743"></script>
+<script src="js/context-menu.js?v=57743"></script>
+<script src="js/shortcuts.js?v=57743"></script>
+<script src="js/help-overlay.js?v=57743"></script>
+<script src="js/keyboard-nav.js?v=57743"></script>
+<script src="js/app.js?v=57743"></script>
 </body>
 </html>
