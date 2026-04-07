@@ -7,6 +7,7 @@ use crate::history::{
     KvrCacheEntry, MidiFile, MidiScanSnapshot, PdfFile, PdfScanSnapshot, PresetFile, PresetHistory,
     PresetScanSnapshot, ScanHistory, ScanSnapshot,
 };
+use crate::path_norm::{normalize_path_for_db, path_strings_json_normalized};
 use crate::scanner::PluginInfo;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -912,7 +913,7 @@ impl Database {
         roots: &[String],
     ) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
-        let roots_json = serde_json::to_string(roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(roots);
         conn.execute(
             "INSERT OR REPLACE INTO audio_scans (id, timestamp, sample_count, total_bytes, format_counts, roots) VALUES (?1,?2,0,0,'{}',?3)",
             params![id, timestamp, roots_json],
@@ -1000,11 +1001,13 @@ impl Database {
                 .map_err(|e| e.to_string())?;
 
             for s in samples {
+                let path = normalize_path_for_db(&s.path);
+                let directory = normalize_path_for_db(&s.directory);
                 let changed = stmt
                     .execute(params![
                         s.name,
-                        s.path,
-                        s.directory,
+                        path,
+                        directory,
                         s.format,
                         s.size as i64,
                         s.size_formatted,
@@ -1019,7 +1022,7 @@ impl Database {
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
                     fts_stmt
-                        .execute(params![id, s.name, s.path, scan_id])
+                        .execute(params![id, s.name, path, scan_id])
                         .map_err(|e| e.to_string())?;
                     inserted += 1;
                     batch_bytes += s.size;
@@ -1049,7 +1052,7 @@ impl Database {
     ) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
         let fc_json = serde_json::to_string(format_counts).unwrap_or_default();
-        let roots_json = serde_json::to_string(roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(roots);
         conn.execute(
             "INSERT OR REPLACE INTO audio_scans
              (id, timestamp, sample_count, total_bytes, format_counts, roots)
@@ -1577,6 +1580,7 @@ impl Database {
 
     /// Update BPM for a sample (all rows for that path).
     pub fn update_bpm(&self, path: &str, bpm: Option<f64>) -> Result<(), String> {
+        let path = normalize_path_for_db(path);
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET bpm = ?1 WHERE path = ?2",
@@ -1588,6 +1592,7 @@ impl Database {
 
     /// Update musical key for a sample.
     pub fn update_key(&self, path: &str, key: Option<&str>) -> Result<(), String> {
+        let path = normalize_path_for_db(path);
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET key_name = ?1 WHERE path = ?2",
@@ -1606,6 +1611,7 @@ impl Database {
         sample_rate: Option<u32>,
         bits_per_sample: Option<u16>,
     ) -> Result<(), String> {
+        let path = normalize_path_for_db(path);
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET duration = ?1, channels = ?2, sample_rate = ?3, bits_per_sample = ?4
@@ -1636,6 +1642,7 @@ impl Database {
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
         let mut idx = 1;
         for p in paths {
+            let p = normalize_path_for_db(p);
             stmt.raw_bind_parameter(idx, p)
                 .map_err(|e| e.to_string())?;
             idx += 1;
@@ -1650,6 +1657,7 @@ impl Database {
 
     /// Update LUFS for a sample (all rows for that path).
     pub fn update_lufs(&self, path: &str, lufs: Option<f64>) -> Result<(), String> {
+        let path = normalize_path_for_db(path);
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "UPDATE audio_samples SET lufs = ?1 WHERE path = ?2",
@@ -1661,6 +1669,7 @@ impl Database {
 
     /// Get analysis data for a single sample.
     pub fn get_analysis(&self, path: &str) -> Result<serde_json::Value, String> {
+        let path = normalize_path_for_db(path);
         let conn = self.conn.lock().unwrap();
         let result = conn
             .query_row(
@@ -2135,8 +2144,8 @@ impl Database {
 
     pub fn save_plugin_scan(&self, snap: &ScanSnapshot) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
-        let dirs_json = serde_json::to_string(&snap.directories).unwrap_or_default();
-        let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+        let dirs_json = path_strings_json_normalized(&snap.directories);
+        let roots_json = path_strings_json_normalized(&snap.roots);
         conn.execute(
             "INSERT OR REPLACE INTO plugin_scans (id, timestamp, plugin_count, directories, roots) VALUES (?1,?2,?3,?4,?5)",
             params![snap.id, snap.timestamp, snap.plugin_count as i64, dirs_json, roots_json],
@@ -2151,9 +2160,10 @@ impl Database {
             ).map_err(|e| e.to_string())?;
             for p in &snap.plugins {
                 let arch_json = serde_json::to_string(&p.architectures).unwrap_or_default();
+                let path = normalize_path_for_db(&p.path);
                 stmt.execute(params![
                     p.name,
-                    p.path,
+                    path,
                     p.plugin_type,
                     p.version,
                     p.manufacturer,
@@ -2179,7 +2189,7 @@ impl Database {
     ) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
         let dirs_json = "[]".to_string();
-        let roots_json = serde_json::to_string(roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(roots);
         conn.execute(
             "INSERT OR REPLACE INTO plugin_scans (id, timestamp, plugin_count, directories, roots) VALUES (?1,?2,0,?3,?4)",
             params![id, timestamp, dirs_json, roots_json],
@@ -2203,10 +2213,11 @@ impl Database {
                 .map_err(|e| e.to_string())?;
             for p in batch {
                 let arch_json = serde_json::to_string(&p.architectures).unwrap_or_default();
+                let path = normalize_path_for_db(&p.path);
                 let changed = stmt
                     .execute(params![
                         p.name,
-                        p.path,
+                        path,
                         p.plugin_type,
                         p.version,
                         p.manufacturer,
@@ -2250,8 +2261,8 @@ impl Database {
                 |r| r.get(0),
             )
             .unwrap_or(0);
-        let dirs_json = serde_json::to_string(directories).unwrap_or_default();
-        let roots_json = serde_json::to_string(roots).unwrap_or_default();
+        let dirs_json = path_strings_json_normalized(directories);
+        let roots_json = path_strings_json_normalized(roots);
         conn.execute(
             "UPDATE plugin_scans SET plugin_count = ?2, directories = ?3, roots = ?4 WHERE id = ?1",
             params![id, plugin_count, dirs_json, roots_json],
@@ -2504,7 +2515,7 @@ impl Database {
         roots: &[String],
     ) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
-        let roots_json = serde_json::to_string(roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(roots);
         conn.execute(
             "INSERT OR REPLACE INTO daw_scans (id, timestamp, project_count, total_bytes, daw_counts, roots) VALUES (?1,?2,0,0,'{}',?3)",
             params![id, timestamp, roots_json],
@@ -2576,10 +2587,12 @@ impl Database {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO daw_projects (name, path, directory, format, daw, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO daw_projects_fts(rowid, name, path, daw, scan_id) VALUES (?1,?2,?3,?4,?5)").map_err(|e| e.to_string())?;
             for (i, p) in projects.iter().enumerate() {
+                let path = normalize_path_for_db(&p.path);
+                let directory = normalize_path_for_db(&p.directory);
                 let changed = stmt.execute(params![
                     p.name,
-                    p.path,
-                    p.directory,
+                    path,
+                    directory,
                     p.format,
                     p.daw,
                     p.size as i64,
@@ -2590,7 +2603,7 @@ impl Database {
                 .map_err(|e| e.to_string())?;
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
-                    fts_stmt.execute(params![id, p.name, p.path, p.daw, scan_id]).map_err(|e| e.to_string())?;
+                    fts_stmt.execute(params![id, p.name, path, p.daw, scan_id]).map_err(|e| e.to_string())?;
                     inserted_idx.push(i);
                     batch_bytes += p.size;
                 }
@@ -2610,7 +2623,7 @@ impl Database {
     pub fn save_daw_scan(&self, snap: &DawScanSnapshot) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
         let daw_json = serde_json::to_string(&snap.daw_counts).unwrap_or_default();
-        let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(&snap.roots);
         conn.execute(
             "INSERT OR REPLACE INTO daw_scans (id, timestamp, project_count, total_bytes, daw_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
             params![snap.id, snap.timestamp, snap.project_count as i64, snap.total_bytes as i64, daw_json, roots_json],
@@ -2630,10 +2643,12 @@ impl Database {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO daw_projects (name, path, directory, format, daw, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO daw_projects_fts(rowid, name, path, daw, scan_id) VALUES (?1,?2,?3,?4,?5)").map_err(|e| e.to_string())?;
             for p in &snap.projects {
+                let path = normalize_path_for_db(&p.path);
+                let directory = normalize_path_for_db(&p.directory);
                 let changed = stmt.execute(params![
                     p.name,
-                    p.path,
-                    p.directory,
+                    path,
+                    directory,
                     p.format,
                     p.daw,
                     p.size as i64,
@@ -2644,7 +2659,7 @@ impl Database {
                 .map_err(|e| e.to_string())?;
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
-                    fts_stmt.execute(params![id, p.name, p.path, p.daw, snap.id]).map_err(|e| e.to_string())?;
+                    fts_stmt.execute(params![id, p.name, path, p.daw, snap.id]).map_err(|e| e.to_string())?;
                 }
             }
         }
@@ -2758,7 +2773,7 @@ impl Database {
         roots: &[String],
     ) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
-        let roots_json = serde_json::to_string(roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(roots);
         conn.execute(
             "INSERT OR REPLACE INTO preset_scans (id, timestamp, preset_count, total_bytes, format_counts, roots) VALUES (?1,?2,0,0,'{}',?3)",
             params![id, timestamp, roots_json],
@@ -2828,10 +2843,12 @@ impl Database {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO presets (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO presets_fts(rowid, name, path, format, scan_id) VALUES (?1,?2,?3,?4,?5)").map_err(|e| e.to_string())?;
             for p in presets {
+                let path = normalize_path_for_db(&p.path);
+                let directory = normalize_path_for_db(&p.directory);
                 let changed = stmt.execute(params![
                     p.name,
-                    p.path,
-                    p.directory,
+                    path,
+                    directory,
                     p.format,
                     p.size as i64,
                     p.size_formatted,
@@ -2841,7 +2858,7 @@ impl Database {
                 .map_err(|e| e.to_string())?;
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
-                    fts_stmt.execute(params![id, p.name, p.path, p.format, scan_id]).map_err(|e| e.to_string())?;
+                    fts_stmt.execute(params![id, p.name, path, p.format, scan_id]).map_err(|e| e.to_string())?;
                     inserted += 1;
                     batch_bytes += p.size;
                 }
@@ -2860,7 +2877,7 @@ impl Database {
     pub fn save_preset_scan(&self, snap: &PresetScanSnapshot) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
         let fc_json = serde_json::to_string(&snap.format_counts).unwrap_or_default();
-        let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(&snap.roots);
         conn.execute(
             "INSERT OR REPLACE INTO preset_scans (id, timestamp, preset_count, total_bytes, format_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
             params![snap.id, snap.timestamp, snap.preset_count as i64, snap.total_bytes as i64, fc_json, roots_json],
@@ -2874,10 +2891,12 @@ impl Database {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO presets (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO presets_fts(rowid, name, path, format, scan_id) VALUES (?1,?2,?3,?4,?5)").map_err(|e| e.to_string())?;
             for p in &snap.presets {
+                let path = normalize_path_for_db(&p.path);
+                let directory = normalize_path_for_db(&p.directory);
                 let changed = stmt.execute(params![
                     p.name,
-                    p.path,
-                    p.directory,
+                    path,
+                    directory,
                     p.format,
                     p.size as i64,
                     p.size_formatted,
@@ -2887,7 +2906,7 @@ impl Database {
                 .map_err(|e| e.to_string())?;
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
-                    fts_stmt.execute(params![id, p.name, p.path, p.format, snap.id]).map_err(|e| e.to_string())?;
+                    fts_stmt.execute(params![id, p.name, path, p.format, snap.id]).map_err(|e| e.to_string())?;
                 }
             }
         }
@@ -3002,7 +3021,7 @@ impl Database {
         roots: &[String],
     ) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
-        let roots_json = serde_json::to_string(roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(roots);
         conn.execute(
             "INSERT OR REPLACE INTO midi_scans (id, timestamp, midi_count, total_bytes, format_counts, roots) VALUES (?1,?2,0,0,'{}',?3)",
             params![id, timestamp, roots_json],
@@ -3072,10 +3091,12 @@ impl Database {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO midi_files (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO midi_files_fts(rowid, name, path, scan_id) VALUES (?1,?2,?3,?4)").map_err(|e| e.to_string())?;
             for m in midi_files {
+                let path = normalize_path_for_db(&m.path);
+                let directory = normalize_path_for_db(&m.directory);
                 let changed = stmt.execute(params![
                     m.name,
-                    m.path,
-                    m.directory,
+                    path,
+                    directory,
                     m.format,
                     m.size as i64,
                     m.size_formatted,
@@ -3085,7 +3106,7 @@ impl Database {
                 .map_err(|e| e.to_string())?;
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
-                    fts_stmt.execute(params![id, m.name, m.path, scan_id]).map_err(|e| e.to_string())?;
+                    fts_stmt.execute(params![id, m.name, path, scan_id]).map_err(|e| e.to_string())?;
                     inserted += 1;
                     batch_bytes += m.size;
                 }
@@ -3103,7 +3124,7 @@ impl Database {
     pub fn save_midi_scan(&self, snap: &MidiScanSnapshot) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
         let fc_json = serde_json::to_string(&snap.format_counts).unwrap_or_default();
-        let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(&snap.roots);
         conn.execute(
             "INSERT OR REPLACE INTO midi_scans (id, timestamp, midi_count, total_bytes, format_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
             params![snap.id, snap.timestamp, snap.midi_count as i64, snap.total_bytes as i64, fc_json, roots_json],
@@ -3123,10 +3144,12 @@ impl Database {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO midi_files (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO midi_files_fts(rowid, name, path, scan_id) VALUES (?1,?2,?3,?4)").map_err(|e| e.to_string())?;
             for m in &snap.midi_files {
+                let path = normalize_path_for_db(&m.path);
+                let directory = normalize_path_for_db(&m.directory);
                 let changed = stmt.execute(params![
                     m.name,
-                    m.path,
-                    m.directory,
+                    path,
+                    directory,
                     m.format,
                     m.size as i64,
                     m.size_formatted,
@@ -3136,7 +3159,7 @@ impl Database {
                 .map_err(|e| e.to_string())?;
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
-                    fts_stmt.execute(params![id, m.name, m.path, snap.id]).map_err(|e| e.to_string())?;
+                    fts_stmt.execute(params![id, m.name, path, snap.id]).map_err(|e| e.to_string())?;
                 }
             }
         }
@@ -3463,7 +3486,7 @@ impl Database {
         roots: &[String],
     ) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
-        let roots_json = serde_json::to_string(roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(roots);
         conn.execute(
             "INSERT OR REPLACE INTO pdf_scans (id, timestamp, pdf_count, total_bytes, roots) VALUES (?1,?2,0,0,?3)",
             params![id, timestamp, roots_json],
@@ -3513,10 +3536,12 @@ impl Database {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO pdfs (name, path, directory, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO pdfs_fts(rowid, name, path, scan_id) VALUES (?1,?2,?3,?4)").map_err(|e| e.to_string())?;
             for p in pdfs {
+                let path = normalize_path_for_db(&p.path);
+                let directory = normalize_path_for_db(&p.directory);
                 let changed = stmt.execute(params![
                     p.name,
-                    p.path,
-                    p.directory,
+                    path,
+                    directory,
                     p.size as i64,
                     p.size_formatted,
                     p.modified,
@@ -3525,7 +3550,7 @@ impl Database {
                 .map_err(|e| e.to_string())?;
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
-                    fts_stmt.execute(params![id, p.name, p.path, scan_id]).map_err(|e| e.to_string())?;
+                    fts_stmt.execute(params![id, p.name, path, scan_id]).map_err(|e| e.to_string())?;
                     inserted += 1;
                     batch_bytes += p.size;
                 }
@@ -3583,6 +3608,7 @@ impl Database {
                 )
                 .map_err(|e| e.to_string())?;
             for (path, mtime_secs) in rows {
+                let path = normalize_path_for_db(path);
                 stmt.execute(params![domain, path, mtime_secs, last_scan_id])
                     .map_err(|e| e.to_string())?;
             }
@@ -3593,7 +3619,7 @@ impl Database {
 
     pub fn save_pdf_scan(&self, snap: &PdfScanSnapshot) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
-        let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+        let roots_json = path_strings_json_normalized(&snap.roots);
         conn.execute(
             "INSERT OR REPLACE INTO pdf_scans (id, timestamp, pdf_count, total_bytes, roots) VALUES (?1,?2,?3,?4,?5)",
             params![snap.id, snap.timestamp, snap.pdf_count as i64, snap.total_bytes as i64, roots_json],
@@ -3607,10 +3633,12 @@ impl Database {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO pdfs (name, path, directory, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO pdfs_fts(rowid, name, path, scan_id) VALUES (?1,?2,?3,?4)").map_err(|e| e.to_string())?;
             for p in &snap.pdfs {
+                let path = normalize_path_for_db(&p.path);
+                let directory = normalize_path_for_db(&p.directory);
                 let changed = stmt.execute(params![
                     p.name,
-                    p.path,
-                    p.directory,
+                    path,
+                    directory,
                     p.size as i64,
                     p.size_formatted,
                     p.modified,
@@ -3619,7 +3647,7 @@ impl Database {
                 .map_err(|e| e.to_string())?;
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
-                    fts_stmt.execute(params![id, p.name, p.path, snap.id]).map_err(|e| e.to_string())?;
+                    fts_stmt.execute(params![id, p.name, path, snap.id]).map_err(|e| e.to_string())?;
                 }
             }
         }
@@ -3775,6 +3803,7 @@ impl Database {
                 .prepare_cached("INSERT OR REPLACE INTO pdf_metadata (path, pages, updated_at) VALUES (?1, ?2, ?3)")
                 .map_err(|e| e.to_string())?;
             for (path, pages) in batch {
+                let path = normalize_path_for_db(path);
                 let pages_i: Option<i64> = pages.map(|n| n as i64);
                 stmt.execute(params![path, pages_i, now])
                     .map_err(|e| e.to_string())?;
@@ -3802,6 +3831,7 @@ impl Database {
             );
             let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
             for (i, p) in chunk.iter().enumerate() {
+                let p = normalize_path_for_db(p);
                 stmt.raw_bind_parameter(i + 1, p)
                     .map_err(|e| e.to_string())?;
             }
@@ -4476,6 +4506,7 @@ impl Database {
         {
             let mut stmt = tx.prepare_cached(&sql).map_err(|e| e.to_string())?;
             for (path, val) in obj {
+                let path = normalize_path_for_db(path);
                 if field == "key" {
                     if let Some(s) = val.as_str() {
                         let _ = stmt.execute(params![s, path]);
@@ -4516,6 +4547,7 @@ impl Database {
         {
             let mut stmt = tx.prepare_cached(&sql).map_err(|e| e.to_string())?;
             for (k, v) in obj {
+                let k = normalize_path_for_db(k);
                 let val_str = if v.is_string() {
                     v.as_str().unwrap_or("").to_string()
                 } else {
@@ -4758,6 +4790,7 @@ impl Database {
                 "UPDATE audio_samples SET bpm = ?1, key_name = ?2, lufs = ?3 WHERE path = ?4"
             ).map_err(|e| e.to_string())?;
             for (path, bpm, key, lufs) in results {
+                let path = normalize_path_for_db(path);
                 let _ = stmt.execute(params![bpm, key, lufs, path]);
                 count += 1;
             }
@@ -4937,8 +4970,8 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut count = 0;
         for snap in &history.scans {
-            let dirs_json = serde_json::to_string(&snap.directories).unwrap_or_default();
-            let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+            let dirs_json = path_strings_json_normalized(&snap.directories);
+            let roots_json = path_strings_json_normalized(&snap.roots);
             conn.execute(
                 "INSERT OR REPLACE INTO plugin_scans (id, timestamp, plugin_count, directories, roots) VALUES (?1,?2,?3,?4,?5)",
                 params![snap.id, snap.timestamp, snap.plugin_count as i64, dirs_json, roots_json],
@@ -4951,9 +4984,10 @@ impl Database {
                 ).map_err(|e| e.to_string())?;
                 for p in &snap.plugins {
                     let arch_json = serde_json::to_string(&p.architectures).unwrap_or_default();
+                    let path = normalize_path_for_db(&p.path);
                     stmt.execute(params![
                         p.name,
-                        p.path,
+                        path,
                         p.plugin_type,
                         p.version,
                         p.manufacturer,
@@ -4985,7 +5019,7 @@ impl Database {
         let mut count = 0;
         for snap in &history.scans {
             let daw_json = serde_json::to_string(&snap.daw_counts).unwrap_or_default();
-            let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+            let roots_json = path_strings_json_normalized(&snap.roots);
             conn.execute(
                 "INSERT OR REPLACE INTO daw_scans (id, timestamp, project_count, total_bytes, daw_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
                 params![snap.id, snap.timestamp, snap.project_count as i64, snap.total_bytes as i64, daw_json, roots_json],
@@ -4997,10 +5031,12 @@ impl Database {
                     "INSERT OR REPLACE INTO daw_projects (name, path, directory, format, daw, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)"
                 ).map_err(|e| e.to_string())?;
                 for p in &snap.projects {
+                    let path = normalize_path_for_db(&p.path);
+                    let directory = normalize_path_for_db(&p.directory);
                     stmt.execute(params![
                         p.name,
-                        p.path,
-                        p.directory,
+                        path,
+                        directory,
                         p.format,
                         p.daw,
                         p.size as i64,
@@ -5029,7 +5065,7 @@ impl Database {
         let mut count = 0;
         for snap in &history.scans {
             let fc_json = serde_json::to_string(&snap.format_counts).unwrap_or_default();
-            let roots_json = serde_json::to_string(&snap.roots).unwrap_or_default();
+            let roots_json = path_strings_json_normalized(&snap.roots);
             conn.execute(
                 "INSERT OR REPLACE INTO preset_scans (id, timestamp, preset_count, total_bytes, format_counts, roots) VALUES (?1,?2,?3,?4,?5,?6)",
                 params![snap.id, snap.timestamp, snap.preset_count as i64, snap.total_bytes as i64, fc_json, roots_json],
@@ -5041,10 +5077,12 @@ impl Database {
                     "INSERT OR REPLACE INTO presets (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)"
                 ).map_err(|e| e.to_string())?;
                 for p in &snap.presets {
+                    let path = normalize_path_for_db(&p.path);
+                    let directory = normalize_path_for_db(&p.directory);
                     stmt.execute(params![
                         p.name,
-                        p.path,
-                        p.directory,
+                        path,
+                        directory,
                         p.format,
                         p.size as i64,
                         p.size_formatted,
@@ -5120,6 +5158,7 @@ impl Database {
         {
             let mut stmt = tx.prepare_cached(&sql).map_err(|e| e.to_string())?;
             for (k, v) in &cache {
+                let k = normalize_path_for_db(k);
                 let val_str = if v.is_string() {
                     v.as_str().unwrap_or("").to_string()
                 } else {
@@ -5161,6 +5200,7 @@ impl Database {
         {
             let mut stmt = tx.prepare_cached(sql).map_err(|e| e.to_string())?;
             for (sample_path, value) in &cache {
+                let sample_path = normalize_path_for_db(sample_path);
                 match field {
                     "bpm" | "lufs" => {
                         if let Some(v) = value.as_f64() {

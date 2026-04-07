@@ -29,6 +29,7 @@ pub mod midi;
 pub mod midi_scanner;
 pub mod native_menu;
 pub mod pdf_meta;
+pub mod path_norm;
 pub mod pdf_scanner;
 pub mod preset_scanner;
 pub mod scanner;
