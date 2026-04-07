@@ -757,6 +757,30 @@
             width: 100%;
         }
 
+        /* Scan Directories: heading + description above, full-width path textarea */
+        .settings-row.settings-scan-dirs-row {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+        }
+
+        .settings-row.settings-scan-dirs-row .settings-label {
+            flex: 0 1 auto;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .settings-row.settings-scan-dirs-row .settings-control {
+            width: 100%;
+            max-width: 100%;
+            flex-shrink: 1;
+        }
+
+        .settings-row.settings-scan-dirs-row .settings-textarea-scan-paths {
+            max-width: 100%;
+            width: 100%;
+        }
+
         .btn-settings-action {
             padding: 5px 12px;
             font-size: 11px;
@@ -8514,7 +8538,7 @@
             <div class="settings-section" data-section="scanning">
                 <h2 class="settings-heading">&#9776; <span
                         data-i18n="ui.sh.9776_scan_directories">Scan Directories</span></h2>
-                <div class="settings-row">
+                <div class="settings-row settings-scan-dirs-row">
                     <div class="settings-label">
                         <span class="settings-title"
                               data-i18n="ui.st.plugin_scan_directories">Plugin Scan Directories</span>
@@ -8542,7 +8566,7 @@
                         <span class="settings-saved-msg" id="savedMsgCustomDirs"></span>
                     </div>
                 </div>
-                <div class="settings-row">
+                <div class="settings-row settings-scan-dirs-row">
                     <div class="settings-label">
                         <span class="settings-title"
                               data-i18n="ui.st.audio_scan_directories">Audio Scan Directories</span>
@@ -8571,7 +8595,7 @@
                         <span class="settings-saved-msg" id="savedMsgAudioScanDirs"></span>
                     </div>
                 </div>
-                <div class="settings-row">
+                <div class="settings-row settings-scan-dirs-row">
                     <div class="settings-label">
                         <span class="settings-title" data-i18n="ui.st.daw_scan_directories">DAW Scan Directories</span>
                         <span class="settings-desc"
@@ -8599,7 +8623,7 @@
                         <span class="settings-saved-msg" id="savedMsgDawScanDirs"></span>
                     </div>
                 </div>
-                <div class="settings-row">
+                <div class="settings-row settings-scan-dirs-row">
                     <div class="settings-label">
                         <span class="settings-title"
                               data-i18n="ui.st.preset_scan_directories">Preset Scan Directories</span>
@@ -8627,7 +8651,7 @@
                         <span class="settings-saved-msg" id="savedMsgPresetScanDirs"></span>
                     </div>
                 </div>
-                <div class="settings-row">
+                <div class="settings-row settings-scan-dirs-row">
                     <div class="settings-label">
                         <span class="settings-title"
                               data-i18n="ui.st.midi_scan_directories">MIDI Scan Directories</span>
@@ -8654,7 +8678,7 @@
                         <span class="settings-saved-msg" id="savedMsgMidiScanDirs"></span>
                     </div>
                 </div>
-                <div class="settings-row">
+                <div class="settings-row settings-scan-dirs-row">
                     <div class="settings-label">
                         <span class="settings-title" data-i18n="ui.st.pdf_scan_directories">PDF Scan Directories</span>
                         <span class="settings-desc" data-i18n="ui.sd.additional_directories_to_scan_for_pdf_documents">Additional directories to scan for PDF documents (one per line)</span>
