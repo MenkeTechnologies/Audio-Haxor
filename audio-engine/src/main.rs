@@ -258,19 +258,27 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                     let channels = supported.channels();
                     let sample_format = format!("{:?}", supported.sample_format());
                     let buffer_size = buffer_size_json(supported.buffer_size());
-                    let (stream, tone_flag, stream_buffer_frames, stream_sr) = build_playback_stream(
-                        &device,
-                        supported,
-                        tone,
-                        buffer_frames,
-                        file_pb.clone(),
-                    )?;
+                    let defer_play = start_playback && file_pb.is_some();
+                    let (stream, tone_flag, stream_buffer_frames, stream_sr, stream_started) =
+                        build_playback_stream(
+                            &device,
+                            supported,
+                            tone,
+                            buffer_frames,
+                            file_pb.clone(),
+                            defer_play,
+                        )?;
                     if start_playback {
                         if file_pb.is_none() {
                             return Err("playback_load required before start_playback".to_string());
                         }
                         playback::begin_playback(stream_sr)
                             .map_err(|e| format!("playback: {e}"))?;
+                    }
+                    if !stream_started {
+                        stream
+                            .play()
+                            .map_err(|e| format!("stream.play: {e}"))?;
                     }
                     let tone_supported = tone_flag.is_some();
                     let tone_on = tone_flag
@@ -1056,13 +1064,18 @@ fn build_capture_stream(
 }
 
 /// F32: file playback ring, optional test tone, or silence. Other formats: silence only, `tone_flag` = None.
+///
+/// When `defer_play` is true and `file_playback` is some, the stream is built but **`play()` is not
+/// called** — the caller must run [`playback::begin_playback`] (prefill) then [`Stream::play`].
+/// This avoids draining an empty ring before the decoder thread exists.
 fn build_playback_stream(
     device: &Device,
     supported: SupportedStreamConfig,
     tone_initial: bool,
     buffer_frames: Option<u32>,
     file_playback: Option<Arc<playback::PlaybackShared>>,
-) -> Result<(Stream, Option<Arc<AtomicBool>>, Option<u32>, u32), String> {
+    defer_play: bool,
+) -> Result<(Stream, Option<Arc<AtomicBool>>, Option<u32>, u32, bool), String> {
     let sf = supported.sample_format();
     let bs = supported.buffer_size();
     let mut stream_config = supported.config();
@@ -1109,8 +1122,13 @@ fn build_playback_stream(
                 None,
             )
             .map_err(|e| e.to_string())?;
-            stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, Some(tone_flag), stream_buffer_frames, stream_sr))
+            let started = if defer_play && file_playback.is_some() {
+                false
+            } else {
+                stream.play().map_err(|e| e.to_string())?;
+                true
+            };
+            Ok((stream, Some(tone_flag), stream_buffer_frames, stream_sr, started))
         }
         SampleFormat::I16 => {
             let stream = device.build_output_stream(
@@ -1121,7 +1139,7 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None, stream_buffer_frames, stream_sr))
+            Ok((stream, None, stream_buffer_frames, stream_sr, true))
         }
         SampleFormat::U16 => {
             let stream = device.build_output_stream(
@@ -1132,7 +1150,7 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None, stream_buffer_frames, stream_sr))
+            Ok((stream, None, stream_buffer_frames, stream_sr, true))
         }
         SampleFormat::I8 => {
             let stream = device.build_output_stream(
@@ -1143,7 +1161,7 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None, stream_buffer_frames, stream_sr))
+            Ok((stream, None, stream_buffer_frames, stream_sr, true))
         }
         SampleFormat::U8 => {
             let stream = device.build_output_stream(
@@ -1154,7 +1172,7 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None, stream_buffer_frames, stream_sr))
+            Ok((stream, None, stream_buffer_frames, stream_sr, true))
         }
         SampleFormat::I32 => {
             let stream = device.build_output_stream(
@@ -1165,7 +1183,7 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None, stream_buffer_frames, stream_sr))
+            Ok((stream, None, stream_buffer_frames, stream_sr, true))
         }
         SampleFormat::U32 => {
             let stream = device.build_output_stream(
@@ -1176,7 +1194,7 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None, stream_buffer_frames, stream_sr))
+            Ok((stream, None, stream_buffer_frames, stream_sr, true))
         }
         SampleFormat::I64 => {
             let stream = device.build_output_stream(
@@ -1187,7 +1205,7 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None, stream_buffer_frames, stream_sr))
+            Ok((stream, None, stream_buffer_frames, stream_sr, true))
         }
         SampleFormat::U64 => {
             let stream = device.build_output_stream(
@@ -1198,7 +1216,7 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None, stream_buffer_frames, stream_sr))
+            Ok((stream, None, stream_buffer_frames, stream_sr, true))
         }
         SampleFormat::F64 => {
             let stream = device.build_output_stream(
@@ -1209,7 +1227,7 @@ fn build_playback_stream(
             )
             .map_err(|e| e.to_string())?;
             stream.play().map_err(|e| e.to_string())?;
-            Ok((stream, None, stream_buffer_frames, stream_sr))
+            Ok((stream, None, stream_buffer_frames, stream_sr, true))
         }
         _ => Err(format!("unsupported sample format {:?}", sf)),
     }

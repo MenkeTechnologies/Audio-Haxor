@@ -7,6 +7,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
 use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::DecoderOptions;
@@ -199,6 +200,8 @@ impl DspChain {
 
 pub struct PlaybackShared {
     pub ring: Mutex<VecDeque<f32>>,
+    /// Reused in the cpal callback to pop stereo frames under one `ring` lock (no per-frame lock).
+    ring_pop_scratch: Mutex<Vec<f32>>,
     pub ring_cap: usize,
     pub paused: AtomicBool,
     pub stop_decoder: AtomicBool,
@@ -218,6 +221,7 @@ impl PlaybackShared {
     pub fn new(dsp: Arc<DspAtomic>, duration_sec: f64, src_rate: u32) -> Arc<Self> {
         Arc::new(Self {
             ring: Mutex::new(VecDeque::with_capacity(RING_CAP_SAMPLES)),
+            ring_pop_scratch: Mutex::new(Vec::with_capacity(8192)),
             ring_cap: RING_CAP_SAMPLES,
             paused: AtomicBool::new(false),
             stop_decoder: AtomicBool::new(false),
@@ -254,16 +258,23 @@ impl PlaybackShared {
         let cl = coeffs_lowshelf(200.0, low, sr);
         let cm = coeffs_peaking(1000.0, 1.0, mid, sr);
         let c_hi = coeffs_highshelf(8000.0, high, sr);
-        let mut chain = self.dsp_chain.lock().unwrap();
 
+        let need = frames * 2;
+        let mut scratch = self.ring_pop_scratch.lock().unwrap();
+        scratch.resize(need, 0.0);
+        {
+            let mut ring = self.ring.lock().unwrap();
+            for i in 0..frames {
+                scratch[i * 2] = ring.pop_front().unwrap_or(0.0);
+                scratch[i * 2 + 1] = ring.pop_front().unwrap_or(0.0);
+            }
+        }
+
+        let mut chain = self.dsp_chain.lock().unwrap();
         let mut pk = 0.0f32;
         for f in 0..frames {
-            let (l, r) = {
-                let mut ring = self.ring.lock().unwrap();
-                let l = ring.pop_front().unwrap_or(0.0);
-                let r = ring.pop_front().unwrap_or(0.0);
-                (l as f64, r as f64)
-            };
+            let l = scratch[f * 2] as f64;
+            let r = scratch[f * 2 + 1] as f64;
             let (lo, ro) = chain.process_stereo_with_coeffs(l, r, &cl, &cm, &c_hi, g, pan);
             let lo = lo as f32;
             let ro = ro as f32;
@@ -559,6 +570,27 @@ pub fn begin_playback(device_rate: u32) -> Result<(), String> {
         }
     });
     sess.join = Some(join);
+
+    // Prefill ring before cpal starts draining so the first callbacks are not mostly zeros (glitchy /
+    // perceived as slow when the decoder is always catching up).
+    let target = ((device_rate as usize).saturating_mul(150) / 1000).saturating_mul(2);
+    let start = Instant::now();
+    loop {
+        let len = { sess.shared.ring.lock().unwrap().len() };
+        if len >= target {
+            break;
+        }
+        if sess.shared.eof.load(Ordering::Relaxed) && len >= 4 {
+            break;
+        }
+        if start.elapsed() > Duration::from_millis(800) {
+            break;
+        }
+        if sess.shared.stop_decoder.load(Ordering::Relaxed) {
+            return Err("playback stopped during prefill".to_string());
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
 
     Ok(())
 }
