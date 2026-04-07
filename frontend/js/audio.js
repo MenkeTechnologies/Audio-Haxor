@@ -1311,7 +1311,8 @@ function getPinnedEngineSpectrumAxis() {
         if (resizeRaf != null) return;
         resizeRaf = requestAnimationFrame(applyFftCanvasSize);
     }
-    const ro = new ResizeObserver(() => scheduleFftCanvasSize());
+    /* Defer past the observer microtask so canvas dimension writes do not nest ResizeObserver loops (Chromium warning). */
+    const ro = new ResizeObserver(() => requestAnimationFrame(scheduleFftCanvasSize));
     ro.observe(parent);
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(applyFftCanvasSize);
 })();
@@ -4989,9 +4990,14 @@ function updateMetaLine() {
         if (!canvas || typeof ResizeObserver === 'undefined') return;
         const wrap = canvas.parentElement;
         if (!wrap) return;
+        let eqResizeRaf = null;
         const ro = new ResizeObserver(() => {
-            primeCanvasSize(canvas);
-            scheduleParametricEqFrame();
+            if (eqResizeRaf != null) return;
+            eqResizeRaf = requestAnimationFrame(() => {
+                eqResizeRaf = null;
+                primeCanvasSize(canvas);
+                scheduleParametricEqFrame();
+            });
         });
         ro.observe(wrap);
     }
