@@ -484,6 +484,15 @@ async function scanPdfs(resume = false, unifiedResult = null) {
     if (result.stopped && allPdfs.length > 0 && resumeBtn) {
       resumeBtn.style.display = '';
     }
+    if (typeof postScanCompleteToast === 'function') {
+      const n = _pdfTotalUnfiltered || allPdfs.length || 0;
+      postScanCompleteToast(
+        !!result.stopped,
+        'toast.post_scan_pdf_complete',
+        'toast.post_scan_pdf_stopped',
+        { n: n.toLocaleString() },
+      );
+    }
   } catch (err) {
     if (pdfScanProgressCleanup) { pdfScanProgressCleanup(); pdfScanProgressCleanup = null; }
     flushPending();

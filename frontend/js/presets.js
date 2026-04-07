@@ -570,6 +570,15 @@ async function scanPresets(resume = false, unifiedResult = null) {
     if (result.stopped && allPresets.length > 0) {
       setBtnDisplay(resumeBtn, '');
     }
+    if (typeof postScanCompleteToast === 'function') {
+      const n = _presetTotalUnfiltered || 0;
+      postScanCompleteToast(
+        !!result.stopped,
+        'toast.post_scan_presets_complete',
+        'toast.post_scan_presets_stopped',
+        { n: n.toLocaleString() },
+      );
+    }
   } catch (err) {
     if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
     flushPending();

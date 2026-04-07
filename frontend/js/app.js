@@ -471,6 +471,35 @@ if (typeof document !== 'undefined') {
 
 let scanAllRunning = false;
 
+/** One in-app toast after Scan All — uses SQLite library counts (not just the current page). */
+async function showPostScanAllToast() {
+    if (typeof showToast !== 'function' || typeof toastFmt !== 'function') return;
+    const stopped =
+        document.getElementById('btnResumeScan')?.style.display === '' ||
+        document.getElementById('btnResumeAudio')?.style.display === '' ||
+        document.getElementById('btnResumeDaw')?.style.display === '' ||
+        document.getElementById('btnResumePresets')?.style.display === '' ||
+        document.getElementById('btnResumeMidi')?.style.display === '' ||
+        document.getElementById('btnResumePdf')?.style.display === '';
+    let c;
+    try {
+        c = await window.vstUpdater.getActiveScanInventoryCounts();
+    } catch {
+        return;
+    }
+    const fmt = (n) => (Number(n) || 0).toLocaleString();
+    const vars = {
+        plugins: fmt(c.plugins),
+        samples: fmt(c.audio_samples),
+        daw: fmt(c.daw_projects),
+        presets: fmt(c.presets),
+        pdfs: fmt(c.pdfs),
+        midi: fmt(c.midi_files),
+    };
+    const key = stopped ? 'toast.post_scan_all_stopped' : 'toast.post_scan_all_complete';
+    showToast(toastFmt(key, vars), stopped ? 4500 : 3500, stopped ? 'warning' : '');
+}
+
 async function scanAll(resume = false) {
     const btn = document.getElementById('btnScanAll');
     const stopBtn = document.getElementById('btnStopAll');
@@ -485,6 +514,7 @@ async function scanAll(resume = false) {
     scanAllRunning = true;
 
     try {
+        window.__suppressPostScanToasts = true;
         // Resolve per-type custom roots + resume excludes from prefs / current state.
         const rootsOf = (k) => {
             const v = (prefs.getItem(k) || '').split('\n').map(s => s.trim()).filter(Boolean);
@@ -578,8 +608,11 @@ async function scanAll(resume = false) {
         }, 100);
 
         await scansP;
+        await showPostScanAllToast();
     } catch (err) {
         showToast(toastFmt('toast.scan_all_failed', {err: err.message || err}), 4000, 'error');
+    } finally {
+        window.__suppressPostScanToasts = false;
     }
 
     scanAllRunning = false;
@@ -592,7 +625,9 @@ async function scanAll(resume = false) {
     const anyResumeVisible = document.getElementById('btnResumeScan')?.style.display === '' ||
         document.getElementById('btnResumeAudio')?.style.display === '' ||
         document.getElementById('btnResumeDaw')?.style.display === '' ||
-        document.getElementById('btnResumePresets')?.style.display === '';
+        document.getElementById('btnResumePresets')?.style.display === '' ||
+        document.getElementById('btnResumeMidi')?.style.display === '' ||
+        document.getElementById('btnResumePdf')?.style.display === '';
     resumeBtn.style.display = anyResumeVisible ? '' : 'none';
 }
 

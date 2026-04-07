@@ -161,7 +161,7 @@ function renderFavorites() {
     const extra = f.format ? `<span class="format-badge format-default">${escapeHtml(f.format)}</span>` : '';
     const daw = f.daw ? `<span class="format-badge ${getDawBadgeClass ? getDawBadgeClass(f.daw) : 'format-default'}">${escapeHtml(f.daw)}</span>` : '';
     const hp = escapeHtml(f.path);
-    const isPlaying = f.type === 'sample' && typeof audioPlayerPath !== 'undefined' && audioPlayerPath === f.path && typeof audioPlayer !== 'undefined' && !audioPlayer.paused;
+    const isPlaying = f.type === 'sample' && typeof audioPlayerPath !== 'undefined' && audioPlayerPath === f.path && (typeof isAudioPlaying === 'function' ? isAudioPlaying() : typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused);
     const playBtn = f.type === 'sample'
       ? `<button class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-action="previewAudio" data-path="${hp}" title="Play">${isPlaying ? '&#9646;&#9646;' : '&#9654;'}</button>`
       : '';

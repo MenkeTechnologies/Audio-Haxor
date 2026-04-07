@@ -1078,3 +1078,19 @@ function findByPath(arr, path, reindex) {
   entry.indexedUpTo = arr.length;
   return entry.map.get(path);
 }
+
+/**
+ * In-app toast when a scan finishes successfully (skipped when `window.__suppressPostScanToasts`
+ * is true — used by Scan All so only one summary toast appears).
+ * @param {boolean} stopped - User cancelled; uses `stoppedKey` and warning styling.
+ * @param {string} completeKey - `toastFmt` key
+ * @param {string} stoppedKey - `toastFmt` key
+ * @param {Record<string, string|number>} vars - Placeholders for `toastFmt`
+ */
+function postScanCompleteToast(stopped, completeKey, stoppedKey, vars) {
+  if (typeof window.__suppressPostScanToasts === 'boolean' && window.__suppressPostScanToasts) return;
+  if (typeof showToast !== 'function' || typeof toastFmt !== 'function') return;
+  const key = stopped ? stoppedKey : completeKey;
+  showToast(toastFmt(key, vars), stopped ? 4500 : 3500, stopped ? 'warning' : '');
+}
+window.postScanCompleteToast = postScanCompleteToast;

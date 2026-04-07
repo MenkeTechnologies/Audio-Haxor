@@ -514,6 +514,15 @@ async function scanDawProjects(resume = false, unifiedResult = null) {
     if (result.stopped && allDawProjects.length > 0) {
       resumeBtn.style.display = '';
     }
+    if (typeof postScanCompleteToast === 'function') {
+      const n = _dawTotalUnfiltered || allDawProjects.length || 0;
+      postScanCompleteToast(
+        !!result.stopped,
+        'toast.post_scan_daw_complete',
+        'toast.post_scan_daw_stopped',
+        { n: n.toLocaleString() },
+      );
+    }
   } catch (err) {
     if (dawScanProgressCleanup) { dawScanProgressCleanup(); dawScanProgressCleanup = null; }
     flushPendingProjects();

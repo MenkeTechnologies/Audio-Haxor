@@ -312,6 +312,15 @@ async function scanMidi(resume = false) {
     if (result.stopped && _midiTotalUnfiltered > 0 && resumeBtn) {
       resumeBtn.style.display = '';
     }
+    if (typeof postScanCompleteToast === 'function') {
+      const n = _midiTotalUnfiltered || 0;
+      postScanCompleteToast(
+        !!result.stopped,
+        'toast.post_scan_midi_complete',
+        'toast.post_scan_midi_stopped',
+        { n: n.toLocaleString() },
+      );
+    }
   } catch (err) {
     if (_midiScanProgressCleanup) { _midiScanProgressCleanup(); _midiScanProgressCleanup = null; }
     const errMsg = err.message || err || 'Unknown error';

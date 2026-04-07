@@ -879,6 +879,9 @@ document.addEventListener('click', (e) => {
             case 'toggleMute':
                 toggleMute();
                 break;
+            case 'toggleReversePlayback':
+                if (typeof toggleReversePlayback === 'function') void toggleReversePlayback();
+                break;
             case 'resetEq':
                 resetEq();
                 break;

@@ -4582,6 +4582,14 @@
       border-color: var(--red);
       box-shadow: 0 0 15px rgba(255,7,58,0.3), 0 0 30px rgba(255,7,58,0.1);
     }
+    .toast.toast-warning {
+      color: var(--yellow);
+      border-color: var(--yellow);
+      box-shadow: 0 0 15px var(--yellow-glow), 0 0 30px rgba(249,240,2,0.08);
+      text-transform: none;
+      letter-spacing: 0.5px;
+      line-height: 1.35;
+    }
     @keyframes toast-in {
       from { opacity: 0; transform: translateX(40px); }
       to   { opacity: 1; transform: translateX(0); }
@@ -4802,6 +4810,7 @@
               <option value="1.5" data-i18n="ui.opt.1_5x">1.5x</option>
               <option value="2" data-i18n="ui.opt.2x">2x</option>
             </select>
+            <button class="btn-small btn-loop" id="npBtnReverse" type="button" data-action="toggleReversePlayback" title="Reverse playback" data-i18n-title="ui.tt.reverse_playback" style="padding:3px 6px;font-size:10px;min-width:28px;" data-i18n="ui.btn.rev">&#8630;</button>
           </div>
         </div>
       </div>
@@ -6267,42 +6276,42 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=98064"></script>
-  <script src="js/ipc.js?v=98064"></script>
-  <script src="js/utils.js?v=98064"></script>
-  <script src="js/drag-reorder.js?v=98064"></script>
-  <script src="js/modal-drag.js?v=98064"></script>
-  <script src="js/columns.js?v=98064"></script>
-  <script src="js/notes.js?v=98064"></script>
-  <script src="js/favorites.js?v=98064"></script>
-  <script src="js/export.js?v=98064"></script>
-  <script src="js/plugins.js?v=98064"></script>
-  <script src="js/settings.js?v=98064"></script>
-  <script src="js/history.js?v=98064"></script>
-  <script src="js/kvr.js?v=98064"></script>
-  <script src="js/audio.js?v=98064"></script>
-  <script src="js/daw.js?v=98064"></script>
-  <script src="js/presets.js?v=98064"></script>
-  <script src="js/disk-usage.js?v=98064"></script>
-  <script src="js/batch-select.js?v=98064"></script>
-  <script src="js/sort-persist.js?v=98064"></script>
-  <script src="js/multi-filter.js?v=98064"></script>
-  <script src="js/file-browser.js?v=98064"></script>
-  <script src="js/duplicates.js?v=98064"></script>
-  <script src="js/command-palette.js?v=98064"></script>
-  <script src="js/xref.js?v=98064"></script>
-  <script src="js/dep-graph.js?v=98064"></script>
-  <script src="js/smart-playlists.js?v=98064"></script>
-  <script src="js/heatmap-dashboard.js?v=98064"></script>
-  <script src="js/midi.js?v=98064"></script>
-  <script src="js/pdf.js?v=98064"></script>
-  <script src="js/settings-search.js?v=98064"></script>
-  <script src="js/visualizer.js?v=98064"></script>
-  <script src="js/walker-status.js?v=98064"></script>
-  <script src="js/context-menu.js?v=98065"></script>
-  <script src="js/help-overlay.js?v=98064"></script>
-  <script src="js/shortcuts.js?v=98064"></script>
-  <script src="js/keyboard-nav.js?v=98064"></script>
-  <script src="js/app.js?v=98064"></script>
+  <script src="js/i18n-ui.js?v=98066"></script>
+  <script src="js/ipc.js?v=98066"></script>
+  <script src="js/utils.js?v=98066"></script>
+  <script src="js/drag-reorder.js?v=98066"></script>
+  <script src="js/modal-drag.js?v=98066"></script>
+  <script src="js/columns.js?v=98066"></script>
+  <script src="js/notes.js?v=98066"></script>
+  <script src="js/favorites.js?v=98066"></script>
+  <script src="js/export.js?v=98066"></script>
+  <script src="js/plugins.js?v=98066"></script>
+  <script src="js/settings.js?v=98066"></script>
+  <script src="js/history.js?v=98066"></script>
+  <script src="js/kvr.js?v=98066"></script>
+  <script src="js/audio.js?v=98066"></script>
+  <script src="js/daw.js?v=98066"></script>
+  <script src="js/presets.js?v=98066"></script>
+  <script src="js/disk-usage.js?v=98066"></script>
+  <script src="js/batch-select.js?v=98066"></script>
+  <script src="js/sort-persist.js?v=98066"></script>
+  <script src="js/multi-filter.js?v=98066"></script>
+  <script src="js/file-browser.js?v=98066"></script>
+  <script src="js/duplicates.js?v=98066"></script>
+  <script src="js/command-palette.js?v=98066"></script>
+  <script src="js/xref.js?v=98066"></script>
+  <script src="js/dep-graph.js?v=98066"></script>
+  <script src="js/smart-playlists.js?v=98066"></script>
+  <script src="js/heatmap-dashboard.js?v=98066"></script>
+  <script src="js/midi.js?v=98066"></script>
+  <script src="js/pdf.js?v=98066"></script>
+  <script src="js/settings-search.js?v=98066"></script>
+  <script src="js/visualizer.js?v=98066"></script>
+  <script src="js/walker-status.js?v=98066"></script>
+  <script src="js/context-menu.js?v=98066"></script>
+  <script src="js/help-overlay.js?v=98066"></script>
+  <script src="js/shortcuts.js?v=98066"></script>
+  <script src="js/keyboard-nav.js?v=98066"></script>
+  <script src="js/app.js?v=98066"></script>
 </body>
 </html>

@@ -41,6 +41,201 @@ let _analyser = null;
 let _monoMode = false;
 let _abLoop = null; // { start, end } in seconds, or null
 
+// Reverse playback (decoded buffer played backwards through the same EQ chain; HTMLAudioElement has no negative playbackRate)
+let audioReverseMode = false;
+let _decodedBuf = null;
+let _decodedBufPath = null;
+let _reversedBuf = null;
+let _bufSrc = null;
+let _bufPlaying = false;
+let _bufSegStartCtx = 0;
+let _bufOffsetInRev = 0;
+let _bufPlaybackRate = 1;
+let _pausedOffsetInRev = 0;
+let _reverseDecodeBusy = false;
+
+function isAudioPlaying() {
+  if (audioReverseMode && _bufPlaying) return true;
+  return typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused;
+}
+
+function reverseAudioBuffer(ctx, buf) {
+  const len = buf.length;
+  const ch = buf.numberOfChannels;
+  const out = ctx.createBuffer(ch, len, buf.sampleRate);
+  for (let c = 0; c < ch; c++) {
+    const s = buf.getChannelData(c);
+    const d = out.getChannelData(c);
+    for (let i = 0; i < len; i++) d[i] = s[len - 1 - i];
+  }
+  return out;
+}
+
+async function ensureReversedBufferForPath(path) {
+  if (_reversedBuf && _decodedBufPath === path) return _reversedBuf;
+  ensureAudioGraph();
+  const url = convertFileSrc(path);
+  const resp = await fetch(url);
+  const arr = await resp.arrayBuffer();
+  const buf = await _playbackCtx.decodeAudioData(arr.slice(0));
+  _decodedBuf = buf;
+  _decodedBufPath = path;
+  _reversedBuf = reverseAudioBuffer(_playbackCtx, buf);
+  return _reversedBuf;
+}
+
+function disconnectMediaFromEq() {
+  ensureAudioGraph();
+  try {
+    _sourceNode.disconnect();
+  } catch (_) {}
+}
+
+function connectMediaToEq() {
+  ensureAudioGraph();
+  try {
+    _sourceNode.disconnect();
+  } catch (_) {}
+  _sourceNode.connect(_eqLow);
+}
+
+function getPlaybackSpeedValue() {
+  const sel = document.getElementById('npSpeed');
+  const v = parseFloat(sel?.value || '1');
+  return Number.isFinite(v) ? v : 1;
+}
+
+function getOriginalTimeFromReverseBuffer() {
+  if (!_reversedBuf || !_bufPlaying) return 0;
+  const dur = _reversedBuf.duration;
+  const elapsed = _playbackCtx.currentTime - _bufSegStartCtx;
+  const posInRev = _bufOffsetInRev + elapsed * _bufPlaybackRate;
+  return Math.max(0, dur - posInRev);
+}
+
+function stopReverseBufferPlayback() {
+  if (_bufSrc) {
+    try {
+      _bufSrc.stop(0);
+    } catch (_) {}
+    try {
+      _bufSrc.disconnect();
+    } catch (_) {}
+    _bufSrc = null;
+  }
+  _bufPlaying = false;
+  if (_playbackRafId) {
+    cancelAnimationFrame(_playbackRafId);
+    _playbackRafId = null;
+  }
+}
+
+function pauseReverseBufferPlayback() {
+  if (!audioReverseMode || !_reversedBuf || !_bufPlaying) return;
+  const dur = _reversedBuf.duration;
+  const elapsed = _playbackCtx.currentTime - _bufSegStartCtx;
+  const posInRev = _bufOffsetInRev + elapsed * _bufPlaybackRate;
+  _pausedOffsetInRev = Math.max(0, Math.min(posInRev, dur - 0.001));
+  stopReverseBufferPlayback();
+}
+
+function startReverseBufferFromOffset(offsetInRev) {
+  if (!_reversedBuf || !audioPlayerPath) return;
+  stopReverseBufferPlayback();
+  ensureAudioGraph();
+  if (_playbackCtx.state === 'suspended') {
+    _playbackCtx.resume().catch(() => {});
+  }
+  const buf = _reversedBuf;
+  const dur = buf.duration;
+  const rate = Math.max(0.0625, Math.min(16, getPlaybackSpeedValue()));
+  const off = Math.max(0, Math.min(offsetInRev, dur - 0.001));
+  if (off >= dur) return;
+  disconnectMediaFromEq();
+  _bufSrc = _playbackCtx.createBufferSource();
+  _bufSrc.buffer = buf;
+  _bufSrc.playbackRate.value = rate;
+  _bufSrc.connect(_eqLow);
+  _bufSegStartCtx = _playbackCtx.currentTime;
+  _bufOffsetInRev = off;
+  _bufPlaybackRate = rate;
+  _bufSrc.onended = () => {
+    _bufSrc = null;
+    _bufPlaying = false;
+    if (_playbackRafId) {
+      cancelAnimationFrame(_playbackRafId);
+      _playbackRafId = null;
+    }
+    if (!audioPlayerPath) return;
+    if (audioLooping) {
+      _pausedOffsetInRev = 0;
+      startReverseBufferFromOffset(0);
+      return;
+    }
+    if (filteredAudioSamples.length > 1 && prefs.getItem('autoplayNext') !== 'off') {
+      nextTrack();
+    } else {
+      updatePlayBtnStates();
+      updateNowPlayingBtn();
+    }
+  };
+  _bufSrc.start(0, off);
+  _bufPlaying = true;
+  if (!_playbackRafId) _playbackRafId = requestAnimationFrame(_playbackRafLoop);
+}
+
+async function toggleReversePlayback() {
+  const btn = document.getElementById('npBtnReverse');
+  if (!audioPlayerPath) {
+    if (typeof showToast === 'function') showToast(toastFmt('toast.reverse_no_track'), 3000, 'error');
+    return;
+  }
+  if (_reverseDecodeBusy) return;
+  if (audioReverseMode) {
+    audioReverseMode = false;
+    prefs.setItem('audioReverse', 'off');
+    if (btn) btn.classList.remove('active');
+    let origT = 0;
+    if (_reversedBuf) {
+      const dur = _reversedBuf.duration;
+      if (_bufPlaying) origT = getOriginalTimeFromReverseBuffer();
+      else origT = Math.max(0, dur - _pausedOffsetInRev);
+    }
+    stopReverseBufferPlayback();
+    connectMediaToEq();
+    if (audioPlayer.duration && !Number.isNaN(audioPlayer.duration)) {
+      audioPlayer.currentTime = Math.min(origT, Math.max(0, audioPlayer.duration - 0.01));
+    }
+    try {
+      await audioPlayer.play();
+    } catch (_) {}
+    updatePlayBtnStates();
+    updateNowPlayingBtn();
+    return;
+  }
+  audioReverseMode = true;
+  prefs.setItem('audioReverse', 'on');
+  if (btn) btn.classList.add('active');
+  audioPlayer.pause();
+  _reverseDecodeBusy = true;
+  try {
+    await ensureReversedBufferForPath(audioPlayerPath);
+    const dur = _reversedBuf.duration;
+    let origT = audioPlayer.currentTime || 0;
+    if (origT <= 0 && _pausedOffsetInRev > 0) origT = Math.max(0, dur - _pausedOffsetInRev);
+    const off = Math.max(0, dur - origT);
+    _pausedOffsetInRev = off;
+    startReverseBufferFromOffset(off);
+  } catch (e) {
+    audioReverseMode = false;
+    prefs.setItem('audioReverse', 'off');
+    if (btn) btn.classList.remove('active');
+    if (typeof showToast === 'function') showToast(toastFmt('toast.reverse_playback_failed', { err: e.message || e }), 4000, 'error');
+  } finally {
+    _reverseDecodeBusy = false;
+  }
+}
+
 function ensureAudioGraph() {
   if (_playbackCtx) return;
   _playbackCtx = new AudioContext();
@@ -262,6 +457,10 @@ function loadRecentlyPlayed() {
   const savedSpeed = prefs.getItem('audioSpeed');
   if (savedSpeed) { const sel = document.getElementById('npSpeed'); if (sel) { sel.value = savedSpeed; } setPlaybackSpeed(savedSpeed); }
 
+  audioReverseMode = prefs.getItem('audioReverse') === 'on';
+  const revBtn = document.getElementById('npBtnReverse');
+  if (revBtn) revBtn.classList.toggle('active', audioReverseMode);
+
   _monoMode = prefs.getItem('audioMono') === 'on';
   const monoBtn = document.getElementById('npBtnMono');
   if (monoBtn) monoBtn.classList.toggle('active', _monoMode);
@@ -371,7 +570,7 @@ let _playbackRafId = null;
 function _playbackRafLoop() {
   updatePlaybackTime();
   _renderNpFft();
-  if (!audioPlayer.paused) {
+  if (isAudioPlaying()) {
     _playbackRafId = requestAnimationFrame(_playbackRafLoop);
   }
 }
@@ -473,9 +672,11 @@ function _renderNpFft() {
   ctx.textAlign = 'start';
 }
 audioPlayer.addEventListener('play', () => {
+  if (audioReverseMode && _bufPlaying) return;
   if (!_playbackRafId) _playbackRafId = requestAnimationFrame(_playbackRafLoop);
 });
 audioPlayer.addEventListener('pause', () => {
+  if (audioReverseMode && _bufPlaying) return;
   if (_playbackRafId) { cancelAnimationFrame(_playbackRafId); _playbackRafId = null; }
   updatePlaybackTime(); // final position
 });
@@ -850,6 +1051,15 @@ async function scanAudioSamples(resume = false, unifiedResult = null) {
     if (prefs.getItem('autoAnalysis') !== 'off') startBackgroundAnalysis();
     if (result.stopped && audioTotalUnfiltered > 0) {
       resumeBtn.style.display = '';
+    }
+    if (typeof postScanCompleteToast === 'function') {
+      const n = audioTotalUnfiltered || 0;
+      postScanCompleteToast(
+        !!result.stopped,
+        'toast.post_scan_samples_complete',
+        'toast.post_scan_samples_stopped',
+        { n: n.toLocaleString() },
+      );
     }
   } catch (err) {
     if (audioScanProgressCleanup) { audioScanProgressCleanup(); audioScanProgressCleanup = null; }
@@ -1291,7 +1501,7 @@ function buildAudioRow(s) {
     <td class="col-path" title="${hp}">${_lastAudioSearch ? highlightPathPrefixFromPath(s.path, s.directory, _lastAudioSearch, _lastAudioMode) : escapeHtml(s.directory)}</td>
     <td class="col-actions" data-action-stop>
       <button class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-action="previewAudio" data-path="${hp}" title="${previewBtnT}">
-        ${isPlaying && !audioPlayer.paused ? '&#9646;&#9646;' : '&#9654;'}
+        ${isPlaying && isAudioPlaying() ? '&#9646;&#9646;' : '&#9654;'}
       </button>
       <button class="btn-small btn-loop${isPlaying && audioLooping ? ' active' : ''}" data-action="toggleRowLoop" data-path="${hp}" title="${loopBtnT}">&#8634;</button>
       <button class="btn-small btn-folder" data-action="openAudioFolder" data-path="${hp}" title="${revealBtnT}">&#128193;</button>
@@ -1306,17 +1516,20 @@ async function previewAudio(filePath) {
     await _playbackCtx.resume().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
   }
 
-  if (audioPlayerPath === filePath && !audioPlayer.paused) {
-    // Pause current
-    audioPlayer.pause();
+  if (audioPlayerPath === filePath && isAudioPlaying()) {
+    if (audioReverseMode) pauseReverseBufferPlayback();
+    else audioPlayer.pause();
     updatePlayBtnStates();
     updateNowPlayingBtn();
     return;
   }
 
-  if (audioPlayerPath === filePath && audioPlayer.paused) {
-    // Resume current
-    await audioPlayer.play().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
+  if (audioPlayerPath === filePath && !isAudioPlaying()) {
+    if (audioReverseMode) {
+      startReverseBufferFromOffset(_pausedOffsetInRev);
+    } else {
+      await audioPlayer.play().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
+    }
     updatePlayBtnStates();
     updateNowPlayingBtn();
     return;
@@ -1334,15 +1547,26 @@ async function previewAudio(filePath) {
   try {
     ensureAudioGraph();
     if (_playbackCtx.state === 'suspended') await _playbackCtx.resume().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
+    stopReverseBufferPlayback();
+    _decodedBuf = null;
+    _reversedBuf = null;
+    _decodedBufPath = null;
+    _pausedOffsetInRev = 0;
+    connectMediaToEq();
     audioPlayer.src = convertFileSrc(filePath);
     audioPlayer.loop = audioLooping;
     audioPlayerPath = filePath;
-    try {
-      await audioPlayer.play();
-    } catch (playErr) {
-      // Retry once after resuming context
-      if (_playbackCtx.state === 'suspended') await _playbackCtx.resume().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
-      await audioPlayer.play();
+    if (audioReverseMode) {
+      audioPlayer.pause();
+      await ensureReversedBufferForPath(filePath);
+      startReverseBufferFromOffset(0);
+    } else {
+      try {
+        await audioPlayer.play();
+      } catch (playErr) {
+        if (_playbackCtx.state === 'suspended') await _playbackCtx.resume().catch(e => { if(typeof showToast==='function') showToast(String(e),4000,'error'); });
+        await audioPlayer.play();
+      }
     }
 
     // Show now-playing bar, restore expanded state from prefs
@@ -1375,6 +1599,13 @@ function toggleAudioPlayback() {
     if (typeof recentlyPlayed !== 'undefined' && recentlyPlayed.length > 0 && recentlyPlayed[0]?.path) {
       previewAudio(recentlyPlayed[0].path);
     }
+    return;
+  }
+  if (audioReverseMode) {
+    if (_bufPlaying) pauseReverseBufferPlayback();
+    else startReverseBufferFromOffset(_pausedOffsetInRev);
+    updatePlayBtnStates();
+    updateNowPlayingBtn();
     return;
   }
   if (audioPlayer.paused) {
@@ -1416,6 +1647,12 @@ function updateLoopBtnStates() {
 }
 
 function stopAudioPlayback() {
+  stopReverseBufferPlayback();
+  connectMediaToEq();
+  _decodedBuf = null;
+  _reversedBuf = null;
+  _decodedBufPath = null;
+  _pausedOffsetInRev = 0;
   audioPlayer.pause();
   audioPlayer.currentTime = 0;
   audioPlayer.src = '';
@@ -1453,7 +1690,7 @@ function updatePlayBtnStates() {
     const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(audioPlayerPath)}"]`);
     if (row) {
       const btn = row.querySelector('.btn-play');
-      const playing = !audioPlayer.paused;
+      const playing = isAudioPlaying();
       if (btn) { btn.classList.toggle('playing', playing); btn.innerHTML = playing ? '&#9646;&#9646;' : '&#9654;'; }
       row.classList.toggle('row-playing', playing);
       const loop = row.querySelector('.btn-loop');
@@ -1468,7 +1705,7 @@ function updatePlayBtnStates() {
   if (histItems.length > 0) {
     histItems.forEach(el => {
       const isActive = el.dataset.path === audioPlayerPath;
-      const isPlaying = isActive && !audioPlayer.paused;
+      const isPlaying = isActive && isAudioPlaying();
       el.classList.toggle('active', isActive);
       const icon = el.querySelector('.np-h-icon');
       if (icon) icon.innerHTML = isPlaying ? '&#9654;' : '&#9835;';
@@ -1480,7 +1717,7 @@ function updateNowPlayingBtn() {
   const btn = document.getElementById('npBtnPlay');
   const np = document.getElementById('audioNowPlaying');
   if (!btn || !np) return;
-  if (audioPlayer.paused) {
+  if (!isAudioPlaying()) {
     btn.innerHTML = '&#9654;';
     btn.classList.remove('playing');
     np.classList.remove('np-playing');
@@ -1500,10 +1737,19 @@ function _cachePlaybackEls() {
 }
 
 function updatePlaybackTime() {
-  const cur = audioPlayer.currentTime;
-  const dur = audioPlayer.duration;
-  // A-B loop enforcement
-  if (_abLoop && dur > 0 && cur >= _abLoop.end) {
+  let cur;
+  let dur;
+  if (audioReverseMode && _reversedBuf && _bufPlaying) {
+    dur = _reversedBuf.duration;
+    const elapsed = _playbackCtx.currentTime - _bufSegStartCtx;
+    const posInRev = _bufOffsetInRev + elapsed * _bufPlaybackRate;
+    cur = Math.max(0, dur - posInRev);
+  } else {
+    cur = audioPlayer.currentTime;
+    dur = audioPlayer.duration;
+  }
+  // A-B loop enforcement (forward playback only)
+  if (!audioReverseMode && _abLoop && dur > 0 && cur >= _abLoop.end) {
     audioPlayer.currentTime = _abLoop.start;
   }
   if (!_npTimeEl) _cachePlaybackEls();
@@ -1541,10 +1787,18 @@ function updatePlaybackTime() {
 }
 
 function seekAudio(event) {
-  if (!audioPlayerPath || !audioPlayer.duration) return;
+  if (!audioPlayerPath) return;
   const bar = document.getElementById('npWaveform');
   const rect = bar.getBoundingClientRect();
   const pct = (event.clientX - rect.left) / rect.width;
+  if (audioReverseMode && _reversedBuf) {
+    const d = _reversedBuf.duration;
+    const origT = pct * d;
+    stopReverseBufferPlayback();
+    startReverseBufferFromOffset(Math.max(0, d - origT));
+    return;
+  }
+  if (!audioPlayer.duration) return;
   audioPlayer.currentTime = pct * audioPlayer.duration;
 }
 
@@ -1559,8 +1813,15 @@ function setAudioVolume(value) {
 }
 
 function setPlaybackSpeed(value) {
-  audioPlayer.playbackRate = parseFloat(value);
+  const v = parseFloat(value);
   prefs.setItem('audioSpeed', value);
+  if (audioReverseMode && _bufSrc && _bufPlaying) {
+    const clamped = Math.max(0.0625, Math.min(16, v));
+    _bufSrc.playbackRate.value = clamped;
+    _bufPlaybackRate = clamped;
+  } else {
+    audioPlayer.playbackRate = v;
+  }
 }
 
 // ── Metadata Panel ──
@@ -2013,7 +2274,7 @@ function renderRecentlyPlayed() {
 
   list.innerHTML = items.map(r => {
     const isActive = r.path === audioPlayerPath;
-    const isPlaying = isActive && !audioPlayer.paused;
+    const isPlaying = isActive && isAudioPlaying();
     return `<div class="np-history-item${isActive ? ' active' : ''}" data-action="playRecent" data-path="${escapeHtml(r.path)}">
       <span class="np-h-icon">${isPlaying ? '&#9654;' : '&#9835;'}</span>
       <span class="np-h-name" title="${escapeHtml(r.path)}">${query ? highlightMatch(r.name, query, 'fuzzy') : escapeHtml(r.name)}</span>
@@ -2128,7 +2389,7 @@ function hidePlayer() {
   // Hide player but keep audio playing
   np.classList.remove('active');
   const pill = document.getElementById('audioRestorePill');
-  if (pill && audioPlayerPath && !audioPlayer.paused) {
+  if (pill && audioPlayerPath && isAudioPlaying()) {
     pill.classList.add('active');
   }
 }
@@ -2583,7 +2844,7 @@ function seekMetaWaveform(event) {
   if (!box) return;
   const rect = box.getBoundingClientRect();
   const pct = (event.clientX - rect.left) / rect.width;
-  audioPlayer.currentTime = pct * audioPlayer.duration;
+  seekAudio(pct * audioPlayer.duration);
 }
 
 function updateMetaLine() {
@@ -2841,7 +3102,7 @@ function updateMetaLine() {
     ctx.beginPath(); ctx.moveTo(0, zeroY); ctx.lineTo(w, zeroY); ctx.stroke();
 
     // Draw FFT spectrum (behind EQ curve)
-    if (_analyser && typeof audioPlayer !== 'undefined' && !audioPlayer.paused) {
+    if (_analyser && typeof isAudioPlaying === 'function' && isAudioPlaying()) {
       const bufLen = _analyser.frequencyBinCount;
       const dataArr = new Uint8Array(bufLen);
       _analyser.getByteFrequencyData(dataArr);
@@ -3007,3 +3268,5 @@ function updateMetaLine() {
 
   document.addEventListener('mouseup', () => { _dragBand = null; });
 })();
+
+window.isAudioPlaying = isAudioPlaying;

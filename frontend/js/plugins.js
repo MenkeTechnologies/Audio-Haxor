@@ -295,6 +295,14 @@ async function scanPlugins(resume = false) {
     if (result.stopped && allPlugins.length > 0) {
       resumeBtn.style.display = '';
     }
+    if (typeof postScanCompleteToast === 'function') {
+      postScanCompleteToast(
+        !!result.stopped,
+        'toast.post_scan_plugins_complete',
+        'toast.post_scan_plugins_stopped',
+        { n: allPlugins.length.toLocaleString() },
+      );
+    }
   } catch (err) {
     const errMsg = err.message || err || 'Unknown error';
     list.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>${_ui('ui.js.scan_error')}</h2><p>${errMsg}</p></div>`;

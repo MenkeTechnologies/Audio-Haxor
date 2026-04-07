@@ -130,7 +130,7 @@ document.addEventListener('contextmenu', (e) => {
   if (npItem) {
     const path = npItem.dataset.path || '';
     const name = npItem.querySelector('.np-h-name')?.textContent?.trim() || '';
-    const isPlaying = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === path && typeof audioPlayer !== 'undefined' && !audioPlayer.paused;
+    const isPlaying = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === path && (typeof isAudioPlaying === 'function' ? isAudioPlaying() : typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused);
     const items = [
       { icon: isPlaying ? '&#9646;&#9646;' : '&#9654;', label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho, action: () => typeof previewAudio === 'function' && previewAudio(path) },
       { icon: '&#8634;', label: appFmt('menu.loop'), ..._noEcho, action: () => typeof toggleRowLoop === 'function' && toggleRowLoop(path, new MouseEvent('click')) },
@@ -284,7 +284,7 @@ document.addEventListener('contextmenu', (e) => {
   if (audioRow) {
     const path = audioRow.getAttribute('data-audio-path');
     const name = audioRow.querySelector('.col-name')?.textContent || '';
-    const isPlaying = audioPlayerPath === path && !audioPlayer.paused;
+    const isPlaying = audioPlayerPath === path && (typeof isAudioPlaying === 'function' ? isAudioPlaying() : !audioPlayer.paused);
     const items = [
       { icon: isPlaying ? '&#9646;&#9646;' : '&#9654;', label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho, action: () => previewAudio(path) },
       { icon: '&#8634;', label: appFmt('menu.loop'), ..._noEcho, action: () => { toggleRowLoop(path, new MouseEvent('click')); } },
@@ -646,7 +646,7 @@ document.addEventListener('contextmenu', (e) => {
   // ── Floating player ──
   const player = e.target.closest('#audioNowPlaying');
   if (player && player.classList.contains('active')) {
-    const isPlaying = audioPlayerPath && !audioPlayer.paused;
+    const isPlaying = audioPlayerPath && (typeof isAudioPlaying === 'function' ? isAudioPlaying() : !audioPlayer.paused);
     const isExpanded = player.classList.contains('expanded');
     const items = [];
     if (audioPlayerPath) {
@@ -673,7 +673,7 @@ document.addEventListener('contextmenu', (e) => {
     const items = [];
 
     if (type === 'sample') {
-      const isPlaying = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === path && !audioPlayer.paused;
+      const isPlaying = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === path && (typeof isAudioPlaying === 'function' ? isAudioPlaying() : !audioPlayer.paused);
       items.push({ icon: isPlaying ? '&#9646;&#9646;' : '&#9654;', label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho, action: () => previewAudio(path) });
       items.push({ icon: '&#8634;', label: appFmt('menu.loop'), ..._noEcho, action: () => toggleRowLoop(path, new MouseEvent('click')) });
       items.push('---');

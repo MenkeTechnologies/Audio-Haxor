@@ -111,7 +111,7 @@ function _vizLoop(timestamp) {
   _vizLastFrame = timestamp;
 
   const analyser = typeof _analyser !== 'undefined' ? _analyser : null;
-  const isPlaying = typeof audioPlayer !== 'undefined' && !audioPlayer.paused;
+  const isPlaying = typeof isAudioPlaying === 'function' ? isAudioPlaying() : typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused;
   const empty = document.getElementById('vizEmpty');
   if (empty) empty.style.display = (analyser && isPlaying) ? 'none' : '';
 

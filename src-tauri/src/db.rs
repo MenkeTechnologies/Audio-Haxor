@@ -323,7 +323,8 @@ pub struct CacheStat {
 }
 
 /// Canonical inventory: one row per `path` (highest `id` wins — newest insert for that path).
-const AUDIO_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM audio_samples GROUP BY path)";
+/// Materialized in `audio_library` (migration v14) so library queries avoid `GROUP BY path` on hot paths.
+const AUDIO_LIBRARY_IDS: &str = "id IN (SELECT sample_id FROM audio_library)";
 const DAW_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)";
 const PRESET_LIBRARY_IDS: &str =
     "id IN (SELECT MAX(id) FROM presets GROUP BY path)";
@@ -485,6 +486,25 @@ pub struct UnifiedScanRunRow {
 const SCHEMA_VERSION: i64 = 4;
 
 impl Database {
+    /// `_al_refresh_paths` lists paths touched by removing `audio_samples` for a scan; those rows
+    /// must already be deleted. Reconciles `audio_library` with remaining `audio_samples` rows.
+    fn sync_audio_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
+        conn.execute(
+            "DELETE FROM audio_library WHERE path IN (SELECT path FROM _al_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM audio_samples)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR REPLACE INTO audio_library (path, sample_id)
+             SELECT path, MAX(id) FROM audio_samples WHERE path IN (SELECT path FROM _al_refresh_paths) GROUP BY path",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute("DROP TABLE _al_refresh_paths", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Open or create the database in the app data directory.
     pub fn open() -> Result<Self, String> {
         let db_path = history::get_data_dir().join("audio_haxor.db");
@@ -1133,6 +1153,23 @@ impl Database {
                 .map_err(|e| format!("Migration v13 schema_version failed: {e}"))?;
         }
 
+        if current < 14 {
+            // One canonical `audio_samples` row id per filesystem path (same semantics as
+            // `MAX(id) GROUP BY path`), maintained on insert and after scan deletes.
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS audio_library (
+                    path TEXT PRIMARY KEY NOT NULL,
+                    sample_id INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_audio_library_sample_id ON audio_library(sample_id);
+                INSERT OR REPLACE INTO audio_library (path, sample_id)
+                SELECT path, MAX(id) AS sample_id FROM audio_samples GROUP BY path;",
+            )
+            .map_err(|e| format!("Migration v14 (audio_library) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (14)", [])
+                .map_err(|e| format!("Migration v14 schema_version failed: {e}"))?;
+        }
+
         if conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_i18n'",
@@ -1160,6 +1197,13 @@ impl Database {
             "INSERT OR REPLACE INTO audio_scans (id, timestamp, sample_count, total_bytes, format_counts, roots, scan_complete) VALUES (?1,?2,0,0,'{}',?3,0)",
             params![id, timestamp, roots_json],
         ).map_err(|e| e.to_string())?;
+        conn.execute("CREATE TEMP TABLE _al_refresh_paths (path TEXT PRIMARY KEY)", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _al_refresh_paths SELECT DISTINCT path FROM audio_samples WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute(
             "DELETE FROM audio_samples WHERE scan_id = ?1",
             params![id],
@@ -1170,6 +1214,7 @@ impl Database {
             params![id],
         )
         .map_err(|e| e.to_string())?;
+        Self::sync_audio_library_after_paths_refresh(&conn)?;
         Ok(())
     }
 
@@ -1190,7 +1235,7 @@ impl Database {
             .unwrap_or(0);
         let total_bytes: i64 = conn
             .query_row(
-                "SELECT COALESCE(SUM(size), 0) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path)",
+                "SELECT COALESCE(SUM(s.size), 0) FROM audio_samples s INNER JOIN audio_library lib ON s.id = lib.sample_id",
                 [],
                 |r| r.get(0),
             )
@@ -1198,7 +1243,7 @@ impl Database {
         let mut format_map: HashMap<String, usize> = HashMap::new();
         let mut stmt = conn
             .prepare(
-                "SELECT format, COUNT(*) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path) GROUP BY format",
+                "SELECT s.format, COUNT(*) FROM audio_samples s INNER JOIN audio_library lib ON s.id = lib.sample_id GROUP BY s.format",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
@@ -1241,6 +1286,14 @@ impl Database {
                     "INSERT INTO audio_samples_fts(rowid, name, path, scan_id) VALUES (?1, ?2, ?3, ?4)",
                 )
                 .map_err(|e| e.to_string())?;
+            let mut lib_stmt = tx
+                .prepare_cached(
+                    "INSERT INTO audio_library (path, sample_id) VALUES (?1, ?2)
+                     ON CONFLICT(path) DO UPDATE SET sample_id = CASE
+                       WHEN excluded.sample_id > audio_library.sample_id THEN excluded.sample_id
+                       ELSE audio_library.sample_id END",
+                )
+                .map_err(|e| e.to_string())?;
 
             for s in samples {
                 let path = normalize_path_for_db(&s.path);
@@ -1265,6 +1318,9 @@ impl Database {
                     let id = tx.last_insert_rowid();
                     fts_stmt
                         .execute(params![id, s.name, path, scan_id])
+                        .map_err(|e| e.to_string())?;
+                    lib_stmt
+                        .execute(params![path, id])
                         .map_err(|e| e.to_string())?;
                     inserted += 1;
                     batch_bytes += s.size;
@@ -1398,7 +1454,7 @@ impl Database {
                 bind_idx += 2;
             } else {
                 conditions.push(format!(
-                    "id IN (SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH ?{bind_idx} AND rowid IN (SELECT MAX(id) FROM audio_samples GROUP BY path))",
+                    "id IN (SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH ?{bind_idx} AND rowid IN (SELECT sample_id FROM audio_library))",
                     bind_idx = bind_idx,
                 ));
                 bind_idx += 1;
@@ -1454,7 +1510,7 @@ impl Database {
             .map_err(|e| e.to_string())?
         } else {
             conn.query_row(
-                "SELECT COUNT(*) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path)",
+                "SELECT COUNT(*) FROM audio_library",
                 [],
                 |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -1597,14 +1653,14 @@ impl Database {
         if library {
             let sample_count: u64 = conn
                 .query_row(
-                    "SELECT COUNT(*) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path)",
+                    "SELECT COUNT(*) FROM audio_library",
                     [],
                     |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
                 .unwrap_or(0);
             let total_bytes: u64 = conn
                 .query_row(
-                    "SELECT COALESCE(SUM(size), 0) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path)",
+                    "SELECT COALESCE(SUM(s.size), 0) FROM audio_samples s INNER JOIN audio_library lib ON s.id = lib.sample_id",
                     [],
                     |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
@@ -1612,7 +1668,7 @@ impl Database {
             let mut format_counts = HashMap::new();
             let mut stmt = conn
                 .prepare(
-                    "SELECT format, COUNT(*) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path) GROUP BY format",
+                    "SELECT s.format, COUNT(*) FROM audio_samples s INNER JOIN audio_library lib ON s.id = lib.sample_id GROUP BY s.format",
                 )
                 .map_err(|e| e.to_string())?;
             let rows = stmt
@@ -1625,7 +1681,7 @@ impl Database {
             }
             let analyzed_count: u64 = conn
                 .query_row(
-                    "SELECT COUNT(*) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path) AND bpm IS NOT NULL",
+                    "SELECT COUNT(*) FROM audio_samples s INNER JOIN audio_library lib ON s.id = lib.sample_id WHERE s.bpm IS NOT NULL",
                     [],
                     |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
@@ -1996,11 +2052,24 @@ impl Database {
     /// Delete a scan and its samples.
     pub fn delete_scan(&self, scan_id: &str) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
+        conn.execute("CREATE TEMP TABLE _al_refresh_paths (path TEXT PRIMARY KEY)", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _al_refresh_paths SELECT DISTINCT path FROM audio_samples WHERE scan_id = ?1",
+            params![scan_id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute(
             "DELETE FROM audio_samples WHERE scan_id = ?1",
             params![scan_id],
         )
         .map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM audio_samples_fts WHERE scan_id = ?1",
+            params![scan_id],
+        )
+        .map_err(|e| e.to_string())?;
+        Self::sync_audio_library_after_paths_refresh(&conn)?;
         conn.execute("DELETE FROM audio_scans WHERE id = ?1", params![scan_id])
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -2780,8 +2849,13 @@ impl Database {
 
     pub fn clear_audio_history(&self) -> Result<(), String> {
         let conn = self.conn.lock().unwrap();
-        conn.execute_batch("DELETE FROM audio_samples; DELETE FROM audio_scans;")
-            .map_err(|e| e.to_string())
+        conn.execute_batch(
+            "DELETE FROM audio_library;
+             DELETE FROM audio_samples_fts;
+             DELETE FROM audio_samples;
+             DELETE FROM audio_scans;",
+        )
+        .map_err(|e| e.to_string())
     }
 
     // ── DAW scan CRUD ──
@@ -4444,7 +4518,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path)",
+                "SELECT COUNT(*) FROM audio_library",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -4455,7 +4529,7 @@ impl Database {
         let mut bind_idx = 1usize;
         if fts_match.is_some() {
             where_parts.push(format!(
-                "id IN (SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH ?{bind_idx} AND rowid IN (SELECT MAX(id) FROM audio_samples GROUP BY path))",
+                "id IN (SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH ?{bind_idx} AND rowid IN (SELECT sample_id FROM audio_library))",
             ));
             bind_idx += 1;
         } else if like_pat.is_some() {
@@ -4980,7 +5054,7 @@ impl Database {
         // Raw `audio_samples` rows can exceed this when the same path appears in multiple scans.
         let audio_lib: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path)",
+                "SELECT COUNT(*) FROM audio_library",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -5031,10 +5105,11 @@ impl Database {
         Ok(serde_json::Value::Object(map))
     }
 
-    /// Row counts per inventory category for the **library** view: one canonical row per `path`
-    /// (`id IN (SELECT MAX(id) FROM … GROUP BY path)`), not scoped to a single `scan_id`. Presets
-    /// exclude `MID`/`MIDI` (same tab rules as elsewhere). This matches default `scan_id` handling
-    /// on paginated queries and `*_filter_stats`, not raw `COUNT(*)` on whole tables.
+    /// Row counts per inventory category for the **library** view: one canonical row per `path`.
+    /// For audio samples this reads `audio_library` (migration v14); other tables still use
+    /// `MAX(id) GROUP BY path`. Not scoped to a single `scan_id`. Presets exclude `MID`/`MIDI`
+    /// (same tab rules as elsewhere). Matches default `scan_id` handling on paginated queries and
+    /// `*_filter_stats`, not raw `COUNT(*)` on whole tables.
     pub fn active_scan_inventory_counts(&self) -> Result<serde_json::Value, String> {
         let conn = self.conn.lock().unwrap();
         let count_plugins: u64 = conn
@@ -5046,7 +5121,7 @@ impl Database {
             .unwrap_or(0);
         let count_audio: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM audio_samples WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path)",
+                "SELECT COUNT(*) FROM audio_library",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -8688,6 +8763,28 @@ mod tests {
         let obj = obj.as_object().unwrap();
         assert_eq!(obj["audio_samples"], 2);
         assert_eq!(obj["audio_samples_library"], 1);
+    }
+
+    #[test]
+    fn test_audio_library_sample_id_is_max_id_per_path() {
+        let db = test_db();
+        let s = sample("x.wav", "/same/x.wav", "WAV", 100);
+        db.save_scan("s1", "2024-01-01T00:00:00", 1, 100, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &[s.clone()]).unwrap();
+        db.save_scan("s2", "2024-01-02T00:00:00", 1, 100, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s2", &[s]).unwrap();
+        let conn = db.conn.lock().unwrap();
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM audio_library lib
+                 WHERE lib.sample_id = (SELECT MAX(id) FROM audio_samples a WHERE a.path = lib.path)",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1);
     }
 
     #[test]
