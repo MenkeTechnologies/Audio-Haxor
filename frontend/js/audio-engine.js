@@ -482,6 +482,27 @@ function aeNotifyNoAudioEngineIpc() {
 }
 
 /**
+ * @param {HTMLElement|null} statusEl
+ * @param {object} es — `engine_state` with `ok`, `version`, `host`
+ */
+function fillAeEngineStatusOkFromState(statusEl, es) {
+    if (!statusEl || !es || es.ok !== true || typeof catalogFmt !== 'function') return;
+    const ver = es.version != null ? String(es.version) : '?';
+    const host = es.host != null ? String(es.host) : '?';
+    statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
+}
+
+/**
+ * @param {HTMLInputElement|null|undefined} toneCb
+ * @param {object|null|undefined} stream — `engine_state.stream`
+ */
+function syncAeToneCheckboxFromStream(toneCb, stream) {
+    if (!toneCb || !stream) return;
+    toneCb.disabled = !(stream.running === true && stream.tone_supported === true);
+    if (stream.tone_on != null) toneCb.checked = stream.tone_on === true;
+}
+
+/**
  * Reload engine_state (ping + stream), device list, caps, plugin stub.
  */
 async function refreshAudioEnginePanel() {
@@ -506,20 +527,9 @@ async function refreshAudioEnginePanel() {
             const err = (es && es.error) ? String(es.error) : 'engine_state failed';
             throw new Error(err);
         }
-        const ver = es.version != null ? String(es.version) : '?';
-        const host = es.host != null ? String(es.host) : '?';
-        if (statusEl && typeof catalogFmt === 'function') {
-            statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
-        }
+        fillAeEngineStatusOkFromState(statusEl, es);
         fillAeStreamsFromEngineState(es);
-        if (toneCb && typeof toneCb.disabled === 'boolean') {
-            const ts = es.stream;
-            const canTone = ts && ts.running === true && ts.tone_supported === true;
-            toneCb.disabled = !canTone;
-            if (canTone && ts.tone_on != null) {
-                toneCb.checked = ts.tone_on === true;
-            }
-        }
+        syncAeToneCheckboxFromStream(toneCb, es.stream);
 
         const list = await inv({cmd: 'list_output_devices'});
         if (!list || list.ok !== true) {
@@ -724,20 +734,14 @@ async function applyAudioEngineDevice() {
         await fillAeDeviceCaps(inv, id);
         const es = await inv({cmd: 'engine_state'});
         fillAeStreamsFromEngineState(es);
-        if (toneCb && es && es.stream) {
-            toneCb.disabled = !(es.stream.running === true && es.stream.tone_supported === true);
-            if (es.stream.tone_on != null) toneCb.checked = es.stream.tone_on === true;
-        }
+        syncAeToneCheckboxFromStream(toneCb, es.stream);
     } catch (e) {
         const es = await fillAeStreamsAfterEngineError();
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
         }
-        if (toneCb && es && es.stream) {
-            toneCb.disabled = !(es.stream.running === true && es.stream.tone_supported === true);
-            if (es.stream.tone_on != null) toneCb.checked = es.stream.tone_on === true;
-        }
+        if (es && es.stream) syncAeToneCheckboxFromStream(toneCb, es.stream);
     }
 }
 
@@ -773,11 +777,7 @@ async function startAeInputCapture() {
         }
         const es = await inv({cmd: 'engine_state'});
         fillAeStreamsFromEngineState(es);
-        if (statusEl && es && es.ok === true && typeof catalogFmt === 'function') {
-            const ver = es.version != null ? String(es.version) : '?';
-            const host = es.host != null ? String(es.host) : '?';
-            statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
-        }
+        fillAeEngineStatusOkFromState(statusEl, es);
     } catch (e) {
         await fillAeStreamsAfterEngineError();
         const msg = e && e.message ? String(e.message) : String(e);
@@ -803,11 +803,7 @@ async function stopAeInputCapture() {
         }
         const es = await inv({cmd: 'engine_state'});
         fillAeStreamsFromEngineState(es);
-        if (statusEl && es && es.ok === true && typeof catalogFmt === 'function') {
-            const ver = es.version != null ? String(es.version) : '?';
-            const host = es.host != null ? String(es.host) : '?';
-            statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
-        }
+        fillAeEngineStatusOkFromState(statusEl, es);
     } catch (e) {
         await fillAeStreamsAfterEngineError();
         const msg = e && e.message ? String(e.message) : String(e);
@@ -833,11 +829,7 @@ async function stopAeOutputStream() {
             throw new Error(err);
         }
         const es = await inv({cmd: 'engine_state'});
-        if (es && es.ok === true && statusEl && typeof catalogFmt === 'function') {
-            const ver = es.version != null ? String(es.version) : '?';
-            const host = es.host != null ? String(es.host) : '?';
-            statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
-        }
+        fillAeEngineStatusOkFromState(statusEl, es);
         fillAeStreamsFromEngineState(es);
         if (toneCb) {
             toneCb.disabled = true;
@@ -849,9 +841,6 @@ async function stopAeOutputStream() {
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
         }
-        if (toneCb && es && es.stream) {
-            toneCb.disabled = !(es.stream.running === true && es.stream.tone_supported === true);
-            if (es.stream.tone_on != null) toneCb.checked = es.stream.tone_on === true;
-        }
+        if (es && es.stream) syncAeToneCheckboxFromStream(toneCb, es.stream);
     }
 }
