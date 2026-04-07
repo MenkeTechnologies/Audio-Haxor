@@ -25,6 +25,8 @@ struct EngineChild {
     child: Child,
     stdin: std::process::ChildStdin,
     stdout: BufReader<std::process::ChildStdout>,
+    /// Which binary we spawned; must respawn if [`resolve_audio_engine_binary`] starts returning a different path.
+    binary_path: PathBuf,
 }
 
 static ENGINE_CHILD: Mutex<Option<EngineChild>> = Mutex::new(None);
@@ -37,20 +39,46 @@ fn binary_name() -> &'static str {
     }
 }
 
-/// Resolve path to the `audio-engine` executable next to the running app binary (dev and bundled
-/// sidecar both land in the same directory as `audio-haxor`).
+/// Resolve path to the `audio-engine` executable.
+///
+/// In **debug** builds, prefer `workspace/target/debug/audio-engine` (from `CARGO_MANIFEST_DIR`) so
+/// `pnpm dev` / `tauri dev` always runs the sidecar produced by `beforeDevCommand`, not a stale copy
+/// next to `current_exe()` (e.g. old `externalBin` beside a macOS bundle or a leftover binary).
+/// Release builds use only the sibling of the main executable (bundled sidecar layout).
 pub fn resolve_audio_engine_binary() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let dir = exe
         .parent()
         .ok_or_else(|| "current_exe has no parent directory".to_string())?;
-    let p = dir.join(binary_name());
-    if p.is_file() {
-        return Ok(p);
+    let sibling = dir.join(binary_name());
+
+    #[cfg(debug_assertions)]
+    {
+        let dev = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("target")
+            .join("debug")
+            .join(binary_name());
+        if dev.is_file() {
+            return Ok(dev);
+        }
+        let rel = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("target")
+            .join("release")
+            .join(binary_name());
+        if rel.is_file() {
+            return Ok(rel);
+        }
     }
+
+    if sibling.is_file() {
+        return Ok(sibling);
+    }
+
     Err(format!(
-        "audio engine binary not found (expected {})",
-        p.display()
+        "audio engine binary not found (expected {} or workspace target build)",
+        sibling.display()
     ))
 }
 
@@ -72,7 +100,12 @@ fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
     let stdin = child.stdin.take().ok_or_else(|| "audio-engine: no stdin".to_string())?;
     let stdout = child.stdout.take().ok_or_else(|| "audio-engine: no stdout".to_string())?;
     let stdout = BufReader::new(stdout);
-    Ok(EngineChild { child, stdin, stdout })
+    Ok(EngineChild {
+        child,
+        stdin,
+        stdout,
+        binary_path: path.to_path_buf(),
+    })
 }
 
 fn ensure_engine_child(path: &Path) -> Result<(), String> {
@@ -81,7 +114,7 @@ fn ensure_engine_child(path: &Path) -> Result<(), String> {
         .map_err(|_| "audio-engine child mutex poisoned")?;
     let need_spawn = match guard.as_mut() {
         None => true,
-        Some(eng) => child_dead(&mut eng.child),
+        Some(eng) => child_dead(&mut eng.child) || eng.binary_path != path,
     };
     if need_spawn {
         *guard = Some(spawn_engine_child(path)?);
@@ -145,8 +178,19 @@ fn spawn_audio_engine_request_at(
                     }
                     continue;
                 }
-                return serde_json::from_str(line)
-                    .map_err(|e| format!("audio-engine JSON: {e}: {line}"));
+                let v: serde_json::Value = serde_json::from_str(line)
+                    .map_err(|e| format!("audio-engine JSON: {e}: {line}"))?;
+                // Long-lived child can outlive a `cargo build -p audio-engine` on disk; the old
+                // process still serves stdin and returns `unknown cmd` for new verbs (e.g. `playback_load`).
+                if v.get("ok").and_then(|o| o.as_bool()) == Some(false) {
+                    if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
+                        if err.to_ascii_lowercase().contains("unknown cmd") && attempt == 0 {
+                            *guard = None;
+                            continue;
+                        }
+                    }
+                }
+                return Ok(v);
             }
             Err(e) => {
                 *guard = None;

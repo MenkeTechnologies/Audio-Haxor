@@ -180,6 +180,7 @@ Requires [Node.js](https://nodejs.org/), [pnpm](https://pnpm.io/), and [Rust](ht
 
 | | Dev | Build |
 |---|---|---|
+| Audio engine sidecar | Debug builds resolve `audio-engine` from the workspace `target/debug` (or `target/release`) first so `beforeDevCommand` always matches playback IPC; avoids a stale copy beside `current_exe()` | Bundled next to the app binary (`externalBin`) |
 | URL scheme | `http://localhost` | `tauri://localhost` |
 | CSP | Relaxed | Strict (no inline JS) |
 | Frontend | Served from disk (live) | Embedded in binary |
