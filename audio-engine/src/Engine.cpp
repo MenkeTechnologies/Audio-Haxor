@@ -1689,7 +1689,7 @@ juce::var Engine::dispatch(const juce::var& req)
 {
     std::lock_guard<std::mutex> lock(impl->mutex);
     const juce::String cmd = cmdKey(req);
-    if (cmd.isNotEmpty() && cmd != "ping")
+    if (cmd.isNotEmpty() && cmd != "ping" && cmd != "playback_status")
         appLogLine("cmd " + cmd);
 
     if (cmd == "ping")
