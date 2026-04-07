@@ -2495,6 +2495,9 @@
         }
 
         .tab-nav .tab-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             transition: color 0.2s, border-color 0.2s, text-shadow 0.2s, transform 0.15s, box-shadow 0.15s;
         }
 
@@ -8097,18 +8100,21 @@
         </button>
     </div>
     <div class="tab-nav">
-        <button class="tab-btn active" data-action="switchTab" data-i18n="ui.btn.plugins"
+        <button class="tab-btn active" data-action="switchTab"
                 data-i18n-title="ui.tt.vst2_vst3_and_au_plugins_cmd_1" data-tab="plugins"
-                title="VST2, VST3, CLAP, and AU plugins (Cmd+1)">Plugins
+                title="VST2, VST3, CLAP, and AU plugins (Cmd+1)">&#9889; <span data-i18n="ui.btn.plugins">Plugins</span>
         </button>
-        <button class="tab-btn" data-action="switchTab" data-i18n="ui.btn.samples" data-i18n-title="ui.tt.audio_sample_files_cmd_2"
-                data-tab="samples" title="Audio sample files (Cmd+2)">Samples
+        <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.audio_sample_files_cmd_2"
+                data-tab="samples" title="Audio sample files (Cmd+2)">&#127925; <span
+                data-i18n="ui.btn.samples">Samples</span>
         </button>
-        <button class="tab-btn" data-action="switchTab" data-i18n="ui.btn.daw_projects" data-i18n-title="ui.tt.daw_project_files_cmd_3"
-                data-tab="daw" title="DAW project files (Cmd+3)">DAW Projects
+        <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.daw_project_files_cmd_3"
+                data-tab="daw" title="DAW project files (Cmd+3)">&#127911; <span
+                data-i18n="ui.btn.daw_projects">DAW Projects</span>
         </button>
-        <button class="tab-btn" data-action="switchTab" data-i18n="ui.btn.presets" data-i18n-title="ui.tt.plugin_presets_cmd_4"
-                data-tab="presets" title="Plugin presets (Cmd+4)">Presets
+        <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.plugin_presets_cmd_4"
+                data-tab="presets" title="Plugin presets (Cmd+4)">&#127924; <span
+                data-i18n="ui.btn.presets">Presets</span>
         </button>
         <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.midi_files_with_note_tempo_key_metadata" data-tab="midi"
                 title="MIDI files with note/tempo/key metadata">&#127924; <span
@@ -8127,8 +8133,9 @@
         <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.file_browser_cmd_8" data-tab="files"
                 title="File browser (Cmd+8)">&#128193; <span data-i18n="ui.btn.128193_files">Files</span>
         </button>
-        <button class="tab-btn" data-action="switchTab" data-i18n="ui.btn.history" data-i18n-title="ui.tt.scan_history_and_diffs_cmd_9"
-                data-tab="history" title="Scan history and diffs (Cmd+9)">History
+        <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.scan_history_and_diffs_cmd_9"
+                data-tab="history" title="Scan history and diffs (Cmd+9)">&#128197; <span
+                data-i18n="ui.btn.history">History</span>
         </button>
         <button class="tab-btn" data-action="switchTab" data-i18n-title="ui.tt.real_time_audio_analyzer_and_visualizer"
                 data-tab="visualizer"
@@ -10277,44 +10284,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=50504"></script>
-<script src="js/utils.js?v=50504"></script>
-<script src="js/ipc.js?v=50504"></script>
-<script src="js/drag-reorder.js?v=50504"></script>
-<script src="js/modal-drag.js?v=50504"></script>
-<script src="js/columns.js?v=50504"></script>
-<script src="js/notes.js?v=50504"></script>
-<script src="js/favorites.js?v=50504"></script>
-<script src="js/export.js?v=50504"></script>
-<script src="js/plugins.js?v=50504"></script>
-<script src="js/settings.js?v=50504"></script>
-<script src="js/history.js?v=50504"></script>
-<script src="js/kvr.js?v=50504"></script>
-<script src="js/audio.js?v=50504"></script>
-<script src="js/daw.js?v=50504"></script>
-<script src="js/presets.js?v=50504"></script>
-<script src="js/disk-usage.js?v=50504"></script>
-<script src="js/batch-select.js?v=50504"></script>
-<script src="js/native-file-drag.js?v=50504"></script>
-<script src="js/sort-persist.js?v=50504"></script>
-<script src="js/multi-filter.js?v=50504"></script>
-<script src="js/file-browser.js?v=50504"></script>
-<script src="js/duplicates.js?v=50504"></script>
-<script src="js/command-palette.js?v=50504"></script>
-<script src="js/xref.js?v=50504"></script>
-<script src="js/dep-graph.js?v=50504"></script>
-<script src="js/smart-playlists.js?v=50504"></script>
-<script src="js/heatmap-dashboard.js?v=50504"></script>
-<script src="js/midi.js?v=50504"></script>
-<script src="js/pdf.js?v=50504"></script>
-<script src="js/settings-search.js?v=50504"></script>
-<script src="js/visualizer.js?v=50504"></script>
-<script src="js/walker-status.js?v=50504"></script>
-<script src="js/audio-engine.js?v=50504"></script>
-<script src="js/context-menu.js?v=50504"></script>
-<script src="js/shortcuts.js?v=50504"></script>
-<script src="js/help-overlay.js?v=50504"></script>
-<script src="js/keyboard-nav.js?v=50504"></script>
-<script src="js/app.js?v=50504"></script>
+<script src="js/i18n-ui.js?v=50505"></script>
+<script src="js/utils.js?v=50505"></script>
+<script src="js/ipc.js?v=50505"></script>
+<script src="js/drag-reorder.js?v=50505"></script>
+<script src="js/modal-drag.js?v=50505"></script>
+<script src="js/columns.js?v=50505"></script>
+<script src="js/notes.js?v=50505"></script>
+<script src="js/favorites.js?v=50505"></script>
+<script src="js/export.js?v=50505"></script>
+<script src="js/plugins.js?v=50505"></script>
+<script src="js/settings.js?v=50505"></script>
+<script src="js/history.js?v=50505"></script>
+<script src="js/kvr.js?v=50505"></script>
+<script src="js/audio.js?v=50505"></script>
+<script src="js/daw.js?v=50505"></script>
+<script src="js/presets.js?v=50505"></script>
+<script src="js/disk-usage.js?v=50505"></script>
+<script src="js/batch-select.js?v=50505"></script>
+<script src="js/native-file-drag.js?v=50505"></script>
+<script src="js/sort-persist.js?v=50505"></script>
+<script src="js/multi-filter.js?v=50505"></script>
+<script src="js/file-browser.js?v=50505"></script>
+<script src="js/duplicates.js?v=50505"></script>
+<script src="js/command-palette.js?v=50505"></script>
+<script src="js/xref.js?v=50505"></script>
+<script src="js/dep-graph.js?v=50505"></script>
+<script src="js/smart-playlists.js?v=50505"></script>
+<script src="js/heatmap-dashboard.js?v=50505"></script>
+<script src="js/midi.js?v=50505"></script>
+<script src="js/pdf.js?v=50505"></script>
+<script src="js/settings-search.js?v=50505"></script>
+<script src="js/visualizer.js?v=50505"></script>
+<script src="js/walker-status.js?v=50505"></script>
+<script src="js/audio-engine.js?v=50505"></script>
+<script src="js/context-menu.js?v=50505"></script>
+<script src="js/shortcuts.js?v=50505"></script>
+<script src="js/help-overlay.js?v=50505"></script>
+<script src="js/keyboard-nav.js?v=50505"></script>
+<script src="js/app.js?v=50505"></script>
 </body>
 </html>
