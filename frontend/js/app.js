@@ -96,10 +96,12 @@ async function handleFileWatcherChange(event) {
             Array.isArray(locs) && locs.includes(uiLoc) ? uiLoc : 'en'
         );
     }
-    // Ensure stop/resume buttons are hidden on fresh start
+    // Ensure stop/resume buttons are hidden on fresh start (do not hide Stop All if Scan All
+    // already began — `loadLastScan` awaits i18n and can finish after the user clicked Scan All).
     const _stopAll = document.getElementById('btnStopAll');
     const _resumeAll = document.getElementById('btnResumeAll');
-    if (_stopAll) _stopAll.style.display = 'none';
+    const _scanAllBtn = document.getElementById('btnScanAll');
+    if (_stopAll && !(_scanAllBtn && _scanAllBtn.disabled)) _stopAll.style.display = 'none';
     if (_resumeAll) _resumeAll.style.display = 'none';
     restoreSettings();
     // Restore audio player state — must run post-prefs-load (the IIFEs run too early).

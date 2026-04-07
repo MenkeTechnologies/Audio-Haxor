@@ -1447,9 +1447,23 @@ function showStopButton() {
     if (btn) btn.style.display = '';
 }
 
+/** True while **Scan All** holds `btnScanAll` disabled (only `scanAll()` in app.js does this). */
+function isScanAllInProgress() {
+    const scanAllBtn = document.getElementById('btnScanAll');
+    return !!(scanAllBtn && scanAllBtn.disabled);
+}
+
 function hideStopButton() {
     const btn = document.getElementById('btnStop') || document.getElementById('btnStopAll');
-    if (btn) btn.style.display = 'none';
+    if (btn) {
+        // `checkUpdates` / `resolveKvrDownloads` reuse `#btnStopAll`; hiding it when they finish
+        // must not clear Stop All while Scan All is still running (other scanners or unified walk).
+        if (btn.id === 'btnStopAll' && isScanAllInProgress()) {
+            currentOperation = null;
+            return;
+        }
+        btn.style.display = 'none';
+    }
     currentOperation = null;
 }
 
