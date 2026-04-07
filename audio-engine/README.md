@@ -68,6 +68,17 @@ Each line is a JSON object with at least `cmd`. Optional fields include `device_
 
   **Persistence:** The engine **re-saves after each scanned module** (and on per-module failure paths) so a crash mid-scan still leaves a partial cache. **`plugin_chain`** still needs a **full** VST3 (+ AU on macOS) worker run to reach **`phase: "juce"`** with a complete list. If the worker ends in **`phase: failed`**, the XML on disk may reflect state up to that point.
 
+## Automated tests (IPC)
+
+From the repository root, after a **Debug** or **Release** build (`node scripts/build-audio-engine.mjs`):
+
+```bash
+pnpm run test:audio-engine
+# or: node scripts/run-audio-engine-tests.mjs
+```
+
+These tests spawn the binary and assert **stdin/stdout JSON** (`ping`, bad JSON handling, **`playback_load`** validation — **no** `list_*_devices` / `plugin_chain`, which can block in piped shells). Override the binary path with **`AUDIO_ENGINE_TEST_BIN`**. On **Linux** without a display, run under **`xvfb-run -a`** (as in CI).
+
 ## Build
 
 **Prerequisites:** **CMake** ≥ 3.22, **Ninja**, and a C++20 toolchain. Platform libs (e.g. **ALSA** on Linux) must match your JUCE audio backend expectations.

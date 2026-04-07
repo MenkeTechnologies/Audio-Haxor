@@ -8,7 +8,7 @@ echo
 
 cyber_section "JS SUBSYSTEM"
 START=$(date +%s)
-JS_OUT=$(node --test test/*.test.js 2>&1)
+JS_OUT=$(node scripts/run-js-tests.mjs 2>&1)
 JS_EXIT=$?
 END=$(date +%s)
 JS_TESTS=$(echo "$JS_OUT" | grep -E '^ℹ tests' | grep -o '[0-9]*' || echo 0)
@@ -20,6 +20,34 @@ if [ "$JS_FAIL" = "0" ] && [ "$JS_EXIT" = "0" ]; then
 else
   cyber_fail "JS compromised"
   echo "$JS_OUT" | grep -E 'not ok|✗|Error' | tail -5 | sed "s/^/  ${D}  /"
+fi
+echo
+
+cyber_section "AUDIO ENGINE IPC"
+START=$(date +%s)
+AE_TESTS=0
+AE_PASS=0
+AE_FAIL=0
+AE_EXIT=0
+AE_OUT=""
+if [ -f target/debug/audio-engine ] || [ -f target/release/audio-engine ] || [ -f target/debug/audio-engine.exe ] || [ -f target/release/audio-engine.exe ]; then
+  AE_OUT=$(node scripts/run-audio-engine-tests.mjs 2>&1)
+  AE_EXIT=$?
+  AE_TESTS=$(echo "$AE_OUT" | grep -E '^ℹ tests' | grep -o '[0-9]*' || echo 0)
+  AE_PASS=$(echo "$AE_OUT" | grep -E '^ℹ pass' | grep -o '[0-9]*' || echo 0)
+  AE_FAIL=$(echo "$AE_OUT" | grep -E '^ℹ fail' | grep -o '[0-9]*' || echo 0)
+  END=$(date +%s)
+  echo -e "  ${D}tests${N} ${W}$AE_TESTS${N}  ${D}pass${N} ${G}$AE_PASS${N}  ${D}fail${N} ${R}$AE_FAIL${N}  ${D}// $((END - START))s${N}"
+  if [ "$AE_FAIL" = "0" ] && [ "$AE_EXIT" = "0" ]; then
+    cyber_ok "AudioEngine IPC nominal"
+  else
+    cyber_fail "AudioEngine IPC compromised"
+    echo "$AE_OUT" | grep -E 'not ok|✗|Error' | tail -5 | sed "s/^/  ${D}  /"
+  fi
+else
+  END=$(date +%s)
+  echo -e "  ${D}skip${N} ${W}no target/*/audio-engine${N}  ${D}// build with node scripts/build-audio-engine.mjs${N}"
+  cyber_ok "AudioEngine IPC skipped"
 fi
 echo
 
@@ -39,9 +67,9 @@ else
 fi
 echo
 
-TOTAL=$((JS_PASS + RUST_PASS))
+TOTAL=$((JS_PASS + RUST_PASS + AE_PASS))
 cyber_line
-if [ "$JS_FAIL" = "0" ] && [ "$RUST_FAIL" = "0" ]; then
+if [ "$JS_FAIL" = "0" ] && [ "$RUST_FAIL" = "0" ] && { [ "$AE_FAIL" = "0" ] && [ "$AE_EXIT" = "0" ]; }; then
   cyber_tagline "${TOTAL} TESTS PASSED. ALL SYSTEMS GO."
 else
   echo

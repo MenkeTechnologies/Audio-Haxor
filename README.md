@@ -235,7 +235,7 @@ cargo clean --manifest-path src-tauri/Cargo.toml --release && pnpm tauri build
 
 - **`couldn't read ... i18n/app_i18n_*.json`** — `src-tauri/src/app_i18n.rs` embeds every shipped locale at compile time (`include_str!`). Pull latest `main` so all `i18n/app_i18n_*.json` files are present; do not delete locale files locally.
 - **`Cannot find module ... prepare-audio-engine-audioengine.mjs`** — Tauri runs `beforeBuildCommand` with **cwd = repository root** (same as `pnpm tauri build`). The command must be `node scripts/prepare-audio-engine-audioengine.mjs`, not `node ../scripts/...` (that resolves outside the repo).
-- **`resource path binaries/audio-engine-… doesn't exist`** — Any `cargo test` / `cargo build` that compiles `tauri-build` checks that `bundle.externalBin` files exist under `src-tauri/binaries/` (host triple suffix). Build the AudioEngine first: `node scripts/build-audio-engine.mjs` (debug) or `node scripts/prepare-audio-engine-audioengine.mjs` (release copy for Tauri). GitHub Actions runs `prepare-audio-engine-audioengine.mjs` with `AUDIO_ENGINE_TAURI_BIN_PROFILE=debug` after JS tests and before Rust tests. On **Windows**, CMake must use **MSVC** (not MinGW — JUCE 8); `scripts/build-audio-engine.mjs` finds Visual Studio via `vswhere` and re-runs under `vcvars64.bat` so the job does not need a global MSVC `PATH` (which would break `cargo test` on the runner).
+- **`resource path binaries/audio-engine-… doesn't exist`** — Any `cargo test` / `cargo build` that compiles `tauri-build` checks that `bundle.externalBin` files exist under `src-tauri/binaries/` (host triple suffix). Build the AudioEngine first: `node scripts/build-audio-engine.mjs` (debug) or `node scripts/prepare-audio-engine-audioengine.mjs` (release copy for Tauri). GitHub Actions runs `prepare-audio-engine-audioengine.mjs` with `AUDIO_ENGINE_TAURI_BIN_PROFILE=debug` after JS tests, then **`node scripts/run-audio-engine-tests.mjs`** (IPC integration; **Linux** uses **`xvfb-run`**), then Rust tests. On **Windows**, CMake must use **MSVC** (not MinGW — JUCE 8); `scripts/build-audio-engine.mjs` finds Visual Studio via `vswhere` and re-runs under `vcvars64.bat` so the job does not need a global MSVC `PATH` (which would break `cargo test` on the runner).
 - **`failed to build archive` / `failed to open object file` (.rlib)** — corrupted or partial Cargo output (often after an interrupted build). With a **workspace** `Cargo.toml` at the repo root, artifacts live in **`target/`** at the root as well as under `src-tauri/`. Remove and rebuild: `command rm -rf target src-tauri/target` then `pnpm tauri build` (or `pnpm nuke`).
 
 ### Data Location
@@ -269,7 +269,11 @@ pnpm run doc:sync   # Regenerate rustdoc and copy to docs/api/ + use docs/index.
 pnpm test
 cd src-tauri && cargo test
 pnpm run test:js
+# After building the JUCE binary (`node scripts/build-audio-engine.mjs` or CI prepare script):
+pnpm run test:audio-engine
 ```
+
+**AudioEngine** IPC tests spawn `target/debug/audio-engine` or `target/release/audio-engine` (see `pnpm run test:audio-engine`). They are **not** included in `pnpm run test:js` so the main JS suite stays runnable without CMake. GitHub Actions runs them **after** `prepare-audio-engine-audioengine.mjs`; on **Linux** the workflow uses **`xvfb-run`** because JUCE needs a display.
 
 ---
 

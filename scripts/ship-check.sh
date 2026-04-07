@@ -56,7 +56,7 @@ echo
 
 # ── JS SUBSYSTEM ──
 cyber_section "JS SUBSYSTEM"
-JS_OUT=$(node --test test/*.test.js 2>&1 | grep -E '^ℹ (tests|pass|fail)' || true)
+JS_OUT=$(node scripts/run-js-tests.mjs 2>&1 | grep -E '^ℹ (tests|pass|fail)' || true)
 JS_TESTS=$(echo "$JS_OUT" | grep 'tests' | grep -o '[0-9]*' || echo 0)
 JS_PASS=$(echo "$JS_OUT" | grep 'pass' | grep -o '[0-9]*' || echo 0)
 JS_FAIL=$(echo "$JS_OUT" | grep 'fail' | grep -o '[0-9]*' || echo 0)

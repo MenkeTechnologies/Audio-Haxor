@@ -11,6 +11,7 @@
     "ship-check": "bash scripts/ship-check.sh",
     "test": "bash scripts/test.sh",
     "test:js": "node scripts/run-js-tests.mjs",
+    "test:audio-engine": "node scripts/run-audio-engine-tests.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
     "doc": "cargo doc --manifest-path src-tauri/Cargo.toml --no-deps --document-private-items",
     "doc:open": "cargo doc --manifest-path src-tauri/Cargo.toml --no-deps --document-private-items --open",
