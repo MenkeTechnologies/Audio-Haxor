@@ -1,0 +1,11 @@
+[package]
+name = "audio-engine"
+version = "1.17.2"
+edition = "2024"
+description = "AUDIO_HAXOR sidecar: output device discovery (cpal) and future engine IPC"
+authors = ["MenkeTechnologies <MenkeTechnologies@gmail.com>"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cpal = "0.15"

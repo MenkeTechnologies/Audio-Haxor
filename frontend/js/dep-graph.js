@@ -3,15 +3,6 @@
 // Shows most-used plugins, orphaned plugins, and per-project breakdowns.
 
 /** When the DAW tab is SQLite-paginated, `allDawProjects` only has the current page — xref paths still need graph rows. */
-function _depProjectMetaForPath(path) {
-    const fromList = typeof findByPath === 'function' && typeof allDawProjects !== 'undefined'
-        ? findByPath(allDawProjects, path)
-        : undefined;
-    if (fromList) return fromList;
-    const name = path.split('/').pop() || path;
-    return {name, daw: '—', format: '', path};
-}
-
 function _depTypeSlug(t) {
     return String(t || 'unknown').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'unknown';
 }
@@ -20,9 +11,15 @@ function buildDepGraphData() {
     const pluginProjects = {};  // normalizedName → { name, type, manufacturer, projects: Set<path> }
     const projectPlugins = {};  // path → { name, daw, plugins: PluginRef[] }
 
-    // Build from xref cache
+    // Build from xref cache — only rows whose path exists in `allDawProjects` (skip stale/ghost paths)
     for (const [path, plugins] of Object.entries(_xrefCache)) {
-        const project = _depProjectMetaForPath(path);
+        const fromList = typeof findByPath === 'function' && typeof allDawProjects !== 'undefined'
+            ? findByPath(allDawProjects, path)
+            : undefined;
+        if (!fromList) {
+            continue;
+        }
+        const project = fromList;
         projectPlugins[path] = {name: project.name, daw: project.daw || project.format, plugins};
         for (const p of plugins) {
             const key = p.normalizedName || p.name.toLowerCase();

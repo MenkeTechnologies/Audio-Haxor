@@ -1341,6 +1341,8 @@ window.vstUpdater = {
     getFileWatcherStatus: () => invoke('get_file_watcher_status'),
     // MIDI
     getMidiInfo: (filePath) => invoke('get_midi_info', {filePath}),
+    /** Audio engine sidecar: `{ cmd: 'ping' | 'list_output_devices' | ... }` → JSON from subprocess */
+    audioEngineInvoke: (request) => invoke('audio_engine_invoke', {request}),
     batchAnalyze: (paths) => invoke('batch_analyze', {paths}),
     dbQueryPlugins: (params) => invoke('db_query_plugins', params || {}),
     dbQueryDaw: (params) => invoke('db_query_daw', params || {}),

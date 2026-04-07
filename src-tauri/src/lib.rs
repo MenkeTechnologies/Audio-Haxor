@@ -11,7 +11,7 @@
 //! - [`audio_scanner`] — Audio sample discovery and metadata extraction
 //! - [`daw_scanner`] — DAW project scanner (14+ formats)
 //! - [`preset_scanner`] — Plugin preset discovery
-//! - [`audio_engine`] — Placeholder for future dedicated audio engine process (device / plugin graph IPC)
+//! - [`audio_engine`] — Spawns the `audio-engine` sidecar for device discovery (cpal) and future IPC
 //! - [`kvr`] — KVR Audio scraper and version checker
 //! - [`history`] — Scan history persistence, diffing, and preferences
 //! - [`content_hash`] — SHA-256 file hashing for byte-identical duplicate detection
@@ -2860,6 +2860,11 @@ async fn read_cache_file(name: String) -> Result<serde_json::Value, String> {
 #[tauri::command]
 async fn write_cache_file(name: String, data: serde_json::Value) -> Result<(), String> {
     blocking_res(move || db::global().write_cache(&name, &data)).await
+}
+
+#[tauri::command]
+fn audio_engine_invoke(request: serde_json::Value) -> Result<serde_json::Value, String> {
+    audio_engine::spawn_audio_engine_request(&request)
 }
 
 #[tauri::command]
@@ -6859,6 +6864,7 @@ pub fn run() {
             batch_analyze,
             read_cache_file,
             write_cache_file,
+            audio_engine_invoke,
             append_log,
             read_log,
             clear_log,

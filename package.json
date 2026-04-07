@@ -1,6 +1,6 @@
 {
   "name": "audio-haxor",
-  "version": "1.17.1",
+  "version": "1.17.2",
   "description": "Desktop app to scan and manage VST/VST3/AU audio plugins, samples, and DAW projects",
   "scripts": {
     "tauri": "tauri",

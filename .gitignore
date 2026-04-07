@@ -1,7 +1,11 @@
 # Local venv for optional i18n scripts (scripts/gen_app_i18n_de.py)
 .venv-i18n/
 
-# Build
+# Tauri sidecar copies (per-host triple; built by scripts/prepare-audio-engine-sidecar.mjs)
+src-tauri/binaries/audio-engine-*
+
+# Build (workspace root + legacy path)
+/target/
 src-tauri/target/
 dist/
 node_modules/

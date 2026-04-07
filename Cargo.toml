@@ -1,0 +1,7 @@
+[workspace]
+members = ["src-tauri", "audio-engine"]
+resolver = "2"
+
+[profile.dev]
+debug = 0
+opt-level = 1

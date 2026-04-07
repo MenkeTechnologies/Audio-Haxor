@@ -445,10 +445,10 @@ pub struct CacheStat {
 /// Materialized in `audio_library` (migration v14) so library queries avoid `GROUP BY path` on hot paths.
 const AUDIO_LIBRARY_IDS: &str = "id IN (SELECT sample_id FROM audio_library)";
 const DAW_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM daw_projects GROUP BY path)";
-const PRESET_LIBRARY_IDS: &str =
-    "id IN (SELECT MAX(id) FROM presets GROUP BY path)";
-const PDF_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM pdfs GROUP BY path)";
-const MIDI_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM midi_files GROUP BY path)";
+/// Migration v15 — same semantics as `MAX(id) GROUP BY path`, maintained on insert and deletes.
+const PRESET_LIBRARY_IDS: &str = "id IN (SELECT preset_id FROM preset_library)";
+const PDF_LIBRARY_IDS: &str = "id IN (SELECT pdf_id FROM pdf_library)";
+const MIDI_LIBRARY_IDS: &str = "id IN (SELECT midi_id FROM midi_library)";
 const PLUGIN_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM plugins GROUP BY path)";
 const PLUGIN_LIBRARY_IDS_QUALIFIED: &str =
     "plugins.id IN (SELECT MAX(id) FROM plugins GROUP BY path)";
@@ -734,6 +734,71 @@ impl Database {
         Ok(())
     }
 
+    fn sync_pdf_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
+        conn.execute(
+            "DELETE FROM pdf_library WHERE path IN (SELECT path FROM _pdf_lib_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM pdfs)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR REPLACE INTO pdf_library (path, pdf_id)
+             SELECT path, MAX(id) FROM pdfs WHERE path IN (SELECT path FROM _pdf_lib_refresh_paths) GROUP BY path",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute("DROP TABLE _pdf_lib_refresh_paths", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn sync_midi_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
+        conn.execute(
+            "DELETE FROM midi_library WHERE path IN (SELECT path FROM _midi_lib_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM midi_files)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR REPLACE INTO midi_library (path, midi_id)
+             SELECT path, MAX(id) FROM midi_files WHERE path IN (SELECT path FROM _midi_lib_refresh_paths) GROUP BY path",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute("DROP TABLE _midi_lib_refresh_paths", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn sync_preset_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
+        conn.execute(
+            "DELETE FROM preset_library WHERE path IN (SELECT path FROM _preset_lib_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM presets)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR REPLACE INTO preset_library (path, preset_id)
+             SELECT path, MAX(id) FROM presets WHERE path IN (SELECT path FROM _preset_lib_refresh_paths) GROUP BY path",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute("DROP TABLE _preset_lib_refresh_paths", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Full rebuild after bulk deletes (e.g. `prune_old_scans`) where per-path sync is impractical.
+    fn rebuild_pdf_midi_preset_libraries(conn: &Connection) -> Result<(), String> {
+        conn.execute_batch(
+            "DELETE FROM pdf_library;
+             INSERT INTO pdf_library (path, pdf_id) SELECT path, MAX(id) FROM pdfs GROUP BY path;
+             DELETE FROM midi_library;
+             INSERT INTO midi_library (path, midi_id) SELECT path, MAX(id) FROM midi_files GROUP BY path;
+             DELETE FROM preset_library;
+             INSERT INTO preset_library (path, preset_id) SELECT path, MAX(id) FROM presets GROUP BY path;",
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Open or create the database in the app data directory.
     pub fn open() -> Result<Self, String> {
         let db_path = history::get_data_dir().join("audio_haxor.db");
@@ -791,6 +856,7 @@ impl Database {
                 );"
             ));
         }
+        let _ = Self::rebuild_pdf_midi_preset_libraries(&conn);
     }
 
     /// Mark whether a streaming scan finished normally (`complete`) or was user-stopped (partial).
@@ -1382,6 +1448,39 @@ impl Database {
             .map_err(|e| format!("Migration v14 (audio_library) failed: {e}"))?;
             conn.execute("INSERT INTO schema_version (version) VALUES (14)", [])
                 .map_err(|e| format!("Migration v14 schema_version failed: {e}"))?;
+        }
+
+        if current < 15 {
+            // Materialized library tables for PDF / MIDI / presets — same semantics as
+            // `MAX(id) GROUP BY path`, maintained on insert and path-affecting deletes.
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS pdf_library (
+                    path TEXT PRIMARY KEY NOT NULL,
+                    pdf_id INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_pdf_library_pdf_id ON pdf_library(pdf_id);
+                INSERT OR REPLACE INTO pdf_library (path, pdf_id)
+                SELECT path, MAX(id) FROM pdfs GROUP BY path;
+
+                CREATE TABLE IF NOT EXISTS midi_library (
+                    path TEXT PRIMARY KEY NOT NULL,
+                    midi_id INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_midi_library_midi_id ON midi_library(midi_id);
+                INSERT OR REPLACE INTO midi_library (path, midi_id)
+                SELECT path, MAX(id) FROM midi_files GROUP BY path;
+
+                CREATE TABLE IF NOT EXISTS preset_library (
+                    path TEXT PRIMARY KEY NOT NULL,
+                    preset_id INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_preset_library_preset_id ON preset_library(preset_id);
+                INSERT OR REPLACE INTO preset_library (path, preset_id)
+                SELECT path, MAX(id) FROM presets GROUP BY path;",
+            )
+            .map_err(|e| format!("Migration v15 (pdf/midi/preset library tables) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (15)", [])
+                .map_err(|e| format!("Migration v15 schema_version failed: {e}"))?;
         }
 
         if conn
@@ -2072,14 +2171,14 @@ impl Database {
         if library {
             let preset_count: u64 = conn
                 .query_row(
-                    "SELECT COUNT(*) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID', 'MIDI')",
+                    "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID', 'MIDI')",
                     [],
                     |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
                 .unwrap_or(0);
             let total_bytes: u64 = conn
                 .query_row(
-                    "SELECT COALESCE(SUM(size), 0) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID', 'MIDI')",
+                    "SELECT COALESCE(SUM(size), 0) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID', 'MIDI')",
                     [],
                     |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
@@ -2087,7 +2186,7 @@ impl Database {
             let mut format_counts = HashMap::new();
             let mut stmt = conn
                 .prepare(
-                    "SELECT format, COUNT(*) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID', 'MIDI') GROUP BY format",
+                    "SELECT format, COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID', 'MIDI') GROUP BY format",
                 )
                 .map_err(|e| e.to_string())?;
             let rows = stmt
@@ -2537,8 +2636,10 @@ impl Database {
         let (fts_match, like_pat, regex_pat) =
             classify_fts_name_path_search(search, search_regex);
         if fts_match.is_some() {
+            // Library scope is already `DAW_LIBRARY_IDS`; do not nest a second
+            // `MAX(id) GROUP BY path` inside the FTS subquery (same semantics, worse plan).
             where_parts.push(format!(
-                "id IN (SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH ?{bind_idx} AND rowid IN (SELECT MAX(id) FROM daw_projects GROUP BY path))",
+                "id IN (SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH ?{bind_idx})",
             ));
             bind_idx += 1;
         } else if regex_pat.is_some() {
@@ -2664,7 +2765,7 @@ impl Database {
         let conn = self.read_conn();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID', 'MIDI')",
+                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID', 'MIDI')",
                 [],
                 |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -2685,8 +2786,10 @@ impl Database {
         let (fts_match, like_pat, regex_pat) =
             classify_fts_name_path_search(search, search_regex);
         if fts_match.is_some() {
+            // Library scope is already `PRESET_LIBRARY_IDS`; do not nest a second
+            // `MAX(id) GROUP BY path` inside the FTS subquery (same semantics, worse plan).
             where_parts.push(format!(
-                "id IN (SELECT rowid FROM presets_fts WHERE presets_fts MATCH ?{bind_idx} AND rowid IN (SELECT MAX(id) FROM presets GROUP BY path))",
+                "id IN (SELECT rowid FROM presets_fts WHERE presets_fts MATCH ?{bind_idx})",
             ));
             bind_idx += 1;
         } else if regex_pat.is_some() {
@@ -3437,10 +3540,21 @@ impl Database {
             "INSERT OR REPLACE INTO preset_scans (id, timestamp, preset_count, total_bytes, format_counts, roots, scan_complete) VALUES (?1,?2,0,0,'{}',?3,0)",
             params![id, timestamp, roots_json],
         ).map_err(|e| e.to_string())?;
+        conn.execute(
+            "CREATE TEMP TABLE _preset_lib_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _preset_lib_refresh_paths SELECT DISTINCT path FROM presets WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM presets WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM presets_fts WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
+        Self::sync_preset_library_after_paths_refresh(&conn)?;
         Ok(())
     }
 
@@ -3454,14 +3568,14 @@ impl Database {
         let conn = self.read_conn();
         let preset_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID', 'MIDI')",
+                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID', 'MIDI')",
                 [],
                 |r| r.get(0),
             )
             .unwrap_or(0);
         let total_bytes: i64 = conn
             .query_row(
-                "SELECT COALESCE(SUM(size), 0) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID', 'MIDI')",
+                "SELECT COALESCE(SUM(size), 0) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID', 'MIDI')",
                 [],
                 |r| r.get(0),
             )
@@ -3469,7 +3583,7 @@ impl Database {
         let mut format_map: HashMap<String, usize> = HashMap::new();
         let mut stmt = conn
             .prepare(
-                "SELECT format, COUNT(*) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID', 'MIDI') GROUP BY format",
+                "SELECT format, COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID', 'MIDI') GROUP BY format",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
@@ -3501,6 +3615,14 @@ impl Database {
         {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO presets (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO presets_fts(rowid, name, path, format, scan_id) VALUES (?1,?2,?3,?4,?5)").map_err(|e| e.to_string())?;
+            let mut lib_stmt = tx
+                .prepare_cached(
+                    "INSERT INTO preset_library (path, preset_id) VALUES (?1, ?2)
+                     ON CONFLICT(path) DO UPDATE SET preset_id = CASE
+                       WHEN excluded.preset_id > preset_library.preset_id THEN excluded.preset_id
+                       ELSE preset_library.preset_id END",
+                )
+                .map_err(|e| e.to_string())?;
             for p in presets {
                 let path = normalize_path_for_db(&p.path);
                 let directory = normalize_path_for_db(&p.directory);
@@ -3518,6 +3640,9 @@ impl Database {
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
                     fts_stmt.execute(params![id, p.name, path, p.format, scan_id]).map_err(|e| e.to_string())?;
+                    lib_stmt
+                        .execute(params![path, id])
+                        .map_err(|e| e.to_string())?;
                     inserted += 1;
                     batch_bytes += p.size;
                 }
@@ -3543,6 +3668,24 @@ impl Database {
         ).map_err(|e| e.to_string())?;
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         {
+            tx.execute(
+                "CREATE TEMP TABLE _preset_lib_refresh_paths (path TEXT PRIMARY KEY)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.execute(
+                "INSERT INTO _preset_lib_refresh_paths SELECT DISTINCT path FROM presets WHERE scan_id = ?1",
+                params![snap.id],
+            )
+            .map_err(|e| e.to_string())?;
+            for p in &snap.presets {
+                let path = normalize_path_for_db(&p.path);
+                tx.execute(
+                    "INSERT OR IGNORE INTO _preset_lib_refresh_paths (path) VALUES (?1)",
+                    params![path],
+                )
+                .map_err(|e| e.to_string())?;
+            }
             tx.execute("DELETE FROM presets WHERE scan_id = ?1", params![snap.id])
                 .map_err(|e| e.to_string())?;
             tx.execute("DELETE FROM presets_fts WHERE scan_id = ?1", params![snap.id])
@@ -3568,6 +3711,7 @@ impl Database {
                     fts_stmt.execute(params![id, p.name, path, p.format, snap.id]).map_err(|e| e.to_string())?;
                 }
             }
+            Self::sync_preset_library_after_paths_refresh(&tx)?;
         }
         tx.commit().map_err(|e| e.to_string())
     }
@@ -3658,8 +3802,21 @@ impl Database {
 
     pub fn delete_preset_scan(&self, id: &str) -> Result<(), String> {
         let conn = self.read_conn();
+        conn.execute(
+            "CREATE TEMP TABLE _preset_lib_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _preset_lib_refresh_paths SELECT DISTINCT path FROM presets WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM presets WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM presets_fts WHERE scan_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Self::sync_preset_library_after_paths_refresh(&conn)?;
         conn.execute("DELETE FROM preset_scans WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -3667,8 +3824,13 @@ impl Database {
 
     pub fn clear_preset_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
-        conn.execute_batch("DELETE FROM presets; DELETE FROM preset_scans;")
-            .map_err(|e| e.to_string())
+        conn.execute_batch(
+            "DELETE FROM preset_library;
+             DELETE FROM presets_fts;
+             DELETE FROM presets;
+             DELETE FROM preset_scans;",
+        )
+        .map_err(|e| e.to_string())
     }
 
     // ── MIDI scan CRUD ──
@@ -3685,10 +3847,21 @@ impl Database {
             "INSERT OR REPLACE INTO midi_scans (id, timestamp, midi_count, total_bytes, format_counts, roots, scan_complete) VALUES (?1,?2,0,0,'{}',?3,0)",
             params![id, timestamp, roots_json],
         ).map_err(|e| e.to_string())?;
+        conn.execute(
+            "CREATE TEMP TABLE _midi_lib_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _midi_lib_refresh_paths SELECT DISTINCT path FROM midi_files WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM midi_files WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM midi_files_fts WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
+        Self::sync_midi_library_after_paths_refresh(&conn)?;
         Ok(())
     }
 
@@ -3709,7 +3882,7 @@ impl Database {
             .unwrap_or(0);
         let total_bytes: i64 = conn
             .query_row(
-                "SELECT COALESCE(SUM(size), 0) FROM midi_files WHERE id IN (SELECT MAX(id) FROM midi_files GROUP BY path)",
+                "SELECT COALESCE(SUM(size), 0) FROM midi_files WHERE id IN (SELECT midi_id FROM midi_library)",
                 [],
                 |r| r.get(0),
             )
@@ -3717,7 +3890,7 @@ impl Database {
         let mut format_map: HashMap<String, usize> = HashMap::new();
         let mut stmt = conn
             .prepare(
-                "SELECT format, COUNT(*) FROM midi_files WHERE id IN (SELECT MAX(id) FROM midi_files GROUP BY path) GROUP BY format",
+                "SELECT format, COUNT(*) FROM midi_files WHERE id IN (SELECT midi_id FROM midi_library) GROUP BY format",
             )
             .map_err(|e| e.to_string())?;
         let rows = stmt
@@ -3749,6 +3922,14 @@ impl Database {
         {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO midi_files (name, path, directory, format, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO midi_files_fts(rowid, name, path, scan_id) VALUES (?1,?2,?3,?4)").map_err(|e| e.to_string())?;
+            let mut lib_stmt = tx
+                .prepare_cached(
+                    "INSERT INTO midi_library (path, midi_id) VALUES (?1, ?2)
+                     ON CONFLICT(path) DO UPDATE SET midi_id = CASE
+                       WHEN excluded.midi_id > midi_library.midi_id THEN excluded.midi_id
+                       ELSE midi_library.midi_id END",
+                )
+                .map_err(|e| e.to_string())?;
             for m in midi_files {
                 let path = normalize_path_for_db(&m.path);
                 let directory = normalize_path_for_db(&m.directory);
@@ -3766,6 +3947,9 @@ impl Database {
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
                     fts_stmt.execute(params![id, m.name, path, scan_id]).map_err(|e| e.to_string())?;
+                    lib_stmt
+                        .execute(params![path, id])
+                        .map_err(|e| e.to_string())?;
                     inserted += 1;
                     batch_bytes += m.size;
                 }
@@ -3790,6 +3974,24 @@ impl Database {
         ).map_err(|e| e.to_string())?;
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         {
+            tx.execute(
+                "CREATE TEMP TABLE _midi_lib_refresh_paths (path TEXT PRIMARY KEY)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.execute(
+                "INSERT INTO _midi_lib_refresh_paths SELECT DISTINCT path FROM midi_files WHERE scan_id = ?1",
+                params![snap.id],
+            )
+            .map_err(|e| e.to_string())?;
+            for m in &snap.midi_files {
+                let path = normalize_path_for_db(&m.path);
+                tx.execute(
+                    "INSERT OR IGNORE INTO _midi_lib_refresh_paths (path) VALUES (?1)",
+                    params![path],
+                )
+                .map_err(|e| e.to_string())?;
+            }
             tx.execute(
                 "DELETE FROM midi_files WHERE scan_id = ?1",
                 params![snap.id],
@@ -3821,6 +4023,7 @@ impl Database {
                     fts_stmt.execute(params![id, m.name, path, snap.id]).map_err(|e| e.to_string())?;
                 }
             }
+            Self::sync_midi_library_after_paths_refresh(&tx)?;
         }
         tx.commit().map_err(|e| e.to_string())
     }
@@ -3911,8 +4114,21 @@ impl Database {
 
     pub fn delete_midi_scan(&self, id: &str) -> Result<(), String> {
         let conn = self.read_conn();
+        conn.execute(
+            "CREATE TEMP TABLE _midi_lib_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _midi_lib_refresh_paths SELECT DISTINCT path FROM midi_files WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM midi_files WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM midi_files_fts WHERE scan_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Self::sync_midi_library_after_paths_refresh(&conn)?;
         conn.execute("DELETE FROM midi_scans WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -3920,8 +4136,13 @@ impl Database {
 
     pub fn clear_midi_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
-        conn.execute_batch("DELETE FROM midi_files; DELETE FROM midi_scans;")
-            .map_err(|e| e.to_string())
+        conn.execute_batch(
+            "DELETE FROM midi_library;
+             DELETE FROM midi_files_fts;
+             DELETE FROM midi_files;
+             DELETE FROM midi_scans;",
+        )
+        .map_err(|e| e.to_string())
     }
 
     pub fn query_midi(
@@ -3937,7 +4158,7 @@ impl Database {
         let conn = self.read_conn();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT MAX(id) FROM midi_files GROUP BY path)",
+                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT midi_id FROM midi_library)",
                 [],
                 |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -3955,8 +4176,10 @@ impl Database {
         let (fts_match, like_pat, regex_pat) =
             classify_fts_name_path_search(search, search_regex);
         if fts_match.is_some() {
+            // Library scope is already `MIDI_LIBRARY_IDS`; do not nest a second
+            // `MAX(id) GROUP BY path` inside the FTS subquery (same semantics, worse plan).
             where_parts.push(format!(
-                "id IN (SELECT rowid FROM midi_files_fts WHERE midi_files_fts MATCH ?{bind_idx} AND rowid IN (SELECT MAX(id) FROM midi_files GROUP BY path))",
+                "id IN (SELECT rowid FROM midi_files_fts WHERE midi_files_fts MATCH ?{bind_idx})",
             ));
             bind_idx += 1;
         } else if regex_pat.is_some() {
@@ -4080,7 +4303,7 @@ impl Database {
         let conn = self.read_conn();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT MAX(id) FROM midi_files GROUP BY path)",
+                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT midi_id FROM midi_library)",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -4090,8 +4313,10 @@ impl Database {
         let mut where_parts = vec![MIDI_LIBRARY_IDS.to_string()];
         let mut bind_idx = 1usize;
         if fts_match.is_some() {
+            // Library scope is already `MIDI_LIBRARY_IDS`; do not nest a second
+            // `MAX(id) GROUP BY path` inside the FTS subquery (same semantics, worse plan).
             where_parts.push(format!(
-                "id IN (SELECT rowid FROM midi_files_fts WHERE midi_files_fts MATCH ?{bind_idx} AND rowid IN (SELECT MAX(id) FROM midi_files GROUP BY path))",
+                "id IN (SELECT rowid FROM midi_files_fts WHERE midi_files_fts MATCH ?{bind_idx})",
             ));
             bind_idx += 1;
         } else if regex_pat.is_some() {
@@ -4171,10 +4396,21 @@ impl Database {
             "INSERT OR REPLACE INTO pdf_scans (id, timestamp, pdf_count, total_bytes, roots, scan_complete) VALUES (?1,?2,0,0,?3,0)",
             params![id, timestamp, roots_json],
         ).map_err(|e| e.to_string())?;
+        conn.execute(
+            "CREATE TEMP TABLE _pdf_lib_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _pdf_lib_refresh_paths SELECT DISTINCT path FROM pdfs WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM pdfs WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM pdfs_fts WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
+        Self::sync_pdf_library_after_paths_refresh(&conn)?;
         Ok(())
     }
 
@@ -4194,7 +4430,7 @@ impl Database {
             .unwrap_or(0);
         let total_bytes: i64 = conn
             .query_row(
-                "SELECT COALESCE(SUM(size), 0) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path)",
+                "SELECT COALESCE(SUM(size), 0) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library)",
                 [],
                 |r| r.get(0),
             )
@@ -4215,6 +4451,14 @@ impl Database {
         {
             let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO pdfs (name, path, directory, size, size_formatted, modified, scan_id) VALUES (?1,?2,?3,?4,?5,?6,?7)").map_err(|e| e.to_string())?;
             let mut fts_stmt = tx.prepare_cached("INSERT INTO pdfs_fts(rowid, name, path, scan_id) VALUES (?1,?2,?3,?4)").map_err(|e| e.to_string())?;
+            let mut lib_stmt = tx
+                .prepare_cached(
+                    "INSERT INTO pdf_library (path, pdf_id) VALUES (?1, ?2)
+                     ON CONFLICT(path) DO UPDATE SET pdf_id = CASE
+                       WHEN excluded.pdf_id > pdf_library.pdf_id THEN excluded.pdf_id
+                       ELSE pdf_library.pdf_id END",
+                )
+                .map_err(|e| e.to_string())?;
             for p in pdfs {
                 let path = normalize_path_for_db(&p.path);
                 let directory = normalize_path_for_db(&p.directory);
@@ -4231,6 +4475,9 @@ impl Database {
                 if changed > 0 {
                     let id = tx.last_insert_rowid();
                     fts_stmt.execute(params![id, p.name, path, scan_id]).map_err(|e| e.to_string())?;
+                    lib_stmt
+                        .execute(params![path, id])
+                        .map_err(|e| e.to_string())?;
                     inserted += 1;
                     batch_bytes += p.size;
                 }
@@ -4425,6 +4672,24 @@ impl Database {
         ).map_err(|e| e.to_string())?;
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         {
+            tx.execute(
+                "CREATE TEMP TABLE _pdf_lib_refresh_paths (path TEXT PRIMARY KEY)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+            tx.execute(
+                "INSERT INTO _pdf_lib_refresh_paths SELECT DISTINCT path FROM pdfs WHERE scan_id = ?1",
+                params![snap.id],
+            )
+            .map_err(|e| e.to_string())?;
+            for p in &snap.pdfs {
+                let path = normalize_path_for_db(&p.path);
+                tx.execute(
+                    "INSERT OR IGNORE INTO _pdf_lib_refresh_paths (path) VALUES (?1)",
+                    params![path],
+                )
+                .map_err(|e| e.to_string())?;
+            }
             tx.execute("DELETE FROM pdfs WHERE scan_id = ?1", params![snap.id])
                 .map_err(|e| e.to_string())?;
             tx.execute("DELETE FROM pdfs_fts WHERE scan_id = ?1", params![snap.id])
@@ -4449,6 +4714,7 @@ impl Database {
                     fts_stmt.execute(params![id, p.name, path, snap.id]).map_err(|e| e.to_string())?;
                 }
             }
+            Self::sync_pdf_library_after_paths_refresh(&tx)?;
         }
         tx.commit().map_err(|e| e.to_string())
     }
@@ -4539,8 +4805,21 @@ impl Database {
 
     pub fn delete_pdf_scan(&self, id: &str) -> Result<(), String> {
         let conn = self.read_conn();
+        conn.execute(
+            "CREATE TEMP TABLE _pdf_lib_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO _pdf_lib_refresh_paths SELECT DISTINCT path FROM pdfs WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM pdfs WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM pdfs_fts WHERE scan_id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        Self::sync_pdf_library_after_paths_refresh(&conn)?;
         conn.execute("DELETE FROM pdf_scans WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -4548,8 +4827,13 @@ impl Database {
 
     pub fn clear_pdf_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
-        conn.execute_batch("DELETE FROM pdfs; DELETE FROM pdf_scans;")
-            .map_err(|e| e.to_string())
+        conn.execute_batch(
+            "DELETE FROM pdf_library;
+             DELETE FROM pdfs_fts;
+             DELETE FROM pdfs;
+             DELETE FROM pdf_scans;",
+        )
+        .map_err(|e| e.to_string())
     }
 
     // ── PDF metadata (page count) ──
@@ -4666,7 +4950,7 @@ impl Database {
         let conn = self.read_conn();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path)",
+                "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library)",
                 [],
                 |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -4684,8 +4968,10 @@ impl Database {
         let (fts_match, like_pat, regex_pat) =
             classify_fts_name_path_search(search, search_regex);
         if fts_match.is_some() {
+            // Library scope is already `PDF_LIBRARY_IDS`; do not nest a second
+            // `MAX(id) GROUP BY path` inside the FTS subquery (same semantics, worse plan).
             where_parts.push(format!(
-                "id IN (SELECT rowid FROM pdfs_fts WHERE pdfs_fts MATCH ?{bind_idx} AND rowid IN (SELECT MAX(id) FROM pdfs GROUP BY path))",
+                "id IN (SELECT rowid FROM pdfs_fts WHERE pdfs_fts MATCH ?{bind_idx})",
             ));
             bind_idx += 1;
         } else if regex_pat.is_some() {
@@ -4771,14 +5057,14 @@ impl Database {
         if library {
             let pdf_count: u64 = conn
                 .query_row(
-                    "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path)",
+                    "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library)",
                     [],
                     |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
                 .unwrap_or(0);
             let total_bytes: u64 = conn
                 .query_row(
-                    "SELECT COALESCE(SUM(size), 0) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path)",
+                    "SELECT COALESCE(SUM(size), 0) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library)",
                     [],
                     |row| row.get::<_, i64>(0).map(|v| v as u64),
                 )
@@ -4931,8 +5217,10 @@ impl Database {
         let mut where_parts = vec![DAW_LIBRARY_IDS.to_string()];
         let mut bind_idx = 1usize;
         if fts_match.is_some() {
+            // Library scope is already `DAW_LIBRARY_IDS`; do not nest a second
+            // `MAX(id) GROUP BY path` inside the FTS subquery (same semantics, worse plan).
             where_parts.push(format!(
-                "id IN (SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH ?{bind_idx} AND rowid IN (SELECT MAX(id) FROM daw_projects GROUP BY path))",
+                "id IN (SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH ?{bind_idx})",
             ));
             bind_idx += 1;
         } else if regex_pat.is_some() {
@@ -5005,7 +5293,7 @@ impl Database {
         let conn = self.read_conn();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID','MIDI')",
+                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID','MIDI')",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -5018,8 +5306,10 @@ impl Database {
         ];
         let mut bind_idx = 1usize;
         if fts_match.is_some() {
+            // Library scope is already `PRESET_LIBRARY_IDS`; do not nest a second
+            // `MAX(id) GROUP BY path` inside the FTS subquery (same semantics, worse plan).
             where_parts.push(format!(
-                "id IN (SELECT rowid FROM presets_fts WHERE presets_fts MATCH ?{bind_idx} AND rowid IN (SELECT MAX(id) FROM presets GROUP BY path))",
+                "id IN (SELECT rowid FROM presets_fts WHERE presets_fts MATCH ?{bind_idx})",
             ));
             bind_idx += 1;
         } else if regex_pat.is_some() {
@@ -5161,7 +5451,7 @@ impl Database {
         let conn = self.read_conn();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path)",
+                "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library)",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -5169,13 +5459,13 @@ impl Database {
         let (fts_match, like_pat, regex_pat) =
             classify_fts_name_path_search(search, search_regex);
         let sql = if fts_match.is_some() {
-            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path) AND id IN (SELECT rowid FROM pdfs_fts WHERE pdfs_fts MATCH ?1 AND rowid IN (SELECT MAX(id) FROM pdfs GROUP BY path))"
+            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library) AND id IN (SELECT rowid FROM pdfs_fts WHERE pdfs_fts MATCH ?1)"
         } else if regex_pat.is_some() {
-            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path) AND ((name REGEXP ?1) OR (path REGEXP ?1))"
+            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library) AND ((name REGEXP ?1) OR (path REGEXP ?1))"
         } else if like_pat.is_some() {
-            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path) AND (name LIKE ?1 ESCAPE '\\' OR path LIKE ?1 ESCAPE '\\')"
+            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library) AND (name LIKE ?1 ESCAPE '\\' OR path LIKE ?1 ESCAPE '\\')"
         } else {
-            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path)"
+            "SELECT COUNT(*), COALESCE(SUM(size),0) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library)"
         };
         let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
         if let Some(ref m) = fts_match {
@@ -5388,9 +5678,12 @@ impl Database {
             "presets",
             "preset_scans",
             "pdfs",
+            "pdf_library",
             "midi_files",
+            "midi_library",
             "pdf_scans",
             "pdf_metadata",
+            "preset_library",
             "kvr_cache",
             "waveform_cache",
             "spectrogram_cache",
@@ -5432,21 +5725,21 @@ impl Database {
             .unwrap_or(0);
         let presets_lib: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID','MIDI')",
+                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID','MIDI')",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let pdfs_lib: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path)",
+                "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library)",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let midi_lib: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT MAX(id) FROM midi_files GROUP BY path)",
+                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT midi_id FROM midi_library)",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -5463,10 +5756,11 @@ impl Database {
     }
 
     /// Row counts per inventory category for the **library** view: one canonical row per `path`.
-    /// For audio samples this reads `audio_library` (migration v14); other tables still use
-    /// `MAX(id) GROUP BY path`. Not scoped to a single `scan_id`. Presets exclude `MID`/`MIDI`
-    /// (same tab rules as elsewhere). Matches default `scan_id` handling on paginated queries and
-    /// `*_filter_stats`, not raw `COUNT(*)` on whole tables.
+    /// Audio uses `audio_library` (v14); PDF, MIDI, and presets use `pdf_library`, `midi_library`,
+    /// and `preset_library` (v15). Plugins and DAW still use `MAX(id) GROUP BY path` in SQL.
+    /// Not scoped to a single `scan_id`. Presets exclude `MID`/`MIDI` (same tab rules as elsewhere).
+    /// Matches default `scan_id` handling on paginated queries and `*_filter_stats`, not raw
+    /// `COUNT(*)` on whole tables.
     pub fn active_scan_inventory_counts(&self) -> Result<serde_json::Value, String> {
         let conn = self.read_conn();
         let count_plugins: u64 = conn
@@ -5492,21 +5786,21 @@ impl Database {
             .unwrap_or(0);
         let count_presets: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID','MIDI')",
+                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID','MIDI')",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let count_pdfs: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path)",
+                "SELECT COUNT(*) FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library)",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
             .unwrap_or(0);
         let count_midi: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT MAX(id) FROM midi_files GROUP BY path)",
+                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT midi_id FROM midi_library)",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -5556,15 +5850,15 @@ impl Database {
             "daw",
         )?;
         push_sql(
-            "SELECT path, size FROM presets WHERE id IN (SELECT MAX(id) FROM presets GROUP BY path) AND format NOT IN ('MID','MIDI')",
+            "SELECT path, size FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID','MIDI')",
             "presets",
         )?;
         push_sql(
-            "SELECT path, size FROM pdfs WHERE id IN (SELECT MAX(id) FROM pdfs GROUP BY path)",
+            "SELECT path, size FROM pdfs WHERE id IN (SELECT pdf_id FROM pdf_library)",
             "pdf",
         )?;
         push_sql(
-            "SELECT path, size FROM midi_files WHERE id IN (SELECT MAX(id) FROM midi_files GROUP BY path)",
+            "SELECT path, size FROM midi_files WHERE id IN (SELECT midi_id FROM midi_library)",
             "midi",
         )?;
 
@@ -9304,6 +9598,79 @@ mod tests {
             .query_row(
                 "SELECT COUNT(*) FROM audio_library lib
                  WHERE lib.sample_id = (SELECT MAX(id) FROM audio_samples a WHERE a.path = lib.path)",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn test_pdf_midi_preset_library_ids_match_max_id_per_path() {
+        let db = test_db();
+        let pdf = |path: &str| PdfFile {
+            name: "a.pdf".into(),
+            path: path.into(),
+            directory: "/d".into(),
+            size: 1,
+            size_formatted: "1 B".into(),
+            modified: "2024-01-01".into(),
+        };
+        db.pdf_scan_parent_create("p1", "2024-01-01T00:00:00", &[]).unwrap();
+        db.insert_pdf_batch("p1", &[pdf("/same/x.pdf")]).unwrap();
+        db.pdf_scan_parent_create("p2", "2024-01-02T00:00:00", &[]).unwrap();
+        db.insert_pdf_batch("p2", &[pdf("/same/x.pdf")]).unwrap();
+        let conn = db.read_conn();
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pdf_library lib
+                 WHERE lib.pdf_id = (SELECT MAX(id) FROM pdfs p WHERE p.path = lib.path)",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1);
+
+        let m = |path: &str| MidiFile {
+            name: "a.mid".into(),
+            path: path.into(),
+            directory: "/d".into(),
+            format: "MID".into(),
+            size: 1,
+            size_formatted: "1 B".into(),
+            modified: "2024-01-01".into(),
+        };
+        db.midi_scan_parent_create("m1", "2024-01-01T00:00:00", &[]).unwrap();
+        db.insert_midi_batch("m1", &[m("/same/y.mid")]).unwrap();
+        db.midi_scan_parent_create("m2", "2024-01-02T00:00:00", &[]).unwrap();
+        db.insert_midi_batch("m2", &[m("/same/y.mid")]).unwrap();
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM midi_library lib
+                 WHERE lib.midi_id = (SELECT MAX(id) FROM midi_files f WHERE f.path = lib.path)",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1);
+
+        let pr = |path: &str| PresetFile {
+            name: "a.fxp".into(),
+            path: path.into(),
+            directory: "/d".into(),
+            format: "FXP".into(),
+            size: 1,
+            size_formatted: "1 B".into(),
+            modified: "2024-01-01".into(),
+        };
+        db.preset_scan_parent_create("r1", "2024-01-01T00:00:00", &[]).unwrap();
+        db.insert_preset_batch("r1", &[pr("/same/z.fxp")]).unwrap();
+        db.preset_scan_parent_create("r2", "2024-01-02T00:00:00", &[]).unwrap();
+        db.insert_preset_batch("r2", &[pr("/same/z.fxp")]).unwrap();
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM preset_library lib
+                 WHERE lib.preset_id = (SELECT MAX(id) FROM presets p WHERE p.path = lib.path)",
                 [],
                 |r| r.get::<_, i64>(0),
             )
