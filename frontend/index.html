@@ -646,6 +646,12 @@
             border-bottom: 1px solid var(--border);
         }
 
+        /* Whole-pane section reorder (drag-reorder.js); row rows use .settings-row { cursor: grab } */
+        #tabSettings .settings-section > .settings-heading,
+        #tabAudioEngine .settings-section > .settings-heading {
+            cursor: grab;
+        }
+
         /* No heading glow inside settings grid — reduces WebKit compositor churn next to perf/app panes */
         .settings-container .settings-heading {
             text-shadow: none;

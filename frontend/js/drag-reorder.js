@@ -120,12 +120,39 @@
                 children.forEach((c, i) => {
                     map[getKey(c, i)] = c;
                 });
-                for (const key of saved) {
-                    if (map[key]) container.appendChild(map[key]);
-                }
+                const merged = [...saved];
                 children.forEach((c, i) => {
-                    if (!saved.includes(getKey(c, i))) container.appendChild(c);
+                    const k = getKey(c, i);
+                    if (!merged.includes(k)) merged.push(k);
                 });
+                const anchorSel = opts?.restoreAnchorSelector;
+                const anchor = anchorSel ? container.querySelector(anchorSel) : null;
+                const rm = opts?.restoreMode || 'append';
+
+                if (anchor) {
+                    let ref = anchor;
+                    for (const key of merged) {
+                        if (map[key]) {
+                            ref.insertAdjacentElement('afterend', map[key]);
+                            ref = map[key];
+                        }
+                    }
+                } else if (rm === 'fragment') {
+                    const frag = document.createDocumentFragment();
+                    for (const key of merged) {
+                        if (map[key]) frag.appendChild(map[key]);
+                    }
+                    if (frag.childNodes.length) {
+                        container.insertBefore(frag, container.firstChild);
+                    }
+                } else {
+                    for (const key of merged) {
+                        if (map[key]) container.appendChild(map[key]);
+                    }
+                    children.forEach((c, i) => {
+                        if (!merged.includes(getKey(c, i))) container.appendChild(c);
+                    });
+                }
             }
         }
 
@@ -243,6 +270,26 @@ document.addEventListener('DOMContentLoaded', () => {
             getKey: (el) => el.dataset.action || el.id || el.textContent.trim().slice(0, 20),
         });
     });
+
+    // Settings + Audio Engine: reorder whole `.settings-section` panes (rows still use initSettingsSectionDrag in app.js)
+    const settingsPane = document.querySelector('#tabSettings .settings-container');
+    if (settingsPane) {
+        initDragReorder(settingsPane, '.settings-section[data-section]', 'settingsSectionOrder', {
+            direction: 'vertical',
+            getKey: (el) => el.dataset.section || '',
+            restoreAnchorSelector: '.settings-search-bar',
+            handleSelector: '.settings-section > .settings-heading',
+        });
+    }
+    const aePane = document.querySelector('#tabAudioEngine .settings-container.audio-engine-tab');
+    if (aePane) {
+        initDragReorder(aePane, '.settings-section[data-section]', 'audioEngineSectionOrder', {
+            direction: 'vertical',
+            getKey: (el) => el.dataset.section || '',
+            restoreMode: 'fragment',
+            handleSelector: '.settings-section > .settings-heading',
+        });
+    }
 });
 
 // ── Floating element drag (move between containers) ──

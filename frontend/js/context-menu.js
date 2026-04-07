@@ -2181,6 +2181,13 @@ document.addEventListener('contextmenu', (e) => {
         if (settingsSection) {
             const heading = settingsSection.querySelector('.settings-heading')?.textContent?.trim()
                 || catalogFmt('menu.context_settings_section_fallback');
+            const persistSectionPaneOrder = () => {
+                const pane = settingsSection.closest('.settings-container');
+                if (!pane || typeof prefs === 'undefined') return;
+                const key = pane.classList.contains('audio-engine-tab') ? 'audioEngineSectionOrder' : 'settingsSectionOrder';
+                const sections = [...pane.querySelectorAll('.settings-section[data-section]')].map(s => s.dataset.section);
+                prefs.setItem(key, sections);
+            };
             const items = [
                 {
                     icon: '&#128203;',
@@ -2192,6 +2199,7 @@ document.addEventListener('contextmenu', (e) => {
                         const prev = settingsSection.previousElementSibling;
                         if (prev && prev.classList.contains('settings-section')) {
                             settingsSection.parentNode.insertBefore(settingsSection, prev);
+                            persistSectionPaneOrder();
                             showToast(toastFmt('toast.moved_heading_up', {heading}));
                         }
                     }
@@ -2201,6 +2209,7 @@ document.addEventListener('contextmenu', (e) => {
                         const next = settingsSection.nextElementSibling;
                         if (next && next.classList.contains('settings-section')) {
                             next.parentNode.insertBefore(next, settingsSection);
+                            persistSectionPaneOrder();
                             showToast(toastFmt('toast.moved_heading_down', {heading}));
                         }
                     }

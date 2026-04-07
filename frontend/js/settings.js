@@ -757,7 +757,7 @@ async function settingClearAnalysisCache() {
 function settingResetAllUI() {
     // All layout/ordering/sizing prefs keys
     const uiKeys = [
-        'tabOrder', 'settingsSectionOrder', 'columnWidths',
+        'tabOrder', 'settingsSectionOrder', 'audioEngineSectionOrder', 'columnWidths',
         'playerSectionOrder', 'playerDock', 'playerWidth', 'playerHeight', 'playerExpanded',
         'headerStatsOrder', 'statsBarOrder',
         'pluginStatsOrder', 'audioStatsOrder', 'dawStatsOrder', 'presetStatsOrder', 'midiStatsOrder', 'pdfStatsOrder',
@@ -1915,67 +1915,53 @@ document.addEventListener('input', (e) => {
 });
 
 // ── Settings Section Drag Reorder (Trello-style) ──
+// Whole-pane section order: `initDragReorder` on `#tabSettings .settings-container` in drag-reorder.js (prefs `settingsSectionOrder`).
+// Row order within each section: below (prefs `settingsRows_<data-section>`).
 function initSettingsSectionDrag() {
-    const container = document.querySelector('#tabSettings .settings-container');
-    if (!container) return;
-
-    // Settings uses CSS Grid (see index.html); legacy hook kept for callers that still invoke it.
+    // Settings uses CSS columns masonry (see index.html); legacy hook kept for callers that still invoke it.
     window.balanceSettingsColumns = function () {
     };
 
-    // Individual rows within sections are still draggable
-    // Skip sections with dynamic JS content that breaks on clone/reinsert
     const noDragSections = new Set(['colorscheme', 'shortcuts', 'fuzzy-search', 'system-info', 'app-info', 'caches']);
-    if (typeof initDragReorder === 'function') {
-        container.querySelectorAll('.settings-section[data-section]').forEach(section => {
+    if (typeof initDragReorder !== 'function') return;
+
+    function initRowsInPane(containerSelector) {
+        const pane = document.querySelector(containerSelector);
+        if (!pane) return;
+        pane.querySelectorAll('.settings-section[data-section]').forEach(section => {
             if (noDragSections.has(section.dataset.section)) return;
             initDragReorder(section, '.settings-row', 'settingsRows_' + section.dataset.section, {
                 getKey: (el) => el.querySelector('.settings-title')?.textContent?.trim() || '',
             });
         });
     }
-}
 
-function saveSettingsSectionOrder() {
-    const sections = [...document.querySelectorAll('.settings-section[data-section]')].map(s => s.dataset.section);
-    prefs.setItem('settingsSectionOrder', JSON.stringify(sections));
-}
-
-function restoreSettingsSectionOrder() {
-    const saved = prefs.getItem('settingsSectionOrder');
-    if (!saved) return;
-    try {
-        const order = JSON.parse(saved);
-        if (!Array.isArray(order)) return;
-        const container = document.querySelector('#tabSettings .settings-container');
-        const sectionMap = {};
-        container.querySelectorAll('.settings-section[data-section]').forEach(s => {
-            sectionMap[s.dataset.section] = s;
-        });
-        // Merge: use saved order, but insert any new sections not in saved order
-        const allSections = [...container.querySelectorAll('.settings-section[data-section]')].map(s => s.dataset.section);
-        const merged = [...order];
-        for (const key of allSections) {
-            if (!merged.includes(key)) merged.push(key);
-        }
-        for (const key of merged) {
-            if (sectionMap[key]) container.appendChild(sectionMap[key]);
-        }
-    } catch (e) {
-        if (typeof showToast === 'function' && e) showToast(String(e), 4000, 'error');
-    }
+    initRowsInPane('#tabSettings .settings-container');
+    initRowsInPane('#tabAudioEngine .settings-container.audio-engine-tab');
 }
 
 function resetSettingsSectionOrder() {
     prefs.removeItem('settingsSectionOrder');
     const container = document.querySelector('#tabSettings .settings-container');
+    if (!container) return;
     const defaultOrder = ['appearance', 'scanning', 'performance', 'exclusions', 'sorting', 'fuzzy-search', 'about', 'system-info', 'colorscheme', 'app-info', 'playback', 'scan-behavior', 'visualizer-settings', 'data', 'files', 'storage', 'caches', 'danger-zone', 'shortcuts'];
     const sectionMap = {};
     container.querySelectorAll('.settings-section[data-section]').forEach(s => {
         sectionMap[s.dataset.section] = s;
     });
-    for (const key of defaultOrder) {
-        if (sectionMap[key]) container.appendChild(sectionMap[key]);
+    const searchBar = container.querySelector('.settings-search-bar');
+    if (searchBar) {
+        let ref = searchBar;
+        for (const key of defaultOrder) {
+            if (sectionMap[key]) {
+                ref.insertAdjacentElement('afterend', sectionMap[key]);
+                ref = sectionMap[key];
+            }
+        }
+    } else {
+        for (const key of defaultOrder) {
+            if (sectionMap[key]) container.appendChild(sectionMap[key]);
+        }
     }
     showToast(toastFmt('toast.settings_layout_reset_short'));
 }
