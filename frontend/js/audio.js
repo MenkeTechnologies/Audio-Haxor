@@ -510,12 +510,14 @@ function isAudioPlaying() {
  * True when `window._engineSpectrumU8` should drive the floating mini FFT, parametric EQ fill, etc.
  * Matches `visualizer.js` `_vizEngineSpectrumOk`: library playback through the AudioEngine, or any
  * Audio Engine output with an FFT tap (`_aeOutputStreamRunning`).
+ * Transport pause (`playback_pause`) does **not** turn this off — spectrum still updates (or holds
+ * last bins) independently of global play/pause; only `fftAnimationPaused` freezes the curves.
  */
 function engineSpectrumLive() {
     if (typeof window === 'undefined' || !window._engineSpectrumU8 || window._engineSpectrumU8.length < 1024) {
         return false;
     }
-    if (window._enginePlaybackActive === true && typeof isAudioPlaying === 'function' && isAudioPlaying()) {
+    if (window._enginePlaybackActive === true) {
         return true;
     }
     if (window._aeOutputStreamRunning === true) {
@@ -1257,8 +1259,7 @@ let _enginePlaybackFftRafId = null;
 
 function shouldRunEngineSpectrumRaf() {
     if (typeof window === 'undefined') return false;
-    if (_enginePlaybackActive === true && typeof isAudioPlaying === 'function' && isAudioPlaying()) return true;
-    if (window._aeOutputStreamRunning === true) return true;
+    if (typeof engineSpectrumLive === 'function' && engineSpectrumLive()) return true;
     return false;
 }
 

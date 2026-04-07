@@ -35,8 +35,8 @@ function _vizEngineSpectrumOk() {
     if (typeof window === 'undefined' || !window._engineSpectrumU8 || window._engineSpectrumU8.length < 1024) {
         return false;
     }
-    /* Library / floating player playback through JUCE */
-    if (window._enginePlaybackActive === true && typeof isAudioPlaying === 'function' && isAudioPlaying()) {
+    /* Library / floating player playback through JUCE (includes transport paused — spectrum still wired). */
+    if (window._enginePlaybackActive === true) {
         return true;
     }
     /* Any engine output with FFT tap (Audio Engine tab: tone, file preview, etc.) */
@@ -284,8 +284,9 @@ function _vizLoop(timestamp) {
     const vizAnalyser = _vizResolveAnalyser();
     const isPlaying = typeof isAudioPlaying === 'function' ? isAudioPlaying() : typeof audioPlayer !== 'undefined' && audioPlayer && !audioPlayer.paused;
     const engineOut = typeof window !== 'undefined' && window._aeOutputStreamRunning === true;
-    /* Engine tone/preview has no `<audio>` “playing” — still animate from AudioEngine spectrum. */
-    const vizActive = isPlaying || engineOut;
+    /* Engine tone/preview has no `<audio>` “playing” — still animate from AudioEngine spectrum.
+     * Paused library transport still has engine FFT bins — keep tiles alive (independent of play/pause). */
+    const vizActive = isPlaying || engineOut || _vizEngineSpectrumOk();
     const empty = document.getElementById('vizEmpty');
     if (empty) empty.style.display = vizAnalyser && vizActive ? 'none' : '';
 
