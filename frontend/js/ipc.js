@@ -1343,7 +1343,7 @@ window.vstUpdater = {
     getFileWatcherStatus: () => invoke('get_file_watcher_status'),
     // MIDI
     getMidiInfo: (filePath) => invoke('get_midi_info', {filePath}),
-    /** Audio engine sidecar (persistent stdin loop): `{ cmd, ... }` → JSON. Includes `engine_state`, `start_output_stream` (`start_playback` for file PCM decode), `playback_load` / `playback_pause` / `playback_seek` / `playback_set_dsp` / `playback_set_speed` / `playback_set_reverse` / `playback_status` / `playback_stop`, `stop_output_stream`, `start_input_stream` / `stop_input_stream`, `set_output_tone`, device list/info/validate. UI: `audio-engine.js` + `audio.js` engine playback (`enginePlaybackStart`). */
+    /** Audio engine sidecar (persistent stdin loop): `{ cmd, ... }` → JSON. Includes `engine_state`, `start_output_stream` (`start_playback` for file PCM decode), `playback_load` / `playback_pause` / `playback_seek` / `playback_set_dsp` / `playback_set_speed` / `playback_set_reverse` / `playback_status` / `playback_stop`, `stop_output_stream`, `start_input_stream` / `stop_input_stream`, `set_output_tone`, `plugin_chain` (stub / future inserts), device list/info/validate. UI: `audio-engine.js` (`applyAudioEngineDevice` reloads `playback_load` from `window._enginePlaybackResumePath` when the session is empty after Stop stream) + `audio.js` (`enginePlaybackStart`, `resumeEnginePlaybackAfterApply`, mute/volume via prefs for engine DSP). */
     audioEngineInvoke: (request) => invoke('audio_engine_invoke', {request}),
     batchAnalyze: (paths) => invoke('batch_analyze', {paths}),
     dbQueryPlugins: (params) => invoke('db_query_plugins', params || {}),

@@ -113,6 +113,7 @@ async function tickAeInputPeakPoll() {
 async function resumeAeInputPeakPollIfNeeded() {
     if (!aeAudioEngineTabIsActive()) return;
     if (typeof document !== 'undefined' && document.hidden) return;
+    syncAePlaybackControlsFromPrefs();
     const inv = getAeAudioEngineInvoke();
     if (!inv) return;
     try {
@@ -237,6 +238,114 @@ function buildAeDeviceCapsLine(info) {
 }
 
 /**
+ * Read now-playing prefs into the Audio Engine tab sliders (no `ensureAudioGraph` — safe on tab open).
+ */
+function syncAePlaybackControlsFromPrefs() {
+    if (typeof prefs === 'undefined' || typeof prefs.getItem !== 'function') return;
+    const v = prefs.getItem('audioVolume') || '100';
+    const aeVol = document.getElementById('aeVolume');
+    const aePct = document.getElementById('aeVolumePct');
+    if (aeVol) aeVol.value = v;
+    if (aePct) aePct.textContent = v + '%';
+    const sp = prefs.getItem('audioSpeed') || '1';
+    const aeSp = document.getElementById('aePlaybackSpeed');
+    if (aeSp) aeSp.value = sp;
+    const fmtDb = (x) => {
+        const db = parseFloat(x);
+        if (Number.isNaN(db)) return '0 dB';
+        return (db >= 0 ? '+' : '') + db.toFixed(0) + ' dB';
+    };
+    for (const band of ['Low', 'Mid', 'High']) {
+        const key = 'eq' + band;
+        const raw = prefs.getItem(key);
+        const sl = document.getElementById('aeEq' + band);
+        const lab = document.getElementById('aeEq' + band + 'Val');
+        if (raw != null && sl) sl.value = raw;
+        if (raw != null && lab) lab.textContent = fmtDb(raw);
+    }
+    const pg = prefs.getItem('preampGain');
+    if (pg != null) {
+        const g = parseFloat(pg);
+        const sl = document.getElementById('aeGainSlider');
+        const lab = document.getElementById('aeGainVal');
+        if (sl && !Number.isNaN(g)) sl.value = String(g);
+        if (lab && !Number.isNaN(g)) lab.textContent = (g * 100).toFixed(0) + '%';
+    }
+    const pan = prefs.getItem('audioPan');
+    if (pan != null) {
+        const p = parseFloat(pan);
+        const sl = document.getElementById('aePanSlider');
+        const lab = document.getElementById('aePanVal');
+        if (sl && !Number.isNaN(p)) sl.value = String(p);
+        if (lab && !Number.isNaN(p)) {
+            lab.textContent =
+                Math.abs(p) < 0.05 ? 'C' : p < 0 ? Math.round(Math.abs(p) * 100) + 'L' : Math.round(p * 100) + 'R';
+        }
+    }
+}
+
+function bindAePlaybackControls() {
+    const vol = document.getElementById('aeVolume');
+    if (vol && typeof vol.addEventListener === 'function' && typeof setAudioVolume === 'function') {
+        vol.addEventListener('input', () => setAudioVolume(vol.value));
+    }
+    const sp = document.getElementById('aePlaybackSpeed');
+    if (sp && typeof sp.addEventListener === 'function' && typeof setPlaybackSpeed === 'function') {
+        sp.addEventListener('change', () => setPlaybackSpeed(sp.value));
+    }
+    for (const band of ['low', 'mid', 'high']) {
+        const cap = band.charAt(0).toUpperCase() + band.slice(1);
+        const el = document.getElementById('aeEq' + cap);
+        if (el && typeof el.addEventListener === 'function' && typeof setEqBand === 'function') {
+            el.addEventListener('input', () => setEqBand(band, el.value));
+        }
+    }
+    const gain = document.getElementById('aeGainSlider');
+    if (gain && typeof gain.addEventListener === 'function' && typeof setPreampGain === 'function') {
+        gain.addEventListener('input', () => setPreampGain(gain.value));
+    }
+    const pan = document.getElementById('aePanSlider');
+    if (pan && typeof pan.addEventListener === 'function' && typeof setPan === 'function') {
+        pan.addEventListener('input', () => setPan(pan.value));
+    }
+}
+
+/**
+ * @param {object|null} chain — `plugin_chain` payload
+ */
+function fillAePluginSection(chain) {
+    const stub = document.getElementById('aePluginStub');
+    const ul = document.getElementById('aePluginSlotList');
+    if (!stub || typeof catalogFmt !== 'function') return;
+    const phase = chain && chain.phase != null ? String(chain.phase) : '—';
+    const fmts =
+        chain && Array.isArray(chain.formats_planned) && chain.formats_planned.length
+            ? chain.formats_planned.join(', ')
+            : '—';
+    const n = chain && Array.isArray(chain.slots) ? chain.slots.length : 0;
+    const note = chain && chain.note != null ? String(chain.note) : '';
+    stub.textContent = catalogFmt('ui.ae.plugins_stub', {
+        phase,
+        formats: fmts,
+        count: String(n),
+        note,
+    });
+    if (!ul || typeof ul.replaceChildren !== 'function') return;
+    ul.replaceChildren();
+    if (chain && Array.isArray(chain.slots) && chain.slots.length > 0) {
+        for (const s of chain.slots) {
+            const li = document.createElement('li');
+            li.textContent = typeof s === 'string' ? s : JSON.stringify(s);
+            ul.appendChild(li);
+        }
+    } else {
+        const li = document.createElement('li');
+        li.textContent = catalogFmt('ui.ae.plugins_slot_empty');
+        ul.appendChild(li);
+    }
+}
+
+/**
  * Called when the Audio Engine tab becomes active (`utils.js` `switchTab` → `runPerTabWork`).
  * Idempotent — safe if called multiple times.
  */
@@ -244,11 +353,14 @@ function initAudioEngineTab() {
     const root = document.getElementById('tabAudioEngine');
     if (!root) return;
     if (root.dataset.aeInit === '1') {
+        syncAePlaybackControlsFromPrefs();
         void resumeAeInputPeakPollIfNeeded();
         return;
     }
     root.dataset.aeInit = '1';
     bindAeInputPeakVisibilityOnce();
+    bindAePlaybackControls();
+    syncAePlaybackControlsFromPrefs();
 
     const refreshBtn = document.getElementById('aeRefreshDevices');
     if (refreshBtn && typeof refreshBtn.addEventListener === 'function') {
@@ -569,7 +681,6 @@ function aePopulateInputDeviceSelectOptions(selectEl, devices, inPick) {
 async function refreshAudioEnginePanel() {
     const statusEl = document.getElementById('aeEngineStatus');
     const selectEl = document.getElementById('aeOutputDevice');
-    const pluginEl = document.getElementById('aePluginStub');
     const toneCb = document.getElementById('aeTestTone');
     const inv = getAeAudioEngineInvoke();
 
@@ -624,10 +735,9 @@ async function refreshAudioEnginePanel() {
         await fillAeDeviceCaps(inv, selId);
 
         const chain = await inv({cmd: 'plugin_chain'});
-        if (pluginEl && typeof catalogFmt === 'function') {
-            const n = chain && Array.isArray(chain.slots) ? chain.slots.length : 0;
-            pluginEl.textContent = catalogFmt('ui.ae.plugins_stub', {count: String(n)});
-        }
+        fillAePluginSection(chain);
+
+        syncAePlaybackControlsFromPrefs();
 
         const inListEl = document.getElementById('aeInputDevicesList');
         const inSelectEl = document.getElementById('aeInputDevice');
@@ -728,13 +838,28 @@ async function applyAudioEngineDevice() {
         const r = await inv({cmd: 'set_output_device', device_id: id});
         throwIfAeNotOk(r, 'set_output_device failed');
         /* If a library track is loaded (`playback_load`), reconnect file PCM to the new stream.
-         * Omitting `start_playback` leaves silence/tone-only output while the session still exists — breaks preview. */
+         * Omitting `start_playback` leaves silence/tone-only output while the session still exists — breaks preview.
+         * After Stop stream, `playback_stop` clears the session — reload from `window._enginePlaybackResumePath` if set. */
         let playbackLoaded = false;
         try {
             const st = await inv({cmd: 'playback_status'});
             playbackLoaded = Boolean(st && st.ok && st.loaded === true);
         } catch {
             /* ignore */
+        }
+        const resumePath =
+            typeof window !== 'undefined' && typeof window._enginePlaybackResumePath === 'string' && window._enginePlaybackResumePath.length > 0
+                ? window._enginePlaybackResumePath
+                : '';
+        let didReloadLibrary = false;
+        /** @type {object | null} */
+        let loadMeta = null;
+        if (!playbackLoaded && resumePath) {
+            const lr = await inv({cmd: 'playback_load', path: resumePath});
+            throwIfAeNotOk(lr, 'playback_load failed');
+            playbackLoaded = true;
+            didReloadLibrary = true;
+            loadMeta = lr;
         }
         const startPayload = {cmd: 'start_output_stream', device_id: id, tone: toneOn};
         if (bufferFrames !== undefined) {
@@ -745,6 +870,9 @@ async function applyAudioEngineDevice() {
         }
         const start = await inv(startPayload);
         throwIfAeNotOk(start, 'start_output_stream failed');
+        if (didReloadLibrary && typeof window !== 'undefined' && typeof window.resumeEnginePlaybackAfterApply === 'function') {
+            window.resumeEnginePlaybackAfterApply(loadMeta);
+        }
         if (playbackLoaded && typeof window !== 'undefined') {
             if (typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
                 window.syncEnginePlaybackDspFromPrefs();
@@ -1033,4 +1161,5 @@ if (typeof window !== 'undefined') {
     window.syncEnginePlaybackSpeedFromPrefs = syncEnginePlaybackSpeedFromPrefs;
     window.engineApplyReversePrefPlayback = engineApplyReversePrefPlayback;
     window.stopEnginePlaybackPoll = stopEnginePlaybackPoll;
+    window.startEnginePlaybackPoll = startEnginePlaybackPoll;
 }

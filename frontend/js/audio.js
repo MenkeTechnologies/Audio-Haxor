@@ -316,6 +316,8 @@ const MAX_RECENT = 50;
 let audioShuffling = false;
 let audioMuted = false;
 let savedVolume = 1;
+/** Volume % (0–100) saved when muting — engine path uses prefs, so `savedVolume` alone is wrong. */
+let savedMuteVolumePct = 100;
 
 // ── Web Audio processing chain ──
 let _playbackCtx = null;
@@ -361,8 +363,32 @@ function syncEnginePlaybackStoppedFromSidecar() {
         updateNowPlayingBtn();
     }
 }
+/**
+ * After Apply reconnects the output stream with `playback_load` (e.g. Stop stream then Apply),
+ * restore JS engine playback state and polling.
+ * @param {object|null} loadMeta — optional `playback_load` response (`duration_sec`, …)
+ */
+function resumeEnginePlaybackAfterApply(loadMeta) {
+    _enginePlaybackActive = true;
+    if (loadMeta && typeof loadMeta.duration_sec === 'number' && !Number.isNaN(loadMeta.duration_sec) && loadMeta.duration_sec > 0) {
+        window._enginePlaybackDurSec = loadMeta.duration_sec;
+    }
+    window._enginePlaybackPosSec = 0;
+    window._enginePlaybackPaused = false;
+    if (typeof window.startEnginePlaybackPoll === 'function') {
+        window.startEnginePlaybackPoll();
+    }
+    if (typeof updatePlayBtnStates === 'function') {
+        updatePlayBtnStates();
+    }
+    if (typeof updateNowPlayingBtn === 'function') {
+        updateNowPlayingBtn();
+    }
+}
+
 if (typeof window !== 'undefined') {
     window.syncEnginePlaybackStoppedFromSidecar = syncEnginePlaybackStoppedFromSidecar;
+    window.resumeEnginePlaybackAfterApply = resumeEnginePlaybackAfterApply;
 }
 
 function isAudioPlaying() {
@@ -755,9 +781,14 @@ function setEqBand(band, value) {
     if (band === 'low') _eqLow.gain.value = db;
     else if (band === 'mid') _eqMid.gain.value = db;
     else if (band === 'high') _eqHigh.gain.value = db;
-    const label = document.getElementById('npEq' + band.charAt(0).toUpperCase() + band.slice(1) + 'Val');
+    const cap = band.charAt(0).toUpperCase() + band.slice(1);
+    const label = document.getElementById('npEq' + cap + 'Val');
     if (label) label.textContent = (db >= 0 ? '+' : '') + db.toFixed(0) + ' dB';
-    prefs.setItem('eq' + band.charAt(0).toUpperCase() + band.slice(1), String(value));
+    const aeS = document.getElementById('aeEq' + cap);
+    if (aeS) aeS.value = String(db);
+    const aeLab = document.getElementById('aeEq' + cap + 'Val');
+    if (aeLab) aeLab.textContent = (db >= 0 ? '+' : '') + db.toFixed(0) + ' dB';
+    prefs.setItem('eq' + cap, String(value));
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
         window.syncEnginePlaybackDspFromPrefs();
     }
@@ -769,6 +800,10 @@ function setPreampGain(value) {
     _gainNode.gain.value = g;
     const label = document.getElementById('npGainVal');
     if (label) label.textContent = (g * 100).toFixed(0) + '%';
+    const aeG = document.getElementById('aeGainSlider');
+    if (aeG) aeG.value = String(g);
+    const aeLab = document.getElementById('aeGainVal');
+    if (aeLab) aeLab.textContent = (g * 100).toFixed(0) + '%';
     prefs.setItem('preampGain', String(value));
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
         window.syncEnginePlaybackDspFromPrefs();
@@ -780,11 +815,13 @@ function setPan(value) {
     const p = parseFloat(value);
     _panNode.pan.value = p;
     const label = document.getElementById('npPanVal');
-    if (label) {
-        if (Math.abs(p) < 0.05) label.textContent = 'C';
-        else if (p < 0) label.textContent = Math.round(Math.abs(p) * 100) + 'L';
-        else label.textContent = Math.round(p * 100) + 'R';
-    }
+    const panTxt =
+        Math.abs(p) < 0.05 ? 'C' : p < 0 ? Math.round(Math.abs(p) * 100) + 'L' : Math.round(p * 100) + 'R';
+    if (label) label.textContent = panTxt;
+    const aeP = document.getElementById('aePanSlider');
+    if (aeP) aeP.value = String(p);
+    const aeLab = document.getElementById('aePanVal');
+    if (aeLab) aeLab.textContent = panTxt;
     prefs.setItem('audioPan', String(value));
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
         window.syncEnginePlaybackDspFromPrefs();
@@ -2163,6 +2200,9 @@ async function previewAudio(filePath) {
             silenceWebViewAudioForEngine();
             await window.enginePlaybackStart(filePath);
             _enginePlaybackActive = true;
+            if (typeof window !== 'undefined') {
+                window._enginePlaybackResumePath = filePath;
+            }
             stopReverseBufferPlayback();
             _decodedBuf = null;
             _reversedBuf = null;
@@ -2184,6 +2224,9 @@ async function previewAudio(filePath) {
             if (_enginePlaybackActive && typeof window.enginePlaybackStop === 'function') {
                 void window.enginePlaybackStop();
                 _enginePlaybackActive = false;
+            }
+            if (typeof window !== 'undefined') {
+                window._enginePlaybackResumePath = '';
             }
             restoreWebViewAudioAfterEngine();
             ensureAudioGraph();
@@ -2325,6 +2368,9 @@ function stopAudioPlayback() {
     audioPlayer.currentTime = 0;
     audioPlayer.src = '';
     audioPlayerPath = null;
+    if (typeof window !== 'undefined') {
+        window._enginePlaybackResumePath = '';
+    }
     clearAudioPlaybackUI();
 }
 
@@ -2487,8 +2533,21 @@ function seekPlaybackToPercent(pct) {
     if (!audioPlayerPath) return;
     const p = Math.max(0, Math.min(1, pct));
     if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
-        const dur = enginePlaybackDurationSec();
-        if (dur <= 0) return;
+        let dur = enginePlaybackDurationSec();
+        if (dur <= 0) {
+            void (async () => {
+                try {
+                    const st = await window.vstUpdater.audioEngineInvoke({cmd: 'playback_status'});
+                    if (st && st.ok === true && typeof st.duration_sec === 'number' && st.duration_sec > 0) {
+                        window._enginePlaybackDurSec = st.duration_sec;
+                        await window.vstUpdater.audioEngineInvoke({cmd: 'playback_seek', position_sec: p * st.duration_sec});
+                    }
+                } catch {
+                    /* ignore */
+                }
+            })();
+            return;
+        }
         void window.vstUpdater.audioEngineInvoke({cmd: 'playback_seek', position_sec: p * dur});
         return;
     }
@@ -2515,7 +2574,12 @@ function seekAudio(event) {
 
 function setAudioVolume(value) {
     const vol = parseInt(value, 10) / 100;
-    document.getElementById('npVolumePct').textContent = value + '%';
+    const npPct = document.getElementById('npVolumePct');
+    if (npPct) npPct.textContent = value + '%';
+    const aeV = document.getElementById('aeVolume');
+    if (aeV) aeV.value = String(value);
+    const aePct = document.getElementById('aeVolumePct');
+    if (aePct) aePct.textContent = value + '%';
     prefs.setItem('audioVolume', value);
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
         audioPlayer.volume = 0;
@@ -2535,6 +2599,8 @@ function setAudioVolume(value) {
 function setPlaybackSpeed(value) {
     const v = parseFloat(value);
     prefs.setItem('audioSpeed', value);
+    const aeSp = document.getElementById('aePlaybackSpeed');
+    if (aeSp) aeSp.value = String(value);
     if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
         const s = Number.isFinite(v) ? Math.max(0.25, Math.min(2, v)) : 1;
         void window.vstUpdater.audioEngineInvoke({cmd: 'playback_set_speed', speed: s});
@@ -3283,21 +3349,36 @@ function toggleShuffle() {
 function toggleMute() {
     const btn = document.getElementById('npBtnMute');
     const slider = document.getElementById('npVolume');
+    const pctEl = document.getElementById('npVolumePct');
     if (audioMuted) {
-        audioPlayer.volume = savedVolume;
-        if (_gainNode) _gainNode.gain.value = savedVolume * parseFloat(document.getElementById('npGainSlider')?.value || '1');
+        if (_enginePlaybackActive && typeof setAudioVolume === 'function') {
+            const pct =
+                typeof savedMuteVolumePct === 'number' && !Number.isNaN(savedMuteVolumePct)
+                    ? savedMuteVolumePct
+                    : Math.round(savedVolume * 100);
+            setAudioVolume(String(Math.max(0, Math.min(100, pct))));
+        } else {
+            audioPlayer.volume = savedVolume;
+            if (_gainNode) _gainNode.gain.value = savedVolume * parseFloat(document.getElementById('npGainSlider')?.value || '1');
+            if (slider) slider.value = Math.round(savedVolume * 100);
+            if (pctEl) pctEl.textContent = Math.round(savedVolume * 100) + '%';
+        }
         audioMuted = false;
         if (btn) btn.innerHTML = '&#128264;';
-        if (slider) slider.value = Math.round(savedVolume * 100);
-        document.getElementById('npVolumePct').textContent = Math.round(savedVolume * 100) + '%';
     } else {
-        savedVolume = audioPlayer.volume;
-        audioPlayer.volume = 0;
-        if (_gainNode) _gainNode.gain.value = 0;
+        if (_enginePlaybackActive && typeof prefs !== 'undefined' && typeof prefs.getItem === 'function' && typeof setAudioVolume === 'function') {
+            const raw = parseInt(prefs.getItem('audioVolume') || '100', 10);
+            savedMuteVolumePct = Number.isNaN(raw) ? 100 : Math.max(0, Math.min(100, raw));
+            setAudioVolume('0');
+        } else {
+            savedVolume = audioPlayer.volume;
+            audioPlayer.volume = 0;
+            if (_gainNode) _gainNode.gain.value = 0;
+            if (slider) slider.value = 0;
+            if (pctEl) pctEl.textContent = catalogFmt('ui.audio.volume_zero');
+        }
         audioMuted = true;
         if (btn) btn.innerHTML = '&#128263;';
-        if (slider) slider.value = 0;
-        document.getElementById('npVolumePct').textContent = catalogFmt('ui.audio.volume_zero');
     }
 }
 
