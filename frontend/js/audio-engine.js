@@ -23,6 +23,12 @@ function initAudioEngineTab() {
             void applyAudioEngineDevice();
         });
     }
+    const stopBtn = document.getElementById('aeStopStream');
+    if (stopBtn && typeof stopBtn.addEventListener === 'function') {
+        stopBtn.addEventListener('click', () => {
+            void stopAeOutputStream();
+        });
+    }
 
     void refreshAudioEnginePanel();
 }
@@ -62,7 +68,28 @@ async function fillAeDeviceCaps(inv, deviceId) {
 }
 
 /**
- * Reload ping, device list, and plugin stub from the sidecar.
+ * @param {function} inv — `window.vstUpdater.audioEngineInvoke`
+ */
+async function fillAeStreamStatus(inv) {
+    const el = document.getElementById('aeStreamStatus');
+    if (!el || typeof inv !== 'function' || typeof catalogFmt !== 'function') {
+        if (el) el.textContent = '—';
+        return;
+    }
+    try {
+        const st = await inv({cmd: 'output_stream_status'});
+        if (st && st.ok === true && st.running === true && st.device_id != null && st.device_id !== '') {
+            el.textContent = catalogFmt('ui.ae.output_stream_on', {device: String(st.device_id)});
+        } else {
+            el.textContent = catalogFmt('ui.ae.output_stream_off');
+        }
+    } catch {
+        el.textContent = '—';
+    }
+}
+
+/**
+ * Reload ping, device list, stream status, and plugin stub from the sidecar.
  */
 async function refreshAudioEnginePanel() {
     const statusEl = document.getElementById('aeEngineStatus');
@@ -94,6 +121,8 @@ async function refreshAudioEnginePanel() {
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
         }
+
+        await fillAeStreamStatus(inv);
 
         const list = await inv({cmd: 'list_output_devices'});
         if (!list || list.ok !== true) {
@@ -164,10 +193,44 @@ async function applyAudioEngineDevice() {
             const err = (r && r.error) ? String(r.error) : 'set_output_device failed';
             throw new Error(err);
         }
+        const start = await inv({cmd: 'start_output_stream', device_id: id});
+        if (!start || start.ok !== true) {
+            const err = (start && start.error) ? String(start.error) : 'start_output_stream failed';
+            throw new Error(err);
+        }
         if (statusEl && typeof catalogFmt === 'function') {
-            statusEl.textContent = catalogFmt('ui.ae.status_applied', {id});
+            statusEl.textContent = catalogFmt('ui.ae.status_applied_stream', {id});
         }
         await fillAeDeviceCaps(inv, id);
+        await fillAeStreamStatus(inv);
+    } catch (e) {
+        const msg = e && e.message ? String(e.message) : String(e);
+        if (statusEl && typeof catalogFmt === 'function') {
+            statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
+        }
+    }
+}
+
+async function stopAeOutputStream() {
+    const statusEl = document.getElementById('aeEngineStatus');
+    const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
+        ? window.vstUpdater.audioEngineInvoke
+        : null;
+    if (!inv) return;
+
+    try {
+        const r = await inv({cmd: 'stop_output_stream'});
+        if (!r || r.ok !== true) {
+            const err = (r && r.error) ? String(r.error) : 'stop_output_stream failed';
+            throw new Error(err);
+        }
+        const ping = await inv({cmd: 'ping'});
+        if (ping && ping.ok === true && statusEl && typeof catalogFmt === 'function') {
+            const ver = ping.version != null ? String(ping.version) : '?';
+            const host = ping.host != null ? String(ping.host) : '?';
+            statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
+        }
+        await fillAeStreamStatus(inv);
     } catch (e) {
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
