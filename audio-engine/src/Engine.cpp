@@ -2,6 +2,7 @@
 #include "Engine.hpp"
 #include "VisualPreview.hpp"
 
+#include <atomic>
 #include <bit>
 #include <cmath>
 #include <functional>
@@ -24,7 +25,7 @@ namespace audio_haxor {
 namespace {
 
 #ifndef AUDIO_ENGINE_VERSION_STRING
-#define AUDIO_ENGINE_VERSION_STRING "2.2.0"
+#define AUDIO_ENGINE_VERSION_STRING "2.3.0"
 #endif
 
 static constexpr float kTestToneHz = 440.0f;
@@ -62,6 +63,37 @@ static juce::File deadMansPedalFilePath()
                          .getChildFile("audio-haxor");
     (void) dir.createDirectory();
     return dir.getChildFile("plugin-scan-dead-mans-pedal.txt");
+}
+
+/** Persisted `KnownPluginList` so restarts skip unchanged modules (paired with `dontRescanIfAlreadyInList`). */
+static juce::File knownPluginListCacheFilePath()
+{
+    return deadMansPedalFilePath().getParentDirectory().getChildFile("known-plugin-list.xml");
+}
+
+static juce::StringArray readDeadMansPedalLines(const juce::File& deadMans)
+{
+    juce::StringArray lines;
+    if (deadMans.getFullPathName().isNotEmpty())
+        deadMans.readLines(lines);
+    lines.removeEmptyStrings();
+    return lines;
+}
+
+/** Same file order as `juce::PluginDirectoryScanner` (searchPaths + dead-man's-pedal reorder). */
+static juce::StringArray buildOrderedPluginScanFiles(juce::AudioPluginFormat& format,
+                                                     const juce::FileSearchPath& dirs,
+                                                     bool recursive,
+                                                     const juce::File& deadMans)
+{
+    juce::FileSearchPath p = dirs;
+    p.removeRedundantPaths();
+    juce::StringArray files = format.searchPathsForPlugins(p, recursive, false);
+    for (const auto& crashed : readDeadMansPedalLines(deadMans))
+        for (int j = files.size(); --j >= 0;)
+            if (crashed == files[j])
+                files.move(j, -1);
+    return files;
 }
 
 static juce::var bufferSizeJson(juce::AudioIODevice* dev)
@@ -717,6 +749,28 @@ struct Engine::Impl
     PluginScanPhase pluginScanPhase = PluginScanPhase::Idle;
     juce::String pluginScanLastError;
 
+    struct PluginScanProgressState
+    {
+        std::atomic<int> done{0};
+        std::atomic<int> total{0};
+        std::atomic<int> skipped{0};
+        std::atomic<bool> cacheLoaded{false};
+        std::mutex mutex;
+        juce::String currentFormat;
+        juce::String currentName;
+
+        void resetForNewScan()
+        {
+            done.store(0, std::memory_order_relaxed);
+            skipped.store(0, std::memory_order_relaxed);
+            total.store(0, std::memory_order_relaxed);
+            std::lock_guard<std::mutex> lock(mutex);
+            currentFormat.clear();
+            currentName.clear();
+        }
+    };
+    PluginScanProgressState pluginScanProgress;
+
     /** Deferred so `ping` / stdin smoke tests do not block on CoreAudio before any line is read. */
     bool audioDeviceManagersInitialised = false;
 
@@ -743,13 +797,25 @@ struct Engine::Impl
             pluginScanThread.join();
     }
 
-    static void scanPluginFormatWithRecovery(juce::KnownPluginList& list, juce::AudioPluginFormat& format, const juce::FileSearchPath& dirs,
-                                             const juce::File& deadMans)
+    void scanPluginFormatWithProgress(juce::KnownPluginList& list, juce::AudioPluginFormat& format,
+                                      const juce::FileSearchPath& dirs, const juce::File& deadMans,
+                                      const juce::String& formatLabel)
     {
-        juce::String name;
+        juce::StringArray files = buildOrderedPluginScanFiles(format, dirs, true, deadMans);
         juce::PluginDirectoryScanner scanner(list, format, dirs, true, deadMans, false);
-        for (;;)
+        const int n = files.size();
+        juce::String name;
+        int processed = 0;
+        while (processed < n)
         {
+            const juce::String fileId = files[static_cast<size_t>(n - 1 - processed)];
+            if (list.isListingUpToDate(fileId, format))
+                pluginScanProgress.skipped.fetch_add(1, std::memory_order_relaxed);
+            {
+                std::lock_guard<std::mutex> lk(pluginScanProgress.mutex);
+                pluginScanProgress.currentFormat = formatLabel;
+                pluginScanProgress.currentName = format.getNameOfPluginFromIdentifier(fileId);
+            }
             bool more = false;
             try
             {
@@ -763,25 +829,67 @@ struct Engine::Impl
             {
                 continue;
             }
+            processed++;
+            pluginScanProgress.done.fetch_add(1, std::memory_order_relaxed);
             if (!more)
                 break;
+        }
+        {
+            std::lock_guard<std::mutex> lk(pluginScanProgress.mutex);
+            pluginScanProgress.currentName.clear();
         }
     }
 
     void runPluginScanWorker()
     {
         juce::KnownPluginList list;
+        const juce::File cacheFile = knownPluginListCacheFilePath();
+        if (cacheFile.existsAsFile())
+        {
+            juce::XmlDocument doc(cacheFile);
+            if (std::unique_ptr<juce::XmlElement> root = doc.getDocumentElement())
+            {
+                list.recreateFromXml(*root);
+                pluginScanProgress.cacheLoaded.store(true, std::memory_order_relaxed);
+            }
+            else
+            {
+                pluginScanProgress.cacheLoaded.store(false, std::memory_order_relaxed);
+            }
+        }
+        else
+        {
+            pluginScanProgress.cacheLoaded.store(false, std::memory_order_relaxed);
+        }
+
         const juce::File deadMans = deadMansPedalFilePath();
+
+        int vst3Total = 0;
+        int auTotal = 0;
+        {
+            juce::FileSearchPath p = vst3.getDefaultLocationsToSearch();
+            p.removeRedundantPaths();
+            vst3Total = vst3.searchPathsForPlugins(p, true, false).size();
+        }
+#if JUCE_MAC
+        {
+            juce::FileSearchPath p = auFormat.getDefaultLocationsToSearch();
+            p.removeRedundantPaths();
+            auTotal = auFormat.searchPathsForPlugins(p, true, false).size();
+        }
+#endif
+        pluginScanProgress.total.store(vst3Total + auTotal, std::memory_order_relaxed);
+
         try
         {
             {
                 const juce::FileSearchPath dirs = vst3.getDefaultLocationsToSearch();
-                scanPluginFormatWithRecovery(list, vst3, dirs, deadMans);
+                scanPluginFormatWithProgress(list, vst3, dirs, deadMans, "VST3");
             }
 #if JUCE_MAC
             {
                 const juce::FileSearchPath auDirs = auFormat.getDefaultLocationsToSearch();
-                scanPluginFormatWithRecovery(list, auFormat, auDirs, deadMans);
+                scanPluginFormatWithProgress(list, auFormat, auDirs, deadMans, "AU");
             }
 #endif
         }
@@ -798,6 +906,12 @@ struct Engine::Impl
             pluginScanPhase = PluginScanPhase::Failed;
             pluginScanLastError = "scan failed: unknown exception";
             return;
+        }
+
+        if (auto xml = list.createXml())
+        {
+            (void) cacheFile.getParentDirectory().createDirectory();
+            xml->writeTo(cacheFile, {});
         }
 
         const juce::Array<juce::PluginDescription> types = list.getTypes();
@@ -851,6 +965,7 @@ struct Engine::Impl
 
         if (pluginScanPhase == PluginScanPhase::Idle)
         {
+            pluginScanProgress.resetForNewScan();
             pluginScanPhase = PluginScanPhase::Running;
             if (pluginScanThread.joinable())
                 pluginScanThread.join();
@@ -866,6 +981,15 @@ struct Engine::Impl
                 o->setProperty("plugins", juce::Array<juce::var>());
                 o->setProperty("plugin_count", 0);
                 o->setProperty("note", "JUCE plugin scan running on background thread; poll plugin_chain until phase is not scanning.");
+                o->setProperty("scan_done", pluginScanProgress.done.load(std::memory_order_relaxed));
+                o->setProperty("scan_total", pluginScanProgress.total.load(std::memory_order_relaxed));
+                o->setProperty("scan_skipped", pluginScanProgress.skipped.load(std::memory_order_relaxed));
+                o->setProperty("scan_cache_loaded", pluginScanProgress.cacheLoaded.load(std::memory_order_relaxed));
+                {
+                    std::lock_guard<std::mutex> lk(pluginScanProgress.mutex);
+                    o->setProperty("scan_current_format", pluginScanProgress.currentFormat);
+                    o->setProperty("scan_current_name", pluginScanProgress.currentName);
+                }
             }
             return out;
         }
@@ -883,6 +1007,15 @@ struct Engine::Impl
                 o->setProperty("plugins", juce::Array<juce::var>());
                 o->setProperty("plugin_count", 0);
                 o->setProperty("note", "JUCE plugin scan running on background thread; poll plugin_chain until phase is not scanning.");
+                o->setProperty("scan_done", pluginScanProgress.done.load(std::memory_order_relaxed));
+                o->setProperty("scan_total", pluginScanProgress.total.load(std::memory_order_relaxed));
+                o->setProperty("scan_skipped", pluginScanProgress.skipped.load(std::memory_order_relaxed));
+                o->setProperty("scan_cache_loaded", pluginScanProgress.cacheLoaded.load(std::memory_order_relaxed));
+                {
+                    std::lock_guard<std::mutex> lk(pluginScanProgress.mutex);
+                    o->setProperty("scan_current_format", pluginScanProgress.currentFormat);
+                    o->setProperty("scan_current_name", pluginScanProgress.currentName);
+                }
             }
             return out;
         }

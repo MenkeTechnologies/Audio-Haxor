@@ -21,6 +21,9 @@ let aeInitialDeviceTypeRestored = false;
 /** Incremented at the start of each `refreshAudioEnginePanel` so in-flight plugin-scan polls do not apply stale results. */
 let aePluginChainPollGeneration = 0;
 
+/** Throttle `toast.ae_plugin_scan_progress` during long scans (`fetchPluginChainUntilSettled`). */
+let aePluginScanProgressToastAt = 0;
+
 function migrateAeBufferPrefs() {
     if (typeof prefs === 'undefined' || typeof prefs.getItem !== 'function' || typeof prefs.setItem !== 'function') {
         return;
@@ -516,10 +519,19 @@ async function fetchPluginChainUntilSettled(inv, initialChain) {
 
     let attempts = 0;
     const maxAttempts = 600;
+    aePluginScanProgressToastAt = typeof Date.now === 'function' ? Date.now() - 2600 : 0;
     while (chain && chain.phase === 'scanning' && attempts < maxAttempts) {
         await delay(250);
         chain = await inv({cmd: 'plugin_chain'});
         attempts++;
+        const now = typeof Date.now === 'function' ? Date.now() : 0;
+        if (chain && chain.phase === 'scanning' && now - aePluginScanProgressToastAt >= 2500) {
+            aePluginScanProgressToastAt = now;
+            const line = formatAePluginScanProgressLine(chain);
+            if (line && typeof showToast === 'function' && typeof toastFmt === 'function') {
+                showToast(toastFmt('toast.ae_plugin_scan_progress', {line}), 2200, 'info');
+            }
+        }
     }
 
     if (chain && chain.phase === 'scanning' && attempts >= maxAttempts) {
@@ -541,10 +553,39 @@ async function fetchPluginChainUntilSettled(inv, initialChain) {
 }
 
 /**
+ * Format `plugin_chain` scanning fields (`scan_done`, `scan_total`, …) for the Audio Engine tab + toasts.
+ * @param {object|null} chain
+ * @returns {string}
+ */
+function formatAePluginScanProgressLine(chain) {
+    if (!chain || chain.phase !== 'scanning') return '';
+    const done = chain.scan_done != null ? Number(chain.scan_done) : 0;
+    const total = chain.scan_total != null ? Number(chain.scan_total) : 0;
+    const skipped = chain.scan_skipped != null ? Number(chain.scan_skipped) : 0;
+    const fmt = chain.scan_current_format != null ? String(chain.scan_current_format) : '';
+    let name = chain.scan_current_name != null ? String(chain.scan_current_name) : '';
+    if (name.length > 80) name = name.slice(0, 77) + '…';
+    const cacheOn = chain.scan_cache_loaded === true;
+    if (typeof catalogFmt === 'function') {
+        return catalogFmt('ui.ae.plugins_scan_progress', {
+            done: String(Number.isFinite(done) ? done : 0),
+            total: String(Number.isFinite(total) ? total : 0),
+            skipped: String(Number.isFinite(skipped) ? skipped : 0),
+            format: fmt,
+            name: name || '—',
+            cache: cacheOn ? catalogFmt('ui.ae.plugins_scan_cache_prefix') : '',
+        });
+    }
+    const c = cacheOn ? '[cache] ' : '';
+    return `${c}${done}/${total} · skipped ${skipped} · ${fmt}: ${name || '—'}`;
+}
+
+/**
  * @param {object|null} chain — `plugin_chain` payload
  */
 function fillAePluginSection(chain) {
     const stub = document.getElementById('aePluginStub');
+    const prog = document.getElementById('aePluginScanProgress');
     const ul = document.getElementById('aePluginSlotList');
     if (!stub || typeof catalogFmt !== 'function') return;
     const phase = chain && chain.phase != null ? String(chain.phase) : '—';
@@ -565,6 +606,10 @@ function fillAePluginSection(chain) {
         stub.textContent = catalogFmt('ui.ae.plugins_scan_failed', {err});
     } else if (phase === 'scanning') {
         stub.textContent = catalogFmt('ui.ae.plugins_scanning_note');
+        if (prog) {
+            prog.style.display = '';
+            prog.textContent = formatAePluginScanProgressLine(chain);
+        }
     } else {
         stub.textContent = catalogFmt('ui.ae.plugins_stub', {
             phase,
@@ -572,6 +617,10 @@ function fillAePluginSection(chain) {
             count: String(n),
             note,
         });
+    }
+    if (prog && phase !== 'scanning') {
+        prog.style.display = 'none';
+        prog.textContent = '';
     }
     aePopulateInsertSlotSelects(chain);
     if (!ul || typeof ul.replaceChildren !== 'function') return;
