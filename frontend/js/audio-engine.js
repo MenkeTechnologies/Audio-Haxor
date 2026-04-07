@@ -450,11 +450,11 @@ function fillAeStreamsFromEngineState(es) {
 
 /**
  * After a failed IPC action, re-read `engine_state` when possible so stream lines match the sidecar; else clear.
- * @param {function|null|undefined} inv — `window.vstUpdater.audioEngineInvoke`
  * @returns {Promise<object|null>} last `engine_state` payload when `ok === true`, else `null`
  */
-async function fillAeStreamsAfterEngineError(inv) {
-    if (!inv || typeof inv !== 'function') {
+async function fillAeStreamsAfterEngineError() {
+    const inv = getAeAudioEngineInvoke();
+    if (!inv) {
         fillAeStreamsFromEngineState(null);
         return null;
     }
@@ -666,7 +666,7 @@ async function toggleAeTestTone(enabled) {
             toneCb.checked = es.stream.tone_on === true;
         }
     } catch (e) {
-        const es = await fillAeStreamsAfterEngineError(inv);
+        const es = await fillAeStreamsAfterEngineError();
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
@@ -729,7 +729,7 @@ async function applyAudioEngineDevice() {
             if (es.stream.tone_on != null) toneCb.checked = es.stream.tone_on === true;
         }
     } catch (e) {
-        const es = await fillAeStreamsAfterEngineError(inv);
+        const es = await fillAeStreamsAfterEngineError();
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
@@ -779,7 +779,7 @@ async function startAeInputCapture() {
             statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
         }
     } catch (e) {
-        await fillAeStreamsAfterEngineError(inv);
+        await fillAeStreamsAfterEngineError();
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
@@ -809,7 +809,7 @@ async function stopAeInputCapture() {
             statusEl.textContent = catalogFmt('ui.ae.status_ok', {version: ver, host});
         }
     } catch (e) {
-        await fillAeStreamsAfterEngineError(inv);
+        await fillAeStreamsAfterEngineError();
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
@@ -844,7 +844,7 @@ async function stopAeOutputStream() {
             toneCb.checked = false;
         }
     } catch (e) {
-        const es = await fillAeStreamsAfterEngineError(inv);
+        const es = await fillAeStreamsAfterEngineError();
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {
             statusEl.textContent = catalogFmt('ui.ae.status_error', {message: msg});
