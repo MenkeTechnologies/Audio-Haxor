@@ -220,6 +220,13 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
             } => {
                 let res = (|| {
                     current.take();
+                    /* Dropping the stream does not stop the decoder thread (`PlaybackSession::join`).
+                     * `enginePlaybackStart` always calls `stop_output_stream` first; Apply only calls
+                     * `start_output_stream`. Without stopping here, `begin_playback` hits "playback already
+                     * running" or leaves multiple decoders / wrong rate vs the new device callback. */
+                    if start_playback {
+                        playback::stop_playback_thread();
+                    }
                     let device = resolve_device(device_id.as_deref())?;
                     let device_name = device.name().unwrap_or_default();
                     let resolved_id = match device_id.as_deref().filter(|s| !s.is_empty()) {
