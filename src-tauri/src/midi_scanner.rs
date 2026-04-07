@@ -145,7 +145,7 @@ fn walk_dir_parallel(
                 let d = m.dev();
                 if let Some(pd) = parent_dev {
                     if pd != d {
-                        crate::write_app_log(format!(
+                        crate::write_app_log_verbose(format!(
                             "SCAN MOUNT — midi | {} | parent_dev={} current_dev={}",
                             dir.display(),
                             pd,
@@ -174,7 +174,7 @@ fn walk_dir_parallel(
             // something the user might care about (network mounts, /mnt).
             let s = dir.to_string_lossy();
             if s.contains("/mnt/") || s.ends_with("/mnt") {
-                crate::write_app_log(format!(
+                crate::write_app_log_verbose(format!(
                     "SCAN DEDUP SKIP — midi | orig={} | canon={} | key={}",
                     orig.display(),
                     canon

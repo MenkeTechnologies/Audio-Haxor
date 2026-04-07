@@ -62,8 +62,13 @@ use tauri::{AppHandle, Emitter, Manager};
 /// Domain string for SQLite `directory_scan_state` — shared by unified and standalone walkers.
 pub const DIRECTORY_SCAN_INCREMENTAL_DOMAIN: &str = "unified";
 
-/// Cached `app.log` verbosity: `0` = quiet (suppress high-volume scan diagnostics), `1` = normal, `2` = verbose (reserved).
+/// Cached `app.log` verbosity: `0` = quiet (suppress selected normal-level chatter), `1` = normal, `2` = verbose (extra scan/KVR diagnostics).
 static LOG_VERBOSITY_LEVEL: AtomicU8 = AtomicU8::new(1);
+
+#[inline]
+pub fn log_verbosity_level() -> u8 {
+    LOG_VERBOSITY_LEVEL.load(Ordering::Relaxed)
+}
 
 fn refresh_log_verbosity_from_prefs() {
     let level = history::get_preference("logVerbosity")
@@ -82,15 +87,8 @@ fn should_suppress_app_log_line(msg: &str) -> bool {
         return false;
     }
     let m = msg.trim_start();
-    const PREFIXES: &[&str] = &[
-        "SCAN ROOT — unified |",
-        "SCAN NETWORK CANONICALIZE FAIL",
-        "SCAN DEDUP SKIP",
-        "SCAN NETWORK ENTER",
-        "SCAN NETWORK RETRY",
-        "SCAN NETWORK RECOVERED",
-        "SCAN MOUNT — midi",
-    ];
+    // Optional normal-level prefixes to hide in Quiet (high-volume `write_app_log` only).
+    const PREFIXES: &[&str] = &[];
     PREFIXES.iter().any(|p| m.starts_with(p))
 }
 
@@ -123,7 +121,13 @@ fn load_incremental_dir_state_for_walk() -> Option<Arc<unified_walker::Increment
         }
         Ok(true) => match db::global().load_directory_scan_snapshot(DIRECTORY_SCAN_INCREMENTAL_DOMAIN)
         {
-            Ok(m) => Some(Arc::new(unified_walker::IncrementalDirState::new(m))),
+            Ok(m) => {
+                let n = m.len();
+                crate::app_log_verbose(move || {
+                    format!("SCAN VERBOSE — incremental snapshot loaded: {n} directory keys")
+                });
+                Some(Arc::new(unified_walker::IncrementalDirState::new(m)))
+            }
             Err(e) => {
                 crate::write_app_log(format!(
                     "SCAN INCREMENTAL — load directory snapshot failed ({e}); full walk",
@@ -702,6 +706,12 @@ async fn check_updates(
 
         // Only rate-limit when we actually hit the network
         if !kvr_cache.contains_key(&cache_key) {
+            crate::app_log_verbose(|| {
+                format!(
+                    "UPDATE VERBOSE — KVR network fetch | {} | {}",
+                    representative.name, representative.manufacturer
+                )
+            });
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
     }
@@ -2833,13 +2843,7 @@ fn append_log(msg: String) {
     write_app_log(msg);
 }
 
-/// Public log-append entry point callable from any module. Writes a
-/// timestamped line to `<data-dir>/app.log`, rotating to `.log.1` at 5MB.
-/// The `append_log` Tauri command delegates to this.
-pub fn write_app_log(msg: String) {
-    if should_suppress_app_log_line(&msg) {
-        return;
-    }
+fn write_app_log_line(msg: &str) {
     let path = history::get_data_dir().join("app.log");
     // Ensure dir exists
     if let Some(parent) = path.parent() {
@@ -2863,6 +2867,32 @@ pub fn write_app_log(msg: String) {
             use std::io::Write;
             f.write_all(line.as_bytes())
         });
+}
+
+/// Extra diagnostics when `logVerbosity` is `verbose`. `f` runs only if verbose (no `format!` cost otherwise).
+pub fn app_log_verbose<F: FnOnce() -> String>(f: F) {
+    if LOG_VERBOSITY_LEVEL.load(Ordering::Relaxed) < 2 {
+        return;
+    }
+    write_app_log_line(&f());
+}
+
+/// Like [`app_log_verbose`] when the message is already a `String`.
+pub fn write_app_log_verbose(msg: String) {
+    if LOG_VERBOSITY_LEVEL.load(Ordering::Relaxed) < 2 {
+        return;
+    }
+    write_app_log_line(&msg);
+}
+
+/// Public log-append entry point callable from any module. Writes a
+/// timestamped line to `<data-dir>/app.log`, rotating to `.log.1` at 5MB.
+/// The `append_log` Tauri command delegates to this.
+pub fn write_app_log(msg: String) {
+    if should_suppress_app_log_line(&msg) {
+        return;
+    }
+    write_app_log_line(&msg);
 }
 
 #[tauri::command]
@@ -6857,23 +6887,40 @@ pub fn run() {
 
 #[cfg(test)]
 mod log_verbosity_tests {
-    use super::{should_suppress_app_log_line, LOG_VERBOSITY_LEVEL};
-    use std::sync::atomic::Ordering;
+    use super::{app_log_verbose, log_verbosity_level, should_suppress_app_log_line, LOG_VERBOSITY_LEVEL};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
-    fn quiet_suppresses_scan_chatter() {
+    fn quiet_filter_is_opt_in_prefix_list() {
         LOG_VERBOSITY_LEVEL.store(0, Ordering::Relaxed);
-        assert!(should_suppress_app_log_line("SCAN DEDUP SKIP — unified | x"));
-        assert!(should_suppress_app_log_line("SCAN NETWORK RETRY — unified | x"));
         assert!(!should_suppress_app_log_line("SCAN ERROR — daw | x"));
         assert!(!should_suppress_app_log_line("SCAN TCC DENIED — unified | x"));
         LOG_VERBOSITY_LEVEL.store(1, Ordering::Relaxed);
     }
 
     #[test]
-    fn normal_keeps_diagnostics() {
+    fn app_log_verbose_skips_closure_when_not_verbose() {
+        let calls = AtomicUsize::new(0);
         LOG_VERBOSITY_LEVEL.store(1, Ordering::Relaxed);
-        assert!(!should_suppress_app_log_line("SCAN DEDUP SKIP — unified | x"));
+        app_log_verbose(|| {
+            calls.fetch_add(1, Ordering::Relaxed);
+            "should not run".to_string()
+        });
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
+        LOG_VERBOSITY_LEVEL.store(2, Ordering::Relaxed);
+        app_log_verbose(|| {
+            calls.fetch_add(1, Ordering::Relaxed);
+            "should run".to_string()
+        });
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        LOG_VERBOSITY_LEVEL.store(1, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn log_verbosity_level_tracks_atomic() {
+        LOG_VERBOSITY_LEVEL.store(2, Ordering::Relaxed);
+        assert_eq!(log_verbosity_level(), 2);
+        LOG_VERBOSITY_LEVEL.store(1, Ordering::Relaxed);
     }
 }
 

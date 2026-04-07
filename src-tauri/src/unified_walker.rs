@@ -391,9 +391,10 @@ pub fn walk_unified(
     // their SMB/NFS shares are included in the walk.
     for r in &union {
         if let Some(fs) = network_fs_type(r) {
-            crate::write_app_log(format!(
+            let p = r.display().to_string();
+            crate::write_app_log_verbose(format!(
                 "SCAN ROOT — unified | {} [NETWORK: {}]",
-                r.display(), fs,
+                p, fs,
             ));
         }
     }
@@ -498,7 +499,7 @@ fn walk_dir_parallel(
         let canon_result = fs::canonicalize(dir);
         if is_network_path(dir) {
             if let Err(ref e) = canon_result {
-                crate::write_app_log(format!(
+                crate::write_app_log_verbose(format!(
                     "SCAN NETWORK CANONICALIZE FAIL — unified | {} | {} (using original path as dedup key)",
                     dir.display(), e,
                 ));
@@ -509,7 +510,7 @@ fn walk_dir_parallel(
         let mut vis = visited.lock().unwrap_or_else(|e| e.into_inner());
         if !vis.insert(key.clone()) {
             if is_network_path(dir) {
-                crate::write_app_log(format!(
+                crate::write_app_log_verbose(format!(
                     "SCAN DEDUP SKIP — unified | orig={} | canon={} | key={}",
                     orig.display(),
                     canon.as_ref().map(|p| p.display().to_string())
@@ -534,7 +535,7 @@ fn walk_dir_parallel(
     // verify their mounts are actually being traversed.
     if depth <= 2 {
         if let Some(fstype) = network_fs_type(dir) {
-            crate::write_app_log(format!(
+            crate::write_app_log_verbose(format!(
                 "SCAN NETWORK ENTER — unified | {} | fs={} | depth={}",
                 dir.display(), fstype, depth,
             ));
@@ -588,7 +589,7 @@ fn walk_dir_parallel(
             // Retry up to 3 times with exponential backoff (50ms, 100ms, 200ms).
             const MAX_RETRIES: u32 = 3;
             const BASE_DELAY_MS: u64 = 50;
-            crate::write_app_log(format!(
+            crate::write_app_log_verbose(format!(
                 "SCAN NETWORK RETRY — unified | {} | first error: {} | up to {} retries",
                 dir.display(), first_err, MAX_RETRIES,
             ));
@@ -599,7 +600,7 @@ fn walk_dir_parallel(
                 std::thread::sleep(std::time::Duration::from_millis(delay));
                 match read_dir_bulk(dir) {
                     Ok(e) => {
-                        crate::write_app_log(format!(
+                        crate::write_app_log_verbose(format!(
                             "SCAN NETWORK RECOVERED — unified | {} | succeeded on retry {}",
                             dir.display(), attempt + 1,
                         ));
@@ -626,6 +627,20 @@ fn walk_dir_parallel(
             }
         }
     };
+
+    // Verbose: entry counts near roots only (avoids multi-million-line logs on deep trees).
+    if depth <= 2 {
+        let n = entries.len();
+        let d = dir.to_path_buf();
+        crate::app_log_verbose(move || {
+            format!(
+                "SCAN VERBOSE — unified | depth={} | dir={} | entries={}",
+                depth,
+                d.display(),
+                n
+            )
+        });
+    }
 
     // Per-type batches collected in this directory before being flushed.
     let mut audio_batch: Vec<AudioSample> = Vec::new();
