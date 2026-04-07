@@ -109,7 +109,8 @@ async function fetchPluginPage() {
   const isLoadMore = _pluginOffset > 0;
   showPluginQueryLoading(isLoadMore);
   if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('searchInput', true);
-  await new Promise((r) => requestAnimationFrame(r));
+  if (typeof yieldForFilterFieldPaint === 'function') await yieldForFilterFieldPaint();
+  else await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryPlugins({
       search: search || null,

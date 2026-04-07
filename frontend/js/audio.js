@@ -1148,7 +1148,8 @@ async function fetchAudioPage() {
   const isLoadMore = audioCurrentOffset > 0;
   showAudioQueryLoading(isLoadMore);
   if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('audioSearchInput', true);
-  await new Promise((r) => requestAnimationFrame(r));
+  if (typeof yieldForFilterFieldPaint === 'function') await yieldForFilterFieldPaint();
+  else await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryAudio({
       search: search || null,

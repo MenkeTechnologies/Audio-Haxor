@@ -96,7 +96,8 @@ async function fetchPresetPage() {
   const isLoadMore = _presetOffset > 0;
   showPresetQueryLoading(isLoadMore);
   if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('presetSearchInput', true);
-  await new Promise((r) => requestAnimationFrame(r));
+  if (typeof yieldForFilterFieldPaint === 'function') await yieldForFilterFieldPaint();
+  else await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryPresets({
       search: search || null,

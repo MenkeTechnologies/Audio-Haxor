@@ -82,7 +82,8 @@ async function fetchPdfPage() {
   const isLoadMore = _pdfOffset > 0;
   showPdfQueryLoading(isLoadMore);
   if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('pdfSearchInput', true);
-  await new Promise((r) => requestAnimationFrame(r));
+  if (typeof yieldForFilterFieldPaint === 'function') await yieldForFilterFieldPaint();
+  else await new Promise((r) => requestAnimationFrame(r));
   try {
     // Backend only knows filesystem sort keys. When user picks 'pages' (client-side),
     // fetch by name and re-sort in renderPdfTable using the _pdfPagesCache.

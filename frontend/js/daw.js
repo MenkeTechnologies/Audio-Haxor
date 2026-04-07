@@ -76,7 +76,8 @@ async function fetchDawPage() {
   const isLoadMore = _dawOffset > 0;
   showDawQueryLoading(isLoadMore);
   if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('dawSearchInput', true);
-  await new Promise((r) => requestAnimationFrame(r));
+  if (typeof yieldForFilterFieldPaint === 'function') await yieldForFilterFieldPaint();
+  else await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryDaw({
       search: search || null,

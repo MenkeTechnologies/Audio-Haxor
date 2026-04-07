@@ -28,6 +28,21 @@ function yieldToBrowser() {
   });
 }
 
+/**
+ * After `setFilterFieldLoading(true)`, yield until the WebView has had a chance to paint.
+ * Release WKWebView often needs two animation frames plus a macrotask; a single `rAF` before
+ * `invoke` can leave the filter spinner invisible for the whole query.
+ */
+function yieldForFilterFieldPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setTimeout(resolve, 0);
+      });
+    });
+  });
+}
+
 function debounce(fn, ms) {
   let timer = null;
   return function (...args) {
@@ -71,7 +86,7 @@ function queryLoadingLabel() {
 
 /**
  * Show a centered spinner row while a paginated `db_query_*` round-trip is in flight.
- * Pair with `requestAnimationFrame` before `await invoke` so the shell paints (audio tab pattern).
+ * Pair with `yieldForFilterFieldPaint` (or `requestAnimationFrame`) before `await invoke` so the shell paints.
  */
 function showTableQueryLoadingRow(opts) {
   const {
@@ -109,7 +124,7 @@ function clearTableQueryLoadingRow(rowId, tableId) {
 
 /**
  * Compact spinner inside `.search-box` while a `db_query_*` round-trip is in flight.
- * Call with `loading: true` before `await invoke` and `false` in `finally` when `seq` matches
+ * Call with `loading: true` before `await yieldForFilterFieldPaint()` then `await invoke`, and `false` in `finally` when `seq` matches
  * the active query id (same pattern as table loading rows).
  *
  * Positioning uses **inline styles** (not only CSS) so release WKWebView builds that omit or
@@ -139,20 +154,19 @@ function setFilterFieldLoading(inputId, loading) {
       if (regexBtn) regexBtn.insertAdjacentElement('beforebegin', sp);
       else input.insertAdjacentElement('afterend', sp);
     }
-    sp.style.display = 'block';
-    sp.style.position = 'absolute';
-    sp.style.right = `${rightPx}px`;
-    sp.style.top = '50%';
-    sp.style.transform = 'translateY(-50%)';
-    sp.style.zIndex = '5';
-    sp.style.width = '18px';
-    sp.style.height = '18px';
-    sp.style.pointerEvents = 'none';
-    sp.style.boxSizing = 'border-box';
-    sp.style.border = '2px solid var(--border)';
-    sp.style.borderTopColor = 'var(--cyan)';
-    sp.style.borderRadius = '50%';
-    sp.style.animation = 'spin 0.75s linear infinite';
+      sp.style.display = 'block';
+      sp.style.position = 'absolute';
+      sp.style.right = `${rightPx}px`;
+      sp.style.top = '50%';
+      sp.style.zIndex = '5';
+      sp.style.width = '18px';
+      sp.style.height = '18px';
+      sp.style.pointerEvents = 'none';
+      sp.style.boxSizing = 'border-box';
+      sp.style.border = '2px solid var(--border)';
+      sp.style.borderTopColor = 'var(--cyan)';
+      sp.style.borderRadius = '50%';
+      sp.style.animation = 'filter-field-spin 0.75s linear infinite';
     if (input.dataset._filterPadSaved == null) {
       input.dataset._filterPadSaved = input.style.paddingRight || '';
     }

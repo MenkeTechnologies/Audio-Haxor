@@ -1023,14 +1023,14 @@
       position: absolute;
       right: 40px;
       top: 50%;
-      transform: translateY(-50%);
       width: 18px;
       height: 18px;
       box-sizing: border-box;
       border: 2px solid var(--border);
       border-top-color: var(--cyan);
       border-radius: 50%;
-      animation: spin 0.75s linear infinite;
+      /* `filter-field-spin` keeps translateY(-50%) — global `spin` would drop it and misplace the ring */
+      animation: filter-field-spin 0.75s linear infinite;
       z-index: 5;
       pointer-events: none;
     }
@@ -1410,6 +1410,12 @@
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Search-box filter spinner: vertical center + rotate (WKWebView release paints this reliably). */
+    @keyframes filter-field-spin {
+      from { transform: translateY(-50%) rotate(0deg); }
+      to { transform: translateY(-50%) rotate(360deg); }
+    }
 
     /* Progress bar for scanning */
     .progress-bar {
@@ -6261,42 +6267,42 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=98059"></script>
-  <script src="js/ipc.js?v=98059"></script>
-  <script src="js/utils.js?v=98059"></script>
-  <script src="js/drag-reorder.js?v=98059"></script>
-  <script src="js/modal-drag.js?v=98059"></script>
-  <script src="js/columns.js?v=98059"></script>
-  <script src="js/notes.js?v=98059"></script>
-  <script src="js/favorites.js?v=98059"></script>
-  <script src="js/export.js?v=98059"></script>
-  <script src="js/plugins.js?v=98059"></script>
-  <script src="js/settings.js?v=98059"></script>
-  <script src="js/history.js?v=98059"></script>
-  <script src="js/kvr.js?v=98059"></script>
-  <script src="js/audio.js?v=98059"></script>
-  <script src="js/daw.js?v=98059"></script>
-  <script src="js/presets.js?v=98059"></script>
-  <script src="js/disk-usage.js?v=98059"></script>
-  <script src="js/batch-select.js?v=98059"></script>
-  <script src="js/sort-persist.js?v=98059"></script>
-  <script src="js/multi-filter.js?v=98059"></script>
-  <script src="js/file-browser.js?v=98059"></script>
-  <script src="js/duplicates.js?v=98059"></script>
-  <script src="js/command-palette.js?v=98059"></script>
-  <script src="js/xref.js?v=98059"></script>
-  <script src="js/dep-graph.js?v=98059"></script>
-  <script src="js/smart-playlists.js?v=98059"></script>
-  <script src="js/heatmap-dashboard.js?v=98059"></script>
-  <script src="js/midi.js?v=98059"></script>
-  <script src="js/pdf.js?v=98059"></script>
-  <script src="js/settings-search.js?v=98059"></script>
-  <script src="js/visualizer.js?v=98059"></script>
-  <script src="js/walker-status.js?v=98059"></script>
-  <script src="js/context-menu.js?v=98059"></script>
-  <script src="js/help-overlay.js?v=98059"></script>
-  <script src="js/shortcuts.js?v=98059"></script>
-  <script src="js/keyboard-nav.js?v=98059"></script>
-  <script src="js/app.js?v=98059"></script>
+  <script src="js/i18n-ui.js?v=98060"></script>
+  <script src="js/ipc.js?v=98060"></script>
+  <script src="js/utils.js?v=98060"></script>
+  <script src="js/drag-reorder.js?v=98060"></script>
+  <script src="js/modal-drag.js?v=98060"></script>
+  <script src="js/columns.js?v=98060"></script>
+  <script src="js/notes.js?v=98060"></script>
+  <script src="js/favorites.js?v=98060"></script>
+  <script src="js/export.js?v=98060"></script>
+  <script src="js/plugins.js?v=98060"></script>
+  <script src="js/settings.js?v=98060"></script>
+  <script src="js/history.js?v=98060"></script>
+  <script src="js/kvr.js?v=98060"></script>
+  <script src="js/audio.js?v=98060"></script>
+  <script src="js/daw.js?v=98060"></script>
+  <script src="js/presets.js?v=98060"></script>
+  <script src="js/disk-usage.js?v=98060"></script>
+  <script src="js/batch-select.js?v=98060"></script>
+  <script src="js/sort-persist.js?v=98060"></script>
+  <script src="js/multi-filter.js?v=98060"></script>
+  <script src="js/file-browser.js?v=98060"></script>
+  <script src="js/duplicates.js?v=98060"></script>
+  <script src="js/command-palette.js?v=98060"></script>
+  <script src="js/xref.js?v=98060"></script>
+  <script src="js/dep-graph.js?v=98060"></script>
+  <script src="js/smart-playlists.js?v=98060"></script>
+  <script src="js/heatmap-dashboard.js?v=98060"></script>
+  <script src="js/midi.js?v=98060"></script>
+  <script src="js/pdf.js?v=98060"></script>
+  <script src="js/settings-search.js?v=98060"></script>
+  <script src="js/visualizer.js?v=98060"></script>
+  <script src="js/walker-status.js?v=98060"></script>
+  <script src="js/context-menu.js?v=98060"></script>
+  <script src="js/help-overlay.js?v=98060"></script>
+  <script src="js/shortcuts.js?v=98060"></script>
+  <script src="js/keyboard-nav.js?v=98060"></script>
+  <script src="js/app.js?v=98060"></script>
 </body>
 </html>

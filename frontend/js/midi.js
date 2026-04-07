@@ -116,7 +116,8 @@ async function fetchMidiPage() {
   const isLoadMore = _midiOffset > 0;
   showMidiQueryLoading(isLoadMore);
   if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('midiSearchInput', true);
-  await new Promise((r) => requestAnimationFrame(r));
+  if (typeof yieldForFilterFieldPaint === 'function') await yieldForFilterFieldPaint();
+  else await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryMidi({
       search: search || null,
