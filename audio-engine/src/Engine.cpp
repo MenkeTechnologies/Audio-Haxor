@@ -28,7 +28,7 @@ namespace audio_haxor {
 namespace {
 
 #ifndef AUDIO_ENGINE_VERSION_STRING
-#define AUDIO_ENGINE_VERSION_STRING "2.4.0"
+#define AUDIO_ENGINE_VERSION_STRING "2.4.1"
 #endif
 
 static constexpr float kTestToneHz = 440.0f;
@@ -103,9 +103,14 @@ static juce::File pluginScanSkipFilePath()
 static juce::StringArray mergePluginScanSkipList(const juce::File& skipFile)
 {
     juce::StringArray skips = readDeadMansPedalLines(skipFile);
-    // Apple's AUVectorPanner / AU Panner — can hang indefinitely inside `scanNextFile` (no exception → FAIL_SKIP never runs).
+    /* Apple system AUs that often block `PluginDirectoryScanner::scanNextFile` indefinitely (no throw →
+     * FAIL_SKIP never runs). Identifiers match JUCE `AudioUnitFormatHelpers::createPluginIdentifier`
+     * (see `juce_AudioUnitPluginFormat.mm`: AudioUnit:<Category>/type4,subtype4,manu4). */
     static const char* const kBuiltin[] = {
-        "AudioUnit:Panners/aupn,vbas,appl",
+        "AudioUnit:Panners/aupn,vbas,appl",   // AUVectorPanner / AU Panner
+        "AudioUnit:Mixers/mixr,aumx,appl",    // AUMixer
+        "AudioUnit:Mixers/mixr,mxmx,appl",    // AUMatrixMixer
+        "AudioUnit:Mixers/mixr,mcmx,appl",    // AUMultiChannelMixer
     };
     for (const char* s : kBuiltin)
     {
