@@ -571,22 +571,18 @@ function _drawStereo(ctx, w, h, analyser) {
     ctx.fillText('MONO', cx, 14);
 }
 
-/** L/R energy split from spectrum bins (mono tap from sidecar — illustrative only). */
+/**
+ * Sidecar spectrum is a mono FFT tap — no true L/R. Split each frequency slice into two
+ * half-band energies so we get many (L,R) pairs and stack phosphor dots like the Web Audio path.
+ * Radii scale with canvas size (single 1–3px dot was invisible on retina-sized bitmaps).
+ */
 function _drawStereoEngine(ctx, w, h, u8) {
     _vizHudBackdrop(ctx, w, h);
     const cx = w / 2;
     const cy = h / 2;
-    const scale = Math.min(cx, cy) * 0.8;
-    const third = Math.floor(u8.length / 3);
-    let low = 0;
-    let mid = 0;
-    let high = 0;
-    for (let i = 0; i < third; i++) low += u8[i];
-    for (let i = third; i < 2 * third; i++) mid += u8[i];
-    for (let i = 2 * third; i < u8.length; i++) high += u8[i];
-    const t = low + mid + high + 1e-6;
-    const side = (low - high) / t;
-    const vert = (mid * 1.15 - (low + high) * 0.48) / t;
+    const scale = Math.min(cx, cy) * 0.82;
+    const minDim = Math.min(w, h);
+    const baseR = Math.max(5, minDim * 0.014);
 
     ctx.strokeStyle = 'rgba(122,139,168,0.1)';
     ctx.lineWidth = 1;
@@ -600,21 +596,47 @@ function _drawStereoEngine(ctx, w, h, u8) {
     ctx.lineTo(w, cy);
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(5,217,232,0.08)';
+    ctx.beginPath();
+    ctx.moveTo(cx - scale, cy - scale);
+    ctx.lineTo(cx + scale, cy + scale);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + scale, cy - scale);
+    ctx.lineTo(cx - scale, cy + scale);
+    ctx.stroke();
 
-    const px = cx + side * scale * 0.55;
-    const py = cy - vert * scale * 0.55;
-    const a = 0.14 + Math.min(0.55, (mid / t) * 0.85);
-    const rad = 1.2 + Math.min(3.5, (Math.abs(side) + Math.abs(vert)) * 2.2);
+    const nSlices = Math.min(96, Math.max(24, Math.floor(u8.length / 8)));
+    const sliceW = Math.max(4, Math.floor(u8.length / nSlices));
     const prev = ctx.globalCompositeOperation;
     ctx.globalCompositeOperation = 'lighter';
-    const grd = ctx.createRadialGradient(px, py, 0, px, py, rad);
-    grd.addColorStop(0, `rgba(5,217,232,${a})`);
-    grd.addColorStop(0.55, `rgba(211,0,197,${a * 0.45})`);
-    grd.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grd;
-    ctx.beginPath();
-    ctx.arc(px, py, rad, 0, Math.PI * 2);
-    ctx.fill();
+
+    for (let s = 0; s < nSlices; s++) {
+        const i0 = s * sliceW;
+        const i1 = Math.min(u8.length, i0 + sliceW);
+        const mid = (i0 + i1) >> 1;
+        let L = 0;
+        let R = 0;
+        for (let i = i0; i < mid; i++) L += u8[i];
+        for (let i = mid; i < i1; i++) R += u8[i];
+        const tot = L + R + 1e-3;
+        const side = (L - R) / tot;
+        const mag = tot / ((i1 - i0) * 255);
+        const bandT = (s + 0.5) / nSlices - 0.5;
+        const px = cx + side * scale * 0.48;
+        const py = cy - bandT * scale * 0.55 * (0.35 + mag * 1.15);
+        const a = 0.1 + Math.min(0.52, mag * 1.1);
+        const rad = baseR + Math.min(minDim * 0.07, mag * minDim * 0.09);
+        const grd = ctx.createRadialGradient(px, py, 0, px, py, rad);
+        grd.addColorStop(0, `rgba(5,217,232,${a})`);
+        grd.addColorStop(0.55, `rgba(211,0,197,${a * 0.42})`);
+        grd.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(px, py, rad, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
     ctx.globalCompositeOperation = prev;
 
     ctx.fillStyle = 'rgba(122,139,168,0.5)';
