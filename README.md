@@ -425,7 +425,7 @@ frontend/
     duplicates.js      -- Duplicate modal: name heuristics + optional content (SHA-256) scan via `find_content_duplicates`
     export.js          -- Export/import (JSON/TOML/CSV/TSV/PDF); tab exports pull the full filtered result set from SQLite when the UI holds only a paginated page (plugins, presets, samples, DAW, MIDI, PDF)
     favorites.js       -- Favorites management
-    file-browser.js    -- Filesystem navigation with tags + notes; breadcrumbs/parent/quick-nav normalize `\\` vs `/` for Windows paths from `fs_list_dir`; chunked row append + path→sample `Map` for duration badges; filter debounce 150ms
+    file-browser.js    -- Filesystem navigation with tags + notes; breadcrumbs/parent/quick-nav/bookmark chip names use `normalizePathSeparators` + `pathFileName` / `parentDirectoryPath` for Windows paths from `fs_list_dir`; chunked row append + path→sample `Map` for duration badges; filter debounce 150ms
     help-overlay.js    -- Keyboard shortcuts reference overlay
     history.js         -- Scan history management + merged timeline
     ipc.js             -- Tauri v2 IPC bridge + event delegation; `stopAll` stops every scanner plus KVR update check (`stop_updates`); native menu actions use `typeof` guards; Tauri `listen` unlisteners use `.catch` so teardown never rejects

@@ -20,6 +20,13 @@ function parentDirectoryPath(p) {
   return parent || '/';
 }
 
+/** Last path segment for labels (handles Windows `\\` from `fs_list_dir`). */
+function pathFileName(p) {
+  const n = normalizePathSeparators(p);
+  const segs = n.split('/').filter(Boolean);
+  return segs.length ? segs[segs.length - 1] : n;
+}
+
 let _fileBrowserPath = null;
 let _fileBrowserEntries = [];
 let _fileBrowserInited = false;
@@ -43,7 +50,7 @@ function isFavDir(dirPath) {
 function addFavDir(dirPath) {
   const dirs = getFavDirs();
   if (dirs.some(d => d.path === dirPath)) return;
-  const name = dirPath.split('/').filter(Boolean).pop() || dirPath;
+  const name = pathFileName(dirPath) || dirPath;
   dirs.push({ path: dirPath, name });
   saveFavDirs(dirs);
   renderFavDirs();
