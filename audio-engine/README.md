@@ -32,3 +32,7 @@ cargo build -p audio-engine --release
 ```
 
 Tauri bundles this via `scripts/prepare-audio-engine-sidecar.mjs` and `bundle.externalBin`.
+
+## Host app (WEB UI)
+
+`frontend/js/audio-engine.js` drives the Audio Engine tab. After Apply / tone / capture / stop failures, **`fillAeStreamsAfterEngineError`** re-invokes `engine_state` so the output/input stream lines match the sidecar; if **`audioEngineInvoke`** is unavailable, stream lines reset to `—` (same as a failed full refresh).

@@ -1343,7 +1343,7 @@ window.vstUpdater = {
     getFileWatcherStatus: () => invoke('get_file_watcher_status'),
     // MIDI
     getMidiInfo: (filePath) => invoke('get_midi_info', {filePath}),
-    /** Audio engine sidecar (persistent stdin loop): `{ cmd, device_id?, tone?, buffer_frames? }` → JSON. Includes `engine_state` (`stream` + `input_stream` with `input_peak`), `start_output_stream` / `stop_output_stream`, `start_input_stream` / `stop_input_stream`, `set_output_tone`, device list/info/validate cmds; output stream adds `tone_*` / `stream_buffer_frames`. UI: `#aeInputStreamStatus` lives in the engine status card; while capture runs and the tab is visible, `audio-engine.js` polls `input_stream_status` ~100ms for live peak. */
+    /** Audio engine sidecar (persistent stdin loop): `{ cmd, device_id?, tone?, buffer_frames? }` → JSON. Includes `engine_state` (`stream` + `input_stream` with `input_peak`), `start_output_stream` / `stop_output_stream`, `start_input_stream` / `stop_input_stream`, `set_output_tone`, device list/info/validate cmds; output stream adds `tone_*` / `stream_buffer_frames`. UI: `#aeInputStreamStatus` in the engine status card; ~100ms `input_stream_status` poll while capture runs (tab visible). On IPC errors, `fillAeStreamsAfterEngineError` re-fetches `engine_state`; missing `audioEngineInvoke` clears stream lines. */
     audioEngineInvoke: (request) => invoke('audio_engine_invoke', {request}),
     batchAnalyze: (paths) => invoke('batch_analyze', {paths}),
     dbQueryPlugins: (params) => invoke('db_query_plugins', params || {}),

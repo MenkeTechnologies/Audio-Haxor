@@ -661,7 +661,10 @@ async function toggleAeTestTone(enabled) {
         ? window.vstUpdater.audioEngineInvoke
         : null;
     const statusEl = document.getElementById('aeEngineStatus');
-    if (!inv) return;
+    if (!inv) {
+        fillAeStreamsFromEngineState(null);
+        return;
+    }
     try {
         const r = await inv({cmd: 'set_output_tone', tone: enabled});
         if (!r || r.ok !== true) {
@@ -699,7 +702,10 @@ async function applyAudioEngineDevice() {
     const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
         ? window.vstUpdater.audioEngineInvoke
         : null;
-    if (!inv || !selectEl) return;
+    if (!inv || !selectEl) {
+        if (!inv) fillAeStreamsFromEngineState(null);
+        return;
+    }
 
     const id = selectEl.value;
     const toneOn = toneCb && toneCb.checked === true;
@@ -756,7 +762,10 @@ async function startAeInputCapture() {
     const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
         ? window.vstUpdater.audioEngineInvoke
         : null;
-    if (!inv) return;
+    if (!inv) {
+        fillAeStreamsFromEngineState(null);
+        return;
+    }
 
     const id = inSel && inSel.value != null ? String(inSel.value) : '';
     const bfRaw = bufInCap && typeof bufInCap.value === 'string' ? bufInCap.value : '';
@@ -799,7 +808,10 @@ async function stopAeInputCapture() {
     const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
         ? window.vstUpdater.audioEngineInvoke
         : null;
-    if (!inv) return;
+    if (!inv) {
+        fillAeStreamsFromEngineState(null);
+        return;
+    }
 
     try {
         const r = await inv({cmd: 'stop_input_stream'});
@@ -829,7 +841,10 @@ async function stopAeOutputStream() {
     const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
         ? window.vstUpdater.audioEngineInvoke
         : null;
-    if (!inv) return;
+    if (!inv) {
+        fillAeStreamsFromEngineState(null);
+        return;
+    }
 
     try {
         const r = await inv({cmd: 'stop_output_stream'});
