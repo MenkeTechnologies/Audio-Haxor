@@ -1,6 +1,6 @@
 {
   "ui.st.sqlite_read_pool_extra": "SQLite read pool",
-  "ui.sd.sqlite_read_pool_extra": "Extra read-only database connections for parallel queries (WAL). 0 = automatic (CPU-based, capped). Higher uses more RAM. Restart required.",
+  "ui.sd.sqlite_read_pool_extra": "Extra read-only DB connections for parallel queries (WAL). 0 = automatic. Uses more RAM when higher. Restart required.",
   "ui.tt.sqlite_read_pool_extra": "SQLite read pool — extra connections beyond the primary handle",
   "ui.perf.sqlite_read_pool_auto_label": "Auto",
   "toast.sqlite_read_pool_extra_set": "SQLite read pool: {val} — restart to apply",

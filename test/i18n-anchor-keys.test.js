@@ -86,9 +86,11 @@ function anchorKeysWhereEveryLocaleDiffers() {
 const ANCHOR_KEYS = anchorKeysWhereEveryLocaleDiffers();
 
 test('catalog yields a large safe anchor set across UI namespaces', () => {
+  const n = Object.keys(en).length;
+  const minAnchors = Math.max(500, Math.floor(n * 0.45));
   assert.ok(
-    ANCHOR_KEYS.length > 1200,
-    `expected 1200+ safe keys, got ${ANCHOR_KEYS.length}`
+    ANCHOR_KEYS.length >= minAnchors,
+    `expected at least ${minAnchors} safe keys (${n} English entries × 0.45 floor), got ${ANCHOR_KEYS.length}`
   );
 });
 

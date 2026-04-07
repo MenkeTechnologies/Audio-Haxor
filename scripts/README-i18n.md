@@ -3,6 +3,7 @@
 ## English catalog
 
 - **Source of truth:** `i18n/app_i18n_en.json` (sorted keys). **CI** (`test/i18n-catalog-files.test.js`) asserts every shipped `app_i18n_*.json` has **lexicographically sorted** top-level keys — `merge_i18n_keys.py` / `sync_locale_keys_from_en.py` emit sorted maps; if you hand-edit JSON, re-sort before push (e.g. `python3 -c "import json, pathlib; p=pathlib.Path('i18n/app_i18n_en.json'); d=json.loads(p.read_text(encoding='utf-8')); p.write_text(json.dumps(dict(sorted(d.items())), ensure_ascii=False, indent=2)+chr(10), encoding='utf-8')"`) or CI fails with “keys must be sorted”.
+- **`gen_app_i18n_en.py`:** Rebuilds toast/menu/help/confirm/ui sections from `scripts/` + `frontend/index.html`. Any key already in `app_i18n_en.json` that the generator does not emit (e.g. batch-merged `menu.*` for context menus) is **kept**. Extracted HTML text is normalized to a single line (no raw newlines in JSON values) so `test/i18n-value-safety.test.js` passes.
 - **Action vs. noun compounds:** English strings like **“Scan Plugins”** (and the matching keys `menu.scan_plugins`, `ui.btn.8635_scan_plugins`, `ui.js.scan_plugins_btn`) describe a **button action** — *scan for plugins* — not a category of plugin (“scanning plugins”, “analysis plugins”, etc.). Automated translation often inverts word order or picks the wrong sense; keep `toast.scanning_plugins` consistent (progress wording).
 - **Runtime:** Strings are seeded into SQLite (`app_i18n`) from the bundled JSON at build time (`src-tauri/src/app_i18n.rs`).
 - **Adding keys:** Prefer a small JSON batch file under `scripts/i18n_batches/` and merge:
@@ -75,13 +76,13 @@ Or run per-locale generators individually:
 .venv-i18n/bin/python scripts/de_i18n_manual_overrides.py
 ```
 
-- **Fast stub sync:** Copy any missing keys from English so every locale has the same key set (values stay English until you translate):
+- **Fast stub sync:** Align every non-English file with English: missing keys get the English string as a stub; keys removed from English are dropped; existing translations are kept where the key still exists.
 
 ```bash
 python3 scripts/sync_locale_keys_from_en.py
 ```
 
-Run the stub sync after adding keys to `app_i18n_en.json` if you cannot run the generators yet.
+Run the stub sync after changing `app_i18n_en.json` (or after `gen_app_i18n_en.py`) if you cannot run the per-locale generators yet.
 
 ### `appFmt` placeholders (`{token}`)
 

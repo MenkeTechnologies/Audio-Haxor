@@ -29,6 +29,22 @@ def load_toast_en() -> dict[str, str]:
     return dict(m.TOAST_EN)
 
 
+_CTRL_OR_SEP = re.compile(r"[\u0000-\u001F\u007F\u2028\u2029]")
+
+
+def norm_catalog_text(s: str) -> str:
+    """Collapse HTML formatting whitespace so JSON seeds pass i18n-value-safety (no raw newlines)."""
+    t = html_module.unescape(s)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def sanitize_catalog_value(v: str) -> str:
+    """Ensure stored strings have no C0/DEL/U+2028/U+2029 (SQLite / UI safety tests)."""
+    if not _CTRL_OR_SEP.search(v):
+        return v
+    return norm_catalog_text(v)
+
+
 def slugify(text: str) -> str:
     s = text.strip().lower()
     s = re.sub(r"[^a-z0-9]+", "_", s)
@@ -69,27 +85,29 @@ def extract_ui_from_html(html: str) -> dict[str, str]:
 
     for m in re.finditer(r'placeholder="([^"]*)"', html):
         val = m.group(1)
-        if not val.strip():
+        val = norm_catalog_text(val)
+        if not val:
             continue
         k = alloc_key("ui.ph", val, seen_ph)
         out[k] = val
 
     for m in re.finditer(r' title="([^"]*)"', html):
         val = m.group(1)
-        if not val.strip():
+        val = norm_catalog_text(val)
+        if not val:
             continue
         k = alloc_key("ui.tt", val, seen_tt)
         out[k] = val
 
     for m in re.finditer(r"<option[^>]*>([^<]+)</option>", html):
-        val = m.group(1).strip()
+        val = norm_catalog_text(m.group(1))
         if not val:
             continue
         k = alloc_key("ui.opt", val, seen_opt)
         out[k] = val
 
     for m in re.finditer(r'<span\s+class="settings-title"([^>]*)>([^<]+)</span>', html, re.IGNORECASE):
-        attrs, text = m.group(1), m.group(2).strip()
+        attrs, text = m.group(1), norm_catalog_text(m.group(2))
         if "data-i18n=" in attrs:
             continue
         if not text:
@@ -98,7 +116,7 @@ def extract_ui_from_html(html: str) -> dict[str, str]:
         out[k] = text
 
     for m in re.finditer(r'<span\s+class="settings-desc"([^>]*)>([^<]+)</span>', html, re.IGNORECASE):
-        attrs, text = m.group(1), m.group(2).strip()
+        attrs, text = m.group(1), norm_catalog_text(m.group(2))
         if "data-i18n=" in attrs:
             continue
         if not text:
@@ -107,7 +125,7 @@ def extract_ui_from_html(html: str) -> dict[str, str]:
         out[k] = text
 
     for m in re.finditer(r'<h2\s+class="settings-heading"([^>]*)>([^<]+)</h2>', html, re.IGNORECASE):
-        attrs, text = m.group(1), m.group(2).strip()
+        attrs, text = m.group(1), norm_catalog_text(m.group(2))
         if "data-i18n=" in attrs:
             continue
         if not text:
@@ -116,7 +134,7 @@ def extract_ui_from_html(html: str) -> dict[str, str]:
         out[k] = text
 
     for m in re.finditer(r"<button([^>]*)>([^<]+)</button>", html, re.IGNORECASE):
-        attrs, text = m.group(1), m.group(2).strip()
+        attrs, text = m.group(1), norm_catalog_text(m.group(2))
         if "data-i18n=" in attrs:
             continue
         if not is_translatable_visible_text(text):
@@ -125,7 +143,7 @@ def extract_ui_from_html(html: str) -> dict[str, str]:
         out[k] = text
 
     for m in re.finditer(r"<h2([^>]*)>([^<]+)</h2>", html, re.IGNORECASE):
-        attrs, text = m.group(1), m.group(2).strip()
+        attrs, text = m.group(1), norm_catalog_text(m.group(2))
         if "data-i18n=" in attrs or "settings-heading" in attrs:
             continue
         if not text:
@@ -134,7 +152,7 @@ def extract_ui_from_html(html: str) -> dict[str, str]:
         out[k] = text
 
     for m in re.finditer(r"<p([^>]*)>([^<]+)</p>", html, re.IGNORECASE):
-        attrs, text = m.group(1), m.group(2).strip()
+        attrs, text = m.group(1), norm_catalog_text(m.group(2))
         if "data-i18n=" in attrs:
             continue
         if not text:
@@ -147,7 +165,7 @@ def extract_ui_from_html(html: str) -> dict[str, str]:
         html,
         re.IGNORECASE,
     ):
-        text = m.group(1).strip()
+        text = norm_catalog_text(m.group(1))
         if not text:
             continue
         k = alloc_key("ui.lbl", text, seen_lbl)
@@ -158,7 +176,7 @@ def extract_ui_from_html(html: str) -> dict[str, str]:
         html,
         re.IGNORECASE,
     ):
-        text = m.group(1).strip()
+        text = norm_catalog_text(m.group(1))
         if not text:
             continue
         k = alloc_key("ui.lbl", text, seen_lbl)
@@ -179,7 +197,7 @@ def extract_existing_data_i18n(html: str) -> dict[str, str]:
     ]
     for pat in patterns:
         for m in re.finditer(pat, html, re.IGNORECASE):
-            out[m.group(1)] = m.group(2).strip()
+            out[m.group(1)] = norm_catalog_text(m.group(2))
     return out
 
 
@@ -401,6 +419,7 @@ MENU_EN: dict[str, str] = {
     "menu.tab_plugins": "Plugins",
     "menu.tab_samples": "Samples",
     "menu.tab_daw": "DAW Projects",
+    "menu.tab_audio_engine": "Audio Engine",
     "menu.tab_presets": "Presets",
     "menu.tab_favorites": "Favorites",
     "menu.tab_notes": "Notes",
@@ -607,13 +626,15 @@ def main() -> None:
     html_path = ROOT / "frontend" / "index.html"
     html = html_path.read_text(encoding="utf-8")
     out_path = I18N_DIR / "app_i18n_en.json"
+    prev: dict[str, str] = {}
     prev_ui: dict[str, str] = {}
     if out_path.exists():
         try:
             prev = json.loads(out_path.read_text(encoding="utf-8"))
             prev_ui = {k: v for k, v in prev.items() if k.startswith("ui.")}
         except (OSError, json.JSONDecodeError):
-            pass
+            prev = {}
+            prev_ui = {}
     ui_fresh = extract_ui_from_html(html)
     ui_from_attrs = extract_existing_data_i18n(html)
     ui_en = {**prev_ui, **ui_fresh, **ui_from_attrs}
@@ -643,6 +664,17 @@ def main() -> None:
     ):
         merged.pop(dup, None)
     merged.pop("ui.tt.interface_language", None)
+
+    # Keys from merge_i18n_keys batches / manual edits (not in toast/MENU/HELP/CONFIRM/ui
+    # sections above) must survive regeneration — otherwise context menu and JS-only strings
+    # disappear when MENU_EN / CONFIRM_EN are incomplete.
+    for k, v in prev.items():
+        if k not in merged:
+            merged[k] = v
+
+    for k, v in list(merged.items()):
+        if isinstance(v, str):
+            merged[k] = sanitize_catalog_value(v)
 
     overlap = set(toast_en) & (
         set(MENU_EN)
