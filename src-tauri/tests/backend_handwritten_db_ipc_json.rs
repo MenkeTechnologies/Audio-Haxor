@@ -305,12 +305,17 @@ fn filter_stats_result_shape() {
         by_type: bt,
         bytes_by_type: bbt,
         total_unfiltered: 100,
+        size_buckets: vec![1, 2, 0, 0, 0, 0],
     };
     let v = serde_json::to_value(&f).unwrap();
     let o = as_obj(&v);
     assert!(o.get("byType").is_some());
     assert!(o.get("bytesByType").is_some());
     assert_eq!(o.get("totalUnfiltered"), Some(&serde_json::json!(100)));
+    assert_eq!(
+        o.get("sizeBuckets"),
+        Some(&serde_json::json!([1, 2, 0, 0, 0, 0]))
+    );
 }
 
 // ── `FileWatcherState` (initial, no Tauri app) ──────────────────────────────────
@@ -492,6 +497,7 @@ fn filter_stats_empty_breakdown_maps() {
         by_type: HashMap::new(),
         bytes_by_type: HashMap::new(),
         total_unfiltered: 0,
+        size_buckets: vec![],
     };
     let v = serde_json::to_value(&f).unwrap();
     let o = as_obj(&v);

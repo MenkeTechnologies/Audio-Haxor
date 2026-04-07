@@ -656,6 +656,9 @@ pub struct FilterStatsResult {
     pub bytes_by_type: HashMap<String, u64>,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
+    /// Audio-only: file-size histogram (6 buckets, same thresholds as `heatmap-dashboard.js`).
+    #[serde(default, rename = "sizeBuckets")]
+    pub size_buckets: Vec<u64>,
 }
 
 /// One row persisted for the last unified home-tree scan (SQLite `unified_scan_run.id` is always 1).
@@ -4747,6 +4750,7 @@ DROP TABLE _pl_refresh_paths;"#;
             by_type,
             bytes_by_type,
             total_unfiltered,
+            size_buckets: vec![],
         })
     }
 
@@ -5577,12 +5581,53 @@ DROP TABLE _pl_refresh_paths;"#;
             by_type.insert(fmt.clone(), n);
             bytes_by_type.insert(fmt, sz);
         }
+        // Size histogram for heatmap (same 6 buckets as `heatmap-dashboard.js` — library scope + filters).
+        let sql_buckets = format!(
+            "SELECT \
+             COALESCE(SUM(CASE WHEN COALESCE(size,0) < 102400 THEN 1 ELSE 0 END),0),\
+             COALESCE(SUM(CASE WHEN COALESCE(size,0) >= 102400 AND COALESCE(size,0) < 1048576 THEN 1 ELSE 0 END),0),\
+             COALESCE(SUM(CASE WHEN COALESCE(size,0) >= 1048576 AND COALESCE(size,0) < 10485760 THEN 1 ELSE 0 END),0),\
+             COALESCE(SUM(CASE WHEN COALESCE(size,0) >= 10485760 AND COALESCE(size,0) < 52428800 THEN 1 ELSE 0 END),0),\
+             COALESCE(SUM(CASE WHEN COALESCE(size,0) >= 52428800 AND COALESCE(size,0) < 104857600 THEN 1 ELSE 0 END),0),\
+             COALESCE(SUM(CASE WHEN COALESCE(size,0) >= 104857600 THEN 1 ELSE 0 END),0)\
+             FROM audio_samples WHERE {where_cl}"
+        );
+        let mut stmt_b = conn.prepare(&sql_buckets).map_err(|e| e.to_string())?;
+        let mut bi_b = 1;
+        if let Some(ref m) = fts_match {
+            stmt_b.raw_bind_parameter(bi_b, m).map_err(|e| e.to_string())?;
+            bi_b += 1;
+        } else if let Some(ref r) = regex_pat {
+            stmt_b.raw_bind_parameter(bi_b, r).map_err(|e| e.to_string())?;
+            bi_b += 1;
+        } else if let Some(ref pat) = like_pat {
+            stmt_b
+                .raw_bind_parameter(bi_b, pat)
+                .map_err(|e| e.to_string())?;
+            bi_b += 1;
+        }
+        if let Some(f) = format_filter {
+            if !f.is_empty() && f != "all" && !f.contains(',') {
+                stmt_b.raw_bind_parameter(bi_b, f).map_err(|e| e.to_string())?;
+            }
+        }
+        let size_buckets: Vec<u64> = {
+            let mut rows_b = stmt_b.raw_query();
+            if let Some(row) = rows_b.next().map_err(|e| e.to_string())? {
+                (0..6)
+                    .map(|i| row.get::<_, i64>(i).unwrap_or(0).max(0) as u64)
+                    .collect()
+            } else {
+                vec![0; 6]
+            }
+        };
         Ok(FilterStatsResult {
             count,
             total_bytes,
             by_type,
             bytes_by_type,
             total_unfiltered,
+            size_buckets,
         })
     }
 
@@ -5671,6 +5716,7 @@ DROP TABLE _pl_refresh_paths;"#;
             by_type,
             bytes_by_type,
             total_unfiltered,
+            size_buckets: vec![],
         })
     }
 
@@ -5764,6 +5810,7 @@ DROP TABLE _pl_refresh_paths;"#;
             by_type,
             bytes_by_type,
             total_unfiltered,
+            size_buckets: vec![],
         })
     }
 
@@ -5834,6 +5881,7 @@ DROP TABLE _pl_refresh_paths;"#;
             by_type,
             bytes_by_type,
             total_unfiltered,
+            size_buckets: vec![],
         })
     }
 
@@ -5883,6 +5931,7 @@ DROP TABLE _pl_refresh_paths;"#;
             by_type: HashMap::new(),
             bytes_by_type: HashMap::new(),
             total_unfiltered,
+            size_buckets: vec![],
         })
     }
 
@@ -7253,6 +7302,7 @@ mod tests {
         assert_eq!(st.total_bytes, 0);
         assert_eq!(st.total_unfiltered, 0);
         assert!(st.by_type.is_empty());
+        assert_eq!(st.size_buckets, vec![0u64; 6]);
     }
 
     #[test]
@@ -7275,6 +7325,9 @@ mod tests {
         assert_eq!(st.by_type.get("MP3").copied().unwrap_or(0), 1);
         assert_eq!(st.bytes_by_type.get("WAV").copied().unwrap_or(0), 300);
         assert_eq!(st.bytes_by_type.get("MP3").copied().unwrap_or(0), 400);
+        assert_eq!(st.size_buckets.len(), 6);
+        assert_eq!(st.size_buckets.iter().sum::<u64>(), st.count);
+        assert_eq!(st.size_buckets[0], 3); // all < 100 KiB
     }
 
     #[test]

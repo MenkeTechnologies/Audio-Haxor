@@ -215,16 +215,24 @@ function buildSizeCard(samples, agg) {
         {labelKey: 'ui.hm.bucket_gt_100mb', max: Infinity},
     ];
     const counts = new Array(buckets.length).fill(0);
-    for (const s of samples) {
-        const sz = s.size || s.sizeBytes || 0;
-        for (let i = 0; i < buckets.length; i++) {
-            if (sz < buckets[i].max || i === buckets.length - 1) {
-                counts[i]++;
-                break;
+    const sb = agg?.audio?.sizeBuckets;
+    if (Array.isArray(sb) && sb.length === buckets.length) {
+        for (let i = 0; i < buckets.length; i++) counts[i] = Number(sb[i]) || 0;
+    } else {
+        for (const s of samples) {
+            const sz = s.size || s.sizeBytes || 0;
+            for (let i = 0; i < buckets.length; i++) {
+                if (sz < buckets[i].max || i === buckets.length - 1) {
+                    counts[i]++;
+                    break;
+                }
             }
         }
     }
-    const pageTotal = samples.length || 1;
+    const libCount = agg?.audio?.count;
+    const pageTotal = (typeof libCount === 'number' && !Number.isNaN(libCount) && libCount > 0)
+        ? libCount
+        : (samples.length || 1);
     const maxBucket = Math.max(...counts, 1);
     const bars = buckets.map((b, i) => {
         const barPct = (counts[i] / maxBucket) * 100;
