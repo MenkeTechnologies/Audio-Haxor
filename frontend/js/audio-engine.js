@@ -169,6 +169,21 @@ function formatAeBufferSize(buf) {
 }
 
 /**
+ * Appends `ui.ae.stream_buffer_fixed` when `st.stream_buffer_frames` is a finite number.
+ * @param {string} line
+ * @param {object} st — stream status fragment (`stream` / `input_stream` / status payloads)
+ * @returns {string}
+ */
+function appendAeStreamBufferFixedSuffix(line, st) {
+    if (typeof catalogFmt !== 'function') return line;
+    const sbf = st.stream_buffer_frames;
+    if (sbf != null && typeof sbf === 'number' && Number.isFinite(sbf)) {
+        line += catalogFmt('ui.ae.stream_buffer_fixed', {frames: String(sbf)});
+    }
+    return line;
+}
+
+/**
  * Shared line for `get_output_device_info` / `get_input_device_info` payloads (same JSON shape).
  * @param {object|null} info
  * @returns {string|null}
@@ -365,13 +380,10 @@ function fillAeStreamLineFromPayload(st, el) {
         } else {
             line = catalogFmt('ui.ae.output_stream_on', {device: String(st.device_id)});
         }
-        if (st.tone_on === true && st.tone_supported === true && typeof catalogFmt === 'function') {
+        if (st.tone_on === true && st.tone_supported === true) {
             line += catalogFmt('ui.ae.tone_active');
         }
-        const sbf = st.stream_buffer_frames;
-        if (sbf != null && typeof sbf === 'number' && Number.isFinite(sbf) && typeof catalogFmt === 'function') {
-            line += catalogFmt('ui.ae.stream_buffer_fixed', {frames: String(sbf)});
-        }
+        line = appendAeStreamBufferFixedSuffix(line, st);
         el.textContent = line;
     } else {
         el.textContent = catalogFmt('ui.ae.output_stream_off');
@@ -411,12 +423,9 @@ function fillAeInputStreamLineFromPayload(st, el) {
         } else {
             line = catalogFmt('ui.ae.input_stream_on', {device: String(st.device_id)});
         }
-        const sbf = st.stream_buffer_frames;
-        if (sbf != null && typeof sbf === 'number' && Number.isFinite(sbf) && typeof catalogFmt === 'function') {
-            line += catalogFmt('ui.ae.stream_buffer_fixed', {frames: String(sbf)});
-        }
+        line = appendAeStreamBufferFixedSuffix(line, st);
         const ipk = st.input_peak;
-        if (ipk != null && typeof ipk === 'number' && Number.isFinite(ipk) && typeof catalogFmt === 'function') {
+        if (ipk != null && typeof ipk === 'number' && Number.isFinite(ipk)) {
             line += catalogFmt('ui.ae.input_peak_suffix', {level: ipk.toFixed(2)});
         }
         el.textContent = line;
