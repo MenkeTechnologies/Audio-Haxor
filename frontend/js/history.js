@@ -81,6 +81,8 @@ async function fetchHistoryListsAndRender() {
         window.vstUpdater.getPdfScans(),
         window.vstUpdater.getMidiScans(),
     ]);
+    // Merge + sort on the main thread — yield first so tab paint / input / audio aren’t starved when IPC returns.
+    if (typeof yieldToBrowser === 'function') await yieldToBrowser();
     historyScanList = pluginScans;
     historyAudioScanList = audioScans;
     historyDawScanList = dawScans;

@@ -1180,25 +1180,43 @@ function switchTab(tab) {
     }
     prefs.setItem('activeTab', tab);
     // Two rAF frames: first lets the active tab strip + panel visibility update paint;
-    // then heavy per-tab work runs (History IPC, Favorites DOM, Settings reflow, etc.).
+    // then yield one macrotask so the shell can process input before History IPC / large DOM
+    // (otherwise a quick tab switch can stack work from an older switch after `await`).
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-            if (tab === 'visualizer' && typeof startVisualizer === 'function') startVisualizer();
-            if (tab === 'walkers' && typeof startWalkerPolling === 'function') startWalkerPolling();
-            if (tab === 'history' && typeof loadHistory === 'function') loadHistory({preferCache: true});
-            if (tab === 'favorites') renderFavorites();
-            if (tab === 'notes') renderNotesTab();
-            if (tab === 'tags') renderTagsManager();
-            if (tab === 'files') initFileBrowser();
-            if (tab === 'midi' && typeof loadMidiFiles === 'function' && !_midiLoaded) loadMidiFiles();
-            if (tab === 'settings') {
-                refreshSettingsUI();
-                if (typeof renderCacheStats === 'function') renderCacheStats();
-                // Force reflow so system-info and databases/caches panes resolve
-                // their layout in release WebView (without this, columns and
-                // percentage-based widths can render at 0 until a scroll/resize).
-                const settingsPanel = document.getElementById('tabSettings') || document.querySelector('.tab-content.active');
-                if (settingsPanel) void settingsPanel.offsetWidth;
+            const expectedTab = tab;
+            function tabWorkStillRelevant() {
+                try {
+                    return typeof prefs !== 'undefined' && prefs.getItem('activeTab') === expectedTab;
+                } catch {
+                    return true;
+                }
+            }
+            function runPerTabWork() {
+                if (!tabWorkStillRelevant()) return;
+                if (expectedTab !== 'visualizer' && typeof stopVisualizer === 'function') stopVisualizer();
+                if (expectedTab === 'visualizer' && typeof startVisualizer === 'function') startVisualizer();
+                if (expectedTab === 'walkers' && typeof startWalkerPolling === 'function') startWalkerPolling();
+                if (expectedTab === 'history' && typeof loadHistory === 'function') loadHistory({preferCache: true});
+                if (expectedTab === 'favorites') renderFavorites();
+                if (expectedTab === 'notes') renderNotesTab();
+                if (expectedTab === 'tags') renderTagsManager();
+                if (expectedTab === 'files') initFileBrowser();
+                if (expectedTab === 'midi' && typeof loadMidiFiles === 'function' && typeof _midiLoaded !== 'undefined' && !_midiLoaded) loadMidiFiles();
+                if (expectedTab === 'settings') {
+                    refreshSettingsUI();
+                    if (typeof renderCacheStats === 'function') renderCacheStats();
+                    // Force reflow so system-info and databases/caches panes resolve
+                    // their layout in release WebView (without this, columns and
+                    // percentage-based widths can render at 0 until a scroll/resize).
+                    const settingsPanel = document.getElementById('tabSettings') || document.querySelector('.tab-content.active');
+                    if (settingsPanel) void settingsPanel.offsetWidth;
+                }
+            }
+            if (typeof yieldToBrowser === 'function') {
+                void yieldToBrowser().then(runPerTabWork);
+            } else {
+                setTimeout(runPerTabWork, 0);
             }
         });
     });
