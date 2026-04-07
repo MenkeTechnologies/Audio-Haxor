@@ -107,6 +107,67 @@ function clearTableQueryLoadingRow(rowId, tableId) {
   if (tbl) tbl.removeAttribute('aria-busy');
 }
 
+/**
+ * Compact spinner inside `.search-box` while a `db_query_*` round-trip is in flight.
+ * Call with `loading: true` before `await invoke` and `false` in `finally` when `seq` matches
+ * the active query id (same pattern as table loading rows).
+ *
+ * Positioning uses **inline styles** (not only CSS) so release WKWebView builds that omit or
+ * mishandle `:has()` still place the spinner above the input. `z-index` keeps it visible over
+ * the input’s opaque background.
+ */
+function setFilterFieldLoading(inputId, loading) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const box = input.closest('.search-box');
+  if (!box) return;
+  const hasRegex = !!box.querySelector('.btn-regex');
+  const rightPx = hasRegex ? 40 : 12;
+  const padPx = hasRegex ? 72 : 48;
+  if (loading) {
+    box.classList.add('filter-field-loading');
+    box.classList.toggle('filter-field-loading--regex', hasRegex);
+    box.classList.toggle('filter-field-loading--plain', !hasRegex);
+    input.setAttribute('aria-busy', 'true');
+    let sp = box.querySelector('.filter-field-spinner');
+    if (!sp) {
+      sp = document.createElement('span');
+      sp.className = 'filter-field-spinner';
+      sp.setAttribute('aria-hidden', 'true');
+      sp.title = typeof queryLoadingLabel === 'function' ? queryLoadingLabel() : 'Loading…';
+      const regexBtn = box.querySelector('.btn-regex');
+      if (regexBtn) regexBtn.insertAdjacentElement('beforebegin', sp);
+      else input.insertAdjacentElement('afterend', sp);
+    }
+    sp.style.display = 'block';
+    sp.style.position = 'absolute';
+    sp.style.right = `${rightPx}px`;
+    sp.style.top = '50%';
+    sp.style.transform = 'translateY(-50%)';
+    sp.style.zIndex = '5';
+    sp.style.width = '18px';
+    sp.style.height = '18px';
+    sp.style.pointerEvents = 'none';
+    sp.style.boxSizing = 'border-box';
+    sp.style.border = '2px solid var(--border)';
+    sp.style.borderTopColor = 'var(--cyan)';
+    sp.style.borderRadius = '50%';
+    sp.style.animation = 'spin 0.75s linear infinite';
+    if (input.dataset._filterPadSaved == null) {
+      input.dataset._filterPadSaved = input.style.paddingRight || '';
+    }
+    input.style.paddingRight = `${padPx}px`;
+  } else {
+    box.classList.remove('filter-field-loading', 'filter-field-loading--regex', 'filter-field-loading--plain');
+    input.removeAttribute('aria-busy');
+    if (input.dataset._filterPadSaved != null) {
+      input.style.paddingRight = input.dataset._filterPadSaved;
+      delete input.dataset._filterPadSaved;
+    }
+    box.querySelector('.filter-field-spinner')?.remove();
+  }
+}
+
 // ── fzf-style fuzzy matching with scoring ──
 
 // Scoring constants (from fzf) — configurable via settings

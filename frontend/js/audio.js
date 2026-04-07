@@ -1147,6 +1147,7 @@ async function fetchAudioPage() {
   const seq = ++_audioQuerySeq;
   const isLoadMore = audioCurrentOffset > 0;
   showAudioQueryLoading(isLoadMore);
+  if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('audioSearchInput', true);
   await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryAudio({
@@ -1183,6 +1184,8 @@ async function fetchAudioPage() {
     if (audioCurrentOffset === 0) {
       renderAudioTable();
     }
+  } finally {
+    if (seq === _audioQuerySeq && typeof setFilterFieldLoading === 'function') setFilterFieldLoading('audioSearchInput', false);
   }
 }
 

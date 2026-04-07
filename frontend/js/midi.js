@@ -115,6 +115,7 @@ async function fetchMidiPage() {
   const seq = ++_midiQuerySeq;
   const isLoadMore = _midiOffset > 0;
   showMidiQueryLoading(isLoadMore);
+  if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('midiSearchInput', true);
   await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryMidi({
@@ -152,6 +153,8 @@ async function fetchMidiPage() {
     if (seq !== _midiQuerySeq) return;
     clearTableQueryLoadingRow('midiQueryLoadingRow', 'midiTable');
     if (typeof showToast === 'function') showToast(toastFmt('toast.midi_load_failed', { err: e.message || e }), 4000, 'error');
+  } finally {
+    if (seq === _midiQuerySeq && typeof setFilterFieldLoading === 'function') setFilterFieldLoading('midiSearchInput', false);
   }
 }
 

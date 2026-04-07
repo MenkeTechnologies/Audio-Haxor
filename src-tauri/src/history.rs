@@ -1777,7 +1777,7 @@ mod tests {
     }
 
     #[test]
-    fn test_toml_key_to_flat_performance_pageSize_to_flat_key() {
+    fn test_toml_key_to_flat_performance_page_size_to_flat_key() {
         assert_eq!(
             toml_key_to_flat("performance", "pageSize").as_deref(),
             Some("pageSize")

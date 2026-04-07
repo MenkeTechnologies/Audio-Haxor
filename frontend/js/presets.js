@@ -95,6 +95,7 @@ async function fetchPresetPage() {
   const seq = ++_presetQuerySeq;
   const isLoadMore = _presetOffset > 0;
   showPresetQueryLoading(isLoadMore);
+  if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('presetSearchInput', true);
   await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryPresets({
@@ -125,6 +126,8 @@ async function fetchPresetPage() {
     if (seq !== _presetQuerySeq) return;
     clearTableQueryLoadingRow('presetQueryLoadingRow', 'presetTable');
     showToast(toastFmt('toast.preset_query_failed', { err: e }), 4000, 'error');
+  } finally {
+    if (seq === _presetQuerySeq && typeof setFilterFieldLoading === 'function') setFilterFieldLoading('presetSearchInput', false);
   }
 }
 

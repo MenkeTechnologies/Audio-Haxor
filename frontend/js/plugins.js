@@ -108,6 +108,7 @@ async function fetchPluginPage() {
   const seq = ++_pluginQuerySeq;
   const isLoadMore = _pluginOffset > 0;
   showPluginQueryLoading(isLoadMore);
+  if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('searchInput', true);
   await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryPlugins({
@@ -150,6 +151,8 @@ async function fetchPluginPage() {
     if (seq !== _pluginQuerySeq) return;
     clearPluginQueryLoading();
     showToast(toastFmt('toast.plugin_query_failed', { err: e }), 4000, 'error');
+  } finally {
+    if (seq === _pluginQuerySeq && typeof setFilterFieldLoading === 'function') setFilterFieldLoading('searchInput', false);
   }
 }
 

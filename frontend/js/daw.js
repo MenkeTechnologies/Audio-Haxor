@@ -75,6 +75,7 @@ async function fetchDawPage() {
   const seq = ++_dawQuerySeq;
   const isLoadMore = _dawOffset > 0;
   showDawQueryLoading(isLoadMore);
+  if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('dawSearchInput', true);
   await new Promise((r) => requestAnimationFrame(r));
   try {
     const result = await window.vstUpdater.dbQueryDaw({
@@ -107,6 +108,8 @@ async function fetchDawPage() {
     if (seq !== _dawQuerySeq) return;
     clearTableQueryLoadingRow('dawQueryLoadingRow', 'dawTable');
     showToast(toastFmt('toast.daw_query_failed', { err: e }), 4000, 'error');
+  } finally {
+    if (seq === _dawQuerySeq && typeof setFilterFieldLoading === 'function') setFilterFieldLoading('dawSearchInput', false);
   }
 }
 

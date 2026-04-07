@@ -1949,7 +1949,6 @@ impl Database {
                     where_parts.push(format!("plugin_type IN ({})", vals.join(",")));
                 } else {
                     where_parts.push(format!("plugin_type = ?{bind_idx}"));
-                    bind_idx += 1;
                 }
             }
         }
@@ -1977,9 +1976,9 @@ impl Database {
             if let Some(tf) = type_filter {
                 if !tf.is_empty() && tf != "all" && !tf.contains(',') {
                     stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
-                    bi += 1;
                 }
             }
+            let _ = bi;
             let mut rows = stmt.raw_query();
             rows.next()
                 .map_err(|e| e.to_string())?
@@ -3598,7 +3597,6 @@ impl Database {
                     where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
                 } else {
                     where_parts.push(format!("format = ?{bind_idx}"));
-                    bind_idx += 1;
                 }
             }
         }
@@ -3620,6 +3618,7 @@ impl Database {
                 stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
             }
         }
+        let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
         let mut total_bytes = 0u64;
@@ -4191,14 +4190,13 @@ impl Database {
         let total_count: u64 = {
             let sql = format!("SELECT COUNT(*) FROM pdfs WHERE {where_cl}");
             let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-            let mut bi = 1;
+            let bi = 1;
             if let Some(ref m) = fts_match {
                 stmt.raw_bind_parameter(bi, m).map_err(|e| e.to_string())?;
-                bi += 1;
             } else if let Some(ref pat) = like_pat {
                 stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
-                bi += 1;
             }
+            let _ = bi;
             let mut rows = stmt.raw_query();
             rows.next()
                 .map_err(|e| e.to_string())?
@@ -4323,19 +4321,6 @@ impl Database {
             .join(",")
     }
 
-    fn get_latest_scan_id(&self, scan_table: &str, _count_col: &str) -> Result<String, String> {
-        let conn = self.conn.lock().unwrap();
-        Ok(conn
-            .query_row(
-                &format!("SELECT id FROM {scan_table} WHERE scan_complete = 1 ORDER BY timestamp DESC LIMIT 1"),
-                [],
-                |r| r.get::<_, String>(0),
-            )
-            .optional()
-            .map_err(|e| e.to_string())?
-            .unwrap_or_default())
-    }
-
     pub fn audio_filter_stats(
         &self,
         search: Option<&str>,
@@ -4368,7 +4353,6 @@ impl Database {
                     where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
                 } else {
                     where_parts.push(format!("format = ?{bind_idx}"));
-                    bind_idx += 1;
                 }
             }
         }
@@ -4388,6 +4372,7 @@ impl Database {
                 stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
             }
         }
+        let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
         let mut total_bytes = 0u64;
@@ -4443,7 +4428,6 @@ impl Database {
                     where_parts.push(format!("daw IN ({})", Self::in_list_sql(f)));
                 } else {
                     where_parts.push(format!("daw = ?{bind_idx}"));
-                    bind_idx += 1;
                 }
             }
         }
@@ -4463,6 +4447,7 @@ impl Database {
                 stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
             }
         }
+        let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
         let mut total_bytes = 0u64;
@@ -4521,7 +4506,6 @@ impl Database {
                     where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
                 } else {
                     where_parts.push(format!("format = ?{bind_idx}"));
-                    bind_idx += 1;
                 }
             }
         }
@@ -4541,6 +4525,7 @@ impl Database {
                 stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
             }
         }
+        let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
         let mut total_bytes = 0u64;
@@ -4590,7 +4575,6 @@ impl Database {
                     where_parts.push(format!("plugin_type IN ({})", Self::in_list_sql(tf)));
                 } else {
                     where_parts.push(format!("plugin_type = ?{bind_idx}"));
-                    bind_idx += 1;
                 }
             }
         }
@@ -4607,6 +4591,7 @@ impl Database {
                 stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
             }
         }
+        let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
         let mut total_bytes = 0u64;

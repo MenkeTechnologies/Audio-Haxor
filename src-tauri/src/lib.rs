@@ -216,6 +216,30 @@ struct UpdatedPlugin {
     source: String,
 }
 
+// ── IPC: offload blocking work to Tokio's blocking pool (keeps async runtime + window responsive)
+
+#[inline]
+async fn blocking<T, F>(f: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| format!("spawn_blocking: {e}"))
+}
+
+#[inline]
+async fn blocking_res<T, F>(f: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| format!("spawn_blocking: {e}"))?
+}
+
 // ── Tauri commands ──
 
 #[tauri::command]
@@ -684,48 +708,53 @@ async fn resolve_kvr(direct_url: String, plugin_name: String) -> Result<kvr::Kvr
 
 // History commands — all backed by SQLite via db::global()
 #[tauri::command]
-fn history_get_scans() -> Result<Vec<serde_json::Value>, String> {
-    db::global().get_plugin_scans()
+async fn history_get_scans() -> Result<Vec<serde_json::Value>, String> {
+    blocking_res(|| db::global().get_plugin_scans()).await
 }
 
 #[tauri::command]
-fn history_get_detail(id: String) -> Result<history::ScanSnapshot, String> {
-    db::global().get_plugin_scan_detail(&id)
+async fn history_get_detail(id: String) -> Result<history::ScanSnapshot, String> {
+    blocking_res(move || db::global().get_plugin_scan_detail(&id)).await
 }
 
 #[tauri::command]
-fn history_delete(id: String) -> Result<(), String> {
-    db::global().delete_plugin_scan(&id)
+async fn history_delete(id: String) -> Result<(), String> {
+    blocking_res(move || db::global().delete_plugin_scan(&id)).await
 }
 
 #[tauri::command]
-fn history_clear() -> Result<(), String> {
+async fn history_clear() -> Result<(), String> {
     #[cfg(not(test))]
     append_log("HISTORY CLEAR — plugins (all scan history deleted)".into());
-    db::global().clear_plugin_history()
+    blocking_res(|| db::global().clear_plugin_history()).await
 }
 
 #[tauri::command]
-fn history_diff(old_id: String, new_id: String) -> Option<history::ScanDiff> {
-    // Diff still uses history structs — compute from two snapshots
-    let old = db::global().get_plugin_scan_detail(&old_id).ok()?;
-    let new = db::global().get_plugin_scan_detail(&new_id).ok()?;
-    Some(history::compute_plugin_diff(&old, &new))
+async fn history_diff(old_id: String, new_id: String) -> Option<history::ScanDiff> {
+    tokio::task::spawn_blocking(move || {
+        let old = db::global().get_plugin_scan_detail(&old_id).ok()?;
+        let new = db::global().get_plugin_scan_detail(&new_id).ok()?;
+        Some(history::compute_plugin_diff(&old, &new))
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 #[tauri::command]
-fn history_latest() -> Result<Option<history::ScanSnapshot>, String> {
-    db::global().get_latest_plugin_scan()
+async fn history_latest() -> Result<Option<history::ScanSnapshot>, String> {
+    blocking_res(|| db::global().get_latest_plugin_scan()).await
 }
 
 #[tauri::command]
-fn kvr_cache_get() -> Result<std::collections::HashMap<String, history::KvrCacheEntry>, String> {
-    db::global().load_kvr_cache()
+async fn kvr_cache_get(
+) -> Result<std::collections::HashMap<String, history::KvrCacheEntry>, String> {
+    blocking_res(|| db::global().load_kvr_cache()).await
 }
 
 #[tauri::command]
-fn kvr_cache_update(entries: Vec<KvrCacheUpdateEntry>) -> Result<(), String> {
-    db::global().update_kvr_cache(&entries)
+async fn kvr_cache_update(entries: Vec<KvrCacheUpdateEntry>) -> Result<(), String> {
+    blocking_res(move || db::global().update_kvr_cache(&entries)).await
 }
 
 // Audio scanner commands
@@ -872,54 +901,66 @@ async fn stop_audio_scan(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_audio_metadata(file_path: String) -> audio_scanner::AudioMetadata {
-    audio_scanner::get_audio_metadata(&file_path)
+async fn get_audio_metadata(file_path: String) -> audio_scanner::AudioMetadata {
+    let fallback_path = file_path.clone();
+    tokio::task::spawn_blocking(move || audio_scanner::get_audio_metadata(&file_path))
+        .await
+        .unwrap_or_else(|_| audio_scanner::get_audio_metadata(&fallback_path))
 }
 
 // Audio history commands — SQLite backed
 #[tauri::command]
-fn audio_history_save(
+async fn audio_history_save(
     samples: Vec<AudioSample>,
     roots: Option<Vec<String>>,
 ) -> Result<history::AudioScanSnapshot, String> {
-    let snap = history::build_audio_snapshot(&samples, &roots.unwrap_or_default());
-    db::global().save_audio_scan_full(&snap)?;
-    db::global().checkpoint();
-    Ok(snap)
+    let roots = roots.unwrap_or_default();
+    blocking_res(move || {
+        let snap = history::build_audio_snapshot(&samples, &roots);
+        db::global().save_audio_scan_full(&snap)?;
+        db::global().checkpoint();
+        Ok(snap)
+    })
+    .await
 }
 
 #[tauri::command]
-fn audio_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
-    db::global().get_audio_scans_list()
+async fn audio_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
+    blocking_res(|| db::global().get_audio_scans_list()).await
 }
 
 #[tauri::command]
-fn audio_history_get_detail(id: String) -> Result<history::AudioScanSnapshot, String> {
-    db::global().get_audio_scan_detail(&id)
+async fn audio_history_get_detail(id: String) -> Result<history::AudioScanSnapshot, String> {
+    blocking_res(move || db::global().get_audio_scan_detail(&id)).await
 }
 
 #[tauri::command]
-fn audio_history_delete(id: String) -> Result<(), String> {
-    db::global().delete_audio_scan(&id)
+async fn audio_history_delete(id: String) -> Result<(), String> {
+    blocking_res(move || db::global().delete_audio_scan(&id)).await
 }
 
 #[tauri::command]
-fn audio_history_clear() -> Result<(), String> {
+async fn audio_history_clear() -> Result<(), String> {
     #[cfg(not(test))]
     append_log("HISTORY CLEAR — audio samples (all scan history deleted)".into());
-    db::global().clear_audio_history()
+    blocking_res(|| db::global().clear_audio_history()).await
 }
 
 #[tauri::command]
-fn audio_history_latest() -> Result<Option<history::AudioScanSnapshot>, String> {
-    db::global().get_latest_audio_scan()
+async fn audio_history_latest() -> Result<Option<history::AudioScanSnapshot>, String> {
+    blocking_res(|| db::global().get_latest_audio_scan()).await
 }
 
 #[tauri::command]
-fn audio_history_diff(old_id: String, new_id: String) -> Option<history::AudioScanDiff> {
-    let old = db::global().get_audio_scan_detail(&old_id).ok()?;
-    let new = db::global().get_audio_scan_detail(&new_id).ok()?;
-    Some(history::compute_audio_diff(&old, &new))
+async fn audio_history_diff(old_id: String, new_id: String) -> Option<history::AudioScanDiff> {
+    tokio::task::spawn_blocking(move || {
+        let old = db::global().get_audio_scan_detail(&old_id).ok()?;
+        let new = db::global().get_audio_scan_detail(&new_id).ok()?;
+        Some(history::compute_audio_diff(&old, &new))
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 // DAW scanner commands
@@ -1070,48 +1111,57 @@ async fn stop_daw_scan(app: AppHandle) -> Result<(), String> {
 
 // DAW history commands — SQLite backed
 #[tauri::command]
-fn daw_history_save(
+async fn daw_history_save(
     projects: Vec<DawProject>,
     roots: Option<Vec<String>>,
 ) -> Result<history::DawScanSnapshot, String> {
-    let snap = history::build_daw_snapshot(&projects, &roots.unwrap_or_default());
-    db::global().save_daw_scan(&snap)?;
-    db::global().checkpoint();
-    Ok(snap)
+    let roots = roots.unwrap_or_default();
+    blocking_res(move || {
+        let snap = history::build_daw_snapshot(&projects, &roots);
+        db::global().save_daw_scan(&snap)?;
+        db::global().checkpoint();
+        Ok(snap)
+    })
+    .await
 }
 
 #[tauri::command]
-fn daw_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
-    db::global().get_daw_scans()
+async fn daw_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
+    blocking_res(|| db::global().get_daw_scans()).await
 }
 
 #[tauri::command]
-fn daw_history_get_detail(id: String) -> Result<history::DawScanSnapshot, String> {
-    db::global().get_daw_scan_detail(&id)
+async fn daw_history_get_detail(id: String) -> Result<history::DawScanSnapshot, String> {
+    blocking_res(move || db::global().get_daw_scan_detail(&id)).await
 }
 
 #[tauri::command]
-fn daw_history_delete(id: String) -> Result<(), String> {
-    db::global().delete_daw_scan(&id)
+async fn daw_history_delete(id: String) -> Result<(), String> {
+    blocking_res(move || db::global().delete_daw_scan(&id)).await
 }
 
 #[tauri::command]
-fn daw_history_clear() -> Result<(), String> {
+async fn daw_history_clear() -> Result<(), String> {
     #[cfg(not(test))]
     append_log("HISTORY CLEAR — DAW projects".into());
-    db::global().clear_daw_history()
+    blocking_res(|| db::global().clear_daw_history()).await
 }
 
 #[tauri::command]
-fn daw_history_latest() -> Result<Option<history::DawScanSnapshot>, String> {
-    db::global().get_latest_daw_scan()
+async fn daw_history_latest() -> Result<Option<history::DawScanSnapshot>, String> {
+    blocking_res(|| db::global().get_latest_daw_scan()).await
 }
 
 #[tauri::command]
-fn daw_history_diff(old_id: String, new_id: String) -> Option<history::DawScanDiff> {
-    let old = db::global().get_daw_scan_detail(&old_id).ok()?;
-    let new = db::global().get_daw_scan_detail(&new_id).ok()?;
-    Some(history::compute_daw_diff(&old, &new))
+async fn daw_history_diff(old_id: String, new_id: String) -> Option<history::DawScanDiff> {
+    tokio::task::spawn_blocking(move || {
+        let old = db::global().get_daw_scan_detail(&old_id).ok()?;
+        let new = db::global().get_daw_scan_detail(&new_id).ok()?;
+        Some(history::compute_daw_diff(&old, &new))
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 // Preset scanner commands
@@ -1257,48 +1307,57 @@ async fn stop_preset_scan(app: AppHandle) -> Result<(), String> {
 
 // Preset history commands — SQLite backed
 #[tauri::command]
-fn preset_history_save(
+async fn preset_history_save(
     presets: Vec<PresetFile>,
     roots: Option<Vec<String>>,
 ) -> Result<history::PresetScanSnapshot, String> {
-    let snap = history::build_preset_snapshot(&presets, &roots.unwrap_or_default());
-    db::global().save_preset_scan(&snap)?;
-    db::global().checkpoint();
-    Ok(snap)
+    let roots = roots.unwrap_or_default();
+    blocking_res(move || {
+        let snap = history::build_preset_snapshot(&presets, &roots);
+        db::global().save_preset_scan(&snap)?;
+        db::global().checkpoint();
+        Ok(snap)
+    })
+    .await
 }
 
 #[tauri::command]
-fn preset_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
-    db::global().get_preset_scans()
+async fn preset_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
+    blocking_res(|| db::global().get_preset_scans()).await
 }
 
 #[tauri::command]
-fn preset_history_get_detail(id: String) -> Result<history::PresetScanSnapshot, String> {
-    db::global().get_preset_scan_detail(&id)
+async fn preset_history_get_detail(id: String) -> Result<history::PresetScanSnapshot, String> {
+    blocking_res(move || db::global().get_preset_scan_detail(&id)).await
 }
 
 #[tauri::command]
-fn preset_history_delete(id: String) -> Result<(), String> {
-    db::global().delete_preset_scan(&id)
+async fn preset_history_delete(id: String) -> Result<(), String> {
+    blocking_res(move || db::global().delete_preset_scan(&id)).await
 }
 
 #[tauri::command]
-fn preset_history_clear() -> Result<(), String> {
+async fn preset_history_clear() -> Result<(), String> {
     #[cfg(not(test))]
     append_log("HISTORY CLEAR — presets".into());
-    db::global().clear_preset_history()
+    blocking_res(|| db::global().clear_preset_history()).await
 }
 
 #[tauri::command]
-fn preset_history_latest() -> Result<Option<history::PresetScanSnapshot>, String> {
-    db::global().get_latest_preset_scan()
+async fn preset_history_latest() -> Result<Option<history::PresetScanSnapshot>, String> {
+    blocking_res(|| db::global().get_latest_preset_scan()).await
 }
 
 #[tauri::command]
-fn preset_history_diff(old_id: String, new_id: String) -> Option<history::PresetScanDiff> {
-    let old = db::global().get_preset_scan_detail(&old_id).ok()?;
-    let new = db::global().get_preset_scan_detail(&new_id).ok()?;
-    Some(history::compute_preset_diff(&old, &new))
+async fn preset_history_diff(old_id: String, new_id: String) -> Option<history::PresetScanDiff> {
+    tokio::task::spawn_blocking(move || {
+        let old = db::global().get_preset_scan_detail(&old_id).ok()?;
+        let new = db::global().get_preset_scan_detail(&new_id).ok()?;
+        Some(history::compute_preset_diff(&old, &new))
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 // MIDI scanner commands — dedicated MIDI walker, fully independent of preset scan.
@@ -1438,48 +1497,57 @@ async fn stop_midi_scan(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn midi_history_save(
+async fn midi_history_save(
     midi_files: Vec<history::MidiFile>,
     roots: Option<Vec<String>>,
 ) -> Result<history::MidiScanSnapshot, String> {
-    let snap = history::build_midi_snapshot(&midi_files, &roots.unwrap_or_default());
-    db::global().save_midi_scan(&snap)?;
-    db::global().checkpoint();
-    Ok(snap)
+    let roots = roots.unwrap_or_default();
+    blocking_res(move || {
+        let snap = history::build_midi_snapshot(&midi_files, &roots);
+        db::global().save_midi_scan(&snap)?;
+        db::global().checkpoint();
+        Ok(snap)
+    })
+    .await
 }
 
 #[tauri::command]
-fn midi_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
-    db::global().get_midi_scans()
+async fn midi_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
+    blocking_res(|| db::global().get_midi_scans()).await
 }
 
 #[tauri::command]
-fn midi_history_get_detail(id: String) -> Result<history::MidiScanSnapshot, String> {
-    db::global().get_midi_scan_detail(&id)
+async fn midi_history_get_detail(id: String) -> Result<history::MidiScanSnapshot, String> {
+    blocking_res(move || db::global().get_midi_scan_detail(&id)).await
 }
 
 #[tauri::command]
-fn midi_history_delete(id: String) -> Result<(), String> {
-    db::global().delete_midi_scan(&id)
+async fn midi_history_delete(id: String) -> Result<(), String> {
+    blocking_res(move || db::global().delete_midi_scan(&id)).await
 }
 
 #[tauri::command]
-fn midi_history_clear() -> Result<(), String> {
+async fn midi_history_clear() -> Result<(), String> {
     #[cfg(not(test))]
     append_log("HISTORY CLEAR — midi".into());
-    db::global().clear_midi_history()
+    blocking_res(|| db::global().clear_midi_history()).await
 }
 
 #[tauri::command]
-fn midi_history_latest() -> Result<Option<history::MidiScanSnapshot>, String> {
-    db::global().get_latest_midi_scan()
+async fn midi_history_latest() -> Result<Option<history::MidiScanSnapshot>, String> {
+    blocking_res(|| db::global().get_latest_midi_scan()).await
 }
 
 #[tauri::command]
-fn midi_history_diff(old_id: String, new_id: String) -> Option<history::MidiScanDiff> {
-    let old = db::global().get_midi_scan_detail(&old_id).ok()?;
-    let new = db::global().get_midi_scan_detail(&new_id).ok()?;
-    Some(history::compute_midi_diff(&old, &new))
+async fn midi_history_diff(old_id: String, new_id: String) -> Option<history::MidiScanDiff> {
+    tokio::task::spawn_blocking(move || {
+        let old = db::global().get_midi_scan_detail(&old_id).ok()?;
+        let new = db::global().get_midi_scan_detail(&new_id).ok()?;
+        Some(history::compute_midi_diff(&old, &new))
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -2034,8 +2102,8 @@ async fn scan_unified(
 }
 
 #[tauri::command]
-fn get_unified_scan_run() -> Result<db::UnifiedScanRunRow, String> {
-    db::global().get_unified_scan_run()
+async fn get_unified_scan_run() -> Result<db::UnifiedScanRunRow, String> {
+    blocking_res(|| db::global().get_unified_scan_run()).await
 }
 
 // Stops a running unified scan by setting stop flags on all four per-type
@@ -2059,48 +2127,57 @@ async fn stop_unified_scan(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn pdf_history_save(
+async fn pdf_history_save(
     pdfs: Vec<PdfFile>,
     roots: Option<Vec<String>>,
 ) -> Result<history::PdfScanSnapshot, String> {
-    let snap = history::build_pdf_snapshot(&pdfs, &roots.unwrap_or_default());
-    db::global().save_pdf_scan(&snap)?;
-    db::global().checkpoint();
-    Ok(snap)
+    let roots = roots.unwrap_or_default();
+    blocking_res(move || {
+        let snap = history::build_pdf_snapshot(&pdfs, &roots);
+        db::global().save_pdf_scan(&snap)?;
+        db::global().checkpoint();
+        Ok(snap)
+    })
+    .await
 }
 
 #[tauri::command]
-fn pdf_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
-    db::global().get_pdf_scans()
+async fn pdf_history_get_scans() -> Result<Vec<serde_json::Value>, String> {
+    blocking_res(|| db::global().get_pdf_scans()).await
 }
 
 #[tauri::command]
-fn pdf_history_get_detail(id: String) -> Result<history::PdfScanSnapshot, String> {
-    db::global().get_pdf_scan_detail(&id)
+async fn pdf_history_get_detail(id: String) -> Result<history::PdfScanSnapshot, String> {
+    blocking_res(move || db::global().get_pdf_scan_detail(&id)).await
 }
 
 #[tauri::command]
-fn pdf_history_delete(id: String) -> Result<(), String> {
-    db::global().delete_pdf_scan(&id)
+async fn pdf_history_delete(id: String) -> Result<(), String> {
+    blocking_res(move || db::global().delete_pdf_scan(&id)).await
 }
 
 #[tauri::command]
-fn pdf_history_clear() -> Result<(), String> {
+async fn pdf_history_clear() -> Result<(), String> {
     #[cfg(not(test))]
     append_log("HISTORY CLEAR — pdfs".into());
-    db::global().clear_pdf_history()
+    blocking_res(|| db::global().clear_pdf_history()).await
 }
 
 #[tauri::command]
-fn pdf_history_latest() -> Result<Option<history::PdfScanSnapshot>, String> {
-    db::global().get_latest_pdf_scan()
+async fn pdf_history_latest() -> Result<Option<history::PdfScanSnapshot>, String> {
+    blocking_res(|| db::global().get_latest_pdf_scan()).await
 }
 
 #[tauri::command]
-fn pdf_history_diff(old_id: String, new_id: String) -> Option<history::PdfScanDiff> {
-    let old = db::global().get_pdf_scan_detail(&old_id).ok()?;
-    let new = db::global().get_pdf_scan_detail(&new_id).ok()?;
-    Some(history::compute_pdf_diff(&old, &new))
+async fn pdf_history_diff(old_id: String, new_id: String) -> Option<history::PdfScanDiff> {
+    tokio::task::spawn_blocking(move || {
+        let old = db::global().get_pdf_scan_detail(&old_id).ok()?;
+        let new = db::global().get_pdf_scan_detail(&new_id).ok()?;
+        Some(history::compute_pdf_diff(&old, &new))
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 #[tauri::command]
@@ -2186,8 +2263,9 @@ async fn pdf_metadata_extract_batch(
 /// Get paths from latest PDF scan that don't yet have metadata — caller uses this
 /// to kick off a background extraction pass.
 #[tauri::command]
-fn pdf_metadata_unindexed(limit: Option<u64>) -> Result<Vec<String>, String> {
-    db::global().unindexed_pdf_paths(limit.unwrap_or(100000))
+async fn pdf_metadata_unindexed(limit: Option<u64>) -> Result<Vec<String>, String> {
+    let lim = limit.unwrap_or(100000);
+    blocking_res(move || db::global().unindexed_pdf_paths(lim)).await
 }
 
 #[tauri::command]
@@ -2277,11 +2355,10 @@ async fn extract_project_plugins(file_path: String) -> Result<Vec<xref::PluginRe
     Ok(result)
 }
 
-#[tauri::command]
-fn read_als_xml(file_path: String) -> Result<String, String> {
+fn read_als_xml_impl(file_path: &str) -> Result<String, String> {
     use flate2::read::GzDecoder;
     use std::io::Read;
-    let data = std::fs::read(&file_path).map_err(|e| e.to_string())?;
+    let data = std::fs::read(file_path).map_err(|e| e.to_string())?;
     let mut decoder = GzDecoder::new(&data[..]);
     const MAX_XML_SIZE: usize = 20_000_000; // 20MB cap to prevent WebView OOM
     let mut xml = String::new();
@@ -2290,10 +2367,14 @@ fn read_als_xml(file_path: String) -> Result<String, String> {
         .map_err(|e| format!("Not a valid gzip file: {}", e))?;
     if xml.len() > MAX_XML_SIZE {
         xml.truncate(MAX_XML_SIZE);
-        // Close any open tags to prevent parse errors
         xml.push_str("\n<!-- TRUNCATED: file too large for viewer -->");
     }
     Ok(xml)
+}
+
+#[tauri::command]
+async fn read_als_xml(file_path: String) -> Result<String, String> {
+    blocking_res(move || read_als_xml_impl(&file_path)).await
 }
 
 #[tauri::command]
@@ -2499,91 +2580,97 @@ async fn find_similar_samples(
 }
 
 #[tauri::command]
-fn open_file_default(file_path: String) -> Result<(), String> {
-    let path = std::path::Path::new(&file_path);
-    if !path.exists() {
-        return Err(format!("File not found: {}", file_path));
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let output = std::process::Command::new("open")
-            .arg(&file_path)
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("open failed: {}", stderr.trim()));
+async fn open_file_default(file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        let path = std::path::Path::new(&file_path);
+        if !path.exists() {
+            return Err(format!("File not found: {}", file_path));
         }
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let output = std::process::Command::new("cmd")
-            .args(["/C", "start", "", &file_path])
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            return Err("start failed".into());
+        #[cfg(target_os = "macos")]
+        {
+            let output = std::process::Command::new("open")
+                .arg(&file_path)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("open failed: {}", stderr.trim()));
+            }
         }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let output = std::process::Command::new("xdg-open")
-            .arg(&file_path)
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            return Err("xdg-open failed".into());
+        #[cfg(target_os = "windows")]
+        {
+            let output = std::process::Command::new("cmd")
+                .args(["/C", "start", "", &file_path])
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                return Err("start failed".into());
+            }
         }
-    }
-    Ok(())
+        #[cfg(target_os = "linux")]
+        {
+            let output = std::process::Command::new("xdg-open")
+                .arg(&file_path)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                return Err("xdg-open failed".into());
+            }
+        }
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-fn open_with_app(file_path: String, app_name: String) -> Result<(), String> {
-    let path = std::path::Path::new(&file_path);
-    if !path.exists() {
-        return Err(format!("File not found: {}", file_path));
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let output = std::process::Command::new("open")
-            .args(["-a", &app_name, &file_path])
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!(
-                "Could not open with {}: {}",
-                app_name,
-                stderr.trim()
-            ));
+async fn open_with_app(file_path: String, app_name: String) -> Result<(), String> {
+    blocking_res(move || {
+        let path = std::path::Path::new(&file_path);
+        if !path.exists() {
+            return Err(format!("File not found: {}", file_path));
         }
-    }
 
-    #[cfg(target_os = "windows")]
-    {
-        let output = std::process::Command::new("cmd")
-            .args(["/C", "start", "", &file_path])
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            return Err(format!("Could not open with {}", app_name));
+        #[cfg(target_os = "macos")]
+        {
+            let output = std::process::Command::new("open")
+                .args(["-a", &app_name, &file_path])
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!(
+                    "Could not open with {}: {}",
+                    app_name,
+                    stderr.trim()
+                ));
+            }
         }
-    }
 
-    #[cfg(target_os = "linux")]
-    {
-        let output = std::process::Command::new("xdg-open")
-            .arg(&file_path)
-            .output()
-            .map_err(|e| e.to_string())?;
-        if !output.status.success() {
-            return Err(format!("Could not open with {}", app_name));
+        #[cfg(target_os = "windows")]
+        {
+            let output = std::process::Command::new("cmd")
+                .args(["/C", "start", "", &file_path])
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                return Err(format!("Could not open with {}", app_name));
+            }
         }
-    }
 
-    Ok(())
+        #[cfg(target_os = "linux")]
+        {
+            let output = std::process::Command::new("xdg-open")
+                .arg(&file_path)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                return Err(format!("Could not open with {}", app_name));
+            }
+        }
+
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
@@ -2627,23 +2714,37 @@ async fn open_audio_folder(file_path: String) -> Result<(), String> {
 // ── Preferences commands ──
 
 #[tauri::command]
-fn prefs_get_all() -> history::PrefsMap {
-    history::load_preferences()
+async fn prefs_get_all() -> history::PrefsMap {
+    blocking(|| history::load_preferences())
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]
-fn prefs_set(key: String, value: serde_json::Value) {
-    history::set_preference(&key, value);
+async fn prefs_set(key: String, value: serde_json::Value) {
+    let _ = blocking_res(move || {
+        history::set_preference(&key, value);
+        Ok(())
+    })
+    .await;
 }
 
 #[tauri::command]
-fn prefs_remove(key: String) {
-    history::remove_preference(&key);
+async fn prefs_remove(key: String) {
+    let _ = blocking_res(move || {
+        history::remove_preference(&key);
+        Ok(())
+    })
+    .await;
 }
 
 #[tauri::command]
-fn prefs_save_all(prefs: history::PrefsMap) {
-    history::save_preferences(&prefs);
+async fn prefs_save_all(prefs: history::PrefsMap) {
+    let _ = blocking_res(move || {
+        history::save_preferences(&prefs);
+        Ok(())
+    })
+    .await;
 }
 
 #[tauri::command]
@@ -2653,21 +2754,25 @@ async fn open_prefs_file() -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_prefs_path() -> String {
-    history::get_preferences_path()
-        .to_string_lossy()
-        .to_string()
+async fn get_prefs_path() -> String {
+    blocking(|| {
+        history::get_preferences_path()
+            .to_string_lossy()
+            .to_string()
+    })
+    .await
+    .unwrap_or_default()
 }
 
 // Cache file read/write — backed by SQLite
 #[tauri::command]
-fn read_cache_file(name: String) -> Result<serde_json::Value, String> {
-    db::global().read_cache(&name)
+async fn read_cache_file(name: String) -> Result<serde_json::Value, String> {
+    blocking_res(move || db::global().read_cache(&name)).await
 }
 
 #[tauri::command]
-fn write_cache_file(name: String, data: serde_json::Value) -> Result<(), String> {
-    db::global().write_cache(&name, &data)
+async fn write_cache_file(name: String, data: serde_json::Value) -> Result<(), String> {
+    blocking_res(move || db::global().write_cache(&name, &data)).await
 }
 
 #[tauri::command]
@@ -2705,58 +2810,59 @@ pub fn write_app_log(msg: String) {
 }
 
 #[tauri::command]
-fn read_log() -> Result<String, String> {
-    let path = history::get_data_dir().join("app.log");
-    match std::fs::read_to_string(&path) {
-        Ok(s) => Ok(s),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-        Err(e) => Err(e.to_string()),
-    }
+async fn read_log() -> Result<String, String> {
+    blocking_res(|| {
+        let path = history::get_data_dir().join("app.log");
+        match std::fs::read_to_string(&path) {
+            Ok(s) => Ok(s),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+            Err(e) => Err(e.to_string()),
+        }
+    })
+    .await
 }
 
 #[tauri::command]
-fn clear_log() -> Result<(), String> {
-    let path = history::ensure_data_dir().join("app.log");
-    std::fs::write(&path, "").map_err(|e| e.to_string())
+async fn clear_log() -> Result<(), String> {
+    blocking_res(|| {
+        let path = history::ensure_data_dir().join("app.log");
+        std::fs::write(&path, "").map_err(|e| e.to_string())
+    })
+    .await
 }
 
 /// Generic project file reader: returns {type: "xml"|"tree", content: ...}
 /// XML formats get raw XML string, binary formats get structured JSON tree.
 #[tauri::command]
-fn read_project_file(file_path: String) -> Result<serde_json::Value, String> {
-    let path = std::path::Path::new(&file_path);
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    match ext.as_str() {
-        "als" => {
-            let xml = read_als_xml(file_path.clone())?;
-            Ok(
-                serde_json::json!({"type": "xml", "format": "Ableton Live Set", "content": xml, "path": file_path}),
-            )
+async fn read_project_file(file_path: String) -> Result<serde_json::Value, String> {
+    blocking_res(move || {
+        let path = std::path::Path::new(&file_path);
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        match ext.as_str() {
+            "als" => {
+                let xml = read_als_xml_impl(&file_path)?;
+                Ok(serde_json::json!({"type": "xml", "format": "Ableton Live Set", "content": xml, "path": file_path}))
+            }
+            "song" => {
+                let xml = read_zip_xml(&file_path, &["song.xml", "Song/song.xml", "metainfo.xml"])?;
+                Ok(serde_json::json!({"type": "xml", "format": "Studio One Song", "content": xml, "path": file_path}))
+            }
+            "dawproject" => {
+                let xml = read_zip_xml(&file_path, &["project.xml", "metadata.xml"])?;
+                Ok(serde_json::json!({"type": "xml", "format": "DAWproject", "content": xml, "path": file_path}))
+            }
+            "rpp" | "rpp-bak" => {
+                let content = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+                Ok(serde_json::json!({"type": "text", "format": "REAPER Project", "content": content, "path": file_path}))
+            }
+            _ => read_binary_project(file_path, &ext),
         }
-        "song" => {
-            let xml = read_zip_xml(&file_path, &["song.xml", "Song/song.xml", "metainfo.xml"])?;
-            Ok(
-                serde_json::json!({"type": "xml", "format": "Studio One Song", "content": xml, "path": file_path}),
-            )
-        }
-        "dawproject" => {
-            let xml = read_zip_xml(&file_path, &["project.xml", "metadata.xml"])?;
-            Ok(
-                serde_json::json!({"type": "xml", "format": "DAWproject", "content": xml, "path": file_path}),
-            )
-        }
-        "rpp" | "rpp-bak" => {
-            let content = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
-            Ok(
-                serde_json::json!({"type": "text", "format": "REAPER Project", "content": content, "path": file_path}),
-            )
-        }
-        _ => read_binary_project(file_path, &ext),
-    }
+    })
+    .await
 }
 
 /// Read XML from a ZIP archive (Studio One, DAWproject).
@@ -2952,15 +3058,15 @@ fn read_binary_project_inner(file_path: &str) -> Result<serde_json::Value, Strin
 }
 
 #[tauri::command]
-fn read_bwproject(file_path: String) -> Result<serde_json::Value, String> {
-    read_binary_project(file_path, "bwproject")
+async fn read_bwproject(file_path: String) -> Result<serde_json::Value, String> {
+    blocking_res(move || read_binary_project(file_path, "bwproject")).await
 }
 
 // ── MIDI metadata ──
 
 #[tauri::command]
-fn get_midi_info(file_path: String) -> Result<Option<midi::MidiInfo>, String> {
-    Ok(midi::parse_midi(std::path::Path::new(&file_path)))
+async fn get_midi_info(file_path: String) -> Result<Option<midi::MidiInfo>, String> {
+    blocking_res(move || Ok(midi::parse_midi(std::path::Path::new(&file_path)))).await
 }
 
 // ── Export / Import commands ──
@@ -2984,49 +3090,55 @@ fn plugins_to_export(plugins: &[PluginInfo]) -> Vec<ExportPlugin> {
 }
 
 #[tauri::command]
-fn export_plugins_json(plugins: Vec<PluginInfo>, file_path: String) -> Result<(), String> {
-    #[cfg(not(test))]
-    append_log(format!(
-        "EXPORT — {} plugins → {}",
-        plugins.len(),
-        file_path
-    ));
-    let payload = ExportPayload {
-        version: env!("CARGO_PKG_VERSION").into(),
-        exported_at: chrono::Utc::now().to_rfc3339(),
-        plugins: plugins_to_export(&plugins),
-    };
-    let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
-    std::fs::write(&file_path, json).map_err(|e| e.to_string())
+async fn export_plugins_json(plugins: Vec<PluginInfo>, file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        #[cfg(not(test))]
+        append_log(format!(
+            "EXPORT — {} plugins → {}",
+            plugins.len(),
+            file_path
+        ));
+        let payload = ExportPayload {
+            version: env!("CARGO_PKG_VERSION").into(),
+            exported_at: chrono::Utc::now().to_rfc3339(),
+            plugins: plugins_to_export(&plugins),
+        };
+        let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
+        std::fs::write(&file_path, json).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-fn export_plugins_csv(plugins: Vec<PluginInfo>, file_path: String) -> Result<(), String> {
-    #[cfg(not(test))]
-    append_log(format!(
-        "EXPORT — {} plugins → {}",
-        plugins.len(),
-        file_path
-    ));
-    let sep = detect_separator(&file_path);
-    let mut out = format!(
-        "Name{s}Type{s}Version{s}Manufacturer{s}Manufacturer URL{s}Path{s}Size{s}Modified\n",
-        s = sep
-    );
-    for p in &plugins {
-        out.push_str(&format!(
-            "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
-            dsv_escape(&p.name, sep),
-            dsv_escape(&p.plugin_type, sep),
-            dsv_escape(&p.version, sep),
-            dsv_escape(&p.manufacturer, sep),
-            dsv_escape(p.manufacturer_url.as_deref().unwrap_or(""), sep),
-            dsv_escape(&p.path, sep),
-            dsv_escape(&p.size, sep),
-            dsv_escape(&p.modified, sep),
+async fn export_plugins_csv(plugins: Vec<PluginInfo>, file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        #[cfg(not(test))]
+        append_log(format!(
+            "EXPORT — {} plugins → {}",
+            plugins.len(),
+            file_path
         ));
-    }
-    std::fs::write(&file_path, out).map_err(|e| e.to_string())
+        let sep = detect_separator(&file_path);
+        let mut out = format!(
+            "Name{s}Type{s}Version{s}Manufacturer{s}Manufacturer URL{s}Path{s}Size{s}Modified\n",
+            s = sep
+        );
+        for p in &plugins {
+            out.push_str(&format!(
+                "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
+                dsv_escape(&p.name, sep),
+                dsv_escape(&p.plugin_type, sep),
+                dsv_escape(&p.version, sep),
+                dsv_escape(&p.manufacturer, sep),
+                dsv_escape(p.manufacturer_url.as_deref().unwrap_or(""), sep),
+                dsv_escape(&p.path, sep),
+                dsv_escape(&p.size, sep),
+                dsv_escape(&p.modified, sep),
+            ));
+        }
+        std::fs::write(&file_path, out).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -3057,94 +3169,121 @@ fn detect_separator(file_path: &str) -> char {
 // ── Audio export ──
 
 #[tauri::command]
-fn export_audio_json(samples: Vec<history::AudioSample>, file_path: String) -> Result<(), String> {
-    let payload = serde_json::json!({
-        "version": env!("CARGO_PKG_VERSION"),
-        "exported_at": chrono::Utc::now().to_rfc3339(),
-        "samples": samples,
-    });
-    let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
-    std::fs::write(&file_path, json).map_err(|e| e.to_string())
+async fn export_audio_json(
+    samples: Vec<history::AudioSample>,
+    file_path: String,
+) -> Result<(), String> {
+    blocking_res(move || {
+        let payload = serde_json::json!({
+            "version": env!("CARGO_PKG_VERSION"),
+            "exported_at": chrono::Utc::now().to_rfc3339(),
+            "samples": samples,
+        });
+        let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
+        std::fs::write(&file_path, json).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-fn export_audio_dsv(samples: Vec<history::AudioSample>, file_path: String) -> Result<(), String> {
-    let sep = detect_separator(&file_path);
-    let mut out = format!(
-        "Name{s}Format{s}Path{s}Directory{s}Size{s}Modified\n",
-        s = sep
-    );
-    for s in &samples {
-        out.push_str(&format!(
-            "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
-            dsv_escape(&s.name, sep),
-            dsv_escape(&s.format, sep),
-            dsv_escape(&s.path, sep),
-            dsv_escape(&s.directory, sep),
-            dsv_escape(&s.size_formatted, sep),
-            dsv_escape(&s.modified, sep),
-        ));
-    }
-    std::fs::write(&file_path, out).map_err(|e| e.to_string())
+async fn export_audio_dsv(
+    samples: Vec<history::AudioSample>,
+    file_path: String,
+) -> Result<(), String> {
+    blocking_res(move || {
+        let sep = detect_separator(&file_path);
+        let mut out = format!(
+            "Name{s}Format{s}Path{s}Directory{s}Size{s}Modified\n",
+            s = sep
+        );
+        for s in &samples {
+            out.push_str(&format!(
+                "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
+                dsv_escape(&s.name, sep),
+                dsv_escape(&s.format, sep),
+                dsv_escape(&s.path, sep),
+                dsv_escape(&s.directory, sep),
+                dsv_escape(&s.size_formatted, sep),
+                dsv_escape(&s.modified, sep),
+            ));
+        }
+        std::fs::write(&file_path, out).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 // ── DAW export ──
 
 #[tauri::command]
-fn export_daw_json(projects: Vec<history::DawProject>, file_path: String) -> Result<(), String> {
-    let payload = serde_json::json!({
-        "version": env!("CARGO_PKG_VERSION"),
-        "exported_at": chrono::Utc::now().to_rfc3339(),
-        "projects": projects,
-    });
-    let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
-    std::fs::write(&file_path, json).map_err(|e| e.to_string())
+async fn export_daw_json(
+    projects: Vec<history::DawProject>,
+    file_path: String,
+) -> Result<(), String> {
+    blocking_res(move || {
+        let payload = serde_json::json!({
+            "version": env!("CARGO_PKG_VERSION"),
+            "exported_at": chrono::Utc::now().to_rfc3339(),
+            "projects": projects,
+        });
+        let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
+        std::fs::write(&file_path, json).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-fn export_daw_dsv(projects: Vec<history::DawProject>, file_path: String) -> Result<(), String> {
-    let sep = detect_separator(&file_path);
-    let mut out = format!(
-        "Name{s}DAW{s}Format{s}Path{s}Directory{s}Size{s}Modified\n",
-        s = sep
-    );
-    for p in &projects {
-        out.push_str(&format!(
-            "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
-            dsv_escape(&p.name, sep),
-            dsv_escape(&p.daw, sep),
-            dsv_escape(&p.format, sep),
-            dsv_escape(&p.path, sep),
-            dsv_escape(&p.directory, sep),
-            dsv_escape(&p.size_formatted, sep),
-            dsv_escape(&p.modified, sep),
-        ));
-    }
-    std::fs::write(&file_path, out).map_err(|e| e.to_string())
+async fn export_daw_dsv(
+    projects: Vec<history::DawProject>,
+    file_path: String,
+) -> Result<(), String> {
+    blocking_res(move || {
+        let sep = detect_separator(&file_path);
+        let mut out = format!(
+            "Name{s}DAW{s}Format{s}Path{s}Directory{s}Size{s}Modified\n",
+            s = sep
+        );
+        for p in &projects {
+            out.push_str(&format!(
+                "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
+                dsv_escape(&p.name, sep),
+                dsv_escape(&p.daw, sep),
+                dsv_escape(&p.format, sep),
+                dsv_escape(&p.path, sep),
+                dsv_escape(&p.directory, sep),
+                dsv_escape(&p.size_formatted, sep),
+                dsv_escape(&p.modified, sep),
+            ));
+        }
+        std::fs::write(&file_path, out).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-fn import_plugins_json(file_path: String) -> Result<Vec<PluginInfo>, String> {
-    #[cfg(not(test))]
-    append_log(format!("IMPORT — plugins ← {}", file_path));
-    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
-    let payload: ExportPayload = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-    Ok(payload
-        .plugins
-        .into_iter()
-        .map(|p| PluginInfo {
-            name: p.name,
-            path: p.path,
-            plugin_type: p.plugin_type,
-            version: p.version,
-            manufacturer: p.manufacturer,
-            manufacturer_url: p.manufacturer_url,
-            size: p.size,
-            size_bytes: p.size_bytes,
-            modified: p.modified,
-            architectures: p.architectures,
-        })
-        .collect())
+async fn import_plugins_json(file_path: String) -> Result<Vec<PluginInfo>, String> {
+    blocking_res(move || {
+        #[cfg(not(test))]
+        append_log(format!("IMPORT — plugins ← {}", file_path));
+        let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+        let payload: ExportPayload = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+        Ok(payload
+            .plugins
+            .into_iter()
+            .map(|p| PluginInfo {
+                name: p.name,
+                path: p.path,
+                plugin_type: p.plugin_type,
+                version: p.version,
+                manufacturer: p.manufacturer,
+                manufacturer_url: p.manufacturer_url,
+                size: p.size,
+                size_bytes: p.size_bytes,
+                modified: p.modified,
+                architectures: p.architectures,
+            })
+            .collect())
+    })
+    .await
 }
 
 // ── Process stats ──
@@ -3223,8 +3362,7 @@ fn cached_slow_stats(data_dir: &std::path::Path) -> (u64, u64, u64, u64, serde_j
     (disk_total, disk_free, db_bytes, prefs_bytes, table_counts)
 }
 
-#[tauri::command]
-fn get_process_stats(app: AppHandle) -> serde_json::Value {
+fn build_process_stats(app: AppHandle) -> serde_json::Value {
     let rss = get_rss_bytes();
     let virt = get_virtual_bytes();
     let threads = get_thread_count();
@@ -3440,53 +3578,68 @@ fn get_process_stats(app: AppHandle) -> serde_json::Value {
 }
 
 #[tauri::command]
-fn list_data_files() -> Vec<serde_json::Value> {
-    let data_dir = history::get_data_dir();
-    let mut files = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(&data_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
-            let meta = std::fs::metadata(&path).ok();
-            let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
-            let modified = meta
-                .and_then(|m| m.modified().ok())
-                .map(|t| {
-                    let dt: chrono::DateTime<chrono::Utc> = t.into();
-                    dt.format("%Y-%m-%d %H:%M:%S").to_string()
-                })
-                .unwrap_or_default();
-            files.push(serde_json::json!({
-                "name": name,
-                "path": path.to_string_lossy(),
-                "size": size,
-                "sizeFormatted": format_size(size),
-                "modified": modified,
-            }));
-        }
-    }
-    files.sort_by(|a, b| {
-        a["name"]
-            .as_str()
-            .unwrap_or("")
-            .cmp(b["name"].as_str().unwrap_or(""))
-    });
-    files
+async fn get_process_stats(app: AppHandle) -> serde_json::Value {
+    let app = app.clone();
+    blocking(move || build_process_stats(app))
+        .await
+        .unwrap_or_else(|_| serde_json::json!({}))
 }
 
 #[tauri::command]
-fn delete_data_file(name: String) -> Result<(), String> {
-    let path = history::get_data_dir().join(&name);
-    if !path.exists() {
-        return Ok(());
-    }
-    std::fs::remove_file(&path).map_err(|e| e.to_string())
+async fn list_data_files() -> Vec<serde_json::Value> {
+    blocking(move || {
+        let data_dir = history::get_data_dir();
+        let mut files = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&data_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let meta = std::fs::metadata(&path).ok();
+                let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                let modified = meta
+                    .and_then(|m| m.modified().ok())
+                    .map(|t| {
+                        let dt: chrono::DateTime<chrono::Utc> = t.into();
+                        dt.format("%Y-%m-%d %H:%M:%S").to_string()
+                    })
+                    .unwrap_or_default();
+                files.push(serde_json::json!({
+                    "name": name,
+                    "path": path.to_string_lossy(),
+                    "size": size,
+                    "sizeFormatted": format_size(size),
+                    "modified": modified,
+                }));
+            }
+        }
+        files.sort_by(|a, b| {
+            a["name"]
+                .as_str()
+                .unwrap_or("")
+                .cmp(b["name"].as_str().unwrap_or(""))
+        });
+        files
+    })
+    .await
+    .unwrap_or_default()
+}
+
+#[tauri::command]
+async fn delete_data_file(name: String) -> Result<(), String> {
+    blocking_res(move || {
+        let path = history::get_data_dir().join(&name);
+        if !path.exists() {
+            return Ok(());
+        }
+        std::fs::remove_file(&path).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 static APP_START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
@@ -3694,78 +3847,94 @@ fn gethostname() -> String {
 // ── PDF export/import ──
 
 #[tauri::command]
-fn export_pdfs_json(pdfs: Vec<PdfFile>, file_path: String) -> Result<(), String> {
-    let json = serde_json::to_string_pretty(&pdfs).map_err(|e| e.to_string())?;
-    std::fs::write(&file_path, json).map_err(|e| e.to_string())
+async fn export_pdfs_json(pdfs: Vec<PdfFile>, file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        let json = serde_json::to_string_pretty(&pdfs).map_err(|e| e.to_string())?;
+        std::fs::write(&file_path, json).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-fn export_pdfs_dsv(pdfs: Vec<PdfFile>, file_path: String) -> Result<(), String> {
-    let sep = detect_separator(&file_path);
-    let mut out = format!("Name{s}Path{s}Directory{s}Size{s}Modified\n", s = sep);
-    for p in &pdfs {
-        out.push_str(&format!(
-            "{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
-            dsv_escape(&p.name, sep),
-            dsv_escape(&p.path, sep),
-            dsv_escape(&p.directory, sep),
-            dsv_escape(&p.size_formatted, sep),
-            dsv_escape(&p.modified, sep),
-        ));
-    }
-    std::fs::write(&file_path, out).map_err(|e| e.to_string())
+async fn export_pdfs_dsv(pdfs: Vec<PdfFile>, file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        let sep = detect_separator(&file_path);
+        let mut out = format!("Name{s}Path{s}Directory{s}Size{s}Modified\n", s = sep);
+        for p in &pdfs {
+            out.push_str(&format!(
+                "{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
+                dsv_escape(&p.name, sep),
+                dsv_escape(&p.path, sep),
+                dsv_escape(&p.directory, sep),
+                dsv_escape(&p.size_formatted, sep),
+                dsv_escape(&p.modified, sep),
+            ));
+        }
+        std::fs::write(&file_path, out).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 // ── Preset export/import ──
 
 #[tauri::command]
-fn export_presets_json(presets: Vec<PresetFile>, file_path: String) -> Result<(), String> {
-    let json = serde_json::to_string_pretty(&presets).map_err(|e| e.to_string())?;
-    std::fs::write(&file_path, json).map_err(|e| e.to_string())
+async fn export_presets_json(presets: Vec<PresetFile>, file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        let json = serde_json::to_string_pretty(&presets).map_err(|e| e.to_string())?;
+        std::fs::write(&file_path, json).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-fn export_presets_dsv(presets: Vec<PresetFile>, file_path: String) -> Result<(), String> {
-    let sep = detect_separator(&file_path);
-    let mut out = format!(
-        "Name{s}Format{s}Path{s}Directory{s}Size{s}Modified\n",
-        s = sep
-    );
-    for p in &presets {
-        out.push_str(&format!(
-            "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
-            dsv_escape(&p.name, sep),
-            dsv_escape(&p.format, sep),
-            dsv_escape(&p.path, sep),
-            dsv_escape(&p.directory, sep),
-            dsv_escape(&p.size_formatted, sep),
-            dsv_escape(&p.modified, sep),
-        ));
-    }
-    std::fs::write(&file_path, out).map_err(|e| e.to_string())
+async fn export_presets_dsv(presets: Vec<PresetFile>, file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        let sep = detect_separator(&file_path);
+        let mut out = format!(
+            "Name{s}Format{s}Path{s}Directory{s}Size{s}Modified\n",
+            s = sep
+        );
+        for p in &presets {
+            out.push_str(&format!(
+                "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
+                dsv_escape(&p.name, sep),
+                dsv_escape(&p.format, sep),
+                dsv_escape(&p.path, sep),
+                dsv_escape(&p.directory, sep),
+                dsv_escape(&p.size_formatted, sep),
+                dsv_escape(&p.modified, sep),
+            ));
+        }
+        std::fs::write(&file_path, out).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 // ── TOML export (generic — works for all types via serde) ──
 
 #[tauri::command]
-fn export_toml(data: serde_json::Value, file_path: String) -> Result<(), String> {
-    let toml_str = toml::to_string_pretty(&data).map_err(|e| e.to_string())?;
-    std::fs::write(&file_path, toml_str).map_err(|e| e.to_string())
+async fn export_toml(data: serde_json::Value, file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        let toml_str = toml::to_string_pretty(&data).map_err(|e| e.to_string())?;
+        std::fs::write(&file_path, toml_str).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-fn import_toml(file_path: String) -> Result<serde_json::Value, String> {
-    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
-    let val: toml::Value = toml::from_str(&data).map_err(|e| e.to_string())?;
-    // Convert toml::Value to serde_json::Value
-    let json_str = serde_json::to_string(&val).map_err(|e| e.to_string())?;
-    serde_json::from_str(&json_str).map_err(|e| e.to_string())
+async fn import_toml(file_path: String) -> Result<serde_json::Value, String> {
+    blocking_res(move || {
+        let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+        let val: toml::Value = toml::from_str(&data).map_err(|e| e.to_string())?;
+        let json_str = serde_json::to_string(&val).map_err(|e| e.to_string())?;
+        serde_json::from_str(&json_str).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 // ── PDF export (printpdf 0.9 — Op stream + PdfPage) ──
 
-#[tauri::command]
-fn export_pdf(
+fn export_pdf_impl(
     title: String,
     headers: Vec<String>,
     rows: Vec<Vec<String>>,
@@ -4240,156 +4409,187 @@ fn export_pdf(
     std::fs::write(&file_path, bytes).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn export_pdf(
+    title: String,
+    headers: Vec<String>,
+    rows: Vec<Vec<String>>,
+    file_path: String,
+) -> Result<(), String> {
+    blocking_res(move || export_pdf_impl(title, headers, rows, file_path)).await
+}
+
 // ── File browser ──
 
 #[tauri::command]
-fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
-    let path = std::path::Path::new(&dir_path);
-    if !path.exists() {
-        return Err(format!("Directory not found: {}", dir_path));
-    }
-    if !path.is_dir() {
-        return Err(format!("Not a directory: {}", dir_path));
-    }
+async fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
+    blocking_res(move || {
+        let path = std::path::Path::new(&dir_path);
+        if !path.exists() {
+            return Err(format!("Directory not found: {}", dir_path));
+        }
+        if !path.is_dir() {
+            return Err(format!("Not a directory: {}", dir_path));
+        }
 
-    let mut entries = Vec::new();
-    let read = std::fs::read_dir(path).map_err(|e| e.to_string())?;
-    for entry in read.flatten() {
-        let ep = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') {
-            continue;
-        } // skip hidden
-        let is_dir = ep.is_dir();
-        let meta = std::fs::metadata(&ep).ok();
-        let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
-        let modified = meta
-            .and_then(|m| m.modified().ok())
-            .map(|t| {
-                let dt: chrono::DateTime<chrono::Utc> = t.into();
-                dt.format("%Y-%m-%d %H:%M").to_string()
+        let mut entries = Vec::new();
+        let read = std::fs::read_dir(path).map_err(|e| e.to_string())?;
+        for entry in read.flatten() {
+            let ep = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') {
+                continue;
+            }
+            let is_dir = ep.is_dir();
+            let meta = std::fs::metadata(&ep).ok();
+            let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+            let modified = meta
+                .and_then(|m| m.modified().ok())
+                .map(|t| {
+                    let dt: chrono::DateTime<chrono::Utc> = t.into();
+                    dt.format("%Y-%m-%d %H:%M").to_string()
+                })
+                .unwrap_or_default();
+            let ext = ep
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+                .unwrap_or_default();
+            entries.push(serde_json::json!({
+                "name": name,
+                "path": ep.to_string_lossy(),
+                "isDir": is_dir,
+                "size": size,
+                "sizeFormatted": scanner::format_size(size),
+                "modified": modified,
+                "ext": ext,
+            }));
+        }
+        entries.sort_by(|a, b| {
+            let a_dir = a["isDir"].as_bool().unwrap_or(false);
+            let b_dir = b["isDir"].as_bool().unwrap_or(false);
+            b_dir.cmp(&a_dir).then_with(|| {
+                a["name"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_lowercase()
+                    .cmp(&b["name"].as_str().unwrap_or("").to_lowercase())
             })
-            .unwrap_or_default();
-        let ext = ep
-            .extension()
-            .map(|e| e.to_string_lossy().to_lowercase())
-            .unwrap_or_default();
-        entries.push(serde_json::json!({
-            "name": name,
-            "path": ep.to_string_lossy(),
-            "isDir": is_dir,
-            "size": size,
-            "sizeFormatted": scanner::format_size(size),
-            "modified": modified,
-            "ext": ext,
-        }));
-    }
-    // Sort: dirs first, then by name
-    entries.sort_by(|a, b| {
-        let a_dir = a["isDir"].as_bool().unwrap_or(false);
-        let b_dir = b["isDir"].as_bool().unwrap_or(false);
-        b_dir.cmp(&a_dir).then_with(|| {
-            a["name"]
-                .as_str()
-                .unwrap_or("")
-                .to_lowercase()
-                .cmp(&b["name"].as_str().unwrap_or("").to_lowercase())
-        })
-    });
-    Ok(serde_json::json!({ "entries": entries, "path": dir_path }))
+        });
+        Ok(serde_json::json!({ "entries": entries, "path": dir_path }))
+    })
+    .await
 }
 
 #[tauri::command]
-fn delete_file(file_path: String) -> Result<(), String> {
-    #[cfg(not(test))]
-    append_log(format!("FILE DELETE — {}", file_path));
-    let path = std::path::Path::new(&file_path);
-    if !path.exists() {
-        return Err("File not found".into());
-    }
-    if path.is_dir() {
-        std::fs::remove_dir_all(path).map_err(|e| e.to_string())
-    } else {
-        std::fs::remove_file(path).map_err(|e| e.to_string())
-    }
+async fn delete_file(file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        #[cfg(not(test))]
+        append_log(format!("FILE DELETE — {}", file_path));
+        let path = std::path::Path::new(&file_path);
+        if !path.exists() {
+            return Err("File not found".into());
+        }
+        if path.is_dir() {
+            std::fs::remove_dir_all(path).map_err(|e| e.to_string())
+        } else {
+            std::fs::remove_file(path).map_err(|e| e.to_string())
+        }
+    })
+    .await
 }
 
 #[tauri::command]
-fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
-    #[cfg(not(test))]
-    append_log(format!("FILE RENAME — {} → {}", old_path, new_path));
-    std::fs::rename(&old_path, &new_path).map_err(|e| e.to_string())
+async fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        #[cfg(not(test))]
+        append_log(format!("FILE RENAME — {} → {}", old_path, new_path));
+        std::fs::rename(&old_path, &new_path).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-fn write_text_file(file_path: String, contents: String) -> Result<(), String> {
-    std::fs::write(&file_path, &contents).map_err(|e| e.to_string())
+async fn write_text_file(file_path: String, contents: String) -> Result<(), String> {
+    blocking_res(move || std::fs::write(&file_path, &contents).map_err(|e| e.to_string())).await
 }
 
 #[tauri::command]
-fn read_text_file(file_path: String) -> Result<String, String> {
-    std::fs::read_to_string(&file_path).map_err(|e| e.to_string())
+async fn read_text_file(file_path: String) -> Result<String, String> {
+    blocking_res(move || std::fs::read_to_string(&file_path).map_err(|e| e.to_string())).await
 }
 
 #[tauri::command]
-fn get_home_dir() -> Result<String, String> {
-    dirs::home_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .ok_or_else(|| "Could not determine home directory".into())
+async fn get_home_dir() -> Result<String, String> {
+    blocking_res(|| {
+        dirs::home_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .ok_or_else(|| "Could not determine home directory".into())
+    })
+    .await
 }
 
 #[tauri::command]
-fn import_presets_json(file_path: String) -> Result<Vec<PresetFile>, String> {
-    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
-    if let Ok(arr) = serde_json::from_str::<Vec<PresetFile>>(&data) {
-        return Ok(arr);
-    }
-    let val: serde_json::Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-    if let Some(arr) = val.get("presets") {
-        return serde_json::from_value(arr.clone()).map_err(|e| e.to_string());
-    }
-    Err("Expected a JSON array of presets or { \"presets\": [...] }".into())
+async fn import_presets_json(file_path: String) -> Result<Vec<PresetFile>, String> {
+    blocking_res(move || {
+        let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+        if let Ok(arr) = serde_json::from_str::<Vec<PresetFile>>(&data) {
+            return Ok(arr);
+        }
+        let val: serde_json::Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+        if let Some(arr) = val.get("presets") {
+            return serde_json::from_value(arr.clone()).map_err(|e| e.to_string());
+        }
+        Err("Expected a JSON array of presets or { \"presets\": [...] }".into())
+    })
+    .await
 }
 
 #[tauri::command]
-fn import_pdfs_json(file_path: String) -> Result<Vec<PdfFile>, String> {
-    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
-    if let Ok(arr) = serde_json::from_str::<Vec<PdfFile>>(&data) {
-        return Ok(arr);
-    }
-    let val: serde_json::Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-    if let Some(arr) = val.get("pdfs") {
-        return serde_json::from_value(arr.clone()).map_err(|e| e.to_string());
-    }
-    Err("Expected a JSON array of PDFs or { \"pdfs\": [...] }".into())
+async fn import_pdfs_json(file_path: String) -> Result<Vec<PdfFile>, String> {
+    blocking_res(move || {
+        let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+        if let Ok(arr) = serde_json::from_str::<Vec<PdfFile>>(&data) {
+            return Ok(arr);
+        }
+        let val: serde_json::Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+        if let Some(arr) = val.get("pdfs") {
+            return serde_json::from_value(arr.clone()).map_err(|e| e.to_string());
+        }
+        Err("Expected a JSON array of PDFs or { \"pdfs\": [...] }".into())
+    })
+    .await
 }
 
 #[tauri::command]
-fn import_audio_json(file_path: String) -> Result<Vec<AudioSample>, String> {
-    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
-    // Accept bare array or { "samples": [...] } envelope
-    if let Ok(arr) = serde_json::from_str::<Vec<AudioSample>>(&data) {
-        return Ok(arr);
-    }
-    let val: serde_json::Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-    if let Some(arr) = val.get("samples") {
-        return serde_json::from_value(arr.clone()).map_err(|e| e.to_string());
-    }
-    Err("Expected a JSON array of samples or { \"samples\": [...] }".into())
+async fn import_audio_json(file_path: String) -> Result<Vec<AudioSample>, String> {
+    blocking_res(move || {
+        let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+        if let Ok(arr) = serde_json::from_str::<Vec<AudioSample>>(&data) {
+            return Ok(arr);
+        }
+        let val: serde_json::Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+        if let Some(arr) = val.get("samples") {
+            return serde_json::from_value(arr.clone()).map_err(|e| e.to_string());
+        }
+        Err("Expected a JSON array of samples or { \"samples\": [...] }".into())
+    })
+    .await
 }
 
 #[tauri::command]
-fn import_daw_json(file_path: String) -> Result<Vec<DawProject>, String> {
-    let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
-    // Accept bare array or { "projects": [...] } envelope
-    if let Ok(arr) = serde_json::from_str::<Vec<DawProject>>(&data) {
-        return Ok(arr);
-    }
-    let val: serde_json::Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-    if let Some(arr) = val.get("projects") {
-        return serde_json::from_value(arr.clone()).map_err(|e| e.to_string());
-    }
-    Err("Expected a JSON array of projects or { \"projects\": [...] }".into())
+async fn import_daw_json(file_path: String) -> Result<Vec<DawProject>, String> {
+    blocking_res(move || {
+        let data = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+        if let Ok(arr) = serde_json::from_str::<Vec<DawProject>>(&data) {
+            return Ok(arr);
+        }
+        let val: serde_json::Value = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+        if let Some(arr) = val.get("projects") {
+            return serde_json::from_value(arr.clone()).map_err(|e| e.to_string());
+        }
+        Err("Expected a JSON array of projects or { \"projects\": [...] }".into())
+    })
+    .await
 }
 
 // ── Tests ──
@@ -4405,6 +4605,13 @@ mod tests {
 
     fn app_log_lock() -> std::sync::MutexGuard<'static, ()> {
         APP_LOG_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Run async `#[tauri::command]` handlers from sync `#[test]` (Tokio runtime).
+    fn rt_block_on<F: std::future::Future>(f: F) -> F::Output {
+        tokio::runtime::Runtime::new()
+            .expect("tokio runtime for lib.rs tests")
+            .block_on(f)
     }
 
     /// Isolated temp data dir for log tests; cleared on drop.
@@ -4685,8 +4892,12 @@ mod tests {
 
         let plugins = vec![make_plugin("PluginA", "VST3"), make_plugin("PluginB", "AU")];
 
-        export_plugins_json(plugins.clone(), tmp.to_string_lossy().to_string()).unwrap();
-        let imported = import_plugins_json(tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_plugins_json(
+            plugins.clone(),
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
+        let imported = rt_block_on(import_plugins_json(tmp.to_string_lossy().to_string())).unwrap();
 
         assert_eq!(imported.len(), 2);
         assert_eq!(imported[0].name, "PluginA");
@@ -4704,7 +4915,7 @@ mod tests {
         let _ = fs::remove_file(&tmp);
 
         let plugins = vec![make_plugin("Test", "VST2")];
-        export_plugins_json(plugins, tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_plugins_json(plugins, tmp.to_string_lossy().to_string())).unwrap();
 
         let content = fs::read_to_string(&tmp).unwrap();
         let payload: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -4721,7 +4932,7 @@ mod tests {
         let _ = fs::remove_file(&tmp);
 
         let plugins = vec![make_plugin("Serum", "VST3")];
-        export_plugins_csv(plugins, tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_plugins_csv(plugins, tmp.to_string_lossy().to_string())).unwrap();
 
         let content = fs::read_to_string(&tmp).unwrap();
         let lines: Vec<&str> = content.lines().collect();
@@ -4741,7 +4952,7 @@ mod tests {
 
         let mut p = make_plugin("Plugin, With Comma", "VST3");
         p.manufacturer = "Company, Inc.".into();
-        export_plugins_csv(vec![p], tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_plugins_csv(vec![p], tmp.to_string_lossy().to_string())).unwrap();
 
         let content = fs::read_to_string(&tmp).unwrap();
         assert!(content.contains("\"Plugin, With Comma\""));
@@ -4756,7 +4967,7 @@ mod tests {
         let _ = fs::remove_file(&tmp);
 
         let plugins = vec![make_plugin("Serum", "VST3")];
-        export_plugins_csv(plugins, tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_plugins_csv(plugins, tmp.to_string_lossy().to_string())).unwrap();
 
         let content = fs::read_to_string(&tmp).unwrap();
         let lines: Vec<&str> = content.lines().collect();
@@ -4779,14 +4990,14 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_import_plugins_bad.json");
         let _ = fs::remove_file(&tmp);
         fs::write(&tmp, "{ not json").unwrap();
-        let err = import_plugins_json(tmp.to_string_lossy().to_string()).unwrap_err();
+        let err = rt_block_on(import_plugins_json(tmp.to_string_lossy().to_string())).unwrap_err();
         assert!(!err.is_empty());
         let _ = fs::remove_file(&tmp);
     }
 
     #[test]
     fn test_import_json_invalid_file() {
-        let result = import_plugins_json("/nonexistent/path.json".into());
+        let result = rt_block_on(import_plugins_json("/nonexistent/path.json".into()));
         assert!(result.is_err());
     }
 
@@ -4795,7 +5006,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_import_bad.json");
         fs::write(&tmp, "not valid json").unwrap();
 
-        let result = import_plugins_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_plugins_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_err());
 
         let _ = fs::remove_file(&tmp);
@@ -4807,7 +5018,7 @@ mod tests {
         let content = r#"{"version":"1.0","exported_at":"2025-01-01T00:00:00Z","plugins":[]}"#;
         fs::write(&tmp, content).unwrap();
 
-        let result = import_plugins_json(tmp.to_string_lossy().to_string()).unwrap();
+        let result = rt_block_on(import_plugins_json(tmp.to_string_lossy().to_string())).unwrap();
         assert!(result.is_empty());
 
         let _ = fs::remove_file(&tmp);
@@ -4822,7 +5033,7 @@ mod tests {
             r#"{"version":"1.0","exported_at":"2025-01-01T00:00:00Z","plugins":"not-an-array"}"#,
         )
         .unwrap();
-        let err = import_plugins_json(tmp.to_string_lossy().to_string()).unwrap_err();
+        let err = rt_block_on(import_plugins_json(tmp.to_string_lossy().to_string())).unwrap_err();
         assert!(!err.is_empty());
         let _ = fs::remove_file(&tmp);
     }
@@ -4849,7 +5060,7 @@ mod tests {
         }]
     }"#;
         fs::write(&tmp, content).unwrap();
-        let imported = import_plugins_json(tmp.to_string_lossy().to_string()).unwrap();
+        let imported = rt_block_on(import_plugins_json(tmp.to_string_lossy().to_string())).unwrap();
         assert_eq!(imported.len(), 1);
         assert_eq!(imported[0].name, "Extra");
         assert_eq!(imported[0].plugin_type, "VST3");
@@ -4861,7 +5072,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_export_empty.csv");
         let _ = fs::remove_file(&tmp);
 
-        export_plugins_csv(vec![], tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_plugins_csv(vec![], tmp.to_string_lossy().to_string())).unwrap();
         let content = fs::read_to_string(&tmp).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 1); // header only
@@ -5000,7 +5211,7 @@ mod tests {
         let json = serde_json::to_string_pretty(&samples).unwrap();
         fs::write(&tmp, &json).unwrap();
 
-        let result = import_audio_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_audio_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_ok());
         let imported = result.unwrap();
         assert_eq!(imported.len(), 2);
@@ -5029,7 +5240,7 @@ mod tests {
         }]
     }"#;
         fs::write(&tmp, content).unwrap();
-        let imported = import_audio_json(tmp.to_string_lossy().to_string()).unwrap();
+        let imported = rt_block_on(import_audio_json(tmp.to_string_lossy().to_string())).unwrap();
         assert_eq!(imported.len(), 1);
         assert_eq!(imported[0].name, "Extra");
         assert_eq!(imported[0].format, "WAV");
@@ -5041,7 +5252,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_import_audio_bad.json");
         fs::write(&tmp, r#"{"not": "an array"}"#).unwrap();
 
-        let result = import_audio_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_audio_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_err());
 
         let _ = fs::remove_file(&tmp);
@@ -5049,7 +5260,7 @@ mod tests {
 
     #[test]
     fn test_import_audio_json_nonexistent() {
-        let result = import_audio_json("/tmp/nonexistent_audio_file.json".into());
+        let result = rt_block_on(import_audio_json("/tmp/nonexistent_audio_file.json".into()));
         assert!(result.is_err());
     }
 
@@ -5063,7 +5274,7 @@ mod tests {
         let json = serde_json::to_string_pretty(&projects).unwrap();
         fs::write(&tmp, &json).unwrap();
 
-        let result = import_daw_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_daw_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_ok());
         let imported = result.unwrap();
         assert_eq!(imported.len(), 2);
@@ -5093,7 +5304,7 @@ mod tests {
         }]
     }"#;
         fs::write(&tmp, content).unwrap();
-        let imported = import_daw_json(tmp.to_string_lossy().to_string()).unwrap();
+        let imported = rt_block_on(import_daw_json(tmp.to_string_lossy().to_string())).unwrap();
         assert_eq!(imported.len(), 1);
         assert_eq!(imported[0].name, "Extra");
         assert_eq!(imported[0].daw, "Ableton Live");
@@ -5105,7 +5316,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_import_daw_bad.json");
         fs::write(&tmp, "not json at all").unwrap();
 
-        let result = import_daw_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_daw_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_err());
 
         let _ = fs::remove_file(&tmp);
@@ -5118,7 +5329,7 @@ mod tests {
         let json = serde_json::to_string_pretty(&presets).unwrap();
         fs::write(&tmp, &json).unwrap();
 
-        let result = import_presets_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_presets_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_ok());
         let imported = result.unwrap();
         assert_eq!(imported.len(), 2);
@@ -5147,7 +5358,7 @@ mod tests {
         }]
     }"#;
         fs::write(&tmp, content).unwrap();
-        let imported = import_presets_json(tmp.to_string_lossy().to_string()).unwrap();
+        let imported = rt_block_on(import_presets_json(tmp.to_string_lossy().to_string())).unwrap();
         assert_eq!(imported.len(), 1);
         assert_eq!(imported[0].name, "Extra");
         assert_eq!(imported[0].format, "FXP");
@@ -5159,7 +5370,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_import_presets_bad.json");
         fs::write(&tmp, r#"[{"wrong": "fields"}]"#).unwrap();
 
-        let result = import_presets_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_presets_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_err());
 
         let _ = fs::remove_file(&tmp);
@@ -5174,8 +5385,12 @@ mod tests {
             make_preset("Strings", "H2P"),
         ];
 
-        export_presets_json(presets.clone(), tmp.to_string_lossy().to_string()).unwrap();
-        let imported = import_presets_json(tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_presets_json(
+            presets.clone(),
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
+        let imported = rt_block_on(import_presets_json(tmp.to_string_lossy().to_string())).unwrap();
 
         assert_eq!(imported.len(), 3);
         assert_eq!(imported[0].name, presets[0].name);
@@ -5193,8 +5408,12 @@ mod tests {
             make_audio_sample("pad", "FLAC"),
         ];
 
-        export_audio_json(samples.clone(), tmp.to_string_lossy().to_string()).unwrap();
-        let imported = import_audio_json(tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_audio_json(
+            samples.clone(),
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
+        let imported = rt_block_on(import_audio_json(tmp.to_string_lossy().to_string())).unwrap();
 
         assert_eq!(imported.len(), 2);
         assert_eq!(imported[0].name, "hi-hat");
@@ -5211,8 +5430,12 @@ mod tests {
             make_daw_project("Track2", "RPP", "REAPER"),
         ];
 
-        export_daw_json(projects.clone(), tmp.to_string_lossy().to_string()).unwrap();
-        let imported = import_daw_json(tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_daw_json(
+            projects.clone(),
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
+        let imported = rt_block_on(import_daw_json(tmp.to_string_lossy().to_string())).unwrap();
 
         assert_eq!(imported.len(), 2);
         assert_eq!(imported[0].daw, "Logic Pro");
@@ -5223,13 +5446,13 @@ mod tests {
 
     #[test]
     fn test_import_presets_json_nonexistent() {
-        let result = import_presets_json("/tmp/nonexistent_preset_file.json".into());
+        let result = rt_block_on(import_presets_json("/tmp/nonexistent_preset_file.json".into()));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_import_daw_json_nonexistent() {
-        let result = import_daw_json("/tmp/nonexistent_daw_file.json".into());
+        let result = rt_block_on(import_daw_json("/tmp/nonexistent_daw_file.json".into()));
         assert!(result.is_err());
     }
 
@@ -5238,7 +5461,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_import_audio_empty.json");
         fs::write(&tmp, "[]").unwrap();
 
-        let result = import_audio_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_audio_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
 
@@ -5250,7 +5473,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_import_presets_empty.json");
         fs::write(&tmp, "[]").unwrap();
 
-        let result = import_presets_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_presets_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
 
@@ -5265,7 +5488,7 @@ mod tests {
             r#"{"version":"1.0","exported_at":"2025-01-01T00:00:00Z"}"#,
         )
         .unwrap();
-        let err = import_audio_json(tmp.to_string_lossy().to_string()).unwrap_err();
+        let err = rt_block_on(import_audio_json(tmp.to_string_lossy().to_string())).unwrap_err();
         assert!(err.contains("samples"), "unexpected error: {err}");
         let _ = fs::remove_file(&tmp);
     }
@@ -5274,7 +5497,7 @@ mod tests {
     fn test_import_daw_json_empty_array() {
         let tmp = std::env::temp_dir().join("upum_test_import_daw_empty.json");
         fs::write(&tmp, "[]").unwrap();
-        let result = import_daw_json(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_daw_json(tmp.to_string_lossy().to_string()));
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
         let _ = fs::remove_file(&tmp);
@@ -5284,7 +5507,7 @@ mod tests {
     fn test_import_daw_json_errors_when_object_has_no_projects_key() {
         let tmp = std::env::temp_dir().join("upum_test_import_daw_no_projects.json");
         fs::write(&tmp, r#"{"version":"1.0","samples":[]}"#).unwrap();
-        let err = import_daw_json(tmp.to_string_lossy().to_string()).unwrap_err();
+        let err = rt_block_on(import_daw_json(tmp.to_string_lossy().to_string())).unwrap_err();
         assert!(err.contains("projects"), "unexpected error: {err}");
         let _ = fs::remove_file(&tmp);
     }
@@ -5293,7 +5516,7 @@ mod tests {
     fn test_import_audio_json_errors_when_envelope_uses_projects_key() {
         let tmp = std::env::temp_dir().join("upum_test_import_audio_wrong_envelope.json");
         fs::write(&tmp, r#"{"projects":[]}"#).unwrap();
-        let err = import_audio_json(tmp.to_string_lossy().to_string()).unwrap_err();
+        let err = rt_block_on(import_audio_json(tmp.to_string_lossy().to_string())).unwrap_err();
         assert!(err.contains("samples"), "unexpected error: {err}");
         let _ = fs::remove_file(&tmp);
     }
@@ -5304,7 +5527,7 @@ mod tests {
         let preset = make_preset("OnlyEnvelope", "FXP");
         let json = serde_json::json!({ "presets": [preset] });
         fs::write(&tmp, serde_json::to_string(&json).unwrap()).unwrap();
-        let imported = import_presets_json(tmp.to_string_lossy().to_string()).unwrap();
+        let imported = rt_block_on(import_presets_json(tmp.to_string_lossy().to_string())).unwrap();
         assert_eq!(imported.len(), 1);
         assert_eq!(imported[0].name, "OnlyEnvelope");
         let _ = fs::remove_file(&tmp);
@@ -5314,7 +5537,7 @@ mod tests {
     fn test_import_audio_json_samples_not_array_returns_error() {
         let tmp = std::env::temp_dir().join("upum_test_import_audio_samples_bad_type.json");
         fs::write(&tmp, r#"{"samples":"nope"}"#).unwrap();
-        assert!(import_audio_json(tmp.to_string_lossy().to_string()).is_err());
+        assert!(rt_block_on(import_audio_json(tmp.to_string_lossy().to_string())).is_err());
         let _ = fs::remove_file(&tmp);
     }
 
@@ -5322,7 +5545,7 @@ mod tests {
     fn test_import_daw_json_projects_not_array_returns_error() {
         let tmp = std::env::temp_dir().join("upum_test_import_daw_projects_bad_type.json");
         fs::write(&tmp, r#"{"projects":{}}"#).unwrap();
-        assert!(import_daw_json(tmp.to_string_lossy().to_string()).is_err());
+        assert!(rt_block_on(import_daw_json(tmp.to_string_lossy().to_string())).is_err());
         let _ = fs::remove_file(&tmp);
     }
 
@@ -5338,7 +5561,7 @@ mod tests {
         fs::create_dir(tmp.join("subdir")).unwrap();
         fs::write(tmp.join(".hidden"), "skip").unwrap();
 
-        let result = fs_list_dir(tmp.to_string_lossy().to_string()).unwrap();
+        let result = rt_block_on(fs_list_dir(tmp.to_string_lossy().to_string())).unwrap();
         let entries = result["entries"].as_array().unwrap();
         // Should have 3 entries (subdir, file1.txt, file2.wav) — .hidden is skipped
         assert_eq!(entries.len(), 3);
@@ -5350,7 +5573,7 @@ mod tests {
 
     #[test]
     fn test_fs_list_dir_nonexistent() {
-        let result = fs_list_dir("/nonexistent/upum_dir_xyz".into());
+        let result = rt_block_on(fs_list_dir("/nonexistent/upum_dir_xyz".into()));
         assert!(result.is_err());
     }
 
@@ -5358,7 +5581,7 @@ mod tests {
     fn test_fs_list_dir_not_a_dir() {
         let tmp = std::env::temp_dir().join("upum_test_fs_notdir.txt");
         fs::write(&tmp, "data").unwrap();
-        let result = fs_list_dir(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(fs_list_dir(tmp.to_string_lossy().to_string()));
         assert!(result.is_err());
         let _ = fs::remove_file(&tmp);
     }
@@ -5368,7 +5591,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_delete.txt");
         fs::write(&tmp, "delete me").unwrap();
         assert!(tmp.exists());
-        delete_file(tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(delete_file(tmp.to_string_lossy().to_string())).unwrap();
         assert!(!tmp.exists());
     }
 
@@ -5377,13 +5600,13 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_delete_dir");
         fs::create_dir_all(tmp.join("inner")).unwrap();
         fs::write(tmp.join("inner").join("file.txt"), "data").unwrap();
-        delete_file(tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(delete_file(tmp.to_string_lossy().to_string())).unwrap();
         assert!(!tmp.exists());
     }
 
     #[test]
     fn test_delete_file_nonexistent() {
-        let result = delete_file("/nonexistent/upum_file_xyz.txt".into());
+        let result = rt_block_on(delete_file("/nonexistent/upum_file_xyz.txt".into()));
         assert!(result.is_err());
     }
 
@@ -5393,10 +5616,10 @@ mod tests {
         let tmp2 = std::env::temp_dir().join("upum_test_rename_new.txt");
         let _ = fs::remove_file(&tmp2);
         fs::write(&tmp1, "content").unwrap();
-        rename_file(
+        rt_block_on(rename_file(
             tmp1.to_string_lossy().to_string(),
             tmp2.to_string_lossy().to_string(),
-        )
+        ))
         .unwrap();
         assert!(!tmp1.exists());
         assert!(tmp2.exists());
@@ -5406,7 +5629,7 @@ mod tests {
 
     #[test]
     fn test_get_home_dir() {
-        let result = get_home_dir();
+        let result = rt_block_on(get_home_dir());
         assert!(result.is_ok());
         let home = result.unwrap();
         assert!(!home.is_empty());
@@ -5463,7 +5686,7 @@ mod tests {
     fn test_append_and_read_log() {
         let _guard = app_log_lock();
         let _tmp = log_test_dir();
-        clear_log().unwrap();
+        rt_block_on(clear_log()).unwrap();
         let token = format!(
             "log-test-{}",
             std::time::SystemTime::now()
@@ -5473,7 +5696,7 @@ mod tests {
         );
         append_log(format!("{token} entry1"));
         append_log(format!("{token} entry2"));
-        let log = read_log().unwrap();
+        let log = rt_block_on(read_log()).unwrap();
         assert!(
             log.contains(&format!("{token} entry1")),
             "missing first line in log (len {})",
@@ -5490,10 +5713,10 @@ mod tests {
     fn test_clear_log() {
         let _guard = app_log_lock();
         let _tmp = log_test_dir();
-        clear_log().unwrap();
+        rt_block_on(clear_log()).unwrap();
         append_log("before clear".into());
-        clear_log().unwrap();
-        let log = read_log().unwrap();
+        rt_block_on(clear_log()).unwrap();
+        let log = rt_block_on(read_log()).unwrap();
         assert!(!log.contains("before clear"));
     }
 
@@ -5502,16 +5725,16 @@ mod tests {
         let _guard = app_log_lock();
         let tmp = log_test_dir();
         let _ = fs::remove_file(tmp.0.join("app.log"));
-        assert_eq!(read_log().unwrap(), "");
+        assert_eq!(rt_block_on(read_log()).unwrap(), "");
     }
 
     #[test]
     fn test_log_entries_have_timestamp() {
         let _guard = app_log_lock();
         let _tmp = log_test_dir();
-        clear_log().unwrap();
+        rt_block_on(clear_log()).unwrap();
         append_log("timestamp-check".into());
-        let log = read_log().unwrap();
+        let log = rt_block_on(read_log()).unwrap();
         // Timestamp format: [YYYY-MM-DD HH:MM:SS]
         let re =
             regex::Regex::new(r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] timestamp-check").unwrap();
@@ -5522,11 +5745,11 @@ mod tests {
     fn test_log_appends_not_overwrites() {
         let _guard = app_log_lock();
         let _tmp = log_test_dir();
-        clear_log().unwrap();
+        rt_block_on(clear_log()).unwrap();
         append_log("first".into());
         append_log("second".into());
         append_log("third".into());
-        let log = read_log().unwrap();
+        let log = rt_block_on(read_log()).unwrap();
         let lines: Vec<&str> = log.lines().collect();
         assert!(
             lines.len() >= 3,
@@ -5550,11 +5773,11 @@ mod tests {
     fn test_log_handles_special_characters() {
         let _guard = app_log_lock();
         let _tmp = log_test_dir();
-        clear_log().unwrap();
+        rt_block_on(clear_log()).unwrap();
         append_log("unicode: 日本語テスト 🎵 emoji".into());
         append_log("newlines: line1\nline2".into());
         append_log("path: /Users/test/my file (1).vst3".into());
-        let log = read_log().unwrap();
+        let log = rt_block_on(read_log()).unwrap();
         assert!(log.contains("日本語テスト"));
         assert!(log.contains("🎵"));
         assert!(log.contains("my file (1).vst3"));
@@ -5564,7 +5787,7 @@ mod tests {
     fn test_log_concurrent_appends() {
         let _guard = app_log_lock();
         let tmp = log_test_dir();
-        clear_log().unwrap();
+        rt_block_on(clear_log()).unwrap();
         let path = tmp.0.clone();
         let handles: Vec<_> = (0..10)
             .map(|i| {
@@ -5578,7 +5801,7 @@ mod tests {
         for h in handles {
             h.join().unwrap();
         }
-        let log = read_log().unwrap();
+        let log = rt_block_on(read_log()).unwrap();
         for i in 0..10 {
             assert!(
                 log.contains(&format!("concurrent-{i}")),
@@ -5591,11 +5814,11 @@ mod tests {
     fn test_clear_log_then_append_works() {
         let _guard = app_log_lock();
         let _tmp = log_test_dir();
-        clear_log().unwrap();
+        rt_block_on(clear_log()).unwrap();
         append_log("before".into());
-        clear_log().unwrap();
+        rt_block_on(clear_log()).unwrap();
         append_log("after".into());
-        let log = read_log().unwrap();
+        let log = rt_block_on(read_log()).unwrap();
         assert!(!log.contains("before"), "cleared content should be gone");
         assert!(log.contains("after"), "new content should be present");
     }
@@ -5608,15 +5831,15 @@ mod tests {
         let data = serde_json::json!({
             "plugins": [{"name": "Test", "version": "1.0"}]
         });
-        export_toml(data.clone(), tmp.to_string_lossy().to_string()).unwrap();
-        let imported = import_toml(tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_toml(data.clone(), tmp.to_string_lossy().to_string())).unwrap();
+        let imported = rt_block_on(import_toml(tmp.to_string_lossy().to_string())).unwrap();
         assert!(imported["plugins"].is_array());
         let _ = fs::remove_file(&tmp);
     }
 
     #[test]
     fn test_import_toml_nonexistent() {
-        let result = import_toml("/nonexistent/file.toml".into());
+        let result = rt_block_on(import_toml("/nonexistent/file.toml".into()));
         assert!(result.is_err());
     }
 
@@ -5624,7 +5847,7 @@ mod tests {
     fn test_import_toml_invalid() {
         let tmp = std::env::temp_dir().join("upum_test_invalid.toml");
         fs::write(&tmp, "this is not valid toml [[[").unwrap();
-        let result = import_toml(tmp.to_string_lossy().to_string());
+        let result = rt_block_on(import_toml(tmp.to_string_lossy().to_string()));
         assert!(result.is_err());
         let _ = fs::remove_file(&tmp);
     }
@@ -5643,7 +5866,7 @@ mod tests {
             size_formatted: "1.0 KB".into(),
             modified: "2024-01-01".into(),
         }];
-        export_presets_dsv(presets, tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_presets_dsv(presets, tmp.to_string_lossy().to_string())).unwrap();
         let content = fs::read_to_string(&tmp).unwrap();
         assert!(content.contains("Lead"));
         assert!(content.contains("FXP"));
@@ -5663,7 +5886,7 @@ mod tests {
             size_formatted: "2.0 KB".into(),
             modified: "2024-02-01".into(),
         }];
-        export_presets_dsv(presets, tmp.to_string_lossy().to_string()).unwrap();
+        rt_block_on(export_presets_dsv(presets, tmp.to_string_lossy().to_string())).unwrap();
         let content = fs::read_to_string(&tmp).unwrap();
         assert!(content.contains("Bass"));
         assert!(content.contains("\t"));
@@ -5737,12 +5960,12 @@ mod tests {
         let tmp =
             std::env::temp_dir().join(format!("ah_export_pdf_test_{}.pdf", std::process::id()));
         let _ = fs::remove_file(&tmp);
-        export_pdf(
+        rt_block_on(export_pdf(
             "Unit test".into(),
             vec!["Col A".into(), "Col B".into()],
             vec![vec!["cell-a".into(), "cell-b".into()]],
             tmp.to_string_lossy().to_string(),
-        )
+        ))
         .unwrap();
         let bytes = fs::read(&tmp).unwrap();
         assert!(
@@ -5833,18 +6056,18 @@ async fn db_query_presets(
 }
 
 #[tauri::command]
-fn db_audio_stats(scan_id: Option<String>) -> Result<db::AudioStatsResult, String> {
-    db::global().audio_stats(scan_id.as_deref())
+async fn db_audio_stats(scan_id: Option<String>) -> Result<db::AudioStatsResult, String> {
+    blocking_res(move || db::global().audio_stats(scan_id.as_deref())).await
 }
 
 #[tauri::command]
-fn db_daw_stats(scan_id: Option<String>) -> Result<db::DawStatsResult, String> {
-    db::global().daw_stats(scan_id.as_deref())
+async fn db_daw_stats(scan_id: Option<String>) -> Result<db::DawStatsResult, String> {
+    blocking_res(move || db::global().daw_stats(scan_id.as_deref())).await
 }
 
 #[tauri::command]
-fn db_preset_stats(scan_id: Option<String>) -> Result<db::PresetStatsResult, String> {
-    db::global().preset_stats(scan_id.as_deref())
+async fn db_preset_stats(scan_id: Option<String>) -> Result<db::PresetStatsResult, String> {
+    blocking_res(move || db::global().preset_stats(scan_id.as_deref())).await
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -5869,8 +6092,8 @@ async fn db_query_pdfs(
 }
 
 #[tauri::command]
-fn db_pdf_stats(scan_id: Option<String>) -> Result<db::PdfStatsResult, String> {
-    db::global().pdf_stats(scan_id.as_deref())
+async fn db_pdf_stats(scan_id: Option<String>) -> Result<db::PdfStatsResult, String> {
+    blocking_res(move || db::global().pdf_stats(scan_id.as_deref())).await
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -5931,96 +6154,99 @@ async fn db_pdf_filter_stats(search: Option<String>) -> Result<db::FilterStatsRe
 /// Per-category row counts for the header strip — **library** scope (one row per `path`), not the
 /// current in-progress `scan_id`. See [`db::Database::active_scan_inventory_counts`].
 #[tauri::command]
-fn get_active_scan_inventory_counts() -> Result<serde_json::Value, String> {
-    db::global().active_scan_inventory_counts()
+async fn get_active_scan_inventory_counts() -> Result<serde_json::Value, String> {
+    blocking_res(|| db::global().active_scan_inventory_counts()).await
 }
 
 #[tauri::command]
-fn db_list_scans() -> Result<Vec<db::ScanInfo>, String> {
-    db::global().list_scans()
+async fn db_list_scans() -> Result<Vec<db::ScanInfo>, String> {
+    blocking_res(|| db::global().list_scans()).await
 }
 
 #[tauri::command]
-fn db_update_bpm(path: String, bpm: Option<f64>) -> Result<(), String> {
-    db::global().update_bpm(&path, bpm)
+async fn db_update_bpm(path: String, bpm: Option<f64>) -> Result<(), String> {
+    blocking_res(move || db::global().update_bpm(&path, bpm)).await
 }
 
 #[tauri::command]
-fn db_update_key(path: String, key: Option<String>) -> Result<(), String> {
-    db::global().update_key(&path, key.as_deref())
+async fn db_update_key(path: String, key: Option<String>) -> Result<(), String> {
+    blocking_res(move || db::global().update_key(&path, key.as_deref())).await
 }
 
 #[tauri::command]
-fn db_update_lufs(path: String, lufs: Option<f64>) -> Result<(), String> {
-    db::global().update_lufs(&path, lufs)
+async fn db_update_lufs(path: String, lufs: Option<f64>) -> Result<(), String> {
+    blocking_res(move || db::global().update_lufs(&path, lufs)).await
 }
 
 #[tauri::command]
-fn db_backfill_audio_meta(paths: Vec<String>) -> Result<serde_json::Value, String> {
-    let missing = db::global().paths_missing_audio_meta(&paths)?;
-    if missing.is_empty() {
-        return Ok(serde_json::json!({}));
-    }
-    let mut updated = serde_json::Map::new();
-    for p in &missing {
-        let am = audio_scanner::get_audio_metadata(p);
-        if am.duration.is_some() || am.channels.is_some() {
-            db::global().update_audio_meta(
-                p,
-                am.duration,
-                am.channels,
-                am.sample_rate,
-                am.bits_per_sample,
-            )?;
-            let mut obj = serde_json::Map::new();
-            if let Some(d) = am.duration {
-                obj.insert("duration".into(), serde_json::json!(d));
-            }
-            if let Some(c) = am.channels {
-                obj.insert("channels".into(), serde_json::json!(c));
-            }
-            if let Some(sr) = am.sample_rate {
-                obj.insert("sampleRate".into(), serde_json::json!(sr));
-            }
-            if let Some(bps) = am.bits_per_sample {
-                obj.insert("bitsPerSample".into(), serde_json::json!(bps));
-            }
-            updated.insert(p.clone(), serde_json::Value::Object(obj));
+async fn db_backfill_audio_meta(paths: Vec<String>) -> Result<serde_json::Value, String> {
+    blocking_res(move || {
+        let missing = db::global().paths_missing_audio_meta(&paths)?;
+        if missing.is_empty() {
+            return Ok(serde_json::json!({}));
         }
-    }
-    Ok(serde_json::Value::Object(updated))
+        let mut updated = serde_json::Map::new();
+        for p in &missing {
+            let am = audio_scanner::get_audio_metadata(p);
+            if am.duration.is_some() || am.channels.is_some() {
+                db::global().update_audio_meta(
+                    p,
+                    am.duration,
+                    am.channels,
+                    am.sample_rate,
+                    am.bits_per_sample,
+                )?;
+                let mut obj = serde_json::Map::new();
+                if let Some(d) = am.duration {
+                    obj.insert("duration".into(), serde_json::json!(d));
+                }
+                if let Some(c) = am.channels {
+                    obj.insert("channels".into(), serde_json::json!(c));
+                }
+                if let Some(sr) = am.sample_rate {
+                    obj.insert("sampleRate".into(), serde_json::json!(sr));
+                }
+                if let Some(bps) = am.bits_per_sample {
+                    obj.insert("bitsPerSample".into(), serde_json::json!(bps));
+                }
+                updated.insert(p.clone(), serde_json::Value::Object(obj));
+            }
+        }
+        Ok(serde_json::Value::Object(updated))
+    })
+    .await
 }
 
 #[tauri::command]
-fn db_get_analysis(path: String) -> Result<serde_json::Value, String> {
-    db::global().get_analysis(&path)
+async fn db_get_analysis(path: String) -> Result<serde_json::Value, String> {
+    blocking_res(move || db::global().get_analysis(&path)).await
 }
 
 #[tauri::command]
-fn db_unanalyzed_paths(limit: Option<u64>) -> Result<Vec<String>, String> {
-    db::global().unanalyzed_paths(limit.unwrap_or(100))
+async fn db_unanalyzed_paths(limit: Option<u64>) -> Result<Vec<String>, String> {
+    blocking_res(move || db::global().unanalyzed_paths(limit.unwrap_or(100))).await
 }
 
 #[tauri::command]
-fn db_migrate_json() -> Result<usize, String> {
-    db::global().migrate_from_json()
+async fn db_migrate_json() -> Result<usize, String> {
+    blocking_res(|| db::global().migrate_from_json()).await
 }
 
 #[tauri::command]
-fn db_cache_stats() -> Result<Vec<db::CacheStat>, String> {
-    db::global().cache_stats()
+async fn db_cache_stats() -> Result<Vec<db::CacheStat>, String> {
+    blocking_res(|| db::global().cache_stats()).await
 }
 
 #[tauri::command]
-fn db_clear_caches() -> Result<(), String> {
+async fn db_clear_caches() -> Result<(), String> {
     append_log("DB CLEAR — all caches (waveform, spectrogram, xref, fingerprint, kvr)".into());
-    db::global().clear_all_caches()
+    blocking_res(|| db::global().clear_all_caches()).await
 }
 
 #[tauri::command]
-fn db_clear_cache_table(table: String) -> Result<(), String> {
+async fn db_clear_cache_table(table: String) -> Result<(), String> {
     append_log(format!("DB CLEAR — cache table: {}", table));
-    db::global().clear_cache_table(&table)
+    blocking_res(move || db::global().clear_cache_table(&table)).await
 }
 
 fn resolve_ui_locale(locale: Option<String>) -> String {
@@ -6033,17 +6259,18 @@ fn resolve_ui_locale(locale: Option<String>) -> String {
 }
 
 #[tauri::command]
-fn get_app_strings(
+async fn get_app_strings(
     locale: Option<String>,
 ) -> Result<std::collections::HashMap<String, String>, String> {
-    db::global().get_app_strings(&resolve_ui_locale(locale))
+    let loc = resolve_ui_locale(locale);
+    blocking_res(move || db::global().get_app_strings(&loc)).await
 }
 
 #[tauri::command]
-fn get_toast_strings(
+async fn get_toast_strings(
     locale: Option<String>,
 ) -> Result<std::collections::HashMap<String, String>, String> {
-    get_app_strings(locale)
+    get_app_strings(locale).await
 }
 
 /// Rebuild the native menu bar from SQLite `app_i18n` for the current UI locale (after changing language in Settings).

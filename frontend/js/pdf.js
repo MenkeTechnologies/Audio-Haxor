@@ -81,6 +81,7 @@ async function fetchPdfPage() {
   const seq = ++_pdfQuerySeq;
   const isLoadMore = _pdfOffset > 0;
   showPdfQueryLoading(isLoadMore);
+  if (typeof setFilterFieldLoading === 'function') setFilterFieldLoading('pdfSearchInput', true);
   await new Promise((r) => requestAnimationFrame(r));
   try {
     // Backend only knows filesystem sort keys. When user picks 'pages' (client-side),
@@ -114,6 +115,8 @@ async function fetchPdfPage() {
     if (seq !== _pdfQuerySeq) return;
     clearTableQueryLoadingRow('pdfQueryLoadingRow', 'pdfTable');
     showToast(toastFmt('toast.pdf_query_failed', { err: e && e.message ? e.message : e }), 4000, 'error');
+  } finally {
+    if (seq === _pdfQuerySeq && typeof setFilterFieldLoading === 'function') setFilterFieldLoading('pdfSearchInput', false);
   }
 }
 
