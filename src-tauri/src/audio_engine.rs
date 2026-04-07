@@ -2,14 +2,21 @@
 //! sends JSON lines on stdin, reads one JSON line per request. Keeps **one** child process alive
 //! (stdin loop in the sidecar) so stream state and IPC stay cheap.
 //! On app quit, [`shutdown_audio_engine_child`] runs from Tauri `RunEvent::Exit` / `ExitRequested` and from `libc::atexit`
-//! so the sidecar is always terminated with the host.
+//! so the sidecar is always terminated with the host. **`AUDIO_HAXOR_PARENT_PID`** is set at spawn so the sidecar can
+//! exit if the host disappears without cleanup (e.g. macOS force quit / SIGKILL).
+//!
+//! **Shutdown must not take [`ENGINE_CHILD`] before killing the OS process.** Another thread can
+//! hold that mutex while blocked on `stdout.read_line()`; waiting on the mutex first deadlocks
+//! quit (sidecar never receives `kill`). We keep the child PID in [`ENGINE_CHILD_PID`] and send
+//! `SIGKILL` / `taskkill /F` first, then clear the slot.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 /// Placeholder struct kept for serde stability / future prefs sync.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -62,6 +69,49 @@ fn log_ipc_failure(msg: impl Into<String>, tail: Option<&Arc<Mutex<String>>>) {
 }
 
 static ENGINE_CHILD: Mutex<Option<EngineChild>> = Mutex::new(None);
+/// OS PID of the current sidecar (`Child::id`), or `0` if none. Used for kill-on-exit without
+/// waiting on [`ENGINE_CHILD`] (see module comment).
+static ENGINE_CHILD_PID: AtomicU32 = AtomicU32::new(0);
+
+#[inline]
+fn record_engine_pid(child: &Child) {
+    ENGINE_CHILD_PID.store(child.id(), Ordering::SeqCst);
+}
+
+#[inline]
+fn clear_engine_pid() {
+    ENGINE_CHILD_PID.store(0, Ordering::SeqCst);
+}
+
+/// Hard-kill by PID so quit works even when no [`Child`] handle is available.
+fn kill_pid_raw(pid: u32) {
+    if pid == 0 {
+        return;
+    }
+    #[cfg(unix)]
+    unsafe {
+        let _ = libc::kill(pid as libc::pid_t, libc::SIGKILL);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/PID", &pid.to_string()])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
+    }
+}
+
+/// Drop the in-memory slot after the OS process is dead or being replaced. Caller must have
+/// cleared or updated [`ENGINE_CHILD_PID`] appropriately.
+fn take_and_reap_engine_child(guard: &mut Option<EngineChild>) {
+    if let Some(mut eng) = guard.take() {
+        clear_engine_pid();
+        let _ = eng.child.kill();
+        let _ = eng.child.wait();
+    }
+}
 
 fn binary_name() -> &'static str {
     if cfg!(target_os = "windows") {
@@ -140,6 +190,10 @@ fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
     let app_log = crate::history::get_data_dir().join("app.log");
     let mut child = Command::new(path)
         .env("AUDIO_HAXOR_APP_LOG", app_log.as_os_str())
+        .env(
+            "AUDIO_HAXOR_PARENT_PID",
+            format!("{}", std::process::id()),
+        )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -176,6 +230,7 @@ fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
     });
 
     let stdout = BufReader::new(stdout);
+    record_engine_pid(&child);
     Ok(EngineChild {
         child,
         stdin,
@@ -200,6 +255,9 @@ fn ensure_engine_child(path: &Path) -> Result<(), String> {
         }
     };
     if need_spawn {
+        if guard.is_some() {
+            take_and_reap_engine_child(&mut *guard);
+        }
         *guard = Some(spawn_engine_child(path)?);
     }
     Ok(())
@@ -207,28 +265,51 @@ fn ensure_engine_child(path: &Path) -> Result<(), String> {
 
 /// Drop the long-lived `audio-engine` child so the next IPC spawns a fresh process.
 /// Use after a crash or when the sidecar stops responding.
+///
+/// Returns immediately after sending SIGKILL so the UI / toast is not blocked by mutex cleanup
+/// (which can take many seconds if an IPC thread still holds [`ENGINE_CHILD`]). Reaping runs on
+/// a background thread; the next `spawn_audio_engine_request` will spawn a fresh child if needed.
 pub fn restart_audio_engine_child() -> Result<(), String> {
-    let mut guard = ENGINE_CHILD
-        .lock()
-        .map_err(|_| "audio-engine child mutex poisoned".to_string())?;
-    if let Some(mut eng) = guard.take() {
-        let _ = eng.child.kill();
-        let _ = eng.child.wait();
+    let pid = ENGINE_CHILD_PID.swap(0, Ordering::SeqCst);
+    if pid != 0 {
+        kill_pid_raw(pid);
     }
-    crate::write_app_log("audio-engine: sidecar process restarted (user request)".to_string());
+    std::thread::spawn(|| {
+        let reaped = clear_engine_slot_after_os_kill();
+        if reaped {
+            crate::write_app_log("audio-engine: sidecar process restarted (user request)".to_string());
+        } else {
+            log_ipc_failure(
+                "ENGINE_CHILD mutex not acquired after OS kill (timeout); next IPC may respawn",
+                None,
+            );
+        }
+    });
     Ok(())
+}
+
+/// Reap `Child` handles after the OS process is gone. Never uses blocking `Mutex::lock()`.
+/// Returns `true` if the slot was cleared; `false` if we gave up waiting (~30s).
+fn clear_engine_slot_after_os_kill() -> bool {
+    const MAX_ITERS: u32 = 6000;
+    for _ in 0..MAX_ITERS {
+        if let Ok(mut g) = ENGINE_CHILD.try_lock() {
+            take_and_reap_engine_child(&mut *g);
+            return true;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    false
 }
 
 /// Kill the JUCE sidecar when the host app exits. Idempotent (safe if no child was spawned).
 pub fn shutdown_audio_engine_child() -> Result<(), String> {
-    let mut guard = ENGINE_CHILD
-        .lock()
-        .map_err(|_| "audio-engine child mutex poisoned".to_string())?;
-    if let Some(mut eng) = guard.take() {
-        let _ = eng.child.kill();
-        let _ = eng.child.wait();
-        crate::write_app_log("audio-engine: sidecar terminated (app shutdown)".to_string());
+    let pid = ENGINE_CHILD_PID.swap(0, Ordering::SeqCst);
+    if pid != 0 {
+        kill_pid_raw(pid);
     }
+    let _ = clear_engine_slot_after_os_kill();
+    crate::write_app_log("audio-engine: sidecar terminated (app shutdown)".to_string());
     Ok(())
 }
 
@@ -264,6 +345,7 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
             .is_err()
         {
             let stderr_tail = Arc::clone(&eng.stderr_tail);
+            clear_engine_pid();
             *guard = None;
             if attempt == 1 {
                 log_ipc_failure("stdin write failed", Some(&stderr_tail));
@@ -276,6 +358,7 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
         match eng.stdout.read_line(&mut line) {
             Ok(0) => {
                 let stderr_tail = Arc::clone(&eng.stderr_tail);
+                clear_engine_pid();
                 *guard = None;
                 if attempt == 1 {
                     log_ipc_failure(
@@ -290,6 +373,7 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
                 let line = line.trim();
                 if line.is_empty() {
                     let stderr_tail = Arc::clone(&eng.stderr_tail);
+                    clear_engine_pid();
                     *guard = None;
                     if attempt == 1 {
                         log_ipc_failure("empty JSON line on stdout", Some(&stderr_tail));
@@ -314,6 +398,7 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
                 if attempt == 0 {
                     if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
                         if err.to_ascii_lowercase().contains("unknown cmd") {
+                            clear_engine_pid();
                             *guard = None;
                             continue;
                         }
@@ -323,6 +408,7 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
             }
             Err(e) => {
                 let stderr_tail = Arc::clone(&eng.stderr_tail);
+                clear_engine_pid();
                 *guard = None;
                 if attempt == 1 {
                     log_ipc_failure(format!("stdout read: {e}"), Some(&stderr_tail));

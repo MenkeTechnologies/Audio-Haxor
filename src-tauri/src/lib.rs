@@ -2877,9 +2877,14 @@ fn normalize_audio_engine_ipc_payload(v: &serde_json::Value) -> serde_json::Valu
 }
 
 #[tauri::command]
-fn audio_engine_invoke(request: serde_json::Value) -> Result<serde_json::Value, String> {
+async fn audio_engine_invoke(request: serde_json::Value) -> Result<serde_json::Value, String> {
     let payload = normalize_audio_engine_ipc_payload(&request);
-    let v = audio_engine::spawn_audio_engine_request(&payload)?;
+    let v = tokio::task::spawn_blocking({
+        let payload = payload.clone();
+        move || audio_engine::spawn_audio_engine_request(&payload)
+    })
+    .await
+    .map_err(|e| format!("audio-engine spawn_blocking: {e}"))??;
     if v.get("ok") == Some(&serde_json::Value::Bool(false)) {
         let cmd = payload
             .get("cmd")
@@ -6795,10 +6800,18 @@ pub fn run() {
     // Initialize global SQLite database (open + migrate only — fast)
     db::init_global().expect("Failed to initialize database");
 
-    // Heavy DB housekeeping (WAL checkpoint, optimize, prune, vacuum, prewarm)
-    // runs off the main thread so the window appears immediately.
+    // Two-phase DB housekeeping (off main thread). `prune_old_scans` + `rebuild_*_libraries` can
+    // hold a pooled handle for a long time; `setup()` + first IPC need `read_conn()` without waiting.
+    // Light: `PRAGMA optimize` + prewarm soon after launch. Heavy: prune + `VACUUM` many seconds later.
+    const STARTUP_DB_LIGHT_DELAY_MS: u64 = 750;
+    const STARTUP_DB_HEAVY_DELAY_SECS: u64 = 12;
     std::thread::spawn(|| {
-        db::global().housekeep();
+        std::thread::sleep(std::time::Duration::from_millis(STARTUP_DB_LIGHT_DELAY_MS));
+        db::global().housekeep_light();
+    });
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(STARTUP_DB_HEAVY_DELAY_SECS));
+        db::global().housekeep_heavy();
         if let Ok(counts) = db::global().table_counts() {
             let m = counts.as_object().unwrap();
             let get = |k: &str| m.get(k).and_then(|v| v.as_u64()).unwrap_or(0);

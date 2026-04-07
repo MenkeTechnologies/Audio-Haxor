@@ -11,7 +11,7 @@ use crate::path_norm::{normalize_path_for_db, path_strings_json_normalized};
 use crate::scanner::PluginInfo;
 use regex::{Regex, RegexBuilder};
 use rusqlite::functions::{Context, FunctionFlags};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -722,99 +722,93 @@ impl Database {
         self.read[i - 1].lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    /// SQL bodies for [`sync_*_after_paths_refresh`] (standalone: wrapped in `BEGIN IMMEDIATE` by
+    /// [`exec_sync_paths_refresh`]). For preset/midi/pdf flows already inside a
+    /// [`Transaction`], use [`sync_preset_library_after_paths_refresh_tx`] /
+    /// [`sync_midi_library_after_paths_refresh_tx`] /
+    /// [`sync_pdf_library_after_paths_refresh_tx`] via [`exec_sync_paths_refresh_tx`] — do **not**
+    /// nest another `BEGIN` (SQLite rejects it).
+    const SYNC_AUDIO_LIBRARY_PATHS_SQL: &'static str = r#"DELETE FROM audio_library WHERE path IN (SELECT path FROM _al_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM audio_samples);
+INSERT OR REPLACE INTO audio_library (path, sample_id)
+ SELECT path, MAX(id) FROM audio_samples WHERE path IN (SELECT path FROM _al_refresh_paths) GROUP BY path;
+DROP TABLE _al_refresh_paths;"#;
+
+    const SYNC_PDF_LIBRARY_PATHS_SQL: &'static str = r#"DELETE FROM pdf_library WHERE path IN (SELECT path FROM _pdf_lib_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM pdfs);
+INSERT OR REPLACE INTO pdf_library (path, pdf_id)
+ SELECT path, MAX(id) FROM pdfs WHERE path IN (SELECT path FROM _pdf_lib_refresh_paths) GROUP BY path;
+DROP TABLE _pdf_lib_refresh_paths;"#;
+
+    const SYNC_MIDI_LIBRARY_PATHS_SQL: &'static str = r#"DELETE FROM midi_library WHERE path IN (SELECT path FROM _midi_lib_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM midi_files);
+INSERT OR REPLACE INTO midi_library (path, midi_id)
+ SELECT path, MAX(id) FROM midi_files WHERE path IN (SELECT path FROM _midi_lib_refresh_paths) GROUP BY path;
+DROP TABLE _midi_lib_refresh_paths;"#;
+
+    const SYNC_PRESET_LIBRARY_PATHS_SQL: &'static str = r#"DELETE FROM preset_library WHERE path IN (SELECT path FROM _preset_lib_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM presets);
+INSERT OR REPLACE INTO preset_library (path, preset_id)
+ SELECT path, MAX(id) FROM presets WHERE path IN (SELECT path FROM _preset_lib_refresh_paths) GROUP BY path;
+DROP TABLE _preset_lib_refresh_paths;"#;
+
+    const SYNC_DAW_LIBRARY_PATHS_SQL: &'static str = r#"DELETE FROM daw_library WHERE path IN (SELECT path FROM _dl_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM daw_projects);
+INSERT OR REPLACE INTO daw_library (path, project_id)
+ SELECT path, MAX(id) FROM daw_projects WHERE path IN (SELECT path FROM _dl_refresh_paths) GROUP BY path;
+DROP TABLE _dl_refresh_paths;"#;
+
+    const SYNC_PLUGIN_LIBRARY_PATHS_SQL: &'static str = r#"DELETE FROM plugin_library WHERE path IN (SELECT path FROM _pl_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM plugins);
+INSERT OR REPLACE INTO plugin_library (path, plugin_id)
+ SELECT path, MAX(id) FROM plugins WHERE path IN (SELECT path FROM _pl_refresh_paths) GROUP BY path;
+DROP TABLE _pl_refresh_paths;"#;
+
+    fn exec_sync_paths_refresh(conn: &Connection, sql: &str) -> Result<(), String> {
+        conn.execute_batch(&format!("BEGIN IMMEDIATE;\n{sql}\nCOMMIT;"))
+            .map_err(|e| e.to_string())
+    }
+
+    fn exec_sync_paths_refresh_tx(tx: &Transaction<'_>, sql: &str) -> Result<(), String> {
+        tx.execute_batch(sql).map_err(|e| e.to_string())
+    }
+
     /// `_al_refresh_paths` lists paths touched by removing `audio_samples` for a scan; those rows
     /// must already be deleted. Reconciles `audio_library` with remaining `audio_samples` rows.
     fn sync_audio_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
-        conn.execute(
-            "DELETE FROM audio_library WHERE path IN (SELECT path FROM _al_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM audio_samples)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "INSERT OR REPLACE INTO audio_library (path, sample_id)
-             SELECT path, MAX(id) FROM audio_samples WHERE path IN (SELECT path FROM _al_refresh_paths) GROUP BY path",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute("DROP TABLE _al_refresh_paths", [])
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        Self::exec_sync_paths_refresh(conn, Self::SYNC_AUDIO_LIBRARY_PATHS_SQL)
     }
 
     fn sync_pdf_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
-        conn.execute(
-            "DELETE FROM pdf_library WHERE path IN (SELECT path FROM _pdf_lib_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM pdfs)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "INSERT OR REPLACE INTO pdf_library (path, pdf_id)
-             SELECT path, MAX(id) FROM pdfs WHERE path IN (SELECT path FROM _pdf_lib_refresh_paths) GROUP BY path",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute("DROP TABLE _pdf_lib_refresh_paths", [])
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        Self::exec_sync_paths_refresh(conn, Self::SYNC_PDF_LIBRARY_PATHS_SQL)
+    }
+
+    fn sync_pdf_library_after_paths_refresh_tx(tx: &Transaction<'_>) -> Result<(), String> {
+        Self::exec_sync_paths_refresh_tx(tx, Self::SYNC_PDF_LIBRARY_PATHS_SQL)
     }
 
     fn sync_midi_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
-        conn.execute(
-            "DELETE FROM midi_library WHERE path IN (SELECT path FROM _midi_lib_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM midi_files)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "INSERT OR REPLACE INTO midi_library (path, midi_id)
-             SELECT path, MAX(id) FROM midi_files WHERE path IN (SELECT path FROM _midi_lib_refresh_paths) GROUP BY path",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute("DROP TABLE _midi_lib_refresh_paths", [])
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        Self::exec_sync_paths_refresh(conn, Self::SYNC_MIDI_LIBRARY_PATHS_SQL)
+    }
+
+    fn sync_midi_library_after_paths_refresh_tx(tx: &Transaction<'_>) -> Result<(), String> {
+        Self::exec_sync_paths_refresh_tx(tx, Self::SYNC_MIDI_LIBRARY_PATHS_SQL)
     }
 
     fn sync_preset_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
-        conn.execute(
-            "DELETE FROM preset_library WHERE path IN (SELECT path FROM _preset_lib_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM presets)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "INSERT OR REPLACE INTO preset_library (path, preset_id)
-             SELECT path, MAX(id) FROM presets WHERE path IN (SELECT path FROM _preset_lib_refresh_paths) GROUP BY path",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute("DROP TABLE _preset_lib_refresh_paths", [])
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        Self::exec_sync_paths_refresh(conn, Self::SYNC_PRESET_LIBRARY_PATHS_SQL)
+    }
+
+    fn sync_preset_library_after_paths_refresh_tx(tx: &Transaction<'_>) -> Result<(), String> {
+        Self::exec_sync_paths_refresh_tx(tx, Self::SYNC_PRESET_LIBRARY_PATHS_SQL)
     }
 
     /// `_dl_refresh_paths` lists paths touched by removing `daw_projects` rows for a scan; those rows
     /// must already be deleted. Reconciles `daw_library` with remaining `daw_projects` rows.
     fn sync_daw_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
-        conn.execute(
-            "DELETE FROM daw_library WHERE path IN (SELECT path FROM _dl_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM daw_projects)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "INSERT OR REPLACE INTO daw_library (path, project_id)
-             SELECT path, MAX(id) FROM daw_projects WHERE path IN (SELECT path FROM _dl_refresh_paths) GROUP BY path",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute("DROP TABLE _dl_refresh_paths", [])
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        Self::exec_sync_paths_refresh(conn, Self::SYNC_DAW_LIBRARY_PATHS_SQL)
     }
 
     fn rebuild_daw_library(conn: &Connection) -> Result<(), String> {
         conn.execute_batch(
-            "DELETE FROM daw_library;
-             INSERT INTO daw_library (path, project_id) SELECT path, MAX(id) FROM daw_projects GROUP BY path;",
+            "BEGIN IMMEDIATE;
+             DELETE FROM daw_library;
+             INSERT INTO daw_library (path, project_id) SELECT path, MAX(id) FROM daw_projects GROUP BY path;
+             COMMIT;",
         )
         .map_err(|e| e.to_string())?;
         Ok(())
@@ -823,34 +817,28 @@ impl Database {
     /// `_pl_refresh_paths` lists paths touched by removing `plugins` rows for a scan; reconciles
     /// `plugin_library` with remaining `plugins` rows (same pattern as `sync_daw_library_after_paths_refresh`).
     fn sync_plugin_library_after_paths_refresh(conn: &Connection) -> Result<(), String> {
-        conn.execute(
-            "DELETE FROM plugin_library WHERE path IN (SELECT path FROM _pl_refresh_paths) AND path NOT IN (SELECT DISTINCT path FROM plugins)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "INSERT OR REPLACE INTO plugin_library (path, plugin_id)
-             SELECT path, MAX(id) FROM plugins WHERE path IN (SELECT path FROM _pl_refresh_paths) GROUP BY path",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute("DROP TABLE _pl_refresh_paths", [])
-            .map_err(|e| e.to_string())?;
-        Ok(())
+        Self::exec_sync_paths_refresh(conn, Self::SYNC_PLUGIN_LIBRARY_PATHS_SQL)
     }
 
     fn rebuild_plugin_library(conn: &Connection) -> Result<(), String> {
         conn.execute_batch(
-            "DELETE FROM plugin_library;
-             INSERT INTO plugin_library (path, plugin_id) SELECT path, MAX(id) FROM plugins GROUP BY path;",
+            "BEGIN IMMEDIATE;
+             DELETE FROM plugin_library;
+             INSERT INTO plugin_library (path, plugin_id) SELECT path, MAX(id) FROM plugins GROUP BY path;
+             COMMIT;",
         )
         .map_err(|e| e.to_string())?;
         Ok(())
     }
 
     /// Full rebuild after bulk deletes (e.g. `prune_old_scans`) where per-path sync is impractical.
-    fn rebuild_pdf_midi_preset_daw_libraries(conn: &Connection) -> Result<(), String> {
-        conn.execute_batch(
+    ///
+    /// One transaction: without it, each `DELETE`/`INSERT` autocommits separately — a crash or killed
+    /// process after `DELETE FROM midi_library` but before `INSERT` could leave `*_library` empty
+    /// while `midi_files` (etc.) still had rows.
+    fn rebuild_pdf_midi_preset_daw_libraries(conn: &mut Connection) -> Result<(), String> {
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        tx.execute_batch(
             "DELETE FROM pdf_library;
              INSERT INTO pdf_library (path, pdf_id) SELECT path, MAX(id) FROM pdfs GROUP BY path;
              DELETE FROM midi_library;
@@ -863,6 +851,7 @@ impl Database {
              INSERT INTO plugin_library (path, plugin_id) SELECT path, MAX(id) FROM plugins GROUP BY path;",
         )
         .map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -886,23 +875,32 @@ impl Database {
         Ok(db)
     }
 
-    /// Background housekeeping — checkpoint WAL, refresh query planner stats,
-    /// prune old scans, and vacuum if needed. Safe to call from any thread;
-    /// must NOT run on the main thread (blocks for seconds on large DBs).
-    pub fn housekeep(&self) {
+    /// Quick startup path: query planner refresh + cache touch. Safe from any thread; keep fast.
+    pub fn housekeep_light(&self) {
         {
             let conn = self.read_conn();
             let _ = conn.execute_batch("PRAGMA optimize;");
         }
+        self.prewarm();
+    }
+
+    /// Expensive path: prune old scans (DELETE + full `*_library` rebuild) and optional `VACUUM`.
+    /// Run **well after** the window and `setup()` have finished so pooled `read_conn()` handles are
+    /// not held across first-frame IPC (single-handle / unlucky round-robin still blocks peers).
+    pub fn housekeep_heavy(&self) {
         self.prune_old_scans(3);
         self.vacuum_if_needed();
-        self.prewarm();
+    }
+
+    /// Full sequence (manual / tests). Startup uses [`Self::housekeep_light`] + delayed [`Self::housekeep_heavy`].
+    pub fn housekeep(&self) {
+        self.housekeep_light();
+        self.housekeep_heavy();
     }
 
     /// Prune old scans — keep only the N most recent **complete** scans per type. Incomplete
     /// (user-stopped) runs are retained until superseded or cleared so library rows stay addressable.
     pub fn prune_old_scans(&self, keep: usize) {
-        let conn = self.read_conn();
         let keep_i = keep as i64;
         for (scan_tbl, data_tbl, id_col) in [
             ("audio_scans", "audio_samples", "scan_id"),
@@ -912,6 +910,10 @@ impl Database {
             ("midi_scans", "midi_files", "scan_id"),
             ("pdf_scans", "pdfs", "scan_id"),
         ] {
+            // One `read_conn()` scope per domain so we do not hold a pooled handle across all
+            // DELETE batches — other threads can use different handles (or the main thread during
+            // startup can finish `setup` while prune runs).
+            let conn = self.read_conn();
             let _ = conn.execute_batch(&format!(
                 "DELETE FROM {data_tbl} WHERE {id_col} IN (\
                     SELECT id FROM {scan_tbl} WHERE scan_complete = 1 AND id NOT IN (\
@@ -923,7 +925,12 @@ impl Database {
                 );"
             ));
         }
-        let _ = Self::rebuild_pdf_midi_preset_daw_libraries(&conn);
+        let mut conn = self.read_conn();
+        if let Err(e) = Self::rebuild_pdf_midi_preset_daw_libraries(&mut conn) {
+            crate::append_log(format!(
+                "rebuild_pdf_midi_preset_daw_libraries after prune_old_scans failed: {e}"
+            ));
+        }
     }
 
     /// Mark whether a streaming scan finished normally (`complete`) or was user-stopped (partial).
@@ -3357,7 +3364,11 @@ impl Database {
     pub fn clear_plugin_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
         conn.execute_batch(
-            "DELETE FROM plugin_library; DELETE FROM plugins; DELETE FROM plugin_scans;",
+            "BEGIN IMMEDIATE;
+             DELETE FROM plugin_library;
+             DELETE FROM plugins;
+             DELETE FROM plugin_scans;
+             COMMIT;",
         )
         .map_err(|e| e.to_string())
     }
@@ -3494,10 +3505,12 @@ impl Database {
     pub fn clear_audio_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
         conn.execute_batch(
-            "DELETE FROM audio_library;
+            "BEGIN IMMEDIATE;
+             DELETE FROM audio_library;
              DELETE FROM audio_samples_fts;
              DELETE FROM audio_samples;
-             DELETE FROM audio_scans;",
+             DELETE FROM audio_scans;
+             COMMIT;",
         )
         .map_err(|e| e.to_string())
     }
@@ -3804,10 +3817,12 @@ impl Database {
     pub fn clear_daw_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
         conn.execute_batch(
-            "DELETE FROM daw_library;
+            "BEGIN IMMEDIATE;
+             DELETE FROM daw_library;
              DELETE FROM daw_projects_fts;
              DELETE FROM daw_projects;
-             DELETE FROM daw_scans;",
+             DELETE FROM daw_scans;
+             COMMIT;",
         )
         .map_err(|e| e.to_string())
     }
@@ -4006,7 +4021,7 @@ impl Database {
                         .map_err(|e| e.to_string())?;
                 }
             }
-            Self::sync_preset_library_after_paths_refresh(&tx)?;
+            Self::sync_preset_library_after_paths_refresh_tx(&tx)?;
         }
         tx.commit().map_err(|e| e.to_string())
     }
@@ -4120,10 +4135,12 @@ impl Database {
     pub fn clear_preset_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
         conn.execute_batch(
-            "DELETE FROM preset_library;
+            "BEGIN IMMEDIATE;
+             DELETE FROM preset_library;
              DELETE FROM presets_fts;
              DELETE FROM presets;
-             DELETE FROM preset_scans;",
+             DELETE FROM preset_scans;
+             COMMIT;",
         )
         .map_err(|e| e.to_string())
     }
@@ -4326,7 +4343,7 @@ impl Database {
                         .map_err(|e| e.to_string())?;
                 }
             }
-            Self::sync_midi_library_after_paths_refresh(&tx)?;
+            Self::sync_midi_library_after_paths_refresh_tx(&tx)?;
         }
         tx.commit().map_err(|e| e.to_string())
     }
@@ -4440,10 +4457,12 @@ impl Database {
     pub fn clear_midi_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
         conn.execute_batch(
-            "DELETE FROM midi_library;
+            "BEGIN IMMEDIATE;
+             DELETE FROM midi_library;
              DELETE FROM midi_files_fts;
              DELETE FROM midi_files;
-             DELETE FROM midi_scans;",
+             DELETE FROM midi_scans;
+             COMMIT;",
         )
         .map_err(|e| e.to_string())
     }
@@ -5032,7 +5051,7 @@ impl Database {
                         .map_err(|e| e.to_string())?;
                 }
             }
-            Self::sync_pdf_library_after_paths_refresh(&tx)?;
+            Self::sync_pdf_library_after_paths_refresh_tx(&tx)?;
         }
         tx.commit().map_err(|e| e.to_string())
     }
@@ -5146,10 +5165,12 @@ impl Database {
     pub fn clear_pdf_history(&self) -> Result<(), String> {
         let conn = self.read_conn();
         conn.execute_batch(
-            "DELETE FROM pdf_library;
+            "BEGIN IMMEDIATE;
+             DELETE FROM pdf_library;
              DELETE FROM pdfs_fts;
              DELETE FROM pdfs;
-             DELETE FROM pdf_scans;",
+             DELETE FROM pdf_scans;
+             COMMIT;",
         )
         .map_err(|e| e.to_string())
     }

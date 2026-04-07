@@ -23,7 +23,7 @@ namespace audio_haxor {
 namespace {
 
 #ifndef AUDIO_ENGINE_VERSION_STRING
-#define AUDIO_ENGINE_VERSION_STRING "2.0.0"
+#define AUDIO_ENGINE_VERSION_STRING "2.0.1"
 #endif
 
 static constexpr float kTestToneHz = 440.0f;
