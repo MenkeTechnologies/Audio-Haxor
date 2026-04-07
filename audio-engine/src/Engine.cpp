@@ -1803,7 +1803,8 @@ juce::var Engine::dispatch(const juce::var& req)
 {
     std::lock_guard<std::mutex> lock(impl->mutex);
     const juce::String cmd = cmdKey(req);
-    if (cmd.isNotEmpty() && cmd != "ping" && cmd != "playback_status")
+    // High-frequency IPC: omit from engine.log (same as ping / playback_status polls).
+    if (cmd.isNotEmpty() && cmd != "ping" && cmd != "playback_status" && cmd != "playback_seek")
         appLogLine("cmd " + cmd);
 
     if (cmd == "ping")
