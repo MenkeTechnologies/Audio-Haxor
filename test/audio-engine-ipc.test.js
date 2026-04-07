@@ -113,14 +113,21 @@ function runEngineExchange(bin, requestLines, opts = {}) {
 const bin = resolveAudioEngineBin();
 const cmakeVersion = readProjectVersionFromCMake();
 
+/** One JSON object per stdin line (safe paths on Windows). */
+function jl(obj) {
+  return JSON.stringify(obj);
+}
+
 if (!bin) {
   describe.skip('audio-engine IPC (no binary — build with node scripts/build-audio-engine.mjs)', () => {
     it('skipped', () => {});
   });
 } else {
   describe('audio-engine IPC (stdin/stdout)', () => {
+    const missingAbsPath = path.join(root, '___audio_haxor_ipc_test_missing_file___');
+
     it('ping returns ok, version matches CMake project, host juce', async () => {
-      const { outLines } = await runEngineExchange(bin, ['{"cmd":"ping"}']);
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'ping' })]);
       assert.equal(outLines.length, 1);
       const j = JSON.parse(outLines[0]);
       assert.equal(j.ok, true);
@@ -138,7 +145,7 @@ if (!bin) {
     });
 
     it('two sequential pings return two lines', async () => {
-      const { outLines } = await runEngineExchange(bin, ['{"cmd":"ping"}', '{"cmd":"ping"}']);
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'ping' }), jl({ cmd: 'ping' })]);
       assert.equal(outLines.length, 2);
       const a = JSON.parse(outLines[0]);
       const b = JSON.parse(outLines[1]);
@@ -147,15 +154,73 @@ if (!bin) {
       assert.equal(a.version, b.version);
     });
 
-    it('playback_load with missing path returns ok:false before device init', async () => {
-      const { outLines, code } = await runEngineExchange(bin, [
-        '{"cmd":"playback_load","path":"/___audio_haxor_test_no_such_file___"}',
-      ]);
+    it('playback_load missing file returns not a file (absolute path, no device init)', async () => {
+      const { outLines, code } = await runEngineExchange(bin, [jl({ cmd: 'playback_load', path: missingAbsPath })]);
       assert.equal(outLines.length, 1);
       const j = JSON.parse(outLines[0]);
       assert.equal(j.ok, false);
       assert.match(String(j.error || ''), /not a file/);
       assert.equal(code, 0);
+    });
+
+    it('playback_load rejects empty path', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'playback_load', path: '' })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /path required/);
+    });
+
+    it('playback_load rejects omitted path', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'playback_load' })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /path required/);
+    });
+
+    it('waveform_preview rejects omitted path', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'waveform_preview' })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /path required/);
+    });
+
+    it('waveform_preview rejects missing file', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'waveform_preview', path: missingAbsPath })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /not a file/);
+    });
+
+    it('spectrogram_preview rejects omitted path', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'spectrogram_preview' })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /path required/);
+    });
+
+    it('spectrogram_preview rejects missing file', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'spectrogram_preview', path: missingAbsPath })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /not a file/);
+    });
+
+    it('mixed ping + preview validation in one session', async () => {
+      const lines = [
+        jl({ cmd: 'ping' }),
+        jl({ cmd: 'waveform_preview', path: missingAbsPath }),
+        jl({ cmd: 'ping' }),
+      ];
+      const { outLines } = await runEngineExchange(bin, lines);
+      assert.equal(outLines.length, 3);
+      const p0 = JSON.parse(outLines[0]);
+      const p1 = JSON.parse(outLines[1]);
+      const p2 = JSON.parse(outLines[2]);
+      assert.equal(p0.ok, true);
+      assert.equal(p1.ok, false);
+      assert.match(String(p1.error || ''), /not a file/);
+      assert.equal(p2.ok, true);
+      assert.equal(p2.version, p0.version);
     });
   });
 }
