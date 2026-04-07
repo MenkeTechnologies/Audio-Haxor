@@ -106,10 +106,15 @@ static void engineTerminateHandler()
 void installEngineCrashHandlers()
 {
     std::memset(g_appLogPathForCrash, 0, sizeof(g_appLogPathForCrash));
-    if (const char* p = ::getenv("AUDIO_HAXOR_APP_LOG"))
+    if (const char* eng = ::getenv("AUDIO_HAXOR_ENGINE_LOG"))
     {
-        if (p[0] != '\0')
-            std::strncpy(g_appLogPathForCrash, p, sizeof(g_appLogPathForCrash) - 1);
+        if (eng[0] != '\0')
+            std::strncpy(g_appLogPathForCrash, eng, sizeof(g_appLogPathForCrash) - 1);
+    }
+    else if (const char* app = ::getenv("AUDIO_HAXOR_APP_LOG"))
+    {
+        if (app[0] != '\0')
+            std::strncpy(g_appLogPathForCrash, app, sizeof(g_appLogPathForCrash) - 1);
     }
 
     struct sigaction ign;

@@ -10,8 +10,8 @@
 namespace audio_haxor {
 namespace {
 
-std::mutex g_appLogMutex;
-juce::String g_appLogPath;
+std::mutex g_engineLogMutex;
+juce::String g_engineLogPath;
 bool g_mirrorEngineLogToStderr = false;
 
 static juce::String utcTimestampString()
@@ -34,14 +34,17 @@ static juce::String utcTimestampString()
 
 void initAppLogFromEnv()
 {
-    g_appLogPath = juce::SystemStats::getEnvironmentVariable("AUDIO_HAXOR_APP_LOG", {}).trim();
+    juce::String p = juce::SystemStats::getEnvironmentVariable("AUDIO_HAXOR_ENGINE_LOG", {}).trim();
+    if (p.isEmpty())
+        p = juce::SystemStats::getEnvironmentVariable("AUDIO_HAXOR_APP_LOG", {}).trim();
+    g_engineLogPath = p;
     const char* mirror = std::getenv("AUDIO_HAXOR_ENGINE_LOG_STDERR");
     g_mirrorEngineLogToStderr = (mirror != nullptr && mirror[0] != '\0');
 }
 
 void appLogLine(const juce::String& message)
 {
-    const std::lock_guard<std::mutex> lock(g_appLogMutex);
+    const std::lock_guard<std::mutex> lock(g_engineLogMutex);
 
     const juce::String line = juce::String("[") + utcTimestampString() + "] ENGINE: " + message + "\n";
 
@@ -51,10 +54,10 @@ void appLogLine(const juce::String& message)
         std::cerr.flush();
     }
 
-    if (g_appLogPath.isEmpty())
+    if (g_engineLogPath.isEmpty())
         return;
 
-    juce::File f(g_appLogPath);
+    juce::File f(g_engineLogPath);
     const juce::File parent = f.getParentDirectory();
     (void) parent.createDirectory();
 

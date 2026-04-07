@@ -187,8 +187,11 @@ fn child_dead(child: &mut Child) -> bool {
 
 fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
     let identity = std::fs::metadata(path).ok().map(|m| (m.modified().unwrap_or_else(|_| SystemTime::UNIX_EPOCH), m.len()));
-    let app_log = crate::history::get_data_dir().join("app.log");
+    let data_dir = crate::history::get_data_dir();
+    let engine_log = data_dir.join("engine.log");
+    let app_log = data_dir.join("app.log");
     let mut child = Command::new(path)
+        .env("AUDIO_HAXOR_ENGINE_LOG", engine_log.as_os_str())
         .env("AUDIO_HAXOR_APP_LOG", app_log.as_os_str())
         .env(
             "AUDIO_HAXOR_PARENT_PID",
