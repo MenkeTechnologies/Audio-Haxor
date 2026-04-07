@@ -17,7 +17,7 @@ Notable commands:
 | `set_output_device` | Validate `device_id` only |
 | `start_output_stream` | Open default config; optional `buffer_frames` → `BufferSize::Fixed` (clamped); **F32** supports `tone` (440 Hz sine at low gain). Response + `output_stream_status` include `stream_buffer_frames` when fixed buffering was applied. |
 | `stop_output_stream` | Drop stream |
-| `output_stream_status` | Running + `tone_supported` / `tone_on` when applicable |
+| `output_stream_status` | Running + `tone_supported` / `tone_on` + `stream_buffer_frames` (null when idle or driver default) |
 | `set_output_tone` | Toggle tone while stream is running (F32 only) |
 
 ## Build

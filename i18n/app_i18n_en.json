@@ -629,6 +629,7 @@
   "ui.ae.device_caps": "{rate} Hz · {channels} ch · {format}",
   "ui.ae.err_no_ipc": "Audio engine IPC unavailable (not running in the app shell).",
   "ui.ae.heading": "Audio Engine",
+  "ui.ae.input_default_caps_label": "Default input (cpal)",
   "ui.ae.input_devices_heading": "Input devices",
   "ui.ae.input_devices_intro": "Sidecar list_input_devices (capture/debug).",
   "ui.ae.intro": "Low-latency sidecar: Apply opens a cpal output stream (silence or optional 440 Hz test tone on F32 devices). Toggle tone without restarting if the stream supports it. engine_state merges ping + stream in one IPC. Optional buffer_frames requests a fixed hardware buffer size. Plugin chain TBD.",

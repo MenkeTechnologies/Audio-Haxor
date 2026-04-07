@@ -35,6 +35,30 @@ function formatAeBufferSize(buf) {
 }
 
 /**
+ * Shared line for `get_output_device_info` / `get_input_device_info` payloads (same JSON shape).
+ * @param {object|null} info
+ * @returns {string|null}
+ */
+function buildAeDeviceCapsLine(info) {
+    if (!info || info.ok !== true || typeof catalogFmt !== 'function') return null;
+    const ch = info.channels != null ? String(info.channels) : '?';
+    const fmt = info.sample_format != null ? String(info.sample_format) : '?';
+    const rate = info.sample_rate_hz != null ? String(info.sample_rate_hz) : '?';
+    let rateLabel = rate;
+    const r = info.sample_rate_range_hz;
+    if (r && r.min != null && r.max != null && String(r.min) !== String(r.max)) {
+        rateLabel = `${r.min}–${r.max}`;
+    }
+    const buf = formatAeBufferSize(info.buffer_size);
+    const bufPart = buf ? ` · ${buf}` : '';
+    return catalogFmt('ui.ae.device_caps', {
+        rate: rateLabel,
+        channels: ch,
+        format: fmt,
+    }) + bufPart;
+}
+
+/**
  * Called when the Audio Engine tab becomes active (`utils.js` `switchTab` → `runPerTabWork`).
  * Idempotent — safe if called multiple times.
  */
@@ -79,6 +103,13 @@ function initAudioEngineTab() {
             void toggleAeTestTone(toneCb.checked);
         });
     }
+    if (bufIn && typeof bufIn.addEventListener === 'function' && typeof prefs !== 'undefined' && typeof prefs.setItem === 'function') {
+        const saveBufPref = () => {
+            prefs.setItem(AE_PREFS_BUFFER_FRAMES, bufIn.value != null ? String(bufIn.value).trim() : '');
+        };
+        bufIn.addEventListener('change', saveBufPref);
+        bufIn.addEventListener('blur', saveBufPref);
+    }
 
     void refreshAudioEnginePanel();
 }
@@ -95,27 +126,29 @@ async function fillAeDeviceCaps(inv, deviceId) {
     }
     try {
         const info = await inv({cmd: 'get_output_device_info', device_id: deviceId});
-        if (info && info.ok === true && typeof catalogFmt === 'function') {
-            const ch = info.channels != null ? String(info.channels) : '?';
-            const fmt = info.sample_format != null ? String(info.sample_format) : '?';
-            const rate = info.sample_rate_hz != null ? String(info.sample_rate_hz) : '?';
-            let rateLabel = rate;
-            const r = info.sample_rate_range_hz;
-            if (r && r.min != null && r.max != null && String(r.min) !== String(r.max)) {
-                rateLabel = `${r.min}–${r.max}`;
-            }
-            const buf = formatAeBufferSize(info.buffer_size);
-            const bufPart = buf ? ` · ${buf}` : '';
-            capsEl.textContent = catalogFmt('ui.ae.device_caps', {
-                rate: rateLabel,
-                channels: ch,
-                format: fmt,
-            }) + bufPart;
-        } else {
-            capsEl.textContent = '—';
-        }
+        const line = buildAeDeviceCapsLine(info);
+        capsEl.textContent = line != null ? line : '—';
     } catch {
         capsEl.textContent = '—';
+    }
+}
+
+/**
+ * Default input device (`get_input_device_info` with no `device_id`).
+ * @param {function} inv — `window.vstUpdater.audioEngineInvoke`
+ */
+async function fillAeInputDeviceCaps(inv) {
+    const el = document.getElementById('aeInputDeviceCaps');
+    if (!el || typeof inv !== 'function') {
+        if (el) el.textContent = '—';
+        return;
+    }
+    try {
+        const info = await inv({cmd: 'get_input_device_info'});
+        const line = buildAeDeviceCapsLine(info);
+        el.textContent = line != null ? line : '—';
+    } catch {
+        el.textContent = '—';
     }
 }
 
@@ -289,6 +322,7 @@ async function refreshAudioEnginePanel() {
         } catch {
             if (inListEl) inListEl.textContent = '—';
         }
+        await fillAeInputDeviceCaps(inv);
     } catch (e) {
         const msg = e && e.message ? String(e.message) : String(e);
         if (statusEl && typeof catalogFmt === 'function') {

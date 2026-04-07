@@ -629,6 +629,7 @@
   "ui.ae.device_caps": "{rate} Hz · {channels} ch · {format}",
   "ui.ae.err_no_ipc": "Audio engine IPC unavailable (not running in the app shell).",
   "ui.ae.heading": "Audio Engine",
+  "ui.ae.input_default_caps_label": "Default input (cpal)",
   "ui.ae.input_devices_heading": "Input devices",
   "ui.ae.input_devices_intro": "Sidecar list_input_devices (capture/debug).",
   "ui.ae.intro": "Dedicated audio process for system output, device selection, and insert effects. Implementation in progress.",
