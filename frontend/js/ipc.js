@@ -38,10 +38,11 @@ function runExport(fn) {
     if (typeof fn !== 'function') return;
     Promise.resolve(fn()).catch((e) => {
         if (typeof showToast === 'function' && typeof toastFmt === 'function') {
-            showToast(toastFmt('toast.export_failed', { err: e.message || e }), 4000, 'error');
+            showToast(toastFmt('toast.export_failed', {err: e.message || e}), 4000, 'error');
         }
     });
 }
+
 window.runExport = runExport;
 window.__appReady = invoke('get_app_strings', {locale: null}).then((m) => {
     window.__appStr = m || {};
@@ -681,7 +682,7 @@ document.addEventListener('click', (e) => {
                             showToast(toastFmt('toast.no_audio_samples_scan_first'), 4000, 'error');
                             return;
                         }
-                        showToast(toastFmt('toast.fingerprint_building_n_slow', { n: paths.length.toLocaleString() }), 4000);
+                        showToast(toastFmt('toast.fingerprint_building_n_slow', {n: paths.length.toLocaleString()}), 4000);
                         try {
                             const res = await window.vstUpdater.buildFingerprintCache(paths);
                             showToast(toastFmt('toast.fingerprint_build_complete_n_cached', {
@@ -690,7 +691,7 @@ document.addEventListener('click', (e) => {
                             }));
                             if (typeof renderCacheStats === 'function') renderCacheStats();
                         } catch (e) {
-                            showToast(toastFmt('toast.fingerprint_build_failed', { err: e.message || e }), 4000, 'error');
+                            showToast(toastFmt('toast.fingerprint_build_failed', {err: e.message || e}), 4000, 'error');
                         }
                     })();
                 }
@@ -966,7 +967,7 @@ document.addEventListener('dblclick', (e) => {
         const name = pdfRow.querySelector('td:nth-child(2)')?.textContent?.trim()
             || pdfRow.dataset.pdfPath?.split('/').pop() || 'PDF';
         window.vstUpdater.openFileDefault(pdfRow.dataset.pdfPath)
-            .then(() => showToast(toastFmt('toast.opening_pdf_default_app', { name })))
+            .then(() => showToast(toastFmt('toast.opening_pdf_default_app', {name})))
             .catch(err => showToast(toastFmt('toast.failed_open_pdf', {err: err.message || err}), 4000, 'error'));
         return;
     }
@@ -1095,7 +1096,8 @@ window.vstUpdater = {
     onUpdateProgress: (callback) => {
         const p = listen('update-progress', (event) => callback(event.payload));
         return () => {
-            p.then((fn) => fn()).catch(() => {});
+            p.then((fn) => fn()).catch(() => {
+            });
         };
     },
     resolveKvr: (directUrl, pluginName) => invoke('resolve_kvr', {directUrl, pluginName}),
@@ -1117,7 +1119,8 @@ window.vstUpdater = {
     onAudioScanProgress: (callback) => {
         const p = listen('audio-scan-progress', (event) => callback(event.payload));
         return () => {
-            p.then((fn) => fn()).catch(() => {});
+            p.then((fn) => fn()).catch(() => {
+            });
         };
     },
     openAudioFolder: (path) => invoke('open_audio_folder', {filePath: path}),
@@ -1144,7 +1147,8 @@ window.vstUpdater = {
     onPresetScanProgress: (callback) => {
         const p = listen('preset-scan-progress', (event) => callback(event.payload));
         return () => {
-            p.then((fn) => fn()).catch(() => {});
+            p.then((fn) => fn()).catch(() => {
+            });
         };
     },
     openPresetFolder: (path) => invoke('open_preset_folder', {filePath: path}),
@@ -1164,7 +1168,8 @@ window.vstUpdater = {
     onMidiScanProgress: (callback) => {
         const p = listen('midi-scan-progress', (event) => callback(event.payload));
         return () => {
-            p.then((fn) => fn()).catch(() => {});
+            p.then((fn) => fn()).catch(() => {
+            });
         };
     },
     saveMidiScan: (midiFiles, roots) => invoke('midi_history_save', {midiFiles, roots: roots || null}),
@@ -1206,7 +1211,8 @@ window.vstUpdater = {
     onPdfScanProgress: (callback) => {
         const p = listen('pdf-scan-progress', (event) => callback(event.payload));
         return () => {
-            p.then((fn) => fn()).catch(() => {});
+            p.then((fn) => fn()).catch(() => {
+            });
         };
     },
     openPdfFile: (path) => invoke('open_pdf_file', {filePath: path}),
@@ -1229,7 +1235,8 @@ window.vstUpdater = {
     onDawScanProgress: (callback) => {
         const p = listen('daw-scan-progress', (event) => callback(event.payload));
         return () => {
-            p.then((fn) => fn()).catch(() => {});
+            p.then((fn) => fn()).catch(() => {
+            });
         };
     },
     openDawFolder: (path) => invoke('open_daw_folder', {filePath: path}),
@@ -1293,7 +1300,8 @@ window.vstUpdater = {
     onPdfMetadataProgress: (callback) => {
         const p = listen('pdf-metadata-progress', (event) => callback(event.payload));
         return () => {
-            p.then((fn) => fn()).catch(() => {});
+            p.then((fn) => fn()).catch(() => {
+            });
         };
     },
     readAlsXml: (filePath) => invoke('read_als_xml', {filePath}),
@@ -1333,7 +1341,7 @@ window.vstUpdater = {
     dbQueryPresets: (params) => invoke('db_query_presets', params || {}),
     dbQueryPdfs: (params) => invoke('db_query_pdfs', params || {}),
     /** One blocking-pool task: six `LIMIT 6` inventory queries (Cmd+K preview). */
-    dbQueryPalettePreview: (search) => invoke('db_query_palette_preview', { search: search || '' }),
+    dbQueryPalettePreview: (search) => invoke('db_query_palette_preview', {search: search || ''}),
     /** Full audio library paths (SQLite `audio_library`) — not the in-memory paginated slice. */
     dbAudioLibraryPaths: () => invoke('db_audio_library_paths', {}),
     dbPdfStats: (scanId) => invoke('db_pdf_stats', {scanId: scanId || null}),

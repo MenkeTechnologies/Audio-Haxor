@@ -379,7 +379,7 @@ function computeInventoryCountsLegacy(tc) {
         const p = typeof window.__midiScanPendingFound === 'number' ? window.__midiScanPendingFound : 0;
         midi = Math.max(midi, p);
     }
-    return { plugins, samples, daw, presets, pdf, midi };
+    return {plugins, samples, daw, presets, pdf, midi};
 }
 
 async function resolveInventoryCounts(tc, _scanner) {
@@ -400,6 +400,7 @@ async function resolveInventoryCounts(tc, _scanner) {
 }
 
 let _refreshInvTimer = null;
+
 function scheduleRefreshInventoryFromDb() {
     if (_refreshInvTimer) clearTimeout(_refreshInvTimer);
     _refreshInvTimer = setTimeout(async () => {

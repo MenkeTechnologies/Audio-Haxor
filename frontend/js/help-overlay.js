@@ -2,74 +2,77 @@
 // Press ? to show keyboard shortcuts reference
 
 function _helpEsc(s) {
-  return typeof escapeHtml === 'function' ? escapeHtml(s) : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    return typeof escapeHtml === 'function' ? escapeHtml(s) : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 }
 
 function _helpModKbdDigit(d) {
-  const isMac = navigator.platform.includes('Mac');
-  if (isMac) return `<kbd>\u2318${d}</kbd>`;
-  return `<kbd>Ctrl+${d}</kbd>`;
+    const isMac = navigator.platform.includes('Mac');
+    if (isMac) return `<kbd>\u2318${d}</kbd>`;
+    return `<kbd>Ctrl+${d}</kbd>`;
 }
 
 function _helpModKbdComma() {
-  const isMac = navigator.platform.includes('Mac');
-  if (isMac) return `<kbd>\u2318,</kbd>`;
-  return `<kbd>Ctrl+,</kbd>`;
+    const isMac = navigator.platform.includes('Mac');
+    if (isMac) return `<kbd>\u2318,</kbd>`;
+    return `<kbd>Ctrl+,</kbd>`;
 }
 
 function _helpModArrow(dir) {
-  const isMac = navigator.platform.includes('Mac');
-  const sym = { Right: '\u2192', Left: '\u2190', Up: '\u2191', Down: '\u2193' }[dir] || '';
-  if (isMac) return `<kbd>\u2318${sym}</kbd>`;
-  return `<kbd>Ctrl+${sym}</kbd>`;
+    const isMac = navigator.platform.includes('Mac');
+    const sym = {Right: '\u2192', Left: '\u2190', Up: '\u2191', Down: '\u2193'}[dir] || '';
+    if (isMac) return `<kbd>\u2318${sym}</kbd>`;
+    return `<kbd>Ctrl+${sym}</kbd>`;
 }
 
 function _helpModKbdLetter(ch) {
-  const isMac = navigator.platform.includes('Mac');
-  const u = ch.toUpperCase();
-  if (isMac) return `<kbd>\u2318${u}</kbd>`;
-  return `<kbd>Ctrl+${u}</kbd>`;
+    const isMac = navigator.platform.includes('Mac');
+    const u = ch.toUpperCase();
+    if (isMac) return `<kbd>\u2318${u}</kbd>`;
+    return `<kbd>Ctrl+${u}</kbd>`;
 }
 
 function _helpModKbdKey(key) {
-  const isMac = navigator.platform.includes('Mac');
-  if (isMac) return `<kbd>\u2318${key}</kbd>`;
-  return `<kbd>Ctrl+${key}</kbd>`;
+    const isMac = navigator.platform.includes('Mac');
+    if (isMac) return `<kbd>\u2318${key}</kbd>`;
+    return `<kbd>Ctrl+${key}</kbd>`;
 }
 
 /** Keys listed in Settings → Keyboard Shortcuts that are not covered above */
 const HELP_MORE_SHORTCUT_IDS = [
-  'tab11', 'tab12', 'tab13',
-  'newSmartPlaylist', 'togglePlayerExpand', 'toggleEq', 'toggleMono',
-  'toggleABLoop', 'heatmapDash', 'togglePlayer', 'toggleCrt', 'toggleNeonGlow',
-  'clearPlayHistory', 'deselectAll', 'openPrefs',
+    'tab11', 'tab12', 'tab13',
+    'newSmartPlaylist', 'togglePlayerExpand', 'toggleEq', 'toggleMono',
+    'toggleABLoop', 'heatmapDash', 'togglePlayer', 'toggleCrt', 'toggleNeonGlow',
+    'clearPlayHistory', 'deselectAll', 'openPrefs',
 ];
 
 function _helpMoreRows() {
-  if (typeof getShortcuts !== 'function' || typeof formatKey !== 'function') return '';
-  const sc = getShortcuts();
-  const rows = [];
-  for (const id of HELP_MORE_SHORTCUT_IDS) {
-    const ent = sc[id];
-    if (!ent) continue;
-    rows.push(
-      `<div class="help-row"><kbd>${_helpEsc(formatKey(ent))}</kbd> <span>${_helpEsc(ent.label)}</span></div>`
-    );
-  }
-  return rows.join('');
+    if (typeof getShortcuts !== 'function' || typeof formatKey !== 'function') return '';
+    const sc = getShortcuts();
+    const rows = [];
+    for (const id of HELP_MORE_SHORTCUT_IDS) {
+        const ent = sc[id];
+        if (!ent) continue;
+        rows.push(
+            `<div class="help-row"><kbd>${_helpEsc(formatKey(ent))}</kbd> <span>${_helpEsc(ent.label)}</span></div>`
+        );
+    }
+    return rows.join('');
 }
 
 function toggleHelpOverlay() {
-  let existing = document.getElementById('helpOverlay');
-  if (existing) { existing.remove(); return; }
+    let existing = document.getElementById('helpOverlay');
+    if (existing) {
+        existing.remove();
+        return;
+    }
 
-  const h = (key) => catalogFmt(key);
+    const h = (key) => catalogFmt(key);
 
-  const k19 = `${_helpModKbdDigit('1')}<span style="color:var(--text-dim);">\u2013</span>${_helpModKbdDigit('9')}`;
-  const k0 = _helpModKbdDigit('0');
-  const moreRows = _helpMoreRows();
+    const k19 = `${_helpModKbdDigit('1')}<span style="color:var(--text-dim);">\u2013</span>${_helpModKbdDigit('9')}`;
+    const k0 = _helpModKbdDigit('0');
+    const moreRows = _helpMoreRows();
 
-  const html = `<div class="modal-overlay" id="helpOverlay" data-action-modal="closeHelp">
+    const html = `<div class="modal-overlay" id="helpOverlay" data-action-modal="closeHelp">
     <div class="modal-content">
       <div class="modal-header">
         <h2>${h('help.title')}</h2>
@@ -160,16 +163,16 @@ function toggleHelpOverlay() {
       </div>
     </div>
   </div>`;
-  document.body.insertAdjacentHTML('beforeend', html);
+    document.body.insertAdjacentHTML('beforeend', html);
 }
 
 // Event delegation for help modal
 document.addEventListener('click', (e) => {
-  const action = e.target.closest('[data-action-modal="closeHelp"]');
-  if (action) {
-    if (e.target === action || action.classList.contains('modal-close')) {
-      const overlay = document.getElementById('helpOverlay');
-      if (overlay) overlay.remove();
+    const action = e.target.closest('[data-action-modal="closeHelp"]');
+    if (action) {
+        if (e.target === action || action.classList.contains('modal-close')) {
+            const overlay = document.getElementById('helpOverlay');
+            if (overlay) overlay.remove();
+        }
     }
-  }
 });

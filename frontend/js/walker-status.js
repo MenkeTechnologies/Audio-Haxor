@@ -4,108 +4,119 @@
 let _walkerInterval = null;
 
 function startWalkerPolling() {
-  stopWalkerPolling();
-  _walkerIdleCount = 0;
-  _updateWalkerTiles();
-  _walkerInterval = setInterval(_updateWalkerTiles, 500);
+    stopWalkerPolling();
+    _walkerIdleCount = 0;
+    _updateWalkerTiles();
+    _walkerInterval = setInterval(_updateWalkerTiles, 500);
 }
 
 function stopWalkerPolling() {
-  if (_walkerInterval) { clearInterval(_walkerInterval); _walkerInterval = null; }
+    if (_walkerInterval) {
+        clearInterval(_walkerInterval);
+        _walkerInterval = null;
+    }
 }
 
 // Auto-start/stop polling when Walkers tab is visible
 document.addEventListener('click', (e) => {
-  const tab = e.target.closest('[data-action="switchTab"]');
-  if (tab) {
-    if (tab.dataset.tab === 'walkers') startWalkerPolling();
-    else stopWalkerPolling();
-  }
+    const tab = e.target.closest('[data-action="switchTab"]');
+    if (tab) {
+        if (tab.dataset.tab === 'walkers') startWalkerPolling();
+        else stopWalkerPolling();
+    }
 });
 
 // Pause walker polling when browser tab is hidden
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stopWalkerPolling(); }
-  else {
-    const tab = document.getElementById('tabWalkers');
-    if (tab && tab.classList.contains('active')) startWalkerPolling();
-  }
+    if (document.hidden) {
+        stopWalkerPolling();
+    } else {
+        const tab = document.getElementById('tabWalkers');
+        if (tab && tab.classList.contains('active')) startWalkerPolling();
+    }
 });
 
 let _walkerIdleCount = 0;
 
 async function _updateWalkerTiles() {
-  // Only poll if tab is visible
-  const tab = document.getElementById('tabWalkers');
-  if (!tab || !tab.classList.contains('active')) { stopWalkerPolling(); return; }
+    // Only poll if tab is visible
+    const tab = document.getElementById('tabWalkers');
+    if (!tab || !tab.classList.contains('active')) {
+        stopWalkerPolling();
+        return;
+    }
 
-  try {
-    const status = await window.vstUpdater.getWalkerStatus();
-    _renderTile('walkerPluginBody', 'walkerTilePlugin', status.plugin, 'var(--cyan)', status.poolThreads, status.pluginScanning);
+    try {
+        const status = await window.vstUpdater.getWalkerStatus();
+        _renderTile('walkerPluginBody', 'walkerTilePlugin', status.plugin, 'var(--cyan)', status.poolThreads, status.pluginScanning);
 
-    // Unified tile stays visible at all times — during scans it streams the
-    // active dir list; when idle it shows the last dirs walked + "idle" status
-    // so users can see the final scan state without the tile vanishing.
-    const unifiedTile = document.getElementById('walkerTileUnified');
-    const fileWalkerActive = status.unifiedScanning || status.audioScanning
-      || status.dawScanning || status.presetScanning || status.midiScanning
-      || status.pdfScanning;
-    if (unifiedTile) unifiedTile.style.display = '';
-    // Fall back through dir lists — whichever walker ran last populates
-    // its corresponding list.
-    const dirs = (status.audio && status.audio.length) ? status.audio
-      : (status.daw && status.daw.length) ? status.daw
-      : (status.preset && status.preset.length) ? status.preset
-      : (status.midi && status.midi.length) ? status.midi
-      : (status.pdf && status.pdf.length) ? status.pdf
-      : [];
-    _renderTile('walkerUnifiedBody', 'walkerTileUnified', dirs, 'var(--accent)', status.poolThreads, fileWalkerActive);
+        // Unified tile stays visible at all times — during scans it streams the
+        // active dir list; when idle it shows the last dirs walked + "idle" status
+        // so users can see the final scan state without the tile vanishing.
+        const unifiedTile = document.getElementById('walkerTileUnified');
+        const fileWalkerActive = status.unifiedScanning || status.audioScanning
+            || status.dawScanning || status.presetScanning || status.midiScanning
+            || status.pdfScanning;
+        if (unifiedTile) unifiedTile.style.display = '';
+        // Fall back through dir lists — whichever walker ran last populates
+        // its corresponding list.
+        const dirs = (status.audio && status.audio.length) ? status.audio
+            : (status.daw && status.daw.length) ? status.daw
+                : (status.preset && status.preset.length) ? status.preset
+                    : (status.midi && status.midi.length) ? status.midi
+                        : (status.pdf && status.pdf.length) ? status.pdf
+                            : [];
+        _renderTile('walkerUnifiedBody', 'walkerTileUnified', dirs, 'var(--accent)', status.poolThreads, fileWalkerActive);
 
-    // Stop polling after 10 consecutive idle checks (5 seconds)
-    const allIdle = !status.pluginScanning && !fileWalkerActive;
-    if (allIdle) { _walkerIdleCount++; if (_walkerIdleCount >= 10) stopWalkerPolling(); }
-    else { _walkerIdleCount = 0; }
-  } catch (err) {
-    const body = document.getElementById('walkerUnifiedBody');
-    if (body) body.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${err?.message || err}</div>`;
-  }
+        // Stop polling after 10 consecutive idle checks (5 seconds)
+        const allIdle = !status.pluginScanning && !fileWalkerActive;
+        if (allIdle) {
+            _walkerIdleCount++;
+            if (_walkerIdleCount >= 10) stopWalkerPolling();
+        } else {
+            _walkerIdleCount = 0;
+        }
+    } catch (err) {
+        const body = document.getElementById('walkerUnifiedBody');
+        if (body) body.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${err?.message || err}</div>`;
+    }
 }
 
 function _renderTile(bodyId, tileId, dirs, color, poolThreads, isScanning) {
-  const body = document.getElementById(bodyId);
-  const tile = document.getElementById(tileId);
-  if (!body || !tile) return;
+    const body = document.getElementById(bodyId);
+    const tile = document.getElementById(tileId);
+    if (!body || !tile) return;
 
-  const statusEl = tile.querySelector('.walker-tile-status');
-  if (!isScanning) {
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--text-dim);">idle — ${poolThreads} threads in pool</span>`;
-    if (!dirs || dirs.length === 0) {
-      body.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:24px;font-size:11px;">Waiting for scan to start...</div>';
+    const statusEl = tile.querySelector('.walker-tile-status');
+    if (!isScanning) {
+        if (statusEl) statusEl.innerHTML = `<span style="color:var(--text-dim);">idle — ${poolThreads} threads in pool</span>`;
+        if (!dirs || dirs.length === 0) {
+            body.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:24px;font-size:11px;">Waiting for scan to start...</div>';
+        }
+        tile.style.borderColor = 'var(--border)';
+        return;
     }
-    tile.style.borderColor = 'var(--border)';
-    return;
-  }
 
-  tile.style.borderColor = color;
-  if (statusEl) statusEl.innerHTML = `<span style="color:${color};font-weight:600;">scanning — ${poolThreads} threads</span> <span style="color:var(--text-dim);">| ${dirs.length} dirs in buffer</span>`;
+    tile.style.borderColor = color;
+    if (statusEl) statusEl.innerHTML = `<span style="color:${color};font-weight:600;">scanning — ${poolThreads} threads</span> <span style="color:var(--text-dim);">| ${dirs.length} dirs in buffer</span>`;
 
-  // Build dir list — oldest at top, newest at bottom. Buffer is sized (200)
-  // to fill a full-height tile; auto-scroll to bottom so the latest dirs
-  // stay visible as the stream advances.
-  const html = dirs.map(d => {
-    return `<div class="walker-dir walker-dir-active" title="${escapeHtml(d)}">${escapeHtml(d)}</div>`;
-  }).join('');
+    // Build dir list — oldest at top, newest at bottom. Buffer is sized (200)
+    // to fill a full-height tile; auto-scroll to bottom so the latest dirs
+    // stay visible as the stream advances.
+    const html = dirs.map(d => {
+        return `<div class="walker-dir walker-dir-active" title="${escapeHtml(d)}">${escapeHtml(d)}</div>`;
+    }).join('');
 
-  body.innerHTML = html;
-  body.scrollTop = body.scrollHeight;
+    body.innerHTML = html;
+    body.scrollTop = body.scrollHeight;
 }
 
 // Make walker tiles draggable (Trello-style reorder)
 (function initWalkerDrag() {
-  const grid = document.getElementById('walkerGrid');
-  if (grid && typeof initDragReorder === 'function') {
-    initDragReorder(grid, '.walker-tile', 'walkerTileOrder', {
-      getKey: (el) => el.id || '',
-    });
-  }
+    const grid = document.getElementById('walkerGrid');
+    if (grid && typeof initDragReorder === 'function') {
+        initDragReorder(grid, '.walker-tile', 'walkerTileOrder', {
+            getKey: (el) => el.id || '',
+        });
+    }
 })();

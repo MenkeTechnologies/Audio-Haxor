@@ -1,31 +1,39 @@
 const _escDiv = document.createElement('div');
+
 function escapeHtml(str) {
-  _escDiv.textContent = str || '';
-  return _escDiv.innerHTML;
+    _escDiv.textContent = str || '';
+    return _escDiv.innerHTML;
 }
 
 /** Throttle: invoke at most once per `ms` milliseconds (trailing call guaranteed). */
 function throttle(fn, ms) {
-  let last = 0, timer = null;
-  return function (...args) {
-    const now = performance.now();
-    const remaining = ms - (now - last);
-    if (remaining <= 0) {
-      if (timer) { clearTimeout(timer); timer = null; }
-      last = now;
-      fn.apply(this, args);
-    } else if (!timer) {
-      timer = setTimeout(() => { last = performance.now(); timer = null; fn.apply(this, args); }, remaining);
-    }
-  };
+    let last = 0, timer = null;
+    return function (...args) {
+        const now = performance.now();
+        const remaining = ms - (now - last);
+        if (remaining <= 0) {
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+            last = now;
+            fn.apply(this, args);
+        } else if (!timer) {
+            timer = setTimeout(() => {
+                last = performance.now();
+                timer = null;
+                fn.apply(this, args);
+            }, remaining);
+        }
+    };
 }
 
 /** Debounce: invoke after `ms` milliseconds of inactivity. */
 /** Yield to the event loop so pending input/paint runs before a heavy synchronous chunk (e.g. table `innerHTML`). */
 function yieldToBrowser() {
-  return new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
+    return new Promise((resolve) => {
+        setTimeout(resolve, 0);
+    });
 }
 
 /**
@@ -34,21 +42,21 @@ function yieldToBrowser() {
  * `invoke` can leave the filter spinner invisible for the whole query.
  */
 function yieldForFilterFieldPaint() {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setTimeout(resolve, 0);
-      });
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                setTimeout(resolve, 0);
+            });
+        });
     });
-  });
 }
 
 function debounce(fn, ms) {
-  let timer = null;
-  return function (...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn.apply(this, args), ms);
-  };
+    let timer = null;
+    return function (...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), ms);
+    };
 }
 
 /**
@@ -56,8 +64,8 @@ function debounce(fn, ms) {
  * is unavailable (e.g. VM tests), returns the key string. See `test/i18n-proof-contract.test.js`.
  */
 function catalogFmt(key, vars) {
-  if (typeof appFmt === 'function') return appFmt(key, vars);
-  return key;
+    if (typeof appFmt === 'function') return appFmt(key, vars);
+    return key;
 }
 
 /**
@@ -65,14 +73,14 @@ function catalogFmt(key, vars) {
  * so VM tests still show compact suffixes. Do not use for full phrases — use `catalogFmt`.
  */
 function catalogFmtOrUnit(key, asciiFallback) {
-  if (typeof appFmt === 'function') return appFmt(key);
-  return asciiFallback;
+    if (typeof appFmt === 'function') return appFmt(key);
+    return asciiFallback;
 }
 
 /** Table column header label — uses `appFmt` when IPC strings are loaded. */
 function appTableCol(key) {
-  if (typeof appFmt !== 'function') return key;
-  return appFmt(key);
+    if (typeof appFmt !== 'function') return key;
+    return appFmt(key);
 }
 
 /**
@@ -80,8 +88,8 @@ function appTableCol(key) {
  * Shared across inventory tabs via `ui.js.query_loading`.
  */
 function queryLoadingLabel() {
-  if (typeof appFmt === 'function') return appFmt('ui.js.query_loading');
-  return 'Loading…';
+    if (typeof appFmt === 'function') return appFmt('ui.js.query_loading');
+    return 'Loading…';
 }
 
 /**
@@ -89,37 +97,37 @@ function queryLoadingLabel() {
  * Pair with `yieldForFilterFieldPaint` (or `requestAnimationFrame`) before `await invoke` so the shell paints.
  */
 function showTableQueryLoadingRow(opts) {
-  const {
-    tbodyId,
-    rowId,
-    tableId,
-    colspan,
-    append,
-    label,
-  } = opts;
-  const tbody = document.getElementById(tbodyId);
-  if (!tbody) return;
-  const esc = typeof escapeHtml === 'function' ? escapeHtml : (x) => String(x);
-  const safeLabel = esc(label || queryLoadingLabel());
-  const old = document.getElementById(rowId);
-  if (old) old.remove();
-  const loadMore = tbody.querySelector('tr[id$="LoadMore"]');
-  if (loadMore) loadMore.remove();
-  const rowHtml = `<tr id="${rowId}"><td colspan="${colspan}" style="text-align:center;padding:28px 16px;"><div class="spinner" style="width:26px;height:26px;margin:0 auto 10px;"></div><span style="color:var(--text-muted);font-size:12px;">${safeLabel}</span></td></tr>`;
-  if (append) {
-    tbody.insertAdjacentHTML('beforeend', rowHtml);
-  } else {
-    tbody.innerHTML = rowHtml;
-  }
-  const tbl = tableId && document.getElementById(tableId);
-  if (tbl) tbl.setAttribute('aria-busy', 'true');
+    const {
+        tbodyId,
+        rowId,
+        tableId,
+        colspan,
+        append,
+        label,
+    } = opts;
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (x) => String(x);
+    const safeLabel = esc(label || queryLoadingLabel());
+    const old = document.getElementById(rowId);
+    if (old) old.remove();
+    const loadMore = tbody.querySelector('tr[id$="LoadMore"]');
+    if (loadMore) loadMore.remove();
+    const rowHtml = `<tr id="${rowId}"><td colspan="${colspan}" style="text-align:center;padding:28px 16px;"><div class="spinner" style="width:26px;height:26px;margin:0 auto 10px;"></div><span style="color:var(--text-muted);font-size:12px;">${safeLabel}</span></td></tr>`;
+    if (append) {
+        tbody.insertAdjacentHTML('beforeend', rowHtml);
+    } else {
+        tbody.innerHTML = rowHtml;
+    }
+    const tbl = tableId && document.getElementById(tableId);
+    if (tbl) tbl.setAttribute('aria-busy', 'true');
 }
 
 function clearTableQueryLoadingRow(rowId, tableId) {
-  const row = document.getElementById(rowId);
-  if (row) row.remove();
-  const tbl = tableId && document.getElementById(tableId);
-  if (tbl) tbl.removeAttribute('aria-busy');
+    const row = document.getElementById(rowId);
+    if (row) row.remove();
+    const tbl = tableId && document.getElementById(tableId);
+    if (tbl) tbl.removeAttribute('aria-busy');
 }
 
 /**
@@ -132,54 +140,54 @@ function clearTableQueryLoadingRow(rowId, tableId) {
  * the input’s opaque background.
  */
 function setFilterFieldLoading(inputId, loading) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  const box = input.closest('.search-box');
-  if (!box) return;
-  const hasRegex = !!box.querySelector('.btn-regex');
-  const rightPx = hasRegex ? 40 : 12;
-  const padPx = hasRegex ? 72 : 48;
-  if (loading) {
-    box.classList.add('filter-field-loading');
-    box.classList.toggle('filter-field-loading--regex', hasRegex);
-    box.classList.toggle('filter-field-loading--plain', !hasRegex);
-    input.setAttribute('aria-busy', 'true');
-    let sp = box.querySelector('.filter-field-spinner');
-    if (!sp) {
-      sp = document.createElement('span');
-      sp.className = 'filter-field-spinner';
-      sp.setAttribute('aria-hidden', 'true');
-      sp.title = typeof queryLoadingLabel === 'function' ? queryLoadingLabel() : 'Loading…';
-      const regexBtn = box.querySelector('.btn-regex');
-      if (regexBtn) regexBtn.insertAdjacentElement('beforebegin', sp);
-      else input.insertAdjacentElement('afterend', sp);
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const box = input.closest('.search-box');
+    if (!box) return;
+    const hasRegex = !!box.querySelector('.btn-regex');
+    const rightPx = hasRegex ? 40 : 12;
+    const padPx = hasRegex ? 72 : 48;
+    if (loading) {
+        box.classList.add('filter-field-loading');
+        box.classList.toggle('filter-field-loading--regex', hasRegex);
+        box.classList.toggle('filter-field-loading--plain', !hasRegex);
+        input.setAttribute('aria-busy', 'true');
+        let sp = box.querySelector('.filter-field-spinner');
+        if (!sp) {
+            sp = document.createElement('span');
+            sp.className = 'filter-field-spinner';
+            sp.setAttribute('aria-hidden', 'true');
+            sp.title = typeof queryLoadingLabel === 'function' ? queryLoadingLabel() : 'Loading…';
+            const regexBtn = box.querySelector('.btn-regex');
+            if (regexBtn) regexBtn.insertAdjacentElement('beforebegin', sp);
+            else input.insertAdjacentElement('afterend', sp);
+        }
+        sp.style.display = 'block';
+        sp.style.position = 'absolute';
+        sp.style.right = `${rightPx}px`;
+        sp.style.top = '50%';
+        sp.style.zIndex = '5';
+        sp.style.width = '18px';
+        sp.style.height = '18px';
+        sp.style.pointerEvents = 'none';
+        sp.style.boxSizing = 'border-box';
+        sp.style.border = '2px solid var(--border)';
+        sp.style.borderTopColor = 'var(--cyan)';
+        sp.style.borderRadius = '50%';
+        sp.style.animation = 'filter-field-spin 0.75s linear infinite';
+        if (input.dataset._filterPadSaved == null) {
+            input.dataset._filterPadSaved = input.style.paddingRight || '';
+        }
+        input.style.paddingRight = `${padPx}px`;
+    } else {
+        box.classList.remove('filter-field-loading', 'filter-field-loading--regex', 'filter-field-loading--plain');
+        input.removeAttribute('aria-busy');
+        if (input.dataset._filterPadSaved != null) {
+            input.style.paddingRight = input.dataset._filterPadSaved;
+            delete input.dataset._filterPadSaved;
+        }
+        box.querySelector('.filter-field-spinner')?.remove();
     }
-      sp.style.display = 'block';
-      sp.style.position = 'absolute';
-      sp.style.right = `${rightPx}px`;
-      sp.style.top = '50%';
-      sp.style.zIndex = '5';
-      sp.style.width = '18px';
-      sp.style.height = '18px';
-      sp.style.pointerEvents = 'none';
-      sp.style.boxSizing = 'border-box';
-      sp.style.border = '2px solid var(--border)';
-      sp.style.borderTopColor = 'var(--cyan)';
-      sp.style.borderRadius = '50%';
-      sp.style.animation = 'filter-field-spin 0.75s linear infinite';
-    if (input.dataset._filterPadSaved == null) {
-      input.dataset._filterPadSaved = input.style.paddingRight || '';
-    }
-    input.style.paddingRight = `${padPx}px`;
-  } else {
-    box.classList.remove('filter-field-loading', 'filter-field-loading--regex', 'filter-field-loading--plain');
-    input.removeAttribute('aria-busy');
-    if (input.dataset._filterPadSaved != null) {
-      input.style.paddingRight = input.dataset._filterPadSaved;
-      delete input.dataset._filterPadSaved;
-    }
-    box.querySelector('.filter-field-spinner')?.remove();
-  }
 }
 
 // ── fzf-style fuzzy matching with scoring ──
@@ -194,175 +202,203 @@ let BONUS_CAMEL = 7;
 let BONUS_CONSECUTIVE = 4;
 let BONUS_FIRST_CHAR_MULT = 2;
 
-const FZF_DEFAULTS = { SCORE_MATCH: 16, SCORE_GAP_START: -3, SCORE_GAP_EXTENSION: -1, BONUS_BOUNDARY: 9, BONUS_NON_WORD: 8, BONUS_CAMEL: 7, BONUS_CONSECUTIVE: 4, BONUS_FIRST_CHAR_MULT: 2 };
+const FZF_DEFAULTS = {
+    SCORE_MATCH: 16,
+    SCORE_GAP_START: -3,
+    SCORE_GAP_EXTENSION: -1,
+    BONUS_BOUNDARY: 9,
+    BONUS_NON_WORD: 8,
+    BONUS_CAMEL: 7,
+    BONUS_CONSECUTIVE: 4,
+    BONUS_FIRST_CHAR_MULT: 2
+};
 
 function loadFzfParams() {
-  const saved = prefs.getObject('fzfParams', null);
-  if (saved) {
-    SCORE_MATCH = saved.SCORE_MATCH ?? 16;
-    SCORE_GAP_START = saved.SCORE_GAP_START ?? -3;
-    SCORE_GAP_EXTENSION = saved.SCORE_GAP_EXTENSION ?? -1;
-    BONUS_BOUNDARY = saved.BONUS_BOUNDARY ?? 9;
-    BONUS_NON_WORD = saved.BONUS_NON_WORD ?? 8;
-    BONUS_CAMEL = saved.BONUS_CAMEL ?? 7;
-    BONUS_CONSECUTIVE = saved.BONUS_CONSECUTIVE ?? 4;
-    BONUS_FIRST_CHAR_MULT = saved.BONUS_FIRST_CHAR_MULT ?? 2;
-  }
-  if (typeof renderFzfSettings === 'function') renderFzfSettings();
+    const saved = prefs.getObject('fzfParams', null);
+    if (saved) {
+        SCORE_MATCH = saved.SCORE_MATCH ?? 16;
+        SCORE_GAP_START = saved.SCORE_GAP_START ?? -3;
+        SCORE_GAP_EXTENSION = saved.SCORE_GAP_EXTENSION ?? -1;
+        BONUS_BOUNDARY = saved.BONUS_BOUNDARY ?? 9;
+        BONUS_NON_WORD = saved.BONUS_NON_WORD ?? 8;
+        BONUS_CAMEL = saved.BONUS_CAMEL ?? 7;
+        BONUS_CONSECUTIVE = saved.BONUS_CONSECUTIVE ?? 4;
+        BONUS_FIRST_CHAR_MULT = saved.BONUS_FIRST_CHAR_MULT ?? 2;
+    }
+    if (typeof renderFzfSettings === 'function') renderFzfSettings();
 }
 
 function saveFzfParams() {
-  prefs.setItem('fzfParams', { SCORE_MATCH, SCORE_GAP_START, SCORE_GAP_EXTENSION, BONUS_BOUNDARY, BONUS_NON_WORD, BONUS_CAMEL, BONUS_CONSECUTIVE, BONUS_FIRST_CHAR_MULT });
+    prefs.setItem('fzfParams', {
+        SCORE_MATCH,
+        SCORE_GAP_START,
+        SCORE_GAP_EXTENSION,
+        BONUS_BOUNDARY,
+        BONUS_NON_WORD,
+        BONUS_CAMEL,
+        BONUS_CONSECUTIVE,
+        BONUS_FIRST_CHAR_MULT
+    });
 }
 
 function resetFzfParams() {
-  Object.assign(window, FZF_DEFAULTS);
-  SCORE_MATCH = FZF_DEFAULTS.SCORE_MATCH;
-  SCORE_GAP_START = FZF_DEFAULTS.SCORE_GAP_START;
-  SCORE_GAP_EXTENSION = FZF_DEFAULTS.SCORE_GAP_EXTENSION;
-  BONUS_BOUNDARY = FZF_DEFAULTS.BONUS_BOUNDARY;
-  BONUS_NON_WORD = FZF_DEFAULTS.BONUS_NON_WORD;
-  BONUS_CAMEL = FZF_DEFAULTS.BONUS_CAMEL;
-  BONUS_CONSECUTIVE = FZF_DEFAULTS.BONUS_CONSECUTIVE;
-  BONUS_FIRST_CHAR_MULT = FZF_DEFAULTS.BONUS_FIRST_CHAR_MULT;
-  saveFzfParams();
-  if (typeof renderFzfSettings === 'function') renderFzfSettings();
+    Object.assign(window, FZF_DEFAULTS);
+    SCORE_MATCH = FZF_DEFAULTS.SCORE_MATCH;
+    SCORE_GAP_START = FZF_DEFAULTS.SCORE_GAP_START;
+    SCORE_GAP_EXTENSION = FZF_DEFAULTS.SCORE_GAP_EXTENSION;
+    BONUS_BOUNDARY = FZF_DEFAULTS.BONUS_BOUNDARY;
+    BONUS_NON_WORD = FZF_DEFAULTS.BONUS_NON_WORD;
+    BONUS_CAMEL = FZF_DEFAULTS.BONUS_CAMEL;
+    BONUS_CONSECUTIVE = FZF_DEFAULTS.BONUS_CONSECUTIVE;
+    BONUS_FIRST_CHAR_MULT = FZF_DEFAULTS.BONUS_FIRST_CHAR_MULT;
+    saveFzfParams();
+    if (typeof renderFzfSettings === 'function') renderFzfSettings();
 }
 
 function charClass(c) {
-  if (c >= 'a' && c <= 'z') return 1; // lower
-  if (c >= 'A' && c <= 'Z') return 2; // upper
-  if (c >= '0' && c <= '9') return 3; // digit
-  return 0; // non-word
+    if (c >= 'a' && c <= 'z') return 1; // lower
+    if (c >= 'A' && c <= 'Z') return 2; // upper
+    if (c >= '0' && c <= '9') return 3; // digit
+    return 0; // non-word
 }
 
 function positionBonus(prev, curr) {
-  const pc = charClass(prev);
-  const cc = charClass(curr);
-  if (pc === 0 && cc !== 0) return BONUS_BOUNDARY;       // word boundary
-  if (pc === 1 && cc === 2) return BONUS_CAMEL;           // camelCase
-  if (cc !== 0 && pc !== 0 && pc !== cc) return BONUS_NON_WORD;
-  return 0;
+    const pc = charClass(prev);
+    const cc = charClass(curr);
+    if (pc === 0 && cc !== 0) return BONUS_BOUNDARY;       // word boundary
+    if (pc === 1 && cc === 2) return BONUS_CAMEL;           // camelCase
+    if (cc !== 0 && pc !== 0 && pc !== cc) return BONUS_NON_WORD;
+    return 0;
 }
 
 // Fuzzy match with fzf-style scoring. Returns { score, indices } or null.
 function fzfMatch(needle, haystack) {
-  const nLen = needle.length, hLen = haystack.length;
-  if (nLen === 0) return { score: 0, indices: [] };
-  if (nLen > hLen) return null;
+    const nLen = needle.length, hLen = haystack.length;
+    if (nLen === 0) return {score: 0, indices: []};
+    if (nLen > hLen) return null;
 
-  const nLower = needle.toLowerCase();
-  const hLower = haystack.toLowerCase();
+    const nLower = needle.toLowerCase();
+    const hLower = haystack.toLowerCase();
 
-  // Quick check: all chars present in order
-  let ni = 0;
-  for (let hi = 0; hi < hLen && ni < nLen; hi++) {
-    if (hLower[hi] === nLower[ni]) ni++;
-  }
-  if (ni < nLen) return null;
+    // Quick check: all chars present in order
+    let ni = 0;
+    for (let hi = 0; hi < hLen && ni < nLen; hi++) {
+        if (hLower[hi] === nLower[ni]) ni++;
+    }
+    if (ni < nLen) return null;
 
-  // Find best match using greedy-with-backtrack
-  // Try to find the match that maximizes score
-  let bestScore = -Infinity, bestIndices = null;
+    // Find best match using greedy-with-backtrack
+    // Try to find the match that maximizes score
+    let bestScore = -Infinity, bestIndices = null;
 
-  // Find all positions of first char
-  const starts = [];
-  for (let i = 0; i <= hLen - nLen; i++) {
-    if (hLower[i] === nLower[0]) starts.push(i);
-  }
+    // Find all positions of first char
+    const starts = [];
+    for (let i = 0; i <= hLen - nLen; i++) {
+        if (hLower[i] === nLower[0]) starts.push(i);
+    }
 
-  for (const start of starts) {
-    const indices = [start];
-    let si = start;
-    let valid = true;
+    for (const start of starts) {
+        const indices = [start];
+        let si = start;
+        let valid = true;
 
-    for (let n = 1; n < nLen; n++) {
-      let found = false;
-      for (let h = si + 1; h < hLen; h++) {
-        if (hLower[h] === nLower[n]) {
-          indices.push(h);
-          si = h;
-          found = true;
-          break;
+        for (let n = 1; n < nLen; n++) {
+            let found = false;
+            for (let h = si + 1; h < hLen; h++) {
+                if (hLower[h] === nLower[n]) {
+                    indices.push(h);
+                    si = h;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                valid = false;
+                break;
+            }
         }
-      }
-      if (!found) { valid = false; break; }
+        if (!valid) continue;
+
+        // Score this match
+        let score = 0;
+        let prevIdx = -2;
+        for (let i = 0; i < indices.length; i++) {
+            const idx = indices[i];
+            score += SCORE_MATCH;
+
+            // Position bonus
+            const prev = idx > 0 ? haystack[idx - 1] : ' ';
+            let bonus = positionBonus(prev, haystack[idx]);
+            if (i === 0) bonus *= BONUS_FIRST_CHAR_MULT;
+            score += bonus;
+
+            // Consecutive bonus / gap penalty
+            if (prevIdx === idx - 1) {
+                score += BONUS_CONSECUTIVE;
+            } else if (i > 0) {
+                const gap = idx - prevIdx - 1;
+                score += SCORE_GAP_START + SCORE_GAP_EXTENSION * (gap - 1);
+            }
+            prevIdx = idx;
+        }
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestIndices = indices;
+        }
     }
-    if (!valid) continue;
 
-    // Score this match
-    let score = 0;
-    let prevIdx = -2;
-    for (let i = 0; i < indices.length; i++) {
-      const idx = indices[i];
-      score += SCORE_MATCH;
-
-      // Position bonus
-      const prev = idx > 0 ? haystack[idx - 1] : ' ';
-      let bonus = positionBonus(prev, haystack[idx]);
-      if (i === 0) bonus *= BONUS_FIRST_CHAR_MULT;
-      score += bonus;
-
-      // Consecutive bonus / gap penalty
-      if (prevIdx === idx - 1) {
-        score += BONUS_CONSECUTIVE;
-      } else if (i > 0) {
-        const gap = idx - prevIdx - 1;
-        score += SCORE_GAP_START + SCORE_GAP_EXTENSION * (gap - 1);
-      }
-      prevIdx = idx;
-    }
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestIndices = indices;
-    }
-  }
-
-  if (!bestIndices) return null;
-  return { score: bestScore, indices: bestIndices };
+    if (!bestIndices) return null;
+    return {score: bestScore, indices: bestIndices};
 }
 
 // Parse fzf extended search syntax: 'exact, ^prefix, suffix$, !negate, term1 | term2
 function parseFzfQuery(query) {
-  // Split by spaces, but group | as OR
-  const tokens = query.split(/\s+/).filter(Boolean);
-  const groups = []; // array of OR-groups, each is array of terms
-  let currentGroup = [];
+    // Split by spaces, but group | as OR
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const groups = []; // array of OR-groups, each is array of terms
+    let currentGroup = [];
 
-  for (const token of tokens) {
-    if (token === '|') continue; // standalone pipe
-    if (token.startsWith('|')) {
-      currentGroup.push(parseToken(token.slice(1)));
-    } else if (token.endsWith('|')) {
-      currentGroup.push(parseToken(token.slice(0, -1)));
-      groups.push(currentGroup);
-      currentGroup = [];
-    } else {
-      if (currentGroup.length > 0) {
-        groups.push(currentGroup);
-        currentGroup = [];
-      }
-      currentGroup = [parseToken(token)];
+    for (const token of tokens) {
+        if (token === '|') continue; // standalone pipe
+        if (token.startsWith('|')) {
+            currentGroup.push(parseToken(token.slice(1)));
+        } else if (token.endsWith('|')) {
+            currentGroup.push(parseToken(token.slice(0, -1)));
+            groups.push(currentGroup);
+            currentGroup = [];
+        } else {
+            if (currentGroup.length > 0) {
+                groups.push(currentGroup);
+                currentGroup = [];
+            }
+            currentGroup = [parseToken(token)];
+        }
     }
-  }
-  if (currentGroup.length > 0) groups.push(currentGroup);
-  return groups;
+    if (currentGroup.length > 0) groups.push(currentGroup);
+    return groups;
 }
 
 function parseToken(token) {
-  let negate = false, type = 'fuzzy', text = token;
-  if (text.startsWith('!')) { negate = true; text = text.slice(1); }
-  if (text.startsWith("'") && text.endsWith("'") && text.length > 2) {
-    type = 'exact'; text = text.slice(1, -1);
-  } else if (text.startsWith("'")) {
-    type = 'exact'; text = text.slice(1);
-  } else if (text.startsWith('^')) {
-    type = 'prefix'; text = text.slice(1);
-  } else if (text.endsWith('$')) {
-    type = 'suffix'; text = text.slice(0, -1);
-  }
-  return { type, text, negate };
+    let negate = false, type = 'fuzzy', text = token;
+    if (text.startsWith('!')) {
+        negate = true;
+        text = text.slice(1);
+    }
+    if (text.startsWith("'") && text.endsWith("'") && text.length > 2) {
+        type = 'exact';
+        text = text.slice(1, -1);
+    } else if (text.startsWith("'")) {
+        type = 'exact';
+        text = text.slice(1);
+    } else if (text.startsWith('^')) {
+        type = 'prefix';
+        text = text.slice(1);
+    } else if (text.endsWith('$')) {
+        type = 'suffix';
+        text = text.slice(0, -1);
+    }
+    return {type, text, negate};
 }
 
 // Score bonus for substring/exact matches over fuzzy-only
@@ -372,128 +408,139 @@ const SCORE_PREFIX_BONUS = 1500;
 
 // Score a single token against a value. Returns score > 0 for match, 0 for no match.
 function scoreToken(token, value) {
-  const v = value.toLowerCase(), t = token.text.toLowerCase();
-  switch (token.type) {
-    case 'exact': return v.includes(t) ? SCORE_SUBSTRING_BONUS + t.length * SCORE_MATCH : 0;
-    case 'prefix': return v.startsWith(t) ? SCORE_PREFIX_BONUS + t.length * SCORE_MATCH : 0;
-    case 'suffix': return v.endsWith(t) ? SCORE_SUBSTRING_BONUS + t.length * SCORE_MATCH : 0;
-    case 'fuzzy': {
-      // Try exact/substring first — always prioritized
-      if (v === t) return SCORE_EXACT_BONUS + t.length * SCORE_MATCH;
-      if (v.includes(t)) return SCORE_SUBSTRING_BONUS + t.length * SCORE_MATCH;
-      // Fuzzy fallback
-      const m = fzfMatch(token.text, value);
-      return m ? m.score : 0;
+    const v = value.toLowerCase(), t = token.text.toLowerCase();
+    switch (token.type) {
+        case 'exact':
+            return v.includes(t) ? SCORE_SUBSTRING_BONUS + t.length * SCORE_MATCH : 0;
+        case 'prefix':
+            return v.startsWith(t) ? SCORE_PREFIX_BONUS + t.length * SCORE_MATCH : 0;
+        case 'suffix':
+            return v.endsWith(t) ? SCORE_SUBSTRING_BONUS + t.length * SCORE_MATCH : 0;
+        case 'fuzzy': {
+            // Try exact/substring first — always prioritized
+            if (v === t) return SCORE_EXACT_BONUS + t.length * SCORE_MATCH;
+            if (v.includes(t)) return SCORE_SUBSTRING_BONUS + t.length * SCORE_MATCH;
+            // Fuzzy fallback
+            const m = fzfMatch(token.text, value);
+            return m ? m.score : 0;
+        }
     }
-  }
-  return 0;
+    return 0;
 }
 
 // Unified search: checks fields against fzf-style query.
 // mode: 'fuzzy' (default) or 'regex'
 // Returns score > 0 for match, 0 for no match. Use searchMatch() for boolean.
 function searchScore(query, fields, mode) {
-  if (!query) return 1; // empty query matches everything
-  if (mode === 'regex') {
-    try {
-      const re = new RegExp(query, 'i');
-      return fields.some(f => re.test(f)) ? 1 : 0;
-    } catch {
-      return fields.some(f => f.toLowerCase().includes(query.toLowerCase())) ? 1 : 0;
+    if (!query) return 1; // empty query matches everything
+    if (mode === 'regex') {
+        try {
+            const re = new RegExp(query, 'i');
+            return fields.some(f => re.test(f)) ? 1 : 0;
+        } catch {
+            return fields.some(f => f.toLowerCase().includes(query.toLowerCase())) ? 1 : 0;
+        }
     }
-  }
-  const groups = parseFzfQuery(query);
-  let totalScore = 0;
-  // All groups must match (AND between groups)
-  for (const orGroup of groups) {
-    let bestGroupScore = 0;
-    for (const token of orGroup) {
-      let tokenBest = 0;
-      for (let fi = 0; fi < fields.length; fi++) {
-        // First field (name) gets 500 bonus, subsequent fields get less
-        const fieldBonus = fi === 0 ? 500 : 0;
-        const s = scoreToken(token, fields[fi]);
-        if (s > 0 && s + fieldBonus > tokenBest) tokenBest = s + fieldBonus;
-      }
-      if (token.negate) {
-        if (tokenBest > 0) return 0; // negated term matched => fail
-        bestGroupScore = 1; // negated term didn't match => pass
-      } else {
-        if (tokenBest > bestGroupScore) bestGroupScore = tokenBest;
-      }
+    const groups = parseFzfQuery(query);
+    let totalScore = 0;
+    // All groups must match (AND between groups)
+    for (const orGroup of groups) {
+        let bestGroupScore = 0;
+        for (const token of orGroup) {
+            let tokenBest = 0;
+            for (let fi = 0; fi < fields.length; fi++) {
+                // First field (name) gets 500 bonus, subsequent fields get less
+                const fieldBonus = fi === 0 ? 500 : 0;
+                const s = scoreToken(token, fields[fi]);
+                if (s > 0 && s + fieldBonus > tokenBest) tokenBest = s + fieldBonus;
+            }
+            if (token.negate) {
+                if (tokenBest > 0) return 0; // negated term matched => fail
+                bestGroupScore = 1; // negated term didn't match => pass
+            } else {
+                if (tokenBest > bestGroupScore) bestGroupScore = tokenBest;
+            }
+        }
+        if (bestGroupScore === 0) return 0; // group didn't match
+        totalScore += bestGroupScore;
     }
-    if (bestGroupScore === 0) return 0; // group didn't match
-    totalScore += bestGroupScore;
-  }
-  return totalScore;
+    return totalScore;
 }
 
 // Boolean wrapper for backward compat
 function searchMatch(query, fields, mode) {
-  return searchScore(query, fields, mode) > 0;
+    return searchScore(query, fields, mode) > 0;
 }
 
 // Get best fuzzy match indices for highlighting a single field
 function getMatchIndices(query, text, mode) {
-  if (!query || !text || mode === 'regex') {
-    if (mode === 'regex' && query) {
-      try {
-        const re = new RegExp(query, 'ig');
-        const indices = [];
-        let m;
-        while ((m = re.exec(text)) !== null) {
-          for (let i = m.index; i < m.index + m[0].length; i++) indices.push(i);
+    if (!query || !text || mode === 'regex') {
+        if (mode === 'regex' && query) {
+            try {
+                const re = new RegExp(query, 'ig');
+                const indices = [];
+                let m;
+                while ((m = re.exec(text)) !== null) {
+                    for (let i = m.index; i < m.index + m[0].length; i++) indices.push(i);
+                }
+                return indices;
+            } catch {
+                return [];
+            }
         }
-        return indices;
-      } catch { return []; }
+        return [];
     }
-    return [];
-  }
-  // For fzf mode, collect indices from all fuzzy tokens
-  const groups = parseFzfQuery(query);
-  const allIndices = new Set();
-  for (const group of groups) {
-    for (const token of group) {
-      if (token.negate) continue;
-      if (token.type === 'fuzzy') {
-        const m = fzfMatch(token.text, text);
-        if (m) m.indices.forEach(i => allIndices.add(i));
-      } else {
-        const t = token.text.toLowerCase();
-        const idx = text.toLowerCase().indexOf(t);
-        if (idx >= 0) {
-          for (let i = idx; i < idx + t.length; i++) allIndices.add(i);
+    // For fzf mode, collect indices from all fuzzy tokens
+    const groups = parseFzfQuery(query);
+    const allIndices = new Set();
+    for (const group of groups) {
+        for (const token of group) {
+            if (token.negate) continue;
+            if (token.type === 'fuzzy') {
+                const m = fzfMatch(token.text, text);
+                if (m) m.indices.forEach(i => allIndices.add(i));
+            } else {
+                const t = token.text.toLowerCase();
+                const idx = text.toLowerCase().indexOf(t);
+                if (idx >= 0) {
+                    for (let i = idx; i < idx + t.length; i++) allIndices.add(i);
+                }
+            }
         }
-      }
     }
-  }
-  return [...allIndices].sort((a, b) => a - b);
+    return [...allIndices].sort((a, b) => a - b);
 }
 
 function highlightWithIndices(text, indices) {
-  if (!text) return '';
-  if (!indices || indices.length === 0) return escapeHtml(text);
-  const idxSet = new Set(indices);
-  let result = '';
-  let inMark = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = escapeHtml(text[i]);
-    if (idxSet.has(i)) {
-      if (!inMark) { result += '<mark class="fzf-hl">'; inMark = true; }
-      result += ch;
-    } else {
-      if (inMark) { result += '</mark>'; inMark = false; }
-      result += ch;
+    if (!text) return '';
+    if (!indices || indices.length === 0) return escapeHtml(text);
+    const idxSet = new Set(indices);
+    let result = '';
+    let inMark = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = escapeHtml(text[i]);
+        if (idxSet.has(i)) {
+            if (!inMark) {
+                result += '<mark class="fzf-hl">';
+                inMark = true;
+            }
+            result += ch;
+        } else {
+            if (inMark) {
+                result += '</mark>';
+                inMark = false;
+            }
+            result += ch;
+        }
     }
-  }
-  if (inMark) result += '</mark>';
-  return result;
+    if (inMark) result += '</mark>';
+    return result;
 }
 
 // Highlight matched characters in text
 function highlightMatch(text, query, mode) {
-  if (!query || !text) return escapeHtml(text);
-  return highlightWithIndices(text, getMatchIndices(query, text, mode));
+    if (!query || !text) return escapeHtml(text);
+    return highlightWithIndices(text, getMatchIndices(query, text, mode));
 }
 
 /**
@@ -501,36 +548,36 @@ function highlightMatch(text, query, mode) {
  * exist only on `path`. Map those indices onto `name` when basename equals `name`.
  */
 function highlightBasenameFromPath(path, name, query, mode) {
-  if (!query || !name) return escapeHtml(name);
-  let idx = getMatchIndices(query, name, mode);
-  if (idx.length) return highlightWithIndices(name, idx);
-  if (!path) return escapeHtml(name);
-  idx = getMatchIndices(query, path, mode);
-  if (!idx.length) return escapeHtml(name);
-  const basenameStart = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1;
-  const pBase = path.slice(basenameStart);
-  if (pBase.length !== name.length || pBase.toLowerCase() !== name.toLowerCase()) return escapeHtml(name);
-  const mapped = idx.filter(i => i >= basenameStart && i < path.length).map(i => i - basenameStart);
-  if (mapped.length === 0) return escapeHtml(name);
-  return highlightWithIndices(name, mapped);
+    if (!query || !name) return escapeHtml(name);
+    let idx = getMatchIndices(query, name, mode);
+    if (idx.length) return highlightWithIndices(name, idx);
+    if (!path) return escapeHtml(name);
+    idx = getMatchIndices(query, path, mode);
+    if (!idx.length) return escapeHtml(name);
+    const basenameStart = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1;
+    const pBase = path.slice(basenameStart);
+    if (pBase.length !== name.length || pBase.toLowerCase() !== name.toLowerCase()) return escapeHtml(name);
+    const mapped = idx.filter(i => i >= basenameStart && i < path.length).map(i => i - basenameStart);
+    if (mapped.length === 0) return escapeHtml(name);
+    return highlightWithIndices(name, mapped);
 }
 
 /**
  * Same idea for the directory column: matches may only appear in the full path prefix.
  */
 function highlightPathPrefixFromPath(path, dirField, query, mode) {
-  if (!query || !dirField) return escapeHtml(dirField);
-  let idx = getMatchIndices(query, dirField, mode);
-  if (idx.length) return highlightWithIndices(dirField, idx);
-  if (!path) return escapeHtml(dirField);
-  idx = getMatchIndices(query, path, mode);
-  if (!idx.length) return escapeHtml(dirField);
-  const nPath = path.replace(/\\/g, '/');
-  const nDir = dirField.replace(/\\/g, '/');
-  if (!nPath.startsWith(nDir)) return escapeHtml(dirField);
-  const mapped = idx.filter(i => i < nDir.length);
-  if (mapped.length === 0) return escapeHtml(dirField);
-  return highlightWithIndices(dirField, mapped);
+    if (!query || !dirField) return escapeHtml(dirField);
+    let idx = getMatchIndices(query, dirField, mode);
+    if (idx.length) return highlightWithIndices(dirField, idx);
+    if (!path) return escapeHtml(dirField);
+    idx = getMatchIndices(query, path, mode);
+    if (!idx.length) return escapeHtml(dirField);
+    const nPath = path.replace(/\\/g, '/');
+    const nDir = dirField.replace(/\\/g, '/');
+    if (!nPath.startsWith(nDir)) return escapeHtml(dirField);
+    const mapped = idx.filter(i => i < nDir.length);
+    if (mapped.length === 0) return escapeHtml(dirField);
+    return highlightWithIndices(dirField, mapped);
 }
 
 /**
@@ -538,34 +585,34 @@ function highlightPathPrefixFromPath(path, dirField, query, mode) {
  * Preserves .row-badge spans while replacing the text portion with highlighted HTML.
  */
 function applyScanCellHighlight(cell, originalText, search, mode, hlFn) {
-  if (!cell) return;
-  // Preserve badge spans
-  const badges = cell.querySelectorAll('.row-badge');
-  const badgeHtml = Array.from(badges).map(b => b.outerHTML).join('');
-  cell.innerHTML = (search ? hlFn(originalText, search, mode) : escapeHtml(originalText)) + badgeHtml;
+    if (!cell) return;
+    // Preserve badge spans
+    const badges = cell.querySelectorAll('.row-badge');
+    const badgeHtml = Array.from(badges).map(b => b.outerHTML).join('');
+    cell.innerHTML = (search ? hlFn(originalText, search, mode) : escapeHtml(originalText)) + badgeHtml;
 }
 
 // Extension-to-dropdown value mapping for auto-select
 const EXT_TO_FILTER = {
-  // Audio formats
-  'wav': 'WAV', 'mp3': 'MP3', 'aiff': 'AIFF', 'aif': 'AIF',
-  'flac': 'FLAC', 'ogg': 'OGG', 'm4a': 'M4A', 'aac': 'AAC',
-  // Plugin types
-  'vst2': 'VST2', 'vst3': 'VST3', 'au': 'Audio Units', 'component': 'Audio Units', 'clap': 'CLAP',
-  // DAW formats → DAW names
-  'als': 'Ableton Live', 'alp': 'Ableton Live', 'ableton': 'Ableton Live',
-  'logicx': 'Logic Pro', 'logic': 'Logic Pro',
-  'flp': 'FL Studio', 'fl': 'FL Studio',
-  'cpr': 'Cubase', 'cubase': 'Cubase',
-  'rpp': 'REAPER', 'reaper': 'REAPER',
-  'ptx': 'Pro Tools', 'ptf': 'Pro Tools', 'protools': 'Pro Tools',
-  'bwproject': 'Bitwig Studio', 'bitwig': 'Bitwig Studio',
-  'song': 'Studio One', 'studioone': 'Studio One',
-  'reason': 'Reason',
-  'aup': 'Audacity', 'aup3': 'Audacity', 'audacity': 'Audacity',
-  'band': 'GarageBand', 'garageband': 'GarageBand',
-  'ardour': 'Ardour',
-  'dawproject': 'DAWproject',
+    // Audio formats
+    'wav': 'WAV', 'mp3': 'MP3', 'aiff': 'AIFF', 'aif': 'AIF',
+    'flac': 'FLAC', 'ogg': 'OGG', 'm4a': 'M4A', 'aac': 'AAC',
+    // Plugin types
+    'vst2': 'VST2', 'vst3': 'VST3', 'au': 'Audio Units', 'component': 'Audio Units', 'clap': 'CLAP',
+    // DAW formats → DAW names
+    'als': 'Ableton Live', 'alp': 'Ableton Live', 'ableton': 'Ableton Live',
+    'logicx': 'Logic Pro', 'logic': 'Logic Pro',
+    'flp': 'FL Studio', 'fl': 'FL Studio',
+    'cpr': 'Cubase', 'cubase': 'Cubase',
+    'rpp': 'REAPER', 'reaper': 'REAPER',
+    'ptx': 'Pro Tools', 'ptf': 'Pro Tools', 'protools': 'Pro Tools',
+    'bwproject': 'Bitwig Studio', 'bitwig': 'Bitwig Studio',
+    'song': 'Studio One', 'studioone': 'Studio One',
+    'reason': 'Reason',
+    'aup': 'Audacity', 'aup3': 'Audacity', 'audacity': 'Audacity',
+    'band': 'GarageBand', 'garageband': 'GarageBand',
+    'ardour': 'Ardour',
+    'dawproject': 'DAWproject',
 };
 
 // Auto-select dropdown when search matches a format/type keyword.
@@ -577,34 +624,34 @@ const _filterRegistry = {};
 let _filterDebounceTimers = {};
 
 function registerFilter(action, config) {
-  // config: { inputId, regexToggleId, formatDropdownId, resetOffset, fetchFn, clientFilter, debounceMs? }
-  _filterRegistry[action] = config;
+    // config: { inputId, regexToggleId, formatDropdownId, resetOffset, fetchFn, clientFilter, debounceMs? }
+    _filterRegistry[action] = config;
 }
 
 function getSearchMode(toggleId) {
-  const btn = document.getElementById(toggleId);
-  return btn && btn.classList.contains('active') ? 'regex' : 'fuzzy';
+    const btn = document.getElementById(toggleId);
+    return btn && btn.classList.contains('active') ? 'regex' : 'fuzzy';
 }
 
 function applyFilter(action) {
-  const cfg = _filterRegistry[action];
-  if (!cfg) return;
-  if (typeof saveAllFilterStates === 'function') saveAllFilterStates();
-  const input = document.getElementById(cfg.inputId);
-  const search = input ? input.value.trim() : '';
-  const mode = cfg.regexToggleId ? getSearchMode(cfg.regexToggleId) : 'fuzzy';
-  cfg.lastSearch = search;
-  cfg.lastMode = mode;
-  if (cfg.resetOffset) cfg.resetOffset();
-  // Bind cfg so fetchFn can read this.lastSearch / this.lastMode (set above).
-  if (cfg.fetchFn) cfg.fetchFn.call(cfg);
+    const cfg = _filterRegistry[action];
+    if (!cfg) return;
+    if (typeof saveAllFilterStates === 'function') saveAllFilterStates();
+    const input = document.getElementById(cfg.inputId);
+    const search = input ? input.value.trim() : '';
+    const mode = cfg.regexToggleId ? getSearchMode(cfg.regexToggleId) : 'fuzzy';
+    cfg.lastSearch = search;
+    cfg.lastMode = mode;
+    if (cfg.resetOffset) cfg.resetOffset();
+    // Bind cfg so fetchFn can read this.lastSearch / this.lastMode (set above).
+    if (cfg.fetchFn) cfg.fetchFn.call(cfg);
 }
 
 function applyFilterDebounced(action) {
-  clearTimeout(_filterDebounceTimers[action]);
-  const cfg = _filterRegistry[action];
-  const ms = cfg && typeof cfg.debounceMs === 'number' ? cfg.debounceMs : 250;
-  _filterDebounceTimers[action] = setTimeout(() => applyFilter(action), ms);
+    clearTimeout(_filterDebounceTimers[action]);
+    const cfg = _filterRegistry[action];
+    const ms = cfg && typeof cfg.debounceMs === 'number' ? cfg.debounceMs : 250;
+    _filterDebounceTimers[action] = setTimeout(() => applyFilter(action), ms);
 }
 
 /**
@@ -618,283 +665,300 @@ function applyFilterDebounced(action) {
  *   onScanProgress(...) { pending.push(...batch); scheduleFlush(); }
  */
 function createScanFlusher(flushFn, intervalMs) {
-  let scheduled = false;
-  let last = 0;
-  return function schedule() {
-    if (scheduled) return;
-    scheduled = true;
-    const elapsed = performance.now() - last;
-    const delay = Math.max(0, intervalMs - elapsed);
-    setTimeout(() => requestAnimationFrame(() => {
-      scheduled = false;
-      try { flushFn(); } finally { last = performance.now(); }
-    }), delay);
-  };
+    let scheduled = false;
+    let last = 0;
+    return function schedule() {
+        if (scheduled) return;
+        scheduled = true;
+        const elapsed = performance.now() - last;
+        const delay = Math.max(0, intervalMs - elapsed);
+        setTimeout(() => requestAnimationFrame(() => {
+            scheduled = false;
+            try {
+                flushFn();
+            } finally {
+                last = performance.now();
+            }
+        }), delay);
+    };
 }
 
 /** Loading / load-more rows — not inventory data. */
 const SCAN_TABLE_IGNORE_ROW_IDS = new Set([
-  'audioQueryLoadingRow', 'audioLoadMore', 'dawLoadMore', 'presetLoadMore', 'midiLoadMore', 'pdfLoadMore',
+    'audioQueryLoadingRow', 'audioLoadMore', 'dawLoadMore', 'presetLoadMore', 'midiLoadMore', 'pdfLoadMore',
 ]);
 
 /** True if tbody has no data rows (missing tbody counts as empty). */
 function scanTableTbodyIsEmpty(tbodyId) {
-  const tbody = document.getElementById(tbodyId);
-  if (!tbody) return true;
-  for (const tr of tbody.querySelectorAll('tr')) {
-    if (SCAN_TABLE_IGNORE_ROW_IDS.has(tr.id)) continue;
-    return false;
-  }
-  return true;
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return true;
+    for (const tr of tbody.querySelectorAll('tr')) {
+        if (SCAN_TABLE_IGNORE_ROW_IDS.has(tr.id)) continue;
+        return false;
+    }
+    return true;
 }
 
 function isAudioScanTableEmpty() {
-  const wrap = document.getElementById('audioTableWrap');
-  if (!wrap) return true;
-  if (!wrap.querySelector('#audioTable')) return true;
-  return scanTableTbodyIsEmpty('audioTableBody');
+    const wrap = document.getElementById('audioTableWrap');
+    if (!wrap) return true;
+    if (!wrap.querySelector('#audioTable')) return true;
+    return scanTableTbodyIsEmpty('audioTableBody');
 }
 
 function isPluginListEmptyForScan() {
-  const list = document.getElementById('pluginList');
-  if (!list) return true;
-  return list.querySelectorAll('.plugin-card').length === 0;
+    const list = document.getElementById('pluginList');
+    if (!list) return true;
+    return list.querySelectorAll('.plugin-card').length === 0;
 }
 
 function isDawScanTableEmpty() {
-  const wrap = document.getElementById('dawTableWrap');
-  if (!wrap) return true;
-  if (!wrap.querySelector('#dawTable')) return true;
-  return scanTableTbodyIsEmpty('dawTableBody');
+    const wrap = document.getElementById('dawTableWrap');
+    if (!wrap) return true;
+    if (!wrap.querySelector('#dawTable')) return true;
+    return scanTableTbodyIsEmpty('dawTableBody');
 }
 
 function isPresetScanTableEmpty() {
-  const wrap = document.getElementById('presetTableWrap');
-  if (!wrap) return true;
-  if (!wrap.querySelector('#presetTable')) return true;
-  return scanTableTbodyIsEmpty('presetTableBody');
+    const wrap = document.getElementById('presetTableWrap');
+    if (!wrap) return true;
+    if (!wrap.querySelector('#presetTable')) return true;
+    return scanTableTbodyIsEmpty('presetTableBody');
 }
 
 function isPdfScanTableEmpty() {
-  const wrap = document.getElementById('pdfTableWrap');
-  if (!wrap) return true;
-  if (!wrap.querySelector('#pdfTable')) return true;
-  return scanTableTbodyIsEmpty('pdfTableBody');
+    const wrap = document.getElementById('pdfTableWrap');
+    if (!wrap) return true;
+    if (!wrap.querySelector('#pdfTable')) return true;
+    return scanTableTbodyIsEmpty('pdfTableBody');
 }
 
 function isMidiScanTableEmpty() {
-  const wrap = document.getElementById('midiTableWrap');
-  if (!wrap) return true;
-  if (!wrap.querySelector('#midiTable')) return true;
-  return scanTableTbodyIsEmpty('midiTableBody');
+    const wrap = document.getElementById('midiTableWrap');
+    if (!wrap) return true;
+    if (!wrap.querySelector('#midiTable')) return true;
+    return scanTableTbodyIsEmpty('midiTableBody');
 }
 
 function toggleRegex(btn) {
-  btn.classList.toggle('active');
-  const isRegex = btn.classList.contains('active');
-  const input = btn.closest('.search-box').querySelector('input');
-  if (input) {
-    const base = input.placeholder.replace(/^(Fuzzy|Regex) /, '');
-    input.placeholder = (isRegex ? 'Regex ' : 'Fuzzy ') + base;
-    const action = btn.dataset.target;
-    applyFilter(action);
-  }
+    btn.classList.toggle('active');
+    const isRegex = btn.classList.contains('active');
+    const input = btn.closest('.search-box').querySelector('input');
+    if (input) {
+        const base = input.placeholder.replace(/^(Fuzzy|Regex) /, '');
+        input.placeholder = (isRegex ? 'Regex ' : 'Fuzzy ') + base;
+        const action = btn.dataset.target;
+        applyFilter(action);
+    }
 }
 
 // ── Confirm dialog (Tauri-safe) ──
 async function confirmAction(message, title = 'Confirm') {
-  const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
-  if (dialogApi && dialogApi.ask) {
-    return dialogApi.ask(message, { title, kind: 'warning' });
-  }
-  return Promise.resolve(confirm(message));
+    const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
+    if (dialogApi && dialogApi.ask) {
+        return dialogApi.ask(message, {title, kind: 'warning'});
+    }
+    return Promise.resolve(confirm(message));
 }
 
 // ── Shared formatters (used across multiple modules) ──
 function formatAudioSize(bytes) {
-  if (!bytes || bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+    if (!bytes || bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
 }
 
 function formatTime(sec) {
-  if (!sec || !isFinite(sec)) return '0:00';
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return m + ':' + String(s).padStart(2, '0');
+    if (!sec || !isFinite(sec)) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return m + ':' + String(s).padStart(2, '0');
 }
 
 // ── Loading helpers ──
 function showGlobalProgress() {
-  document.getElementById('globalProgress')?.classList.add('active');
-  // Refresh scan status badge immediately
-  if (typeof updateHeaderInfo === 'function') setTimeout(updateHeaderInfo, 100);
+    document.getElementById('globalProgress')?.classList.add('active');
+    // Refresh scan status badge immediately
+    if (typeof updateHeaderInfo === 'function') setTimeout(updateHeaderInfo, 100);
 }
+
 function hideGlobalProgress() {
-  document.getElementById('globalProgress')?.classList.remove('active');
+    document.getElementById('globalProgress')?.classList.remove('active');
 }
+
 // ── Persist filter dropdowns ──
 const _filterIds = ['typeFilter', 'statusFilter', 'favTypeFilter', 'audioFormatFilter', 'dawDawFilter', 'presetFormatFilter'];
 
 function saveFilterState(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  // Check for multi-filter (custom dropdown widget)
-  const wrapper = el.nextElementSibling;
-  if (wrapper && wrapper.classList.contains('multi-filter') && wrapper._selected) {
-    const vals = [...wrapper._selected];
-    if (vals.length > 0) {
-      prefs.setItem('filter_' + id, vals);
+    const el = document.getElementById(id);
+    if (!el) return;
+    // Check for multi-filter (custom dropdown widget)
+    const wrapper = el.nextElementSibling;
+    if (wrapper && wrapper.classList.contains('multi-filter') && wrapper._selected) {
+        const vals = [...wrapper._selected];
+        if (vals.length > 0) {
+            prefs.setItem('filter_' + id, vals);
+        } else {
+            prefs.removeItem('filter_' + id); // "all" = no pref needed
+        }
     } else {
-      prefs.removeItem('filter_' + id); // "all" = no pref needed
+        if (el.value && el.value !== 'all') {
+            prefs.setItem('filter_' + id, el.value);
+        } else {
+            prefs.removeItem('filter_' + id);
+        }
     }
-  } else {
-    if (el.value && el.value !== 'all') {
-      prefs.setItem('filter_' + id, el.value);
-    } else {
-      prefs.removeItem('filter_' + id);
-    }
-  }
 }
 
 function restoreFilterStates() {
-  for (const id of _filterIds) {
-    let saved = prefs.getItem('filter_' + id);
-    if (!saved || saved === 'all') continue;
-    // Parse JSON array if stored as string
-    if (typeof saved === 'string') {
-      try { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) saved = parsed; } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
-    }
-    const el = document.getElementById(id);
-    if (!el) continue;
-    const wrapper = el.nextElementSibling;
-    if (wrapper && wrapper.classList.contains('multi-filter') && typeof setMultiFilterValue === 'function') {
-      if (Array.isArray(saved)) {
-        if (wrapper._selected) wrapper._selected.clear();
-        for (const v of saved) {
-          setMultiFilterValue(id, v);
+    for (const id of _filterIds) {
+        let saved = prefs.getItem('filter_' + id);
+        if (!saved || saved === 'all') continue;
+        // Parse JSON array if stored as string
+        if (typeof saved === 'string') {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) saved = parsed;
+            } catch (e) {
+                if (typeof showToast === 'function' && e) showToast(String(e), 4000, 'error');
+            }
         }
-        if (typeof updateMultiFilterLabel === 'function') {
-          const allLabel = wrapper.querySelector('.multi-filter-item.multi-filter-all label')?.textContent?.trim() || 'All';
-          updateMultiFilterLabel(wrapper, allLabel);
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const wrapper = el.nextElementSibling;
+        if (wrapper && wrapper.classList.contains('multi-filter') && typeof setMultiFilterValue === 'function') {
+            if (Array.isArray(saved)) {
+                if (wrapper._selected) wrapper._selected.clear();
+                for (const v of saved) {
+                    setMultiFilterValue(id, v);
+                }
+                if (typeof updateMultiFilterLabel === 'function') {
+                    const allLabel = wrapper.querySelector('.multi-filter-item.multi-filter-all label')?.textContent?.trim() || 'All';
+                    updateMultiFilterLabel(wrapper, allLabel);
+                }
+            }
+        } else if (typeof saved === 'string' && saved !== 'all') {
+            el.value = saved;
         }
-      }
-    } else if (typeof saved === 'string' && saved !== 'all') {
-      el.value = saved;
     }
-  }
-  // Delay enabling saves until after initial data load completes
-  setTimeout(() => { _filtersRestored = true; }, 3000);
+    // Delay enabling saves until after initial data load completes
+    setTimeout(() => {
+        _filtersRestored = true;
+    }, 3000);
 }
 
 // Save all filter states (called from filter functions)
 let _filtersRestored = false;
+
 function saveAllFilterStates() {
-  if (!_filtersRestored) return; // don't overwrite prefs during initial load
-  for (const id of _filterIds) {
-    saveFilterState(id);
-  }
+    if (!_filtersRestored) return; // don't overwrite prefs during initial load
+    for (const id of _filterIds) {
+        saveFilterState(id);
+    }
 }
 
 // Auto-save on change
 document.addEventListener('change', (e) => {
-  if (e.target.closest('select.filter-select')) {
-    saveAllFilterStates();
-  }
+    if (e.target.closest('select.filter-select')) {
+        saveAllFilterStates();
+    }
 });
 
 function btnLoading(btn, loading) {
-  if (!btn) return;
-  if (loading) {
-    btn.classList.add('btn-loading');
-    btn.disabled = true;
-  } else {
-    btn.classList.remove('btn-loading');
-    btn.disabled = false;
-  }
+    if (!btn) return;
+    if (loading) {
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+    } else {
+        btn.classList.remove('btn-loading');
+        btn.disabled = false;
+    }
 }
+
 function skeletonRows(container, count = 5) {
-  container.innerHTML = Array.from({ length: count }, () =>
-    `<div class="skeleton-row fade-in">
+    container.innerHTML = Array.from({length: count}, () =>
+        `<div class="skeleton-row fade-in">
       <div class="skeleton skeleton-bar" style="flex: 2;"></div>
       <div class="skeleton skeleton-bar" style="flex: 1;"></div>
       <div class="skeleton skeleton-bar" style="width: 80px;"></div>
       <div class="skeleton skeleton-bar" style="width: 80px;"></div>
     </div>`
-  ).join('');
+    ).join('');
 }
 
 // ── ETA calculator ──
 function createETA() {
-  let startTime = 0;
-  return {
-    start() { startTime = performance.now(); },
-    estimate(processed, total) {
-      if (!startTime || processed <= 0 || total <= 0) return '';
-      const elapsed = (performance.now() - startTime) / 1000;
-      const rate = processed / elapsed;
-      const remaining = (total - processed) / rate;
-      if (remaining < 1) return '< 1s';
-      if (remaining < 60) return `~${Math.ceil(remaining)}s`;
-      const mins = Math.floor(remaining / 60);
-      const secs = Math.ceil(remaining % 60);
-      return `~${mins}m ${secs}s`;
-    },
-    elapsed() {
-      if (!startTime) return '';
-      const secs = Math.floor((performance.now() - startTime) / 1000);
-      if (secs < 60) return `${secs}s`;
-      return `${Math.floor(secs / 60)}m ${secs % 60}s`;
-    }
-  };
+    let startTime = 0;
+    return {
+        start() {
+            startTime = performance.now();
+        },
+        estimate(processed, total) {
+            if (!startTime || processed <= 0 || total <= 0) return '';
+            const elapsed = (performance.now() - startTime) / 1000;
+            const rate = processed / elapsed;
+            const remaining = (total - processed) / rate;
+            if (remaining < 1) return '< 1s';
+            if (remaining < 60) return `~${Math.ceil(remaining)}s`;
+            const mins = Math.floor(remaining / 60);
+            const secs = Math.ceil(remaining % 60);
+            return `~${mins}m ${secs}s`;
+        },
+        elapsed() {
+            if (!startTime) return '';
+            const secs = Math.floor((performance.now() - startTime) / 1000);
+            if (secs < 60) return `${secs}s`;
+            return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+        }
+    };
 }
 
 function escapePath(str) {
-  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 function slugify(str) {
-  return str
-    // Insert hyphen before uppercase letters in camelCase (e.g. MadronaLabs -> Madrona-Labs)
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    // Insert hyphen between letters and digits (e.g. Plugin3 -> Plugin-3)
-    .replace(/([a-zA-Z])(\d)/g, '$1-$2')
-    .replace(/(\d)([a-zA-Z])/g, '$1-$2')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    return str
+        // Insert hyphen before uppercase letters in camelCase (e.g. MadronaLabs -> Madrona-Labs)
+        .replace(/([a-z])([A-Z])/g, '$1-$2')
+        // Insert hyphen between letters and digits (e.g. Plugin3 -> Plugin-3)
+        .replace(/([a-zA-Z])(\d)/g, '$1-$2')
+        .replace(/(\d)([a-zA-Z])/g, '$1-$2')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
 }
 
 function buildKvrUrl(name, manufacturer) {
-  const nameSlug = slugify(name);
-  if (manufacturer && manufacturer !== 'Unknown') {
-    const mfgLower = manufacturer.toLowerCase().replace(/[^a-z0-9]+/g, '');
-    const mfgSlug = KVR_MANUFACTURER_MAP[mfgLower] || slugify(manufacturer);
-    return `https://www.kvraudio.com/product/${nameSlug}-by-${mfgSlug}`;
-  }
-  return `https://www.kvraudio.com/product/${nameSlug}`;
+    const nameSlug = slugify(name);
+    if (manufacturer && manufacturer !== 'Unknown') {
+        const mfgLower = manufacturer.toLowerCase().replace(/[^a-z0-9]+/g, '');
+        const mfgSlug = KVR_MANUFACTURER_MAP[mfgLower] || slugify(manufacturer);
+        return `https://www.kvraudio.com/product/${nameSlug}-by-${mfgSlug}`;
+    }
+    return `https://www.kvraudio.com/product/${nameSlug}`;
 }
 
 function buildDirsTable(directories, plugins) {
-  if (!directories || directories.length === 0) return '';
-  const rows = directories.map(dir => {
-    const count = plugins.filter(p => p.path.startsWith(dir + '/')).length;
-    const types = {};
-    plugins.filter(p => p.path.startsWith(dir + '/')).forEach(p => {
-      types[p.type] = (types[p.type] || 0) + 1;
-    });
-    const typeStr = Object.entries(types)
-      .map(([t, c]) => `<span class="plugin-type ${t === 'VST2' ? 'type-vst2' : t === 'VST3' ? 'type-vst3' : t === 'CLAP' ? 'type-clap' : 'type-au'}">${t}: ${c}</span>`)
-      .join(' ');
-    return `<tr>
+    if (!directories || directories.length === 0) return '';
+    const rows = directories.map(dir => {
+        const count = plugins.filter(p => p.path.startsWith(dir + '/')).length;
+        const types = {};
+        plugins.filter(p => p.path.startsWith(dir + '/')).forEach(p => {
+            types[p.type] = (types[p.type] || 0) + 1;
+        });
+        const typeStr = Object.entries(types)
+            .map(([t, c]) => `<span class="plugin-type ${t === 'VST2' ? 'type-vst2' : t === 'VST3' ? 'type-vst3' : t === 'CLAP' ? 'type-clap' : 'type-au'}">${t}: ${c}</span>`)
+            .join(' ');
+        return `<tr>
       <td style="padding: 4px 8px 4px 0; color: var(--cyan); opacity: 0.7;">${dir}</td>
       <td style="padding: 4px 8px; text-align: right; font-family: Orbitron, sans-serif; color: var(--text);">${count}</td>
       <td style="padding: 4px 0 4px 8px;">${typeStr}</td>
     </tr>`;
-  });
-  const tc = typeof appTableCol === 'function' ? appTableCol : (k) => k;
-  return `<table style="width: 100%; border-collapse: collapse; margin-top: 6px;">
+    });
+    const tc = typeof appTableCol === 'function' ? appTableCol : (k) => k;
+    return `<table style="width: 100%; border-collapse: collapse; margin-top: 6px;">
     <tr style="color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px;">
       <th style="text-align: left; padding: 2px 8px 2px 0;">${tc('ui.col.directory')}</th>
       <th style="text-align: right; padding: 2px 8px;">${tc('ui.col.plugins')}</th>
@@ -905,224 +969,239 @@ function buildDirsTable(directories, plugins) {
 }
 
 function toggleDirs() {
-  const list = document.getElementById('dirsList');
-  const arrow = document.getElementById('dirsArrow');
-  list.classList.toggle('open');
-  arrow.innerHTML = list.classList.contains('open') ? '&#9660;' : '&#9654;';
+    const list = document.getElementById('dirsList');
+    const arrow = document.getElementById('dirsArrow');
+    list.classList.toggle('open');
+    arrow.innerHTML = list.classList.contains('open') ? '&#9660;' : '&#9654;';
 }
 
 // ── Tab drag reorder ──
 function initTabDragReorder() {
-  const nav = document.querySelector('.tab-nav');
-  let draggedTab = null;
-  let ghost = null;
-  let placeholder = null;
-  let dragStartX = 0;
-  let offsetX = 0;
-  let offsetY = 0;
-  let isDragging = false;
-  let didMove = false;
+    const nav = document.querySelector('.tab-nav');
+    let draggedTab = null;
+    let ghost = null;
+    let placeholder = null;
+    let dragStartX = 0;
+    let offsetX = 0;
+    let offsetY = 0;
+    let isDragging = false;
+    let didMove = false;
 
-  nav.addEventListener('mousedown', (e) => {
-    const btn = e.target.closest('.tab-btn');
-    if (!btn || e.button !== 0) return;
-    e.preventDefault();
-    draggedTab = btn;
-    dragStartX = e.clientX;
-    const rect = btn.getBoundingClientRect();
-    offsetX = e.clientX - rect.left;
-    offsetY = e.clientY - rect.top;
-    isDragging = false;
-    didMove = false;
-  });
+    nav.addEventListener('mousedown', (e) => {
+        const btn = e.target.closest('.tab-btn');
+        if (!btn || e.button !== 0) return;
+        e.preventDefault();
+        draggedTab = btn;
+        dragStartX = e.clientX;
+        const rect = btn.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        isDragging = false;
+        didMove = false;
+    });
 
-  document.addEventListener('mousemove', (e) => {
-    if (!draggedTab) return;
-    if (!isDragging && Math.abs(e.clientX - dragStartX) > 5) {
-      isDragging = true;
-      document.body.style.userSelect = 'none';
-      document.body.style.cursor = 'grabbing';
+    document.addEventListener('mousemove', (e) => {
+        if (!draggedTab) return;
+        if (!isDragging && Math.abs(e.clientX - dragStartX) > 5) {
+            isDragging = true;
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'grabbing';
 
-      // Create placeholder matching tab size
-      const rect = draggedTab.getBoundingClientRect();
-      placeholder = document.createElement('span');
-      placeholder.className = 'tab-placeholder';
-      placeholder.style.width = rect.width + 'px';
-      placeholder.style.height = rect.height + 'px';
-      draggedTab.parentNode.insertBefore(placeholder, draggedTab);
+            // Create placeholder matching tab size
+            const rect = draggedTab.getBoundingClientRect();
+            placeholder = document.createElement('span');
+            placeholder.className = 'tab-placeholder';
+            placeholder.style.width = rect.width + 'px';
+            placeholder.style.height = rect.height + 'px';
+            draggedTab.parentNode.insertBefore(placeholder, draggedTab);
 
-      // Create floating ghost
-      ghost = document.createElement('span');
-      ghost.className = 'tab-ghost';
-      ghost.textContent = draggedTab.textContent.trim();
-      ghost.style.left = (e.clientX - offsetX) + 'px';
-      ghost.style.top = (e.clientY - offsetY) + 'px';
-      document.body.appendChild(ghost);
+            // Create floating ghost
+            ghost = document.createElement('span');
+            ghost.className = 'tab-ghost';
+            ghost.textContent = draggedTab.textContent.trim();
+            ghost.style.left = (e.clientX - offsetX) + 'px';
+            ghost.style.top = (e.clientY - offsetY) + 'px';
+            document.body.appendChild(ghost);
 
-      // Hide original
-      draggedTab.classList.add('tab-dragging');
-    }
-    if (!isDragging || !ghost) return;
-    didMove = true;
+            // Hide original
+            draggedTab.classList.add('tab-dragging');
+        }
+        if (!isDragging || !ghost) return;
+        didMove = true;
 
-    // Move ghost with cursor
-    ghost.style.left = (e.clientX - offsetX) + 'px';
-    ghost.style.top = (e.clientY - offsetY) + 'px';
+        // Move ghost with cursor
+        ghost.style.left = (e.clientX - offsetX) + 'px';
+        ghost.style.top = (e.clientY - offsetY) + 'px';
 
-    // Find drop target
-    ghost.style.display = 'none';
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    ghost.style.display = '';
-    const target = el?.closest('.tab-btn');
+        // Find drop target
+        ghost.style.display = 'none';
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        ghost.style.display = '';
+        const target = el?.closest('.tab-btn');
 
-    nav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-drag-over'));
-    if (target && target !== draggedTab && target !== placeholder) {
-      const targetRect = target.getBoundingClientRect();
-      const midX = targetRect.left + targetRect.width / 2;
-      if (e.clientX < midX) {
-        nav.insertBefore(placeholder, target);
-      } else {
-        nav.insertBefore(placeholder, target.nextSibling);
-      }
-    }
-  });
+        nav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-drag-over'));
+        if (target && target !== draggedTab && target !== placeholder) {
+            const targetRect = target.getBoundingClientRect();
+            const midX = targetRect.left + targetRect.width / 2;
+            if (e.clientX < midX) {
+                nav.insertBefore(placeholder, target);
+            } else {
+                nav.insertBefore(placeholder, target.nextSibling);
+            }
+        }
+    });
 
-  document.addEventListener('mouseup', (e) => {
-    if (!draggedTab) return;
+    document.addEventListener('mouseup', (e) => {
+        if (!draggedTab) return;
 
-    if (isDragging) {
-      nav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-drag-over'));
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
+        if (isDragging) {
+            nav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-drag-over'));
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
 
-      // Move tab to placeholder position
-      if (placeholder && placeholder.parentNode) {
-        placeholder.parentNode.insertBefore(draggedTab, placeholder);
-        placeholder.remove();
-      }
-      draggedTab.classList.remove('tab-dragging');
-      if (ghost) { ghost.remove(); ghost = null; }
-      placeholder = null;
-      saveTabOrder();
-    }
+            // Move tab to placeholder position
+            if (placeholder && placeholder.parentNode) {
+                placeholder.parentNode.insertBefore(draggedTab, placeholder);
+                placeholder.remove();
+            }
+            draggedTab.classList.remove('tab-dragging');
+            if (ghost) {
+                ghost.remove();
+                ghost = null;
+            }
+            placeholder = null;
+            saveTabOrder();
+        }
 
-    // Suppress the click that follows mouseup if we actually dragged
-    if (didMove) {
-      const suppress = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
-      nav.addEventListener('click', suppress, { capture: true, once: true });
-    }
+        // Suppress the click that follows mouseup if we actually dragged
+        if (didMove) {
+            const suppress = (ev) => {
+                ev.stopPropagation();
+                ev.preventDefault();
+            };
+            nav.addEventListener('click', suppress, {capture: true, once: true});
+        }
 
-    draggedTab = null;
-    isDragging = false;
-    didMove = false;
-  });
+        draggedTab = null;
+        isDragging = false;
+        didMove = false;
+    });
 
-  // Restore saved order
-  restoreTabOrder();
+    // Restore saved order
+    restoreTabOrder();
 }
 
 function saveTabOrder() {
-  const tabs = [...document.querySelectorAll('.tab-nav .tab-btn')].map(b => b.dataset.tab);
-  prefs.setItem('tabOrder', JSON.stringify(tabs));
-  invalidateTabButtonCache();
+    const tabs = [...document.querySelectorAll('.tab-nav .tab-btn')].map(b => b.dataset.tab);
+    prefs.setItem('tabOrder', JSON.stringify(tabs));
+    invalidateTabButtonCache();
 }
 
 function restoreTabOrder() {
-  const saved = prefs.getItem('tabOrder');
-  if (!saved) return;
-  try {
-    const order = JSON.parse(saved);
-    if (!Array.isArray(order)) return;
-    const nav = document.querySelector('.tab-nav');
-    const tabs = [...nav.querySelectorAll('.tab-btn')];
-    const tabMap = {};
-    tabs.forEach(btn => { tabMap[btn.dataset.tab] = btn; });
-    // Re-append in saved order, skip any missing
-    for (const key of order) {
-      if (tabMap[key]) nav.appendChild(tabMap[key]);
+    const saved = prefs.getItem('tabOrder');
+    if (!saved) return;
+    try {
+        const order = JSON.parse(saved);
+        if (!Array.isArray(order)) return;
+        const nav = document.querySelector('.tab-nav');
+        const tabs = [...nav.querySelectorAll('.tab-btn')];
+        const tabMap = {};
+        tabs.forEach(btn => {
+            tabMap[btn.dataset.tab] = btn;
+        });
+        // Re-append in saved order, skip any missing
+        for (const key of order) {
+            if (tabMap[key]) nav.appendChild(tabMap[key]);
+        }
+        // Append any tabs not in saved order (new tabs)
+        tabs.forEach(btn => {
+            if (!order.includes(btn.dataset.tab)) nav.appendChild(btn);
+        });
+    } catch (e) {
+        if (typeof showToast === 'function' && e) showToast(String(e), 4000, 'error');
     }
-    // Append any tabs not in saved order (new tabs)
-    tabs.forEach(btn => {
-      if (!order.includes(btn.dataset.tab)) nav.appendChild(btn);
-    });
-  } catch(e) { if(typeof showToast==='function'&&e) showToast(String(e),4000,'error'); }
-  invalidateTabButtonCache();
+    invalidateTabButtonCache();
 }
 
 function settingResetTabOrder() {
-  prefs.removeItem('tabOrder');
-  const nav = document.querySelector('.tab-nav');
-  const defaultOrder = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'settings'];
-  const tabMap = {};
-  nav.querySelectorAll('.tab-btn').forEach(btn => { tabMap[btn.dataset.tab] = btn; });
-  for (const key of defaultOrder) {
-    if (tabMap[key]) nav.appendChild(tabMap[key]);
-  }
-  showToast(toastFmt('toast.tab_order_reset'));
-  invalidateTabButtonCache();
+    prefs.removeItem('tabOrder');
+    const nav = document.querySelector('.tab-nav');
+    const defaultOrder = ['plugins', 'samples', 'daw', 'presets', 'favorites', 'notes', 'tags', 'files', 'history', 'settings'];
+    const tabMap = {};
+    nav.querySelectorAll('.tab-btn').forEach(btn => {
+        tabMap[btn.dataset.tab] = btn;
+    });
+    for (const key of defaultOrder) {
+        if (tabMap[key]) nav.appendChild(tabMap[key]);
+    }
+    showToast(toastFmt('toast.tab_order_reset'));
+    invalidateTabButtonCache();
 }
 
 // ── Tab switching ──
 // Cache tab strip buttons once — same idea as _tabPanels; invalidate when order changes.
 let _tabButtonsCache = null;
+
 function invalidateTabButtonCache() {
-  _tabButtonsCache = null;
+    _tabButtonsCache = null;
 }
+
 function _ensureTabButtonCache() {
-  if (_tabButtonsCache != null) return;
-  const nav = document.querySelector('.tab-nav');
-  _tabButtonsCache = nav ? [...nav.querySelectorAll('.tab-btn')] : [];
+    if (_tabButtonsCache != null) return;
+    const nav = document.querySelector('.tab-nav');
+    _tabButtonsCache = nav ? [...nav.querySelectorAll('.tab-btn')] : [];
 }
 
 // Cache tab panel elements once — avoids 14 getElementById calls per switch.
 const _tabPanels = {};
 const _tabPanelIds = [
-  'plugins', 'history', 'samples', 'daw', 'presets', 'favorites',
-  'notes', 'tags', 'files', 'midi', 'pdf', 'visualizer', 'walkers', 'settings',
+    'plugins', 'history', 'samples', 'daw', 'presets', 'favorites',
+    'notes', 'tags', 'files', 'midi', 'pdf', 'visualizer', 'walkers', 'settings',
 ];
+
 function _ensureTabCache() {
-  if (_tabPanels._ready) return;
-  for (const t of _tabPanelIds) {
-    const id = 'tab' + t.charAt(0).toUpperCase() + t.slice(1);
-    _tabPanels[t] = document.getElementById(id);
-  }
-  _tabPanels._ready = true;
+    if (_tabPanels._ready) return;
+    for (const t of _tabPanelIds) {
+        const id = 'tab' + t.charAt(0).toUpperCase() + t.slice(1);
+        _tabPanels[t] = document.getElementById(id);
+    }
+    _tabPanels._ready = true;
 }
 
 function switchTab(tab) {
-  _ensureTabCache();
-  _ensureTabButtonCache();
-  // Toggle tab buttons + panels in one pass — pure class mutations, no layout reads.
-  for (const b of _tabButtonsCache) {
-    b.classList.toggle('active', b.dataset.tab === tab);
-  }
-  for (const t of _tabPanelIds) {
-    _tabPanels[t]?.classList.toggle('active', t === tab);
-  }
-  prefs.setItem('activeTab', tab);
-  // Two rAF frames: first lets the active tab strip + panel visibility update paint;
-  // then heavy per-tab work runs (History IPC, Favorites DOM, Settings reflow, etc.).
-  requestAnimationFrame(() => {
+    _ensureTabCache();
+    _ensureTabButtonCache();
+    // Toggle tab buttons + panels in one pass — pure class mutations, no layout reads.
+    for (const b of _tabButtonsCache) {
+        b.classList.toggle('active', b.dataset.tab === tab);
+    }
+    for (const t of _tabPanelIds) {
+        _tabPanels[t]?.classList.toggle('active', t === tab);
+    }
+    prefs.setItem('activeTab', tab);
+    // Two rAF frames: first lets the active tab strip + panel visibility update paint;
+    // then heavy per-tab work runs (History IPC, Favorites DOM, Settings reflow, etc.).
     requestAnimationFrame(() => {
-      if (tab === 'visualizer' && typeof startVisualizer === 'function') startVisualizer();
-      if (tab === 'walkers' && typeof startWalkerPolling === 'function') startWalkerPolling();
-      if (tab === 'history' && typeof loadHistory === 'function') loadHistory({ preferCache: true });
-      if (tab === 'favorites') renderFavorites();
-      if (tab === 'notes') renderNotesTab();
-      if (tab === 'tags') renderTagsManager();
-      if (tab === 'files') initFileBrowser();
-      if (tab === 'midi' && typeof loadMidiFiles === 'function' && !_midiLoaded) loadMidiFiles();
-      if (tab === 'settings') {
-        refreshSettingsUI();
-        if (typeof renderCacheStats === 'function') renderCacheStats();
-        // Force reflow so system-info and databases/caches panes resolve
-        // their layout in release WebView (without this, columns and
-        // percentage-based widths can render at 0 until a scroll/resize).
-        const settingsPanel = document.getElementById('tabSettings') || document.querySelector('.tab-content.active');
-        if (settingsPanel) void settingsPanel.offsetWidth;
-      }
+        requestAnimationFrame(() => {
+            if (tab === 'visualizer' && typeof startVisualizer === 'function') startVisualizer();
+            if (tab === 'walkers' && typeof startWalkerPolling === 'function') startWalkerPolling();
+            if (tab === 'history' && typeof loadHistory === 'function') loadHistory({preferCache: true});
+            if (tab === 'favorites') renderFavorites();
+            if (tab === 'notes') renderNotesTab();
+            if (tab === 'tags') renderTagsManager();
+            if (tab === 'files') initFileBrowser();
+            if (tab === 'midi' && typeof loadMidiFiles === 'function' && !_midiLoaded) loadMidiFiles();
+            if (tab === 'settings') {
+                refreshSettingsUI();
+                if (typeof renderCacheStats === 'function') renderCacheStats();
+                // Force reflow so system-info and databases/caches panes resolve
+                // their layout in release WebView (without this, columns and
+                // percentage-based widths can render at 0 until a scroll/resize).
+                const settingsPanel = document.getElementById('tabSettings') || document.querySelector('.tab-content.active');
+                if (settingsPanel) void settingsPanel.offsetWidth;
+            }
+        });
     });
-  });
 }
 
 // ── O(1) lookup by path for large arrays ──
@@ -1136,21 +1215,22 @@ function switchTab(tab) {
 // user-interactive paths (play selection, context menu, favorites, xref) would
 // cost 10–100ms per call.
 const _pathIndexCache = new WeakMap();
+
 function findByPath(arr, path, reindex) {
-  if (!arr || !path) return undefined;
-  let entry = _pathIndexCache.get(arr);
-  // Rebuild when absent, after truncation, or when caller forces reindex.
-  if (!entry || reindex || arr.length < entry.indexedUpTo) {
-    entry = { map: new Map(), indexedUpTo: 0 };
-    _pathIndexCache.set(arr, entry);
-  }
-  // Incrementally index newly-appended items.
-  for (let i = entry.indexedUpTo; i < arr.length; i++) {
-    const item = arr[i];
-    if (item && item.path) entry.map.set(item.path, item);
-  }
-  entry.indexedUpTo = arr.length;
-  return entry.map.get(path);
+    if (!arr || !path) return undefined;
+    let entry = _pathIndexCache.get(arr);
+    // Rebuild when absent, after truncation, or when caller forces reindex.
+    if (!entry || reindex || arr.length < entry.indexedUpTo) {
+        entry = {map: new Map(), indexedUpTo: 0};
+        _pathIndexCache.set(arr, entry);
+    }
+    // Incrementally index newly-appended items.
+    for (let i = entry.indexedUpTo; i < arr.length; i++) {
+        const item = arr[i];
+        if (item && item.path) entry.map.set(item.path, item);
+    }
+    entry.indexedUpTo = arr.length;
+    return entry.map.get(path);
 }
 
 /**
@@ -1162,11 +1242,12 @@ function findByPath(arr, path, reindex) {
  * @param {Record<string, string|number>} vars - Placeholders for `toastFmt`
  */
 function postScanCompleteToast(stopped, completeKey, stoppedKey, vars) {
-  if (typeof window.__suppressPostScanToasts === 'boolean' && window.__suppressPostScanToasts) return;
-  if (typeof showToast !== 'function' || typeof toastFmt !== 'function') return;
-  const key = stopped ? stoppedKey : completeKey;
-  showToast(toastFmt(key, vars), stopped ? 4500 : 3500, stopped ? 'warning' : '');
+    if (typeof window.__suppressPostScanToasts === 'boolean' && window.__suppressPostScanToasts) return;
+    if (typeof showToast !== 'function' || typeof toastFmt !== 'function') return;
+    const key = stopped ? stoppedKey : completeKey;
+    showToast(toastFmt(key, vars), stopped ? 4500 : 3500, stopped ? 'warning' : '');
 }
+
 window.postScanCompleteToast = postScanCompleteToast;
 
 /**
@@ -1174,15 +1255,15 @@ window.postScanCompleteToast = postScanCompleteToast;
  * paginated `allAudioSamples` slice. Falls back to `allAudioSamples` if IPC is unavailable.
  */
 async function fetchAudioLibraryPathsForFingerprint() {
-  const vu = window.vstUpdater;
-  if (vu && typeof vu.dbAudioLibraryPaths === 'function') {
-    try {
-      const paths = await vu.dbAudioLibraryPaths();
-      if (Array.isArray(paths) && paths.length > 0) return paths;
-    } catch {
-      /* fall through */
+    const vu = window.vstUpdater;
+    if (vu && typeof vu.dbAudioLibraryPaths === 'function') {
+        try {
+            const paths = await vu.dbAudioLibraryPaths();
+            if (Array.isArray(paths) && paths.length > 0) return paths;
+        } catch {
+            /* fall through */
+        }
     }
-  }
-  const arr = typeof allAudioSamples !== 'undefined' && Array.isArray(allAudioSamples) ? allAudioSamples : [];
-  return arr.map((s) => s && s.path).filter(Boolean);
+    const arr = typeof allAudioSamples !== 'undefined' && Array.isArray(allAudioSamples) ? allAudioSamples : [];
+    return arr.map((s) => s && s.path).filter(Boolean);
 }
