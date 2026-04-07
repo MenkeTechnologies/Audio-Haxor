@@ -35,7 +35,7 @@ Each line is a JSON object with at least `cmd`. Optional fields include `device_
 | `playback_set_dsp` | `gain`, `pan`, `eq_low_db`, `eq_mid_db`, `eq_high_db` | Update DSP parameters. |
 | `playback_set_speed` | `speed` (float, clamped 0.25–2.0) | **`ResamplingAudioSource`** on the forward file path (tape-style: pitch follows speed). **Reverse** playback ignores resampling (response may include a **note**). |
 | `playback_set_reverse` | `reverse` (bool) | When `true`, full-decode-to-RAM reverse path for the next playback. |
-| `playback_status` | — | Position, duration, peak, pause, EOF, reverse, sample rates. |
+| `playback_status` | — | Position, duration, peak, pause, EOF, reverse, sample rates. When output is running, also **`spectrum`**: 1024 **uint8** magnitudes (0–255) for FFT bins 1…1024 of a Hann-windowed real FFT (order 11 → size 2048), normalized per frame to the max bin; **`spectrum_fft_size`**, **`spectrum_bins`** (1024), **`spectrum_sr_hz`**. The tap is **mono (L+R)/2** taken **after** DSP and **VST/AU inserts** on the forward path (reverse playback has no inserts). |
 | `playback_stop` | — | Stop transport and clear session. |
 | `playback_set_inserts` | `paths` (JSON array of absolute `.vst3` / `.component` paths, max 8, empty clears) | Load **VST3** / **AU** (macOS) effect instances in order. **Requires** `stop_output_stream` first (no hot-swap while the device is open). Closes any open insert editor windows. |
 | `playback_open_insert_editor` | `slot` (int, 0-based index into the **loaded** insert chain) | Opens a **native** editor for that instance (`createEditorIfNeeded`). Fails with `plugin has no editor` if the plug-in has no UI. |

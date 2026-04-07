@@ -452,6 +452,8 @@ function syncEnginePlaybackStoppedFromSidecar() {
     window._enginePlaybackPosSec = 0;
     window._enginePlaybackDurSec = 0;
     window._enginePlaybackPaused = false;
+    window._engineSpectrumU8 = null;
+    if (typeof stopEnginePlaybackFftRaf === 'function') stopEnginePlaybackFftRaf();
     if (typeof updatePlayBtnStates === 'function') {
         updatePlayBtnStates();
     }
@@ -1208,6 +1210,43 @@ audioPlayer.addEventListener('ended', () => {
 // Use rAF loop instead of timeupdate for smooth 60fps playhead
 let _playbackRafId = null;
 
+/** Sidecar output spectrum (np FFT + parametric EQ) when Web Audio analyser has no signal. */
+let _enginePlaybackFftRafId = null;
+
+function shouldRunEngineSpectrumRaf() {
+    if (typeof window === 'undefined') return false;
+    if (window._enginePlaybackActive === true && typeof isAudioPlaying === 'function' && isAudioPlaying()) return true;
+    if (window._aeOutputStreamRunning === true) return true;
+    return false;
+}
+
+function _enginePlaybackFftLoop() {
+    _enginePlaybackFftRafId = null;
+    if (typeof _renderNpFft === 'function') _renderNpFft();
+    if (typeof window.scheduleParametricEqFrame === 'function') window.scheduleParametricEqFrame();
+    if (shouldRunEngineSpectrumRaf()) {
+        _enginePlaybackFftRafId = requestAnimationFrame(_enginePlaybackFftLoop);
+    }
+}
+
+function ensureEnginePlaybackFftRaf() {
+    if (!shouldRunEngineSpectrumRaf()) return;
+    if (_enginePlaybackFftRafId != null) return;
+    _enginePlaybackFftRafId = requestAnimationFrame(_enginePlaybackFftLoop);
+}
+
+function stopEnginePlaybackFftRaf() {
+    if (_enginePlaybackFftRafId != null) {
+        cancelAnimationFrame(_enginePlaybackFftRafId);
+        _enginePlaybackFftRafId = null;
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.ensureEnginePlaybackFftRaf = ensureEnginePlaybackFftRaf;
+    window.stopEnginePlaybackFftRaf = stopEnginePlaybackFftRaf;
+}
+
 function _playbackRafLoop() {
     updatePlaybackTime();
     _renderNpFft();
@@ -1247,7 +1286,12 @@ let _npFftPts = null;
 })();
 
 function _renderNpFft() {
-    if (!_analyser) return;
+    const useEngineSpectrum =
+        typeof window !== 'undefined' &&
+        window._enginePlaybackActive === true &&
+        window._engineSpectrumU8 &&
+        window._engineSpectrumU8.length >= 1024;
+    if (!useEngineSpectrum && !_analyser) return;
     const canvas = _npFftCanvas || document.getElementById('npFftCanvas');
     if (!canvas || canvas.offsetParent === null) return;
     const ctx = _npFftCtx || canvas.getContext('2d');
@@ -1255,8 +1299,22 @@ function _renderNpFft() {
     const w = canvas.width;
     const h = canvas.height;
     if (w === 0 || h === 0) return;
-    if (!_npFftBuf) _npFftBuf = new Uint8Array(_analyser.frequencyBinCount);
-    _analyser.getByteFrequencyData(_npFftBuf);
+    let sampleRate = 44100;
+    let fftSize = 2048;
+    let binCount = 1024;
+    if (useEngineSpectrum) {
+        if (!_npFftBuf || _npFftBuf.length < 1024) _npFftBuf = new Uint8Array(1024);
+        _npFftBuf.set(window._engineSpectrumU8.subarray(0, 1024));
+        sampleRate = typeof window._engineSpectrumSrHz === 'number' ? window._engineSpectrumSrHz : 44100;
+        fftSize = typeof window._engineSpectrumFftSize === 'number' ? window._engineSpectrumFftSize : 2048;
+        binCount = Math.min(1024, window._engineSpectrumU8.length);
+    } else {
+        if (!_npFftBuf) _npFftBuf = new Uint8Array(_analyser.frequencyBinCount);
+        _analyser.getByteFrequencyData(_npFftBuf);
+        sampleRate = _playbackCtx ? _playbackCtx.sampleRate : 44100;
+        fftSize = _analyser.fftSize;
+        binCount = _npFftBuf.length;
+    }
     ctx.clearRect(0, 0, w, h);
 
     if (!_npFftGrad) {
@@ -1266,28 +1324,38 @@ function _renderNpFft() {
         _npFftGrad.addColorStop(1, 'rgba(5,217,232,0.03)');
     }
 
-    const sampleRate = _playbackCtx ? _playbackCtx.sampleRate : 44100;
-    const binCount = _npFftBuf.length;
     const fMin = 20;
     const fMax = sampleRate / 2;
     const logMin = Math.log10(fMin);
     const logMax = Math.log10(fMax);
-    const fftSize = _analyser.fftSize;
     const specH = h - 10;
 
     let nPts = 0;
-    const maxPts = binCount * 2;
+    const maxPts = binCount * 2 + 4;
     if (!_npFftPts || _npFftPts.length < maxPts) _npFftPts = new Float32Array(maxPts);
     const pts = _npFftPts;
-    for (let i = 1; i < binCount; i++) {
-        const freq = (i * sampleRate) / fftSize;
-        if (freq < fMin) continue;
-        if (freq > fMax) break;
-        const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
-        const mag = _npFftBuf[i] / 255;
-        const y = specH - mag * (specH - 2);
-        pts[nPts++] = x;
-        pts[nPts++] = y;
+    if (useEngineSpectrum) {
+        for (let k = 0; k < binCount; k++) {
+            const freq = ((k + 1) * sampleRate) / fftSize;
+            if (freq < fMin) continue;
+            if (freq > fMax) break;
+            const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
+            const mag = _npFftBuf[k] / 255;
+            const y = specH - mag * (specH - 2);
+            pts[nPts++] = x;
+            pts[nPts++] = y;
+        }
+    } else {
+        for (let i = 1; i < binCount; i++) {
+            const freq = (i * sampleRate) / fftSize;
+            if (freq < fMin) continue;
+            if (freq > fMax) break;
+            const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
+            const mag = _npFftBuf[i] / 255;
+            const y = specH - mag * (specH - 2);
+            pts[nPts++] = x;
+            pts[nPts++] = y;
+        }
     }
 
     if (nPts >= 2) {
@@ -4510,7 +4578,39 @@ function updateMetaLine() {
         ctx.lineTo(w, zeroY);
         ctx.stroke();
 
-        if (_analyser && _playbackCtx && typeof isAudioPlaying === 'function' && isAudioPlaying()) {
+        const useEngineEqSpectrum =
+            typeof window !== 'undefined' &&
+            window._engineSpectrumU8 &&
+            window._engineSpectrumU8.length >= 1024 &&
+            (canvas.id === 'aeEqCanvas'
+                ? window._aeOutputStreamRunning === true
+                : window._enginePlaybackActive === true && typeof isAudioPlaying === 'function' && isAudioPlaying());
+
+        if (useEngineEqSpectrum) {
+            const dataArr = window._engineSpectrumU8;
+            const bufLen = Math.min(1024, dataArr.length);
+            const sampleRate = typeof window._engineSpectrumSrHz === 'number' ? window._engineSpectrumSrHz : 44100;
+            const fftSize = typeof window._engineSpectrumFftSize === 'number' ? window._engineSpectrumFftSize : 2048;
+
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            for (let k = 0; k < bufLen; k++) {
+                const freq = ((k + 1) * sampleRate) / fftSize;
+                if (freq < FREQ_MIN || freq > FREQ_MAX) continue;
+                const x = freqToX(freq, w);
+                const magnitude = dataArr[k] / 255;
+                const y = h - magnitude * (h - 20);
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(w, h);
+            ctx.closePath();
+            const grad = ctx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, 'rgba(211,0,197,0.25)');
+            grad.addColorStop(0.5, 'rgba(5,217,232,0.12)');
+            grad.addColorStop(1, 'rgba(5,217,232,0.02)');
+            ctx.fillStyle = grad;
+            ctx.fill();
+        } else if (_analyser && _playbackCtx && typeof isAudioPlaying === 'function' && isAudioPlaying()) {
             const bufLen = _analyser.frequencyBinCount;
             const dataArr = new Uint8Array(bufLen);
             _analyser.getByteFrequencyData(dataArr);
@@ -4727,6 +4827,10 @@ function updateMetaLine() {
             primeCanvasSize(aeCanvas);
             scheduleParametricEqFrame();
         }, 50);
+    }
+
+    if (typeof window !== 'undefined') {
+        window.scheduleParametricEqFrame = scheduleParametricEqFrame;
     }
 })();
 

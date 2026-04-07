@@ -1023,6 +1023,9 @@ function fillAeInputStreamLineFromPayload(st, el) {
  * @param {object} es — `engine_state` payload
  */
 function fillAeStreamsFromEngineState(es) {
+    if (typeof window !== 'undefined') {
+        window._aeOutputStreamRunning = Boolean(es && es.stream && es.stream.running === true);
+    }
     const streamEl = document.getElementById('aeStreamStatus');
     const inputStreamEl = document.getElementById('aeInputStreamStatus');
     if (streamEl) {
@@ -1436,6 +1439,9 @@ async function applyAudioEngineDevice() {
         const es = await inv({cmd: 'engine_state'});
         fillAeStreamsFromEngineState(es);
         syncAeToneCheckboxFromStream(toneCb, es.stream);
+        if (es && es.stream && es.stream.running === true && typeof startEnginePlaybackPoll === 'function') {
+            startEnginePlaybackPoll();
+        }
     } catch (e) {
         const es = await fillAeStreamsAfterEngineError();
         fillAeEngineStatusFromError(statusEl, e);
@@ -1550,6 +1556,25 @@ function stopEnginePlaybackPoll() {
     }
 }
 
+function applyPlaybackStatusSpectrum(st) {
+    if (!st || st.ok !== true) return;
+    if (Array.isArray(st.spectrum) && st.spectrum.length >= 1024) {
+        const n = st.spectrum.length;
+        if (!window._engineSpectrumU8 || window._engineSpectrumU8.length !== n) {
+            window._engineSpectrumU8 = new Uint8Array(n);
+        }
+        const u8 = window._engineSpectrumU8;
+        for (let i = 0; i < n; i++) {
+            const v = st.spectrum[i];
+            u8[i] = typeof v === 'number' ? Math.max(0, Math.min(255, Math.round(v))) : 0;
+        }
+        window._engineSpectrumFftSize = typeof st.spectrum_fft_size === 'number' ? st.spectrum_fft_size : 2048;
+        window._engineSpectrumSrHz = typeof st.spectrum_sr_hz === 'number' ? st.spectrum_sr_hz : 44100;
+    } else {
+        window._engineSpectrumU8 = null;
+    }
+}
+
 function startEnginePlaybackPoll() {
     stopEnginePlaybackPoll();
     const tick = async () => {
@@ -1557,12 +1582,18 @@ function startEnginePlaybackPoll() {
         if (!inv) return;
         try {
             const st = await inv({cmd: 'playback_status'});
-            if (st && st.ok === true && st.loaded === true) {
-                window._enginePlaybackPosSec = typeof st.position_sec === 'number' ? st.position_sec : 0;
-                window._enginePlaybackDurSec = typeof st.duration_sec === 'number' ? st.duration_sec : 0;
-                window._enginePlaybackPaused = st.paused === true;
-                window._enginePlaybackPeak = typeof st.peak === 'number' ? st.peak : 0;
-                if (typeof updatePlaybackTime === 'function') updatePlaybackTime();
+            if (st && st.ok === true) {
+                applyPlaybackStatusSpectrum(st);
+                if (st.loaded === true) {
+                    window._enginePlaybackPosSec = typeof st.position_sec === 'number' ? st.position_sec : 0;
+                    window._enginePlaybackDurSec = typeof st.duration_sec === 'number' ? st.duration_sec : 0;
+                    window._enginePlaybackPaused = st.paused === true;
+                    window._enginePlaybackPeak = typeof st.peak === 'number' ? st.peak : 0;
+                    if (typeof updatePlaybackTime === 'function') updatePlaybackTime();
+                }
+            }
+            if (typeof window.ensureEnginePlaybackFftRaf === 'function') {
+                window.ensureEnginePlaybackFftRaf();
             }
         } catch {
             /* ignore */
@@ -1704,6 +1735,8 @@ async function enginePlaybackStop() {
     window._enginePlaybackPosSec = 0;
     window._enginePlaybackDurSec = 0;
     window._enginePlaybackPaused = false;
+    window._engineSpectrumU8 = null;
+    if (typeof window.stopEnginePlaybackFftRaf === 'function') window.stopEnginePlaybackFftRaf();
 }
 
 if (typeof window !== 'undefined') {

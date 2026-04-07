@@ -12,7 +12,7 @@
 #include "ParentWatchdog.hpp"
 
 #ifndef AUDIO_ENGINE_VERSION_STRING
-#define AUDIO_ENGINE_VERSION_STRING "2.3.0"
+#define AUDIO_ENGINE_VERSION_STRING "2.4.0"
 #endif
 
 static juce::var errObjSimple(const juce::String& msg)
