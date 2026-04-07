@@ -104,6 +104,11 @@ const _vizEngineShim = {
 
 function _vizResolveAnalyser() {
     if (_vizEngineSpectrumOk()) return _vizEngineShim;
+    // `engineSpectrumLive()` can be false briefly while bins exist (poll / flag ordering). Prefer the
+    // engine-backed shim whenever we have a full frame so FFT/spectrogram/bands match stereo/levels.
+    if (typeof window !== 'undefined' && window._engineSpectrumU8 && window._engineSpectrumU8.length >= 1024) {
+        return _vizEngineShim;
+    }
     const web = typeof _analyser !== 'undefined' ? _analyser : null;
     return web;
 }
@@ -510,13 +515,24 @@ let _vizLeftData = null;
 let _vizRightData = null;
 
 function _drawStereo(ctx, w, h, analyser) {
-    if (_vizEngineSpectrumOk()) {
-        _drawStereoEngine(ctx, w, h, window._engineSpectrumU8);
+    const u8 =
+        typeof window !== 'undefined' && window._engineSpectrumU8 && window._engineSpectrumU8.length >= 1024
+            ? window._engineSpectrumU8
+            : null;
+    if (u8) {
+        _drawStereoEngine(ctx, w, h, u8);
         return;
     }
     const aL = window._analyserL;
     const aR = window._analyserR;
-    if (!aL || !aR) return;
+    if (!aL || !aR) {
+        _vizHudBackdrop(ctx, w, h);
+        ctx.fillStyle = 'rgba(122,139,168,0.55)';
+        ctx.font = `${Math.max(10, Math.min(w, h) / 28)}px "Share Tech Mono", ui-monospace, monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('—', w / 2, h / 2);
+        return;
+    }
 
     const bufLen = aL.fftSize;
     if (!_vizLeftData || _vizLeftData.length !== bufLen) {
@@ -636,10 +652,11 @@ function _drawStereoEngine(ctx, w, h, u8) {
         const side = (L - R) / tot;
         const mag = tot / ((i1 - i0) * 255);
         const bandT = (s + 0.5) / nSlices - 0.5;
-        const px = cx + side * scale * 0.48;
-        const py = cy - bandT * scale * 0.55 * (0.35 + mag * 1.15);
-        const a = 0.1 + Math.min(0.52, mag * 1.1);
-        const rad = baseR + Math.min(minDim * 0.07, mag * minDim * 0.09);
+        const magVis = Math.min(1.2, mag * 2.4);
+        const px = cx + side * scale * 0.55;
+        const py = cy - bandT * scale * 0.55 * (0.35 + magVis * 1.05);
+        const a = 0.16 + Math.min(0.55, magVis * 0.95);
+        const rad = baseR + Math.min(minDim * 0.08, magVis * minDim * 0.1);
         const grd = ctx.createRadialGradient(px, py, 0, px, py, rad);
         grd.addColorStop(0, `rgba(5,217,232,${a})`);
         grd.addColorStop(0.55, `rgba(211,0,197,${a * 0.42})`);
@@ -662,8 +679,12 @@ function _drawStereoEngine(ctx, w, h, u8) {
 
 // ── Level Meters ──
 function _drawLevels(ctx, w, h, analyser) {
-    if (_vizEngineSpectrumOk()) {
-        _drawLevelsEngine(ctx, w, h, window._engineSpectrumU8);
+    const u8 =
+        typeof window !== 'undefined' && window._engineSpectrumU8 && window._engineSpectrumU8.length >= 1024
+            ? window._engineSpectrumU8
+            : null;
+    if (u8) {
+        _drawLevelsEngine(ctx, w, h, u8);
         return;
     }
     const bufLen = analyser.fftSize;

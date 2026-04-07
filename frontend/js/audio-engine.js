@@ -1637,7 +1637,12 @@ function applyPlaybackStatusSpectrum(st) {
         window._engineSpectrumFftSize = typeof st.spectrum_fft_size === 'number' ? st.spectrum_fft_size : 2048;
         window._engineSpectrumSrHz = typeof st.spectrum_sr_hz === 'number' ? st.spectrum_sr_hz : 44100;
     } else {
-        window._engineSpectrumU8 = null;
+        // Engine often omits or zeroes spectrum while the ring warms up, or between polls. Do not
+        // wipe bins during an active loaded session — stereo/levels tiles need `_engineSpectrumU8`
+        // even when Web Audio `_analyserL`/`_analyserR` were never wired (AudioEngine-only playback).
+        if (st.loaded !== true) {
+            window._engineSpectrumU8 = null;
+        }
     }
 }
 
