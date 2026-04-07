@@ -46,6 +46,8 @@ Each line is a JSON object with at least `cmd`. Optional fields include `device_
 | Command | Purpose |
 |--------|---------|
 | `ping` | Version + host id |
+| `waveform_preview` | **`path`** (absolute), optional **`width_px`** (32–8192, default 800), **`start_sec`**, **`duration_sec`** (max 300 s) — decodes a segment and returns **`peaks`**: array of `{ "min", "max" }` per column (mono mix). No device init. |
+| `spectrogram_preview` | **`path`**, optional **`width_px`** / **`height_px`** (16–512, defaults 256×128), **`fft_order`** (8–15 → FFT size 256…32768), **`start_sec`**, **`duration_sec`** (max 120 s) — STFT magnitudes in dB. Response **`rows`**: outer = frequency (low→high), inner = time columns; **`db_min`** / **`db_max`** (–100…0). |
 | `engine_state` | Aggregated stream snapshot |
 | `list_output_devices` / `list_input_devices` | Enumerate devices (uses the active JUCE device type; falls back across types if the current type lists nothing) |
 | `list_audio_device_types` | Lists JUCE driver types: `types` is a **JSON array of strings** (driver names); `current` is the active type |
