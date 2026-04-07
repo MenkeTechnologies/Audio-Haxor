@@ -3104,26 +3104,22 @@ async function drawWaveform(filePath, wfSeq) {
     try {
         if (typeof yieldToBrowser === 'function') await yieldToBrowser();
         if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
-        if (!_audioCtx) _audioCtx = new AudioContext();
-        const resp = await fetch(src);
-        if (!resp.ok) throw new Error(`fetch ${resp.status}`);
-        if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
-        const buf = await resp.arrayBuffer();
-        if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
-        const audioBuf = await _audioCtx.decodeAudioData(buf.slice(0));
-        if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
-        const raw = audioBuf.getChannelData(0);
-        const step = Math.floor(raw.length / bars);
-        const peaks = [];
-        for (let i = 0; i < bars; i++) {
-            let max = 0;
-            let min = 0;
-            const start = i * step;
-            for (let j = start; j < start + step && j < raw.length; j++) {
-                if (raw[j] > max) max = raw[j];
-                if (raw[j] < min) min = raw[j];
-            }
-            peaks.push({ max, min });
+        let peaks = null;
+        try {
+            peaks = await decodePeaksViaWorker(src, bars);
+        } catch {
+            peaks = null;
+        }
+
+        if (!peaks) {
+            if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
+            ctx.strokeStyle = 'rgba(5,217,232,0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+            return;
         }
 
         if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
