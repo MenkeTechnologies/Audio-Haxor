@@ -46,6 +46,23 @@ pub const SCANNER_SKIP_DIRS: &[&str] = &[
     "coverage",         // JS/Rust/etc. test coverage output (common folder name)
     "lcov-report",      // LCOV HTML report dir
     "storybook-static", // Storybook static export
+    // MSVC / Visual Studio / generic out-of-tree build dirs (not only `cmake-build-*`).
+    "Debug",
+    "Release",
+    "RelWithDebInfo",
+    "MinSizeRel",
+    "x64",
+    "x86",
+    // JS / Gradle / Flutter / generic packaged output.
+    "dist",
+    "out",
+    "build",
+    // .NET intermediate, NuGet package cache.
+    "obj",
+    "packages",
+    // Python virtualenvs and wheel trees (non-hidden names).
+    "venv",
+    "site-packages",
     // Synology NAS (`#recycle` already listed). `@`-prefixed dirs use traversal guard.
     "#snapshot",
 ];
@@ -72,6 +89,11 @@ mod tests {
             "htmlcov",
             "bazel-out",
             "_build",
+            "Debug",
+            "Release",
+            "dist",
+            "build",
+            "venv",
             "#snapshot",
         ] {
             assert!(
