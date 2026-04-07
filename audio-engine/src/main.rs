@@ -5,22 +5,28 @@
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Sender};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::thread;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Device, SampleFormat, Stream, SupportedStreamConfig};
+use cpal::{Device, SampleFormat, Stream, SupportedBufferSize, SupportedStreamConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
+const TEST_TONE_HZ: f32 = 440.0;
+const TEST_TONE_GAIN: f32 = 0.05;
 
 #[derive(Debug, Deserialize)]
 struct Request {
     cmd: String,
     #[serde(default)]
     device_id: Option<String>,
+    /// When starting the output stream, enable 440 Hz test tone (F32 only).
+    #[serde(default)]
+    tone: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -39,12 +45,15 @@ struct ActiveStream {
     sample_rate_hz: u32,
     channels: u16,
     sample_format: String,
-    buffer_size: String,
+    buffer_size: serde_json::Value,
+    /// F32 streams only: toggles silence vs test tone in the callback.
+    tone_flag: Option<Arc<AtomicBool>>,
 }
 
 enum AudioCmd {
     Start {
         device_id: Option<String>,
+        tone: bool,
         reply: mpsc::Sender<Result<serde_json::Value, String>>,
     },
     Stop {
@@ -52,6 +61,10 @@ enum AudioCmd {
     },
     Status {
         reply: mpsc::Sender<Result<serde_json::Value, String>>,
+    },
+    SetTone {
+        enabled: bool,
+        reply: mpsc::Sender<Result<(), String>>,
     },
 }
 
@@ -68,7 +81,11 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
     let mut current: Option<ActiveStream> = None;
     while let Ok(cmd) = rx.recv() {
         match cmd {
-            AudioCmd::Start { device_id, reply } => {
+            AudioCmd::Start {
+                device_id,
+                tone,
+                reply,
+            } => {
                 let res = (|| {
                     current.take();
                     let device = resolve_device(device_id.as_deref())?;
@@ -89,8 +106,14 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                     let sample_rate_hz = supported.sample_rate().0;
                     let channels = supported.channels();
                     let sample_format = format!("{:?}", supported.sample_format());
-                    let buffer_size = format!("{:?}", supported.buffer_size());
-                    let stream = build_silence_stream(&device, supported)?;
+                    let buffer_size = buffer_size_json(supported.buffer_size());
+                    let (stream, tone_flag) =
+                        build_playback_stream(&device, supported, tone)?;
+                    let tone_supported = tone_flag.is_some();
+                    let tone_on = tone_flag
+                        .as_ref()
+                        .map(|f| f.load(Ordering::Relaxed))
+                        .unwrap_or(false);
                     current = Some(ActiveStream {
                         stream,
                         device_id: resolved_id.clone(),
@@ -99,6 +122,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         channels,
                         sample_format: sample_format.clone(),
                         buffer_size: buffer_size.clone(),
+                        tone_flag,
                     });
                     Ok(json!({
                         "ok": true,
@@ -108,7 +132,9 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         "channels": channels,
                         "sample_format": sample_format,
                         "buffer_size": buffer_size,
-                        "note": "silence stream running (placeholder for mixer/plugin graph)",
+                        "tone_supported": tone_supported,
+                        "tone_on": tone_on,
+                        "note": "output stream running (silence or test tone); mixer/plugin graph TBD",
                     }))
                 })();
                 let _ = reply.send(res);
@@ -119,16 +145,25 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
             }
             AudioCmd::Status { reply } => {
                 let v = match &current {
-                    Some(a) => json!({
-                        "ok": true,
-                        "running": true,
-                        "device_id": a.device_id,
-                        "device_name": a.device_name,
-                        "sample_rate_hz": a.sample_rate_hz,
-                        "channels": a.channels,
-                        "sample_format": a.sample_format,
-                        "buffer_size": a.buffer_size,
-                    }),
+                    Some(a) => {
+                        let tone_on = a
+                            .tone_flag
+                            .as_ref()
+                            .map(|f| f.load(Ordering::Relaxed))
+                            .unwrap_or(false);
+                        json!({
+                            "ok": true,
+                            "running": true,
+                            "device_id": a.device_id,
+                            "device_name": a.device_name,
+                            "sample_rate_hz": a.sample_rate_hz,
+                            "channels": a.channels,
+                            "sample_format": a.sample_format,
+                            "buffer_size": a.buffer_size,
+                            "tone_supported": a.tone_flag.is_some(),
+                            "tone_on": tone_on,
+                        })
+                    }
                     None => json!({
                         "ok": true,
                         "running": false,
@@ -138,11 +173,38 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         "channels": serde_json::Value::Null,
                         "sample_format": serde_json::Value::Null,
                         "buffer_size": serde_json::Value::Null,
+                        "tone_supported": serde_json::Value::Null,
+                        "tone_on": serde_json::Value::Null,
                     }),
                 };
                 let _ = reply.send(Ok(v));
             }
+            AudioCmd::SetTone { enabled, reply } => {
+                let r = match &current {
+                    Some(a) => {
+                        if let Some(flag) = &a.tone_flag {
+                            flag.store(enabled, Ordering::Relaxed);
+                            Ok(())
+                        } else {
+                            Err("test tone requires F32 output (device default format)".to_string())
+                        }
+                    }
+                    None => Err("no output stream".to_string()),
+                };
+                let _ = reply.send(r);
+            }
         }
+    }
+}
+
+fn buffer_size_json(bs: &SupportedBufferSize) -> serde_json::Value {
+    match bs {
+        SupportedBufferSize::Range { min, max } => json!({
+            "kind": "range",
+            "min": min,
+            "max": max,
+        }),
+        SupportedBufferSize::Unknown => json!({ "kind": "unknown" }),
     }
 }
 
@@ -187,12 +249,15 @@ fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
             "version": ENGINE_VERSION,
             "host": cpal::default_host().id().name(),
         })),
+        "engine_state" => engine_state(),
         "list_output_devices" => list_output_devices(),
+        "list_input_devices" => list_input_devices(),
         "get_output_device_info" => get_output_device_info(req.device_id.as_deref()),
         "set_output_device" => set_output_device(req.device_id.as_deref()),
-        "start_output_stream" => start_output_stream(req.device_id.as_deref()),
+        "start_output_stream" => start_output_stream(req.device_id.as_deref(), req.tone),
         "stop_output_stream" => stop_output_stream(),
         "output_stream_status" => output_stream_status(),
+        "set_output_tone" => set_output_tone(req.tone),
         "plugin_chain" => Ok(json!({
             "ok": true,
             "slots": [],
@@ -200,6 +265,16 @@ fn dispatch(req: &Request) -> Result<serde_json::Value, String> {
         })),
         other => Err(format!("unknown cmd: {other}")),
     }
+}
+
+fn engine_state() -> Result<serde_json::Value, String> {
+    let stream = output_stream_status()?;
+    Ok(json!({
+        "ok": true,
+        "version": ENGINE_VERSION,
+        "host": cpal::default_host().id().name(),
+        "stream": stream,
+    }))
 }
 
 fn unique_device_id(name: &str, seen: &mut HashMap<String, u32>) -> String {
@@ -220,6 +295,41 @@ fn list_output_devices() -> Result<serde_json::Value, String> {
         "ok": true,
         "default_device_id": default_id,
         "devices": rows,
+    }))
+}
+
+fn list_input_devices() -> Result<serde_json::Value, String> {
+    let host = cpal::default_host();
+    let default_dev = host.default_input_device();
+    let default_name = default_dev.as_ref().and_then(|d| d.name().ok());
+
+    let mut seen = HashMap::new();
+    let mut out = Vec::new();
+
+    for (i, dev) in host
+        .input_devices()
+        .map_err(|e| format!("cpal input_devices: {e}"))?
+        .enumerate()
+    {
+        let name = dev.name().unwrap_or_else(|_| format!("in {i}"));
+        let id = unique_device_id(&name, &mut seen);
+        let is_default = default_name
+            .as_ref()
+            .map(|dn| dn == &name)
+            .unwrap_or(false);
+        out.push(OutputDeviceInfo {
+            id,
+            name,
+            is_default,
+        });
+    }
+
+    let default_id = out.iter().find(|d| d.is_default).map(|d| d.id.clone());
+
+    Ok(json!({
+        "ok": true,
+        "default_device_id": default_id,
+        "devices": out,
     }))
 }
 
@@ -314,6 +424,7 @@ fn get_output_device_info(device_id: Option<&str>) -> Result<serde_json::Value, 
         "sample_rate_hz": cfg.sample_rate().0,
         "channels": cfg.channels(),
         "sample_format": format!("{:?}", cfg.sample_format()),
+        "buffer_size": buffer_size_json(cfg.buffer_size()),
     });
     if let (Some(lo), Some(hi)) = (rate_min, rate_max) {
         j.as_object_mut().unwrap().insert(
@@ -336,87 +447,167 @@ fn set_output_device(device_id: Option<&str>) -> Result<serde_json::Value, Strin
     }))
 }
 
-fn build_silence_stream(device: &Device, supported: SupportedStreamConfig) -> Result<Stream, String> {
+/// F32: optional test tone via `tone_flag`. Other formats: silence only, `tone_flag` = None.
+fn build_playback_stream(
+    device: &Device,
+    supported: SupportedStreamConfig,
+    tone_initial: bool,
+) -> Result<(Stream, Option<Arc<AtomicBool>>), String> {
     let cfg = supported.config();
     let err = |e| eprintln!("audio-engine stream error: {e}");
-    let stream = match supported.sample_format() {
-        SampleFormat::F32 => device.build_output_stream(
-            &cfg,
-            |data: &mut [f32], _: &cpal::OutputCallbackInfo| data.fill(0.0),
-            err,
-            None,
-        ),
-        SampleFormat::I16 => device.build_output_stream(
-            &cfg,
-            |data: &mut [i16], _: &cpal::OutputCallbackInfo| data.fill(0),
-            err,
-            None,
-        ),
-        SampleFormat::U16 => device.build_output_stream(
-            &cfg,
-            |data: &mut [u16], _: &cpal::OutputCallbackInfo| data.fill(32768),
-            err,
-            None,
-        ),
-        SampleFormat::I8 => device.build_output_stream(
-            &cfg,
-            |data: &mut [i8], _: &cpal::OutputCallbackInfo| data.fill(0),
-            err,
-            None,
-        ),
-        SampleFormat::U8 => device.build_output_stream(
-            &cfg,
-            |data: &mut [u8], _: &cpal::OutputCallbackInfo| data.fill(128),
-            err,
-            None,
-        ),
-        SampleFormat::I32 => device.build_output_stream(
-            &cfg,
-            |data: &mut [i32], _: &cpal::OutputCallbackInfo| data.fill(0),
-            err,
-            None,
-        ),
-        SampleFormat::U32 => device.build_output_stream(
-            &cfg,
-            |data: &mut [u32], _: &cpal::OutputCallbackInfo| data.fill(1 << 31),
-            err,
-            None,
-        ),
-        SampleFormat::I64 => device.build_output_stream(
-            &cfg,
-            |data: &mut [i64], _: &cpal::OutputCallbackInfo| data.fill(0),
-            err,
-            None,
-        ),
-        SampleFormat::U64 => device.build_output_stream(
-            &cfg,
-            |data: &mut [u64], _: &cpal::OutputCallbackInfo| data.fill(1u64 << 63),
-            err,
-            None,
-        ),
-        SampleFormat::F64 => device.build_output_stream(
-            &cfg,
-            |data: &mut [f64], _: &cpal::OutputCallbackInfo| data.fill(0.0),
-            err,
-            None,
-        ),
+    let tone_out = match supported.sample_format() {
+        SampleFormat::F32 => {
+            let sr = supported.sample_rate().0 as f32;
+            let ch = supported.channels() as usize;
+            let tone_flag = Arc::new(AtomicBool::new(tone_initial));
+            let phase = Arc::new(AtomicU64::new(0));
+            let t = tone_flag.clone();
+            let p = phase.clone();
+            let stream = device.build_output_stream(
+                &cfg,
+                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    let ch = ch.max(1);
+                    let frames = data.len() / ch;
+                    if t.load(Ordering::Relaxed) {
+                        let mut i = p.load(Ordering::Relaxed);
+                        for f in 0..frames {
+                            let x = (i as f32) * TEST_TONE_HZ * 2.0 * std::f32::consts::PI / sr;
+                            let s = x.sin() * TEST_TONE_GAIN;
+                            for c in 0..ch {
+                                data[f * ch + c] = s;
+                            }
+                            i += 1;
+                        }
+                        p.store(i, Ordering::Relaxed);
+                    } else {
+                        data.fill(0.0);
+                        let mut i = p.load(Ordering::Relaxed);
+                        i += frames as u64;
+                        p.store(i, Ordering::Relaxed);
+                    }
+                },
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, Some(tone_flag)))
+        }
+        SampleFormat::I16 => {
+            let stream = device.build_output_stream(
+                &cfg,
+                |data: &mut [i16], _: &cpal::OutputCallbackInfo| data.fill(0),
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, None))
+        }
+        SampleFormat::U16 => {
+            let stream = device.build_output_stream(
+                &cfg,
+                |data: &mut [u16], _: &cpal::OutputCallbackInfo| data.fill(32768),
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, None))
+        }
+        SampleFormat::I8 => {
+            let stream = device.build_output_stream(
+                &cfg,
+                |data: &mut [i8], _: &cpal::OutputCallbackInfo| data.fill(0),
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, None))
+        }
+        SampleFormat::U8 => {
+            let stream = device.build_output_stream(
+                &cfg,
+                |data: &mut [u8], _: &cpal::OutputCallbackInfo| data.fill(128),
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, None))
+        }
+        SampleFormat::I32 => {
+            let stream = device.build_output_stream(
+                &cfg,
+                |data: &mut [i32], _: &cpal::OutputCallbackInfo| data.fill(0),
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, None))
+        }
+        SampleFormat::U32 => {
+            let stream = device.build_output_stream(
+                &cfg,
+                |data: &mut [u32], _: &cpal::OutputCallbackInfo| data.fill(1u32 << 31),
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, None))
+        }
+        SampleFormat::I64 => {
+            let stream = device.build_output_stream(
+                &cfg,
+                |data: &mut [i64], _: &cpal::OutputCallbackInfo| data.fill(0),
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, None))
+        }
+        SampleFormat::U64 => {
+            let stream = device.build_output_stream(
+                &cfg,
+                |data: &mut [u64], _: &cpal::OutputCallbackInfo| data.fill(1u64 << 63),
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, None))
+        }
+        SampleFormat::F64 => {
+            let stream = device.build_output_stream(
+                &cfg,
+                |data: &mut [f64], _: &cpal::OutputCallbackInfo| data.fill(0.0),
+                err,
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+            stream.play().map_err(|e| e.to_string())?;
+            Ok((stream, None))
+        }
         _ => {
             return Err(format!(
                 "unsupported sample format {:?}",
                 supported.sample_format()
             ));
         }
-    }
-    .map_err(|e| e.to_string())?;
-    stream.play().map_err(|e| e.to_string())?;
-    Ok(stream)
+    }?;
+    tone_out
 }
 
-fn start_output_stream(device_id: Option<&str>) -> Result<serde_json::Value, String> {
+fn start_output_stream(device_id: Option<&str>, tone: bool) -> Result<serde_json::Value, String> {
     let (reply_tx, reply_rx) = mpsc::channel();
     audio_thread_tx()
         .send(AudioCmd::Start {
             device_id: device_id.map(|s| s.to_string()),
+            tone,
             reply: reply_tx,
         })
         .map_err(|_| "audio engine thread unavailable".to_string())?;
@@ -450,6 +641,23 @@ fn output_stream_status() -> Result<serde_json::Value, String> {
         .map_err(|_| "audio engine thread stopped".to_string())?
 }
 
+fn set_output_tone(enabled: bool) -> Result<serde_json::Value, String> {
+    let (reply_tx, reply_rx) = mpsc::channel();
+    audio_thread_tx()
+        .send(AudioCmd::SetTone {
+            enabled,
+            reply: reply_tx,
+        })
+        .map_err(|_| "audio engine thread unavailable".to_string())?;
+    reply_rx
+        .recv()
+        .map_err(|_| "audio engine thread stopped".to_string())??;
+    Ok(json!({
+        "ok": true,
+        "tone": enabled,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -461,5 +669,15 @@ mod tests {
         assert_eq!(unique_device_id("A", &mut seen), "A#2");
         assert_eq!(unique_device_id("A", &mut seen), "A#3");
         assert_eq!(unique_device_id("B", &mut seen), "B");
+    }
+
+    #[test]
+    fn buffer_size_json_range_and_unknown() {
+        let j = buffer_size_json(&SupportedBufferSize::Range { min: 64, max: 512 });
+        assert_eq!(j["kind"], "range");
+        assert_eq!(j["min"], 64);
+        assert_eq!(j["max"], 512);
+        let u = buffer_size_json(&SupportedBufferSize::Unknown);
+        assert_eq!(u["kind"], "unknown");
     }
 }
