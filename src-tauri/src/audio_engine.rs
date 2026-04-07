@@ -6,6 +6,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use std::time::SystemTime;
 
 /// Placeholder struct kept for serde stability / future prefs sync.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -27,6 +28,8 @@ struct EngineChild {
     stdout: BufReader<std::process::ChildStdout>,
     /// Which binary we spawned; must respawn if [`resolve_audio_engine_binary`] starts returning a different path.
     binary_path: PathBuf,
+    /// `metadata().modified()` + `len()` when spawned — same path can be overwritten by `cargo build`.
+    binary_identity: Option<(SystemTime, u64)>,
 }
 
 static ENGINE_CHILD: Mutex<Option<EngineChild>> = Mutex::new(None);
@@ -104,6 +107,7 @@ fn child_dead(child: &mut Child) -> bool {
 }
 
 fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
+    let identity = std::fs::metadata(path).ok().map(|m| (m.modified().unwrap_or_else(|_| SystemTime::UNIX_EPOCH), m.len()));
     let mut child = Command::new(path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -118,6 +122,7 @@ fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
         stdin,
         stdout,
         binary_path: path.to_path_buf(),
+        binary_identity: identity,
     })
 }
 
@@ -125,9 +130,14 @@ fn ensure_engine_child(path: &Path) -> Result<(), String> {
     let mut guard = ENGINE_CHILD
         .lock()
         .map_err(|_| "audio-engine child mutex poisoned")?;
+    let disk_identity = std::fs::metadata(path).ok().map(|m| (m.modified().unwrap_or_else(|_| SystemTime::UNIX_EPOCH), m.len()));
     let need_spawn = match guard.as_mut() {
         None => true,
-        Some(eng) => child_dead(&mut eng.child) || eng.binary_path != path,
+        Some(eng) => {
+            child_dead(&mut eng.child)
+                || eng.binary_path != path
+                || disk_identity.is_some() && disk_identity != eng.binary_identity
+        }
     };
     if need_spawn {
         *guard = Some(spawn_engine_child(path)?);
@@ -190,11 +200,13 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
                 }
                 let v: serde_json::Value = serde_json::from_str(line)
                     .map_err(|e| format!("audio-engine JSON: {e}: {line}"))?;
-                // Long-lived child can outlive a `cargo build -p audio-engine` on disk; the old
-                // process still serves stdin and returns `unknown cmd` for new verbs (e.g. `playback_load`).
-                if v.get("ok").and_then(|o| o.as_bool()) == Some(false) {
+                // Long-lived child can outlive `cargo build -p audio-engine`; the old process may
+                // return `unknown cmd` for verbs added in a newer sidecar. Respawn once (see also
+                // [`ensure_engine_child`] binary identity). Retry even if `ok` is missing — some
+                // older builds only set `error`.
+                if attempt == 0 {
                     if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
-                        if err.to_ascii_lowercase().contains("unknown cmd") && attempt == 0 {
+                        if err.to_ascii_lowercase().contains("unknown cmd") {
                             *guard = None;
                             continue;
                         }
