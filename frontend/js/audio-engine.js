@@ -3,7 +3,26 @@
 const AE_PREFS_DEVICE = 'audioEngineOutputDeviceId';
 const AE_PREFS_INPUT_DEVICE = 'audioEngineInputDeviceId';
 const AE_PREFS_TONE = 'audioEngineTestTone';
-const AE_PREFS_BUFFER_FRAMES = 'audioEngineBufferFrames';
+const AE_PREFS_BUFFER_FRAMES_OUTPUT = 'audioEngineBufferFramesOutput';
+const AE_PREFS_BUFFER_FRAMES_INPUT = 'audioEngineBufferFramesInput';
+/** @deprecated Legacy single pref; migrated once to output/input */
+const AE_LEGACY_BUFFER_FRAMES = 'audioEngineBufferFrames';
+
+function migrateAeBufferPrefs() {
+    if (typeof prefs === 'undefined' || typeof prefs.getItem !== 'function' || typeof prefs.setItem !== 'function') {
+        return;
+    }
+    const leg = prefs.getItem(AE_LEGACY_BUFFER_FRAMES);
+    if (leg == null || String(leg) === '') return;
+    const out = prefs.getItem(AE_PREFS_BUFFER_FRAMES_OUTPUT);
+    const inp = prefs.getItem(AE_PREFS_BUFFER_FRAMES_INPUT);
+    if (out == null || String(out) === '') {
+        prefs.setItem(AE_PREFS_BUFFER_FRAMES_OUTPUT, String(leg));
+    }
+    if (inp == null || String(inp) === '') {
+        prefs.setItem(AE_PREFS_BUFFER_FRAMES_INPUT, String(leg));
+    }
+}
 
 /**
  * @param {string} raw
@@ -87,13 +106,19 @@ function initAudioEngineTab() {
         });
     }
     const toneCb = document.getElementById('aeTestTone');
-    const bufIn = document.getElementById('aeBufferFrames');
+    const bufOut = document.getElementById('aeBufferFramesOutput');
+    const bufInCap = document.getElementById('aeBufferFramesInput');
+    migrateAeBufferPrefs();
     if (toneCb && typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
         toneCb.checked = prefs.getItem(AE_PREFS_TONE) === '1';
     }
-    if (bufIn && typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
-        const saved = prefs.getItem(AE_PREFS_BUFFER_FRAMES);
-        bufIn.value = saved != null && String(saved) !== '' ? String(saved) : '';
+    if (bufOut && typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
+        const saved = prefs.getItem(AE_PREFS_BUFFER_FRAMES_OUTPUT);
+        bufOut.value = saved != null && String(saved) !== '' ? String(saved) : '';
+    }
+    if (bufInCap && typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
+        const savedIn = prefs.getItem(AE_PREFS_BUFFER_FRAMES_INPUT);
+        bufInCap.value = savedIn != null && String(savedIn) !== '' ? String(savedIn) : '';
     }
     if (toneCb && typeof toneCb.addEventListener === 'function') {
         toneCb.addEventListener('change', () => {
@@ -104,12 +129,19 @@ function initAudioEngineTab() {
             void toggleAeTestTone(toneCb.checked);
         });
     }
-    if (bufIn && typeof bufIn.addEventListener === 'function' && typeof prefs !== 'undefined' && typeof prefs.setItem === 'function') {
-        const saveBufPref = () => {
-            prefs.setItem(AE_PREFS_BUFFER_FRAMES, bufIn.value != null ? String(bufIn.value).trim() : '');
+    if (bufOut && typeof bufOut.addEventListener === 'function' && typeof prefs !== 'undefined' && typeof prefs.setItem === 'function') {
+        const saveOut = () => {
+            prefs.setItem(AE_PREFS_BUFFER_FRAMES_OUTPUT, bufOut.value != null ? String(bufOut.value).trim() : '');
         };
-        bufIn.addEventListener('change', saveBufPref);
-        bufIn.addEventListener('blur', saveBufPref);
+        bufOut.addEventListener('change', saveOut);
+        bufOut.addEventListener('blur', saveOut);
+    }
+    if (bufInCap && typeof bufInCap.addEventListener === 'function' && typeof prefs !== 'undefined' && typeof prefs.setItem === 'function') {
+        const saveIn = () => {
+            prefs.setItem(AE_PREFS_BUFFER_FRAMES_INPUT, bufInCap.value != null ? String(bufInCap.value).trim() : '');
+        };
+        bufInCap.addEventListener('change', saveIn);
+        bufInCap.addEventListener('blur', saveIn);
     }
 
     const inSel = document.getElementById('aeInputDevice');
@@ -265,6 +297,10 @@ function fillAeInputStreamLineFromPayload(st, el) {
         const sbf = st.stream_buffer_frames;
         if (sbf != null && typeof sbf === 'number' && Number.isFinite(sbf) && typeof catalogFmt === 'function') {
             line += catalogFmt('ui.ae.stream_buffer_fixed', {frames: String(sbf)});
+        }
+        const ipk = st.input_peak;
+        if (ipk != null && typeof ipk === 'number' && Number.isFinite(ipk) && typeof catalogFmt === 'function') {
+            line += catalogFmt('ui.ae.input_peak_suffix', {level: ipk.toFixed(2)});
         }
         el.textContent = line;
     } else {
@@ -505,7 +541,7 @@ async function applyAudioEngineDevice() {
     const statusEl = document.getElementById('aeEngineStatus');
     const streamEl = document.getElementById('aeStreamStatus');
     const toneCb = document.getElementById('aeTestTone');
-    const bufIn = document.getElementById('aeBufferFrames');
+    const bufOut = document.getElementById('aeBufferFramesOutput');
     const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
         ? window.vstUpdater.audioEngineInvoke
         : null;
@@ -513,12 +549,12 @@ async function applyAudioEngineDevice() {
 
     const id = selectEl.value;
     const toneOn = toneCb && toneCb.checked === true;
-    const bfRaw = bufIn && typeof bufIn.value === 'string' ? bufIn.value : '';
+    const bfRaw = bufOut && typeof bufOut.value === 'string' ? bufOut.value : '';
     const bufferFrames = parseAeBufferFramesPref(bfRaw);
     if (typeof prefs !== 'undefined' && typeof prefs.setItem === 'function') {
         prefs.setItem(AE_PREFS_DEVICE, id);
         prefs.setItem(AE_PREFS_TONE, toneOn ? '1' : '0');
-        prefs.setItem(AE_PREFS_BUFFER_FRAMES, bfRaw.trim());
+        prefs.setItem(AE_PREFS_BUFFER_FRAMES_OUTPUT, bfRaw.trim());
     }
 
     try {
@@ -558,15 +594,18 @@ async function startAeInputCapture() {
     const inputStreamEl = document.getElementById('aeInputStreamStatus');
     const statusEl = document.getElementById('aeEngineStatus');
     const inSel = document.getElementById('aeInputDevice');
-    const bufIn = document.getElementById('aeBufferFrames');
+    const bufInCap = document.getElementById('aeBufferFramesInput');
     const inv = window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function'
         ? window.vstUpdater.audioEngineInvoke
         : null;
     if (!inv) return;
 
     const id = inSel && inSel.value != null ? String(inSel.value) : '';
-    const bfRaw = bufIn && typeof bufIn.value === 'string' ? bufIn.value : '';
+    const bfRaw = bufInCap && typeof bufInCap.value === 'string' ? bufInCap.value : '';
     const bufferFrames = parseAeBufferFramesPref(bfRaw);
+    if (typeof prefs !== 'undefined' && typeof prefs.setItem === 'function') {
+        prefs.setItem(AE_PREFS_BUFFER_FRAMES_INPUT, bfRaw.trim());
+    }
 
     try {
         const payload = {cmd: 'start_input_stream'};

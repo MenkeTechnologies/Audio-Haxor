@@ -18,9 +18,9 @@ Notable commands:
 | `start_output_stream` | Open default **output** config; optional `buffer_frames`; **F32** supports `tone` (440 Hz sine at low gain). |
 | `stop_output_stream` | Drop output stream |
 | `output_stream_status` | Running + `tone_supported` / `tone_on` + `stream_buffer_frames` (null when idle or driver default) |
-| `start_input_stream` | Open default **input** config; optional `buffer_frames`; callback discards samples until metering/DSP exists. |
+| `start_input_stream` | Open default **input** config; optional `buffer_frames`; callback discards samples and updates **`input_peak`** (0..1 linear, block peak + decay). |
 | `stop_input_stream` | Drop input stream |
-| `input_stream_status` | Running + `stream_buffer_frames` (null when idle); no tone fields |
+| `input_stream_status` | Running + `stream_buffer_frames` + **`input_peak`** (null when idle); no tone fields |
 | `set_output_tone` | Toggle tone while output stream is running (F32 only) |
 
 ## Build

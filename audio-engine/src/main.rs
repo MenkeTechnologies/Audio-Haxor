@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, OnceLock};
 use std::thread;
@@ -20,6 +20,8 @@ use serde_json::json;
 const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 const TEST_TONE_HZ: f32 = 440.0;
 const TEST_TONE_GAIN: f32 = 0.05;
+/// Exponential decay between input callbacks (0–1 linear peak).
+const INPUT_PEAK_DECAY: f32 = 0.95;
 
 #[derive(Debug, Deserialize)]
 struct Request {
@@ -67,6 +69,8 @@ struct ActiveInputStream {
     sample_format: String,
     buffer_size: serde_json::Value,
     stream_buffer_frames: Option<u32>,
+    /// `f32` peak 0..1 stored as [`f32::to_bits`].
+    peak_bits: Arc<AtomicU32>,
 }
 
 enum AudioCmd {
@@ -200,8 +204,13 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                     let channels = supported.channels();
                     let sample_format = format!("{:?}", supported.sample_format());
                     let buffer_size = buffer_size_json(supported.buffer_size());
-                    let (stream, stream_buffer_frames) =
-                        build_capture_stream(&device, supported, buffer_frames)?;
+                    let peak_bits = Arc::new(AtomicU32::new(0.0f32.to_bits()));
+                    let (stream, stream_buffer_frames) = build_capture_stream(
+                        &device,
+                        supported,
+                        buffer_frames,
+                        peak_bits.clone(),
+                    )?;
                     current_input = Some(ActiveInputStream {
                         stream,
                         device_id: resolved_id.clone(),
@@ -211,6 +220,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         sample_format: sample_format.clone(),
                         buffer_size: buffer_size.clone(),
                         stream_buffer_frames,
+                        peak_bits,
                     });
                     Ok(json!({
                         "ok": true,
@@ -221,7 +231,8 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         "sample_format": sample_format,
                         "buffer_size": buffer_size,
                         "stream_buffer_frames": stream_buffer_frames,
-                        "note": "input capture running (samples discarded); metering / DSP TBD",
+                        "input_peak": 0.0,
+                        "note": "input capture running; samples discarded; input_peak is block peak with decay",
                     }))
                 })();
                 let _ = reply.send(res);
@@ -274,17 +285,21 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
             }
             AudioCmd::InputStatus { reply } => {
                 let v = match &current_input {
-                    Some(a) => json!({
-                        "ok": true,
-                        "running": true,
-                        "device_id": a.device_id,
-                        "device_name": a.device_name,
-                        "sample_rate_hz": a.sample_rate_hz,
-                        "channels": a.channels,
-                        "sample_format": a.sample_format,
-                        "buffer_size": a.buffer_size,
-                        "stream_buffer_frames": a.stream_buffer_frames,
-                    }),
+                    Some(a) => {
+                        let pk = f32::from_bits(a.peak_bits.load(Ordering::Relaxed));
+                        json!({
+                            "ok": true,
+                            "running": true,
+                            "device_id": a.device_id,
+                            "device_name": a.device_name,
+                            "sample_rate_hz": a.sample_rate_hz,
+                            "channels": a.channels,
+                            "sample_format": a.sample_format,
+                            "buffer_size": a.buffer_size,
+                            "stream_buffer_frames": a.stream_buffer_frames,
+                            "input_peak": pk,
+                        })
+                    }
                     None => json!({
                         "ok": true,
                         "running": false,
@@ -295,6 +310,7 @@ fn audio_thread_main(rx: mpsc::Receiver<AudioCmd>) {
                         "sample_format": serde_json::Value::Null,
                         "buffer_size": serde_json::Value::Null,
                         "stream_buffer_frames": serde_json::Value::Null,
+                        "input_peak": serde_json::Value::Null,
                     }),
                 };
                 let _ = reply.send(Ok(v));
@@ -689,11 +705,19 @@ fn set_input_device(device_id: Option<&str>) -> Result<serde_json::Value, String
     }))
 }
 
-/// Input: consume buffers (discard) until metering / DSP is wired.
+fn update_input_peak_linear(peak_bits: &Arc<AtomicU32>, block_peak: f32) {
+    let a = block_peak.clamp(0.0, 1.0);
+    let old = f32::from_bits(peak_bits.load(Ordering::Relaxed));
+    let next = if a > old { a } else { old * INPUT_PEAK_DECAY };
+    peak_bits.store(next.min(1.0).to_bits(), Ordering::Relaxed);
+}
+
+/// Input: consume buffers; update `peak_bits` (0..1 linear) for status JSON.
 fn build_capture_stream(
     device: &Device,
     supported: SupportedStreamConfig,
     buffer_frames: Option<u32>,
+    peak_bits: Arc<AtomicU32>,
 ) -> Result<(Stream, Option<u32>), String> {
     let sf = supported.sample_format();
     let bs = supported.buffer_size();
@@ -702,10 +726,14 @@ fn build_capture_stream(
     let err = |e| eprintln!("audio-engine input stream error: {e}");
     match sf {
         SampleFormat::F32 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[f32], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                        let m = data.iter().fold(0.0f32, |acc, &x| acc.max(x.abs()));
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )
@@ -714,10 +742,16 @@ fn build_capture_stream(
             Ok((stream, stream_buffer_frames))
         }
         SampleFormat::I16 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[i16], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                        let m = data.iter().fold(0.0f32, |acc, &x| {
+                            acc.max((x as f32 / 32768.0).abs())
+                        });
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )
@@ -726,10 +760,16 @@ fn build_capture_stream(
             Ok((stream, stream_buffer_frames))
         }
         SampleFormat::U16 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[u16], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[u16], _: &cpal::InputCallbackInfo| {
+                        let m = data.iter().fold(0.0f32, |acc, &x| {
+                            acc.max(((x as f32 - 32768.0) / 32768.0).abs())
+                        });
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )
@@ -738,10 +778,16 @@ fn build_capture_stream(
             Ok((stream, stream_buffer_frames))
         }
         SampleFormat::I8 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[i8], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[i8], _: &cpal::InputCallbackInfo| {
+                        let m = data.iter().fold(0.0f32, |acc, &x| {
+                            acc.max((x as f32 / 128.0).abs())
+                        });
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )
@@ -750,10 +796,16 @@ fn build_capture_stream(
             Ok((stream, stream_buffer_frames))
         }
         SampleFormat::U8 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[u8], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[u8], _: &cpal::InputCallbackInfo| {
+                        let m = data.iter().fold(0.0f32, |acc, &x| {
+                            acc.max(((x as f32 - 128.0) / 128.0).abs())
+                        });
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )
@@ -762,10 +814,17 @@ fn build_capture_stream(
             Ok((stream, stream_buffer_frames))
         }
         SampleFormat::I32 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[i32], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[i32], _: &cpal::InputCallbackInfo| {
+                        let m = data.iter().fold(0.0f32, |acc, &x| {
+                            let v = (x as f64 / i32::MAX as f64).abs().min(1.0) as f32;
+                            acc.max(v)
+                        });
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )
@@ -774,10 +833,17 @@ fn build_capture_stream(
             Ok((stream, stream_buffer_frames))
         }
         SampleFormat::U32 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[u32], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[u32], _: &cpal::InputCallbackInfo| {
+                        let m = data.iter().fold(0.0f32, |acc, &x| {
+                            let v = (x as f64 / u32::MAX as f64).abs().min(1.0) as f32;
+                            acc.max(v)
+                        });
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )
@@ -786,10 +852,17 @@ fn build_capture_stream(
             Ok((stream, stream_buffer_frames))
         }
         SampleFormat::I64 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[i64], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[i64], _: &cpal::InputCallbackInfo| {
+                        let m = data.iter().fold(0.0f32, |acc, &x| {
+                            let v = (x as f64 / i64::MAX as f64).abs().min(1.0) as f32;
+                            acc.max(v)
+                        });
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )
@@ -798,10 +871,17 @@ fn build_capture_stream(
             Ok((stream, stream_buffer_frames))
         }
         SampleFormat::U64 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[u64], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[u64], _: &cpal::InputCallbackInfo| {
+                        let m = data.iter().fold(0.0f32, |acc, &x| {
+                            let v = (x as f64 / u64::MAX as f64).abs().min(1.0) as f32;
+                            acc.max(v)
+                        });
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )
@@ -810,10 +890,17 @@ fn build_capture_stream(
             Ok((stream, stream_buffer_frames))
         }
         SampleFormat::F64 => {
+            let p = peak_bits;
             let stream = device
                 .build_input_stream(
                     &stream_config,
-                    |_data: &[f64], _: &cpal::InputCallbackInfo| {},
+                    move |data: &[f64], _: &cpal::InputCallbackInfo| {
+                        let m = data
+                            .iter()
+                            .fold(0.0f64, |acc, &x| acc.max(x.abs()))
+                            .min(1.0) as f32;
+                        update_input_peak_linear(&p, m);
+                    },
                     err,
                     None,
                 )

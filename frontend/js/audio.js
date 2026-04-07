@@ -243,6 +243,33 @@ function cancelIdleSchedule(id) {
     }
 }
 
+/**
+ * Release WebView can report 0×0 for flex/grid children until reflow (see FFT canvas comment in index.html).
+ */
+async function resolveVisualContainerSize(container, fallbackW, fallbackH) {
+    const np = document.getElementById('audioNowPlaying');
+    const fw = fallbackW != null ? fallbackW : 400;
+    const fh = fallbackH != null ? fallbackH : 24;
+    for (let i = 0; i < 6; i++) {
+        if (np) void np.offsetWidth;
+        if (container) void container.offsetWidth;
+        let w = container ? container.offsetWidth : 0;
+        let h = container ? container.offsetHeight : 0;
+        if (w < 2 && container) {
+            const br = container.getBoundingClientRect();
+            w = br.width;
+            h = br.height;
+        }
+        if (w >= 2 && h >= 2) return { w, h };
+        await new Promise((r) => requestAnimationFrame(r));
+    }
+    const br = container ? container.getBoundingClientRect() : null;
+    return {
+        w: br && br.width >= 2 ? br.width : fw,
+        h: br && br.height >= 2 ? br.height : fh,
+    };
+}
+
 /** `appFmt` wrapper — same pattern as `plugins.js` `_ui`. */
 function _audioFmt(key, vars) {
     if (typeof appFmt !== 'function') return key;
@@ -3082,8 +3109,11 @@ async function drawWaveform(filePath, wfSeq) {
     if (!canvas) return;
     if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
     const container = canvas.parentElement;
-    canvas.width = container.offsetWidth * (window.devicePixelRatio || 1);
-    canvas.height = container.offsetHeight * (window.devicePixelRatio || 1);
+    const { w: cw, h: ch } = await resolveVisualContainerSize(container, 280, 24);
+    if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(cw * dpr));
+    canvas.height = Math.max(1, Math.round(ch * dpr));
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -3094,7 +3124,7 @@ async function drawWaveform(filePath, wfSeq) {
         return;
     }
 
-    const bars = Math.min(Math.floor(canvas.width), 800);
+    const bars = Math.max(1, Math.min(Math.max(1, Math.floor(cw)), 800));
     const src = convertFileSrc(filePath);
     try {
         if (typeof yieldToBrowser === 'function') await yieldToBrowser();
@@ -3222,8 +3252,11 @@ async function drawMetaPanelVisuals(filePath, metaSeq) {
     const sgCached = _spectrogramCache[filePath];
 
     const container = wfCanvas.parentElement;
-    wfCanvas.width = container.offsetWidth * (window.devicePixelRatio || 1);
-    wfCanvas.height = container.offsetHeight * (window.devicePixelRatio || 1);
+    const { w: cw, h: ch } = await resolveVisualContainerSize(container, 560, 56);
+    if (_metaPanelStale(metaSeq, filePath)) return;
+    const dpr = window.devicePixelRatio || 1;
+    wfCanvas.width = Math.max(1, Math.round(cw * dpr));
+    wfCanvas.height = Math.max(1, Math.round(ch * dpr));
     const wfCtx = wfCanvas.getContext('2d');
     wfCtx.clearRect(0, 0, wfCanvas.width, wfCanvas.height);
     const sgCtx = sgCanvas.getContext('2d');
@@ -3243,7 +3276,7 @@ async function drawMetaPanelVisuals(filePath, metaSeq) {
     }
 
     const url = convertFileSrc(filePath);
-    const bars = Math.min(Math.floor(wfCanvas.width), 800);
+    const bars = Math.max(1, Math.min(Math.max(1, Math.floor(cw)), 800));
 
     try {
         if (typeof yieldToBrowser === 'function') await yieldToBrowser();
