@@ -1,27 +1,46 @@
 // ── Notes & Tags ──
 
+/** Aligns with favorites: host paths may use `\\` while `audioPlayerPath` uses `/`. */
+function normalizeItemNotePathKey(p) {
+    if (p == null || typeof p !== 'string') return '';
+    return p.replace(/\\/g, '/');
+}
+
 // Cache parsed notes object — avoids JSON.parse on every row render.
 let _notesCache = null;
 
 function getNotes() {
-    if (!_notesCache) _notesCache = prefs.getObject('itemNotes', {});
+    if (!_notesCache) {
+        const raw = prefs.getObject('itemNotes', {});
+        _notesCache = {};
+        let dirty = false;
+        for (const [p, n] of Object.entries(raw)) {
+            const k = normalizeItemNotePathKey(p);
+            if (k !== p) dirty = true;
+            _notesCache[k] = n;
+        }
+        if (dirty) prefs.setItem('itemNotes', _notesCache);
+    }
     return _notesCache;
 }
 
 function getNote(path) {
-    return getNotes()[path] || null;
+    const k = normalizeItemNotePathKey(path);
+    return getNotes()[k] || null;
 }
 
 function setNote(path, note, tags) {
     _notesCache = null; // invalidate cache before read
     const notes = getNotes();
+    const k = normalizeItemNotePathKey(path);
     if ((!note || !note.trim()) && (!tags || tags.length === 0)) {
-        delete notes[path];
+        delete notes[k];
     } else {
-        notes[path] = {note: note || '', tags: tags || [], updatedAt: new Date().toISOString()};
+        notes[k] = {note: note || '', tags: tags || [], updatedAt: new Date().toISOString()};
     }
     prefs.setItem('itemNotes', notes);
     _notesCache = null;
+    if (typeof window.updateNoteBtn === 'function') window.updateNoteBtn();
 }
 
 function getStandaloneTags() {
@@ -97,6 +116,7 @@ function renameTag(oldTag, newTag) {
         prefs.setItem('itemNotes', notes);
         _notesCache = null;
         showToast(toastFmt('toast.tag_renamed_items', {oldTag, newTag, changed}));
+        if (typeof window.updateNoteBtn === 'function') window.updateNoteBtn();
     }
 }
 
@@ -112,6 +132,7 @@ function deleteTag(tag) {
     if (changed > 0) {
         prefs.setItem('itemNotes', notes);
         _notesCache = null;
+        if (typeof window.updateNoteBtn === 'function') window.updateNoteBtn();
     }
     // Also remove from standalone tags
     const standalone = getStandaloneTags();
@@ -450,13 +471,15 @@ async function importNotes() {
         let added = 0;
         if (imported.notes && typeof imported.notes === 'object') {
             for (const [path, note] of Object.entries(imported.notes)) {
-                if (!existing[path]) {
-                    existing[path] = note;
+                const k = normalizeItemNotePathKey(path);
+                if (!existing[k]) {
+                    existing[k] = note;
                     added++;
                 }
             }
             prefs.setItem('itemNotes', existing);
             _notesCache = null;
+            if (typeof window.updateNoteBtn === 'function') window.updateNoteBtn();
         }
         // Merge standalone tags
         if (Array.isArray(imported.standaloneTags)) {
@@ -487,6 +510,7 @@ function clearAllNotes() {
     renderNotesTab();
     renderGlobalTagBar();
     showToast(toastFmt('toast.all_notes_deleted'));
+    if (typeof window.updateNoteBtn === 'function') window.updateNoteBtn();
 }
 
 // ── Tags Manager Tab ──

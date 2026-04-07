@@ -2599,6 +2599,7 @@ async function previewAudio(filePath) {
         updatePlayBtnStates();
         updateNowPlayingBtn();
         updateFavBtn();
+        updateNoteBtn();
         updateMetaLine();
         // Deferred one task — layout for the waveform flex child is often 0×0 until after paint (WKWebView).
         scheduleNowPlayingWaveform(filePath);
@@ -2711,6 +2712,8 @@ function clearAudioPlaybackUI() {
     if (pill) pill.classList.remove('active');
     updatePlayBtnStates();
     updateNowPlayingBtn();
+    updateFavBtn();
+    updateNoteBtn();
 }
 
 let _prevPlayingRow = null;
@@ -3724,6 +3727,21 @@ function updateFavBtn() {
     const fav = !!(audioPlayerPath && isFavorite(audioPlayerPath));
     btn.classList.toggle('np-fav-active', fav);
     btn.style.color = fav ? 'var(--yellow)' : '';
+}
+
+/** Floating player note/tags button — also `window.updateNoteBtn` from `setNote` in notes.js */
+function updateNoteBtn() {
+    const btn = document.getElementById('npBtnTag');
+    if (!btn) return;
+    if (!audioPlayerPath || typeof getNote !== 'function') {
+        btn.classList.remove('np-note-active');
+        btn.style.color = '';
+        return;
+    }
+    const n = getNote(audioPlayerPath);
+    const active = !!(n && ((n.note && n.note.trim()) || (n.tags && n.tags.length > 0)));
+    btn.classList.toggle('np-note-active', active);
+    btn.style.color = active ? 'var(--green)' : '';
 }
 
 function tagCurrentTrack() {
@@ -5223,6 +5241,7 @@ function updateMetaLine() {
 
 window.isAudioPlaying = isAudioPlaying;
 window.updateFavBtn = updateFavBtn;
+window.updateNoteBtn = updateNoteBtn;
 window._decodePeaksViaWorker = decodePeaksViaWorker;
 window._fetchWaveformPeaksFromAudioEngine = fetchWaveformPreviewFromEngine;
 window._storeWaveformPeaksInCache = storeWaveformPeaksInCache;
