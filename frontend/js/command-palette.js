@@ -13,7 +13,7 @@ let _paletteDbSeq = 0;
 /** Cached palette rows (tabs + actions + toggles); labels from appFmt. Cleared on locale change. */
 let _paletteStaticItemsCache = null;
 
-/** Full list for one palette session (static + dynamic). Avoids rebuilding bookmarks/tags on every keystroke. */
+/** Full list for one palette session (static + dynamic). Avoids rebuilding bookmarks on every keystroke. */
 let _paletteSessionItems = null;
 
 /** Row type badges: one catalogFmt per type per session, not per row. */
@@ -732,12 +732,12 @@ function buildPaletteStaticItems() {
 
     // Data items (plugins, samples, DAW, presets) are searched lazily
     // in filterPaletteResults to avoid blocking UI on palette open.
-    // Bookmarks/tags/player/similar are appended in buildPaletteDynamicItems().
+    // Bookmarks/player/similar are appended in buildPaletteDynamicItems().
 
     return items;
 }
 
-/** Rows that depend on current track, player visibility, or live bookmark/tag lists. */
+/** Rows that depend on current track, player visibility, or live bookmark list. */
 function buildPaletteDynamicItems() {
     const items = [];
     if (typeof findSimilarSamples === 'function' && typeof audioPlayerPath !== 'undefined' && audioPlayerPath) {
@@ -769,18 +769,6 @@ function buildPaletteDynamicItems() {
                 action: () => {
                     _paletteSwitchTab('files');
                     typeof loadDirectory === 'function' && loadDirectory(d.path);
-                }
-            });
-        }
-    }
-    if (typeof getAllTags === 'function') {
-        for (const t of getAllTags()) {
-            items.push({
-                type: 'tag', name: t, detail: catalogFmt('ui.palette.type_tag'),
-                icon: '&#127991;', fields: [t],
-                action: () => {
-                    if (typeof setGlobalTag === 'function') setGlobalTag(t);
-                    _paletteSwitchTab('plugins');
                 }
             });
         }
@@ -819,7 +807,6 @@ function ensurePaletteTypeLabels() {
             preset: catalogFmt('ui.palette.type_preset'),
             midi: catalogFmt('ui.palette.type_midi'),
             bookmark: catalogFmt('ui.palette.type_bookmark'),
-            tag: catalogFmt('ui.palette.type_tag'),
         };
     }
     return _paletteOpenTypeLabels;
