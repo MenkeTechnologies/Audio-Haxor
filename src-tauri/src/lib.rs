@@ -1,6 +1,6 @@
 //! AUDIO_HAXOR — Tauri v2 desktop app for audio plugin management.
 //!
-//! This crate provides the Rust backend for scanning audio plugins (VST2/VST3/AU),
+//! This crate provides the Rust backend for scanning audio plugins (VST2/VST3/AU/CLAP),
 //! audio samples, DAW project files, and presets. It includes KVR Audio version
 //! checking, scan history with diffing, and export to JSON/TOML/CSV/TSV/PDF.
 //!

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="AUDIO_HAXOR v1.11.0 — Tauri desktop app: VST/VST3/AU plugin scanner, audio samples, DAW projects, KVR updates, SQLite history.">
+  <meta name="description" content="AUDIO_HAXOR v1.11.0 — Tauri desktop app: VST/VST3/AU/CLAP plugin scanner, audio samples, DAW projects, KVR updates, SQLite history.">
   <meta name="application-name" content="AUDIO_HAXOR">
   <title data-i18n="ui.page_title">AUDIO_HAXOR</title>
   <style>
@@ -1213,6 +1213,11 @@
       background: transparent; color: var(--green);
       border: 1px solid var(--green);
       box-shadow: 0 0 6px rgba(57,255,20,0.15);
+    }
+    .type-clap {
+      background: transparent; color: var(--orange);
+      border: 1px solid var(--orange);
+      box-shadow: 0 0 6px rgba(255,149,0,0.2);
     }
 
     .arch-badge {
@@ -2526,6 +2531,7 @@
     .xref-type-vst2 { background: rgba(5,217,232,0.1); color: var(--cyan); border: 1px solid rgba(5,217,232,0.3); }
     .xref-type-vst3 { background: rgba(211,0,197,0.1); color: var(--magenta); border: 1px solid rgba(211,0,197,0.3); }
     .xref-type-au { background: rgba(57,255,20,0.1); color: var(--green); border: 1px solid rgba(57,255,20,0.3); }
+    .xref-type-clap { background: rgba(255,149,0,0.1); color: var(--orange); border: 1px solid rgba(255,149,0,0.35); }
     .xref-type-clap { background: rgba(249,240,2,0.1); color: var(--yellow); border: 1px solid rgba(249,240,2,0.3); }
     .xref-unsupported { color: var(--text-muted); font-size: 12px; text-align: center; padding: 24px; }
 
@@ -4999,7 +5005,7 @@
       <button class="btn-small" data-action="hideTagBar" title="Hide tag bar (filter stays active)" style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:9px;padding:2px 6px;" data-i18n-title="ui.tt.hide_tag_bar_filter_stays_active">&#10005;</button>
     </div>
     <div class="tab-nav">
-      <button class="tab-btn active" data-action="switchTab" data-tab="plugins" title="VST2, VST3, and AU plugins (Cmd+1)" data-i18n-title="ui.tt.vst2_vst3_and_au_plugins_cmd_1" data-i18n="ui.btn.plugins">Plugins</button>
+      <button class="tab-btn active" data-action="switchTab" data-tab="plugins" title="VST2, VST3, CLAP, and AU plugins (Cmd+1)" data-i18n-title="ui.tt.vst2_vst3_and_au_plugins_cmd_1" data-i18n="ui.btn.plugins">Plugins</button>
       <button class="tab-btn" data-action="switchTab" data-tab="samples" title="Audio sample files (Cmd+2)" data-i18n-title="ui.tt.audio_sample_files_cmd_2" data-i18n="ui.btn.samples">Samples</button>
       <button class="tab-btn" data-action="switchTab" data-tab="daw" title="DAW project files (Cmd+3)" data-i18n-title="ui.tt.daw_project_files_cmd_3" data-i18n="ui.btn.daw_projects">DAW Projects</button>
       <button class="tab-btn" data-action="switchTab" data-tab="presets" title="Plugin presets (Cmd+4)" data-i18n-title="ui.tt.plugin_presets_cmd_4" data-i18n="ui.btn.presets">Presets</button>
@@ -6276,42 +6282,42 @@
     </div>
   </div>
 
-  <script src="js/i18n-ui.js?v=98066"></script>
-  <script src="js/ipc.js?v=98066"></script>
-  <script src="js/utils.js?v=98066"></script>
-  <script src="js/drag-reorder.js?v=98066"></script>
-  <script src="js/modal-drag.js?v=98066"></script>
-  <script src="js/columns.js?v=98066"></script>
-  <script src="js/notes.js?v=98066"></script>
-  <script src="js/favorites.js?v=98066"></script>
-  <script src="js/export.js?v=98066"></script>
-  <script src="js/plugins.js?v=98066"></script>
-  <script src="js/settings.js?v=98066"></script>
-  <script src="js/history.js?v=98066"></script>
-  <script src="js/kvr.js?v=98066"></script>
-  <script src="js/audio.js?v=98066"></script>
-  <script src="js/daw.js?v=98066"></script>
-  <script src="js/presets.js?v=98066"></script>
-  <script src="js/disk-usage.js?v=98066"></script>
-  <script src="js/batch-select.js?v=98066"></script>
-  <script src="js/sort-persist.js?v=98066"></script>
-  <script src="js/multi-filter.js?v=98066"></script>
-  <script src="js/file-browser.js?v=98066"></script>
-  <script src="js/duplicates.js?v=98066"></script>
-  <script src="js/command-palette.js?v=98066"></script>
-  <script src="js/xref.js?v=98066"></script>
-  <script src="js/dep-graph.js?v=98066"></script>
-  <script src="js/smart-playlists.js?v=98066"></script>
-  <script src="js/heatmap-dashboard.js?v=98066"></script>
-  <script src="js/midi.js?v=98066"></script>
-  <script src="js/pdf.js?v=98066"></script>
-  <script src="js/settings-search.js?v=98066"></script>
-  <script src="js/visualizer.js?v=98066"></script>
-  <script src="js/walker-status.js?v=98066"></script>
-  <script src="js/context-menu.js?v=98066"></script>
-  <script src="js/help-overlay.js?v=98066"></script>
-  <script src="js/shortcuts.js?v=98066"></script>
-  <script src="js/keyboard-nav.js?v=98066"></script>
-  <script src="js/app.js?v=98066"></script>
+  <script src="js/i18n-ui.js?v=98067"></script>
+  <script src="js/ipc.js?v=98067"></script>
+  <script src="js/utils.js?v=98067"></script>
+  <script src="js/drag-reorder.js?v=98067"></script>
+  <script src="js/modal-drag.js?v=98067"></script>
+  <script src="js/columns.js?v=98067"></script>
+  <script src="js/notes.js?v=98067"></script>
+  <script src="js/favorites.js?v=98067"></script>
+  <script src="js/export.js?v=98067"></script>
+  <script src="js/plugins.js?v=98067"></script>
+  <script src="js/settings.js?v=98067"></script>
+  <script src="js/history.js?v=98067"></script>
+  <script src="js/kvr.js?v=98067"></script>
+  <script src="js/audio.js?v=98067"></script>
+  <script src="js/daw.js?v=98067"></script>
+  <script src="js/presets.js?v=98067"></script>
+  <script src="js/disk-usage.js?v=98067"></script>
+  <script src="js/batch-select.js?v=98067"></script>
+  <script src="js/sort-persist.js?v=98067"></script>
+  <script src="js/multi-filter.js?v=98067"></script>
+  <script src="js/file-browser.js?v=98067"></script>
+  <script src="js/duplicates.js?v=98067"></script>
+  <script src="js/command-palette.js?v=98067"></script>
+  <script src="js/xref.js?v=98067"></script>
+  <script src="js/dep-graph.js?v=98067"></script>
+  <script src="js/smart-playlists.js?v=98067"></script>
+  <script src="js/heatmap-dashboard.js?v=98067"></script>
+  <script src="js/midi.js?v=98067"></script>
+  <script src="js/pdf.js?v=98067"></script>
+  <script src="js/settings-search.js?v=98067"></script>
+  <script src="js/visualizer.js?v=98067"></script>
+  <script src="js/walker-status.js?v=98067"></script>
+  <script src="js/context-menu.js?v=98067"></script>
+  <script src="js/help-overlay.js?v=98067"></script>
+  <script src="js/shortcuts.js?v=98067"></script>
+  <script src="js/keyboard-nav.js?v=98067"></script>
+  <script src="js/app.js?v=98067"></script>
 </body>
 </html>

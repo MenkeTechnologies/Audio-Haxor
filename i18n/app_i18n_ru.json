@@ -1047,6 +1047,7 @@
   "ui.opt.bottom": "Нижний",
   "ui.opt.by_manufacturer": "По производителю",
   "ui.opt.by_type": "По типу",
+  "ui.opt.clap": "CLAP",
   "ui.opt.cubase": "Кубейс",
   "ui.opt.daw": "DAW",
   "ui.opt.daw_projects": "Проекты DAW",

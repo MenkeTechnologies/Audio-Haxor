@@ -285,7 +285,7 @@ fn get_plugin_type_vst3_and_au() {
 
 #[test]
 fn get_plugin_type_clap_unknown() {
-    assert_eq!(get_plugin_type(".clap"), "Unknown");
+    assert_eq!(get_plugin_type(".clap"), "CLAP");
 }
 
 #[test]

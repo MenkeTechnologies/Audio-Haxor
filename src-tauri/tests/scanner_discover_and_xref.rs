@@ -18,11 +18,12 @@ fn discover_plugins_nonexistent_directory_yields_empty() {
 }
 
 #[test]
-fn discover_plugins_only_includes_vst_vst3_component_dll() {
+fn discover_plugins_includes_clap_bundles_and_skips_clap_files() {
     let base = unique_temp("ah_discover_mix");
     std::fs::create_dir_all(&base).expect("mkdir");
     let _ = std::fs::create_dir_all(base.join("Plugin.vst3"));
     let _ = std::fs::create_dir_all(base.join("Legacy.vst"));
+    let _ = std::fs::create_dir_all(base.join("MySynth.clap"));
     let _ = std::fs::write(base.join("noise.clap"), b"");
     let _ = std::fs::write(base.join("readme.txt"), b"");
     let _ = std::fs::create_dir_all(base.join("Other.component"));
@@ -38,10 +39,11 @@ fn discover_plugins_only_includes_vst_vst3_component_dll() {
         paths,
         vec![
             "Legacy.vst".to_string(),
+            "MySynth.clap".to_string(),
             "Other.component".to_string(),
             "Plugin.vst3".to_string(),
         ],
-        "only .vst / .vst3 / .component / .dll entries; .clap and .txt ignored"
+        ".clap bundle dirs are indexed; stray .clap files and .txt are skipped"
     );
 
     let _ = std::fs::remove_dir_all(&base);

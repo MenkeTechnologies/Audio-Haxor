@@ -1047,6 +1047,7 @@
   "ui.opt.bottom": "Onderkant",
   "ui.opt.by_manufacturer": "Per fabrikant",
   "ui.opt.by_type": "Op type",
+  "ui.opt.clap": "CLAP",
   "ui.opt.cubase": "Cubase",
   "ui.opt.daw": "DAW",
   "ui.opt.daw_projects": "DAW-projecten",

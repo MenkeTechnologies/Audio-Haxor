@@ -1,0 +1,16 @@
+{
+  "toast.post_scan_plugins_complete": "Plugin scan complete — {n} plugins",
+  "toast.post_scan_plugins_stopped": "Plugin scan stopped — {n} plugins kept",
+  "toast.post_scan_samples_complete": "Sample scan complete — {n} files",
+  "toast.post_scan_samples_stopped": "Sample scan stopped — {n} files indexed",
+  "toast.post_scan_daw_complete": "DAW scan complete — {n} projects",
+  "toast.post_scan_daw_stopped": "DAW scan stopped — {n} projects kept",
+  "toast.post_scan_presets_complete": "Preset scan complete — {n} presets",
+  "toast.post_scan_presets_stopped": "Preset scan stopped — {n} presets kept",
+  "toast.post_scan_pdf_complete": "PDF scan complete — {n} files",
+  "toast.post_scan_pdf_stopped": "PDF scan stopped — {n} files indexed",
+  "toast.post_scan_midi_complete": "MIDI scan complete — {n} files",
+  "toast.post_scan_midi_stopped": "MIDI scan stopped — {n} files indexed",
+  "toast.post_scan_all_complete": "Scan all complete — {plugins} plugins · {samples} samples · {daw} DAW · {presets} presets · {pdfs} PDFs · {midi} MIDI",
+  "toast.post_scan_all_stopped": "Scan all stopped — {plugins} plugins · {samples} samples · {daw} DAW · {presets} presets · {pdfs} PDFs · {midi} MIDI"
+}

@@ -96,8 +96,11 @@ describe('frontend/js/command-palette.js filterPaletteItems (vm-loaded)', () => 
     assert.strictEqual(out[0].name, 'Export plugins');
   });
 
-  it('with query length >= 2, merges in matching plugins from allPlugins', () => {
-    const items = [{ type: 'tab', name: 'Tabs only' }];
+  it('with query length >= 2, scores plugin rows when present in the items list (DB merge is in renderPaletteResults)', () => {
+    const items = [
+      { type: 'tab', name: 'Tabs only' },
+      { type: 'plugin', name: 'Serum', fields: ['Serum', 'Xfer'] },
+    ];
     const out = P.filterPaletteItems('ser', items);
     const pluginRow = out.find((i) => i.type === 'plugin');
     assert.ok(pluginRow);

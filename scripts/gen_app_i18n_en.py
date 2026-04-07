@@ -529,7 +529,7 @@ UI_JS_EN: dict[str, str] = {
     "ui.js.scanning_for_plugins": "Scanning for plugins...",
     "ui.js.discovering_plugin_files": "Discovering plugin files across system directories...",
     "ui.js.no_plugins_found": "No Plugins Found",
-    "ui.js.no_plugins_found_body": "No VST2, VST3, or Audio Unit plugins were found in the standard system directories.",
+    "ui.js.no_plugins_found_body": "No VST2, VST3, CLAP, or Audio Unit plugins were found in the standard system directories.",
     "ui.js.scan_error": "Scan Error",
     "ui.js.scanning_btn": "Scanning...",
     "ui.js.resuming_btn": "Resuming...",

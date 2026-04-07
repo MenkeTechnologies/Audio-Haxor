@@ -255,7 +255,7 @@ fn test_plugin_type_detection() {
     assert_eq!(scanner::get_plugin_type(".vst3"), "VST3");
     assert_eq!(scanner::get_plugin_type(".component"), "AU");
     assert_eq!(scanner::get_plugin_type(".dll"), "VST2");
-    assert_eq!(scanner::get_plugin_type(".clap"), "Unknown");
+    assert_eq!(scanner::get_plugin_type(".clap"), "CLAP");
     assert_eq!(scanner::get_plugin_type(".aaxplugin"), "Unknown");
     assert_eq!(scanner::get_plugin_type(".unknown"), "Unknown");
 }

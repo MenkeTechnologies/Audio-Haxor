@@ -1,4 +1,4 @@
-//! Plugin filesystem scanner for VST2, VST3, and Audio Unit plugins.
+//! Plugin filesystem scanner for VST2, VST3, Audio Unit, and CLAP plugins.
 //!
 //! Discovers plugins from platform-specific directories, extracts version
 //! and manufacturer info from macOS Info.plist bundles, and detects binary
@@ -38,9 +38,11 @@ pub fn get_vst_directories() -> Vec<String> {
             PathBuf::from("/Library/Audio/Plug-Ins/VST"),
             PathBuf::from("/Library/Audio/Plug-Ins/VST3"),
             PathBuf::from("/Library/Audio/Plug-Ins/Components"),
+            PathBuf::from("/Library/Audio/Plug-Ins/CLAP"),
             home.join("Library/Audio/Plug-Ins/VST"),
             home.join("Library/Audio/Plug-Ins/VST3"),
             home.join("Library/Audio/Plug-Ins/Components"),
+            home.join("Library/Audio/Plug-Ins/CLAP"),
         ]);
     }
 
@@ -51,9 +53,11 @@ pub fn get_vst_directories() -> Vec<String> {
             std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:\\Program Files (x86)".into());
         dirs_list.extend([
             PathBuf::from(&pf).join("Common Files").join("VST3"),
+            PathBuf::from(&pf).join("Common Files").join("CLAP"),
             PathBuf::from(&pf).join("VSTPlugins"),
             PathBuf::from(&pf).join("Steinberg").join("VSTPlugins"),
             PathBuf::from(&pf86).join("Common Files").join("VST3"),
+            PathBuf::from(&pf86).join("Common Files").join("CLAP"),
             PathBuf::from(&pf86).join("VSTPlugins"),
             PathBuf::from(&pf86).join("Steinberg").join("VSTPlugins"),
         ]);
@@ -64,10 +68,13 @@ pub fn get_vst_directories() -> Vec<String> {
         dirs_list.extend([
             PathBuf::from("/usr/lib/vst"),
             PathBuf::from("/usr/lib/vst3"),
+            PathBuf::from("/usr/lib/clap"),
             PathBuf::from("/usr/local/lib/vst"),
             PathBuf::from("/usr/local/lib/vst3"),
+            PathBuf::from("/usr/local/lib/clap"),
             home.join(".vst"),
             home.join(".vst3"),
+            home.join(".clap"),
         ]);
     }
 
@@ -83,6 +90,7 @@ pub fn get_plugin_type(ext: &str) -> &str {
         ".vst" => "VST2",
         ".vst3" => "VST3",
         ".component" => "AU",
+        ".clap" => "CLAP",
         ".dll" => "VST2",
         _ => "Unknown",
     }
@@ -328,7 +336,7 @@ pub fn discover_plugins(
     directories: &[String],
     incremental: Option<&IncrementalDirState>,
 ) -> Vec<PathBuf> {
-    let valid_extensions = [".vst", ".vst3", ".component", ".dll"];
+    let valid_extensions = [".vst", ".vst3", ".component", ".clap", ".dll"];
     let mut plugin_paths = Vec::new();
 
     for dir in directories {
@@ -346,6 +354,10 @@ pub fn discover_plugins(
                     .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
                     .unwrap_or_default();
                 if valid_extensions.contains(&ext.as_str()) {
+                    // CLAP plugins are bundle directories; ignore stray files named *.clap
+                    if ext == ".clap" && !path.is_dir() {
+                        continue;
+                    }
                     plugin_paths.push(path);
                 }
             }
@@ -370,7 +382,7 @@ mod tests {
         assert_eq!(get_plugin_type(".component"), "AU");
         assert_eq!(get_plugin_type(".dll"), "VST2");
         assert_eq!(get_plugin_type(".exe"), "Unknown");
-        assert_eq!(get_plugin_type(".clap"), "Unknown");
+        assert_eq!(get_plugin_type(".clap"), "CLAP");
         assert_eq!(get_plugin_type(".aaxplugin"), "Unknown");
     }
 
@@ -605,6 +617,7 @@ mod tests {
         fs::create_dir_all(tmp.join("A.vst")).unwrap();
         fs::create_dir_all(tmp.join("B.vst3")).unwrap();
         fs::create_dir_all(tmp.join("C.component")).unwrap();
+        fs::create_dir_all(tmp.join("E.clap")).unwrap();
         fs::write(tmp.join("D.dll"), b"fake dll").unwrap();
 
         // Invalid extensions
@@ -613,10 +626,11 @@ mod tests {
 
         let dirs = vec![tmp.to_string_lossy().to_string()];
         let result = discover_plugins(&dirs, None);
+
         assert_eq!(
             result.len(),
-            4,
-            "Should find exactly 4 valid plugins (.vst, .vst3, .component, .dll), found: {:?}",
+            5,
+            "Should find exactly 5 valid plugins (.vst, .vst3, .component, .clap, .dll), found: {:?}",
             result
         );
 
@@ -889,7 +903,6 @@ mod tests {
         assert_eq!(get_plugin_type(""), "Unknown");
         assert_eq!(get_plugin_type(".so"), "Unknown");
         assert_eq!(get_plugin_type(".app"), "Unknown");
-        assert_eq!(get_plugin_type(".clap"), "Unknown");
     }
 
     #[test]
