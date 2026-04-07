@@ -1587,7 +1587,8 @@ async function previewAudio(filePath) {
     updateNowPlayingBtn();
     updateFavBtn();
     updateMetaLine();
-    drawWaveform(filePath);
+    // Defer waveform fetch/decode so <audio> can start output before main-thread work (canvas layout + decode).
+    setTimeout(() => drawWaveform(filePath), 0);
   } catch (err) {
     showToast(toastFmt('toast.playback_failed', { ext: ext.toUpperCase(), err: err.message || err || 'Unknown error' }), 4000, 'error');
   }
@@ -1898,9 +1899,11 @@ async function expandMetaForPath(filePath) {
     const _closeT = typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.meta_close_title')) : _audioFmt('ui.audio.meta_close_title');
     metaRow.innerHTML = `<td colspan="12"><div class="audio-meta-panel"><span class="meta-close-btn" data-action="closeMetaRow" title="${_closeT}">&#10005;</span>${waveformHtml}${items}</div></td>`;
 
-    // Draw waveform and spectrogram on the meta canvases
-    drawMetaWaveform(filePath);
-    drawSpectrogram(filePath);
+    // Defer heavy decode/FFT so UI paint and playback aren’t blocked in the same turn as DOM insert.
+    setTimeout(() => {
+      drawMetaWaveform(filePath);
+      drawSpectrogram(filePath);
+    }, 0);
 
     // Sync cursor if already playing this track
     if (audioPlayerPath === filePath && audioPlayer.duration > 0) {

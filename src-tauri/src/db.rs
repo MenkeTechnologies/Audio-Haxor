@@ -331,6 +331,31 @@ const PRESET_LIBRARY_IDS: &str =
 const PDF_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM pdfs GROUP BY path)";
 const MIDI_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM midi_files GROUP BY path)";
 const PLUGIN_LIBRARY_IDS: &str = "id IN (SELECT MAX(id) FROM plugins GROUP BY path)";
+const PLUGIN_LIBRARY_IDS_QUALIFIED: &str =
+    "plugins.id IN (SELECT MAX(id) FROM plugins GROUP BY path)";
+
+/// Comma-separated `update`, `current`, `unknown` — matches `kvr_cache` + frontend `pluginStatusCategory`.
+fn parse_plugin_status_filter(sf: Option<&str>) -> Option<Vec<&'static str>> {
+    let s = sf?;
+    let t = s.trim();
+    if t.is_empty() || t == "all" {
+        return None;
+    }
+    let mut v = Vec::new();
+    for part in t.split(',') {
+        match part.trim() {
+            "update" => v.push("update"),
+            "current" => v.push("current"),
+            "unknown" => v.push("unknown"),
+            _ => {}
+        }
+    }
+    if v.is_empty() {
+        None
+    } else {
+        Some(v)
+    }
+}
 
 /// Latest **complete** DAW scan that has at least one `daw_projects` row. Empty scans remain in history but must not shadow prior results.
 /// Uses child-row presence (not `project_count`) so streaming scans still resolve after finalize quirks.
@@ -2095,6 +2120,7 @@ impl Database {
         &self,
         search: Option<&str>,
         type_filter: Option<&str>,
+        status_filter: Option<&str>,
         sort_key: &str,
         sort_asc: bool,
         offset: u64,
@@ -2116,7 +2142,26 @@ impl Database {
             });
         }
 
-        let mut where_parts = vec![PLUGIN_LIBRARY_IDS.to_string()];
+        let statuses = parse_plugin_status_filter(status_filter);
+        let use_kvr_join = statuses.is_some();
+        let q = if use_kvr_join { "plugins." } else { "" };
+        let id_clause = if use_kvr_join {
+            PLUGIN_LIBRARY_IDS_QUALIFIED
+        } else {
+            PLUGIN_LIBRARY_IDS
+        };
+        let from_sql = if use_kvr_join {
+            "FROM plugins LEFT JOIN kvr_cache k ON k.plugin_key = (lower(coalesce(nullif(trim(plugins.manufacturer), ''), 'Unknown')) || '|||' || lower(plugins.name))"
+        } else {
+            "FROM plugins"
+        };
+        let select_cols = if use_kvr_join {
+            "SELECT plugins.name, plugins.path, plugins.plugin_type, plugins.version, plugins.manufacturer, plugins.manufacturer_url, plugins.size, plugins.size_bytes, plugins.modified, plugins.architectures"
+        } else {
+            "SELECT name, path, plugin_type, version, manufacturer, manufacturer_url, size, size_bytes, modified, architectures"
+        };
+
+        let mut where_parts = vec![id_clause.to_string()];
         let mut bind_idx = 1usize;
         let search_pat = search.and_then(|s| {
             let t = s.trim();
@@ -2133,7 +2178,9 @@ impl Database {
             }
         });
         if search_pat.is_some() {
-            where_parts.push(format!("(name LIKE ?{bind_idx} ESCAPE '\\' OR manufacturer LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"));
+            where_parts.push(format!(
+                "({q}name LIKE ?{bind_idx} ESCAPE '\\' OR {q}manufacturer LIKE ?{bind_idx} ESCAPE '\\' OR {q}path LIKE ?{bind_idx} ESCAPE '\\')"
+            ));
             bind_idx += 1;
         }
         if let Some(tf) = type_filter {
@@ -2143,27 +2190,44 @@ impl Database {
                         .split(',')
                         .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
                         .collect();
-                    where_parts.push(format!("plugin_type IN ({})", vals.join(",")));
+                    where_parts.push(format!("{q}plugin_type IN ({})", vals.join(",")));
                 } else {
-                    where_parts.push(format!("plugin_type = ?{bind_idx}"));
+                    where_parts.push(format!("{q}plugin_type = ?{bind_idx}"));
                 }
+            }
+        }
+        if let Some(ref st) = statuses {
+            let parts: Vec<String> = st
+                .iter()
+                .map(|s| match *s {
+                    "update" => "(k.has_update = 1)".to_string(),
+                    "current" => "(k.plugin_key IS NOT NULL AND k.has_update = 0 AND COALESCE(k.source, '') != 'not-found')"
+                        .to_string(),
+                    "unknown" => "(k.plugin_key IS NULL OR (k.has_update = 0 AND k.source = 'not-found'))"
+                        .to_string(),
+                    _ => String::new(),
+                })
+                .filter(|s| !s.is_empty())
+                .collect();
+            if !parts.is_empty() {
+                where_parts.push(format!("({})", parts.join(" OR ")));
             }
         }
         let where_cl = where_parts.join(" AND ");
 
         let sort_col = match sort_key {
-            "name" => "name COLLATE NOCASE",
-            "type" => "plugin_type",
-            "version" => "version",
-            "manufacturer" => "manufacturer COLLATE NOCASE",
-            "size" => "size_bytes",
-            "modified" => "modified",
-            _ => "name COLLATE NOCASE",
+            "name" => format!("{q}name COLLATE NOCASE"),
+            "type" => format!("{q}plugin_type"),
+            "version" => format!("{q}version"),
+            "manufacturer" => format!("{q}manufacturer COLLATE NOCASE"),
+            "size" => format!("{q}size_bytes"),
+            "modified" => format!("{q}modified"),
+            _ => format!("{q}name COLLATE NOCASE"),
         };
         let dir = if sort_asc { "ASC" } else { "DESC" };
 
         let total_count: u64 = {
-            let sql = format!("SELECT COUNT(*) FROM plugins WHERE {where_cl}");
+            let sql = format!("SELECT COUNT(*) {from_sql} WHERE {where_cl}");
             let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
             let mut bi = 1;
             if let Some(ref p) = search_pat {
@@ -2193,7 +2257,10 @@ impl Database {
         {
             bind_offset += 1;
         }
-        let sql = format!("SELECT name, path, plugin_type, version, manufacturer, manufacturer_url, size, size_bytes, modified, architectures FROM plugins WHERE {where_cl} ORDER BY {sort_col} {dir} LIMIT ?{bind_offset} OFFSET ?{}", bind_offset + 1);
+        let sql = format!(
+            "{select_cols} {from_sql} WHERE {where_cl} ORDER BY {sort_col} {dir} LIMIT ?{bind_offset} OFFSET ?{}",
+            bind_offset + 1
+        );
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
         let mut bi = 1;
         if let Some(ref p) = search_pat {
