@@ -1445,8 +1445,7 @@ async function applyAudioEngineDevice() {
     }
 
     try {
-        const r = await inv({cmd: 'set_output_device', device_id: id});
-        throwIfAeNotOk(r, 'set_output_device failed');
+        /* `start_output_stream` validates `device_id` and calls `stopOutputLocked` first — no separate `set_output_device` round-trip. */
         /* If a library track is loaded (`playback_load`), reconnect file PCM to the new stream.
          * Omitting `start_playback` leaves silence/tone-only output while the session still exists — breaks preview.
          * After Stop stream, `playback_stop` clears the session — reload from `window._enginePlaybackResumePath` if set. */
@@ -1704,7 +1703,7 @@ function syncEnginePlaybackSpeedFromPrefs() {
 }
 
 /**
- * After `stop_output_stream`, reconnect the same device and restart library PCM (`start_playback: true`).
+ * Reopen output with `start_playback: true` (sidecar `start_output_stream` stops any prior stream first).
  * Used when reverse mode toggles (new rodio source).
  */
 async function enginePlaybackRestartStream() {
@@ -1717,8 +1716,6 @@ async function enginePlaybackRestartStream() {
     const bufOut = document.getElementById('aeBufferFramesOutput');
     const bfRaw = bufOut && typeof bufOut.value === 'string' ? bufOut.value : '';
     const bufferFrames = parseAeBufferFramesPref(bfRaw);
-    await inv({cmd: 'stop_output_stream'});
-    await inv({cmd: 'set_output_device', device_id: deviceId});
     const payload = {
         cmd: 'start_output_stream',
         device_id: deviceId,
@@ -1767,8 +1764,7 @@ async function enginePlaybackStart(filePath) {
     const bufOut = document.getElementById('aeBufferFramesOutput');
     const bfRaw = bufOut && typeof bufOut.value === 'string' ? bufOut.value : '';
     const bufferFrames = parseAeBufferFramesPref(bfRaw);
-    await inv({cmd: 'stop_output_stream'});
-    await inv({cmd: 'set_output_device', device_id: deviceId});
+    /* `start_output_stream` stops any existing stream and validates `device_id` — avoid extra IPC round-trips. */
     const payload = {
         cmd: 'start_output_stream',
         device_id: deviceId,

@@ -24,7 +24,7 @@ Each line is a JSON object with at least `cmd`. Optional fields include `device_
 
 ### Library playback (JUCE + DSP)
 
-**`playback_load`** opens the path with **`AudioFormatManager`** (`registerBasicFormats`). Duration and source sample rate come from the reader. **`start_output_stream`** with **`start_playback: true`** wires **`AudioTransportSource`** → **`AudioSourcePlayer`** → **`AudioDeviceManager`** output callback. DSP (EQ / gain / pan) runs in **`DspStereoFileSource`**, then **optional VST3 / AU inserts** (see **`playback_set_inserts`**), before audio reaches the device. **Reverse playback** uses a sample-wise path — **inserts are skipped** in that mode.
+**`playback_load`** opens the path with **`AudioFormatManager`** (`registerBasicFormats`). Duration and source sample rate come from the reader. The sidecar handles **`playback_load`** before **`AudioDeviceManager::initialise`** so opening a file does not block on CoreAudio first — device setup runs when **`start_output_stream`** (or any other audio-device command) runs. **`start_output_stream`** with **`start_playback: true`** wires **`AudioTransportSource`** → **`AudioSourcePlayer`** → **`AudioDeviceManager`** output callback. DSP (EQ / gain / pan) runs in **`DspStereoFileSource`**, then **optional VST3 / AU inserts** (see **`playback_set_inserts`**), before audio reaches the device. **Reverse playback** uses a sample-wise path — **inserts are skipped** in that mode.
 
 | Command | Fields | Purpose |
 |--------|--------|---------|

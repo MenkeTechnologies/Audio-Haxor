@@ -71,6 +71,17 @@ static juce::File knownPluginListCacheFilePath()
     return audio_haxor::appDataDirectoryForSidecar().getChildFile("known-plugin-list.xml");
 }
 
+/** Called after each scan step so a hang or crash mid-scan still leaves a useful cache on disk. */
+static void persistKnownPluginListCache(const juce::KnownPluginList& list)
+{
+    const juce::File cacheFile = knownPluginListCacheFilePath();
+    if (auto xml = list.createXml())
+    {
+        (void) cacheFile.getParentDirectory().createDirectory();
+        xml->writeTo(cacheFile, {});
+    }
+}
+
 static juce::StringArray readDeadMansPedalLines(const juce::File& deadMans)
 {
     juce::StringArray lines;
@@ -1018,6 +1029,7 @@ struct Engine::Impl
                            + "\" what=\"" + juce::String(e.what()) + "\"");
                 processed++;
                 pluginScanProgress.done.fetch_add(1, std::memory_order_relaxed);
+                persistKnownPluginListCache(list);
                 continue;
             }
             catch (...)
@@ -1028,10 +1040,12 @@ struct Engine::Impl
                            + "\" (non-std)");
                 processed++;
                 pluginScanProgress.done.fetch_add(1, std::memory_order_relaxed);
+                persistKnownPluginListCache(list);
                 continue;
             }
             processed++;
             pluginScanProgress.done.fetch_add(1, std::memory_order_relaxed);
+            persistKnownPluginListCache(list);
             if (!more)
                 break;
         }
@@ -1102,6 +1116,7 @@ struct Engine::Impl
         }
         catch (const std::exception& e)
         {
+            persistKnownPluginListCache(list);
             std::lock_guard<std::mutex> lock(pluginScanMutex);
             pluginScanPhase = PluginScanPhase::Failed;
             pluginScanLastError = "scan failed: " + juce::String(e.what());
@@ -1109,16 +1124,11 @@ struct Engine::Impl
         }
         catch (...)
         {
+            persistKnownPluginListCache(list);
             std::lock_guard<std::mutex> lock(pluginScanMutex);
             pluginScanPhase = PluginScanPhase::Failed;
             pluginScanLastError = "scan failed: unknown exception";
             return;
-        }
-
-        if (auto xml = list.createXml())
-        {
-            (void) cacheFile.getParentDirectory().createDirectory();
-            xml->writeTo(cacheFile, {});
         }
 
         const juce::Array<juce::PluginDescription> types = list.getTypes();
@@ -1802,6 +1812,10 @@ juce::var Engine::dispatch(const juce::var& req)
     if (cmd == "spectrogram_preview")
         return spectrogramPreview(impl->formatManager, req);
 
+    /** Only reads the file / session fields — no `AudioDeviceManager` needed; defer CoreAudio init to `start_output_stream`. */
+    if (cmd == "playback_load")
+        return impl->playbackLoad(req);
+
     impl->ensureAudioDeviceManagersInitialised();
 
     if (cmd == "engine_state")
@@ -2049,9 +2063,6 @@ juce::var Engine::dispatch(const juce::var& req)
 
     if (cmd == "start_input_stream")
         return impl->startInputStreamLocked(req);
-
-    if (cmd == "playback_load")
-        return impl->playbackLoad(req);
 
     if (cmd == "playback_stop")
         return impl->playbackStopLocked();
