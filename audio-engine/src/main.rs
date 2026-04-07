@@ -130,18 +130,40 @@ enum AudioCmd {
 /// Prefer opening the output device at `prefer_hz` (from `playback_load`) when the device reports
 /// an F32 config that includes that rate — avoids large `src_rate`/`device_rate` ratios when the
 /// default device config is e.g. 48 kHz but the file is 44.1 kHz.
+///
+/// When several F32 ranges include the same rate (e.g. stereo vs multichannel), prefer **2
+/// channels** so the stream matches typical headphones / stereo output instead of a surround layout.
+fn output_config_preference_key(cfg: &SupportedStreamConfig) -> (u8, u16) {
+    let ch = cfg.channels();
+    if ch == 2 {
+        (0, ch)
+    } else {
+        (1, ch)
+    }
+}
+
 fn pick_output_config_for_playback(device: &Device, prefer_hz: u32) -> Result<SupportedStreamConfig, String> {
     let ranges: Vec<_> = device
         .supported_output_configs()
         .map_err(|e| format!("supported_output_configs: {e}"))?
         .collect();
+    let mut best_exact: Option<SupportedStreamConfig> = None;
     for r in &ranges {
         if r.sample_format() != SampleFormat::F32 {
             continue;
         }
         if let Some(cfg) = r.try_with_sample_rate(SampleRate(prefer_hz)) {
-            return Ok(cfg);
+            let replace = match &best_exact {
+                None => true,
+                Some(b) => output_config_preference_key(&cfg) < output_config_preference_key(b),
+            };
+            if replace {
+                best_exact = Some(cfg);
+            }
         }
+    }
+    if let Some(cfg) = best_exact {
+        return Ok(cfg);
     }
     let mut best: Option<(SupportedStreamConfig, u32)> = None;
     for r in ranges {
@@ -153,10 +175,20 @@ fn pick_output_config_for_playback(device: &Device, prefer_hz: u32) -> Result<Su
         let target = prefer_hz.clamp(mn, mx);
         let cfg = r.with_sample_rate(SampleRate(target));
         let diff = target.abs_diff(prefer_hz);
-        match &best {
-            None => best = Some((cfg, diff)),
-            Some((_, d)) if diff < *d => best = Some((cfg, diff)),
-            _ => {}
+        let replace = match &best {
+            None => true,
+            Some((bcfg, bd)) => {
+                if diff < *bd {
+                    true
+                } else if diff == *bd {
+                    output_config_preference_key(&cfg) < output_config_preference_key(bcfg)
+                } else {
+                    false
+                }
+            }
+        };
+        if replace {
+            best = Some((cfg, diff));
         }
     }
     if let Some((cfg, _)) = best {

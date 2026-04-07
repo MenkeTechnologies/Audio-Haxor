@@ -326,6 +326,15 @@ fn probe_first_decoded_sample_rate(format: &mut Box<dyn FormatReader>, track_id:
     }
 }
 
+#[inline]
+fn ratio_from_rates(src_rate: u32, device_rate: u32) -> f64 {
+    if src_rate == device_rate {
+        1.0
+    } else {
+        f64::from(src_rate) / f64::from(device_rate)
+    }
+}
+
 fn decode_loop(path: String, shared: Arc<PlaybackShared>, device_rate: u32, track_id: u32) -> Result<(), String> {
     let path_buf = Path::new(&path).to_path_buf();
     let mut format = open_format(&path_buf)?;
@@ -336,14 +345,21 @@ fn decode_loop(path: String, shared: Arc<PlaybackShared>, device_rate: u32, trac
         .or_else(|| format.default_track())
         .ok_or_else(|| "no track".to_string())?;
     let tid = track.id;
-    let mut src_rate = track.codec_params.sample_rate.ok_or_else(|| "unknown sample rate".to_string())?;
+    // Prefer `playback_load` probe (atomic) so initial ratio matches `pick_output_config` before
+    // the first packet; fall back to container metadata from this fresh open.
+    let probed = shared.src_rate.load(Ordering::Relaxed);
+    let mut src_rate = if probed > 0 {
+        probed
+    } else {
+        track.codec_params.sample_rate.ok_or_else(|| "unknown sample rate".to_string())?
+    };
     let mut decoder = symphonia::default::get_codecs()
         .make(&track.codec_params, &DecoderOptions::default())
         .map_err(|e| e.to_string())?;
 
     // `codec_params.sample_rate` can disagree with the decoded stream (notably some MP3 probes).
     // Wrong `src_rate` here makes `ratio` wrong → wrong resample speed vs device clock.
-    let mut ratio = f64::from(src_rate) / f64::from(device_rate);
+    let mut ratio = ratio_from_rates(src_rate, device_rate);
     let mut staging: Vec<f32> = Vec::new();
     // Fractional index in **stereo frames** from the start of `staging` (linear interp).
     let mut read_pos: f64 = 0.0;
@@ -405,7 +421,7 @@ fn decode_loop(path: String, shared: Arc<PlaybackShared>, device_rate: u32, trac
             if rate > 0 && rate != src_rate {
                 src_rate = rate;
                 shared.src_rate.store(src_rate, Ordering::Relaxed);
-                ratio = f64::from(src_rate) / f64::from(device_rate);
+                ratio = ratio_from_rates(src_rate, device_rate);
                 staging.clear();
                 read_pos = 0.0;
             }
