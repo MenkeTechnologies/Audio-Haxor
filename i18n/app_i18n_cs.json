@@ -634,7 +634,7 @@
   "ui.ae.input_default_caps_label": "Default input (cpal)",
   "ui.ae.input_device_default_option": "Default (system)",
   "ui.ae.input_device_label": "Input device",
-  "ui.ae.input_device_tt": "Choose an input for the caps line below (capture stream not started yet)",
+  "ui.ae.input_device_tt": "Choose which input is used for the caps readout and for Start input capture. Live capture status and peak update in the engine status card.",
   "ui.ae.input_devices_heading": "Input devices",
   "ui.ae.input_devices_intro": "Sidecar list_input_devices (capture/debug).",
   "ui.ae.input_peak_suffix": " · peak {level}",
