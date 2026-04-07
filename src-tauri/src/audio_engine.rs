@@ -10,7 +10,7 @@
 //! quit (sidecar never receives `kill`). We keep the child PID in [`ENGINE_CHILD_PID`] and send
 //! `SIGKILL` / `taskkill /F` first, then clear the slot.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -318,6 +318,36 @@ pub fn spawn_audio_engine_request(request: &serde_json::Value) -> Result<serde_j
     spawn_audio_engine_request_at(request)
 }
 
+/// One response is one JSON object/array per line. A linked library may print warnings to **stdout**
+/// before the JSON line (e.g. `Warning: thread locking is not implemented`), which would break
+/// `serde_json::from_str` on the first `read_line`. Skip lines until one starts with `{` or `[`.
+fn read_engine_json_line<R: Read>(stdout: &mut BufReader<R>) -> Result<String, String> {
+    const MAX_LINE_READS: usize = 256;
+    let mut line = String::new();
+    for _ in 0..MAX_LINE_READS {
+        line.clear();
+        match stdout.read_line(&mut line) {
+            Ok(0) => return Err("audio-engine closed stdout".to_string()),
+            Ok(_) => {
+                let mut s = line.trim();
+                if s.starts_with('\u{feff}') {
+                    s = s.trim_start_matches('\u{feff}').trim_start();
+                }
+                if s.is_empty() {
+                    continue;
+                }
+                let first = s.as_bytes().first().copied();
+                if first == Some(b'{') || first == Some(b'[') {
+                    return Ok(s.to_string());
+                }
+                continue;
+            }
+            Err(e) => return Err(format!("audio-engine stdout: {e}")),
+        }
+    }
+    Err("audio-engine stdout: no JSON line (exceeded line read limit)".to_string())
+}
+
 fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_json::Value, String> {
     let payload = serde_json::to_string(request).map_err(|e| e.to_string())?;
 
@@ -354,41 +384,17 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
             continue;
         }
 
-        let mut line = String::new();
-        match eng.stdout.read_line(&mut line) {
-            Ok(0) => {
-                let stderr_tail = Arc::clone(&eng.stderr_tail);
-                clear_engine_pid();
-                *guard = None;
-                if attempt == 1 {
-                    log_ipc_failure(
-                        "sidecar closed stdout (process exited or crashed)",
-                        Some(&stderr_tail),
-                    );
-                    return Err("audio-engine closed stdout".to_string());
-                }
-                continue;
-            }
-            Ok(_) => {
-                let line = line.trim();
-                if line.is_empty() {
-                    let stderr_tail = Arc::clone(&eng.stderr_tail);
-                    clear_engine_pid();
-                    *guard = None;
-                    if attempt == 1 {
-                        log_ipc_failure("empty JSON line on stdout", Some(&stderr_tail));
-                        return Err("audio-engine returned empty stdout".to_string());
-                    }
-                    continue;
-                }
-                let v: serde_json::Value = match serde_json::from_str(line) {
+        match read_engine_json_line(&mut eng.stdout) {
+            Ok(json_line) => {
+                let v: serde_json::Value = match serde_json::from_str(&json_line) {
                     Ok(v) => v,
                     Err(e) => {
+                        let stderr_tail = Arc::clone(&eng.stderr_tail);
                         log_ipc_failure(
-                            format!("invalid JSON on stdout: {e}; line={line:?}"),
-                            Some(&eng.stderr_tail),
+                            format!("invalid JSON on stdout: {e}; line={json_line:?}"),
+                            Some(&stderr_tail),
                         );
-                        return Err(format!("audio-engine JSON: {e}: {line}"));
+                        return Err(format!("audio-engine JSON: {e}: {json_line}"));
                     }
                 };
                 // Long-lived child can outlive a fresh `node scripts/build-audio-engine.mjs`; the old process may
@@ -408,11 +414,19 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
             }
             Err(e) => {
                 let stderr_tail = Arc::clone(&eng.stderr_tail);
+                let is_eof = e == "audio-engine closed stdout";
                 clear_engine_pid();
                 *guard = None;
                 if attempt == 1 {
-                    log_ipc_failure(format!("stdout read: {e}"), Some(&stderr_tail));
-                    return Err(format!("audio-engine stdout: {e}"));
+                    if is_eof {
+                        log_ipc_failure(
+                            "sidecar closed stdout (process exited or crashed)",
+                            Some(&stderr_tail),
+                        );
+                    } else {
+                        log_ipc_failure(format!("stdout read: {e}"), Some(&stderr_tail));
+                    }
+                    return Err(e);
                 }
             }
         }
@@ -423,10 +437,30 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
 
 #[cfg(test)]
 mod tests {
+    use std::io::{BufReader, Cursor};
+
+    use super::read_engine_json_line;
+
     #[test]
     fn parse_engine_response_line() {
         let s = r#"{"ok":true,"version":"1.0.0"}"#;
         let v: serde_json::Value = serde_json::from_str(s).unwrap();
         assert_eq!(v["ok"], true);
+    }
+
+    #[test]
+    fn read_engine_json_line_skips_leading_warning_on_stdout() {
+        let data = b"Warning: thread locking is not implemented\n{\"ok\":true,\"x\":1}\n";
+        let mut r = BufReader::new(Cursor::new(&data[..]));
+        let line = read_engine_json_line(&mut r).unwrap();
+        assert_eq!(line, r#"{"ok":true,"x":1}"#);
+    }
+
+    #[test]
+    fn read_engine_json_line_strips_bom() {
+        let data = "\u{feff}{\"ok\":false}\n".as_bytes();
+        let mut r = BufReader::new(Cursor::new(data));
+        let line = read_engine_json_line(&mut r).unwrap();
+        assert_eq!(line, r#"{"ok":false}"#);
     }
 }
