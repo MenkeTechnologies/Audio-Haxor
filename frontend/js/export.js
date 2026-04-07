@@ -314,11 +314,13 @@ async function exportDaw() {
     if (typeof dawScanProgressCleanup === 'undefined' || !dawScanProgressCleanup) {
         projects = typeof allDawProjects !== 'undefined' && allDawProjects.length > 0 ? allDawProjects : null;
     }
+    const pageHint = typeof filteredDawProjects !== 'undefined' && filteredDawProjects ? filteredDawProjects.length : 0;
     const countForModal = projects && projects.length > 0
         ? projects.length
         : Math.max(
-            typeof _dawTotalCount !== 'undefined' ? _dawTotalCount : 0,
-            typeof _dawTotalUnfiltered !== 'undefined' ? _dawTotalUnfiltered : 0
+            Number(_dawTotalCount) || 0,
+            Number(_dawTotalUnfiltered) || 0,
+            pageHint
         );
     if (countForModal === 0) {
         showToast(toastFmt('toast.no_list_export'));
