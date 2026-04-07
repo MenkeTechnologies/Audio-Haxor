@@ -35,4 +35,4 @@ Tauri bundles this via `scripts/prepare-audio-engine-sidecar.mjs` and `bundle.ex
 
 ## Host app (WEB UI)
 
-`frontend/js/audio-engine.js` drives the Audio Engine tab. After Apply / tone / capture / stop failures, **`fillAeStreamsAfterEngineError`** re-invokes `engine_state` so the output/input stream lines match the sidecar. If **`audioEngineInvoke`** is unavailable, **`aeNotifyNoAudioEngineIpc`** clears stream lines to `—` and sets **`ui.ae.err_no_ipc`** on the engine status line (same pattern as Refresh with no IPC).
+`frontend/js/audio-engine.js` drives the Audio Engine tab. **`getAeAudioEngineInvoke()`** returns the preload `audioEngineInvoke` or `null` (guards missing `window.vstUpdater` / release load order). After Apply / tone / capture / stop failures, **`fillAeStreamsAfterEngineError`** re-invokes `engine_state` so the output/input stream lines match the sidecar. If **`audioEngineInvoke`** is unavailable, **`aeNotifyNoAudioEngineIpc`** clears stream lines to `—` and sets **`ui.ae.err_no_ipc`** on the engine status line (same pattern as Refresh with no IPC).
