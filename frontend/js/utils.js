@@ -1171,6 +1171,8 @@ function _ensureTabCache() {
 function switchTab(tab) {
     _ensureTabCache();
     _ensureTabButtonCache();
+    // Batch selection is per-tab row data; leaving it across tabs made JSON/Favorite/Reveal use the wrong `all*` arrays (silent no-op).
+    if (typeof deselectAll === 'function') deselectAll();
     // Toggle tab buttons + panels in one pass — pure class mutations, no layout reads.
     for (const b of _tabButtonsCache) {
         b.classList.toggle('active', b.dataset.tab === tab);

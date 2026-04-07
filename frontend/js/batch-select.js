@@ -3,9 +3,21 @@
 
 const batchSelected = new Set();
 
-function getRowPath(tr) {
-    if (!tr) return null;
-    return tr.dataset.audioPath || tr.dataset.dawPath || tr.dataset.presetPath || tr.dataset.midiPath || tr.dataset.pdfPath || null;
+function getPathFromBatchRow(el) {
+    if (!el) return null;
+    return (
+        el.dataset.audioPath ||
+        el.dataset.dawPath ||
+        el.dataset.presetPath ||
+        el.dataset.midiPath ||
+        el.dataset.pdfPath ||
+        el.dataset.path ||
+        null
+    );
+}
+
+function rowElementFromBatchCheckbox(cb) {
+    return cb.closest('tr') || cb.closest('.plugin-card') || cb.closest('.fav-item');
 }
 
 function toggleBatchSelect(path, checked) {
@@ -22,7 +34,7 @@ function selectAllVisible() {
     if (!tbody) return;
     tbody.querySelectorAll('.batch-cb').forEach(cb => {
         cb.checked = true;
-        const path = getRowPath(cb.closest('tr'));
+        const path = getPathFromBatchRow(rowElementFromBatchCheckbox(cb));
         if (path) batchSelected.add(path);
     });
     updateBatchBar();
@@ -66,8 +78,12 @@ function updateBatchBar() {
 function batchFavoriteAll() {
     const activeTab = document.querySelector('.tab-content.active');
     if (!activeTab) return;
-    let type = 'sample', items = typeof allAudioSamples !== 'undefined' ? allAudioSamples : [];
-    if (activeTab.id === 'tabDaw') {
+    let type = 'sample',
+        items = typeof allAudioSamples !== 'undefined' ? allAudioSamples : [];
+    if (activeTab.id === 'tabPlugins') {
+        type = 'plugin';
+        items = typeof allPlugins !== 'undefined' ? allPlugins : [];
+    } else if (activeTab.id === 'tabDaw') {
         type = 'daw';
         items = typeof allDawProjects !== 'undefined' ? allDawProjects : [];
     } else if (activeTab.id === 'tabPresets') {
@@ -76,14 +92,21 @@ function batchFavoriteAll() {
     } else if (activeTab.id === 'tabMidi') {
         type = 'midi';
         items = typeof allMidiFiles !== 'undefined' ? allMidiFiles : [];
+    } else if (activeTab.id === 'tabPdf') {
+        type = 'pdf';
+        items = typeof allPdfs !== 'undefined' ? allPdfs : [];
     }
 
     let added = 0;
     for (const path of batchSelected) {
         if (isFavorite(path)) continue;
-        const item = items.find(i => i.path === path);
+        const item = typeof findByPath === 'function' ? findByPath(items, path) : items.find(i => i.path === path);
         if (item) {
-            addFavorite(type, path, item.name, {format: item.format, daw: item.daw});
+            if (type === 'plugin') {
+                addFavorite(type, path, item.name, {format: item.type || item.format || ''});
+            } else {
+                addFavorite(type, path, item.name, {format: item.format, daw: item.daw});
+            }
             added++;
         }
     }
@@ -93,6 +116,7 @@ function batchFavoriteAll() {
 
 function batchCopyPaths() {
     const paths = [...batchSelected].join('\n');
+    if (typeof copyToClipboard !== 'function') return;
     copyToClipboard(paths);
     showToast(toastFmt('toast.copied_n_paths', {n: batchSelected.size}));
 }
@@ -112,15 +136,22 @@ function batchExportSelected() {
         return out;
     };
     let items = [];
-    if (activeTab.id === 'tabSamples') {
+    if (activeTab.id === 'tabPlugins') {
+        items = pickByPaths(typeof allPlugins !== 'undefined' ? allPlugins : []);
+    } else if (activeTab.id === 'tabSamples') {
         items = pickByPaths(allAudioSamples);
     } else if (activeTab.id === 'tabDaw') {
         items = pickByPaths(allDawProjects);
     } else if (activeTab.id === 'tabPresets') {
         items = pickByPaths(allPresets);
+    } else if (activeTab.id === 'tabMidi') {
+        items = pickByPaths(typeof allMidiFiles !== 'undefined' ? allMidiFiles : []);
+    } else if (activeTab.id === 'tabPdf') {
+        items = pickByPaths(typeof allPdfs !== 'undefined' ? allPdfs : []);
     }
 
     if (items.length === 0) return;
+    if (typeof copyToClipboard !== 'function') return;
     copyToClipboard(JSON.stringify(items, null, 2));
     showToast(toastFmt('toast.copied_n_json', {n: items.length}));
 }
@@ -130,16 +161,26 @@ function batchRevealAll() {
     if (!activeTab || batchSelected.size === 0) return;
     // Reveal first selected item
     const path = [...batchSelected][0];
-    if (activeTab.id === 'tabSamples') openAudioFolder(path);
-    else if (activeTab.id === 'tabDaw') openDawFolder(path);
-    else if (activeTab.id === 'tabPresets') openPresetFolder(path);
+    if (activeTab.id === 'tabSamples') {
+        if (typeof openAudioFolder === 'function') openAudioFolder(path);
+    } else if (activeTab.id === 'tabDaw') {
+        if (typeof openDawFolder === 'function') openDawFolder(path);
+    } else if (activeTab.id === 'tabPresets') {
+        if (typeof openPresetFolder === 'function') openPresetFolder(path);
+    } else if (activeTab.id === 'tabPlugins') {
+        if (typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.openPluginFolder === 'function') {
+            window.vstUpdater.openPluginFolder(path).catch(e => showToast(toastFmt('toast.failed', {err: e}), 4000, 'error'));
+        }
+    } else if (activeTab.id === 'tabMidi' || activeTab.id === 'tabPdf') {
+        if (typeof openAudioFolder === 'function') openAudioFolder(path);
+    }
     showToast(toastFmt('toast.revealing_first_batch', {n: batchSelected.size}));
 }
 
 // Wire up checkbox changes and batch action buttons
 document.addEventListener('change', (e) => {
     if (e.target.classList.contains('batch-cb')) {
-        const path = getRowPath(e.target.closest('tr'));
+        const path = getPathFromBatchRow(rowElementFromBatchCheckbox(e.target));
         if (path) toggleBatchSelect(path, e.target.checked);
     }
 });
