@@ -4,7 +4,7 @@ Sidecar binary for **AUDIO_HAXOR**: cpal-based **input and output** device disco
 
 ## Protocol
 
-Each line is a JSON object with at least `cmd`. Optional fields include `device_id`, `tone` (bool, output only), `buffer_frames` (positive `u32`, fixed hardware buffer size in frames, clamped to the device’s supported range — applies to **both** input and output starts), and **`start_playback`** (bool, output only): when `true` after **`playback_load`**, the F32 output callback pulls decoded PCM from a ring buffer (library playback path) instead of tone/silence.
+Each line is a JSON object with at least `cmd`. Optional fields include `device_id`, `tone` (bool, output only), `buffer_frames` (positive `u32`, fixed hardware buffer size in frames — **capped at 8192** before the device’s range clamp; prevents typos like `144000` which are ~**3** seconds at 48 kHz per callback and sound like audio continuing after **stop**), and **`start_playback`** (bool, output only): when `true` after **`playback_load`**, the F32 output callback pulls decoded PCM from a ring buffer (library playback path) instead of tone/silence.
 
 ### Library playback (decode + ring + DSP)
 
@@ -34,7 +34,7 @@ Notable commands (devices + I/O):
 | `get_output_device_info` / `get_input_device_info` | Default config + `buffer_size` object (`kind`: `range` \| `unknown`). Omit `device_id` to query the host default input/output device. |
 | `set_output_device` / `set_input_device` | Validate `device_id` only (no stream opened) |
 | `start_output_stream` | Open **output** config (with **`start_playback`**, prefer F32 at loaded **`src_rate`** when supported); optional `buffer_frames`, **`start_playback`**; **F32** supports `tone` (440 Hz sine) **or** file PCM when `start_playback` is set. |
-| `stop_output_stream` | Drop output stream |
+| `stop_output_stream` | Drop output stream. The host Audio Engine tab also sends **`playback_stop`** so the library session is cleared and the floating player state stays in sync. |
 | `output_stream_status` | Running + `tone_supported` / `tone_on` + `stream_buffer_frames` (null when idle or driver default) |
 | `start_input_stream` | Open default **input** config; optional `buffer_frames`; callback discards samples and updates **`input_peak`** (0..1 linear, block peak + decay). |
 | `stop_input_stream` | Drop input stream |

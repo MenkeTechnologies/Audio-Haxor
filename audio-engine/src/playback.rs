@@ -215,6 +215,8 @@ pub struct PlaybackShared {
     pub eof: AtomicBool,
     pub dsp: Arc<DspAtomic>,
     dsp_chain: Mutex<DspChain>,
+    /// Last stereo sample pair delivered to the callback; repeated when the ring underruns (zeros sound like glitches).
+    last_held: Mutex<(f32, f32)>,
 }
 
 impl PlaybackShared {
@@ -234,6 +236,7 @@ impl PlaybackShared {
             eof: AtomicBool::new(false),
             dsp,
             dsp_chain: Mutex::new(DspChain::new()),
+            last_held: Mutex::new((0.0, 0.0)),
         })
     }
 
@@ -263,11 +266,18 @@ impl PlaybackShared {
         let mut scratch = self.ring_pop_scratch.lock().unwrap();
         scratch.resize(need, 0.0);
         {
-            let mut ring = self.ring.lock().unwrap();
-            for i in 0..frames {
-                scratch[i * 2] = ring.pop_front().unwrap_or(0.0);
-                scratch[i * 2 + 1] = ring.pop_front().unwrap_or(0.0);
+            let mut prev = *self.last_held.lock().unwrap();
+            {
+                let mut ring = self.ring.lock().unwrap();
+                for i in 0..frames {
+                    if ring.len() >= 2 {
+                        prev = (ring.pop_front().unwrap(), ring.pop_front().unwrap());
+                    }
+                    scratch[i * 2] = prev.0;
+                    scratch[i * 2 + 1] = prev.1;
+                }
             }
+            *self.last_held.lock().unwrap() = prev;
         }
 
         let mut chain = self.dsp_chain.lock().unwrap();
@@ -451,41 +461,53 @@ fn decode_loop(path: String, shared: Arc<PlaybackShared>, device_rate: u32, trac
             stereo_frames = staging.len() / 2;
         }
 
-        stereo_frames = staging.len() / 2;
-        if stereo_frames < 2 {
-            if shared.eof.load(Ordering::Relaxed) {
-                std::thread::sleep(std::time::Duration::from_millis(20));
+        // Push every frame we can from staging into the ring without re-entering the outer loop.
+        // One frame per outer iteration was too slow vs the cpal callback → chronic underruns (glitchy).
+        loop {
+            if shared.stop_decoder.load(Ordering::Relaxed) {
+                break;
             }
-            continue;
-        }
+            {
+                let ring = shared.ring.lock().unwrap();
+                if ring.len() > shared.ring_cap * 8 / 10 {
+                    break;
+                }
+            }
 
-        let base = read_pos.floor() as usize;
-        if base + 1 >= stereo_frames {
-            continue;
-        }
-        let t = read_pos - base as f64;
-        let i0 = base * 2;
-        let i1 = (base + 1) * 2;
-        if i1 + 1 >= staging.len() {
-            continue;
-        }
-        let l = (staging[i0] as f64 + t * (staging[i1] as f64 - staging[i0] as f64)) as f32;
-        let r = (staging[i0 + 1] as f64 + t * (staging[i1 + 1] as f64 - staging[i0 + 1] as f64)) as f32;
-        {
-            let mut ring = shared.ring.lock().unwrap();
-            if ring.len() + 2 <= shared.ring_cap {
+            stereo_frames = staging.len() / 2;
+            if stereo_frames < 2 {
+                if shared.eof.load(Ordering::Relaxed) {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                break;
+            }
+
+            let base = read_pos.floor() as usize;
+            if base + 1 >= stereo_frames {
+                break;
+            }
+            let t = read_pos - base as f64;
+            let i0 = base * 2;
+            let i1 = (base + 1) * 2;
+            if i1 + 1 >= staging.len() {
+                break;
+            }
+            let l = (staging[i0] as f64 + t * (staging[i1] as f64 - staging[i0] as f64)) as f32;
+            let r = (staging[i0 + 1] as f64 + t * (staging[i1 + 1] as f64 - staging[i0 + 1] as f64)) as f32;
+            {
+                let mut ring = shared.ring.lock().unwrap();
+                if ring.len() + 2 > shared.ring_cap {
+                    break;
+                }
                 ring.push_back(l);
                 ring.push_back(r);
             }
-        }
-        read_pos += ratio;
+            read_pos += ratio;
 
-        // Normalize read_pos into [0, 1) frame offset by dropping consumed stereo frames from the
-        // front of staging (one frame = two interleaved samples). Requires ≥2 frames before drop
-        // so one frame remains for the next decode pass when only two frames were buffered.
-        while read_pos >= 1.0 && staging.len() >= 4 {
-            staging.drain(0..2);
-            read_pos -= 1.0;
+            while read_pos >= 1.0 && staging.len() >= 4 {
+                staging.drain(0..2);
+                read_pos -= 1.0;
+            }
         }
     }
     Ok(())
@@ -571,6 +593,7 @@ pub fn begin_playback(device_rate: u32) -> Result<(), String> {
         let mut ring = sess.shared.ring.lock().unwrap();
         ring.clear();
     }
+    *sess.shared.last_held.lock().unwrap() = (0.0, 0.0);
 
     let path = sess.path.clone();
     let shared = sess.shared.clone();

@@ -479,6 +479,11 @@ fn buffer_size_json(bs: &SupportedBufferSize) -> serde_json::Value {
     }
 }
 
+/// Upper bound for user-requested hardware buffer size (frames per callback).
+/// Values like `144000` are easy typos: at 48 kHz that is **3 seconds** per buffer — stop/restart then
+/// sounds like audio shutting off seconds after halt, and underrun recovery is hopeless.
+const MAX_BUFFER_FRAMES: u32 = 8192;
+
 /// Sets `cfg.buffer_size` to [`BufferSize::Fixed`] when `requested` is present; returns the frame count applied.
 fn apply_buffer_frames_request(
     cfg: &mut StreamConfig,
@@ -488,6 +493,7 @@ fn apply_buffer_frames_request(
     let Some(req) = requested.filter(|n| *n > 0) else {
         return None;
     };
+    let req = req.min(MAX_BUFFER_FRAMES).max(1);
     match supported_bs {
         SupportedBufferSize::Range { min, max } => {
             let f = req.clamp(*min, *max);
@@ -495,9 +501,8 @@ fn apply_buffer_frames_request(
             Some(f)
         }
         SupportedBufferSize::Unknown => {
-            let f = req.max(1);
-            cfg.buffer_size = BufferSize::Fixed(f);
-            Some(f)
+            cfg.buffer_size = BufferSize::Fixed(req);
+            Some(req)
         }
     }
 }
@@ -1392,5 +1397,21 @@ mod tests {
         );
         assert_eq!(r, None);
         assert_eq!(cfg.buffer_size, BufferSize::Default);
+    }
+
+    #[test]
+    fn apply_buffer_frames_caps_absurd_request_before_unknown() {
+        let mut cfg = StreamConfig {
+            channels: 2,
+            sample_rate: SampleRate(48_000),
+            buffer_size: BufferSize::Default,
+        };
+        let r = apply_buffer_frames_request(
+            &mut cfg,
+            &SupportedBufferSize::Unknown,
+            Some(144_000),
+        );
+        assert_eq!(r, Some(MAX_BUFFER_FRAMES));
+        assert_eq!(cfg.buffer_size, BufferSize::Fixed(MAX_BUFFER_FRAMES));
     }
 }

@@ -345,6 +345,26 @@ let _reverseDecodeBusy = false;
 /** Library playback through `audio-engine` sidecar (no Web Audio output). */
 let _enginePlaybackActive = false;
 
+/** Audio Engine tab "Stop stream" calls `stop_output_stream` + `playback_stop`; sync JS so `isAudioPlaying()` matches. */
+function syncEnginePlaybackStoppedFromSidecar() {
+    _enginePlaybackActive = false;
+    if (typeof window.stopEnginePlaybackPoll === 'function') {
+        window.stopEnginePlaybackPoll();
+    }
+    window._enginePlaybackPosSec = 0;
+    window._enginePlaybackDurSec = 0;
+    window._enginePlaybackPaused = false;
+    if (typeof updatePlayBtnStates === 'function') {
+        updatePlayBtnStates();
+    }
+    if (typeof updateNowPlayingBtn === 'function') {
+        updateNowPlayingBtn();
+    }
+}
+if (typeof window !== 'undefined') {
+    window.syncEnginePlaybackStoppedFromSidecar = syncEnginePlaybackStoppedFromSidecar;
+}
+
 function isAudioPlaying() {
     if (_enginePlaybackActive) {
         return window._enginePlaybackPaused !== true;

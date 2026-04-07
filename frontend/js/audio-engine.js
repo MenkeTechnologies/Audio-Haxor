@@ -142,12 +142,15 @@ function bindAeInputPeakVisibilityOnce() {
  * @param {string} raw
  * @returns {number|undefined} positive integer frame count, or undefined to use driver default
  */
+/** Matches sidecar `MAX_BUFFER_FRAMES` — typos like 144000 are ~3s @ 48 kHz and sound like delayed mute after stop. */
+const AE_MAX_BUFFER_FRAMES = 8192;
+
 function parseAeBufferFramesPref(raw) {
     const s = String(raw ?? '').trim();
     if (s === '') return undefined;
     const n = Number.parseInt(s, 10);
     if (!Number.isFinite(n) || n < 1) return undefined;
-    return n >>> 0;
+    return Math.min(n >>> 0, AE_MAX_BUFFER_FRAMES);
 }
 
 /**
@@ -812,6 +815,14 @@ async function stopAeOutputStream() {
     try {
         const r = await inv({cmd: 'stop_output_stream'});
         throwIfAeNotOk(r, 'stop_output_stream failed');
+        try {
+            await inv({cmd: 'playback_stop'});
+        } catch {
+            /* session may already be clear */
+        }
+        if (typeof window.syncEnginePlaybackStoppedFromSidecar === 'function') {
+            window.syncEnginePlaybackStoppedFromSidecar();
+        }
         const es = await inv({cmd: 'engine_state'});
         fillAeEngineStatusOkFromState(statusEl, es);
         fillAeStreamsFromEngineState(es);
