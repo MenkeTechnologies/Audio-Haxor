@@ -1,5 +1,203 @@
 // ── Audio Samples (paginated via SQLite) ──
-let allAudioSamples = []; // kept for export/compatibility — lazily populated
+/** Same directory as this script (for `audio-decode-worker.js`); set while this file executes. */
+const _AUDIO_JS_BASE =
+    typeof document !== 'undefined' && document.currentScript && document.currentScript.src
+        ? document.currentScript.src
+        : '';
+
+function _audioDecodeWorkerScriptUrl() {
+    if (_AUDIO_JS_BASE) {
+        try {
+            return new URL('audio-decode-worker.js', _AUDIO_JS_BASE).href;
+        } catch (_) {
+            /* fall through */
+        }
+    }
+    try {
+        const base = typeof location !== 'undefined' && location.href ? location.href : '';
+        return base ? new URL('js/audio-decode-worker.js', base).href : 'js/audio-decode-worker.js';
+    } catch (_) {
+        return 'js/audio-decode-worker.js';
+    }
+}
+
+let _audioDecodeWorker = null;
+let _audioDecodeWorkerJobId = 0;
+const _audioDecodeWorkerPending = new Map();
+
+function _audioDecodeWorkerOnMessage(ev) {
+    const d = ev.data;
+    if (!d || typeof d.id !== 'number') return;
+    const pending = _audioDecodeWorkerPending.get(d.id);
+    if (!pending) return;
+    _audioDecodeWorkerPending.delete(d.id);
+    if (d.ok) pending.resolve(d);
+    else pending.reject(new Error(d.error || 'worker decode failed'));
+}
+
+function getAudioDecodeWorker() {
+    if (typeof Worker !== 'function') return null;
+    if (_audioDecodeWorker) return _audioDecodeWorker;
+    try {
+        _audioDecodeWorker = new Worker(_audioDecodeWorkerScriptUrl());
+        _audioDecodeWorker.onmessage = _audioDecodeWorkerOnMessage;
+        _audioDecodeWorker.onerror = () => {
+            for (const [, p] of _audioDecodeWorkerPending) {
+                p.reject(new Error('audio decode worker failed'));
+            }
+            _audioDecodeWorkerPending.clear();
+            try {
+                _audioDecodeWorker.terminate();
+            } catch (_) {
+                /* ignore */
+            }
+            _audioDecodeWorker = null;
+        };
+    } catch (_) {
+        _audioDecodeWorker = null;
+    }
+    return _audioDecodeWorker;
+}
+
+function postAudioDecodeWorker(payload, transfer) {
+    const w = getAudioDecodeWorker();
+    if (!w) return Promise.reject(new Error('no worker'));
+    return new Promise((resolve, reject) => {
+        const id = ++_audioDecodeWorkerJobId;
+        _audioDecodeWorkerPending.set(id, { resolve, reject });
+        try {
+            w.postMessage({ ...payload, id }, transfer || []);
+        } catch (e) {
+            _audioDecodeWorkerPending.delete(id);
+            reject(e);
+        }
+    });
+}
+
+/** Main-thread fetch of file bytes (async I/O only); decode runs in [`audio-decode-worker.js`]. */
+async function fetchAudioArrayBuffer(url) {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`fetch ${resp.status}`);
+    return await resp.arrayBuffer();
+}
+
+async function decodePeaksFromArrayBuffer(ab, bars) {
+    const res = await postAudioDecodeWorker({ type: 'peaksFromBuffer', ab, bars }, [ab]);
+    return res.peaks;
+}
+
+async function decodeMetaFromArrayBuffer(ab, bars) {
+    const res = await postAudioDecodeWorker({ type: 'metaFromBuffer', ab, bars }, [ab]);
+    return { peaks: res.peaks, sgData: res.sgData };
+}
+
+async function decodeSpectrogramFromArrayBuffer(ab) {
+    const res = await postAudioDecodeWorker({ type: 'spectrogramFromBuffer', ab, bars: 0 }, [ab]);
+    return res.sgData;
+}
+
+async function decodeChannelsFromArrayBuffer(ab) {
+    const res = await postAudioDecodeWorker({ type: 'channelsFromBuffer', ab, bars: 0 }, [ab]);
+    return {
+        sampleRate: res.sampleRate,
+        length: res.length,
+        channels: res.channels,
+    };
+}
+
+async function decodePeaksInWorker(url, bars) {
+    const res = await postAudioDecodeWorker({ type: 'peaks', url, bars });
+    return res.peaks;
+}
+
+/**
+ * Prefer worker `fetch`+decode; if that fails (e.g. `tauri://` URL not visible to the worker),
+ * fetch on the main thread and transfer the `ArrayBuffer` to the worker so `decodeAudioData`
+ * does not run on the UI thread. If `Worker` is unavailable, decode on main (rare).
+ */
+async function decodePeaksViaWorker(url, bars) {
+    const nBars = Math.max(1, Math.min(Math.floor(Number(bars)) || 1, 800));
+    try {
+        return await decodePeaksInWorker(url, nBars);
+    } catch {
+        /* fall through */
+    }
+    if (!getAudioDecodeWorker()) {
+        const ab = await fetchAudioArrayBuffer(url);
+        if (!_audioCtx) _audioCtx = new AudioContext();
+        const audioBuf = await _audioCtx.decodeAudioData(ab.slice(0));
+        const raw = audioBuf.getChannelData(0);
+        const step = Math.floor(raw.length / nBars);
+        const peaks = [];
+        for (let i = 0; i < nBars; i++) {
+            let max = 0;
+            let min = 0;
+            const start = i * step;
+            for (let j = start; j < start + step && j < raw.length; j++) {
+                if (raw[j] > max) max = raw[j];
+                if (raw[j] < min) min = raw[j];
+            }
+            peaks.push({ max, min });
+        }
+        return peaks;
+    }
+    const ab = await fetchAudioArrayBuffer(url);
+    return await decodePeaksFromArrayBuffer(ab, nBars);
+}
+
+async function decodeMetaVisualsInWorker(url, bars) {
+    const res = await postAudioDecodeWorker({ type: 'meta', url, bars });
+    return { peaks: res.peaks, sgData: res.sgData };
+}
+
+async function decodeMetaVisualsViaWorker(url, bars) {
+    const nBars = Math.max(1, Math.min(Math.floor(Number(bars)) || 1, 800));
+    try {
+        return await decodeMetaVisualsInWorker(url, nBars);
+    } catch {
+        /* fall through */
+    }
+    if (!getAudioDecodeWorker()) {
+        throw new Error('no worker');
+    }
+    const ab = await fetchAudioArrayBuffer(url);
+    return await decodeMetaFromArrayBuffer(ab, nBars);
+}
+
+async function decodeSpectrogramInWorker(url) {
+    const res = await postAudioDecodeWorker({ type: 'spectrogram', url, bars: 0 });
+    return res.sgData;
+}
+
+async function decodeSpectrogramViaWorker(url) {
+    try {
+        return await decodeSpectrogramInWorker(url);
+    } catch {
+        if (!getAudioDecodeWorker()) throw new Error('no worker');
+        const ab = await fetchAudioArrayBuffer(url);
+        return await decodeSpectrogramFromArrayBuffer(ab);
+    }
+}
+
+async function decodeChannelsInWorker(url) {
+    const res = await postAudioDecodeWorker({ type: 'channels', url, bars: 0 });
+    return {
+        sampleRate: res.sampleRate,
+        length: res.length,
+        channels: res.channels,
+    };
+}
+
+async function decodeChannelsViaWorker(url) {
+    try {
+        return await decodeChannelsInWorker(url);
+    } catch {
+        if (!getAudioDecodeWorker()) throw new Error('no worker');
+        const ab = await fetchAudioArrayBuffer(url);
+        return await decodeChannelsFromArrayBuffer(ab);
+    }
+}
+
 let filteredAudioSamples = []; // current visible page from DB
 let audioTotalCount = 0; // total matching rows in DB
 let audioTotalUnfiltered = 0; // total rows in scan
@@ -2832,33 +3030,6 @@ function toggleMute() {
 
 // ── Waveform rendering ──
 let _audioCtx = null;
-
-/**
- * Min/max peaks for a URL (main-thread `decodeAudioData`). Exposed as `window._decodePeaksViaWorker`
- * for file-browser row backgrounds — name is historical.
- */
-async function decodePeaksViaWorker(url, bars) {
-    const nBars = Math.max(1, Math.min(Math.floor(Number(bars)) || 1, 800));
-    if (!_audioCtx) _audioCtx = new AudioContext();
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`fetch ${resp.status}`);
-    const buf = await resp.arrayBuffer();
-    const audioBuf = await _audioCtx.decodeAudioData(buf.slice(0));
-    const raw = audioBuf.getChannelData(0);
-    const step = Math.floor(raw.length / nBars);
-    const peaks = [];
-    for (let i = 0; i < nBars; i++) {
-        let max = 0;
-        let min = 0;
-        const start = i * step;
-        for (let j = start; j < start + step && j < raw.length; j++) {
-            if (raw[j] > max) max = raw[j];
-            if (raw[j] < min) min = raw[j];
-        }
-        peaks.push({ max, min });
-    }
-    return peaks;
-}
 
 let _waveformCache = {};
 let _spectrogramCache = {};
