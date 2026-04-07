@@ -173,6 +173,7 @@ TOAST_EN: dict[str, str] = {
     "toast.expand_on_click": "Expand on click: {next}",
     "toast.include_ableton_backups": "Include Ableton backups: {state}",
     "toast.thread_multiplier_set": "Thread multiplier set to {val}x — restart to apply",
+    "toast.sqlite_read_pool_extra_set": "SQLite read pool: {val} — restart to apply",
     "toast.channel_buffer_set": "Channel buffer set to {val} — restart to apply",
     "toast.batch_size_set": "Batch size set to {val} — restart to apply",
     "toast.fd_limit_set": "FD limit set to {val} — restart to apply",

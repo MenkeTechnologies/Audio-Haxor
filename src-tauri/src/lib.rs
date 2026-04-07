@@ -3524,6 +3524,25 @@ fn build_process_stats(app: AppHandle) -> serde_json::Value {
         })
         .unwrap_or(200);
 
+    let sqlite_read_pool_pref = prefs
+        .get("sqliteReadPoolExtra")
+        .map(|v| {
+            v.as_str()
+                .map(std::string::ToString::to_string)
+                .unwrap_or_else(|| v.to_string())
+        })
+        .unwrap_or_else(|| "auto".to_string());
+
+    let (sqlite_read_pool_extra, sqlite_read_pool_total) = if db::global_initialized() {
+        let db = db::global();
+        (
+            db.sqlite_read_pool_extra_slots(),
+            db.sqlite_read_pool_total_handles(),
+        )
+    } else {
+        (0, 0)
+    };
+
     let data_dir = history::get_data_dir();
     let (disk_total, disk_free, db_bytes, prefs_bytes, db_table_counts) =
         cached_slow_stats(&data_dir);
@@ -3668,6 +3687,9 @@ fn build_process_stats(app: AppHandle) -> serde_json::Value {
         "database": {
             "sizeBytes": db_bytes,
             "tables": db_table_counts,
+            "sqliteReadPoolExtra": sqlite_read_pool_extra,
+            "sqliteReadPoolTotal": sqlite_read_pool_total,
+            "sqliteReadPoolExtraPref": sqlite_read_pool_pref,
         },
         "dataFiles": {
             "preferencesBytes": prefs_bytes,

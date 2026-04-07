@@ -543,6 +543,7 @@ const SECTION_MAP: &[(&str, &[(&str, &str)])] = &[
             ("threadMultiplier", "threadMultiplier"),
             ("channelBuffer", "channelBuffer"),
             ("batchSize", "batchSize"),
+            ("sqliteReadPoolExtra", "sqliteReadPoolExtra"),
         ],
     ),
     ("logging", &[("logVerbosity", "verbosity")]),

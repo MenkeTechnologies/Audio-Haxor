@@ -33,6 +33,8 @@ flushInterval = "100"
 threadMultiplier = "4"
 channelBuffer = "512"
 batchSize = "100"
+# Extra read-only SQLite file handles for parallel queries (WAL). "auto" = min(CPU cores, 16), min 2. Or 0–32 explicit. Restart to apply.
+sqliteReadPoolExtra = "auto"
 
 [logging]
 verbosity = "normal"

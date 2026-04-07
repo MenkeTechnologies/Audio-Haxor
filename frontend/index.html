@@ -8669,6 +8669,23 @@
                 </div>
                 <div class="settings-row">
                     <div class="settings-label">
+                        <span class="settings-title"
+                              data-i18n="ui.st.sqlite_read_pool_extra">SQLite read pool</span>
+                        <span class="settings-desc"
+                              data-i18n="ui.sd.sqlite_read_pool_extra">Extra read-only DB connections for parallel queries (WAL). 0 = automatic. Uses more RAM when higher. Restart required.</span>
+                    </div>
+                    <div class="settings-control">
+                        <div class="settings-range-wrap">
+                            <input class="settings-range" data-action="settingSqliteReadPoolExtra" data-i18n-title="ui.tt.sqlite_read_pool_extra" id="settingSqliteReadPoolExtra" max="32"
+                                   min="0" step="1" title="SQLite read pool extra connections"
+                                   type="range"
+                                   value="0">
+                            <span class="settings-range-value" id="settingSqliteReadPoolExtraValue">Auto</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-label">
                         <span class="settings-title" data-i18n="ui.st.channel_buffer_size">Channel Buffer Size</span>
                         <span class="settings-desc"
                               data-i18n="ui.sd.ipc_buffer_capacity_between_scan_threads_and_ui_hi">IPC buffer capacity between scan threads and UI. Higher = less blocking. Restart required.</span>
@@ -9511,43 +9528,43 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=39554"></script>
-<script src="js/utils.js?v=39554"></script>
-<script src="js/ipc.js?v=39554"></script>
-<script src="js/drag-reorder.js?v=39554"></script>
-<script src="js/modal-drag.js?v=39554"></script>
-<script src="js/columns.js?v=39554"></script>
-<script src="js/notes.js?v=39554"></script>
-<script src="js/favorites.js?v=39554"></script>
-<script src="js/export.js?v=39554"></script>
-<script src="js/plugins.js?v=39554"></script>
-<script src="js/settings.js?v=39554"></script>
-<script src="js/history.js?v=39554"></script>
-<script src="js/kvr.js?v=39554"></script>
-<script src="js/audio.js?v=39554"></script>
-<script src="js/daw.js?v=39554"></script>
-<script src="js/presets.js?v=39554"></script>
-<script src="js/disk-usage.js?v=39554"></script>
-<script src="js/batch-select.js?v=39554"></script>
-<script src="js/native-file-drag.js?v=39554"></script>
-<script src="js/sort-persist.js?v=39554"></script>
-<script src="js/multi-filter.js?v=39554"></script>
-<script src="js/file-browser.js?v=39554"></script>
-<script src="js/duplicates.js?v=39554"></script>
-<script src="js/command-palette.js?v=39554"></script>
-<script src="js/xref.js?v=39554"></script>
-<script src="js/dep-graph.js?v=39554"></script>
-<script src="js/smart-playlists.js?v=39554"></script>
-<script src="js/heatmap-dashboard.js?v=39554"></script>
-<script src="js/midi.js?v=39554"></script>
-<script src="js/pdf.js?v=39554"></script>
-<script src="js/settings-search.js?v=39554"></script>
-<script src="js/visualizer.js?v=39554"></script>
-<script src="js/walker-status.js?v=39554"></script>
-<script src="js/context-menu.js?v=39554"></script>
-<script src="js/shortcuts.js?v=39554"></script>
-<script src="js/help-overlay.js?v=39554"></script>
-<script src="js/keyboard-nav.js?v=39554"></script>
-<script src="js/app.js?v=39554"></script>
+<script src="js/i18n-ui.js?v=67429"></script>
+<script src="js/utils.js?v=67429"></script>
+<script src="js/ipc.js?v=67429"></script>
+<script src="js/drag-reorder.js?v=67429"></script>
+<script src="js/modal-drag.js?v=67429"></script>
+<script src="js/columns.js?v=67429"></script>
+<script src="js/notes.js?v=67429"></script>
+<script src="js/favorites.js?v=67429"></script>
+<script src="js/export.js?v=67429"></script>
+<script src="js/plugins.js?v=67429"></script>
+<script src="js/settings.js?v=67429"></script>
+<script src="js/history.js?v=67429"></script>
+<script src="js/kvr.js?v=67429"></script>
+<script src="js/audio.js?v=67429"></script>
+<script src="js/daw.js?v=67429"></script>
+<script src="js/presets.js?v=67429"></script>
+<script src="js/disk-usage.js?v=67429"></script>
+<script src="js/batch-select.js?v=67429"></script>
+<script src="js/native-file-drag.js?v=67429"></script>
+<script src="js/sort-persist.js?v=67429"></script>
+<script src="js/multi-filter.js?v=67429"></script>
+<script src="js/file-browser.js?v=67429"></script>
+<script src="js/duplicates.js?v=67429"></script>
+<script src="js/command-palette.js?v=67429"></script>
+<script src="js/xref.js?v=67429"></script>
+<script src="js/dep-graph.js?v=67429"></script>
+<script src="js/smart-playlists.js?v=67429"></script>
+<script src="js/heatmap-dashboard.js?v=67429"></script>
+<script src="js/midi.js?v=67429"></script>
+<script src="js/pdf.js?v=67429"></script>
+<script src="js/settings-search.js?v=67429"></script>
+<script src="js/visualizer.js?v=67429"></script>
+<script src="js/walker-status.js?v=67429"></script>
+<script src="js/context-menu.js?v=67429"></script>
+<script src="js/shortcuts.js?v=67429"></script>
+<script src="js/help-overlay.js?v=67429"></script>
+<script src="js/keyboard-nav.js?v=67429"></script>
+<script src="js/app.js?v=67429"></script>
 </body>
 </html>

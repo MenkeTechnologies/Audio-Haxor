@@ -515,10 +515,58 @@ pub struct UnifiedScanRunRow {
 #[allow(dead_code)]
 const SCHEMA_VERSION: i64 = 4;
 
+/// Cap on extra connections when [`sqliteReadPoolExtra`] pref is `"auto"`.
+const SQLITE_READ_POOL_AUTO_CAP: usize = 16;
+
+/// Max explicit extra connections from preferences (0 = primary only for reads in round-robin).
+const SQLITE_READ_POOL_EXTRA_MAX: usize = 32;
+
+fn sqlite_read_pool_auto() -> usize {
+    num_cpus::get().min(SQLITE_READ_POOL_AUTO_CAP).max(2)
+}
+
+/// Resolves [`performance.sqliteReadPoolExtra`]: `"auto"` → [`sqlite_read_pool_auto`], else `0`..=`32`.
+fn parse_sqlite_read_pool_extra_pref() -> usize {
+    let val = crate::history::get_preference("sqliteReadPoolExtra");
+    match val {
+        Some(serde_json::Value::String(s)) => {
+            let t = s.trim();
+            if t.eq_ignore_ascii_case("auto") || t.is_empty() {
+                sqlite_read_pool_auto()
+            } else if let Ok(n) = t.parse::<usize>() {
+                n.min(SQLITE_READ_POOL_EXTRA_MAX)
+            } else {
+                sqlite_read_pool_auto()
+            }
+        }
+        Some(serde_json::Value::Number(n)) => {
+            if let Some(u) = n.as_u64() {
+                (u as usize).min(SQLITE_READ_POOL_EXTRA_MAX)
+            } else if let Some(i) = n.as_i64() {
+                (i.max(0) as usize).min(SQLITE_READ_POOL_EXTRA_MAX)
+            } else {
+                sqlite_read_pool_auto()
+            }
+        }
+        None => sqlite_read_pool_auto(),
+        _ => sqlite_read_pool_auto(),
+    }
+}
+
 impl Database {
     /// Extra SQLite file handles beyond the primary (total = 1 + this) for parallel read load.
     fn read_pool_extra() -> usize {
-        num_cpus::get().min(8).max(2)
+        parse_sqlite_read_pool_extra_pref()
+    }
+
+    /// Extra read-only connections only (excludes the primary handle).
+    pub fn sqlite_read_pool_extra_slots(&self) -> usize {
+        self.read.len()
+    }
+
+    /// Primary + pool (all handles participating in [`read_conn`] round-robin).
+    pub fn sqlite_read_pool_total_handles(&self) -> usize {
+        1 + self.read.len()
     }
 
     fn open_file_connection(db_path: &std::path::Path) -> Result<Connection, String> {

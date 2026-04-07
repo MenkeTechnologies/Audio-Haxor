@@ -1051,6 +1051,22 @@ function settingUpdateThreadMultiplier(val) {
     showToast(toastFmt('toast.thread_multiplier_set', {val}));
 }
 
+function settingUpdateSqliteReadPoolExtra(val) {
+    const n = parseInt(val, 10);
+    const raw = (n === 0 || Number.isNaN(n)) ? 'auto' : String(n);
+    prefs.setItem('sqliteReadPoolExtra', raw);
+    const valEl = document.getElementById('settingSqliteReadPoolExtraValue');
+    if (valEl) {
+        valEl.textContent = (n === 0 || Number.isNaN(n))
+            ? (typeof catalogFmt === 'function' ? catalogFmt('ui.perf.sqlite_read_pool_auto_label') : 'Auto')
+            : String(n);
+    }
+    const display = (n === 0 || Number.isNaN(n))
+        ? (typeof catalogFmt === 'function' ? catalogFmt('ui.perf.sqlite_read_pool_auto_label') : 'Auto')
+        : String(n);
+    showToast(toastFmt('toast.sqlite_read_pool_extra_set', {val: display}));
+}
+
 function settingUpdateChannelBuffer(val) {
     document.getElementById('settingChannelBufferValue').textContent = val;
     prefs.setItem('channelBuffer', val);
@@ -1398,6 +1414,23 @@ function refreshSettingsUI() {
         threadMultValEl.textContent = threadMult + 'x';
     }
 
+    // SQLite read pool (0 = auto)
+    const sqlitePoolRaw = getSettingValue('sqliteReadPoolExtra', 'auto');
+    const sqlitePoolNum = (sqlitePoolRaw === 'auto' || sqlitePoolRaw === '' || sqlitePoolRaw == null)
+        ? 0
+        : parseInt(String(sqlitePoolRaw), 10);
+    const sqlitePoolSlider = Number.isNaN(sqlitePoolNum) || sqlitePoolRaw === 'auto' ? 0 : Math.min(32, Math.max(0, sqlitePoolNum));
+    const sqlitePoolEl = document.getElementById('settingSqliteReadPoolExtra');
+    const sqlitePoolValEl = document.getElementById('settingSqliteReadPoolExtraValue');
+    if (sqlitePoolEl) {
+        sqlitePoolEl.value = String(sqlitePoolSlider);
+        if (sqlitePoolValEl) {
+            sqlitePoolValEl.textContent = sqlitePoolSlider === 0
+                ? (typeof catalogFmt === 'function' ? catalogFmt('ui.perf.sqlite_read_pool_auto_label') : 'Auto')
+                : String(sqlitePoolSlider);
+        }
+    }
+
     // Channel buffer
     const chanBuf = getSettingValue('channelBuffer', '512');
     const chanBufEl = document.getElementById('settingChannelBuffer');
@@ -1565,6 +1598,11 @@ function refreshSettingsUI() {
                     f('ui.perf.line_db_size', {
                         db_size: fmtMem(db.sizeBytes || 0),
                         prefs_size: fmtMem((df.preferencesBytes || 0))
+                    }),
+                    f('ui.perf.line_db_read_pool', {
+                        total: String(db.sqliteReadPoolTotal ?? 0),
+                        extra: String(db.sqliteReadPoolExtra ?? 0),
+                        pref: escapeHtml(String(db.sqliteReadPoolExtraPref ?? 'auto')),
                     }),
                     f('ui.perf.line_db_tables', {
                         samples: (tc.audio_samples || 0).toLocaleString(),
