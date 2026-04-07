@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Afspeellijst \"{name}\" {action}",
   "toast.playlist_updated": "bijgewerkt",
   "toast.plugin_index_built": "Plug-inindex gebouwd: {n} projecten gescand",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Plug-inquery mislukt: {err}",
   "toast.plugin_scan_dirs_saved": "Plugin-scanmappen opgeslagen",
   "toast.plugin_scan_failed": "Plug-inscan mislukt — {err}",

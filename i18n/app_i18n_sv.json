@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Spellistan \"{name}\" {action}",
   "toast.playlist_updated": "uppdaterad",
   "toast.plugin_index_built": "Pluginindex byggt: {n} projekt skannade",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Plugin-fråga misslyckades: {err}",
   "toast.plugin_scan_dirs_saved": "Insticksskanningskataloger har sparats",
   "toast.plugin_scan_failed": "Pluginsökning misslyckades – {err}",

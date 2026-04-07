@@ -532,6 +532,7 @@
   "toast.playlist_saved": "播放列表“{name}”{action}",
   "toast.playlist_updated": "已更新",
   "toast.plugin_index_built": "已构建插件索引：已扫描 {n} 个项目",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "插件查询失败：{err}",
   "toast.plugin_scan_dirs_saved": "已保存插件扫描目录",
   "toast.plugin_scan_failed": "插件扫描失败 - {err}",

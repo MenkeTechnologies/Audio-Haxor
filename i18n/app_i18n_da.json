@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Playliste \"{name}\" {action}",
   "toast.playlist_updated": "opdateret",
   "toast.plugin_index_built": "Plugin-indeks bygget: {n} projekter scannet",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Plugin-forespørgsel mislykkedes: {err}",
   "toast.plugin_scan_dirs_saved": "Plugin-scanningsmapper blev gemt",
   "toast.plugin_scan_failed": "Plugin-scanning mislykkedes — {err}",

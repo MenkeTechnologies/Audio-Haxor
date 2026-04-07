@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Playlist \"{name}\" {action}",
   "toast.playlist_updated": "aktualizováno",
   "toast.plugin_index_built": "Vytvořený index pluginu: naskenováno {n} projektů",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Dotaz na plugin se nezdařil: {err}",
   "toast.plugin_scan_dirs_saved": "Adresáře skenování pluginu byly uloženy",
   "toast.plugin_scan_failed": "Kontrola pluginu se nezdařila – {err}",

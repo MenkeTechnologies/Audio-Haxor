@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Lista de reproducción \"{nombre}\" {acción}",
   "toast.playlist_updated": "actualizado",
   "toast.plugin_index_built": "Índice de complementos creado: {n} proyectos analizados",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Error en la consulta del complemento: {err}",
   "toast.plugin_scan_dirs_saved": "Directorios de escaneo de complementos guardados",
   "toast.plugin_scan_failed": "Falló el análisis del complemento: {err}",

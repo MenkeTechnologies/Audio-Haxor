@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Λίστα αναπαραγωγής \"{name}\" {action}",
   "toast.playlist_updated": "ενημερώθηκε",
   "toast.plugin_index_built": "Δημιουργήθηκε ευρετήριο προσθηκών: σαρώθηκαν {n} έργα",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Το ερώτημα προσθήκης απέτυχε: {err}",
   "toast.plugin_scan_dirs_saved": "Οι κατάλογοι σάρωσης προσθηκών αποθηκεύτηκαν",
   "toast.plugin_scan_failed": "Η σάρωση της προσθήκης απέτυχε — {err}",

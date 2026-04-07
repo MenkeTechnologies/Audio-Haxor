@@ -253,6 +253,34 @@ function filterDawProjects() {
 /** Full list for export when SQLite-backed UI has left `allDawProjects` empty (paginated DB model). */
 const _DAW_EXPORT_MAX = 100000;
 
+/**
+ * All DAW rows from SQLite for plugin xref index (ignores the search box and DAW filter).
+ * `allDawProjects` is only one paginated page in DB mode — xref must walk the full library.
+ */
+async function fetchAllDawProjectsForXref() {
+    if (!window.vstUpdater || typeof window.vstUpdater.dbQueryDaw !== 'function') return [];
+    let total = _dawTotalUnfiltered || _dawTotalCount || 0;
+    if (total <= 0) {
+        try {
+            const agg = await window.vstUpdater.dbDawFilterStats('', null);
+            total = agg.totalUnfiltered || agg.count || 0;
+        } catch {
+            return [];
+        }
+    }
+    if (total <= 0) return [];
+    const n = Math.min(total, _DAW_EXPORT_MAX);
+    const result = await window.vstUpdater.dbQueryDaw({
+        search: null,
+        daw_filter: null,
+        sort_key: dawSortKey,
+        sort_asc: dawSortAsc,
+        offset: 0,
+        limit: n,
+    });
+    return result.projects || [];
+}
+
 async function fetchDawProjectsForExport() {
     const search = _lastDawSearch || '';
     const dawSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('dawDawFilter') : null;

@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Daftar Putar \"{name}\" {action}",
   "toast.playlist_updated": "diperbarui",
   "toast.plugin_index_built": "Indeks plugin dibuat: {n} proyek dipindai",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Kueri plugin gagal: {err}",
   "toast.plugin_scan_dirs_saved": "Direktori pemindaian plugin disimpan",
   "toast.plugin_scan_failed": "Pemindaian plugin gagal — {err}",

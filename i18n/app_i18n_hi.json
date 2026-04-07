@@ -532,6 +532,7 @@
   "toast.playlist_saved": "प्लेलिस्ट \"{name}\" {action}",
   "toast.playlist_updated": "अद्यतन",
   "toast.plugin_index_built": "प्लगइन इंडेक्स निर्मित: {n} प्रोजेक्ट स्कैन किए गए",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "प्लगइन क्वेरी विफल: {err}",
   "toast.plugin_scan_dirs_saved": "प्लगइन स्कैन निर्देशिकाएँ सहेजी गईं",
   "toast.plugin_scan_failed": "प्लगइन स्कैन विफल - {err}",

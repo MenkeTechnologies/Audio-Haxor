@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Liste de lecture \"{name}\" {action}",
   "toast.playlist_updated": "mis à jour",
   "toast.plugin_index_built": "Index de plugin créé : {n} projets analysés",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Échec de la requête du plug-in : {err}",
   "toast.plugin_scan_dirs_saved": "Répertoires d'analyse des plugins enregistrés",
   "toast.plugin_scan_failed": "L'analyse du plugin a échoué – {err}",

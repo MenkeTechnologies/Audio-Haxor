@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Danh sách phát \"{name}\" {action}",
   "toast.playlist_updated": "đã cập nhật",
   "toast.plugin_index_built": "Đã xây dựng chỉ mục plugin: đã quét {n} dự án",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Truy vấn plugin không thành công: {err}",
   "toast.plugin_scan_dirs_saved": "Đã lưu thư mục quét plugin",
   "toast.plugin_scan_failed": "Quét plugin không thành công — {err}",

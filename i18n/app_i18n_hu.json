@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Lejátszási lista „{name}” {action}",
   "toast.playlist_updated": "frissítve",
   "toast.plugin_index_built": "Beépülő bővítményindex: {n} projekt vizsgálva",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "A beépülő modul lekérdezése sikertelen: {err}",
   "toast.plugin_scan_dirs_saved": "A beépülő modulok vizsgálati könyvtárai elmentve",
   "toast.plugin_scan_failed": "A beépülő modul vizsgálata nem sikerült – {err}",

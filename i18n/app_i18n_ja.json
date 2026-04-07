@@ -532,6 +532,7 @@
   "toast.playlist_saved": "プレイリスト「{name}」{action}",
   "toast.playlist_updated": "更新されました",
   "toast.plugin_index_built": "プラグイン インデックスが構築されました: {n} 個のプロジェクトがスキャンされました",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "プラグインのクエリが失敗しました: {err}",
   "toast.plugin_scan_dirs_saved": "プラグインスキャンディレクトリが保存されました",
   "toast.plugin_scan_failed": "プラグインのスキャンに失敗しました — {err}",

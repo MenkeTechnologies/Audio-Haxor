@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Soittolista \"{name}\" {action}",
   "toast.playlist_updated": "päivitetty",
   "toast.plugin_index_built": "Laajennushakemisto rakennettu: {n} projektia skannattu",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Laajennuskysely epäonnistui: {err}",
   "toast.plugin_scan_dirs_saved": "Lisäosien tarkistushakemistot tallennettu",
   "toast.plugin_scan_failed": "Laajennuksen tarkistus epäonnistui – {err}",

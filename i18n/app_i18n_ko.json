@@ -532,6 +532,7 @@
   "toast.playlist_saved": "재생목록 \"{name}\" {action}",
   "toast.playlist_updated": "업데이트됨",
   "toast.plugin_index_built": "플러그인 색인 생성됨: {n}개의 프로젝트가 스캔됨",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "플러그인 쿼리 실패: {err}",
   "toast.plugin_scan_dirs_saved": "플러그인 검색 디렉터리가 저장되었습니다.",
   "toast.plugin_scan_failed": "플러그인 검사 실패 — {err}",

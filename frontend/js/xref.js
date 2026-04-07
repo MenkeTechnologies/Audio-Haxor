@@ -213,7 +213,23 @@ function showReverseXrefModal(pluginName, projects) {
 
 // Scan all supported DAW projects in background for xref index
 async function buildXrefIndex() {
-    const supported = allDawProjects.filter(p => isXrefSupported(p.format));
+    let supported = [];
+    if (typeof fetchAllDawProjectsForXref === 'function') {
+        try {
+            const fromDb = await fetchAllDawProjectsForXref();
+            supported = fromDb.filter(p => isXrefSupported(p.format));
+        } catch { /* fall through to in-memory list */
+        }
+    }
+    if (supported.length === 0) {
+        supported = allDawProjects.filter(p => isXrefSupported(p.format));
+    }
+    if (supported.length === 0) {
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+            showToast(toastFmt('toast.plugin_index_no_daw_projects'), 4500, 'warning');
+        }
+        return;
+    }
     let scanned = 0;
     for (const p of supported) {
         if (_xrefCache[p.path]) {

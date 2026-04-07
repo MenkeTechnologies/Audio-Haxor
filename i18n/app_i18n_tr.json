@@ -532,6 +532,7 @@
   "toast.playlist_saved": "\"{name}\" oynatma listesi {action}",
   "toast.playlist_updated": "güncellendi",
   "toast.plugin_index_built": "Eklenti dizini oluşturuldu: {n} proje tarandı",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Eklenti sorgusu başarısız oldu: {err}",
   "toast.plugin_scan_dirs_saved": "Eklenti tarama dizinleri kaydedildi",
   "toast.plugin_scan_failed": "Eklenti taraması başarısız oldu — {err}",

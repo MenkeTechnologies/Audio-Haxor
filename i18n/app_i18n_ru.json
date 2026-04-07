@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Плейлист \"{name}\" {action}",
   "toast.playlist_updated": "обновлено",
   "toast.plugin_index_built": "Построен индекс плагинов: просканировано {n} проектов",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Ошибка запроса плагина: {err}",
   "toast.plugin_scan_dirs_saved": "Каталоги сканирования плагина сохранены.",
   "toast.plugin_scan_failed": "Сканирование плагина не удалось — {err}",

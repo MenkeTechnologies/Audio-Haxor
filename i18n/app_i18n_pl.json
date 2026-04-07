@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Playlista „{name}” {action}",
   "toast.playlist_updated": "zaktualizowany",
   "toast.plugin_index_built": "Utworzono indeks wtyczki: zeskanowano {n} projektów",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Zapytanie o wtyczkę nie powiodło się: {err}",
   "toast.plugin_scan_dirs_saved": "Zapisano katalogi skanowania wtyczek",
   "toast.plugin_scan_failed": "Skanowanie wtyczki nie powiodło się — {err}",

@@ -532,6 +532,7 @@
   "toast.playlist_saved": "Playlist \"{name}\" {action}",
   "toast.playlist_updated": "aggiornato",
   "toast.plugin_index_built": "Indice plugin creato: {n} progetti scansionati",
+  "toast.plugin_index_no_daw_projects": "No DAW projects in the library. Scan the DAW tab first.",
   "toast.plugin_query_failed": "Query del plugin non riuscita: {err}",
   "toast.plugin_scan_dirs_saved": "Directory di scansione del plugin salvate",
   "toast.plugin_scan_failed": "Scansione del plugin non riuscita: {err}",
