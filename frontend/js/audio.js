@@ -581,12 +581,18 @@ function _playbackRafLoop() {
 // Mirrors the parametric EQ's filled-curve style (magenta→cyan gradient).
 let _npFftBuf = null;
 let _npFftGrad = null;
+let _npFftCanvas = null;
+let _npFftCtx = null;
+/** Reused point list for spectrum outline (one Web Audio bin pass, then fill + stroke). */
+let _npFftPts = null;
 
 // ResizeObserver syncs canvas pixel buffer to container size on resize —
 // NOT in the render loop (which would reset the bitmap every frame).
 (function initFftCanvasResize() {
   const canvas = document.getElementById('npFftCanvas');
   if (!canvas) return;
+  _npFftCanvas = canvas;
+  _npFftCtx = canvas.getContext('2d');
   const ro = new ResizeObserver((entries) => {
     for (const e of entries) {
       const cw = Math.round(e.contentRect.width) || 600;
@@ -603,9 +609,10 @@ let _npFftGrad = null;
 
 function _renderNpFft() {
   if (!_analyser) return;
-  const canvas = document.getElementById('npFftCanvas');
+  const canvas = _npFftCanvas || document.getElementById('npFftCanvas');
   if (!canvas || canvas.offsetParent === null) return;
-  const ctx = canvas.getContext('2d');
+  const ctx = _npFftCtx || canvas.getContext('2d');
+  if (!ctx) return;
   const w = canvas.width;
   const h = canvas.height;
   if (w === 0 || h === 0) return;
@@ -626,40 +633,41 @@ function _renderNpFft() {
   const fMax = sampleRate / 2;
   const logMin = Math.log10(fMin);
   const logMax = Math.log10(fMax);
-
-  // Draw filled spectrum curve on log frequency scale (leave 10px for labels)
+  const fftSize = _analyser.fftSize;
   const specH = h - 10;
-  ctx.beginPath();
-  ctx.moveTo(0, specH);
-  for (let i = 1; i < binCount; i++) {
-    const freq = (i * sampleRate) / (_analyser.fftSize);
-    if (freq < fMin) continue;
-    if (freq > fMax) break;
-    const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
-    const mag = _npFftBuf[i] / 255;
-    const y = specH - mag * (specH - 2);
-    ctx.lineTo(x, y);
-  }
-  ctx.lineTo(w, specH);
-  ctx.closePath();
-  ctx.fillStyle = _npFftGrad;
-  ctx.fill();
 
-  // Bright top edge
-  ctx.beginPath();
-  ctx.moveTo(0, specH);
+  let nPts = 0;
+  const maxPts = binCount * 2;
+  if (!_npFftPts || _npFftPts.length < maxPts) _npFftPts = new Float32Array(maxPts);
+  const pts = _npFftPts;
   for (let i = 1; i < binCount; i++) {
-    const freq = (i * sampleRate) / (_analyser.fftSize);
+    const freq = (i * sampleRate) / fftSize;
     if (freq < fMin) continue;
     if (freq > fMax) break;
     const x = ((Math.log10(freq) - logMin) / (logMax - logMin)) * w;
     const mag = _npFftBuf[i] / 255;
     const y = specH - mag * (specH - 2);
-    ctx.lineTo(x, y);
+    pts[nPts++] = x;
+    pts[nPts++] = y;
   }
-  ctx.strokeStyle = 'rgba(5,217,232,0.5)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+
+  if (nPts >= 2) {
+    ctx.beginPath();
+    ctx.moveTo(0, specH);
+    ctx.lineTo(pts[0], pts[1]);
+    for (let p = 2; p < nPts; p += 2) ctx.lineTo(pts[p], pts[p + 1]);
+    ctx.lineTo(w, specH);
+    ctx.closePath();
+    ctx.fillStyle = _npFftGrad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(0, specH);
+    for (let p = 0; p < nPts; p += 2) ctx.lineTo(pts[p], pts[p + 1]);
+    ctx.strokeStyle = 'rgba(5,217,232,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
 
   // Frequency scale labels along the bottom
   ctx.fillStyle = 'rgba(255,255,255,0.3)';
@@ -950,10 +958,14 @@ async function scanAudioSamples(resume = false, unifiedResult = null, overrideRo
 
   if (!resume) {
     _audioScanDbView = false;
+    allAudioSamples = [];
+    filteredAudioSamples = [];
+    resetAudioStats();
   }
-  /** Until the first streamed batch, keep the previous table and buffers so starting a scan does not blank the UI. */
-  let pendingScanClear = !resume;
 
+  /** Stream DOM only while table was empty at scan start; otherwise DB-only (preserves selection). */
+  let scanStreamDomActive = false;
+  let pendingScanClear = !resume;
   let firstAudioBatch = true;
   let pendingSamples = [];
   let pendingFound = 0;
@@ -963,6 +975,22 @@ async function scanAudioSamples(resume = false, unifiedResult = null, overrideRo
   const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '100', 10);
 
   function flushPendingSamples() {
+    if (pendingSamples.length === 0) return;
+
+    const audioElapsed = audioEta.elapsed();
+    btn.innerHTML = catalogFmt('ui.audio.scan_progress_line', { n: pendingFound.toLocaleString(), elapsed: audioElapsed ? ' — ' + audioElapsed : '' });
+    progressFill.style.width = '';
+    progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
+
+    const allowDom =
+      scanStreamDomActive ||
+      (typeof isAudioScanTableEmpty === 'function' && isAudioScanTableEmpty());
+    if (!allowDom) {
+      pendingSamples = [];
+      return;
+    }
+    scanStreamDomActive = true;
+
     if (pendingScanClear && pendingSamples.length > 0) {
       pendingScanClear = false;
       allAudioSamples = [];
@@ -972,7 +1000,6 @@ async function scanAudioSamples(resume = false, unifiedResult = null, overrideRo
       const statsEl = document.getElementById('audioStats');
       if (statsEl) statsEl.style.display = 'none';
     }
-    if (pendingSamples.length === 0) return;
 
     if (firstAudioBatch) {
       firstAudioBatch = false;
@@ -984,18 +1011,10 @@ async function scanAudioSamples(resume = false, unifiedResult = null, overrideRo
     pendingSamples = [];
 
     allAudioSamples.push(...toAdd);
-    // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data,
-    // post-scan fetchAudioPage() reloads the visible page directly from SQLite.
-    // Use length truncation instead of .slice() to avoid O(n) copy every flush.
     if (allAudioSamples.length > 100000) allAudioSamples.length = 100000;
     accumulateAudioStats(toAdd);
     if (!_bgAnalysisRunning && prefs.getItem('autoAnalysis') !== 'off') startBackgroundAnalysis();
-    const audioElapsed = audioEta.elapsed();
-    btn.innerHTML = catalogFmt('ui.audio.scan_progress_line', { n: pendingFound.toLocaleString(), elapsed: audioElapsed ? ' — ' + audioElapsed : '' });
-    progressFill.style.width = '';
-    progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
 
-    // Incrementally append matching rows (cap DOM at 2000 during scan)
     const search = document.getElementById('audioSearchInput').value || '';
     const scanFmtSet = getMultiFilterValues('audioFormatFilter');
     const scanMode = getSearchMode('regexAudio');
@@ -1055,6 +1074,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null, overrideRo
       expandedMetaPath = null;
       resetAudioStats();
     }
+    scanStreamDomActive = false;
     // Save scan results to SQLite (backend already streamed-saved when result.streamed)
     if (!result.streamed) {
       try { await window.vstUpdater.saveAudioScan(result.samples || [], result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_audio_history', { err: e.message || e }), 4000, 'error'); }
@@ -1087,6 +1107,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null, overrideRo
       expandedMetaPath = null;
       resetAudioStats();
     }
+    scanStreamDomActive = false;
     const errMsg = err.message || err || catalogFmt('toast.unknown_error');
     tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>${typeof escapeHtml === 'function' ? escapeHtml(_audioFmt('ui.audio.scan_error_title')) : _audioFmt('ui.audio.scan_error_title')}</h2><p>${typeof escapeHtml === 'function' ? escapeHtml(errMsg) : errMsg}</p></div>`;
     showToast(toastFmt('toast.audio_scan_failed', { errMsg }), 4000, 'error');
@@ -1094,6 +1115,7 @@ async function scanAudioSamples(resume = false, unifiedResult = null, overrideRo
 
   window.__audioScanPendingFound = 0;
   _audioScanActive = false;
+  scanStreamDomActive = false;
   _audioScanDbView = false;
   hideGlobalProgress();
   btn.disabled = false;

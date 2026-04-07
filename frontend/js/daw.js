@@ -381,9 +381,13 @@ async function scanDawProjects(resume = false, unifiedResult = null, overrideRoo
 
   if (!resume) {
     _dawScanDbView = false;
+    allDawProjects = [];
+    filteredDawProjects = [];
+    resetDawStats();
   }
-  let pendingDawClear = !resume;
 
+  let scanStreamDomActive = false;
+  let pendingDawClear = !resume;
   let firstDawBatch = true;
   let pendingProjects = [];
   let pendingFound = 0;
@@ -392,6 +396,22 @@ async function scanDawProjects(resume = false, unifiedResult = null, overrideRoo
   const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '100', 10);
 
   function flushPendingProjects() {
+    if (pendingProjects.length === 0) return;
+
+    const dawElapsed = dawEta.elapsed();
+    btn.innerHTML = `&#8635; ${pendingFound.toLocaleString()} found${dawElapsed ? ' — ' + dawElapsed : ''}`;
+    progressFill.style.width = '';
+    progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
+
+    const allowDom =
+      scanStreamDomActive ||
+      (typeof isDawScanTableEmpty === 'function' && isDawScanTableEmpty());
+    if (!allowDom) {
+      pendingProjects = [];
+      return;
+    }
+    scanStreamDomActive = true;
+
     if (pendingDawClear && pendingProjects.length > 0) {
       pendingDawClear = false;
       allDawProjects = [];
@@ -400,7 +420,6 @@ async function scanDawProjects(resume = false, unifiedResult = null, overrideRoo
       const dawStatsEl = document.getElementById('dawStats');
       if (dawStatsEl) dawStatsEl.style.display = 'none';
     }
-    if (pendingProjects.length === 0) return;
 
     if (firstDawBatch) {
       firstDawBatch = false;
@@ -412,13 +431,8 @@ async function scanDawProjects(resume = false, unifiedResult = null, overrideRoo
     pendingProjects = [];
 
     allDawProjects.push(...toAdd);
-    // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data.
     if (allDawProjects.length > 100000) allDawProjects.length = 100000;
     accumulateDawStats(toAdd);
-    const dawElapsed = dawEta.elapsed();
-    btn.innerHTML = `&#8635; ${pendingFound.toLocaleString()} found${dawElapsed ? ' — ' + dawElapsed : ''}`;
-    progressFill.style.width = '';
-    progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
 
     const search = document.getElementById('dawSearchInput').value || '';
     const scanDawSet = getMultiFilterValues('dawDawFilter');
@@ -478,27 +492,25 @@ async function scanDawProjects(resume = false, unifiedResult = null, overrideRoo
       filteredDawProjects = [];
       resetDawStats();
     }
+    scanStreamDomActive = false;
     if (result.streamed) {
-      // Backend streamed results live — allDawProjects was built from progress events.
+      // Backend streamed rows into SQLite — JS may not mirror them if DOM stream was skipped.
     } else if (resume) {
       allDawProjects = [...allDawProjects, ...result.projects];
     } else {
       allDawProjects = result.projects;
     }
-    rebuildDawStats();
-    _dawTotalUnfiltered = allDawProjects.length;
-    filterDawProjects();
-    // Backend already streamed-saved when result.streamed
     if (!result.streamed) {
       try { await window.vstUpdater.saveDawScan(allDawProjects, result.roots); } catch (e) { showToast(toastFmt('toast.failed_save_daw_history', { err: e.message || e }), 4000, 'error'); }
     }
-    // Pull authoritative unfiltered breakdown from DB so filter changes don't reset it.
-    await refreshDawStatsSnapshot();
-    if (result.stopped && allDawProjects.length > 0) {
+    _dawOffset = 0;
+    await refreshDawStatsSnapshot(true);
+    await fetchDawPage();
+    if (result.stopped && (_dawTotalUnfiltered || 0) > 0) {
       resumeBtn.style.display = '';
     }
     if (typeof postScanCompleteToast === 'function') {
-      const n = _dawTotalUnfiltered || allDawProjects.length || 0;
+      const n = _dawTotalUnfiltered || 0;
       postScanCompleteToast(
         !!result.stopped,
         'toast.post_scan_daw_complete',
@@ -516,12 +528,14 @@ async function scanDawProjects(resume = false, unifiedResult = null, overrideRoo
       filteredDawProjects = [];
       resetDawStats();
     }
+    scanStreamDomActive = false;
     const errMsg = err.message || err || 'Unknown error';
     tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
     showToast(toastFmt('toast.daw_scan_failed', { errMsg }), 4000, 'error');
   }
 
   window.__dawScanPendingFound = 0;
+  scanStreamDomActive = false;
   hideGlobalProgress();
   btn.disabled = false;
   if (typeof btnLoading === 'function') btnLoading(btn, false);

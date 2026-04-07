@@ -403,9 +403,14 @@ async function scanPresets(resume = false, unifiedResult = null, overrideRoots =
 
   if (!resume) {
     _presetScanDbView = false;
+    allPresets = [];
+    filteredPresets = [];
+    resetPresetStats();
+    resetPresetStatsAccumulators();
   }
-  let pendingPresetClear = !resume;
 
+  let scanPresetDomActive = false;
+  let scanMidiFromPresetDomActive = false;
   let firstBatch = true;
   let pendingPresets = [];
   let pendingFound = 0;
@@ -414,18 +419,24 @@ async function scanPresets(resume = false, unifiedResult = null, overrideRoots =
   const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '100', 10);
 
   function flushPending() {
-    if (pendingPresetClear && pendingPresets.length > 0) {
-      pendingPresetClear = false;
-      allPresets = [];
-      filteredPresets = [];
-      resetPresetStats();
-      resetPresetStatsAccumulators();
-      document.getElementById('presetStats').style.display = 'none';
-    }
     if (pendingPresets.length === 0) return;
     const batch = pendingPresets.splice(0);
 
-    if (firstBatch) {
+    const presetElapsed = presetEta.elapsed();
+    const timeSuffix = presetElapsed ? ' — ' + presetElapsed : '';
+    setBtn(`&#8635; ${pendingFound.toLocaleString()} found${timeSuffix}`, true);
+
+    const allowPresetDom =
+      scanPresetDomActive ||
+      (typeof isPresetScanTableEmpty === 'function' && isPresetScanTableEmpty());
+    const allowMidiDom =
+      scanMidiFromPresetDomActive ||
+      (typeof isMidiScanTableEmpty === 'function' && isMidiScanTableEmpty());
+
+    if (allowPresetDom) scanPresetDomActive = true;
+    if (allowMidiDom) scanMidiFromPresetDomActive = true;
+
+    if (allowPresetDom && firstBatch) {
       firstBatch = false;
       tableWrap.innerHTML = `<table class="audio-table" id="presetTable">
         ${presetTableHeadHtml()}
@@ -436,59 +447,55 @@ async function scanPresets(resume = false, unifiedResult = null, overrideRoots =
       if (typeof initTableColumnReorder === 'function') initTableColumnReorder('presetTable', 'presetColumnOrder');
     }
 
-    // Split: MIDI files go to MIDI tab, presets stay here
     const midiFormats = new Set(['MID', 'MIDI']);
     const midiBatch = batch.filter(p => midiFormats.has(p.format));
     const presetBatch = batch.filter(p => !midiFormats.has(p.format));
-    allPresets.push(...batch); // keep all in allPresets for export/history
-    // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data.
+    allPresets.push(...batch);
     if (allPresets.length > 100000) allPresets.length = 100000;
     if (filteredPresets.length > 100000) filteredPresets.length = 100000;
     filteredPresets.push(...presetBatch);
-    // Incrementally update stats — O(batch) not O(total).
     accumulatePresetStats(batch);
-    // Stream MIDI files to MIDI tab incrementally
+
     if (midiBatch.length > 0 && typeof allMidiFiles !== 'undefined') {
       allMidiFiles.push(...midiBatch);
       if (allMidiFiles.length > 100000) allMidiFiles.length = 100000;
       if (typeof filteredMidi !== 'undefined') filteredMidi.push(...midiBatch);
-      const skipMidiDom = typeof _midiScanDbView !== 'undefined' && _midiScanDbView;
-      // Append rows instead of full rebuild
-      const midiTbody = document.getElementById('midiTableBody');
-      if (!skipMidiDom && midiTbody && typeof buildMidiRow === 'function' && typeof _midiRenderCount !== 'undefined' && _midiRenderCount < 2000) {
-        const toRender = midiBatch.slice(0, 2000 - _midiRenderCount);
-        midiTbody.insertAdjacentHTML('beforeend', toRender.map(buildMidiRow).join(''));
-        _midiRenderCount += toRender.length;
-      } else if (!skipMidiDom && !midiTbody && typeof renderMidiTable === 'function') {
-        renderMidiTable(); // first batch — init table
+      if (allowMidiDom) {
+        const skipMidiDom = typeof _midiScanDbView !== 'undefined' && _midiScanDbView;
+        const midiTbody = document.getElementById('midiTableBody');
+        if (!skipMidiDom && midiTbody && typeof buildMidiRow === 'function' && typeof _midiRenderCount !== 'undefined' && _midiRenderCount < 2000) {
+          const toRender = midiBatch.slice(0, 2000 - _midiRenderCount);
+          midiTbody.insertAdjacentHTML('beforeend', toRender.map(buildMidiRow).join(''));
+          _midiRenderCount += toRender.length;
+        } else if (!skipMidiDom && !midiTbody && typeof renderMidiTable === 'function') {
+          renderMidiTable();
+        }
+        if (typeof updateMidiCount === 'function') updateMidiCount();
+        if (typeof _midiMetadataRunning !== 'undefined' && !_midiMetadataRunning && typeof loadMidiMetadata === 'function') loadMidiMetadata();
       }
-      if (typeof updateMidiCount === 'function') updateMidiCount();
-      // Trigger metadata load for new MIDI rows
-      if (typeof _midiMetadataRunning !== 'undefined' && !_midiMetadataRunning && typeof loadMidiMetadata === 'function') loadMidiMetadata();
     }
-    const tbody = document.getElementById('presetTableBody');
-    if (!_presetScanDbView && tbody && presetRenderCount < 2000) {
-      const loadMore = document.getElementById('presetLoadMore');
-      if (loadMore) loadMore.remove();
-      // Apply active filter so newly-streamed rows respect user's checkbox/search.
-      const scanFmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('presetFormatFilter') : null;
-      const scanSearch = (document.getElementById('presetSearchInput')?.value || '').trim().toLowerCase();
-      const visibleBatch = (scanFmtSet || scanSearch)
-        ? presetBatch.filter(p => {
-            if (scanFmtSet && !scanFmtSet.has(p.format)) return false;
-            if (scanSearch && !((p.name || '').toLowerCase().includes(scanSearch))) return false;
-            return true;
-          })
-        : presetBatch;
-      const toRender = visibleBatch.slice(0, 2000 - presetRenderCount);
-      tbody.insertAdjacentHTML('beforeend', toRender.map(buildPresetRow).join(''));
-      presetRenderCount += toRender.length;
+
+    if (allowPresetDom) {
+      const tbody = document.getElementById('presetTableBody');
+      if (!_presetScanDbView && tbody && presetRenderCount < 2000) {
+        const loadMore = document.getElementById('presetLoadMore');
+        if (loadMore) loadMore.remove();
+        const scanFmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('presetFormatFilter') : null;
+        const scanSearch = (document.getElementById('presetSearchInput')?.value || '').trim().toLowerCase();
+        const visibleBatch = (scanFmtSet || scanSearch)
+          ? presetBatch.filter(p => {
+              if (scanFmtSet && !scanFmtSet.has(p.format)) return false;
+              if (scanSearch && !((p.name || '').toLowerCase().includes(scanSearch))) return false;
+              return true;
+            })
+          : presetBatch;
+        const toRender = visibleBatch.slice(0, 2000 - presetRenderCount);
+        tbody.insertAdjacentHTML('beforeend', toRender.map(buildPresetRow).join(''));
+        presetRenderCount += toRender.length;
+      }
     }
 
     rebuildPresetStats();
-    const presetElapsed = presetEta.elapsed();
-    const timeSuffix = presetElapsed ? ' — ' + presetElapsed : '';
-    setBtn(`&#8635; ${pendingFound.toLocaleString()} found${timeSuffix}`, true);
   }
 
   const scheduleFlush = createScanFlusher(flushPending, FLUSH_INTERVAL);
@@ -517,13 +524,6 @@ async function scanPresets(resume = false, unifiedResult = null, overrideRoots =
     // Drain final streamed batch with the scan-active guard still set so the
     // rebuild inside flushPending uses incremental accumulators.
     flushPending();
-    if (pendingPresetClear) {
-      pendingPresetClear = false;
-      allPresets = [];
-      filteredPresets = [];
-      resetPresetStats();
-      resetPresetStatsAccumulators();
-    }
     if (result.streamed) {
       // Backend streamed results live — allPresets was built from progress events.
     } else if (resume) {
@@ -562,19 +562,14 @@ async function scanPresets(resume = false, unifiedResult = null, overrideRoots =
     if (presetScanProgressCleanup) { presetScanProgressCleanup(); presetScanProgressCleanup = null; }
     _presetScanDbView = false;
     flushPending();
-    if (pendingPresetClear) {
-      pendingPresetClear = false;
-      allPresets = [];
-      filteredPresets = [];
-      resetPresetStats();
-      resetPresetStatsAccumulators();
-    }
     const errMsg = err.message || err || 'Unknown error';
     tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
     showToast(toastFmt('toast.preset_scan_failed', { errMsg }), 4000, 'error');
   }
 
   window.__presetScanPendingFound = 0;
+  scanPresetDomActive = false;
+  scanMidiFromPresetDomActive = false;
   hideGlobalProgress();
   btn.disabled = false;
   if (typeof btnLoading === 'function') btnLoading(btn, false);

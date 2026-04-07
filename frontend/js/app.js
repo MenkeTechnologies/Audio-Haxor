@@ -174,53 +174,70 @@ async function handleFileWatcherChange(event) {
     loadPluginsFromDb();
 
 
-    // Auto-load last audio scan from SQLite (paginated — no full array in memory)
-    try {
-        const stats = await window.vstUpdater.dbAudioStats();
-        if (stats && stats.sampleCount > 0) {
-            audioTotalUnfiltered = stats.sampleCount;
-            audioStatCounts = stats.formatCounts || {};
-            audioStatBytes = stats.totalBytes || 0;
-            // Don't set array length — creates undefined slots that crash iterators
-            updateAudioStats();
-            audioCurrentOffset = 0;
-            await fetchAudioPage();
-            if (typeof startBackgroundAnalysis === 'function' && prefs.getItem('autoAnalysis') !== 'off') startBackgroundAnalysis();
-        }
-    } catch (err) {
-        showToast(toastFmt('toast.failed_load_audio_scan', {err: err.message || err}), 4000, 'error');
-    }
+    // Auto-load first page of each SQLite-backed tab in parallel (separate query seq per tab).
+    const _startupLibTasks = [];
 
-    // Auto-load last DAW scan (paginated from SQLite)
+    _startupLibTasks.push((async () => {
+        try {
+            const stats = await window.vstUpdater.dbAudioStats();
+            if (stats && stats.sampleCount > 0) {
+                audioTotalUnfiltered = stats.sampleCount;
+                audioStatCounts = stats.formatCounts || {};
+                audioStatBytes = stats.totalBytes || 0;
+                // Don't set array length — creates undefined slots that crash iterators
+                updateAudioStats();
+                audioCurrentOffset = 0;
+                await fetchAudioPage();
+                if (typeof startBackgroundAnalysis === 'function' && prefs.getItem('autoAnalysis') !== 'off') startBackgroundAnalysis();
+            }
+        } catch (err) {
+            showToast(toastFmt('toast.failed_load_audio_scan', {err: err.message || err}), 4000, 'error');
+        }
+    })());
+
     if (typeof fetchDawPage === 'function') {
         _dawOffset = 0;
-        fetchDawPage()
-            .then(() => {
+        _startupLibTasks.push((async () => {
+            try {
+                await fetchDawPage();
                 if (typeof refreshDawStatsSnapshot === 'function') refreshDawStatsSnapshot();
-            })
-            .catch(err => showToast(toastFmt('toast.failed_load_daw_scan', {err}), 4000, 'error'));
+            } catch (err) {
+                showToast(toastFmt('toast.failed_load_daw_scan', {err}), 4000, 'error');
+            }
+        })());
     }
 
-    // Auto-load last preset scan (paginated from SQLite)
     if (typeof fetchPresetPage === 'function') {
         _presetOffset = 0;
-        fetchPresetPage().then(() => {
-            if (typeof updatePresetExportButton === 'function') updatePresetExportButton();
-            else document.getElementById('btnExportPresets').style.display = allPresets.length > 0 ? '' : 'none';
-            if (typeof rebuildPresetStats === 'function') rebuildPresetStats();
-            if (typeof loadMidiFiles === 'function') loadMidiFiles();
-        }).catch(err => showToast(toastFmt('toast.failed_load_preset_scan', {err}), 4000, 'error'));
+        _startupLibTasks.push((async () => {
+            try {
+                await fetchPresetPage();
+                if (typeof updatePresetExportButton === 'function') updatePresetExportButton();
+                else {
+                    const btn = document.getElementById('btnExportPresets');
+                    if (btn) btn.style.display = allPresets.length > 0 ? '' : 'none';
+                }
+                if (typeof rebuildPresetStats === 'function') rebuildPresetStats();
+                if (typeof loadMidiFiles === 'function') loadMidiFiles();
+            } catch (err) {
+                showToast(toastFmt('toast.failed_load_preset_scan', {err}), 4000, 'error');
+            }
+        })());
     }
 
-    // Auto-load last PDF scan (paginated from SQLite)
     if (typeof fetchPdfPage === 'function') {
         _pdfOffset = 0;
-        fetchPdfPage()
-            .then(() => {
+        _startupLibTasks.push((async () => {
+            try {
+                await fetchPdfPage();
                 if (typeof rebuildPdfStats === 'function') rebuildPdfStats();
-            })
-            .catch(err => showToast(toastFmt('toast.failed_load_pdf_scan', {err}), 4000, 'error'));
+            } catch (err) {
+                showToast(toastFmt('toast.failed_load_pdf_scan', {err}), 4000, 'error');
+            }
+        })());
     }
+
+    await Promise.all(_startupLibTasks);
 
     // Apply default type filter from settings
     const defaultType = prefs.getItem('defaultTypeFilter');

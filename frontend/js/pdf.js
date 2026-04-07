@@ -342,9 +342,13 @@ async function scanPdfs(resume = false, unifiedResult = null, overrideRoots = nu
 
   if (!resume) {
     _pdfScanDbView = false;
+    allPdfs = [];
+    filteredPdfs = [];
+    resetPdfStatsAccumulators();
+    _pdfTotalUnfiltered = 0;
   }
-  let pendingPdfClear = !resume;
 
+  let scanPdfDomActive = false;
   let firstBatch = true;
   let pendingPdfs = [];
   let pendingFound = 0;
@@ -353,16 +357,31 @@ async function scanPdfs(resume = false, unifiedResult = null, overrideRoots = nu
   const FLUSH_INTERVAL = parseInt(prefs.getItem('flushInterval') || '100', 10);
 
   function flushPending() {
-    if (pendingPdfClear && pendingPdfs.length > 0) {
-      pendingPdfClear = false;
-      allPdfs = [];
-      filteredPdfs = [];
-      resetPdfStatsAccumulators();
-      _pdfTotalUnfiltered = 0;
-      document.getElementById('pdfStats').style.display = 'none';
-    }
     if (pendingPdfs.length === 0) return;
     const batch = pendingPdfs.splice(0);
+
+    const elapsed = pdfEta.elapsed();
+    if (scanBtn) {
+      scanBtn.innerHTML = catalogFmt('ui.audio.scan_progress_line', {
+        n: pendingFound.toLocaleString(),
+        elapsed: elapsed ? ' — ' + elapsed : '',
+      });
+    }
+
+    const allowDom =
+      scanPdfDomActive ||
+      (typeof isPdfScanTableEmpty === 'function' && isPdfScanTableEmpty());
+    if (!allowDom) {
+      allPdfs.push(...batch);
+      if (allPdfs.length > 100000) allPdfs.length = 100000;
+      if (filteredPdfs.length > 100000) filteredPdfs.length = 100000;
+      filteredPdfs.push(...batch);
+      accumulatePdfStats(batch);
+      _pdfTotalUnfiltered = allPdfs.length;
+      rebuildPdfStats();
+      return;
+    }
+    scanPdfDomActive = true;
 
     if (firstBatch) {
       firstBatch = false;
@@ -373,7 +392,6 @@ async function scanPdfs(resume = false, unifiedResult = null, overrideRoots = nu
     }
 
     allPdfs.push(...batch);
-    // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data.
     if (allPdfs.length > 100000) allPdfs.length = 100000;
     if (filteredPdfs.length > 100000) filteredPdfs.length = 100000;
     filteredPdfs.push(...batch);
@@ -392,13 +410,6 @@ async function scanPdfs(resume = false, unifiedResult = null, overrideRoots = nu
 
     _pdfTotalUnfiltered = allPdfs.length;
     rebuildPdfStats();
-    const elapsed = pdfEta.elapsed();
-    if (scanBtn) {
-      scanBtn.innerHTML = catalogFmt('ui.audio.scan_progress_line', {
-        n: pendingFound.toLocaleString(),
-        elapsed: elapsed ? ' — ' + elapsed : '',
-      });
-    }
   }
 
   const scheduleFlush = createScanFlusher(flushPending, FLUSH_INTERVAL);
@@ -428,13 +439,7 @@ async function scanPdfs(resume = false, unifiedResult = null, overrideRoots = nu
       ? await unifiedResult
       : await window.vstUpdater.scanPdfs(pdfRoots.length ? pdfRoots : undefined, excludePaths);
     flushPending();
-    if (pendingPdfClear) {
-      pendingPdfClear = false;
-      allPdfs = [];
-      filteredPdfs = [];
-      resetPdfStatsAccumulators();
-      _pdfTotalUnfiltered = 0;
-    }
+    scanPdfDomActive = false;
     if (result.streamed) {
       // Backend streamed results live — allPdfs was built from progress events.
     } else if (resume) {
@@ -477,13 +482,7 @@ async function scanPdfs(resume = false, unifiedResult = null, overrideRoots = nu
     if (pdfScanProgressCleanup) { pdfScanProgressCleanup(); pdfScanProgressCleanup = null; }
     _pdfScanDbView = false;
     flushPending();
-    if (pendingPdfClear) {
-      pendingPdfClear = false;
-      allPdfs = [];
-      filteredPdfs = [];
-      resetPdfStatsAccumulators();
-      _pdfTotalUnfiltered = 0;
-    }
+    scanPdfDomActive = false;
     const errMsg = err.message || err || catalogFmt('toast.unknown_error');
     const errTitle = typeof escapeHtml === 'function' ? escapeHtml(_pdfFmt('ui.audio.scan_error_title')) : _pdfFmt('ui.audio.scan_error_title');
     tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>${errTitle}</h2><p>${escapeHtml(errMsg)}</p></div>`;

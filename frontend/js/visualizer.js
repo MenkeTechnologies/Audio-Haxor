@@ -23,6 +23,18 @@ let _vizParams = {
 let _vizPeakHold = -96;
 let _vizPeakTimer = null;
 
+/** Cached canvas + 2D context per tile mode — avoids `querySelector` every frame. */
+const _VIZ_TILE_MODES = ['fft', 'waveform', 'spectrogram', 'stereo', 'levels', 'bands'];
+const _vizTileCache = new Map();
+
+function _refreshVizTileCache() {
+  _vizTileCache.clear();
+  for (const mode of _VIZ_TILE_MODES) {
+    const canvas = document.querySelector(`.viz-tile-canvas[data-viz="${mode}"]`);
+    if (canvas) _vizTileCache.set(mode, { canvas, ctx: canvas.getContext('2d') });
+  }
+}
+
 // ── Mode switching ──
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.viz-mode-btn');
@@ -47,6 +59,7 @@ document.addEventListener('click', (e) => {
     });
   }
   _resizeCanvases();
+  _refreshVizTileCache();
 });
 
 // ── Fullscreen ──
@@ -82,6 +95,7 @@ function _resizeCanvases() {
     for (const { canvas, w, h, ok } of sizes) {
       if (ok) { canvas.width = w; canvas.height = h; }
     }
+    _refreshVizTileCache();
   });
 }
 
@@ -141,9 +155,14 @@ function _vizLoop(timestamp) {
 }
 
 function _drawTile(mode, analyser) {
-  const canvas = document.querySelector(`.viz-tile-canvas[data-viz="${mode}"]`);
-  if (!canvas || canvas.width === 0) return;
-  const ctx = canvas.getContext('2d');
+  let entry = _vizTileCache.get(mode);
+  if (!entry) {
+    _refreshVizTileCache();
+    entry = _vizTileCache.get(mode);
+  }
+  if (!entry) return;
+  const { canvas, ctx } = entry;
+  if (!canvas || canvas.width === 0 || !ctx) return;
   const w = canvas.width, h = canvas.height;
 
   switch (mode) {
@@ -164,19 +183,22 @@ function _drawFFT(ctx, w, h, analyser) {
   ctx.clearRect(0, 0, w, h);
 
   if (_vizParams.fftLogScale) {
-    // Log-frequency display
+    // Log-frequency display — cap columns so retina-wide canvases do not do O(width) pow/log per frame
     const minF = 20, maxF = 20000;
     const logMin = Math.log10(minF), logMax = Math.log10(maxF);
     const sr = 44100;
-    for (let x = 0; x < w; x++) {
-      const logF = logMin + (x / w) * (logMax - logMin);
+    const maxCols = Math.min(w, 1024);
+    const colW = w / maxCols;
+    for (let c = 0; c < maxCols; c++) {
+      const t = (c + 0.5) / maxCols;
+      const logF = logMin + t * (logMax - logMin);
       const freq = Math.pow(10, logF);
-      const bin = Math.round(freq / (sr / 2) * bufLen);
+      const bin = Math.round((freq / (sr / 2)) * bufLen);
       if (bin >= bufLen) continue;
       const barH = (data[bin] / 255) * h;
-      const t = x / w;
+      const x = c * colW;
       ctx.fillStyle = `rgb(${Math.floor(5 + t * 206)},${Math.floor(217 - t * 167)},${Math.floor(232 - t * 35)})`;
-      ctx.fillRect(x, h - barH, 1, barH);
+      ctx.fillRect(x, h - barH, Math.max(1, colW), barH);
     }
     // Frequency grid
     ctx.fillStyle = 'rgba(122,139,168,0.4)';
@@ -244,16 +266,17 @@ function _drawSpectrogram(ctx, w, h, analyser) {
 
   ctx.clearRect(0, 0, w, h);
   const colW = w / maxCols;
+  const binStep = Math.max(1, Math.floor(bufLen / 256));
   for (let col = 0; col < maxCols; col++) {
     const ringIdx = (_vizSpectrogramIdx + col) % maxCols;
     const cd = _vizSpectrogramData[ringIdx];
     if (!cd) continue;
     const x = col * colW;
-    for (let bin = 0; bin < bufLen; bin++) {
+    for (let bin = 0; bin < bufLen; bin += binStep) {
       const mag = cd[bin] / 255;
       if (mag < 0.015) continue;
       const y = h - (bin / bufLen) * h;
-      const binH = Math.max(1, Math.ceil(h / bufLen));
+      const binH = Math.max(1, Math.ceil((h / bufLen) * binStep));
       const r = Math.floor(mag * 211 + (1 - mag) * 5);
       const g = Math.floor(mag * mag * 50);
       const b = Math.floor(mag * 197 + (1 - mag) * 20);

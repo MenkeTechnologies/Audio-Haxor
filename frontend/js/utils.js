@@ -632,6 +632,63 @@ function createScanFlusher(flushFn, intervalMs) {
   };
 }
 
+/** Loading / load-more rows — not inventory data. */
+const SCAN_TABLE_IGNORE_ROW_IDS = new Set([
+  'audioQueryLoadingRow', 'audioLoadMore', 'dawLoadMore', 'presetLoadMore', 'midiLoadMore', 'pdfLoadMore',
+]);
+
+/** True if tbody has no data rows (missing tbody counts as empty). */
+function scanTableTbodyIsEmpty(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return true;
+  for (const tr of tbody.querySelectorAll('tr')) {
+    if (SCAN_TABLE_IGNORE_ROW_IDS.has(tr.id)) continue;
+    return false;
+  }
+  return true;
+}
+
+function isAudioScanTableEmpty() {
+  const wrap = document.getElementById('audioTableWrap');
+  if (!wrap) return true;
+  if (!wrap.querySelector('#audioTable')) return true;
+  return scanTableTbodyIsEmpty('audioTableBody');
+}
+
+function isPluginListEmptyForScan() {
+  const list = document.getElementById('pluginList');
+  if (!list) return true;
+  return list.querySelectorAll('.plugin-card').length === 0;
+}
+
+function isDawScanTableEmpty() {
+  const wrap = document.getElementById('dawTableWrap');
+  if (!wrap) return true;
+  if (!wrap.querySelector('#dawTable')) return true;
+  return scanTableTbodyIsEmpty('dawTableBody');
+}
+
+function isPresetScanTableEmpty() {
+  const wrap = document.getElementById('presetTableWrap');
+  if (!wrap) return true;
+  if (!wrap.querySelector('#presetTable')) return true;
+  return scanTableTbodyIsEmpty('presetTableBody');
+}
+
+function isPdfScanTableEmpty() {
+  const wrap = document.getElementById('pdfTableWrap');
+  if (!wrap) return true;
+  if (!wrap.querySelector('#pdfTable')) return true;
+  return scanTableTbodyIsEmpty('pdfTableBody');
+}
+
+function isMidiScanTableEmpty() {
+  const wrap = document.getElementById('midiTableWrap');
+  if (!wrap) return true;
+  if (!wrap.querySelector('#midiTable')) return true;
+  return scanTableTbodyIsEmpty('midiTableBody');
+}
+
 function toggleRegex(btn) {
   btn.classList.toggle('active');
   const isRegex = btn.classList.contains('active');

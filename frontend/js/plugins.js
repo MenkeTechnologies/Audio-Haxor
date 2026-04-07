@@ -196,10 +196,11 @@ async function scanPlugins(resume = false, overrideRoots = null) {
   if (!resume) {
     _pluginScanDbView = false;
   }
-  /** First `scanning` chunk clears the list — keep previous plugins visible until data streams. */
-  let firstScanningChunk = true;
 
+  let scanPluginDomActive = false;
+  let firstScanningChunk = true;
   const eta = createETA();
+  let streamPluginCount = 0;
   try {
     if (scanProgressCleanup) scanProgressCleanup();
     // `listen()` is async — must await subscription before invoke or `scan-progress` events are lost.
@@ -209,6 +210,24 @@ async function scanPlugins(resume = false, overrideRoots = null) {
         btn.innerHTML = `&#8635; 0 / ${data.total}`;
         eta.start();
       } else if (data.phase === 'scanning') {
+        const total = data.total || 0;
+        const pct = total ? Math.round((data.processed / total) * 100) : 0;
+        progressFill.style.width = pct + '%';
+        const etaStr = eta.estimate(data.processed, data.total);
+        btn.innerHTML = `&#8635; ${data.processed} / ${data.total}${etaStr ? ' — ' + etaStr : ''}`;
+        const batch = data.plugins || [];
+        streamPluginCount += batch.length;
+        if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: streamPluginCount });
+        else document.getElementById('totalCount').textContent = streamPluginCount.toLocaleString();
+
+        const allowDom =
+          scanPluginDomActive ||
+          (typeof isPluginListEmptyForScan === 'function' && isPluginListEmptyForScan());
+        if (!allowDom) {
+          return;
+        }
+        scanPluginDomActive = true;
+
         if (firstScanningChunk) {
           firstScanningChunk = false;
           if (!resume) {
@@ -216,21 +235,11 @@ async function scanPlugins(resume = false, overrideRoots = null) {
             list.innerHTML = '';
           }
         }
-        // Append new plugins to the list incrementally
-        allPlugins.push(...data.plugins);
-        const total = data.total || 0;
-        const pct = total ? Math.round((data.processed / total) * 100) : 0;
-        progressFill.style.width = pct + '%';
-        const etaStr = eta.estimate(data.processed, data.total);
-        btn.innerHTML = `&#8635; ${data.processed} / ${data.total}${etaStr ? ' — ' + etaStr : ''}`;
-        if (typeof applyInventoryCountsPartial === 'function') applyInventoryCountsPartial({ plugins: allPlugins.length });
-        else document.getElementById('totalCount').textContent = allPlugins.length.toLocaleString();
+        allPlugins.push(...batch);
 
-        // Render the new batch directly into the list
         const fragment = document.createDocumentFragment();
         const temp = document.createElement('div');
-        temp.innerHTML = data.plugins.map(p => buildPluginCardHtml(p)).join('');
-        // Apply active filter so newly-streamed cards respect user's checkbox/search.
+        temp.innerHTML = batch.map(p => buildPluginCardHtml(p)).join('');
         const scanTypeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('typeFilter') : null;
         const scanStatusSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('statusFilter') : null;
         const scanSearch = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
@@ -300,6 +309,7 @@ async function scanPlugins(resume = false, overrideRoots = null) {
 
   if (scanProgressCleanup) { scanProgressCleanup(); scanProgressCleanup = null; }
   _pluginScanDbView = false;
+  scanPluginDomActive = false;
   hideGlobalProgress();
   stopBtn.style.display = 'none';
   btn.disabled = false;

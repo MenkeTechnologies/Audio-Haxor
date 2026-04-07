@@ -187,9 +187,14 @@ async function scanMidi(resume = false, overrideRoots = null) {
 
   if (!resume) {
     _midiScanDbView = false;
+    allMidiFiles = [];
+    filteredMidi = [];
+    _midiInfoCache = {};
+    _midiRenderCount = 0;
+    _midiTableInit = false;
   }
-  let pendingMidiClear = !resume;
 
+  let scanMidiDomActive = false;
   let pendingMidi = [];
   let pendingFound = 0;
   let firstMidiBatch = true;
@@ -201,22 +206,36 @@ async function scanMidi(resume = false, overrideRoots = null) {
     if (pendingMidi.length === 0) return;
     const toAdd = pendingMidi;
     pendingMidi = [];
-    if (pendingMidiClear && toAdd.length > 0) {
-      pendingMidiClear = false;
-      allMidiFiles = [];
-      filteredMidi = [];
-      _midiInfoCache = {};
-      _midiRenderCount = 0;
-      _midiTableInit = false;
-      const tbody = document.getElementById('midiTableBody');
-      if (tbody) tbody.innerHTML = '';
+
+    const allowDom =
+      scanMidiDomActive ||
+      (typeof isMidiScanTableEmpty === 'function' && isMidiScanTableEmpty());
+    if (!allowDom) {
+      allMidiFiles.push(...toAdd);
+      if (allMidiFiles.length > 100000) allMidiFiles.length = 100000;
+      if (filteredMidi.length > 100000) filteredMidi.length = 100000;
+      const q = (typeof _midiSearch === 'string' && _midiSearch) ? _midiSearch : '';
+      const mode = typeof getSearchMode === 'function' ? getSearchMode('regexMidi') : 'fuzzy';
+      const matching = q
+        ? toAdd.filter(s => typeof searchMatch === 'function'
+            ? searchMatch(q, [s.name, s.directory || ''], mode)
+            : s.name.toLowerCase().includes(q.toLowerCase()))
+        : toAdd;
+      filteredMidi.push(...matching);
+      updateMidiCount();
+      updateMidiHeaderCount();
+      if (progressFill) {
+        progressFill.style.width = '';
+        progressFill.style.animation = 'progress-indeterminate 1.5s ease-in-out infinite';
+      }
+      return;
     }
+    scanMidiDomActive = true;
+
     if (firstMidiBatch) { firstMidiBatch = false; _midiTableInit = false; _midiRenderCount = 0; }
     allMidiFiles.push(...toAdd);
-    // Cap in-memory array to prevent OOM on 1M+ scans — DB has authoritative data.
     if (allMidiFiles.length > 100000) allMidiFiles.length = 100000;
     if (filteredMidi.length > 100000) filteredMidi.length = 100000;
-    // Apply active search so streamed rows respect the user's current filter.
     const q = (typeof _midiSearch === 'string' && _midiSearch) ? _midiSearch : '';
     const mode = typeof getSearchMode === 'function' ? getSearchMode('regexMidi') : 'fuzzy';
     const matching = q
@@ -228,7 +247,7 @@ async function scanMidi(resume = false, overrideRoots = null) {
     if (!_midiScanDbView) {
       const tbody = document.getElementById('midiTableBody');
       if (!tbody) {
-        renderMidiTable(); // first flush: builds the table shell
+        renderMidiTable();
       } else if (_midiRenderCount < 2000) {
         const loadMore = document.getElementById('midiLoadMore');
         if (loadMore) loadMore.remove();
@@ -267,12 +286,7 @@ async function scanMidi(resume = false, overrideRoots = null) {
     const result = await window.vstUpdater.scanMidiFiles(midiRoots.length ? midiRoots : undefined, excludePaths);
     // Drain any remaining buffered batch that didn't hit the flush timer.
     flushPendingMidi();
-    if (pendingMidiClear) {
-      pendingMidiClear = false;
-      allMidiFiles = [];
-      filteredMidi = [];
-      _midiInfoCache = {};
-    }
+    scanMidiDomActive = false;
     if (result.streamed) {
       // Backend streamed results live — allMidiFiles was built from progress events.
     } else {
@@ -316,12 +330,7 @@ async function scanMidi(resume = false, overrideRoots = null) {
   } catch (err) {
     if (_midiScanProgressCleanup) { _midiScanProgressCleanup(); _midiScanProgressCleanup = null; }
     _midiScanDbView = false;
-    if (pendingMidiClear) {
-      pendingMidiClear = false;
-      allMidiFiles = [];
-      filteredMidi = [];
-      _midiInfoCache = {};
-    }
+    scanMidiDomActive = false;
     const errMsg = err.message || err || 'Unknown error';
     if (tableWrap) tableWrap.innerHTML = `<div class="state-message"><div class="state-icon">&#9888;</div><h2>Scan Error</h2><p>${errMsg}</p></div>`;
     if (typeof showToast === 'function' && typeof toastFmt === 'function') showToast(toastFmt('toast.midi_scan_failed', { err: errMsg }), 4000, 'error');
