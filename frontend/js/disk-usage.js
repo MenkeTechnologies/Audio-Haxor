@@ -30,10 +30,11 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
     // Sort by size descending
     data.sort((a, b) => b.bytes - a.bytes);
 
-    const segments = data.map(d => {
+    /** Release WKWebView often leaves width:0→% transitions unpainted; set final % inline (see utils.js switchTab settings reflow note). */
+    const segments = data.map((d) => {
         const pct = ((d.bytes / totalBytes) * 100).toFixed(1);
         const color = colors[d.label] || defaultColor;
-        return `<div class="disk-segment" data-bar-pct="${pct}" style="width:0; background: ${color};"
+        return `<div class="disk-segment" style="width:${pct}%;min-width:2px;background:${color};flex-shrink:0;"
       title="${d.label}: ${d.sizeStr} (${pct}%)"></div>`;
     }).join('');
 
@@ -50,12 +51,8 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
     <div class="disk-bar">${segments}</div>
     <div class="disk-legend">${legend}</div>
   `;
-    requestAnimationFrame(() => {
-        el.querySelectorAll('[data-bar-pct]').forEach(s => {
-            s.style.width = s.dataset.barPct + '%';
-            s.style.transition = 'width 0.3s ease-out';
-        });
-    });
+    const bar = el.querySelector('.disk-bar');
+    if (bar) void bar.offsetWidth;
 }
 
 // Reads already-fetched aggregate bytesByType from module caches populated by

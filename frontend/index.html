@@ -6627,6 +6627,183 @@
             box-shadow: 0 0 16px var(--magenta-glow);
         }
 
+        /* Insert chain: dynamic rows + fuzzy plugin picker (classes from audio-engine.js) */
+        #tabAudioEngine .ae-insert-chain {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+
+        #tabAudioEngine .ae-insert-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        #tabAudioEngine .ae-insert-row .ae-slot-num {
+            flex: 0 0 24px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--cyan);
+            text-align: right;
+            opacity: 0.85;
+        }
+
+        #tabAudioEngine .ae-picker {
+            position: relative;
+            flex: 1 1 200px;
+            min-width: 0;
+        }
+
+        #tabAudioEngine .ae-picker-input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px 28px 6px 10px;
+            font-size: 12px;
+            font-family: 'Share Tech Mono', monospace;
+            border: 1px solid rgba(5, 217, 232, 0.45);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.45);
+            color: var(--text);
+            box-shadow: 0 0 10px rgba(5, 217, 232, 0.08);
+        }
+
+        #tabAudioEngine .ae-picker-input:focus {
+            outline: none;
+            border-color: var(--cyan);
+            box-shadow: 0 0 14px var(--cyan-dim);
+        }
+
+        #tabAudioEngine .ae-picker-input::placeholder {
+            color: var(--text-dim);
+            opacity: 0.65;
+        }
+
+        #tabAudioEngine .ae-picker-clear {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-dim);
+            line-height: 1;
+            display: none;
+            user-select: none;
+        }
+
+        #tabAudioEngine .ae-picker-clear:hover {
+            color: var(--red, #f44);
+        }
+
+        #tabAudioEngine .ae-picker.has-value .ae-picker-clear {
+            display: block;
+        }
+
+        #tabAudioEngine .ae-picker-dropdown {
+            display: none;
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: calc(100% + 4px);
+            z-index: 50;
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid rgba(5, 217, 232, 0.35);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 12px rgba(5, 217, 232, 0.12);
+        }
+
+        #tabAudioEngine .ae-picker.open .ae-picker-dropdown {
+            display: block;
+        }
+
+        #tabAudioEngine .ae-picker-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        #tabAudioEngine .ae-picker-option:hover,
+        #tabAudioEngine .ae-picker-option.active {
+            background: rgba(5, 217, 232, 0.12);
+        }
+
+        #tabAudioEngine .ae-picker-no-match {
+            padding: 10px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        #tabAudioEngine .ae-badge {
+            flex: 0 0 auto;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        #tabAudioEngine .ae-badge-vst3 {
+            color: var(--accent);
+            border: 1px solid rgba(206, 147, 216, 0.5);
+            box-shadow: 0 0 6px rgba(206, 147, 216, 0.2);
+        }
+
+        #tabAudioEngine .ae-badge-au {
+            color: var(--green);
+            border: 1px solid rgba(57, 255, 20, 0.35);
+            box-shadow: 0 0 6px rgba(57, 255, 20, 0.12);
+        }
+
+        #tabAudioEngine .ae-match {
+            background: rgba(5, 217, 232, 0.35);
+            color: #fff;
+            border-radius: 2px;
+        }
+
+        #tabAudioEngine .ae-insert-editor-btn,
+        #tabAudioEngine .ae-insert-remove-btn {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            letter-spacing: 0.06em;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        #tabAudioEngine .ae-insert-editor-btn {
+            border: 1px solid rgba(5, 217, 232, 0.45);
+            background: rgba(5, 217, 232, 0.08);
+            color: var(--cyan);
+        }
+
+        #tabAudioEngine .ae-insert-editor-btn:hover {
+            border-color: var(--cyan);
+            box-shadow: 0 0 10px var(--cyan-dim);
+        }
+
+        #tabAudioEngine .ae-insert-remove-btn {
+            border: 1px solid rgba(255, 80, 80, 0.45);
+            background: rgba(255, 80, 80, 0.08);
+            color: #f88;
+            min-width: 32px;
+        }
+
+        #tabAudioEngine .ae-insert-remove-btn:hover {
+            border-color: #f44;
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.25);
+        }
+
         #tabAudioEngine .ae-eq-rack {
             display: flex;
             flex-wrap: wrap;
@@ -9117,29 +9294,17 @@
                         <p id="aePluginInsertIntro" style="margin:0;font-size:12px;color:var(--text-dim);line-height:1.45;" data-i18n="ui.ae.plugins_insert_intro">—</p>
                     </div>
                 </div>
-                <div class="settings-row">
+                <div class="settings-row ae-settings-row-full">
                     <div class="settings-label">
                         <span class="settings-title" data-i18n="ui.ae.insert_chain_label">Insert chain</span>
-                        <span class="settings-desc" data-i18n="ui.ae.insert_slot_tt">Optional VST3 or AU effect (from scan). Order is serial: slot 1 → slot 4.</span>
+                        <span class="settings-desc" data-i18n="ui.ae.insert_slot_tt">Optional VST3 or AU effect (from scan). Order is serial top to bottom.</span>
                     </div>
-                    <div class="settings-control" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-                        <select id="aeInsertSlot0" class="ae-input settings-select" data-i18n-title="ui.ae.insert_slot_tt" style="min-width:220px;max-width:100%;padding:6px 8px;font-size:12px;"></select>
-                        <select id="aeInsertSlot1" class="ae-input settings-select" data-i18n-title="ui.ae.insert_slot_tt" style="min-width:220px;max-width:100%;padding:6px 8px;font-size:12px;"></select>
-                        <select id="aeInsertSlot2" class="ae-input settings-select" data-i18n-title="ui.ae.insert_slot_tt" style="min-width:220px;max-width:100%;padding:6px 8px;font-size:12px;"></select>
-                        <select id="aeInsertSlot3" class="ae-input settings-select" data-i18n-title="ui.ae.insert_slot_tt" style="min-width:220px;max-width:100%;padding:6px 8px;font-size:12px;"></select>
-                        <button class="btn btn-primary btn-settings-action" type="button" id="aeApplyInserts" data-i18n="ui.ae.apply_inserts" data-i18n-title="ui.ae.apply_inserts_tt">Apply inserts</button>
-                    </div>
-                </div>
-                <div class="settings-row">
-                    <div class="settings-label">
-                        <span class="settings-title" data-i18n="ui.ae.native_editors_label">Native editors</span>
-                        <span class="settings-desc" data-i18n="ui.ae.insert_editors_row_tt">Native plug-in editor windows (JUCE host).</span>
-                    </div>
-                    <div class="settings-control" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;" data-i18n-title="ui.ae.insert_editors_row_tt">
-                        <button class="btn btn-secondary btn-settings-action" type="button" id="aeInsertEditor0" data-i18n="ui.ae.insert_editor_slot_1" data-i18n-title="ui.ae.insert_editor_tt">Editor (1)</button>
-                        <button class="btn btn-secondary btn-settings-action" type="button" id="aeInsertEditor1" data-i18n="ui.ae.insert_editor_slot_2" data-i18n-title="ui.ae.insert_editor_tt">Editor (2)</button>
-                        <button class="btn btn-secondary btn-settings-action" type="button" id="aeInsertEditor2" data-i18n="ui.ae.insert_editor_slot_3" data-i18n-title="ui.ae.insert_editor_tt">Editor (3)</button>
-                        <button class="btn btn-secondary btn-settings-action" type="button" id="aeInsertEditor3" data-i18n="ui.ae.insert_editor_slot_4" data-i18n-title="ui.ae.insert_editor_tt">Editor (4)</button>
+                    <div class="settings-control" style="display:flex;flex-direction:column;align-items:stretch;gap:10px;width:100%;max-width:100%;">
+                        <div id="aeInsertChainContainer" class="ae-insert-chain"></div>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                            <button class="btn btn-secondary btn-settings-action" type="button" id="aeAddInsertSlot" data-i18n="ui.ae.add_insert_slot" data-i18n-title="ui.ae.add_insert_slot_tt">Add slot</button>
+                            <button class="btn btn-primary btn-settings-action" type="button" id="aeApplyInserts" data-i18n="ui.ae.apply_inserts" data-i18n-title="ui.ae.apply_inserts_tt">Apply inserts</button>
+                        </div>
                     </div>
                 </div>
                 <div class="settings-row ae-settings-row-full">
@@ -10366,44 +10531,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=97738"></script>
-<script src="js/utils.js?v=97738"></script>
-<script src="js/ipc.js?v=97738"></script>
-<script src="js/drag-reorder.js?v=97738"></script>
-<script src="js/modal-drag.js?v=97738"></script>
-<script src="js/columns.js?v=97738"></script>
-<script src="js/notes.js?v=97738"></script>
-<script src="js/favorites.js?v=97738"></script>
-<script src="js/export.js?v=97738"></script>
-<script src="js/plugins.js?v=97738"></script>
-<script src="js/settings.js?v=97738"></script>
-<script src="js/history.js?v=97738"></script>
-<script src="js/kvr.js?v=97738"></script>
-<script src="js/audio.js?v=97738"></script>
-<script src="js/daw.js?v=97738"></script>
-<script src="js/disk-usage.js?v=97738"></script>
-<script src="js/presets.js?v=97738"></script>
-<script src="js/batch-select.js?v=97738"></script>
-<script src="js/native-file-drag.js?v=97738"></script>
-<script src="js/sort-persist.js?v=97738"></script>
-<script src="js/multi-filter.js?v=97738"></script>
-<script src="js/file-browser.js?v=97738"></script>
-<script src="js/duplicates.js?v=97738"></script>
-<script src="js/command-palette.js?v=97738"></script>
-<script src="js/xref.js?v=97738"></script>
-<script src="js/dep-graph.js?v=97738"></script>
-<script src="js/smart-playlists.js?v=97738"></script>
-<script src="js/heatmap-dashboard.js?v=97738"></script>
-<script src="js/midi.js?v=97738"></script>
-<script src="js/pdf.js?v=97738"></script>
-<script src="js/settings-search.js?v=97738"></script>
-<script src="js/visualizer.js?v=97738"></script>
-<script src="js/walker-status.js?v=97738"></script>
-<script src="js/audio-engine.js?v=97738"></script>
-<script src="js/context-menu.js?v=97738"></script>
-<script src="js/shortcuts.js?v=97738"></script>
-<script src="js/help-overlay.js?v=97738"></script>
-<script src="js/keyboard-nav.js?v=97738"></script>
-<script src="js/app.js?v=97738"></script>
+<script src="js/i18n-ui.js?v=83276"></script>
+<script src="js/utils.js?v=83276"></script>
+<script src="js/ipc.js?v=83276"></script>
+<script src="js/drag-reorder.js?v=83276"></script>
+<script src="js/modal-drag.js?v=83276"></script>
+<script src="js/columns.js?v=83276"></script>
+<script src="js/notes.js?v=83276"></script>
+<script src="js/favorites.js?v=83276"></script>
+<script src="js/export.js?v=83276"></script>
+<script src="js/plugins.js?v=83276"></script>
+<script src="js/settings.js?v=83276"></script>
+<script src="js/history.js?v=83276"></script>
+<script src="js/kvr.js?v=83276"></script>
+<script src="js/audio.js?v=83276"></script>
+<script src="js/daw.js?v=83276"></script>
+<script src="js/disk-usage.js?v=83277"></script>
+<script src="js/presets.js?v=83276"></script>
+<script src="js/batch-select.js?v=83276"></script>
+<script src="js/native-file-drag.js?v=83276"></script>
+<script src="js/sort-persist.js?v=83276"></script>
+<script src="js/multi-filter.js?v=83276"></script>
+<script src="js/file-browser.js?v=83276"></script>
+<script src="js/duplicates.js?v=83276"></script>
+<script src="js/command-palette.js?v=83276"></script>
+<script src="js/xref.js?v=83276"></script>
+<script src="js/dep-graph.js?v=83276"></script>
+<script src="js/smart-playlists.js?v=83276"></script>
+<script src="js/heatmap-dashboard.js?v=83276"></script>
+<script src="js/midi.js?v=83276"></script>
+<script src="js/pdf.js?v=83276"></script>
+<script src="js/settings-search.js?v=83276"></script>
+<script src="js/visualizer.js?v=83276"></script>
+<script src="js/walker-status.js?v=83276"></script>
+<script src="js/audio-engine.js?v=83276"></script>
+<script src="js/context-menu.js?v=83276"></script>
+<script src="js/shortcuts.js?v=83276"></script>
+<script src="js/help-overlay.js?v=83276"></script>
+<script src="js/keyboard-nav.js?v=83276"></script>
+<script src="js/app.js?v=83276"></script>
 </body>
 </html>
