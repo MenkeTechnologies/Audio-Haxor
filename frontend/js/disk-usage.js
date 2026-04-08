@@ -84,6 +84,7 @@ async function updatePluginDiskUsage(force) {
     const regexOn = typeof getSearchMode === 'function' && getSearchMode('regexPlugins') === 'regex';
     const key = search.trim() + '|' + (typeFilter || '') + '|' + (regexOn ? 'r' : 'f');
     let counts = {}, bytes = {}, total = 0, unfiltered = 0, totalBytes = 0;
+    let countCapped = false;
     const cacheHit = !force && key === _lastPluginAggKey && _pluginAggCache;
     try {
         const agg = cacheHit ? _pluginAggCache : await window.vstUpdater.dbPluginFilterStats(search.trim(), typeFilter, regexOn);
@@ -96,6 +97,7 @@ async function updatePluginDiskUsage(force) {
         total = agg.count || 0;
         totalBytes = agg.totalBytes || 0;
         unfiltered = agg.totalUnfiltered || 0;
+        countCapped = agg.countCapped === true;
     } catch {
         // Fallback to local data
         if (typeof allPlugins === 'undefined' || allPlugins.length === 0) return;
@@ -120,7 +122,8 @@ async function updatePluginDiskUsage(force) {
             if (e) e.textContent = v;
         };
         const isFiltered = unfiltered > 0 && total > 0 && total < unfiltered;
-        set('pluginStatsTotal', isFiltered ? total.toLocaleString() + ' / ' + unfiltered.toLocaleString() : total.toLocaleString());
+        const totalPart = countCapped ? total.toLocaleString() + '+' : total.toLocaleString();
+        set('pluginStatsTotal', isFiltered ? totalPart + ' / ' + unfiltered.toLocaleString() : totalPart);
         set('pluginStatsVst3', vst3.toLocaleString());
         set('pluginStatsVst2', vst2.toLocaleString());
         set('pluginStatsAu', au.toLocaleString());

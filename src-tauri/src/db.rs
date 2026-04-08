@@ -566,6 +566,8 @@ pub struct PluginQueryResult {
     pub plugins: Vec<PluginRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
+    #[serde(rename = "totalCountCapped", skip_serializing_if = "std::ops::Not::not")]
+    pub total_count_capped: bool,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
 }
@@ -588,6 +590,8 @@ pub struct DawQueryResult {
     pub projects: Vec<DawRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
+    #[serde(rename = "totalCountCapped", skip_serializing_if = "std::ops::Not::not")]
+    pub total_count_capped: bool,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
 }
@@ -2233,6 +2237,122 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok((count, capped))
     }
 
+    /// Bounded FTS hit count for DAW project library ([`Self::query_daw`] `daw_filter` rules).
+    fn daw_fts_bounded_count_library(
+        conn: &Connection,
+        fts_match: &str,
+        daw_filter: Option<&str>,
+    ) -> Result<(u64, bool), String> {
+        let cap = FTS_INVENTORY_MATCH_COUNT_CAP + 1;
+        let raw: i64 = match daw_filter {
+            None => conn
+                .query_row(
+                    "SELECT COUNT(*) FROM (
+  SELECT 1 FROM daw_projects d
+  INNER JOIN daw_library lib ON d.id = lib.project_id
+  WHERE d.id IN (SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH ?1)
+  LIMIT ?2)",
+                    params![fts_match, cap],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|e| e.to_string())?,
+            Some(f) if f.trim().is_empty() || f == "all" => conn
+                .query_row(
+                    "SELECT COUNT(*) FROM (
+  SELECT 1 FROM daw_projects d
+  INNER JOIN daw_library lib ON d.id = lib.project_id
+  WHERE d.id IN (SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH ?1)
+  LIMIT ?2)",
+                    params![fts_match, cap],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|e| e.to_string())?,
+            Some(f) if f.contains(',') => {
+                let in_list = Self::in_list_sql(f);
+                let sql = format!(
+                    "SELECT COUNT(*) FROM (
+  SELECT 1 FROM daw_projects d
+  INNER JOIN daw_library lib ON d.id = lib.project_id
+  WHERE d.id IN (SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH ?1)
+  AND d.daw IN ({in_list})
+  LIMIT ?2)"
+                );
+                conn.query_row(&sql, params![fts_match, cap], |row| row.get::<_, i64>(0))
+                    .map_err(|e| e.to_string())?
+            }
+            Some(f) => conn
+                .query_row(
+                    "SELECT COUNT(*) FROM (
+  SELECT 1 FROM daw_projects d
+  INNER JOIN daw_library lib ON d.id = lib.project_id
+  WHERE d.id IN (SELECT rowid FROM daw_projects_fts WHERE daw_projects_fts MATCH ?1)
+  AND d.daw = ?2
+  LIMIT ?3)",
+                    params![fts_match, f, cap],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|e| e.to_string())?,
+        };
+        let capped = raw > FTS_INVENTORY_MATCH_COUNT_CAP;
+        let count = if capped {
+            FTS_INVENTORY_MATCH_COUNT_CAP as u64
+        } else {
+            raw as u64
+        };
+        Ok((count, capped))
+    }
+
+    /// Bounded COUNT for plugin tab search (LIKE / REGEXP; no FTS). Same cap as inventory FTS paths.
+    fn plugin_search_bounded_count_library(
+        conn: &Connection,
+        from_sql: &str,
+        where_cl: &str,
+        regex_pat: &Option<String>,
+        like_pat: &Option<String>,
+        type_filter: Option<&str>,
+    ) -> Result<(u64, bool), String> {
+        let cap = FTS_INVENTORY_MATCH_COUNT_CAP + 1;
+        let mut cap_idx = 1usize;
+        if regex_pat.is_some() || like_pat.is_some() {
+            cap_idx += 1;
+        }
+        if type_filter
+            .map(|t| !t.is_empty() && t != "all" && !t.contains(','))
+            .unwrap_or(false)
+        {
+            cap_idx += 1;
+        }
+        let sql = format!(
+            "SELECT COUNT(*) FROM (SELECT 1 {from_sql} WHERE {where_cl} LIMIT ?{cap_idx})"
+        );
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let mut bi = 1usize;
+        if let Some(ref p) = regex_pat.as_ref().or(like_pat.as_ref()) {
+            stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?;
+            bi += 1;
+        }
+        if let Some(tf) = type_filter {
+            if !tf.is_empty() && tf != "all" && !tf.contains(',') {
+                stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
+        }
+        stmt.raw_bind_parameter(bi, cap).map_err(|e| e.to_string())?;
+        let mut rows = stmt.raw_query();
+        let raw: i64 = rows
+            .next()
+            .map_err(|e| e.to_string())?
+            .map(|r| r.get::<_, i64>(0).unwrap_or(0))
+            .unwrap_or(0);
+        let capped = raw > FTS_INVENTORY_MATCH_COUNT_CAP;
+        let count = if capped {
+            FTS_INVENTORY_MATCH_COUNT_CAP as u64
+        } else {
+            raw as u64
+        };
+        Ok((count, capped))
+    }
+
     /// Paginated, sortable, filterable query for audio samples.
     ///
     /// `scan_id` **Some(non-empty)** → rows for that scan only (history detail).
@@ -2951,6 +3071,7 @@ DROP TABLE _pl_refresh_paths;"#;
             return Ok(PluginQueryResult {
                 plugins: vec![],
                 total_count: 0,
+                total_count_capped: false,
                 total_unfiltered: 0,
             });
         }
@@ -3031,25 +3152,37 @@ DROP TABLE _pl_refresh_paths;"#;
         };
         let dir = if sort_asc { "ASC" } else { "DESC" };
 
-        let total_count: u64 = {
-            let sql = format!("SELECT COUNT(*) {from_sql} WHERE {where_cl}");
-            let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-            let mut bi = 1;
-            if let Some(ref p) = regex_pat.as_ref().or(like_pat.as_ref()) {
-                stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?;
-                bi += 1;
-            }
-            if let Some(tf) = type_filter {
-                if !tf.is_empty() && tf != "all" && !tf.contains(',') {
-                    stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
+        let (total_count, total_count_capped) = if regex_pat.is_some() || like_pat.is_some() {
+            Self::plugin_search_bounded_count_library(
+                &conn,
+                from_sql,
+                &where_cl,
+                &regex_pat,
+                &like_pat,
+                type_filter,
+            )?
+        } else {
+            let n: u64 = {
+                let sql = format!("SELECT COUNT(*) {from_sql} WHERE {where_cl}");
+                let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+                let mut bi = 1;
+                if let Some(ref p) = regex_pat.as_ref().or(like_pat.as_ref()) {
+                    stmt.raw_bind_parameter(bi, p).map_err(|e| e.to_string())?;
+                    bi += 1;
                 }
-            }
-            let _ = bi;
-            let mut rows = stmt.raw_query();
-            rows.next()
-                .map_err(|e| e.to_string())?
-                .map(|r| r.get::<_, i64>(0).unwrap_or(0) as u64)
-                .unwrap_or(0)
+                if let Some(tf) = type_filter {
+                    if !tf.is_empty() && tf != "all" && !tf.contains(',') {
+                        stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
+                    }
+                }
+                let _ = bi;
+                let mut rows = stmt.raw_query();
+                rows.next()
+                    .map_err(|e| e.to_string())?
+                    .map(|r| r.get::<_, i64>(0).unwrap_or(0) as u64)
+                    .unwrap_or(0)
+            };
+            (n, false)
         };
 
         let mut bind_offset = 1usize;
@@ -3104,6 +3237,7 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(PluginQueryResult {
             plugins,
             total_count,
+            total_count_capped,
             total_unfiltered,
         })
     }
@@ -3130,6 +3264,7 @@ DROP TABLE _pl_refresh_paths;"#;
             return Ok(DawQueryResult {
                 projects: vec![],
                 total_count: 0,
+                total_count_capped: false,
                 total_unfiltered: 0,
             });
         }
@@ -3182,31 +3317,34 @@ DROP TABLE _pl_refresh_paths;"#;
         };
         let dir = if sort_asc { "ASC" } else { "DESC" };
 
-        let total_count: u64 = {
-            let sql = format!("SELECT COUNT(*) FROM daw_projects WHERE {where_cl}");
-            let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-            let mut bi = 1;
-            if let Some(ref m) = fts_match {
-                stmt.raw_bind_parameter(bi, m).map_err(|e| e.to_string())?;
-                bi += 1;
-            } else if let Some(ref r) = regex_pat {
-                stmt.raw_bind_parameter(bi, r).map_err(|e| e.to_string())?;
-                bi += 1;
-            } else if let Some(ref pat) = like_pat {
-                stmt.raw_bind_parameter(bi, pat)
-                    .map_err(|e| e.to_string())?;
-                bi += 1;
-            }
-            if let Some(f) = daw_filter {
-                if !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+        let (total_count, total_count_capped) = if fts_match.is_some() {
+            let m = fts_match.as_ref().expect("fts");
+            Self::daw_fts_bounded_count_library(&conn, m, daw_filter)?
+        } else {
+            let n: u64 = {
+                let sql = format!("SELECT COUNT(*) FROM daw_projects WHERE {where_cl}");
+                let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+                let mut bi = 1;
+                if let Some(ref r) = regex_pat {
+                    stmt.raw_bind_parameter(bi, r).map_err(|e| e.to_string())?;
+                    bi += 1;
+                } else if let Some(ref pat) = like_pat {
+                    stmt.raw_bind_parameter(bi, pat)
+                        .map_err(|e| e.to_string())?;
+                    bi += 1;
                 }
-            }
-            let mut rows = stmt.raw_query();
-            rows.next()
-                .map_err(|e| e.to_string())?
-                .map(|r| r.get::<_, i64>(0).unwrap_or(0) as u64)
-                .unwrap_or(0)
+                if let Some(f) = daw_filter {
+                    if !f.is_empty() && f != "all" && !f.contains(',') {
+                        stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                    }
+                }
+                let mut rows = stmt.raw_query();
+                rows.next()
+                    .map_err(|e| e.to_string())?
+                    .map(|r| r.get::<_, i64>(0).unwrap_or(0) as u64)
+                    .unwrap_or(0)
+            };
+            (n, false)
         };
 
         let sql = format!(
@@ -3256,6 +3394,7 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(DawQueryResult {
             projects,
             total_count,
+            total_count_capped,
             total_unfiltered,
         })
     }
@@ -6003,6 +6142,32 @@ DROP TABLE _pl_refresh_paths;"#;
             }
         }
         let where_cl = where_parts.join(" AND ");
+        if fts_match.is_some() {
+            let m = fts_match.as_ref().expect("fts");
+            let (bc, capped) = Self::daw_fts_bounded_count_library(&conn, m, daw_filter)?;
+            if bc == 0 {
+                return Ok(FilterStatsResult {
+                    count: 0,
+                    count_capped: false,
+                    total_bytes: 0,
+                    by_type: HashMap::new(),
+                    bytes_by_type: HashMap::new(),
+                    total_unfiltered,
+                    size_buckets: vec![],
+                });
+            }
+            if capped {
+                return Ok(FilterStatsResult {
+                    count: bc,
+                    count_capped: true,
+                    total_bytes: 0,
+                    by_type: HashMap::new(),
+                    bytes_by_type: HashMap::new(),
+                    total_unfiltered,
+                    size_buckets: vec![],
+                });
+            }
+        }
         let sql = format!(
             "SELECT daw, COUNT(*), COALESCE(SUM(size),0) FROM daw_projects WHERE {where_cl} GROUP BY daw"
         );
@@ -6203,6 +6368,38 @@ DROP TABLE _pl_refresh_paths;"#;
             }
         }
         let where_cl = where_parts.join(" AND ");
+        if regex_pat.is_some() || like_pat.is_some() {
+            let (bc, capped) = Self::plugin_search_bounded_count_library(
+                &conn,
+                "FROM plugins",
+                &where_cl,
+                &regex_pat,
+                &like_pat,
+                type_filter,
+            )?;
+            if bc == 0 {
+                return Ok(FilterStatsResult {
+                    count: 0,
+                    count_capped: false,
+                    total_bytes: 0,
+                    by_type: HashMap::new(),
+                    bytes_by_type: HashMap::new(),
+                    total_unfiltered,
+                    size_buckets: vec![],
+                });
+            }
+            if capped {
+                return Ok(FilterStatsResult {
+                    count: bc,
+                    count_capped: true,
+                    total_bytes: 0,
+                    by_type: HashMap::new(),
+                    bytes_by_type: HashMap::new(),
+                    total_unfiltered,
+                    size_buckets: vec![],
+                });
+            }
+        }
         let sql = format!(
             "SELECT plugin_type, COUNT(*), COALESCE(SUM(size_bytes),0) FROM plugins WHERE {where_cl} GROUP BY plugin_type"
         );

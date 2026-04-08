@@ -12,6 +12,7 @@ let dawScanProgressCleanup = null;
 let _dawScanDbView = false;
 let _dawOffset = 0;
 let _dawTotalCount = 0;
+let _dawTotalCountCapped = false;
 let _dawTotalUnfiltered = 0;
 /** Monotonic id so stale `dbQueryDaw` results never overwrite a newer filter. */
 let _dawQuerySeq = 0;
@@ -71,6 +72,7 @@ async function fetchDawPage() {
         // This keeps JS memory bounded at one page regardless of scan size (6M+ safe).
         filteredDawProjects = projects;
         _dawTotalCount = result.totalCount || 0;
+        _dawTotalCountCapped = result.totalCountCapped === true;
         _dawTotalUnfiltered = result.totalUnfiltered || 0;
         if (typeof yieldToBrowser === 'function') await yieldToBrowser();
         if (seq !== _dawQuerySeq) return;
@@ -92,6 +94,7 @@ function resetDawStats() {
     dawStatCounts = {};
     dawStatBytes = 0;
     _dawTotalCount = 0;
+    _dawTotalCountCapped = false;
     _dawTotalUnfiltered = 0;
     // Drop any stale DB snapshot from a prior scan — otherwise updateDawStats
     // would read from the old snapshot while the new scan's accumulator fills
@@ -126,9 +129,10 @@ function updateDawStats() {
     const dawDisplayCount = _dawTotalCount || _dawTotalUnfiltered || 0;
     const unfiltered = _dawTotalUnfiltered || 0;
     const isFiltered = unfiltered > 0 && dawDisplayCount > 0 && dawDisplayCount < unfiltered;
+    const countPart = _dawTotalCountCapped ? dawDisplayCount.toLocaleString() + '+' : dawDisplayCount.toLocaleString();
     const countStr = isFiltered
-        ? dawDisplayCount.toLocaleString() + ' / ' + unfiltered.toLocaleString()
-        : dawDisplayCount.toLocaleString();
+        ? countPart + ' / ' + unfiltered.toLocaleString()
+        : (_dawTotalCountCapped ? dawDisplayCount.toLocaleString() + '+' : dawDisplayCount.toLocaleString());
     document.getElementById('dawTotalCount').textContent = countStr;
     document.getElementById('dawAbletonCount').textContent = ableton;
     document.getElementById('dawLogicCount').textContent = logic;
@@ -211,6 +215,7 @@ async function _runDawFilterStatsAgg() {
             projectCount: agg.count || 0,
         };
         _dawTotalCount = agg.count || 0;
+        _dawTotalCountCapped = agg.countCapped === true;
         _dawTotalUnfiltered = agg.totalUnfiltered || 0;
         updateDawStats();
     } catch {
@@ -457,15 +462,20 @@ function renderDawTable() {
             `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-dim);"><span style="font-size:24px;display:block;margin-bottom:8px;">&#128269;</span>${msg}</td></tr>`);
         return;
     }
-    if (dawRenderCount < _dawTotalCount) {
+    const dawPageSize = typeof DAW_PAGE_SIZE !== 'undefined' ? DAW_PAGE_SIZE : 200;
+    const dawHasMore = _dawTotalCountCapped
+        ? (filteredDawProjects.length === dawPageSize)
+        : (dawRenderCount < _dawTotalCount);
+    if (dawHasMore) {
         appendDawLoadMore(tbody);
     }
 }
 
 function appendDawLoadMore(tbody) {
+    const totalShown = _dawTotalCountCapped ? _dawTotalCount.toLocaleString() + '+' : _dawTotalCount.toLocaleString();
     const line = catalogFmt('ui.js.load_more_hint', {
         shown: dawRenderCount.toLocaleString(),
-        total: _dawTotalCount.toLocaleString(),
+        total: totalShown,
     });
     tbody.insertAdjacentHTML('beforeend',
         `<tr id="dawLoadMore"><td colspan="7" style="text-align: center; padding: 12px; color: var(--text-muted); cursor: pointer;" data-action="loadMoreDaw">

@@ -6359,6 +6359,7 @@ fn palette_preview_empty() -> PalettePreviewResult {
         plugins: db::PluginQueryResult {
             plugins: vec![],
             total_count: 0,
+            total_count_capped: false,
             total_unfiltered: 0,
         },
         audio: db::AudioQueryResult {
@@ -6370,6 +6371,7 @@ fn palette_preview_empty() -> PalettePreviewResult {
         daw: db::DawQueryResult {
             projects: vec![],
             total_count: 0,
+            total_count_capped: false,
             total_unfiltered: 0,
         },
         presets: db::PresetQueryResult {

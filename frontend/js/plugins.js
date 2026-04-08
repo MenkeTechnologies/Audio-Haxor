@@ -10,6 +10,7 @@ function _ui(k, vars) {
 
 let _pluginOffset = 0;
 let _pluginTotalCount = 0;
+let _pluginTotalCountCapped = false;
 let _pluginTotalUnfiltered = 0;
 /** Monotonic id so stale `dbQueryPlugins` results never overwrite a newer filter. */
 let _pluginQuerySeq = 0;
@@ -101,6 +102,7 @@ async function fetchPluginPage() {
         if (seq !== _pluginQuerySeq) return;
         let plugins = result.plugins || [];
         _pluginTotalCount = result.totalCount || 0;
+        _pluginTotalCountCapped = result.totalCountCapped === true;
         _pluginTotalUnfiltered = result.totalUnfiltered || 0;
 
         // Re-sort by fzf relevance score on the frontend (SQL can only do subsequence LIKE)
@@ -601,9 +603,10 @@ function renderPlugins(plugins) {
     _pluginRenderCount = batch.length;
 
     if (plugins.length > INITIAL) {
+        const totalShown = _pluginTotalCountCapped ? _pluginTotalCount.toLocaleString() + '+' : _pluginTotalCount;
         list.insertAdjacentHTML('beforeend',
             `<div class="plugin-load-more" id="pluginLoadMore" data-action="loadMorePlugins" style="text-align:center;padding:16px;color:var(--text-muted);cursor:pointer;font-size:12px;">
-        ${_ui('ui.js.load_more_hint', {shown: _pluginRenderCount, total: _pluginTotalCount})}
+        ${_ui('ui.js.load_more_hint', {shown: _pluginRenderCount, total: totalShown})}
       </div>`);
     }
 
@@ -632,17 +635,25 @@ function loadMorePlugins() {
     _pluginRenderCount += nextBatch.length;
 
     // If more plugins exist in DB beyond what we've fetched, fetch next page
-    if (_pluginRenderCount >= allPlugins.length && allPlugins.length < _pluginTotalCount) {
+    const pageSize = typeof AUDIO_PAGE_SIZE !== 'undefined' ? AUDIO_PAGE_SIZE : 200;
+    const canFetchMoreFromDb = _pluginTotalCountCapped
+        ? (allPlugins.length > 0 && allPlugins.length % pageSize === 0)
+        : (allPlugins.length < _pluginTotalCount);
+    if (_pluginRenderCount >= allPlugins.length && canFetchMoreFromDb) {
         _pluginOffset = allPlugins.length;
         fetchPluginPage();
         return;
     }
 
     // If more to render locally, show load more
-    if (_pluginRenderCount < _renderedPlugins.length || allPlugins.length < _pluginTotalCount) {
+    const totalShown = _pluginTotalCountCapped ? _pluginTotalCount.toLocaleString() + '+' : _pluginTotalCount;
+    const moreFromDbHint = _pluginTotalCountCapped
+        ? (allPlugins.length > 0 && allPlugins.length % pageSize === 0)
+        : (allPlugins.length < _pluginTotalCount);
+    if (_pluginRenderCount < _renderedPlugins.length || moreFromDbHint) {
         list.insertAdjacentHTML('beforeend',
             `<div class="plugin-load-more" id="pluginLoadMore" data-action="loadMorePlugins" style="text-align:center;padding:16px;color:var(--text-muted);cursor:pointer;font-size:12px;">
-        ${_ui('ui.js.load_more_hint', {shown: _pluginRenderCount, total: _pluginTotalCount})}
+        ${_ui('ui.js.load_more_hint', {shown: _pluginRenderCount, total: totalShown})}
       </div>`);
     }
 }

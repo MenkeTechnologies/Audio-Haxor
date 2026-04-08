@@ -66,6 +66,7 @@ fn plugin_query_result_has_total_count_keys() {
     let q = PluginQueryResult {
         plugins: vec![],
         total_count: 12,
+        total_count_capped: false,
         total_unfiltered: 100,
     };
     let v = serde_json::to_value(&q).unwrap();
@@ -185,6 +186,7 @@ fn daw_row_and_query_result_shape() {
     let q = DawQueryResult {
         projects: vec![row],
         total_count: 1,
+        total_count_capped: false,
         total_unfiltered: 10,
     };
     let vq = serde_json::to_value(&q).unwrap();
@@ -474,6 +476,7 @@ fn plugin_query_result_with_row_serializes_nested_plugins() {
     let q = PluginQueryResult {
         plugins: vec![row],
         total_count: 1,
+        total_count_capped: false,
         total_unfiltered: 1,
     };
     let v = serde_json::to_value(&q).unwrap();
