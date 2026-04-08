@@ -301,6 +301,8 @@ async function decodeChannelsViaWorker(url) {
 let allAudioSamples = []; // kept for export/compatibility — lazily populated
 let filteredAudioSamples = []; // current visible page from DB
 let audioTotalCount = 0; // total matching rows in DB
+/** True when the backend stopped counting at ~100k FTS hits (exact total unknown). */
+let audioTotalCountCapped = false;
 let audioTotalUnfiltered = 0; // total rows in scan
 let audioCurrentOffset = 0; // pagination offset
 let audioSortKey = 'name';
@@ -2089,7 +2091,8 @@ function updateAudioStats() {
     const total = audioTotalCount || audioTotalUnfiltered || 0;
     const unfiltered = audioTotalUnfiltered || 0;
     const isFiltered = unfiltered > 0 && total > 0 && total < unfiltered;
-    const totalStr = isFiltered ? total.toLocaleString() + ' / ' + unfiltered.toLocaleString() : total.toLocaleString();
+    const totalPart = audioTotalCountCapped ? total.toLocaleString() + '+' : total.toLocaleString();
+    const totalStr = isFiltered ? totalPart + ' / ' + unfiltered.toLocaleString() : totalPart;
     document.getElementById('audioTotalCount').textContent = totalStr;
     document.getElementById('audioWavCount').textContent = wav.toLocaleString();
     document.getElementById('audioMp3Count').textContent = mp3.toLocaleString();
@@ -2172,6 +2175,7 @@ async function _runAudioFilterStatsAgg() {
         audioStatCounts = agg.byType || {};
         audioStatBytes = agg.totalBytes || 0;
         audioTotalCount = agg.count || 0;
+        audioTotalCountCapped = agg.countCapped === true;
         audioTotalUnfiltered = agg.totalUnfiltered || 0;
         _audioBytesByType = agg.bytesByType || {};
         updateAudioStats();
@@ -2340,6 +2344,7 @@ async function fetchAudioPage() {
         if (seq !== _audioQuerySeq) return;
         filteredAudioSamples = result.samples || [];
         audioTotalCount = result.totalCount || 0;
+        audioTotalCountCapped = result.totalCountCapped === true;
         audioTotalUnfiltered = result.totalUnfiltered || 0;
         // Re-sort by fzf relevance score
         if (search && filteredAudioSamples.length > 1) {
@@ -2412,15 +2417,19 @@ function renderAudioTable() {
         tbody.insertAdjacentHTML('beforeend', filteredAudioSamples.map(buildAudioRow).join(''));
     }
     if (typeof reorderNewTableRows === 'function') reorderNewTableRows('audioTable');
-    if (audioRenderCount < audioTotalCount) {
+    const hasMore = audioTotalCountCapped
+        ? (filteredAudioSamples.length === AUDIO_PAGE_SIZE)
+        : (audioRenderCount < audioTotalCount);
+    if (hasMore) {
         appendLoadMore(tbody);
     }
 }
 
 function appendLoadMore(tbody) {
+    const totalShown = audioTotalCountCapped ? audioTotalCount.toLocaleString() + '+' : audioTotalCount.toLocaleString();
     const line = catalogFmt('ui.audio.load_more_hint', {
         shown: audioRenderCount.toLocaleString(),
-        total: audioTotalCount.toLocaleString(),
+        total: totalShown,
     });
     tbody.insertAdjacentHTML('beforeend',
         `<tr id="audioLoadMore"><td colspan="12" style="text-align: center; padding: 12px; color: var(--text-muted); cursor: pointer;" data-action="loadMoreAudio">

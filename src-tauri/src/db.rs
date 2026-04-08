@@ -101,6 +101,11 @@ fn default_limit() -> u64 {
     200
 }
 
+/// Exact FTS match counts above this force a bounded count and skip heavy aggregates (GROUP BY /
+/// size histogram over every hit) — common substrings like "loop" can match hundreds of
+/// thousands of library rows.
+const FTS_AUDIO_MATCH_COUNT_CAP: i64 = 100_000;
+
 /// Convert a user search string into an FTS5 phrase query for the trigram
 /// tokenizer. Returns `None` for empty/whitespace input. The result is wrapped
 /// in double quotes (phrase match) with internal quotes doubled per FTS5 syntax.
@@ -387,6 +392,9 @@ pub struct AudioQueryResult {
     pub samples: Vec<AudioSampleRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
+    /// True when `total_count` is a floor (`FTS_AUDIO_MATCH_COUNT_CAP`) — exact count not computed.
+    #[serde(rename = "totalCountCapped", skip_serializing_if = "std::ops::Not::not")]
+    pub total_count_capped: bool,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
 }
@@ -648,6 +656,9 @@ pub struct PdfStatsResult {
 #[derive(Debug, Serialize)]
 pub struct FilterStatsResult {
     pub count: u64,
+    /// True when `count` is a floor — per-type breakdown and bytes were skipped.
+    #[serde(rename = "countCapped", skip_serializing_if = "std::ops::Not::not")]
+    pub count_capped: bool,
     #[serde(rename = "totalBytes")]
     pub total_bytes: u64,
     #[serde(rename = "byType")]
@@ -1973,6 +1984,95 @@ DROP TABLE _pl_refresh_paths;"#;
             .map_err(|e| e.to_string())
     }
 
+    /// Bounded FTS hit count for one scan (`audio_samples_fts.scan_id`).
+    fn audio_fts_bounded_count_scan(
+        conn: &Connection,
+        fts_match: &str,
+        scan_id: &str,
+    ) -> Result<(u64, bool), String> {
+        let cap = FTS_AUDIO_MATCH_COUNT_CAP + 1;
+        let raw: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM (
+  SELECT 1 FROM audio_samples_fts
+  WHERE audio_samples_fts MATCH ?1 AND scan_id = ?2
+  LIMIT ?3)",
+                params![fts_match, scan_id, cap],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|e| e.to_string())?;
+        let capped = raw > FTS_AUDIO_MATCH_COUNT_CAP;
+        let count = if capped {
+            FTS_AUDIO_MATCH_COUNT_CAP as u64
+        } else {
+            raw as u64
+        };
+        Ok((count, capped))
+    }
+
+    /// Bounded FTS hit count for library scope (same `format_filter` rules as [`Self::query_audio`]).
+    fn audio_fts_bounded_count_library(
+        conn: &Connection,
+        fts_match: &str,
+        format_filter: Option<&str>,
+    ) -> Result<(u64, bool), String> {
+        let cap = FTS_AUDIO_MATCH_COUNT_CAP + 1;
+        let raw: i64 = match format_filter {
+            None => conn
+                .query_row(
+                    "SELECT COUNT(*) FROM (
+  SELECT 1 FROM audio_samples_fts
+  WHERE audio_samples_fts MATCH ?1 AND rowid IN (SELECT sample_id FROM audio_library)
+  LIMIT ?2)",
+                    params![fts_match, cap],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|e| e.to_string())?,
+            Some(f) if f.trim().is_empty() || f == "all" => conn
+                .query_row(
+                    "SELECT COUNT(*) FROM (
+  SELECT 1 FROM audio_samples_fts
+  WHERE audio_samples_fts MATCH ?1 AND rowid IN (SELECT sample_id FROM audio_library)
+  LIMIT ?2)",
+                    params![fts_match, cap],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|e| e.to_string())?,
+            Some(f) if f.contains(',') => {
+                let in_list = Self::in_list_sql(f);
+                let sql = format!(
+                    "SELECT COUNT(*) FROM (
+  SELECT 1 FROM audio_samples s
+  INNER JOIN audio_library lib ON s.id = lib.sample_id
+  WHERE s.id IN (SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH ?1)
+  AND s.format IN ({in_list})
+  LIMIT ?2)"
+                );
+                conn.query_row(&sql, params![fts_match, cap], |row| row.get::<_, i64>(0))
+                    .map_err(|e| e.to_string())?
+            }
+            Some(f) => conn
+                .query_row(
+                    "SELECT COUNT(*) FROM (
+  SELECT 1 FROM audio_samples s
+  INNER JOIN audio_library lib ON s.id = lib.sample_id
+  WHERE s.id IN (SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH ?1)
+  AND s.format = ?2
+  LIMIT ?3)",
+                    params![fts_match, f, cap],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|e| e.to_string())?,
+        };
+        let capped = raw > FTS_AUDIO_MATCH_COUNT_CAP;
+        let count = if capped {
+            FTS_AUDIO_MATCH_COUNT_CAP as u64
+        } else {
+            raw as u64
+        };
+        Ok((count, capped))
+    }
+
     /// Paginated, sortable, filterable query for audio samples.
     ///
     /// `scan_id` **Some(non-empty)** → rows for that scan only (history detail).
@@ -1996,6 +2096,7 @@ DROP TABLE _pl_refresh_paths;"#;
             return Ok(AudioQueryResult {
                 samples: vec![],
                 total_count: 0,
+                total_count_capped: false,
                 total_unfiltered: 0,
             });
         }
@@ -2091,8 +2192,18 @@ DROP TABLE _pl_refresh_paths;"#;
 
         // Filtered total: separate COUNT so the main SELECT can use LIMIT without
         // COUNT(*) OVER(), which SQLite evaluates before LIMIT (full scan / lockup at 200k+ rows).
+        //
+        // FTS: bounded COUNT (`FTS_AUDIO_MATCH_COUNT_CAP`) — common substrings can match
+        // hundreds of thousands of rows; exact `COUNT(*)` over that set dominated latency.
         let count_sql = format!("SELECT COUNT(*) FROM audio_samples WHERE {where_clause}");
-        let total_count: u64 = {
+        let (total_count, total_count_capped) = if fts_match.is_some() {
+            let m = fts_match.as_ref().expect("fts");
+            if single_scan {
+                Self::audio_fts_bounded_count_scan(&conn, m, &scan_id)?
+            } else {
+                Self::audio_fts_bounded_count_library(&conn, m, params.format_filter.as_deref())?
+            }
+        } else {
             let mut count_stmt = conn.prepare(&count_sql).map_err(|e| e.to_string())?;
             let mut idx = 1;
             if single_scan {
@@ -2101,18 +2212,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     .map_err(|e| e.to_string())?;
                 idx += 1;
             }
-            if let Some(ref m) = fts_match {
-                count_stmt
-                    .raw_bind_parameter(idx, m)
-                    .map_err(|e| e.to_string())?;
-                idx += 1;
-                if single_scan {
-                    count_stmt
-                        .raw_bind_parameter(idx, &scan_id)
-                        .map_err(|e| e.to_string())?;
-                    idx += 1;
-                }
-            } else if let Some(ref r) = regex_pat {
+            if let Some(ref r) = regex_pat {
                 count_stmt
                     .raw_bind_parameter(idx, r)
                     .map_err(|e| e.to_string())?;
@@ -2135,7 +2235,8 @@ DROP TABLE _pl_refresh_paths;"#;
                 .next()
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| "COUNT returned no rows".to_string())?;
-            row.get::<_, i64>(0).map_err(|e| e.to_string())? as u64
+            let n = row.get::<_, i64>(0).map_err(|e| e.to_string())? as u64;
+            (n, false)
         };
 
         let query_sql = format!(
@@ -2220,6 +2321,7 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(AudioQueryResult {
             samples,
             total_count,
+            total_count_capped,
             total_unfiltered,
         })
     }
@@ -4746,6 +4848,7 @@ DROP TABLE _pl_refresh_paths;"#;
         }
         Ok(FilterStatsResult {
             count,
+            count_capped: false,
             total_bytes,
             by_type,
             bytes_by_type,
@@ -5545,6 +5648,32 @@ DROP TABLE _pl_refresh_paths;"#;
             }
         }
         let where_cl = where_parts.join(" AND ");
+        if fts_match.is_some() {
+            let m = fts_match.as_ref().expect("fts");
+            let (bc, capped) = Self::audio_fts_bounded_count_library(&conn, m, format_filter)?;
+            if bc == 0 {
+                return Ok(FilterStatsResult {
+                    count: 0,
+                    count_capped: false,
+                    total_bytes: 0,
+                    by_type: HashMap::new(),
+                    bytes_by_type: HashMap::new(),
+                    total_unfiltered,
+                    size_buckets: vec![0; 6],
+                });
+            }
+            if capped {
+                return Ok(FilterStatsResult {
+                    count: bc,
+                    count_capped: true,
+                    total_bytes: 0,
+                    by_type: HashMap::new(),
+                    bytes_by_type: HashMap::new(),
+                    total_unfiltered,
+                    size_buckets: vec![0; 6],
+                });
+            }
+        }
         let sql = format!(
             "SELECT format, COUNT(*), COALESCE(SUM(size),0) FROM audio_samples WHERE {where_cl} GROUP BY format"
         );
@@ -5623,6 +5752,7 @@ DROP TABLE _pl_refresh_paths;"#;
         };
         Ok(FilterStatsResult {
             count,
+            count_capped: false,
             total_bytes,
             by_type,
             bytes_by_type,
@@ -5712,6 +5842,7 @@ DROP TABLE _pl_refresh_paths;"#;
         }
         Ok(FilterStatsResult {
             count,
+            count_capped: false,
             total_bytes,
             by_type,
             bytes_by_type,
@@ -5806,6 +5937,7 @@ DROP TABLE _pl_refresh_paths;"#;
         }
         Ok(FilterStatsResult {
             count,
+            count_capped: false,
             total_bytes,
             by_type,
             bytes_by_type,
@@ -5877,6 +6009,7 @@ DROP TABLE _pl_refresh_paths;"#;
         }
         Ok(FilterStatsResult {
             count,
+            count_capped: false,
             total_bytes,
             by_type,
             bytes_by_type,
@@ -5927,6 +6060,7 @@ DROP TABLE _pl_refresh_paths;"#;
         };
         Ok(FilterStatsResult {
             count,
+            count_capped: false,
             total_bytes,
             by_type: HashMap::new(),
             bytes_by_type: HashMap::new(),

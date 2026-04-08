@@ -133,6 +133,7 @@ fn audio_query_result_shape() {
     let q = AudioQueryResult {
         samples: vec![],
         total_count: 3,
+        total_count_capped: false,
         total_unfiltered: 50,
     };
     let v = serde_json::to_value(&q).unwrap();
@@ -301,6 +302,7 @@ fn filter_stats_result_shape() {
     bbt.insert("WAV".into(), 999u64);
     let f = FilterStatsResult {
         count: 3,
+        count_capped: false,
         total_bytes: 999,
         by_type: bt,
         bytes_by_type: bbt,
@@ -493,6 +495,7 @@ fn pdf_stats_result_zero_counts() {
 fn filter_stats_empty_breakdown_maps() {
     let f = FilterStatsResult {
         count: 0,
+        count_capped: false,
         total_bytes: 0,
         by_type: HashMap::new(),
         bytes_by_type: HashMap::new(),

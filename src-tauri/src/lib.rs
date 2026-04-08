@@ -6364,6 +6364,7 @@ fn palette_preview_empty() -> PalettePreviewResult {
         audio: db::AudioQueryResult {
             samples: vec![],
             total_count: 0,
+            total_count_capped: false,
             total_unfiltered: 0,
         },
         daw: db::DawQueryResult {
