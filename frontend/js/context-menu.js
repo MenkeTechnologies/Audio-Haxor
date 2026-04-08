@@ -1113,6 +1113,22 @@ document.addEventListener('contextmenu', (e) => {
             return;
         }
 
+        // ── Audio Engine tab — parametric EQ canvas / resize handle (same `fftAnimationPaused` pref as mini FFT)
+        const onAeEqFft = e.target.closest('#aeEqCanvas, #aeEqCanvasWrap, #aeEqCanvasResizeHandle');
+        if (onAeEqFft && e.target.closest('#tabAudioEngine')) {
+            const animOn = !(typeof window.isFftAnimationPaused === 'function' && window.isFftAnimationPaused());
+            const items = [{
+                icon: animOn ? '&#10003;' : '&#9634;',
+                label: appFmt('menu.viz_fft_animate'),
+                action: () => {
+                    if (typeof window.toggleFftAnimationPaused === 'function') window.toggleFftAnimationPaused();
+                },
+                ..._noEcho,
+            }];
+            showContextMenu(e, items);
+            return;
+        }
+
         // ── Floating player ──
         const player = e.target.closest('#audioNowPlaying');
         if (player && player.classList.contains('active')) {
