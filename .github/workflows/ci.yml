@@ -56,13 +56,14 @@ jobs:
           AUDIO_ENGINE_TAURI_BIN_PROFILE: debug
         run: node scripts/prepare-audio-engine-audioengine.mjs
 
+      # Windows default shell is PowerShell — bash `if [ … ]` breaks with ParserError. Use matrix `if:` instead.
+      - name: Run AudioEngine IPC tests (Linux + xvfb)
+        if: matrix.os == 'ubuntu-latest'
+        run: xvfb-run -a node scripts/run-audio-engine-tests.mjs
+
       - name: Run AudioEngine IPC tests
-        run: |
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            xvfb-run -a node scripts/run-audio-engine-tests.mjs
-          else
-            node scripts/run-audio-engine-tests.mjs
-          fi
+        if: matrix.os != 'ubuntu-latest'
+        run: node scripts/run-audio-engine-tests.mjs
 
       - name: Run Rust tests (library)
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
