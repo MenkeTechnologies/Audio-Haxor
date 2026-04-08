@@ -98,6 +98,11 @@ describe('frontend/js/disk-usage.js (vm-loaded)', () => {
     assert.ok(el.innerHTML.includes('75.0'));
     assert.ok(el.innerHTML.includes('25.0'));
     assert.ok(el.innerHTML.includes('disk-legend'));
+    assert.match(
+      el.innerHTML,
+      /class="disk-segment"[^>]*style="flex:\d+ 0 0" title="/,
+      'segment must close style="…" before title= (WKWebView drops bars if the attribute is split across lines)'
+    );
   });
 
   it('renderDiskUsageBar sorts rows by bytes descending (largest segment first in DOM order)', () => {

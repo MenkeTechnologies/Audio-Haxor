@@ -39,8 +39,7 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
         const pct = ((d.bytes / denom) * 100).toFixed(1);
         const kind = diskLabelKind(d.label);
         const w = Number(d.bytes) || 0;
-        return `<div class="disk-segment" data-kind="${kind}" style="flex:${w} 0 0"
-      title="${d.label}: ${d.sizeStr} (${pct}%)"></div>`;
+        return `<div class="disk-segment" data-kind="${kind}" style="flex:${w} 0 0" title="${d.label}: ${d.sizeStr} (${pct}%)"></div>`;
     }).join('');
 
     const legend = data.filter(d => d.bytes > 0).map(d => {
