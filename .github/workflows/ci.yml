@@ -6,11 +6,12 @@ on:
   pull_request:
     branches: [main]
 
-# Rapid pushes otherwise queue many full matrix runs; cancel older work on the same ref so the
-# latest commit is what finishes (saves queue time and avoids stale red X from superseded SHAs).
+# PRs: cancel superseded runs so only the latest commit is tested (saves matrix time).
+# Pushes to branches (including main): do not cancel in-flight runs — rapid main pushes with
+# cancel-in-progress:true were cancelling every job before Rust/build finished, leaving no green run.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
