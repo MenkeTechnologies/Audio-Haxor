@@ -540,14 +540,8 @@ document.addEventListener('click', (e) => {
             case 'settingToggleNeonGlow':
                 settingToggleNeonGlow();
                 break;
-            case 'settingToggleTagBar': {
-                const current = prefs.getItem('tagBarVisible') !== 'off';
-                prefs.setItem('tagBarVisible', current ? 'off' : 'on');
-                const bar = document.getElementById('globalTagBar');
-                if (bar && current) bar.style.display = 'none';
-                showToast(current ? toastFmt('toast.tag_bar_hidden') : toastFmt('toast.tag_bar_show_when_active'));
-                if (typeof refreshSettingsUI === 'function') refreshSettingsUI();
-            }
+            case 'settingToggleTagBar':
+                if (typeof toggleTagFilterBarVisibility === 'function') toggleTagFilterBarVisibility();
                 break;
             case 'settingTagBarPosition': {
                 const pos = document.getElementById('settingTagBarPosition')?.value || 'top';

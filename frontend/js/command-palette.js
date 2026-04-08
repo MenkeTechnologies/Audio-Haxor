@@ -466,6 +466,12 @@ function buildPaletteStaticItems() {
         icon: '&#10024;',
         action: () => settingToggleNeonGlow()
     });
+    if (typeof toggleTagFilterBarVisibility === 'function') items.push({
+        type: 'action',
+        name: appFmt('menu.toggle_tag_filter_bar'),
+        icon: '&#127991;',
+        action: () => toggleTagFilterBarVisibility()
+    });
     if (typeof settingToggleAutoAnalysis === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_auto_analyze_startup'),

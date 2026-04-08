@@ -319,6 +319,7 @@
   "menu.toggle_show_player_startup": "Toggle Show Player on Startup",
   "menu.toggle_shuffle": "切换随机播放",
   "menu.toggle_single_click_play": "Toggle Single-Click Play",
+  "menu.toggle_tag_filter_bar": "Toggle tag filter bar",
   "menu.toggle_theme": "切换亮/暗",
   "menu.tools": "工具",
   "menu.turn_off": "Turn Off",

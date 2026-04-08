@@ -826,6 +826,21 @@ function renderGlobalTagBar(force) {
     ).join('');
 }
 
+/**
+ * Toggle Settings pref `tagBarVisible` (same as Settings → tag filter bar and `settingToggleTagBar`).
+ * Refreshes the bar DOM so turning visibility back on actually shows chips when tags exist.
+ */
+function toggleTagFilterBarVisibility() {
+    const current = prefs.getItem('tagBarVisible') !== 'off';
+    prefs.setItem('tagBarVisible', current ? 'off' : 'on');
+    const bar = document.getElementById('globalTagBar');
+    if (bar && current) bar.style.display = 'none';
+    showToast(current ? toastFmt('toast.tag_bar_hidden') : toastFmt('toast.tag_bar_show_when_active'));
+    if (typeof refreshSettingsUI === 'function') refreshSettingsUI();
+    renderGlobalTagBar(true);
+}
+window.toggleTagFilterBarVisibility = toggleTagFilterBarVisibility;
+
 let _tagBarSwitchRaf = null;
 
 function scheduleGlobalTagBarRefresh() {
