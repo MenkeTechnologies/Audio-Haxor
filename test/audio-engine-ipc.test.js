@@ -1,6 +1,6 @@
 /**
  * Integration tests: spawn built `audio-engine`, one JSON line per stdin line, assert stdout.
- * Requires `target/debug/audio-engine` or `target/release/audio-engine` (or `AUDIO_ENGINE_TEST_BIN`).
+ * Requires `audio-engine-artifacts/<debug|release>/audio-engine` (or legacy `target/…`, or `AUDIO_ENGINE_TEST_BIN`).
  * On Linux CI, run under `xvfb-run -a` (see `.github/workflows/ci.yml`) — JUCE needs a display.
  */
 const fs = require('fs');
@@ -28,8 +28,16 @@ function resolveAudioEngineBin() {
     return process.env.AUDIO_ENGINE_TEST_BIN;
   }
   const ext = process.platform === 'win32' ? '.exe' : '';
+  const aeDebug = path.join(root, 'audio-engine-artifacts', 'debug', `audio-engine${ext}`);
+  const aeRelease = path.join(root, 'audio-engine-artifacts', 'release', `audio-engine${ext}`);
   const debug = path.join(root, 'target', 'debug', `audio-engine${ext}`);
   const release = path.join(root, 'target', 'release', `audio-engine${ext}`);
+  if (fs.existsSync(aeDebug)) {
+    return aeDebug;
+  }
+  if (fs.existsSync(aeRelease)) {
+    return aeRelease;
+  }
   if (fs.existsSync(debug)) {
     return debug;
   }

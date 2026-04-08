@@ -183,7 +183,7 @@ Requires [Node.js](https://nodejs.org/), [pnpm](https://pnpm.io/), [Rust](https:
 
 | | Dev | Build |
 |---|---|---|
-| AudioEngine | Host resolves `target/debug` or `target/release` by walking up from `current_exe()` (covers macOS dev bundles where the sibling `audio-engine` can be stale). Optional override: `AUDIO_HAXOR_AUDIO_ENGINE` (absolute path). | Bundled next to the app binary (`externalBin`) |
+| AudioEngine | Host resolves `audio-engine-artifacts/debug|release` (or legacy `target/debug|release`) by walking up from `current_exe()` (covers macOS dev bundles where the sibling `audio-engine` can be stale). Optional override: `AUDIO_HAXOR_AUDIO_ENGINE` (absolute path). | Bundled next to the app binary (`externalBin`) |
 | URL scheme | `http://localhost` | `tauri://localhost` |
 | CSP | Relaxed | Strict (no inline JS) |
 | Frontend | Served from disk (live) | Embedded in binary |
@@ -236,7 +236,7 @@ cargo clean --manifest-path src-tauri/Cargo.toml --release && pnpm tauri build
 
 - **`couldn't read ... i18n/app_i18n_*.json`** — `src-tauri/src/app_i18n.rs` embeds every shipped locale at compile time (`include_str!`). Pull latest `main` so all `i18n/app_i18n_*.json` files are present; do not delete locale files locally.
 - **`Cannot find module ... prepare-audio-engine-audioengine.mjs`** — Tauri runs `beforeBuildCommand` with **cwd = repository root** (same as `pnpm tauri build`). The command must be `node scripts/prepare-audio-engine-audioengine.mjs`, not `node ../scripts/...` (that resolves outside the repo).
-- **`resource path binaries/audio-engine-… doesn't exist`** — Any `cargo test` / `cargo build` that compiles `tauri-build` checks that `bundle.externalBin` files exist under `src-tauri/binaries/` (host triple suffix). Build the AudioEngine first: `node scripts/build-audio-engine.mjs` (debug) or `node scripts/prepare-audio-engine-audioengine.mjs` (release copy for Tauri). GitHub Actions runs `prepare-audio-engine-audioengine.mjs` with `AUDIO_ENGINE_TAURI_BIN_PROFILE=debug` after JS tests, then **`node scripts/run-audio-engine-tests.mjs`** (IPC integration; **Linux** uses **`xvfb-run`**), then Rust tests. On **Windows**, CMake must use **MSVC** (not MinGW — JUCE 8); `scripts/build-audio-engine.mjs` finds Visual Studio via `vswhere` and re-invokes itself after `vcvars64.bat` (via a short-lived `.bat` wrapper so `cmd` quoting stays reliable on GitHub Actions) so the job does not need a global MSVC `PATH` (which would break `cargo test` on the runner).
+- **`resource path binaries/audio-engine-… doesn't exist`** — Any `cargo test` / `cargo build` that compiles `tauri-build` checks that `bundle.externalBin` files exist under `src-tauri/binaries/` (host triple suffix). Build the AudioEngine first: `node scripts/build-audio-engine.mjs` (debug) or `node scripts/prepare-audio-engine-audioengine.mjs` (release copy for Tauri). GitHub Actions runs `prepare-audio-engine-audioengine.mjs` with `AUDIO_ENGINE_TAURI_BIN_PROFILE=debug` after JS tests, then **`node scripts/run-audio-engine-tests.mjs`** (IPC integration; **Linux** uses **`xvfb-run`**), then Rust tests. On **Windows**, CMake must use **MSVC** (not MinGW — JUCE 8); `scripts/build-audio-engine.mjs` finds Visual Studio via `vswhere` and re-invokes itself after `vcvars64.bat` (via a short-lived `.bat` wrapper so `cmd` quoting stays reliable on GitHub Actions) so the job does not need a global MSVC `PATH` (which would break `cargo test` on the runner). The JUCE binary is written under **`audio-engine-artifacts/`** (not Cargo `target/`) so MSVC sidecars do not sit next to Rust test executables.
 - **`failed to build archive` / `failed to open object file` (.rlib)** — corrupted or partial Cargo output (often after an interrupted build). With a **workspace** `Cargo.toml` at the repo root, artifacts live in **`target/`** at the root as well as under `src-tauri/`. Remove and rebuild: `command rm -rf target src-tauri/target` then `pnpm tauri build` (or `pnpm nuke`).
 
 ### Data Location
@@ -274,7 +274,7 @@ pnpm run test:js
 pnpm run test:audio-engine
 ```
 
-**AudioEngine** IPC tests spawn `target/debug/audio-engine` or `target/release/audio-engine` (see `pnpm run test:audio-engine`). They are **not** included in `pnpm run test:js` so the main JS suite stays runnable without CMake. GitHub Actions runs them **after** `prepare-audio-engine-audioengine.mjs`; on **Linux** the workflow uses **`xvfb-run`** because JUCE needs a display.
+**AudioEngine** IPC tests spawn `audio-engine-artifacts/<debug|release>/audio-engine` (see `pnpm run test:audio-engine`). They are **not** included in `pnpm run test:js` so the main JS suite stays runnable without CMake. GitHub Actions runs them **after** `prepare-audio-engine-audioengine.mjs`; on **Linux** the workflow uses **`xvfb-run`** because JUCE needs a display.
 
 The **`pnpm run test:js`** suite also includes **vm-loaded** frontend regression tests (e.g. drag-reorder `handleSelector` / `restoreAnchor` paths and **settings-section** sibling ordering aligned with the context menu move up/down behavior).
 
@@ -406,7 +406,7 @@ between plugins. You can stop it anytime with the Stop button.
 **i18n (CI):** Top-level keys in every `i18n/app_i18n_*.json` must stay lexicographically sorted (`test/i18n-catalog-files.test.js`). User-visible toasts in `frontend/js` must go through `toastFmt('toast.*')`, not a raw English string as the first argument to `showToast` (`test/i18n-no-raw-showtoast.test.js`).
 
 ```
-Cargo.toml (repo root) -- Cargo workspace: member `src-tauri` (`audio-haxor` app). **AudioEngine** (`audio-engine` binary) is a **C++/JUCE** CMake target (not a Cargo crate); `audio-engine/README.md` + `scripts/build-audio-engine.mjs` build it into `target/debug|release/audio-engine`. Shared `target/` at repo root. Locale JSON must use the **same `{placeholder}` names** as English for `appFmt`; `scripts/sync_i18n_placeholders_from_en.py` copies English strings for any key that drifts (run after bulk locale edits if `cargo test` seed tests fail).
+Cargo.toml (repo root) -- Cargo workspace: member `src-tauri` (`audio-haxor` app). **AudioEngine** (`audio-engine` binary) is a **C++/JUCE** CMake target (not a Cargo crate); `audio-engine/README.md` + `scripts/build-audio-engine.mjs` build it into `audio-engine-artifacts/<debug|release>/audio-engine` (kept out of Cargo `target/`). Shared `target/` at repo root is Rust-only. Locale JSON must use the **same `{placeholder}` names** as English for `appFmt`; `scripts/sync_i18n_placeholders_from_en.py` copies English strings for any key that drifts (run after bulk locale edits if `cargo test` seed tests fail).
 
 audio-engine/
   README.md            -- AudioEngine protocol + JUCE + CMake build notes

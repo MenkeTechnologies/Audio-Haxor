@@ -30,7 +30,7 @@ AE_PASS=0
 AE_FAIL=0
 AE_EXIT=0
 AE_OUT=""
-if [ -f target/debug/audio-engine ] || [ -f target/release/audio-engine ] || [ -f target/debug/audio-engine.exe ] || [ -f target/release/audio-engine.exe ]; then
+if [ -f audio-engine-artifacts/debug/audio-engine ] || [ -f audio-engine-artifacts/release/audio-engine ] || [ -f audio-engine-artifacts/debug/audio-engine.exe ] || [ -f audio-engine-artifacts/release/audio-engine.exe ] || [ -f target/debug/audio-engine ] || [ -f target/release/audio-engine ] || [ -f target/debug/audio-engine.exe ] || [ -f target/release/audio-engine.exe ]; then
   AE_OUT=$(node scripts/run-audio-engine-tests.mjs 2>&1)
   AE_EXIT=$?
   AE_TESTS=$(echo "$AE_OUT" | grep -E '^ℹ tests' | grep -o '[0-9]*' || echo 0)
@@ -46,7 +46,7 @@ if [ -f target/debug/audio-engine ] || [ -f target/release/audio-engine ] || [ -
   fi
 else
   END=$(date +%s)
-  echo -e "  ${D}skip${N} ${W}no target/*/audio-engine${N}  ${D}// build with node scripts/build-audio-engine.mjs${N}"
+  echo -e "  ${D}skip${N} ${W}no audio-engine binary${N}  ${D}// build with node scripts/build-audio-engine.mjs${N}"
   cyber_ok "AudioEngine IPC skipped"
 fi
 echo

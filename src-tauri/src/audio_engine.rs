@@ -123,10 +123,10 @@ fn binary_name() -> &'static str {
 
 /// Resolve path to the `audio-engine` executable.
 ///
-/// Prefer a `target/debug` or `target/release` build found by walking **up** from [`std::env::current_exe`].
+/// Prefer `audio-engine-artifacts/debug|release` (or legacy `target/debug|release`) found by walking **up** from [`std::env::current_exe`].
 /// That covers `pnpm dev` when the app runs inside a macOS **bundle** (`…/target/debug/bundle/…/Contents/MacOS/audio-haxor`)
 /// where the sibling `audio-engine` can be stale, while the real AudioEngine from `beforeDevCommand` lives
-/// at the workspace `target/debug/audio-engine`. Also works when `CARGO_TARGET_DIR` is non-default
+/// at the workspace `audio-engine-artifacts/<profile>/audio-engine`. Also works when `CARGO_TARGET_DIR` is non-default
 /// (compile-time `CARGO_MANIFEST_DIR` alone is insufficient).
 ///
 /// Override for debugging: set `AUDIO_HAXOR_AUDIO_ENGINE` to an absolute path to the AudioEngine binary.
@@ -160,10 +160,24 @@ pub fn resolve_audio_engine_binary() -> Result<PathBuf, String> {
     ))
 }
 
-/// Walk parents of `exe` until `dir/target/debug|release/<binary>` exists (workspace root).
+/// Walk parents of `exe` until `audio-engine-artifacts/…` or legacy `target/…/<binary>` exists (workspace root).
 fn find_audio_engine_under_target_ancestors(exe: &Path) -> Option<PathBuf> {
     let mut dir = exe.parent()?;
     for _ in 0..40 {
+        let ae_dbg = dir
+            .join("audio-engine-artifacts")
+            .join("debug")
+            .join(binary_name());
+        if ae_dbg.is_file() {
+            return Some(ae_dbg);
+        }
+        let ae_rel = dir
+            .join("audio-engine-artifacts")
+            .join("release")
+            .join(binary_name());
+        if ae_rel.is_file() {
+            return Some(ae_rel);
+        }
         let dbg = dir.join("target").join("debug").join(binary_name());
         if dbg.is_file() {
             return Some(dbg);

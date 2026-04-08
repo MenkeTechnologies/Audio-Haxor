@@ -64,13 +64,15 @@ target_link_libraries(audio_engine PRIVATE
   juce::juce_recommended_warning_flags
 )
 
-# Match Rust/Cargo layout: target/debug/audio-engine, target/release/audio-engine
+# Keep JUCE/MSVC outputs out of Cargo's `target/` (Windows: stray MSVC DLLs next to `audio-engine.exe`
+# break `cargo test` with STATUS_ENTRYPOINT_NOT_FOUND when resolving the Rust test binary).
+# Layout: audio-engine-artifacts/debug|release/audio-engine
 if(CMAKE_CONFIGURATION_TYPES)
   set_target_properties(audio_engine PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/../target/debug"
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/../target/release"
-    RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_SOURCE_DIR}/../target/release"
-    RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/../target/release"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/../audio-engine-artifacts/debug"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/../audio-engine-artifacts/release"
+    RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_SOURCE_DIR}/../audio-engine-artifacts/release"
+    RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_SOURCE_DIR}/../audio-engine-artifacts/release"
   )
 else()
   if(NOT CMAKE_BUILD_TYPE)
@@ -78,6 +80,6 @@ else()
   endif()
   string(TOLOWER "${CMAKE_BUILD_TYPE}" _audio_engine_bt)
   set_target_properties(audio_engine PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/../target/${_audio_engine_bt}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/../audio-engine-artifacts/${_audio_engine_bt}"
   )
 endif()

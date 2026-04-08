@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Build the JUCE `audio-engine` AudioEngine (CMake + Ninja) into `target/<debug|release>/audio-engine`.
+ * Build the JUCE `audio-engine` AudioEngine (CMake + Ninja) into
+ * `audio-engine-artifacts/<debug|release>/audio-engine` (not under Cargo `target/` — MSVC sidecars break `cargo test` on Windows).
  * Used by `beforeDevCommand` (debug) and `prepare-audio-engine-audioengine.mjs` (release).
  *
  * On Windows, CMake must use MSVC (JUCE dropped MinGW). We re-exec under `vcvars64.bat` so the
@@ -94,7 +95,7 @@ const cmakeArgs = [
 execFileSync('cmake', cmakeArgs, { stdio: 'inherit', cwd: root });
 execFileSync('cmake', ['--build', buildDir, '--parallel'], { stdio: 'inherit', cwd: root });
 
-const outDir = path.join(root, 'target', buildType === 'Debug' ? 'debug' : 'release');
+const outDir = path.join(root, 'audio-engine-artifacts', buildType === 'Debug' ? 'debug' : 'release');
 const outName = `audio-engine${ext}`;
 const built = path.join(outDir, outName);
 if (!fs.existsSync(built)) {

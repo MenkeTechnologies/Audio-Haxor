@@ -97,7 +97,7 @@ node scripts/build-audio-engine.mjs
 AUDIO_ENGINE_BUILD_TYPE=release node scripts/build-audio-engine.mjs
 ```
 
-Artifacts land at **`target/debug/audio-engine`** or **`target/release/audio-engine`** (same layout as the old Cargo output). **Release** bundles use `scripts/prepare-audio-engine-audioengine.mjs` → `src-tauri/binaries/audio-engine-<triple>` for Tauri `externalBin`.
+Artifacts land at **`audio-engine-artifacts/debug/audio-engine`** or **`audio-engine-artifacts/release/audio-engine`** (intentionally **not** under Cargo `target/` — MSVC sidecars next to `audio-engine.exe` broke `cargo test` on Windows). **Release** bundles use `scripts/prepare-audio-engine-audioengine.mjs` → `src-tauri/binaries/audio-engine-<triple>` for Tauri `externalBin`.
 
 ### Linux (typical)
 
@@ -133,7 +133,7 @@ Any non-JSON line (e.g. testing the pipe with random text) gets a single **`{"ok
 **Dev build (repo):** after `node scripts/build-audio-engine.mjs`, use the unsuffixed binary:
 
 ```bash
-printf '%s\n' '{"cmd":"ping"}' | ./target/debug/audio-engine
+printf '%s\n' '{"cmd":"ping"}' | ./audio-engine-artifacts/debug/audio-engine
 ```
 
 Use **`printf '%s\n' …`** instead of **`echo …`** so quotes and newlines are predictable.
@@ -146,7 +146,7 @@ Use **`printf '%s\n' …`** instead of **`echo …`** so quotes and newlines are
 
 ## Stale AudioEngine / `unknown cmd`
 
-The app keeps **one** long-lived `audio-engine` child. After rebuilding, an old process can still answer stdin until replaced. The Tauri host respawns when the resolved binary’s **size/mtime** changes. If IPC looks wrong, quit the app or set **`AUDIO_HAXOR_AUDIO_ENGINE`** to an absolute path to a fresh `target/debug/audio-engine` or `target/release/audio-engine`.
+The app keeps **one** long-lived `audio-engine` child. After rebuilding, an old process can still answer stdin until replaced. The Tauri host respawns when the resolved binary’s **size/mtime** changes. If IPC looks wrong, quit the app or set **`AUDIO_HAXOR_AUDIO_ENGINE`** to an absolute path to a fresh `audio-engine-artifacts/debug/audio-engine` or `audio-engine-artifacts/release/audio-engine`.
 
 ## Host app (WEB UI)
 

@@ -6,6 +6,7 @@ src-tauri/binaries/audio-engine-*
 
 # Build (workspace root + legacy path)
 /target/
+/audio-engine-artifacts/
 src-tauri/target/
 dist/
 node_modules/

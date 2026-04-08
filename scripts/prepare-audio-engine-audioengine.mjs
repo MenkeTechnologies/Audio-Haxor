@@ -29,7 +29,7 @@ const cargoDir = path.join(root, 'src-tauri');
 const useDebug = process.env.AUDIO_ENGINE_TAURI_BIN_PROFILE === 'debug';
 const profileDir = useDebug ? 'debug' : 'release';
 const buildTypeEnv = useDebug ? 'debug' : 'release';
-const built = path.join(root, 'target', profileDir, `audio-engine${ext}`);
+const built = path.join(root, 'audio-engine-artifacts', profileDir, `audio-engine${ext}`);
 const outDir = path.join(cargoDir, 'binaries');
 const outName = `audio-engine-${triple}${ext}`;
 const dest = path.join(outDir, outName);
