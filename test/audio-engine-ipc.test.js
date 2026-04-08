@@ -119,6 +119,30 @@ function jl(obj) {
   return JSON.stringify(obj);
 }
 
+/** Mono PCM 16-bit LE WAV (silence). JUCE `registerBasicFormats` accepts standard WAVE. */
+function pcm16WavMono(sampleRate, numSamples) {
+  const bitsPerSample = 16;
+  const numChannels = 1;
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numSamples * blockAlign;
+  const buf = Buffer.alloc(44 + dataSize);
+  buf.write('RIFF', 0);
+  buf.writeUInt32LE(36 + dataSize, 4);
+  buf.write('WAVE', 8);
+  buf.write('fmt ', 12);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(numChannels, 22);
+  buf.writeUInt32LE(sampleRate, 24);
+  buf.writeUInt32LE(byteRate, 28);
+  buf.writeUInt16LE(blockAlign, 32);
+  buf.writeUInt16LE(bitsPerSample, 34);
+  buf.write('data', 36);
+  buf.writeUInt32LE(dataSize, 40);
+  return buf;
+}
+
 if (!bin) {
   describe.skip('audio-engine IPC (no binary — build with node scripts/build-audio-engine.mjs)', () => {
     it('skipped', () => {});
@@ -130,11 +154,15 @@ if (!bin) {
     let tmpEmptyFile;
     /** Exists as a directory — JUCE `existsAsFile` is false. */
     let tmpDir;
+    /** Short PCM WAV (~8k mono samples @ 44.1kHz) for decode success paths. */
+    let tmpWav;
 
     before(() => {
       tmpEmptyFile = path.join(os.tmpdir(), `audio-haxor-ipc-empty-${process.pid}.bin`);
       fs.writeFileSync(tmpEmptyFile, Buffer.alloc(0));
       tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'audio-haxor-ipc-dir-'));
+      tmpWav = path.join(os.tmpdir(), `audio-haxor-ipc-${process.pid}.wav`);
+      fs.writeFileSync(tmpWav, pcm16WavMono(44100, 8192));
     });
 
     after(() => {
@@ -145,6 +173,11 @@ if (!bin) {
       }
       try {
         fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+      try {
+        fs.unlinkSync(tmpWav);
       } catch {
         /* ignore */
       }
@@ -176,6 +209,22 @@ if (!bin) {
         assert.equal(j.ok, false);
         assert.equal(j.error, 'bad JSON');
       }
+    });
+
+    it('four bad JSON lines yield four error lines', async () => {
+      const { outLines } = await runEngineExchange(bin, ['x', 'y', '{', ']']);
+      assert.equal(outLines.length, 4);
+      for (const line of outLines) {
+        assert.equal(JSON.parse(line).error, 'bad JSON');
+      }
+    });
+
+    it('ping, bad JSON, ping in one session', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'ping' }), '{', jl({ cmd: 'ping' })]);
+      assert.equal(outLines.length, 3);
+      assert.equal(JSON.parse(outLines[0]).ok, true);
+      assert.equal(JSON.parse(outLines[1]).error, 'bad JSON');
+      assert.equal(JSON.parse(outLines[2]).ok, true);
     });
 
     it('ping ignores extra JSON fields', async () => {
@@ -254,6 +303,13 @@ if (!bin) {
       assert.match(String(j.error || ''), /path required/);
     });
 
+    it('playback_load fails for whitespace-only path (not empty; not a file)', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'playback_load', path: '   ' })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /not a file/);
+    });
+
     it('playback_load rejects omitted path', async () => {
       const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'playback_load' })]);
       const j = JSON.parse(outLines[0]);
@@ -308,6 +364,57 @@ if (!bin) {
       const j = JSON.parse(outLines[0]);
       assert.equal(j.ok, false);
       assert.match(String(j.error || ''), /unsupported or unreadable/);
+    });
+
+    it('playback_load succeeds on minimal PCM WAV', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'playback_load', path: tmpWav })], {
+        timeoutMs: 90_000,
+      });
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, true);
+      assert.equal(j.sample_rate_hz, 44100);
+      assert.ok(typeof j.duration_sec === 'number' && j.duration_sec > 0);
+    });
+
+    it('waveform_preview clamps width_px (10 → 32) and returns peaks', async () => {
+      const { outLines } = await runEngineExchange(
+        bin,
+        [jl({ cmd: 'waveform_preview', path: tmpWav, width_px: 10 })],
+        { timeoutMs: 90_000 },
+      );
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, true);
+      assert.equal(j.width_px, 32);
+      assert.ok(Array.isArray(j.peaks));
+      assert.equal(j.peaks.length, 32);
+    });
+
+    it('waveform_preview clamps width_px max (8192)', async () => {
+      const { outLines } = await runEngineExchange(
+        bin,
+        [jl({ cmd: 'waveform_preview', path: tmpWav, width_px: 99999 })],
+        { timeoutMs: 90_000 },
+      );
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, true);
+      assert.equal(j.width_px, 8192);
+      assert.equal(j.peaks.length, 8192);
+    });
+
+    it('spectrogram_preview returns rows grid on minimal WAV', async () => {
+      const { outLines } = await runEngineExchange(
+        bin,
+        [jl({ cmd: 'spectrogram_preview', path: tmpWav, width_px: 32, height_px: 32, fft_order: 8 })],
+        { timeoutMs: 90_000 },
+      );
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, true);
+      assert.ok(Array.isArray(j.rows));
+      assert.equal(j.rows.length, 32);
+      assert.ok(Array.isArray(j.rows[0]));
+      assert.equal(j.rows[0].length, 32);
+      assert.equal(j.width_px, 32);
+      assert.equal(j.height_px, 32);
     });
 
     it('mixed ping + preview validation in one session', async () => {
