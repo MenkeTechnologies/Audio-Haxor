@@ -1729,6 +1729,8 @@
   "ui.stats.bar_unknown_latest": "Unknown Latest Version‌",
   "ui.stats.bar_up_to_date": "Up to Date‌",
   "ui.stats.bar_updates_available": "Updates Available‌",
+  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed",
+  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
   "ui.tag.filter_label": "🏷 Tag Filter:‌",
   "ui.tt.add_note_tags_to_current_track_n": "Add note/tags to current track (N)‌",
   "ui.tt.add_remove_current_track_from_favorites_f": "Add/remove current track from favorites (F)‌",
@@ -2060,7 +2062,5 @@
   "ui.welcome.presets": "Presets‌",
   "ui.welcome.recently_played": "Recently Played‌",
   "ui.welcome.samples": "Samples‌",
-  "ui.welcome.tags": "Tags‌",
-  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
-  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed"
+  "ui.welcome.tags": "Tags‌"
 }

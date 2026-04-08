@@ -1729,6 +1729,8 @@
   "ui.stats.bar_unknown_latest": "Άγνωστη τελευταία έκδοση",
   "ui.stats.bar_up_to_date": "Σύγχρονος",
   "ui.stats.bar_updates_available": "Διαθέσιμες ενημερώσεις",
+  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed",
+  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
   "ui.tag.filter_label": "🏷 Φίλτρο ετικέτας:",
   "ui.tt.add_note_tags_to_current_track_n": "Προσθήκη σημείωσης/ετικέτες στο τρέχον κομμάτι (Ν)",
   "ui.tt.add_remove_current_track_from_favorites_f": "Προσθήκη/αφαίρεση τρέχοντος κομματιού από τα αγαπημένα (F)",
@@ -2060,7 +2062,5 @@
   "ui.welcome.presets": "Προεπιλογές",
   "ui.welcome.recently_played": "Παίχτηκε πρόσφατα",
   "ui.welcome.samples": "Δείγματα",
-  "ui.welcome.tags": "Ετικέτες",
-  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
-  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed"
+  "ui.welcome.tags": "Ετικέτες"
 }

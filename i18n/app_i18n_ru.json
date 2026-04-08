@@ -1729,6 +1729,8 @@
   "ui.stats.bar_unknown_latest": "Неизвестная последняя версия",
   "ui.stats.bar_up_to_date": "До настоящего времени",
   "ui.stats.bar_updates_available": "Доступны обновления",
+  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed",
+  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
   "ui.tag.filter_label": "🏷 Фильтр тегов:",
   "ui.tt.add_note_tags_to_current_track_n": "Добавить примечание/теги к текущему треку (N)",
   "ui.tt.add_remove_current_track_from_favorites_f": "Добавить/удалить текущий трек из избранного (F)",
@@ -2060,7 +2062,5 @@
   "ui.welcome.presets": "Пресеты",
   "ui.welcome.recently_played": "Недавно играл",
   "ui.welcome.samples": "Образцы",
-  "ui.welcome.tags": "Теги",
-  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
-  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed"
+  "ui.welcome.tags": "Теги"
 }

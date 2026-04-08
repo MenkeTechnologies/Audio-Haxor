@@ -1729,6 +1729,8 @@
   "ui.stats.bar_unknown_latest": "Ukendt seneste version",
   "ui.stats.bar_up_to_date": "Op til dato",
   "ui.stats.bar_updates_available": "Opdateringer tilgængelige",
+  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed",
+  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
   "ui.tag.filter_label": "🏷 Tag filter:",
   "ui.tt.add_note_tags_to_current_track_n": "Tilføj note/tags til det aktuelle spor (N)",
   "ui.tt.add_remove_current_track_from_favorites_f": "Tilføj/fjern nuværende nummer fra favoritter (F)",
@@ -2060,7 +2062,5 @@
   "ui.welcome.presets": "Forudindstillinger",
   "ui.welcome.recently_played": "For nylig spillet",
   "ui.welcome.samples": "Prøver",
-  "ui.welcome.tags": "Tags",
-  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
-  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed"
+  "ui.welcome.tags": "Tags"
 }
