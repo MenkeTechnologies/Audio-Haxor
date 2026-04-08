@@ -4167,12 +4167,13 @@ fn get_cpu_percent() -> f64 {
     }
     #[cfg(target_os = "windows")]
     {
+        use std::ffi::c_void;
         use std::mem::MaybeUninit;
         #[link(name = "kernel32")]
         unsafe extern "system" {
-            fn GetCurrentProcess() -> isize;
+            fn GetCurrentProcess() -> *mut c_void;
             fn GetProcessTimes(
-                h: isize,
+                h: *mut c_void,
                 creation: *mut [u32; 2],
                 exit: *mut [u32; 2],
                 kernel: *mut [u32; 2],
@@ -4240,10 +4241,11 @@ fn get_open_fd_count() -> u32 {
     }
     #[cfg(target_os = "windows")]
     {
+        use std::ffi::c_void;
         #[link(name = "kernel32")]
         unsafe extern "system" {
-            fn GetCurrentProcess() -> isize;
-            fn GetProcessHandleCount(h_process: isize, p_count: *mut u32) -> i32;
+            fn GetCurrentProcess() -> *mut c_void;
+            fn GetProcessHandleCount(h_process: *mut c_void, p_count: *mut u32) -> i32;
         }
         unsafe {
             let mut count = 0u32;

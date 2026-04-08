@@ -92,15 +92,20 @@ jobs:
         shell: pwsh
         run: |
           cargo test --manifest-path src-tauri/Cargo.toml --no-run
-          function Remove-JuceSidecars([string]$dir) {
-            if (-not (Test-Path $dir)) { return }
-            Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $dir 'audio-engine.exe')
-            Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $dir 'audio-engine.pdb')
-            Get-ChildItem -Path $dir -File -Filter *.dll | Remove-Item -Force -ErrorAction SilentlyContinue
+          # JUCE/VC DLLs can land under target/debug/** (not only deps/). The loader resolves
+          # *.dll beside the test exe first → STATUS_ENTRYPOINT_NOT_FOUND. Strip recursively.
+          function Remove-JuceSidecars([string]$rootDir) {
+            if (-not (Test-Path $rootDir)) { return }
+            Get-ChildItem -Path $rootDir -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+              if ($_.Extension -ieq '.dll') {
+                Remove-Item -Force -LiteralPath $_.FullName -ErrorAction SilentlyContinue
+              } elseif ($_.Name -ieq 'audio-engine.exe' -or $_.Name -ieq 'audio-engine.pdb') {
+                Remove-Item -Force -LiteralPath $_.FullName -ErrorAction SilentlyContinue
+              }
+            }
           }
           $td = Join-Path $env:GITHUB_WORKSPACE 'target/debug'
           Remove-JuceSidecars $td
-          Remove-JuceSidecars (Join-Path $td 'deps')
           cargo test --manifest-path src-tauri/Cargo.toml -- --quiet
 
   build:
