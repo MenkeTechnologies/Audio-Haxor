@@ -4927,9 +4927,11 @@ DROP TABLE _pl_refresh_paths;"#;
         limit: u64,
     ) -> Result<MidiQueryResult, String> {
         let conn = self.read_conn();
+        // One row per library entry (same semantics as Samples tab / `query_audio` COUNT).
+        // Avoids `COUNT(*) ... WHERE id IN (SELECT midi_id FROM midi_library)` over multi‑million rows on every keystroke.
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT midi_id FROM midi_library)",
+                "SELECT COUNT(*) FROM midi_library",
                 [],
                 |row| row.get::<_, i64>(0).map(|v| v as u64),
             )
@@ -4992,6 +4994,12 @@ DROP TABLE _pl_refresh_paths;"#;
         };
         let dir = if sort_asc { "ASC" } else { "DESC" };
 
+        // FTS + ORDER BY name/directory over millions of substring hits forces SQLite to sort the
+        // full match set before LIMIT — 10–60s on large libraries. Join FTS → bm25 so LIMIT applies
+        // inside the FTS scan (JS may still re-rank the page with `searchScore`).
+        let use_fts_rank_page =
+            fts_match.is_some() && matches!(sort_key, "name" | "directory");
+
         let (total_count, total_count_capped) = if fts_match.is_some() {
             let m = fts_match.as_ref().expect("fts");
             Self::midi_fts_bounded_count_library(&conn, m, format_filter)?
@@ -5021,16 +5029,58 @@ DROP TABLE _pl_refresh_paths;"#;
             (n, false)
         };
 
-        let sql = format!(
-            "SELECT name, path, directory, format, size, size_formatted, modified
-             FROM midi_files WHERE {where_cl}
-             ORDER BY {sort_col} {dir} LIMIT ?{limit_idx} OFFSET ?{off_idx}",
-            limit_idx = bind_idx,
-            off_idx = bind_idx + 1
-        );
+        let sql = if use_fts_rank_page {
+            let mut w = String::from(
+                "SELECT m.name, m.path, m.directory, m.format, m.size, m.size_formatted, m.modified
+                 FROM midi_files_fts AS f
+                 INNER JOIN midi_files m ON m.id = f.rowid
+                 WHERE f MATCH ?1 AND m.id IN (SELECT midi_id FROM midi_library)",
+            );
+            let mut next_ph = 2usize;
+            if let Some(f) = format_filter {
+                if !f.is_empty() && f != "all" {
+                    if f.contains(',') {
+                        let vals: Vec<String> = f
+                            .split(',')
+                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                            .collect();
+                        w.push_str(&format!(" AND m.format IN ({})", vals.join(",")));
+                    } else {
+                        w.push_str(&format!(" AND m.format = ?{next_ph}"));
+                        next_ph += 1;
+                    }
+                }
+            }
+            let li = next_ph;
+            let oi = next_ph + 1;
+            w.push_str(&format!(" ORDER BY bm25(f) LIMIT ?{li} OFFSET ?{oi}"));
+            w
+        } else {
+            format!(
+                "SELECT name, path, directory, format, size, size_formatted, modified
+                 FROM midi_files WHERE {where_cl}
+                 ORDER BY {sort_col} {dir} LIMIT ?{limit_idx} OFFSET ?{off_idx}",
+                limit_idx = bind_idx,
+                off_idx = bind_idx + 1
+            )
+        };
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
         let mut bi = 1;
-        if let Some(ref m) = fts_match {
+        if use_fts_rank_page {
+            let m = fts_match.as_ref().expect("fts");
+            stmt.raw_bind_parameter(bi, m).map_err(|e| e.to_string())?;
+            bi += 1;
+            if let Some(f) = format_filter {
+                if !f.is_empty() && f != "all" && !f.contains(',') {
+                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                    bi += 1;
+                }
+            }
+            stmt.raw_bind_parameter(bi, limit as i64)
+                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(bi + 1, offset as i64)
+                .map_err(|e| e.to_string())?;
+        } else if let Some(ref m) = fts_match {
             stmt.raw_bind_parameter(bi, m).map_err(|e| e.to_string())?;
             bi += 1;
         } else if let Some(ref r) = regex_pat {
@@ -5041,16 +5091,18 @@ DROP TABLE _pl_refresh_paths;"#;
                 .map_err(|e| e.to_string())?;
             bi += 1;
         }
-        if let Some(f) = format_filter {
-            if !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                bi += 1;
+        if !use_fts_rank_page {
+            if let Some(f) = format_filter {
+                if !f.is_empty() && f != "all" && !f.contains(',') {
+                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                    bi += 1;
+                }
             }
+            stmt.raw_bind_parameter(bi, limit as i64)
+                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(bi + 1, offset as i64)
+                .map_err(|e| e.to_string())?;
         }
-        stmt.raw_bind_parameter(bi, limit as i64)
-            .map_err(|e| e.to_string())?;
-        stmt.raw_bind_parameter(bi + 1, offset as i64)
-            .map_err(|e| e.to_string())?;
         let mut rows = stmt.raw_query();
         let mut out = Vec::new();
         while let Some(row) = rows.next().map_err(|e| e.to_string())? {
@@ -5081,7 +5133,7 @@ DROP TABLE _pl_refresh_paths;"#;
         let conn = self.read_conn();
         let total_unfiltered: u64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM midi_files WHERE id IN (SELECT midi_id FROM midi_library)",
+                "SELECT COUNT(*) FROM midi_library",
                 [],
                 |r| r.get::<_, i64>(0).map(|v| v as u64),
             )
