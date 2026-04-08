@@ -80,7 +80,15 @@ async function loadMidiFiles() {
     _midiRenderCount = 0;
     _midiOffset = 0;
     await fetchMidiPage();
-    await refreshMidiStatsSnapshot(true);
+    if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => {
+            void refreshMidiStatsSnapshot(true);
+        });
+    } else {
+        setTimeout(() => {
+            void refreshMidiStatsSnapshot(true);
+        }, 0);
+    }
     updateMidiHeaderCount();
 }
 
@@ -331,7 +339,15 @@ async function scanMidi(resume = false, overrideRoots = null) {
         // The DB has authoritative data — JS memory stays bounded regardless of scan size.
         allMidiFiles = [];
         await fetchMidiPage();
-        await refreshMidiStatsSnapshot(true);
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(() => {
+                void refreshMidiStatsSnapshot(true);
+            });
+        } else {
+            setTimeout(() => {
+                void refreshMidiStatsSnapshot(true);
+            }, 0);
+        }
         updateMidiHeaderCount();
         syncMidiStatsBarCount(_midiTotalUnfiltered);
         if (result.stopped && _midiTotalUnfiltered > 0 && resumeBtn) {
@@ -430,8 +446,17 @@ registerFilter('filterMidi', {
     fetchFn() {
         _midiSearch = this.lastSearch || '';
         _lastMidiMode = this.lastMode || 'fuzzy';
-        fetchMidiPage();
-        refreshMidiStatsSnapshot();
+        void fetchMidiPage().then(() => {
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(() => {
+                    void refreshMidiStatsSnapshot(true);
+                });
+            } else {
+                setTimeout(() => {
+                    void refreshMidiStatsSnapshot(true);
+                }, 0);
+            }
+        });
     },
 });
 
