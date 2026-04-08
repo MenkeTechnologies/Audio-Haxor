@@ -31,17 +31,21 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
     // Sort by size descending
     data.sort((a, b) => b.bytes - a.bytes);
 
-    /** Release WKWebView often leaves width:0→% transitions unpainted; set final % inline (see utils.js switchTab settings reflow note). */
+    const sumBytes = data.reduce((s, d) => s + (Number(d.bytes) || 0), 0);
+    const denom = sumBytes > 0 ? sumBytes : totalBytes;
+
+    /** Proportional flex (not width:%) — WKWebView often resolves % on flex items to 0; only min-width painted. */
     const segments = data.map((d) => {
-        const pct = ((d.bytes / totalBytes) * 100).toFixed(1);
+        const pct = ((d.bytes / denom) * 100).toFixed(1);
         const kind = diskLabelKind(d.label);
-        return `<div class="disk-segment" data-kind="${kind}" style="width:${pct}%;min-width:2px;flex-shrink:0;"
+        const w = Number(d.bytes) || 0;
+        return `<div class="disk-segment" data-kind="${kind}" style="flex:${w} 0 0"
       title="${d.label}: ${d.sizeStr} (${pct}%)"></div>`;
     }).join('');
 
     const legend = data.filter(d => d.bytes > 0).map(d => {
         const kind = diskLabelKind(d.label);
-        const pct = ((d.bytes / totalBytes) * 100).toFixed(1);
+        const pct = ((d.bytes / denom) * 100).toFixed(1);
         return `<span class="disk-legend-item">
       <span class="disk-legend-dot" data-kind="${kind}"></span>
       ${d.label} <span class="disk-legend-size">${d.sizeStr} (${pct}%)</span>
@@ -52,8 +56,10 @@ function renderDiskUsageBar(containerId, data, totalBytes) {
     <div class="disk-bar">${segments}</div>
     <div class="disk-legend">${legend}</div>
   `;
-    const bar = el.querySelector('.disk-bar');
-    if (bar) void bar.offsetWidth;
+    if (typeof el.querySelector === 'function') {
+        const bar = el.querySelector('.disk-bar');
+        if (bar) void bar.offsetWidth;
+    }
 }
 
 // Reads already-fetched aggregate bytesByType from module caches populated by

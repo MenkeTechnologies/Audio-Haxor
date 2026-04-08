@@ -2988,8 +2988,10 @@
             text-shadow: 0 0 8px var(--cyan-glow);
         }
 
-        /* Disk usage bar */
+        /* Disk usage bar — width:100% on bar + flex-grow segments (not % width); WKWebView left % flex children at min-width. */
         .disk-usage {
+            width: 100%;
+            box-sizing: border-box;
             padding: 6px 24px 10px;
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border);
@@ -2997,17 +2999,20 @@
 
         .disk-bar {
             display: flex;
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
             height: 8px;
             border-radius: 2px;
             overflow: hidden;
             background: var(--border);
-            gap: 1px;
         }
 
+        /* Proportional flex-grow (set inline) — no % width; avoids WebKit flex % resolution bugs. */
         .disk-segment {
             height: 100%;
-            min-width: 2px;
-            transition: width 0.5s ease;
+            min-width: 0;
+            flex-shrink: 0;
         }
 
         .disk-legend {
@@ -9340,6 +9345,23 @@
                         <p id="aePluginInsertIntro" style="margin:0;font-size:12px;color:var(--text-dim);line-height:1.45;" data-i18n="ui.ae.plugins_insert_intro">—</p>
                     </div>
                 </div>
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title" data-i18n="ui.ae.plugin_scan_cache_label">Plugin scan cache</span>
+                        <span class="settings-desc" data-i18n="ui.ae.plugin_scan_cache_desc">Per-module timeout for the JUCE scan subprocess. Wipe deletes cache files and starts a full rescan.</span>
+                    </div>
+                    <div class="settings-control" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+                        <label class="ae-plugin-scan-timeout-label" style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);">
+                            <span data-i18n="ui.ae.plugin_scan_timeout_label">Timeout (s)</span>
+                            <input id="aeScanTimeout" class="ae-input" type="number" min="5" max="3600" step="1" value="30"
+                                   data-i18n-title="ui.ae.plugin_scan_timeout_tt"
+                                   title="Seconds per plug-in module before the scan worker kills the child process (5–3600)."
+                                   style="width:5rem;padding:6px 8px;font-size:12px;"/>
+                        </label>
+                        <button class="btn btn-secondary btn-settings-action" type="button" id="aeWipeRescan"
+                                data-i18n="ui.ae.wipe_rescan_plugins" data-i18n-title="ui.ae.wipe_rescan_plugins_tt">Wipe cache &amp; rescan</button>
+                    </div>
+                </div>
                 <div class="settings-row ae-settings-row-full">
                     <div class="settings-label">
                         <span class="settings-title" data-i18n="ui.ae.insert_chain_label">Insert chain</span>
@@ -10577,44 +10599,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=83276"></script>
-<script src="js/utils.js?v=83276"></script>
-<script src="js/ipc.js?v=83276"></script>
-<script src="js/drag-reorder.js?v=83276"></script>
-<script src="js/modal-drag.js?v=83276"></script>
-<script src="js/columns.js?v=83276"></script>
-<script src="js/notes.js?v=83276"></script>
-<script src="js/favorites.js?v=83276"></script>
-<script src="js/export.js?v=83276"></script>
-<script src="js/plugins.js?v=83276"></script>
-<script src="js/settings.js?v=83276"></script>
-<script src="js/history.js?v=83276"></script>
-<script src="js/kvr.js?v=83276"></script>
-<script src="js/audio.js?v=83276"></script>
-<script src="js/daw.js?v=83276"></script>
-<script src="js/disk-usage.js?v=83278"></script>
-<script src="js/presets.js?v=83276"></script>
-<script src="js/batch-select.js?v=83276"></script>
-<script src="js/native-file-drag.js?v=83276"></script>
-<script src="js/sort-persist.js?v=83276"></script>
-<script src="js/multi-filter.js?v=83276"></script>
-<script src="js/file-browser.js?v=83276"></script>
-<script src="js/duplicates.js?v=83276"></script>
-<script src="js/command-palette.js?v=83276"></script>
-<script src="js/xref.js?v=83276"></script>
-<script src="js/dep-graph.js?v=83276"></script>
-<script src="js/smart-playlists.js?v=83276"></script>
-<script src="js/heatmap-dashboard.js?v=83276"></script>
-<script src="js/midi.js?v=83276"></script>
-<script src="js/pdf.js?v=83276"></script>
-<script src="js/settings-search.js?v=83276"></script>
-<script src="js/visualizer.js?v=83276"></script>
-<script src="js/walker-status.js?v=83276"></script>
-<script src="js/audio-engine.js?v=83276"></script>
-<script src="js/context-menu.js?v=83276"></script>
-<script src="js/shortcuts.js?v=83276"></script>
-<script src="js/help-overlay.js?v=83276"></script>
-<script src="js/keyboard-nav.js?v=83276"></script>
-<script src="js/app.js?v=83276"></script>
+<script src="js/i18n-ui.js?v=35136"></script>
+<script src="js/utils.js?v=35136"></script>
+<script src="js/ipc.js?v=35136"></script>
+<script src="js/drag-reorder.js?v=35136"></script>
+<script src="js/modal-drag.js?v=35136"></script>
+<script src="js/columns.js?v=35136"></script>
+<script src="js/notes.js?v=35136"></script>
+<script src="js/favorites.js?v=35136"></script>
+<script src="js/export.js?v=35136"></script>
+<script src="js/plugins.js?v=35136"></script>
+<script src="js/settings.js?v=35136"></script>
+<script src="js/history.js?v=35136"></script>
+<script src="js/kvr.js?v=35136"></script>
+<script src="js/audio.js?v=35136"></script>
+<script src="js/daw.js?v=35136"></script>
+<script src="js/disk-usage.js?v=35136"></script>
+<script src="js/presets.js?v=35136"></script>
+<script src="js/batch-select.js?v=35136"></script>
+<script src="js/native-file-drag.js?v=35136"></script>
+<script src="js/sort-persist.js?v=35136"></script>
+<script src="js/multi-filter.js?v=35136"></script>
+<script src="js/file-browser.js?v=35136"></script>
+<script src="js/duplicates.js?v=35136"></script>
+<script src="js/command-palette.js?v=35136"></script>
+<script src="js/xref.js?v=35136"></script>
+<script src="js/dep-graph.js?v=35136"></script>
+<script src="js/smart-playlists.js?v=35136"></script>
+<script src="js/heatmap-dashboard.js?v=35136"></script>
+<script src="js/midi.js?v=35136"></script>
+<script src="js/pdf.js?v=35136"></script>
+<script src="js/settings-search.js?v=35136"></script>
+<script src="js/visualizer.js?v=35136"></script>
+<script src="js/walker-status.js?v=35136"></script>
+<script src="js/audio-engine.js?v=35136"></script>
+<script src="js/context-menu.js?v=35136"></script>
+<script src="js/shortcuts.js?v=35136"></script>
+<script src="js/help-overlay.js?v=35136"></script>
+<script src="js/keyboard-nav.js?v=35136"></script>
+<script src="js/app.js?v=35136"></script>
 </body>
 </html>
