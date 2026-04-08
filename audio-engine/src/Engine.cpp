@@ -104,6 +104,27 @@ static void persistKnownPluginListCacheSafe(const juce::KnownPluginList& list)
     }
 }
 
+/** Loads `known-plugin-list.xml` into `out`. Returns false if missing or invalid. */
+static bool loadKnownPluginListFromCacheFile(juce::KnownPluginList& out)
+{
+    const juce::File cacheFile = knownPluginListCacheFilePath();
+    if (!cacheFile.existsAsFile())
+        return false;
+    juce::XmlDocument doc(cacheFile);
+    std::unique_ptr<juce::XmlElement> root = doc.getDocumentElement();
+    if (root == nullptr)
+        return false;
+    try
+    {
+        out.recreateFromXml(*root);
+    }
+    catch (...)
+    {
+        return false;
+    }
+    return true;
+}
+
 static juce::StringArray readDeadMansPedalLines(const juce::File& deadMans)
 {
     juce::StringArray lines;
@@ -1243,23 +1264,15 @@ struct Engine::Impl
     void runPluginScanWorker()
     {
         juce::KnownPluginList list;
-        const juce::File cacheFile = knownPluginListCacheFilePath();
-        if (cacheFile.existsAsFile())
+        if (loadKnownPluginListFromCacheFile(list))
         {
-            juce::XmlDocument doc(cacheFile);
-            if (std::unique_ptr<juce::XmlElement> root = doc.getDocumentElement())
-            {
-                list.recreateFromXml(*root);
-                pluginScanProgress.cacheLoaded.store(true, std::memory_order_relaxed);
-            }
-            else
-            {
-                appLogLine("plugin scan: cache file present but XML parse failed; ignoring " + cacheFile.getFullPathName());
-                pluginScanProgress.cacheLoaded.store(false, std::memory_order_relaxed);
-            }
+            pluginScanProgress.cacheLoaded.store(true, std::memory_order_relaxed);
         }
         else
         {
+            const juce::File cacheFile = knownPluginListCacheFilePath();
+            if (cacheFile.existsAsFile())
+                appLogLine("plugin scan: known-plugin-list.xml missing or invalid; scanning from empty list");
             pluginScanProgress.cacheLoaded.store(false, std::memory_order_relaxed);
         }
 
@@ -1330,6 +1343,47 @@ struct Engine::Impl
         pluginScanPhase = PluginScanPhase::Done;
     }
 
+    /** Load `known-plugin-list.xml` into `pluginScanCache` when non-empty; used to skip a full rescan. */
+    bool hydratePluginScanCacheFromDiskIfAvailable()
+    {
+        juce::KnownPluginList list;
+        if (!loadKnownPluginListFromCacheFile(list))
+            return false;
+        pluginScanCache = list.getTypes();
+        pluginScanProgress.cacheLoaded.store(true, std::memory_order_relaxed);
+        return pluginScanCache.size() > 0;
+    }
+
+    /** Resolve a UI path: `.vst3` / `.component` bundle on disk, or `fileOrIdentifier` (e.g. AU string) from scan cache. */
+    bool resolvePluginDescriptionForInsert(const juce::String& path, juce::PluginDescription& out)
+    {
+        const juce::File f(path);
+        if (f.exists())
+        {
+            juce::OwnedArray<juce::PluginDescription> types;
+            vst3.findAllTypesForFile(types, f.getFullPathName());
+#if JUCE_MAC
+            if (types.isEmpty())
+                auFormat.findAllTypesForFile(types, f.getFullPathName());
+#endif
+            if (types.size() > 0)
+            {
+                out = *types[0];
+                return true;
+            }
+        }
+        std::lock_guard<std::mutex> scanLock(pluginScanMutex);
+        for (const auto& t : pluginScanCache)
+        {
+            if (t.fileOrIdentifier == path)
+            {
+                out = t;
+                return true;
+            }
+        }
+        return false;
+    }
+
     juce::var pluginChainLocked()
     {
         juce::Array<juce::var> slotRows;
@@ -1376,32 +1430,36 @@ struct Engine::Impl
         if (pluginScanPhase == PluginScanPhase::Idle)
         {
             pluginScanProgress.resetForNewScan();
-            pluginScanPhase = PluginScanPhase::Running;
-            if (pluginScanThread.joinable())
-                pluginScanThread.join();
-            pluginScanThread = std::thread([this]() { runPluginScanWorker(); });
-            juce::var out = okObj();
-            if (auto* o = out.getDynamicObject())
+            if (!hydratePluginScanCacheFromDiskIfAvailable())
             {
-                o->setProperty("phase", "scanning");
-                o->setProperty("api_version", 2);
-                o->setProperty("slots", juce::var(slotRows));
-                o->setProperty("insert_paths", juce::var(insertPathVars));
-                o->setProperty("formats_planned", juce::var(fmts));
-                o->setProperty("plugins", juce::Array<juce::var>());
-                o->setProperty("plugin_count", 0);
-                o->setProperty("note", "JUCE plugin scan running on background thread; poll plugin_chain until phase is not scanning.");
-                o->setProperty("scan_done", pluginScanProgress.done.load(std::memory_order_relaxed));
-                o->setProperty("scan_total", pluginScanProgress.total.load(std::memory_order_relaxed));
-                o->setProperty("scan_skipped", pluginScanProgress.skipped.load(std::memory_order_relaxed));
-                o->setProperty("scan_cache_loaded", pluginScanProgress.cacheLoaded.load(std::memory_order_relaxed));
+                pluginScanPhase = PluginScanPhase::Running;
+                if (pluginScanThread.joinable())
+                    pluginScanThread.join();
+                pluginScanThread = std::thread([this]() { runPluginScanWorker(); });
+                juce::var out = okObj();
+                if (auto* o = out.getDynamicObject())
                 {
-                    std::lock_guard<std::mutex> lk(pluginScanProgress.mutex);
-                    o->setProperty("scan_current_format", pluginScanProgress.currentFormat);
-                    o->setProperty("scan_current_name", pluginScanProgress.currentName);
+                    o->setProperty("phase", "scanning");
+                    o->setProperty("api_version", 2);
+                    o->setProperty("slots", juce::var(slotRows));
+                    o->setProperty("insert_paths", juce::var(insertPathVars));
+                    o->setProperty("formats_planned", juce::var(fmts));
+                    o->setProperty("plugins", juce::Array<juce::var>());
+                    o->setProperty("plugin_count", 0);
+                    o->setProperty("note", "JUCE plugin scan running on background thread; poll plugin_chain until phase is not scanning.");
+                    o->setProperty("scan_done", pluginScanProgress.done.load(std::memory_order_relaxed));
+                    o->setProperty("scan_total", pluginScanProgress.total.load(std::memory_order_relaxed));
+                    o->setProperty("scan_skipped", pluginScanProgress.skipped.load(std::memory_order_relaxed));
+                    o->setProperty("scan_cache_loaded", pluginScanProgress.cacheLoaded.load(std::memory_order_relaxed));
+                    {
+                        std::lock_guard<std::mutex> lk(pluginScanProgress.mutex);
+                        o->setProperty("scan_current_format", pluginScanProgress.currentFormat);
+                        o->setProperty("scan_current_name", pluginScanProgress.currentName);
+                    }
                 }
+                return out;
             }
-            return out;
+            pluginScanPhase = PluginScanPhase::Done;
         }
 
         if (pluginScanPhase == PluginScanPhase::Running)
@@ -1451,7 +1509,8 @@ struct Engine::Impl
             o->setProperty("plugin_count", plugins.size());
             o->setProperty(
                 "note",
-                "playback_set_inserts loads VST3/AU; order is serial before device. Stop output stream first. "
+                "playback_set_inserts loads VST3 bundles, AU .components, or cached fileOrIdentifier strings (e.g. AudioUnit:…); "
+                "order is serial before device. Stop output stream first. "
                 "playback_open_insert_editor opens native plug-in UIs (chain slot index).");
         }
         return out;
@@ -1486,25 +1545,14 @@ struct Engine::Impl
             const juce::String path = (*arr)[i].toString();
             if (path.isEmpty())
                 continue;
-            const juce::File f(path);
-            if (!f.existsAsFile())
+            juce::PluginDescription desc;
+            if (!resolvePluginDescriptionForInsert(path, desc))
             {
                 next->clear();
-                return errObj("not a file: " + path);
-            }
-            juce::OwnedArray<juce::PluginDescription> types;
-            vst3.findAllTypesForFile(types, f.getFullPathName());
-#if JUCE_MAC
-            if (types.isEmpty())
-                auFormat.findAllTypesForFile(types, f.getFullPathName());
-#endif
-            if (types.isEmpty())
-            {
-                next->clear();
-                return errObj("no plugin type in file: " + path);
+                return errObj("unknown plugin (not on disk and not in scan cache): " + path);
             }
             juce::String err;
-            auto inst = pluginFormatManager.createPluginInstance(*types[0], 44100.0, 512, err);
+            auto inst = pluginFormatManager.createPluginInstance(desc, 44100.0, 512, err);
             if (inst == nullptr)
             {
                 next->clear();
