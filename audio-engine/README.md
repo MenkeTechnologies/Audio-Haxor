@@ -77,7 +77,7 @@ pnpm run test:audio-engine
 # or: node scripts/run-audio-engine-tests.mjs
 ```
 
-These tests spawn the binary and assert **stdin/stdout JSON** (`ping`, bad JSON handling including **multiple** bad lines, **`cmd`** case folding, **`playback_load`** / **`waveform_preview`** / **`spectrogram_preview`** path validation, and **empty on-disk** files that are not a supported format — **no** `list_*_devices` / `plugin_chain`, which can block in piped shells). Override the binary path with **`AUDIO_ENGINE_TEST_BIN`**. On **Linux** without a display, run under **`xvfb-run -a`** (as in CI).
+These tests spawn the binary and assert **stdin/stdout JSON** (`ping`, bad JSON handling including **multiple** bad lines, **`cmd`** case folding, **blank stdin lines** (no matching stdout line), **`playback_load`** / **`waveform_preview`** / **`spectrogram_preview`** path validation including **directories** and **empty on-disk** files that are not a supported format — **no** `list_*_devices` / `plugin_chain`, which can block in piped shells). Override the binary path with **`AUDIO_ENGINE_TEST_BIN`**. On **Linux** without a display, run under **`xvfb-run -a`** (as in CI).
 
 ## Build
 

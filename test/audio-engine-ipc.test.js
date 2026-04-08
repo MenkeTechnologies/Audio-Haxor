@@ -41,13 +41,13 @@ function resolveAudioEngineBin() {
 
 /**
  * @param {string} bin
- * @param {string[]} requestLines - one JSON object per line
- * @param {{ timeoutMs?: number }} [opts]
+ * @param {string[]} requestLines - lines sent on stdin (each followed by \\n). Empty / whitespace-only lines produce no stdout (Main.cpp).
+ * @param {{ timeoutMs?: number, expectedOutputLines?: number }} [opts] — default expectedOutputLines = requestLines.length
  * @returns {Promise<{ code: number | null, signal: NodeJS.Signals | null, outLines: string[], stderr: string }>}
  */
 function runEngineExchange(bin, requestLines, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? 45_000;
-  const expected = requestLines.length;
+  const expectedOut = opts.expectedOutputLines ?? requestLines.length;
   return new Promise((resolve, reject) => {
     const child = spawn(bin, [], { stdio: ['pipe', 'pipe', 'pipe'] });
     const outLines = [];
@@ -74,7 +74,7 @@ function runEngineExchange(bin, requestLines, opts = {}) {
 
     rl.on('line', (line) => {
       outLines.push(line);
-      if (outLines.length >= expected) {
+      if (outLines.length >= expectedOut) {
         clearTimeout(timer);
         child.stdin.end();
       }
@@ -98,10 +98,10 @@ function runEngineExchange(bin, requestLines, opts = {}) {
         return;
       }
       settled = true;
-      if (outLines.length !== expected) {
+      if (outLines.length !== expectedOut) {
         reject(
           new Error(
-            `expected ${expected} stdout lines, got ${outLines.length}, code=${code}, signal=${signal}, stderr=${stderrChunks.join('')}`,
+            `expected ${expectedOut} stdout lines, got ${outLines.length}, code=${code}, signal=${signal}, stderr=${stderrChunks.join('')}`,
           ),
         );
         return;
@@ -128,15 +128,23 @@ if (!bin) {
     const missingAbsPath = path.join(root, '___audio_haxor_ipc_test_missing_file___');
     /** Exists on disk but not decodable as audio — distinct from missing path. */
     let tmpEmptyFile;
+    /** Exists as a directory — JUCE `existsAsFile` is false. */
+    let tmpDir;
 
     before(() => {
       tmpEmptyFile = path.join(os.tmpdir(), `audio-haxor-ipc-empty-${process.pid}.bin`);
       fs.writeFileSync(tmpEmptyFile, Buffer.alloc(0));
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'audio-haxor-ipc-dir-'));
     });
 
     after(() => {
       try {
         fs.unlinkSync(tmpEmptyFile);
+      } catch {
+        /* ignore */
+      }
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
       } catch {
         /* ignore */
       }
@@ -184,6 +192,28 @@ if (!bin) {
       assert.equal(j.host, 'juce');
     });
 
+    it('ping succeeds when unrelated path field is present', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'ping', path: missingAbsPath })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, true);
+      assert.equal(j.version, cmakeVersion);
+    });
+
+    it('empty and whitespace-only stdin lines produce no stdout line', async () => {
+      const { outLines } = await runEngineExchange(
+        bin,
+        ['', '   ', '\t', jl({ cmd: 'ping' })],
+        { expectedOutputLines: 1 },
+      );
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, true);
+    });
+
+    it('trailing blank stdin line after ping does not add a second stdout line', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'ping' }), ''], { expectedOutputLines: 1 });
+      assert.equal(JSON.parse(outLines[0]).ok, true);
+    });
+
     it('two sequential pings return two lines', async () => {
       const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'ping' }), jl({ cmd: 'ping' })]);
       assert.equal(outLines.length, 2);
@@ -201,6 +231,20 @@ if (!bin) {
       assert.equal(j.ok, false);
       assert.match(String(j.error || ''), /not a file/);
       assert.equal(code, 0);
+    });
+
+    it('playback_load rejects a directory path (not a file)', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'playback_load', path: tmpDir })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /not a file/);
+    });
+
+    it('waveform_preview rejects a directory path', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'waveform_preview', path: tmpDir })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /not a file/);
     });
 
     it('playback_load rejects empty path', async () => {
