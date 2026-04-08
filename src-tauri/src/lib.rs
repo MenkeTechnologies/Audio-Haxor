@@ -2912,23 +2912,9 @@ async fn write_cache_file(name: String, data: serde_json::Value) -> Result<(), S
     blocking_res(move || db::global().write_cache(&name, &data)).await
 }
 
-/// Tauri passes the inner object for `invoke(..., { request: payload })`; keep a fallback if the
-/// payload is double-wrapped (`{ "request": { "cmd": ... } }`) so stdin always matches the
-/// audio-engine line protocol.
-fn normalize_audio_engine_ipc_payload(v: &serde_json::Value) -> serde_json::Value {
-    if let Some(obj) = v.as_object() {
-        if !obj.contains_key("cmd") {
-            if let Some(inner) = obj.get("request") {
-                return inner.clone();
-            }
-        }
-    }
-    v.clone()
-}
-
 #[tauri::command]
 async fn audio_engine_invoke(request: serde_json::Value) -> Result<serde_json::Value, String> {
-    let payload = normalize_audio_engine_ipc_payload(&request);
+    let payload = audio_engine::normalize_ipc_request_payload(&request);
     let v = tokio::task::spawn_blocking({
         let payload = payload.clone();
         move || audio_engine::spawn_audio_engine_request(&payload)
