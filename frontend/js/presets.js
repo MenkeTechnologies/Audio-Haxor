@@ -98,7 +98,15 @@ async function fetchPresetPage() {
         if (seq !== _presetQuerySeq) return;
         renderPresetTable();
         if (presetScanProgressCleanup) _presetScanDbView = true;
-        rebuildPresetStats();
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(() => {
+                void rebuildPresetStats();
+            });
+        } else {
+            setTimeout(() => {
+                void rebuildPresetStats();
+            }, 0);
+        }
     } catch (e) {
         if (seq !== _presetQuerySeq) return;
         clearTableQueryLoadingRow('presetQueryLoadingRow', 'presetTable');

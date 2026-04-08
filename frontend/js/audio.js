@@ -2363,7 +2363,15 @@ async function fetchAudioPage() {
         if (audioScanProgressCleanup) _audioScanDbView = true;
         // Header totals from paginated query (fast); per-format breakdown debounced.
         updateAudioStats();
-        rebuildAudioStats();
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(() => {
+                void rebuildAudioStats();
+            });
+        } else {
+            setTimeout(() => {
+                void rebuildAudioStats();
+            }, 0);
+        }
         // Backfill duration/channels for rows missing metadata (legacy scans)
         backfillAudioMeta(filteredAudioSamples);
     } catch (e) {

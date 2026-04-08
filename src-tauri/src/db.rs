@@ -73,6 +73,10 @@ pub struct Database {
     midi_library_total_cache: Mutex<Option<u64>>,
     /// Same pattern as [`Self::midi_library_total_rows`] for `pdf_library`.
     pdf_library_total_cache: Mutex<Option<u64>>,
+    /// `SELECT COUNT(*) FROM audio_library` — invalidated on audio library writes.
+    audio_library_total_cache: Mutex<Option<u64>>,
+    /// Preset tab header: non-MIDI rows in library (`query_presets` / `preset_filter_stats`).
+    preset_inventory_total_cache: Mutex<Option<u64>>,
 }
 
 /// Parameters for paginated audio sample queries.
@@ -886,6 +890,56 @@ impl Database {
         }
     }
 
+    fn audio_library_total_rows(&self, conn: &Connection) -> Result<u64, String> {
+        if let Ok(g) = self.audio_library_total_cache.lock() {
+            if let Some(n) = *g {
+                return Ok(n);
+            }
+        }
+        let n: u64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM audio_library",
+                [],
+                |r| r.get::<_, i64>(0).map(|v| v as u64),
+            )
+            .unwrap_or(0);
+        if let Ok(mut g) = self.audio_library_total_cache.lock() {
+            *g = Some(n);
+        }
+        Ok(n)
+    }
+
+    fn invalidate_audio_library_total_cache(&self) {
+        if let Ok(mut g) = self.audio_library_total_cache.lock() {
+            *g = None;
+        }
+    }
+
+    fn preset_inventory_total_rows(&self, conn: &Connection) -> Result<u64, String> {
+        if let Ok(g) = self.preset_inventory_total_cache.lock() {
+            if let Some(n) = *g {
+                return Ok(n);
+            }
+        }
+        let n: u64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID','MIDI')",
+                [],
+                |r| r.get::<_, i64>(0).map(|v| v as u64),
+            )
+            .unwrap_or(0);
+        if let Ok(mut g) = self.preset_inventory_total_cache.lock() {
+            *g = Some(n);
+        }
+        Ok(n)
+    }
+
+    fn invalidate_preset_inventory_total_cache(&self) {
+        if let Ok(mut g) = self.preset_inventory_total_cache.lock() {
+            *g = None;
+        }
+    }
+
     /// SQL bodies for [`sync_*_after_paths_refresh`] (standalone: wrapped in `BEGIN IMMEDIATE` by
     /// [`exec_sync_paths_refresh`]). For preset/midi/pdf flows already inside a
     /// [`Transaction`], use [`sync_preset_library_after_paths_refresh_tx`] /
@@ -1036,6 +1090,8 @@ DROP TABLE _pl_refresh_paths;"#;
             read_idx: AtomicUsize::new(0),
             midi_library_total_cache: Mutex::new(None),
             pdf_library_total_cache: Mutex::new(None),
+            audio_library_total_cache: Mutex::new(None),
+            preset_inventory_total_cache: Mutex::new(None),
         };
         db.migrate()?;
         // At least one dedicated reader so `read_conn` never steals the primary handle (which
@@ -1109,6 +1165,8 @@ DROP TABLE _pl_refresh_paths;"#;
             crate::append_log(format!(
                 "rebuild_pdf_midi_preset_daw_libraries after prune_old_scans failed: {e}"
             ));
+        } else {
+            self.invalidate_preset_inventory_total_cache();
         }
     }
 
@@ -1914,6 +1972,7 @@ DROP TABLE _pl_refresh_paths;"#;
         )
         .map_err(|e| e.to_string())?;
         Self::sync_audio_library_after_paths_refresh(&conn)?;
+        self.invalidate_audio_library_total_cache();
         Ok(())
     }
 
@@ -2036,6 +2095,9 @@ DROP TABLE _pl_refresh_paths;"#;
             ).map_err(|e| e.to_string())?;
         }
         tx.commit().map_err(|e| e.to_string())?;
+        if inserted > 0 {
+            self.invalidate_audio_library_total_cache();
+        }
         Ok(inserted)
     }
 
@@ -2146,7 +2208,9 @@ DROP TABLE _pl_refresh_paths;"#;
                 .query_row(
                     "SELECT COUNT(*) FROM (
   SELECT 1 FROM audio_samples_fts
-  WHERE audio_samples_fts MATCH ?1 AND rowid IN (SELECT sample_id FROM audio_library)
+  INNER JOIN audio_samples s ON s.id = audio_samples_fts.rowid
+  INNER JOIN audio_library lib ON lib.sample_id = s.id
+  WHERE audio_samples_fts MATCH ?1
   LIMIT ?2)",
                     params![fts_match, cap],
                     |row| row.get::<_, i64>(0),
@@ -2156,7 +2220,9 @@ DROP TABLE _pl_refresh_paths;"#;
                 .query_row(
                     "SELECT COUNT(*) FROM (
   SELECT 1 FROM audio_samples_fts
-  WHERE audio_samples_fts MATCH ?1 AND rowid IN (SELECT sample_id FROM audio_library)
+  INNER JOIN audio_samples s ON s.id = audio_samples_fts.rowid
+  INNER JOIN audio_library lib ON lib.sample_id = s.id
+  WHERE audio_samples_fts MATCH ?1
   LIMIT ?2)",
                     params![fts_match, cap],
                     |row| row.get::<_, i64>(0),
@@ -2166,9 +2232,10 @@ DROP TABLE _pl_refresh_paths;"#;
                 let in_list = Self::in_list_sql(f);
                 let sql = format!(
                     "SELECT COUNT(*) FROM (
-  SELECT 1 FROM audio_samples s
-  INNER JOIN audio_library lib ON s.id = lib.sample_id
-  WHERE s.id IN (SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH ?1)
+  SELECT 1 FROM audio_samples_fts
+  INNER JOIN audio_samples s ON s.id = audio_samples_fts.rowid
+  INNER JOIN audio_library lib ON lib.sample_id = s.id
+  WHERE audio_samples_fts MATCH ?1
   AND s.format IN ({in_list})
   LIMIT ?2)"
                 );
@@ -2178,9 +2245,10 @@ DROP TABLE _pl_refresh_paths;"#;
             Some(f) => conn
                 .query_row(
                     "SELECT COUNT(*) FROM (
-  SELECT 1 FROM audio_samples s
-  INNER JOIN audio_library lib ON s.id = lib.sample_id
-  WHERE s.id IN (SELECT rowid FROM audio_samples_fts WHERE audio_samples_fts MATCH ?1)
+  SELECT 1 FROM audio_samples_fts
+  INNER JOIN audio_samples s ON s.id = audio_samples_fts.rowid
+  INNER JOIN audio_library lib ON lib.sample_id = s.id
+  WHERE audio_samples_fts MATCH ?1
   AND s.format = ?2
   LIMIT ?3)",
                     params![fts_match, f, cap],
@@ -2208,9 +2276,10 @@ DROP TABLE _pl_refresh_paths;"#;
             None => conn
                 .query_row(
                     "SELECT COUNT(*) FROM (
-  SELECT 1 FROM presets p
-  INNER JOIN preset_library lib ON p.id = lib.preset_id
-  WHERE p.id IN (SELECT rowid FROM presets_fts WHERE presets_fts MATCH ?1)
+  SELECT 1 FROM presets_fts
+  INNER JOIN presets p ON p.id = presets_fts.rowid
+  INNER JOIN preset_library lib ON lib.preset_id = p.id
+  WHERE presets_fts MATCH ?1
   AND p.format NOT IN ('MID','MIDI')
   LIMIT ?2)",
                     params![fts_match, cap],
@@ -2220,9 +2289,10 @@ DROP TABLE _pl_refresh_paths;"#;
             Some(f) if f.trim().is_empty() || f == "all" => conn
                 .query_row(
                     "SELECT COUNT(*) FROM (
-  SELECT 1 FROM presets p
-  INNER JOIN preset_library lib ON p.id = lib.preset_id
-  WHERE p.id IN (SELECT rowid FROM presets_fts WHERE presets_fts MATCH ?1)
+  SELECT 1 FROM presets_fts
+  INNER JOIN presets p ON p.id = presets_fts.rowid
+  INNER JOIN preset_library lib ON lib.preset_id = p.id
+  WHERE presets_fts MATCH ?1
   AND p.format NOT IN ('MID','MIDI')
   LIMIT ?2)",
                     params![fts_match, cap],
@@ -2233,9 +2303,10 @@ DROP TABLE _pl_refresh_paths;"#;
                 let in_list = Self::in_list_sql(f);
                 let sql = format!(
                     "SELECT COUNT(*) FROM (
-  SELECT 1 FROM presets p
-  INNER JOIN preset_library lib ON p.id = lib.preset_id
-  WHERE p.id IN (SELECT rowid FROM presets_fts WHERE presets_fts MATCH ?1)
+  SELECT 1 FROM presets_fts
+  INNER JOIN presets p ON p.id = presets_fts.rowid
+  INNER JOIN preset_library lib ON lib.preset_id = p.id
+  WHERE presets_fts MATCH ?1
   AND p.format NOT IN ('MID','MIDI')
   AND p.format IN ({in_list})
   LIMIT ?2)"
@@ -2246,9 +2317,10 @@ DROP TABLE _pl_refresh_paths;"#;
             Some(f) => conn
                 .query_row(
                     "SELECT COUNT(*) FROM (
-  SELECT 1 FROM presets p
-  INNER JOIN preset_library lib ON p.id = lib.preset_id
-  WHERE p.id IN (SELECT rowid FROM presets_fts WHERE presets_fts MATCH ?1)
+  SELECT 1 FROM presets_fts
+  INNER JOIN presets p ON p.id = presets_fts.rowid
+  INNER JOIN preset_library lib ON lib.preset_id = p.id
+  WHERE presets_fts MATCH ?1
   AND p.format NOT IN ('MID','MIDI')
   AND p.format = ?2
   LIMIT ?3)",
@@ -2581,10 +2653,7 @@ DROP TABLE _pl_refresh_paths;"#;
             )
             .map_err(|e| e.to_string())?
         } else {
-            conn.query_row("SELECT COUNT(*) FROM audio_library", [], |row| {
-                row.get::<_, i64>(0).map(|v| v as u64)
-            })
-            .unwrap_or(0)
+            self.audio_library_total_rows(&conn)?
         };
 
         // Filtered total: separate COUNT so the main SELECT can use LIMIT without
@@ -2636,25 +2705,71 @@ DROP TABLE _pl_refresh_paths;"#;
             (n, false)
         };
 
-        let query_sql = format!(
-            "SELECT name, path, directory, format, size, size_formatted, modified,
+        // FTS substring search: ORDER BY column sorts the entire match set before LIMIT (stalls).
+        // Use bm25 + LIMIT like PDF/MIDI; frontend may re-rank with `searchScore`.
+        let use_fts_bm25 = fts_match.is_some();
+        let query_sql = if use_fts_bm25 {
+            let (mut w, mut next_ph) = if single_scan {
+                (
+                    String::from(
+                        "SELECT s.name, s.path, s.directory, s.format, s.size, s.size_formatted, s.modified,
+                s.duration, s.channels, s.sample_rate, s.bits_per_sample, s.bpm, s.key_name, s.lufs
+                FROM audio_samples_fts
+                INNER JOIN audio_samples s ON s.id = audio_samples_fts.rowid
+                 WHERE audio_samples_fts MATCH ?1 AND s.scan_id = ?2",
+                    ),
+                    3usize,
+                )
+            } else {
+                (
+                    String::from(
+                        "SELECT s.name, s.path, s.directory, s.format, s.size, s.size_formatted, s.modified,
+                s.duration, s.channels, s.sample_rate, s.bits_per_sample, s.bpm, s.key_name, s.lufs
+                FROM audio_samples_fts
+                INNER JOIN audio_samples s ON s.id = audio_samples_fts.rowid
+                 INNER JOIN audio_library lib ON lib.sample_id = s.id
+                 WHERE audio_samples_fts MATCH ?1",
+                    ),
+                    2usize,
+                )
+            };
+            if let Some(fmt) = &params.format_filter {
+                if !fmt.is_empty() && fmt != "all" {
+                    if fmt.contains(',') {
+                        let vals: Vec<String> = fmt
+                            .split(',')
+                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                            .collect();
+                        w.push_str(&format!(" AND s.format IN ({})", vals.join(",")));
+                    } else {
+                        w.push_str(&format!(" AND s.format = ?{next_ph}"));
+                        next_ph += 1;
+                    }
+                }
+            }
+            let plim = next_ph;
+            let poff = next_ph + 1;
+            w.push_str(&format!(
+                " ORDER BY bm25(audio_samples_fts) LIMIT ?{plim} OFFSET ?{poff}"
+            ));
+            w
+        } else {
+            format!(
+                "SELECT name, path, directory, format, size, size_formatted, modified,
                     duration, channels, sample_rate, bits_per_sample, bpm, key_name, lufs
              FROM audio_samples
              WHERE {where_clause}
              ORDER BY {sort_col} {sort_dir} {nulls}
              LIMIT ?{limit_idx} OFFSET ?{offset_idx}",
-            limit_idx = bind_idx,
-            offset_idx = bind_idx + 1,
-        );
+                limit_idx = bind_idx,
+                offset_idx = bind_idx + 1,
+            )
+        };
 
         let mut stmt = conn.prepare(&query_sql).map_err(|e| e.to_string())?;
         let mut idx = 1;
-        if single_scan {
-            stmt.raw_bind_parameter(idx, &scan_id)
-                .map_err(|e| e.to_string())?;
-            idx += 1;
-        }
-        if let Some(ref m) = fts_match {
+        if use_fts_bm25 {
+            let m = fts_match.as_ref().expect("fts");
             stmt.raw_bind_parameter(idx, m).map_err(|e| e.to_string())?;
             idx += 1;
             if single_scan {
@@ -2662,25 +2777,43 @@ DROP TABLE _pl_refresh_paths;"#;
                     .map_err(|e| e.to_string())?;
                 idx += 1;
             }
-        } else if let Some(ref r) = regex_pat {
-            stmt.raw_bind_parameter(idx, r).map_err(|e| e.to_string())?;
-            idx += 1;
-        } else if let Some(ref pat) = like_pat {
-            stmt.raw_bind_parameter(idx, pat)
+            if let Some(ref fmt) = params.format_filter {
+                if !fmt.is_empty() && fmt != "all" && !fmt.contains(',') {
+                    stmt.raw_bind_parameter(idx, fmt)
+                        .map_err(|e| e.to_string())?;
+                    idx += 1;
+                }
+            }
+            stmt.raw_bind_parameter(idx, params.limit as i64)
                 .map_err(|e| e.to_string())?;
-            idx += 1;
-        }
-        if let Some(ref fmt) = params.format_filter {
-            if !fmt.is_empty() && fmt != "all" && !fmt.contains(',') {
-                stmt.raw_bind_parameter(idx, fmt)
+            stmt.raw_bind_parameter(idx + 1, params.offset as i64)
+                .map_err(|e| e.to_string())?;
+        } else {
+            if single_scan {
+                stmt.raw_bind_parameter(idx, &scan_id)
                     .map_err(|e| e.to_string())?;
                 idx += 1;
             }
+            if let Some(ref r) = regex_pat {
+                stmt.raw_bind_parameter(idx, r).map_err(|e| e.to_string())?;
+                idx += 1;
+            } else if let Some(ref pat) = like_pat {
+                stmt.raw_bind_parameter(idx, pat)
+                    .map_err(|e| e.to_string())?;
+                idx += 1;
+            }
+            if let Some(ref fmt) = params.format_filter {
+                if !fmt.is_empty() && fmt != "all" && !fmt.contains(',') {
+                    stmt.raw_bind_parameter(idx, fmt)
+                        .map_err(|e| e.to_string())?;
+                    idx += 1;
+                }
+            }
+            stmt.raw_bind_parameter(idx, params.limit as i64)
+                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(idx + 1, params.offset as i64)
+                .map_err(|e| e.to_string())?;
         }
-        stmt.raw_bind_parameter(idx, params.limit as i64)
-            .map_err(|e| e.to_string())?;
-        stmt.raw_bind_parameter(idx + 1, params.offset as i64)
-            .map_err(|e| e.to_string())?;
 
         let mut samples = Vec::new();
         let mut rows = stmt.raw_query();
@@ -3159,6 +3292,7 @@ DROP TABLE _pl_refresh_paths;"#;
         )
         .map_err(|e| e.to_string())?;
         Self::sync_audio_library_after_paths_refresh(&conn)?;
+        self.invalidate_audio_library_total_cache();
         conn.execute("DELETE FROM audio_scans WHERE id = ?1", params![scan_id])
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -3528,13 +3662,7 @@ DROP TABLE _pl_refresh_paths;"#;
         limit: u64,
     ) -> Result<PresetQueryResult, String> {
         let conn = self.read_conn();
-        let total_unfiltered: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID', 'MIDI')",
-                [],
-                |row| row.get::<_, i64>(0).map(|v| v as u64),
-            )
-            .unwrap_or(0);
+        let total_unfiltered: u64 = self.preset_inventory_total_rows(&conn)?;
         if total_unfiltered == 0 {
             return Ok(PresetQueryResult {
                 presets: vec![],
@@ -3623,35 +3751,100 @@ DROP TABLE _pl_refresh_paths;"#;
             (n, false)
         };
 
-        let sql = format!(
-            "SELECT name, path, directory, format, size, size_formatted, modified FROM presets WHERE {where_cl} ORDER BY {sort_col} {dir} LIMIT ?{bind_idx} OFFSET ?{}",
-            bind_idx + 1
-        );
+        // FTS substring search: ORDER BY column sorts the entire match set before LIMIT (stalls).
+        // Use bm25 + LIMIT like PDF/MIDI; frontend may re-rank with `searchScore`.
+        let use_fts_bm25 = fts_match.is_some();
+        let sql = if use_fts_bm25 {
+            let mut w = String::from(
+                "SELECT p.name, p.path, p.directory, p.format, p.size, p.size_formatted, p.modified
+                 FROM presets_fts
+                 INNER JOIN presets p ON p.id = presets_fts.rowid
+                 INNER JOIN preset_library lib ON lib.preset_id = p.id
+                 WHERE presets_fts MATCH ?1
+                 AND p.format NOT IN ('MID','MIDI')",
+            );
+            let mut next_ph = 2usize;
+            if let Some(f) = format_filter {
+                if !f.is_empty() && f != "all" {
+                    if f.contains(',') {
+                        let vals: Vec<String> = f
+                            .split(',')
+                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                            .collect();
+                        w.push_str(&format!(" AND p.format IN ({})", vals.join(",")));
+                    } else {
+                        w.push_str(&format!(" AND p.format = ?{next_ph}"));
+                        next_ph += 1;
+                    }
+                }
+            }
+            let plim = next_ph;
+            let poff = next_ph + 1;
+            w.push_str(&format!(
+                " ORDER BY bm25(presets_fts) LIMIT ?{plim} OFFSET ?{poff}"
+            ));
+            w
+        } else {
+            format!(
+                "SELECT name, path, directory, format, size, size_formatted, modified FROM presets WHERE {where_cl} ORDER BY {sort_col} {dir} LIMIT ?{bind_idx} OFFSET ?{}",
+                bind_idx + 1
+            )
+        };
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
         let mut bi = 1;
-        if let Some(ref m) = fts_match {
+        if use_fts_bm25 {
+            let m = fts_match.as_ref().expect("fts");
             stmt.raw_bind_parameter(bi, m).map_err(|e| e.to_string())?;
             bi += 1;
+            if let Some(f) = format_filter {
+                if !f.is_empty() && f != "all" && !f.contains(',') {
+                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                    bi += 1;
+                }
+            }
+            stmt.raw_bind_parameter(bi, limit as i64)
+                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(bi + 1, offset as i64)
+                .map_err(|e| e.to_string())?;
         } else if let Some(ref r) = regex_pat {
             stmt.raw_bind_parameter(bi, r).map_err(|e| e.to_string())?;
             bi += 1;
+            if let Some(f) = format_filter {
+                if !f.is_empty() && f != "all" && !f.contains(',') {
+                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                    bi += 1;
+                }
+            }
+            stmt.raw_bind_parameter(bi, limit as i64)
+                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(bi + 1, offset as i64)
+                .map_err(|e| e.to_string())?;
         } else if let Some(ref pat) = like_pat {
             stmt.raw_bind_parameter(bi, pat)
                 .map_err(|e| e.to_string())?;
             bi += 1;
-        }
-        if let Some(f) = format_filter {
-            // Comma-separated filters are inlined into `format IN (...)` by the SQL builder
-            // and have no placeholder to bind to — skip them here.
-            if !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                bi += 1;
+            if let Some(f) = format_filter {
+                if !f.is_empty() && f != "all" && !f.contains(',') {
+                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                    bi += 1;
+                }
             }
+            stmt.raw_bind_parameter(bi, limit as i64)
+                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(bi + 1, offset as i64)
+                .map_err(|e| e.to_string())?;
+        } else {
+            if let Some(f) = format_filter {
+                if !f.is_empty() && f != "all" && !f.contains(',') {
+                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                    bi += 1;
+                }
+            }
+            stmt.raw_bind_parameter(bi, limit as i64)
+                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(bi + 1, offset as i64)
+                .map_err(|e| e.to_string())?;
         }
-        stmt.raw_bind_parameter(bi, limit as i64)
-            .map_err(|e| e.to_string())?;
-        stmt.raw_bind_parameter(bi + 1, offset as i64)
-            .map_err(|e| e.to_string())?;
 
         let mut presets = Vec::new();
         let mut rows = stmt.raw_query();
@@ -4078,7 +4271,9 @@ DROP TABLE _pl_refresh_paths;"#;
              DELETE FROM audio_scans;
              COMMIT;",
         )
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+        self.invalidate_audio_library_total_cache();
+        Ok(())
     }
 
     // ── DAW scan CRUD ──
@@ -4422,6 +4617,7 @@ DROP TABLE _pl_refresh_paths;"#;
         conn.execute("DELETE FROM presets_fts WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Self::sync_preset_library_after_paths_refresh(&conn)?;
+        self.invalidate_preset_inventory_total_cache();
         Ok(())
     }
 
@@ -4525,6 +4721,9 @@ DROP TABLE _pl_refresh_paths;"#;
             ).map_err(|e| e.to_string())?;
         }
         tx.commit().map_err(|e| e.to_string())?;
+        if inserted > 0 {
+            self.invalidate_preset_inventory_total_cache();
+        }
         Ok(inserted)
     }
 
@@ -4589,7 +4788,9 @@ DROP TABLE _pl_refresh_paths;"#;
             }
             Self::sync_preset_library_after_paths_refresh_tx(&tx)?;
         }
-        tx.commit().map_err(|e| e.to_string())
+        tx.commit().map_err(|e| e.to_string())?;
+        self.invalidate_preset_inventory_total_cache();
+        Ok(())
     }
 
     pub fn get_preset_scans(&self) -> Result<Vec<serde_json::Value>, String> {
@@ -4693,6 +4894,7 @@ DROP TABLE _pl_refresh_paths;"#;
         conn.execute("DELETE FROM presets_fts WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Self::sync_preset_library_after_paths_refresh(&conn)?;
+        self.invalidate_preset_inventory_total_cache();
         conn.execute("DELETE FROM preset_scans WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -4708,7 +4910,9 @@ DROP TABLE _pl_refresh_paths;"#;
              DELETE FROM preset_scans;
              COMMIT;",
         )
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+        self.invalidate_preset_inventory_total_cache();
+        Ok(())
     }
 
     // ── MIDI scan CRUD ──
@@ -6141,11 +6345,7 @@ DROP TABLE _pl_refresh_paths;"#;
         search_regex: bool,
     ) -> Result<FilterStatsResult, String> {
         let conn = self.read_conn();
-        let total_unfiltered: u64 = conn
-            .query_row("SELECT COUNT(*) FROM audio_library", [], |r| {
-                r.get::<_, i64>(0).map(|v| v as u64)
-            })
-            .unwrap_or(0);
+        let total_unfiltered: u64 = self.audio_library_total_rows(&conn)?;
         let (fts_match, like_pat, regex_pat) = classify_fts_name_path_search(search, search_regex);
         let mut where_parts = vec![AUDIO_LIBRARY_IDS.to_string()];
         let mut bind_idx = 1usize;
@@ -6411,13 +6611,7 @@ DROP TABLE _pl_refresh_paths;"#;
         search_regex: bool,
     ) -> Result<FilterStatsResult, String> {
         let conn = self.read_conn();
-        let total_unfiltered: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID','MIDI')",
-                [],
-                |r| r.get::<_, i64>(0).map(|v| v as u64),
-            )
-            .unwrap_or(0);
+        let total_unfiltered: u64 = self.preset_inventory_total_rows(&conn)?;
         let (fts_match, like_pat, regex_pat) = classify_fts_name_path_search(search, search_regex);
         let mut where_parts = vec![
             PRESET_LIBRARY_IDS.to_string(),
@@ -7742,6 +7936,8 @@ mod tests {
             read_idx: AtomicUsize::new(0),
             midi_library_total_cache: Mutex::new(None),
             pdf_library_total_cache: Mutex::new(None),
+            audio_library_total_cache: Mutex::new(None),
+            preset_inventory_total_cache: Mutex::new(None),
         };
         db.migrate().unwrap();
         let read = Connection::open(uri.as_str()).unwrap();
@@ -7913,9 +8109,11 @@ mod tests {
         assert_eq!(restored.total_count, 1);
     }
 
-    /// Search (name subsequence) + sort by size DESC + pagination: verifies full query_audio path.
+    /// Search (name subsequence) + pagination: verifies full query_audio path.
+    /// With FTS active, row order is bm25 relevance (not column sort); UI may re-rank client-side.
     #[test]
     fn test_query_audio_search_subsequence_and_sort_size_desc() {
+        use std::collections::HashSet;
         let db = test_db();
         let samples = vec![
             sample("small_kick.wav", "/test/small_kick.wav", "WAV", 100),
@@ -7940,9 +8138,23 @@ mod tests {
             .unwrap();
 
         assert_eq!(result.total_count, 2);
-        assert_eq!(result.samples[0].name, "big_kick.wav");
-        assert_eq!(result.samples[0].size, 9_999);
-        assert_eq!(result.samples[1].name, "small_kick.wav");
+        let names: HashSet<&str> = result.samples.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains("big_kick.wav") && names.contains("small_kick.wav"));
+
+        let by_size = db
+            .query_audio(&AudioQueryParams {
+                scan_id: Some("s1".into()),
+                search: None,
+                search_regex: false,
+                format_filter: None,
+                sort_key: "size".into(),
+                sort_asc: false,
+                offset: 0,
+                limit: 10,
+            })
+            .unwrap();
+        assert_eq!(by_size.samples[0].name, "big_kick.wav");
+        assert_eq!(by_size.samples[0].size, 9_999);
     }
 
     #[test]
@@ -9470,9 +9682,11 @@ mod tests {
         assert_eq!(res.total_unfiltered, 3);
     }
 
-    /// Subsequence search on name + sort by size DESC (full `query_presets` path).
+    /// Subsequence search on name + pagination (full `query_presets` path).
+    /// With FTS active, row order is bm25 relevance (not column sort); UI may re-rank client-side.
     #[test]
     fn test_query_presets_search_subsequence_and_sort_size_desc() {
+        use std::collections::HashSet;
         let db = test_db();
         let mut format_counts = HashMap::new();
         format_counts.insert("FXP".into(), 3);
@@ -9519,9 +9733,14 @@ mod tests {
             .query_presets(Some("lead"), None, "size", false, false, 0, 100)
             .unwrap();
         assert_eq!(res.total_count, 2);
-        assert_eq!(res.presets[0].name, "big_lead.fxp");
-        assert_eq!(res.presets[0].size, 10_000);
-        assert_eq!(res.presets[1].name, "small_lead.fxp");
+        let names: HashSet<&str> = res.presets.iter().map(|p| p.name.as_str()).collect();
+        assert!(names.contains("big_lead.fxp") && names.contains("small_lead.fxp"));
+
+        let by_size = db
+            .query_presets(None, None, "size", false, false, 0, 100)
+            .unwrap();
+        assert_eq!(by_size.presets[0].name, "big_lead.fxp");
+        assert_eq!(by_size.presets[0].size, 10_000);
     }
 
     #[test]
