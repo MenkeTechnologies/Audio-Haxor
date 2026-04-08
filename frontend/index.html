@@ -5948,6 +5948,8 @@
             border-top: 1px solid var(--border);
             padding-top: 10px;
             margin-top: 4px;
+            flex-shrink: 0;
+            contain: layout style;
         }
 
         .np-eq-section.visible {
@@ -6943,6 +6945,8 @@
             width: 100%;
             min-width: 0;
             box-sizing: border-box;
+            flex-shrink: 0;
+            contain: layout style;
         }
 
         .np-visualizer {
@@ -6973,6 +6977,11 @@
 
         .np-fft-resize-handle:active {
             background: rgba(5, 217, 232, 0.22);
+        }
+
+        .np-eq-canvas-stack {
+            flex-shrink: 0;
+            contain: layout style;
         }
 
         .np-eq-canvas-stack .np-eq-resize-handle {
@@ -7015,9 +7024,26 @@
             background: rgba(5, 217, 232, 0.22);
         }
 
+        /* Playing glow: animate a ::before layer only. Animating box-shadow on the panel itself
+           replaces the static multi-layer shadow and makes the FFT/EQ stack jump in WKWebView. */
+        .audio-now-playing.np-playing:not(.expanded)::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: inherit;
+            pointer-events: none;
+            z-index: 0;
+            animation: np-glow-pulse 2s ease-in-out infinite;
+        }
+
         .audio-now-playing.np-playing {
             border-color: var(--cyan);
-            animation: np-glow-pulse 2s ease-in-out infinite;
+        }
+
+        /* Inner chrome above the glow layer so flex layout does not fight the pseudo stacking context */
+        .audio-now-playing.np-playing > * {
+            position: relative;
+            z-index: 1;
         }
 
         #npBtnFav.np-fav-active {
@@ -7058,6 +7084,10 @@
 
         body.no-neon-glow .modal-content {
             box-shadow: 0 0 20px var(--cyan-glow);
+        }
+
+        body.no-neon-glow .audio-now-playing.np-playing::before {
+            display: none;
         }
 
         body.no-neon-glow .audio-now-playing.np-playing {
@@ -10332,44 +10362,44 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=50513"></script>
-<script src="js/utils.js?v=50513"></script>
-<script src="js/ipc.js?v=50513"></script>
-<script src="js/drag-reorder.js?v=50513"></script>
-<script src="js/modal-drag.js?v=50513"></script>
-<script src="js/columns.js?v=50513"></script>
-<script src="js/notes.js?v=50513"></script>
-<script src="js/favorites.js?v=50513"></script>
-<script src="js/export.js?v=50513"></script>
-<script src="js/plugins.js?v=50513"></script>
-<script src="js/settings.js?v=50513"></script>
-<script src="js/history.js?v=50513"></script>
-<script src="js/kvr.js?v=50513"></script>
-<script src="js/audio.js?v=50513"></script>
-<script src="js/daw.js?v=50513"></script>
-<script src="js/presets.js?v=50513"></script>
-<script src="js/disk-usage.js?v=50513"></script>
-<script src="js/batch-select.js?v=50513"></script>
-<script src="js/native-file-drag.js?v=50513"></script>
-<script src="js/sort-persist.js?v=50513"></script>
-<script src="js/multi-filter.js?v=50513"></script>
-<script src="js/file-browser.js?v=50513"></script>
-<script src="js/duplicates.js?v=50513"></script>
-<script src="js/command-palette.js?v=50513"></script>
-<script src="js/xref.js?v=50513"></script>
-<script src="js/dep-graph.js?v=50513"></script>
-<script src="js/smart-playlists.js?v=50513"></script>
-<script src="js/heatmap-dashboard.js?v=50513"></script>
-<script src="js/midi.js?v=50513"></script>
-<script src="js/pdf.js?v=50513"></script>
-<script src="js/settings-search.js?v=50513"></script>
-<script src="js/visualizer.js?v=50513"></script>
-<script src="js/walker-status.js?v=50513"></script>
-<script src="js/audio-engine.js?v=50513"></script>
-<script src="js/context-menu.js?v=50513"></script>
-<script src="js/shortcuts.js?v=50513"></script>
-<script src="js/help-overlay.js?v=50513"></script>
-<script src="js/keyboard-nav.js?v=50513"></script>
-<script src="js/app.js?v=50513"></script>
+<script src="js/i18n-ui.js?v=26075"></script>
+<script src="js/utils.js?v=26075"></script>
+<script src="js/ipc.js?v=26075"></script>
+<script src="js/drag-reorder.js?v=26075"></script>
+<script src="js/modal-drag.js?v=26075"></script>
+<script src="js/columns.js?v=26075"></script>
+<script src="js/notes.js?v=26075"></script>
+<script src="js/favorites.js?v=26075"></script>
+<script src="js/export.js?v=26075"></script>
+<script src="js/plugins.js?v=26075"></script>
+<script src="js/settings.js?v=26075"></script>
+<script src="js/history.js?v=26075"></script>
+<script src="js/kvr.js?v=26075"></script>
+<script src="js/audio.js?v=26075"></script>
+<script src="js/daw.js?v=26075"></script>
+<script src="js/presets.js?v=26075"></script>
+<script src="js/disk-usage.js?v=26075"></script>
+<script src="js/batch-select.js?v=26075"></script>
+<script src="js/native-file-drag.js?v=26075"></script>
+<script src="js/sort-persist.js?v=26075"></script>
+<script src="js/multi-filter.js?v=26075"></script>
+<script src="js/file-browser.js?v=26075"></script>
+<script src="js/duplicates.js?v=26075"></script>
+<script src="js/command-palette.js?v=26075"></script>
+<script src="js/xref.js?v=26075"></script>
+<script src="js/dep-graph.js?v=26075"></script>
+<script src="js/smart-playlists.js?v=26075"></script>
+<script src="js/heatmap-dashboard.js?v=26075"></script>
+<script src="js/midi.js?v=26075"></script>
+<script src="js/pdf.js?v=26075"></script>
+<script src="js/settings-search.js?v=26075"></script>
+<script src="js/visualizer.js?v=26075"></script>
+<script src="js/walker-status.js?v=26075"></script>
+<script src="js/audio-engine.js?v=26075"></script>
+<script src="js/context-menu.js?v=26075"></script>
+<script src="js/shortcuts.js?v=26075"></script>
+<script src="js/help-overlay.js?v=26075"></script>
+<script src="js/keyboard-nav.js?v=26075"></script>
+<script src="js/app.js?v=26075"></script>
 </body>
 </html>
