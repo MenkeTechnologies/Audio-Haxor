@@ -39,8 +39,12 @@ function setNavIndex(idx) {
             if (path && path !== _lastAutoPlaySamplePath) {
                 _lastAutoPlaySamplePath = path;
                 clearTimeout(_sampleSelectPlayTimer);
+                // Preview must run in the same synchronous turn as the key event; deferred playback is blocked by WKWebView autoplay policy.
+                if (typeof window !== 'undefined' && typeof window.unlockAudioPlaybackFromUserGesture === 'function') {
+                    window.unlockAudioPlaybackFromUserGesture();
+                }
+                if (typeof previewAudio === 'function') previewAudio(path);
                 _sampleSelectPlayTimer = setTimeout(() => {
-                    if (typeof previewAudio === 'function') previewAudio(path);
                     if (typeof syncExpandedMetaWithKeyboardSelection === 'function') syncExpandedMetaWithKeyboardSelection(path);
                 }, 140);
             }

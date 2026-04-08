@@ -933,6 +933,18 @@ function ensureAudioGraph() {
     _panNode.connect(_playbackCtx.destination);
 }
 
+/** Same user-gesture stack as keydown (keyboard sample selection); WKWebView blocks `<audio>.play()` after `setTimeout`/async gaps. */
+function unlockAudioPlaybackFromUserGesture() {
+    ensureAudioGraph();
+    if (_playbackCtx && _playbackCtx.state === 'suspended') {
+        void _playbackCtx.resume();
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.unlockAudioPlaybackFromUserGesture = unlockAudioPlaybackFromUserGesture;
+}
+
 function setEqBand(band, value) {
     ensureAudioGraph();
     const db = parseFloat(value);
