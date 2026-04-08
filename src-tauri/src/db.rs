@@ -2054,6 +2054,18 @@ DROP TABLE _pl_refresh_paths;"#;
                 .map_err(|e| format!("Migration v17 schema_version failed: {e}"))?;
         }
 
+        if current < 18 {
+            // Stops background analysis from re-queuing the same files forever when BPM
+            // detection returns None but key + LUFS succeed (`unanalyzed_paths` used only `bpm IS NULL`).
+            conn.execute(
+                "ALTER TABLE audio_samples ADD COLUMN bpm_exhausted INTEGER NOT NULL DEFAULT 0",
+                [],
+            )
+            .map_err(|e| format!("Migration v18 (bpm_exhausted) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (18)", [])
+                .map_err(|e| format!("Migration v18 schema_version failed: {e}"))?;
+        }
+
         if conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_i18n'",
@@ -3254,7 +3266,7 @@ DROP TABLE _pl_refresh_paths;"#;
         let path = normalize_path_for_db(path);
         let conn = self.read_conn();
         conn.execute(
-            "UPDATE audio_samples SET bpm = ?1 WHERE path = ?2",
+            "UPDATE audio_samples SET bpm = ?1, bpm_exhausted = 0 WHERE path = ?2",
             params![bpm, path],
         )
         .map_err(|e| e.to_string())?;
@@ -3365,13 +3377,21 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(result.unwrap_or(serde_json::json!({})))
     }
 
-    /// Get paths of samples that haven't been analyzed yet (bpm IS NULL on library row).
+    /// Get paths of samples that still need BPM/Key/LUFS analysis (library rows).
+    ///
+    /// Rows where key and LUFS are filled but BPM is still NULL after a batch run are marked
+    /// [`bpm_exhausted`](Self::batch_update_analysis) so we do not spin on the same paths forever
+    /// when tempo detection fails. Clearing the BPM cache resets `bpm_exhausted` so analysis can retry.
     pub fn unanalyzed_paths(&self, limit: u64) -> Result<Vec<String>, String> {
         let conn = self.read_conn();
         let mut stmt = conn
             .prepare(&format!(
                 "SELECT path FROM audio_samples
-                 WHERE bpm IS NULL AND ({AUDIO_LIBRARY_IDS})
+                 WHERE (
+                     key_name IS NULL OR lufs IS NULL
+                     OR (bpm IS NULL AND bpm_exhausted = 0)
+                 )
+                 AND ({AUDIO_LIBRARY_IDS})
                  LIMIT ?1"
             ))
             .map_err(|e| e.to_string())?;
@@ -7191,7 +7211,11 @@ DROP TABLE _pl_refresh_paths;"#;
             "lufs" => "lufs",
             _ => return Ok(()),
         };
-        let sql = format!("UPDATE audio_samples SET {col} = ?1 WHERE path = ?2");
+        let sql = if field == "bpm" {
+            "UPDATE audio_samples SET bpm = ?1, bpm_exhausted = 0 WHERE path = ?2".to_string()
+        } else {
+            format!("UPDATE audio_samples SET {col} = ?1 WHERE path = ?2")
+        };
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         {
             let mut stmt = tx.prepare_cached(&sql).map_err(|e| e.to_string())?;
@@ -7574,12 +7598,17 @@ DROP TABLE _pl_refresh_paths;"#;
         {
             let mut stmt = tx
                 .prepare_cached(
-                    "UPDATE audio_samples SET bpm = ?1, key_name = ?2, lufs = ?3 WHERE path = ?4",
+                    "UPDATE audio_samples SET bpm = ?1, key_name = ?2, lufs = ?3, bpm_exhausted = ?4 WHERE path = ?5",
                 )
                 .map_err(|e| e.to_string())?;
             for (path, bpm, key, lufs) in results {
                 let path = normalize_path_for_db(path);
-                let _ = stmt.execute(params![bpm, key, lufs, path]);
+                let exhausted: i32 = if bpm.is_none() && key.is_some() && lufs.is_some() {
+                    1
+                } else {
+                    0
+                };
+                let _ = stmt.execute(params![bpm, key, lufs, exhausted, path]);
                 count += 1;
             }
         }
@@ -7591,7 +7620,7 @@ DROP TABLE _pl_refresh_paths;"#;
     pub fn clear_cache_table(&self, table: &str) -> Result<(), String> {
         let conn = self.read_conn();
         let sql = match table {
-            "bpm" => "UPDATE audio_samples SET bpm = NULL",
+            "bpm" => "UPDATE audio_samples SET bpm = NULL, bpm_exhausted = 0",
             "key" => "UPDATE audio_samples SET key_name = NULL",
             "lufs" => "UPDATE audio_samples SET lufs = NULL",
             "waveform" => "DELETE FROM waveform_cache",
@@ -7608,7 +7637,7 @@ DROP TABLE _pl_refresh_paths;"#;
     pub fn clear_all_caches(&self) -> Result<(), String> {
         let conn = self.read_conn();
         conn.execute_batch(
-            "UPDATE audio_samples SET bpm = NULL, key_name = NULL, lufs = NULL;
+            "UPDATE audio_samples SET bpm = NULL, key_name = NULL, lufs = NULL, bpm_exhausted = 0;
              DELETE FROM waveform_cache;
              DELETE FROM spectrogram_cache;
              DELETE FROM xref_cache;
@@ -8958,10 +8987,33 @@ mod tests {
             .unwrap();
         db.insert_audio_batch("s1", &samples).unwrap();
         db.update_bpm("/a.wav", Some(120.0)).unwrap();
+        db.update_key("/a.wav", Some("C")).unwrap();
+        db.update_lufs("/a.wav", Some(-12.0)).unwrap();
 
         let unanalyzed = db.unanalyzed_paths(100).unwrap();
         assert_eq!(unanalyzed.len(), 1);
         assert_eq!(unanalyzed[0], "/b.wav");
+    }
+
+    #[test]
+    fn test_unanalyzed_paths_skips_when_bpm_exhausted() {
+        let db = test_db();
+        let samples = vec![sample("a.wav", "/a.wav", "WAV", 100)];
+        db.save_scan("s1", "2024-01-01T00:00:00", 1, 100, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+        let rows: Vec<AnalysisBatchRow> = vec![(
+            "/a.wav".into(),
+            None,
+            Some("D".into()),
+            Some(-12.0),
+        )];
+        assert_eq!(db.batch_update_analysis(&rows).unwrap(), 1);
+        let unanalyzed = db.unanalyzed_paths(100).unwrap();
+        assert!(
+            unanalyzed.is_empty(),
+            "key+lufs present but BPM None should set bpm_exhausted and leave the queue"
+        );
     }
 
     #[test]
