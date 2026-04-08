@@ -6540,6 +6540,18 @@ async fn db_update_lufs(path: String, lufs: Option<f64>) -> Result<(), String> {
     blocking_res(move || db::global().update_lufs(&path, lufs)).await
 }
 
+/// Persist BPM, key, and LUFS together (same transaction and `bpm_exhausted` rules as batch analysis).
+#[tauri::command]
+async fn db_update_analysis(
+    path: String,
+    bpm: Option<f64>,
+    key: Option<String>,
+    lufs: Option<f64>,
+) -> Result<(), String> {
+    let row = vec![(path, bpm, key, lufs)];
+    blocking_res(move || db::global().batch_update_analysis(&row).map(|_| ())).await
+}
+
 #[tauri::command]
 async fn db_backfill_audio_meta(paths: Vec<String>) -> Result<serde_json::Value, String> {
     blocking_res(move || {
@@ -7065,6 +7077,7 @@ pub fn run() {
             db_update_bpm,
             db_update_key,
             db_update_lufs,
+            db_update_analysis,
             db_backfill_audio_meta,
             db_get_analysis,
             db_unanalyzed_paths,

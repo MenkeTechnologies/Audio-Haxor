@@ -3228,9 +3228,12 @@ async function expandMetaForPath(filePath) {
         // Estimate BPM and detect key async (all playable formats)
         const bpmFormats = ['WAV', 'AIFF', 'AIF', 'MP3', 'FLAC', 'OGG', 'M4A', 'AAC', 'OPUS'];
         if (bpmFormats.includes(meta.format)) {
-            estimateBpmForMeta(filePath);
-            detectKeyForMeta(filePath);
-            measureLufsForMeta(filePath);
+            await Promise.all([
+                estimateBpmForMeta(filePath),
+                detectKeyForMeta(filePath),
+                measureLufsForMeta(filePath),
+            ]);
+            await persistAnalysisRowToDb(filePath);
         } else {
             const bpmEl = document.getElementById('metaBpmValue');
             if (bpmEl) bpmEl.textContent = '—';
@@ -3393,6 +3396,7 @@ async function estimateBpmForMeta(filePath) {
             if (cell) cell.textContent = bpm || '';
         }
     } catch {
+        _bpmCache[filePath] = null;
         if (bpmEl) bpmEl.textContent = '—';
     }
 }
@@ -3436,6 +3440,7 @@ async function detectKeyForMeta(filePath) {
             if (cell) cell.textContent = key || '';
         }
     } catch {
+        _keyCache[filePath] = null;
         if (keyEl) keyEl.textContent = '—';
     }
 }
@@ -3464,7 +3469,31 @@ async function measureLufsForMeta(filePath) {
             if (cell) cell.textContent = lufs != null ? lufs : '';
         }
     } catch {
+        _lufsCache[filePath] = null;
         if (lufsEl) lufsEl.textContent = '—';
+    }
+}
+
+/** Merge in-memory analysis caches with existing DB row and persist (same rules as `batch_analyze`). */
+async function persistAnalysisRowToDb(filePath) {
+    if (expandedMetaPath !== filePath) return;
+    if (!window.vstUpdater || typeof window.vstUpdater.dbUpdateAnalysis !== 'function') return;
+    let base = {};
+    try {
+        base = await window.vstUpdater.dbGetAnalysis(filePath);
+    } catch {
+        /* ignore */
+    }
+    const bpm = _bpmCache[filePath];
+    const key = _keyCache[filePath];
+    const lufs = _lufsCache[filePath];
+    const mergedBpm = bpm !== undefined ? bpm : (typeof base.bpm === 'number' ? base.bpm : null);
+    const mergedKey = key !== undefined ? (key || null) : (typeof base.key === 'string' && base.key.length ? base.key : null);
+    const mergedLufs = lufs !== undefined ? lufs : (typeof base.lufs === 'number' ? base.lufs : null);
+    try {
+        await window.vstUpdater.dbUpdateAnalysis(filePath, mergedBpm, mergedKey, mergedLufs);
+    } catch (e) {
+        if (typeof showToast === 'function' && e) showToast(String(e), 4000, 'error');
     }
 }
 

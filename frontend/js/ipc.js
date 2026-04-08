@@ -1326,6 +1326,7 @@ window.vstUpdater = {
     dbUpdateBpm: (path, bpm) => invoke('db_update_bpm', {path, bpm}),
     dbUpdateKey: (path, key) => invoke('db_update_key', {path, key}),
     dbUpdateLufs: (path, lufs) => invoke('db_update_lufs', {path, lufs}),
+    dbUpdateAnalysis: (path, bpm, key, lufs) => invoke('db_update_analysis', {path, bpm, key, lufs}),
     dbGetAnalysis: (path) => invoke('db_get_analysis', {path}),
     dbBackfillAudioMeta: (paths) => invoke('db_backfill_audio_meta', {paths}),
     dbUnanalyzedPaths: (limit) => invoke('db_unanalyzed_paths', {limit: limit || 100}),
