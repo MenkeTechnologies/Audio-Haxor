@@ -284,6 +284,8 @@
   "menu.stop_all_scans": "Detener todos los análisis",
   "menu.stop_and_close": "Detener y cerrar",
   "menu.stop_pdf_scan": "Detener escaneo de PDF",
+  "menu.start_bpm_key_lufs_analysis": "Iniciar análisis BPM/Key/LUFS en segundo plano",
+  "menu.stop_bpm_key_lufs_analysis": "Detener análisis BPM/Key/LUFS en segundo plano",
   "menu.stop_playback": "Detener la reproducción",
   "menu.switch_to_fuzzy": "Cambiar a difuso",
   "menu.switch_to_regex": "Cambiar a expresión regular",

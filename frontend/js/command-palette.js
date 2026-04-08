@@ -295,6 +295,22 @@ function buildPaletteStaticItems() {
             })();
         }
     });
+    if (typeof triggerBackgroundBpmKeyLufsAnalysis === 'function') {
+        items.push({
+            type: 'action',
+            name: appFmt('menu.start_bpm_key_lufs_analysis'),
+            icon: '&#9654;',
+            action: () => triggerBackgroundBpmKeyLufsAnalysis()
+        });
+    }
+    if (typeof triggerStopBackgroundBpmKeyLufsAnalysis === 'function') {
+        items.push({
+            type: 'action',
+            name: appFmt('menu.stop_bpm_key_lufs_analysis'),
+            icon: '&#9632;',
+            action: () => triggerStopBackgroundBpmKeyLufsAnalysis()
+        });
+    }
     items.push({
         type: 'action', name: appFmt('menu.check_updates'), icon: '&#9889;', action: () => {
             showToast(toastFmt('toast.checking_updates'));

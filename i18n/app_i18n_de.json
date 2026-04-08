@@ -284,6 +284,8 @@
   "menu.stop_all_scans": "Stoppen Sie alle Scans",
   "menu.stop_and_close": "Stoppen und schließen",
   "menu.stop_pdf_scan": "Stoppen Sie den PDF-Scan",
+  "menu.start_bpm_key_lufs_analysis": "BPM/Key/LUFS-Hintergrundanalyse starten",
+  "menu.stop_bpm_key_lufs_analysis": "BPM/Key/LUFS-Hintergrundanalyse beenden",
   "menu.stop_playback": "Stoppen Sie die Wiedergabe",
   "menu.switch_to_fuzzy": "Wechseln Sie zu Fuzzy",
   "menu.switch_to_regex": "Wechseln Sie zu Regex",
