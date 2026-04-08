@@ -9,6 +9,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,9 +41,20 @@ if (process.platform === 'win32' && !process.env.__AUDIO_ENGINE_VCVARS) {
     process.exit(1);
   }
   const node = process.execPath;
-  // Invoke cmd.exe explicitly — execSync(..., { shell: true }) still failed on GitHub windows-latest
-  // (vcvars path quoted incorrectly). One /c string lets cmd parse `call "…\vcvars64.bat" && …` reliably.
-  const line = `call "${vcvars}" && set __AUDIO_ENGINE_VCVARS=1&& "${node}" "${scriptPath}"`;
+  // Inline `cmd /c "call … && …"` broke on current windows-latest (Node 22 / runner image): cmd
+  // reported vcvars64.bat as not found due to quote parsing. A temp .bat avoids nested quoting.
+  const tmpBat = path.join(
+    os.tmpdir(),
+    `audio-engine-vcvars-${process.pid}-${Date.now()}.bat`,
+  );
+  const bat = [
+    '@echo off',
+    `call "${vcvars}"`,
+    'if errorlevel 1 exit /b 1',
+    'set __AUDIO_ENGINE_VCVARS=1',
+    `"${node}" "${scriptPath}"`,
+  ].join('\r\n');
+  fs.writeFileSync(tmpBat, bat, 'utf8');
   const sysRoot = process.env.SystemRoot || 'C:\\Windows';
   const cmdExe = path.join(sysRoot, 'System32', 'cmd.exe');
   if (!fs.existsSync(cmdExe)) {
@@ -50,10 +62,16 @@ if (process.platform === 'win32' && !process.env.__AUDIO_ENGINE_VCVARS) {
     process.exit(1);
   }
   try {
-    execFileSync(cmdExe, ['/d', '/c', line], { stdio: 'inherit', cwd: root, env: process.env });
+    execFileSync(cmdExe, ['/d', '/c', tmpBat], { stdio: 'inherit', cwd: root, env: process.env });
   } catch (e) {
+    try {
+      fs.unlinkSync(tmpBat);
+    } catch (_) {}
     process.exit(e && typeof e.status === 'number' ? e.status : 1);
   }
+  try {
+    fs.unlinkSync(tmpBat);
+  } catch (_) {}
   process.exit(0);
 }
 
