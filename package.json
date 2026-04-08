@@ -22,7 +22,8 @@
     "nuke": "bash scripts/nuke.sh",
     "deploy": "bash scripts/deploy.sh",
     "db:vacuum": "bash scripts/db-vacuum.sh",
-    "db:stats": "bash scripts/db-stats.sh"
+    "db:stats": "bash scripts/db-stats.sh",
+    "i18n:sort": "python3 scripts/sort_app_i18n_catalogs.py"
   },
   "keywords": [
     "vst",

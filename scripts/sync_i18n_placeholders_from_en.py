@@ -42,7 +42,10 @@ def main() -> None:
             data[k] = ev
             n += 1
         if n:
-            p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            p.write_text(
+                json.dumps(dict(sorted(data.items())), ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
             print(f"{p.name}: aligned {n} keys from English (placeholder fix)")
 
 

@@ -406,7 +406,7 @@ between plugins. You can stop it anytime with the Stop button.
 
 ## // PROJECT ARCHITECTURE //
 
-**i18n (CI):** Top-level keys in every `i18n/app_i18n_*.json` must stay lexicographically sorted (`test/i18n-catalog-files.test.js`). User-visible toasts in `frontend/js` must go through `toastFmt('toast.*')`, not a raw English string as the first argument to `showToast` (`test/i18n-no-raw-showtoast.test.js`).
+**i18n (CI):** Top-level keys in every `i18n/app_i18n_*.json` must stay lexicographically sorted (`test/i18n-catalog-files.test.js`); run `pnpm run i18n:sort` if CI fails that check. User-visible toasts in `frontend/js` must go through `toastFmt('toast.*')`, not a raw English string as the first argument to `showToast` (`test/i18n-no-raw-showtoast.test.js`).
 
 **Rust cache (CI):** [Swatinem/rust-cache](https://github.com/Swatinem/rust-cache) must use `workspaces: .` (repo root). The virtual `[workspace]` writes **`target/`** at the repository root (`cargo metadata` → `target_directory`); `workspaces: src-tauri` would cache **`src-tauri/target`**, which this layout does not use and can misalign CI artifacts (e.g. Windows test runs).
 
