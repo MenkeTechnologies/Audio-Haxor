@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "오류: {err}",
   "ui.settings.cache_files_summary": "{n}개 파일 — 총 {size}개",
   "ui.settings.cache_load_failed": "통계를 로드하지 못했습니다: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Audio Scans",
   "ui.settings.cache_row_bpm": "BPM",
   "ui.settings.cache_row_database": "Total Database",

@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "Chyba: {err}",
   "ui.settings.cache_files_summary": "{n} souborů — celkem {size}",
   "ui.settings.cache_load_failed": "Nepodařilo se načíst statistiky: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Skenování zvuku",
   "ui.settings.cache_row_bpm": "BPM",
   "ui.settings.cache_row_database": "Celková databáze",

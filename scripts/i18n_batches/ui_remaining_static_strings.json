@@ -100,6 +100,7 @@
   "ui.settings.cache_table_size": "Size",
   "ui.settings.cache_clear": "Clear",
   "ui.settings.cache_load_failed": "Failed to load stats: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_files_empty": "No data files found",
   "ui.settings.cache_files_summary": "{n} files — {size} total",
   "ui.settings.cache_files_col_file": "File",

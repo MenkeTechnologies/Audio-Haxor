@@ -76,6 +76,13 @@ Or run per-locale generators individually:
 .venv-i18n/bin/python scripts/de_i18n_manual_overrides.py
 ```
 
+- **All non-English locales — fill English stubs in one pass:** `fill_all_locale_i18n_gaps.py` translates each **distinct** gap string once per locale (Google Translate), same target codes as `gen_app_i18n_*.py`. Skips `ui.opt.lang_*` endonyms, branding, and `ui.ph.ui_ph_*`. Slower than stub sync but fixes visible English leftovers after `sync_locale_keys_from_en.py`. Optional `--locale de` processes one file. After refreshing `de`, still run `de_i18n_manual_overrides.py`.
+
+```bash
+.venv-i18n/bin/python scripts/fill_all_locale_i18n_gaps.py
+.venv-i18n/bin/python scripts/de_i18n_manual_overrides.py
+```
+
 - **Fast stub sync:** Align every non-English file with English: missing keys get the English string as a stub; keys removed from English are dropped; existing translations are kept where the key still exists.
 
 ```bash

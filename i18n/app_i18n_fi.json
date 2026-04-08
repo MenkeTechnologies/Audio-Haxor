@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "Virhe: {err}",
   "ui.settings.cache_files_summary": "{n} tiedostoa – yhteensä {size}",
   "ui.settings.cache_load_failed": "Tilastojen lataaminen epäonnistui: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Äänen skannaukset",
   "ui.settings.cache_row_bpm": "BPM",
   "ui.settings.cache_row_database": "Tietokanta yhteensä",

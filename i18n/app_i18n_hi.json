@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "त्रुटि: {err}",
   "ui.settings.cache_files_summary": "{n} फ़ाइलें - कुल {size}",
   "ui.settings.cache_load_failed": "आँकड़े लोड करने में विफल: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "ऑडियो स्कैन",
   "ui.settings.cache_row_bpm": "बीपीएम",
   "ui.settings.cache_row_database": "कुल डेटाबेस",

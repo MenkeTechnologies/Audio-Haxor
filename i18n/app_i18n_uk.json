@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "Помилка: {err}",
   "ui.settings.cache_files_summary": "{n} файлів — усього {size}",
   "ui.settings.cache_load_failed": "Не вдалося завантажити статистику: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Аудіо сканування",
   "ui.settings.cache_row_bpm": "BPM",
   "ui.settings.cache_row_database": "Загальна база даних",

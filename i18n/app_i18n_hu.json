@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "Hiba: {err}",
   "ui.settings.cache_files_summary": "{n} fájl – összesen {size}",
   "ui.settings.cache_load_failed": "Nem sikerült betölteni a statisztikákat: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Audio szkennelések",
   "ui.settings.cache_row_bpm": "BPM‌",
   "ui.settings.cache_row_database": "Teljes adatbázis",

@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "Fejl: {err}",
   "ui.settings.cache_files_summary": "{n} filer — {size} i alt",
   "ui.settings.cache_load_failed": "Kunne ikke indlæse statistik: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Lydscanninger",
   "ui.settings.cache_row_bpm": "BPM",
   "ui.settings.cache_row_database": "Samlet database",

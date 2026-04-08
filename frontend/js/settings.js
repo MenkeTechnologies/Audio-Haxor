@@ -512,10 +512,11 @@ function cacheStatRowLabel(statKey, fallbackLabel, _cf) {
 async function renderCacheStats() {
     const grid = document.getElementById('cacheStatsGrid');
     if (!grid) return;
+    const _cf = catalogFmt;
+    grid.innerHTML = `<span style="color:var(--text-muted);font-size:11px;font-family:'Share Tech Mono',monospace;">${typeof escapeHtml === 'function' ? escapeHtml(_cf('ui.settings.cache_stats_loading')) : _cf('ui.settings.cache_stats_loading')}</span>`;
     try {
         const stats = await window.vstUpdater.dbCacheStats();
         const rows = Array.isArray(stats) ? stats : [];
-        const _cf = catalogFmt;
         grid.innerHTML = `<table style="width:100%;border-collapse:collapse;font-family:'Share Tech Mono',monospace;">
       <thead><tr style="color:var(--cyan);font-size:10px;text-transform:uppercase;letter-spacing:1px;">
         <th style="text-align:left;padding:4px 8px;">${_cf('ui.settings.cache_table_cache')}</th>

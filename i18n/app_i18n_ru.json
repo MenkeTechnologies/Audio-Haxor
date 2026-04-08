@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "Ошибка: {err}",
   "ui.settings.cache_files_summary": "Файлов: {n} — всего {size}",
   "ui.settings.cache_load_failed": "Не удалось загрузить статистику: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Аудио сканы",
   "ui.settings.cache_row_bpm": "БПМ",
   "ui.settings.cache_row_database": "Общая база данных",

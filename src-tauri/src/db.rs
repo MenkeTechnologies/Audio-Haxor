@@ -7416,8 +7416,13 @@ DROP TABLE _pl_refresh_paths;"#;
     }
 
     /// Get stats for all caches: item count and estimated size.
+    ///
+    /// Uses the primary **write** connection (not the read pool). Read-pool handles install a
+    /// [`SQLITE_QUERY_TIMEOUT_SECS`] progress-handler budget per acquisition; `cache_stats` runs
+    /// many sequential full-table `COUNT`s and `dbstat` passes — cumulative time exceeded 30s on
+    /// large libraries and surfaced as an empty/error cache table in Settings.
     pub fn cache_stats(&self) -> Result<Vec<CacheStat>, String> {
-        let conn = self.read_conn();
+        let conn = self.write_conn();
         let mut stats = Vec::new();
 
         // Analysis caches (columns on audio_samples — library rows only).

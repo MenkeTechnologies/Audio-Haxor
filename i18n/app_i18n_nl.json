@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "Fout: {err}",
   "ui.settings.cache_files_summary": "{n} bestanden — {size} totaal",
   "ui.settings.cache_load_failed": "Kan statistieken niet laden: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Audioscans",
   "ui.settings.cache_row_bpm": "BPM",
   "ui.settings.cache_row_database": "Totale database",

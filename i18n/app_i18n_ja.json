@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "エラー: {err}",
   "ui.settings.cache_files_summary": "{n} 個のファイル - 合計 {size}",
   "ui.settings.cache_load_failed": "統計情報のロードに失敗しました: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Audio Scans",
   "ui.settings.cache_row_bpm": "BPM",
   "ui.settings.cache_row_database": "Total Database",

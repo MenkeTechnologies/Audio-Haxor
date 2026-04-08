@@ -1528,6 +1528,7 @@
   "ui.settings.cache_files_error": "Kesalahan: {err}",
   "ui.settings.cache_files_summary": "{n} file — total {size}",
   "ui.settings.cache_load_failed": "Gagal memuat statistik: {err}",
+  "ui.settings.cache_stats_loading": "Loading cache stats…",
   "ui.settings.cache_row_audio_scans": "Pemindaian Audio",
   "ui.settings.cache_row_bpm": "BPM",
   "ui.settings.cache_row_database": "Jumlah Basis Data",
