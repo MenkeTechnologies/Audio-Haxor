@@ -4,10 +4,11 @@
  * On Linux CI, run under `xvfb-run -a` (see `.github/workflows/ci.yml`) — JUCE needs a display.
  */
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawn } = require('node:child_process');
 const readline = require('node:readline');
-const { describe, it } = require('node:test');
+const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 
 const root = path.join(__dirname, '..');
@@ -125,6 +126,21 @@ if (!bin) {
 } else {
   describe('audio-engine IPC (stdin/stdout)', () => {
     const missingAbsPath = path.join(root, '___audio_haxor_ipc_test_missing_file___');
+    /** Exists on disk but not decodable as audio — distinct from missing path. */
+    let tmpEmptyFile;
+
+    before(() => {
+      tmpEmptyFile = path.join(os.tmpdir(), `audio-haxor-ipc-empty-${process.pid}.bin`);
+      fs.writeFileSync(tmpEmptyFile, Buffer.alloc(0));
+    });
+
+    after(() => {
+      try {
+        fs.unlinkSync(tmpEmptyFile);
+      } catch {
+        /* ignore */
+      }
+    });
 
     it('ping returns ok, version matches CMake project, host juce', async () => {
       const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'ping' })]);
@@ -142,6 +158,30 @@ if (!bin) {
       const j = JSON.parse(outLines[0]);
       assert.equal(j.ok, false);
       assert.equal(j.error, 'bad JSON');
+    });
+
+    it('two bad JSON lines yield two error lines', async () => {
+      const { outLines } = await runEngineExchange(bin, ['{{{', 'also not json']);
+      assert.equal(outLines.length, 2);
+      for (const line of outLines) {
+        const j = JSON.parse(line);
+        assert.equal(j.ok, false);
+        assert.equal(j.error, 'bad JSON');
+      }
+    });
+
+    it('ping ignores extra JSON fields', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'ping', trace: 1, extra: 'x' })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, true);
+      assert.equal(j.version, cmakeVersion);
+    });
+
+    it('cmd is matched case-insensitively (Ping)', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'Ping' })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, true);
+      assert.equal(j.host, 'juce');
     });
 
     it('two sequential pings return two lines', async () => {
@@ -203,6 +243,27 @@ if (!bin) {
       const j = JSON.parse(outLines[0]);
       assert.equal(j.ok, false);
       assert.match(String(j.error || ''), /not a file/);
+    });
+
+    it('playback_load rejects empty on-disk file (no supported format)', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'playback_load', path: tmpEmptyFile })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /unsupported or unreadable/);
+    });
+
+    it('waveform_preview rejects empty on-disk file', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'waveform_preview', path: tmpEmptyFile })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /unsupported or unreadable/);
+    });
+
+    it('spectrogram_preview rejects empty on-disk file', async () => {
+      const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'spectrogram_preview', path: tmpEmptyFile })]);
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, false);
+      assert.match(String(j.error || ''), /unsupported or unreadable/);
     });
 
     it('mixed ping + preview validation in one session', async () => {
