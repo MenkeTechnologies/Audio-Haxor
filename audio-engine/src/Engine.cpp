@@ -663,8 +663,8 @@ class ToneAudioSource final : public juce::AudioSource
 public:
     std::atomic<bool> toneOn{false};
     std::atomic<uint64_t> phase{0};
-    /** Optional: tap stereo for spectrum (test tone path; inserts apply to file playback only). */
-    std::function<void(float, float)> spectrumPush;
+    /** Optional: tap mono spectrum (test tone path; inserts apply to file playback only). */
+    std::function<void(const float*, int)> spectrumPushBatch;
 
     void prepareToPlay(int, double sampleRate) override { sr = sampleRate; }
     void releaseResources() override {}
@@ -684,16 +684,20 @@ public:
         }
         uint64_t p = phase.load();
         const double twoPi = juce::MathConstants<double>::twoPi;
+        thread_local std::vector<float> toneSpectrumMono;
+        if (toneSpectrumMono.size() < (size_t)n)
+            toneSpectrumMono.resize((size_t)n);
         for (int i = 0; i < n; ++i)
         {
             const float s = (float) (std::sin((double) p * twoPi * (double) kTestToneHz / sr) * (double) kTestToneGain);
             for (int c = 0; c < ch; ++c)
                 bufferToFill.buffer->setSample(c, bufferToFill.startSample + i, s);
-            if (spectrumPush)
-                spectrumPush(s, s);
+            toneSpectrumMono[(size_t)i] = s;
             ++p;
         }
         phase.store(p);
+        if (spectrumPushBatch)
+            spectrumPushBatch(toneSpectrumMono.data(), n);
     }
 
 private:
@@ -715,7 +719,7 @@ public:
     DspAtomics* dsp = nullptr;
     std::atomic<float>* peak = nullptr;
     /** Filled after DSP + inserts (what reaches the device). */
-    std::function<void(float, float)> spectrumPush;
+    std::function<void(const float*, int)> spectrumPushBatch;
     juce::dsp::IIR::Filter<float> lowL, lowR, midL, midR, hiL, hiR;
     double processRate = 44100.0;
     InsertChainRunner* insertChain = nullptr;
@@ -810,7 +814,11 @@ public:
         const int n = bufferToFill.numSamples;
         if (reverseMode && reverseStereo.getNumChannels() >= 2 && reverseStereo.getNumSamples() > 0)
         {
+            thread_local std::vector<float> revSpectrumMono;
+            if (revSpectrumMono.size() < (size_t)n)
+                revSpectrumMono.resize((size_t)n);
             const int frames = reverseStereo.getNumSamples();
+            int specCount = 0;
             for (int i = 0; i < n; ++i)
             {
                 if (reverseFrame >= frames)
@@ -836,9 +844,10 @@ public:
                     pk = juce::jmax(pk, std::abs(l), std::abs(r));
                     peak->store(pk);
                 }
-                if (spectrumPush)
-                    spectrumPush(l, r);
+                revSpectrumMono[(size_t)specCount++] = (l + r) * 0.5f;
             }
+            if (spectrumPushBatch && specCount > 0)
+                spectrumPushBatch(revSpectrumMono.data(), specCount);
             /* Reverse path is sample-wise; VST block processing skipped. */
             return;
         }
@@ -890,14 +899,18 @@ public:
         if (insertChain != nullptr && insertChain->isActive())
             insertChain->process(*bufferToFill.buffer, bufferToFill.startSample, n);
 
-        if (spectrumPush)
+        if (spectrumPushBatch)
         {
+            thread_local std::vector<float> fwdSpectrumMono;
+            if (fwdSpectrumMono.size() < (size_t)n)
+                fwdSpectrumMono.resize((size_t)n);
             for (int i = 0; i < n; ++i)
             {
                 const float l = bufferToFill.buffer->getSample(0, bufferToFill.startSample + i);
                 const float r = bufferToFill.buffer->getSample(1, bufferToFill.startSample + i);
-                spectrumPush(l, r);
+                fwdSpectrumMono[(size_t)i] = (l + r) * 0.5f;
             }
+            spectrumPushBatch(fwdSpectrumMono.data(), n);
         }
     }
 };
@@ -1048,13 +1061,18 @@ struct Engine::Impl
     static constexpr size_t kSpectrumRingMax = 32768;
     std::unique_ptr<juce::dsp::FFT> spectrumFft;
 
-    void pushSpectrumMono(float l, float r)
+    /** One lock per callback block — avoids per-sample mutex traffic on the audio thread. */
+    void pushSpectrumMonoBatch(const float* mono, int count)
     {
-        const float m = (l + r) * 0.5f;
+        if (count <= 0 || mono == nullptr)
+            return;
         std::lock_guard<std::mutex> lk(spectrumRingMutex);
-        spectrumRing.push_back(m);
-        while (spectrumRing.size() > kSpectrumRingMax)
-            spectrumRing.pop_front();
+        for (int i = 0; i < count; ++i)
+        {
+            spectrumRing.push_back(mono[i]);
+            while (spectrumRing.size() > kSpectrumRingMax)
+                spectrumRing.pop_front();
+        }
     }
 
     void clearSpectrumRing()
@@ -1065,17 +1083,17 @@ struct Engine::Impl
 
     void wireSpectrumCallbacks()
     {
-        auto fn = [this](float l, float r) { pushSpectrumMono(l, r); };
-        toneSource.spectrumPush = fn;
+        auto fn = [this](const float* m, int c) { pushSpectrumMonoBatch(m, c); };
+        toneSource.spectrumPushBatch = fn;
         if (fileSource != nullptr)
-            fileSource->spectrumPush = fn;
+            fileSource->spectrumPushBatch = fn;
     }
 
     void clearSpectrumCallbacks()
     {
-        toneSource.spectrumPush = {};
+        toneSource.spectrumPushBatch = {};
         if (fileSource != nullptr)
-            fileSource->spectrumPush = {};
+            fileSource->spectrumPushBatch = {};
     }
 
     /** Hann + real FFT → 1024 magnitudes (0–255) for WebView (np FFT strip, EQ canvas, visualizer). */
