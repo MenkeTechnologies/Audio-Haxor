@@ -15,8 +15,8 @@ use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 static GLOBAL_DB: OnceLock<Database> = OnceLock::new();
 /// Serializes [`Database::open`] + migrations on the on-disk file. Without this, many threads can
@@ -68,6 +68,8 @@ pub type AnalysisBatchRow = (String, Option<f64>, Option<String>, Option<f64>);
 pub struct Database {
     write: Mutex<Connection>,
     read: Vec<Mutex<Connection>>,
+    /// Per-slot query-start timestamp (epoch ms) for the progress-handler timeout.
+    read_deadlines: Vec<Arc<AtomicU64>>,
     read_idx: AtomicUsize,
     /// `SELECT COUNT(*) FROM midi_library` is O(rows); cache and invalidate on MIDI library writes.
     midi_library_total_cache: Mutex<Option<u64>>,
@@ -764,6 +766,16 @@ fn init_sqlite_connection_pragmas(
     Ok(())
 }
 
+/// Per-query timeout for read-pool connections. The SQLite progress handler fires every
+/// [`SQLITE_PROGRESS_HANDLER_OPS`] VM opcodes; if wall-clock time since the query started
+/// exceeds this limit the query is interrupted (`SQLITE_INTERRUPT`).
+const SQLITE_QUERY_TIMEOUT_SECS: u64 = 30;
+
+/// Check interval for the progress handler — every N virtual-machine opcodes.
+/// 1000 is ~50µs on modern hardware; low enough for responsive cancellation,
+/// high enough to avoid measurable overhead on normal queries.
+const SQLITE_PROGRESS_HANDLER_OPS: u32 = 1000;
+
 fn open_db_connection_with_pragmas(
     db_path: &std::path::Path,
     cache_kib: i32,
@@ -776,6 +788,39 @@ fn open_db_connection_with_pragmas(
     init_sqlite_connection_pragmas(&conn, cache_kib, mmap_cap)?;
     install_regexp_function(&conn)?;
     Ok(conn)
+}
+
+/// Open a read-pool connection with a progress-handler query timeout.
+/// The returned `Arc<AtomicU64>` must be stored alongside the connection and reset
+/// (via [`reset_query_deadline`]) each time the connection is acquired from the pool.
+fn open_read_connection(
+    db_path: &std::path::Path,
+    cache_kib: i32,
+    mmap_cap: i64,
+) -> Result<(Connection, Arc<AtomicU64>), String> {
+    let conn = open_db_connection_with_pragmas(db_path, cache_kib, mmap_cap)?;
+    let start = Arc::new(AtomicU64::new(now_epoch_ms()));
+    let start_for_handler = Arc::clone(&start);
+    let timeout_ms = SQLITE_QUERY_TIMEOUT_SECS * 1000;
+    conn.progress_handler(SQLITE_PROGRESS_HANDLER_OPS as i32, Some(move || {
+        now_epoch_ms().saturating_sub(start_for_handler.load(Ordering::Relaxed)) > timeout_ms
+    }))
+    .map_err(|e| format!("Failed to set progress_handler: {e}"))?;
+    Ok((conn, start))
+}
+
+/// Milliseconds since [`std::time::UNIX_EPOCH`] (monotonic enough for timeout purposes).
+fn now_epoch_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+/// Reset the query-start timestamp so the progress handler measures from *now*.
+#[inline]
+fn reset_query_deadline(start: &AtomicU64) {
+    start.store(now_epoch_ms(), Ordering::Relaxed);
 }
 
 fn sqlite_read_pool_auto() -> usize {
@@ -834,6 +879,7 @@ impl Database {
     }
 
     /// Round-robin read pool only (never the primary `write` handle — see [`Database`] docs).
+    /// Resets the per-slot query-timeout deadline so the progress handler measures from *now*.
     #[inline]
     fn read_conn(&self) -> std::sync::MutexGuard<'_, Connection> {
         let n = self.read.len();
@@ -841,6 +887,7 @@ impl Database {
             panic!("Database read pool is empty — Database::open() must add at least one reader");
         }
         let i = self.read_idx.fetch_add(1, Ordering::Relaxed) % n;
+        reset_query_deadline(&self.read_deadlines[i]);
         self.read[i].lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -1141,6 +1188,7 @@ DROP TABLE _pl_refresh_paths;"#;
         let mut db = Self {
             write: Mutex::new(write),
             read: Vec::new(),
+            read_deadlines: Vec::new(),
             read_idx: AtomicUsize::new(0),
             midi_library_total_cache: Mutex::new(None),
             pdf_library_total_cache: Mutex::new(None),
@@ -1157,11 +1205,9 @@ DROP TABLE _pl_refresh_paths;"#;
         let read_cache_kib = read_pool_cache_kib(n_read);
         let read_mmap = read_pool_mmap_bytes(n_read);
         for _ in 0..n_read {
-            db.read.push(Mutex::new(open_db_connection_with_pragmas(
-                &db_path,
-                read_cache_kib,
-                read_mmap,
-            )?));
+            let (conn, deadline) = open_read_connection(&db_path, read_cache_kib, read_mmap)?;
+            db.read.push(Mutex::new(conn));
+            db.read_deadlines.push(deadline);
         }
         Ok(db)
     }
@@ -8039,6 +8085,7 @@ mod tests {
         let mut db = Database {
             write: Mutex::new(write),
             read: Vec::new(),
+            read_deadlines: Vec::new(),
             read_idx: AtomicUsize::new(0),
             midi_library_total_cache: Mutex::new(None),
             pdf_library_total_cache: Mutex::new(None),
@@ -8052,7 +8099,9 @@ mod tests {
         read.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
             .unwrap();
         install_regexp_function(&read).unwrap();
+        let deadline = Arc::new(AtomicU64::new(now_epoch_ms()));
         db.read.push(Mutex::new(read));
+        db.read_deadlines.push(deadline);
         db
     }
 
