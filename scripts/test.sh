@@ -11,9 +11,10 @@ START=$(date +%s)
 JS_OUT=$(node scripts/run-js-tests.mjs 2>&1)
 JS_EXIT=$?
 END=$(date +%s)
-JS_TESTS=$(echo "$JS_OUT" | grep -E '^ℹ tests' | grep -o '[0-9]*' || echo 0)
-JS_PASS=$(echo "$JS_OUT" | grep -E '^ℹ pass' | grep -o '[0-9]*' || echo 0)
-JS_FAIL=$(echo "$JS_OUT" | grep -E '^ℹ fail' | grep -o '[0-9]*' || echo 0)
+# run-js-tests.mjs spawns multiple node --test batches; each prints its own summary line — sum them.
+JS_TESTS=$(echo "$JS_OUT" | grep -E '^ℹ tests' | awk '{s += $NF} END {print s + 0}')
+JS_PASS=$(echo "$JS_OUT" | grep -E '^ℹ pass' | awk '{s += $NF} END {print s + 0}')
+JS_FAIL=$(echo "$JS_OUT" | grep -E '^ℹ fail' | awk '{s += $NF} END {print s + 0}')
 echo -e "  ${D}tests${N} ${W}$JS_TESTS${N}  ${D}pass${N} ${G}$JS_PASS${N}  ${D}fail${N} ${R}$JS_FAIL${N}  ${D}// $((END - START))s${N}"
 if [ "$JS_FAIL" = "0" ] && [ "$JS_EXIT" = "0" ]; then
   cyber_ok "JS nominal"
@@ -33,9 +34,9 @@ AE_OUT=""
 if [ -f audio-engine-artifacts/debug/audio-engine ] || [ -f audio-engine-artifacts/release/audio-engine ] || [ -f audio-engine-artifacts/debug/audio-engine.exe ] || [ -f audio-engine-artifacts/release/audio-engine.exe ] || [ -f target/debug/audio-engine ] || [ -f target/release/audio-engine ] || [ -f target/debug/audio-engine.exe ] || [ -f target/release/audio-engine.exe ]; then
   AE_OUT=$(node scripts/run-audio-engine-tests.mjs 2>&1)
   AE_EXIT=$?
-  AE_TESTS=$(echo "$AE_OUT" | grep -E '^ℹ tests' | grep -o '[0-9]*' || echo 0)
-  AE_PASS=$(echo "$AE_OUT" | grep -E '^ℹ pass' | grep -o '[0-9]*' || echo 0)
-  AE_FAIL=$(echo "$AE_OUT" | grep -E '^ℹ fail' | grep -o '[0-9]*' || echo 0)
+  AE_TESTS=$(echo "$AE_OUT" | grep -E '^ℹ tests' | awk '{s += $NF} END {print s + 0}')
+  AE_PASS=$(echo "$AE_OUT" | grep -E '^ℹ pass' | awk '{s += $NF} END {print s + 0}')
+  AE_FAIL=$(echo "$AE_OUT" | grep -E '^ℹ fail' | awk '{s += $NF} END {print s + 0}')
   END=$(date +%s)
   echo -e "  ${D}tests${N} ${W}$AE_TESTS${N}  ${D}pass${N} ${G}$AE_PASS${N}  ${D}fail${N} ${R}$AE_FAIL${N}  ${D}// $((END - START))s${N}"
   if [ "$AE_FAIL" = "0" ] && [ "$AE_EXIT" = "0" ]; then
