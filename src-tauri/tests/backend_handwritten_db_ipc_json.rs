@@ -94,6 +94,7 @@ fn audio_sample_row_serializes_analysis_fields_when_some() {
         bpm: Some(120.0),
         key: Some("C Major".into()),
         lufs: Some(-14.2),
+        bpm_exhausted: false,
     };
     let v = serde_json::to_value(&row).unwrap();
     let o = as_obj(&v);
@@ -121,12 +122,37 @@ fn audio_sample_row_omits_none_optional_analysis_fields() {
         bpm: None,
         key: None,
         lufs: None,
+        bpm_exhausted: false,
     };
     let v = serde_json::to_value(&row).unwrap();
     let o = as_obj(&v);
     assert!(o.get("bpm").is_none());
     assert!(o.get("sampleRate").is_none());
     assert!(o.get("lufs").is_none());
+}
+
+#[test]
+fn audio_sample_row_serializes_bpm_exhausted_when_true() {
+    let row = AudioSampleRow {
+        name: "a".into(),
+        path: "/a.wav".into(),
+        directory: "/".into(),
+        format: "WAV".into(),
+        size: 10,
+        size_formatted: "10.0 B".into(),
+        modified: "t".into(),
+        duration: None,
+        channels: None,
+        sample_rate: None,
+        bits_per_sample: None,
+        bpm: None,
+        key: Some("C".into()),
+        lufs: Some(-14.0),
+        bpm_exhausted: true,
+    };
+    let v = serde_json::to_value(&row).unwrap();
+    let o = as_obj(&v);
+    assert_eq!(o.get("bpmExhausted"), Some(&serde_json::json!(true)));
 }
 
 #[test]

@@ -2454,21 +2454,41 @@ function loadMoreAudio() {
     fetchAudioPage();
 }
 
+/** BPM column text + title; when `bpmExhausted`, shows localized N/A and ignores stale BPM cache. */
+function bpmCellDisplayAndTitle(s) {
+    const bpmExhausted = s.bpmExhausted === true;
+    const raw = !bpmExhausted
+        ? (s.bpm != null && s.bpm !== ''
+            ? s.bpm
+            : (typeof _bpmCache !== 'undefined' && _bpmCache[s.path] != null && _bpmCache[s.path] !== ''
+                ? _bpmCache[s.path]
+                : null))
+        : null;
+    const display = bpmExhausted
+        ? (typeof _audioFmt === 'function' ? _audioFmt('ui.audio.bpm_na') : 'N/A')
+        : (raw != null && raw !== '' ? String(raw) : '');
+    const titleRaw = bpmExhausted
+        ? (typeof _audioFmt === 'function' ? _audioFmt('ui.audio.tt_cell_bpm_exhausted') : '')
+        : (display !== ''
+            ? _audioFmt('ui.audio.tt_cell_bpm', {bpm: raw})
+            : _audioFmt('ui.audio.tt_cell_click_analyze'));
+    return { display, titleRaw };
+}
+
 function buildAudioRow(s) {
     const fmtClass = getFormatClass(s.format);
     const hp = escapeHtml(s.path);
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (x) => String(x);
     const isPlaying = audioPlayerPath === s.path;
     const rowClass = isPlaying ? ' class="row-playing"' : '';
     const checked =
         typeof batchSetForTabId === 'function' && batchSetForTabId('tabSamples').has(s.path) ? ' checked' : '';
-    // BPM/key/LUFS come inline from SQLite query result
-    const bpm = s.bpm || (typeof _bpmCache !== 'undefined' && _bpmCache[s.path]) || '';
+    const { display: bpmDisplay, titleRaw: bpmTitleRaw } = bpmCellDisplayAndTitle(s);
+    const bpmTitle = esc(bpmTitleRaw);
     const key = s.key || (typeof _keyCache !== 'undefined' && _keyCache[s.path]) || '';
     const dur = s.duration ? (typeof formatTime === 'function' ? formatTime(s.duration) : s.duration.toFixed(1) + 's') : '';
     const ch = s.channels ? (s.channels === 1 ? 'M' : s.channels === 2 ? 'S' : s.channels + 'ch') : (s.sampleRate ? '?' : '');
     const lufs = s.lufs != null ? s.lufs : (typeof _lufsCache !== 'undefined' && _lufsCache[s.path] != null) ? _lufsCache[s.path] : '';
-    const esc = typeof escapeHtml === 'function' ? escapeHtml : (x) => String(x);
-    const bpmTitle = bpm ? esc(_audioFmt('ui.audio.tt_cell_bpm', {bpm})) : esc(_audioFmt('ui.audio.tt_cell_click_analyze'));
     const keyTitle = key ? esc(key) : esc(_audioFmt('ui.audio.tt_cell_click_analyze'));
     const lufsTitle = lufs !== ''
         ? (lufs < -25
@@ -2484,7 +2504,7 @@ function buildAudioRow(s) {
     <td class="col-name" title="${escapeHtml(s.name)}">${_lastAudioSearch ? highlightBasenameFromPath(s.path, s.name, _lastAudioSearch, _lastAudioMode) : escapeHtml(s.name)}${typeof rowBadges === 'function' ? rowBadges(s.path) : ''}</td>
     <td class="col-format"><span class="format-badge ${fmtClass}">${_lastAudioSearch ? highlightMatch(s.format, _lastAudioSearch, _lastAudioMode) : escapeHtml(s.format)}</span></td>
     <td class="col-size">${s.sizeFormatted}</td>
-    <td class="col-bpm" title="${bpmTitle}">${bpm}</td>
+    <td class="col-bpm" title="${bpmTitle}">${typeof escapeHtml === 'function' ? escapeHtml(bpmDisplay) : bpmDisplay}</td>
     <td class="col-key" title="${keyTitle}">${escapeHtml(key)}</td>
     <td class="col-dur" title="${dur ? esc(dur) : ''}">${dur}</td>
     <td class="col-ch" title="${chTitle}">${ch}</td>
@@ -3494,6 +3514,34 @@ async function persistAnalysisRowToDb(filePath) {
         await window.vstUpdater.dbUpdateAnalysis(filePath, mergedBpm, mergedKey, mergedLufs);
     } catch (e) {
         if (typeof showToast === 'function' && e) showToast(String(e), 4000, 'error');
+        return;
+    }
+    const exhausted = mergedBpm == null && mergedKey != null && mergedLufs != null;
+    const sample = typeof findByPath === 'function' ? findByPath(allAudioSamples, filePath) : null;
+    if (sample) {
+        sample.bpmExhausted = exhausted;
+        if (exhausted) {
+            delete sample.bpm;
+        } else if (mergedBpm != null) {
+            sample.bpm = mergedBpm;
+        }
+    }
+    if (exhausted && typeof _bpmCache !== 'undefined') {
+        delete _bpmCache[filePath];
+    }
+    const forCell = sample || {
+        path: filePath,
+        bpmExhausted: exhausted,
+        bpm: mergedBpm != null ? mergedBpm : undefined,
+    };
+    const { display, titleRaw } = bpmCellDisplayAndTitle(forCell);
+    const tableRow = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(filePath)}"]`);
+    if (tableRow) {
+        const cell = tableRow.querySelector('.col-bpm');
+        if (cell) {
+            cell.textContent = display;
+            cell.setAttribute('title', titleRaw);
+        }
     }
 }
 
@@ -3585,6 +3633,9 @@ async function startBackgroundAnalysis() {
                     _bpmCache[a.path] = a.bpm;
                     _debounceBpmSave();
                 }
+                if (a.bpmExhausted === true && typeof _bpmCache !== 'undefined') {
+                    delete _bpmCache[a.path];
+                }
                 if (a.key) {
                     _keyCache[a.path] = a.key;
                     _debounceKeySave();
@@ -3598,12 +3649,19 @@ async function startBackgroundAnalysis() {
                     if (a.bpm) sample.bpm = a.bpm;
                     if (a.key) sample.key = a.key;
                     if (a.lufs != null) sample.lufs = a.lufs;
+                    sample.bpmExhausted = a.bpmExhausted === true;
+                    if (sample.bpmExhausted) {
+                        delete sample.bpm;
+                    }
                 }
                 const row = tbody.querySelector(`tr[data-audio-path="${CSS.escape(a.path)}"]`);
                 if (row) {
-                    if (a.bpm) {
-                        const c = row.querySelector('.col-bpm');
-                        if (c) c.textContent = a.bpm;
+                    const cBpm = row.querySelector('.col-bpm');
+                    if (cBpm) {
+                        const src = sample || { path: a.path, bpm: a.bpm, bpmExhausted: a.bpmExhausted === true };
+                        const { display, titleRaw } = bpmCellDisplayAndTitle(sample || src);
+                        cBpm.textContent = display;
+                        cBpm.setAttribute('title', titleRaw);
                     }
                     if (a.key) {
                         const c = row.querySelector('.col-key');

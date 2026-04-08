@@ -2559,11 +2559,13 @@ async fn batch_analyze(paths: Vec<String>) -> Result<serde_json::Value, String> 
         let items: Vec<serde_json::Value> = results
             .iter()
             .map(|(path, bpm, key, lufs)| {
+                let bpm_exhausted = bpm.is_none() && key.is_some() && lufs.is_some();
                 serde_json::json!({
                     "path": path,
                     "bpm": bpm,
                     "key": key,
                     "lufs": lufs,
+                    "bpmExhausted": bpm_exhausted,
                 })
             })
             .collect();

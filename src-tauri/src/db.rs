@@ -401,6 +401,9 @@ pub struct AudioSampleRow {
     pub key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lufs: Option<f64>,
+    /// True when BPM detection gave up (NULL BPM with key+LUFS filled) — UI shows N/A in the BPM column.
+    #[serde(rename = "bpmExhausted", skip_serializing_if = "std::ops::Not::not")]
+    pub bpm_exhausted: bool,
 }
 
 /// Result of a paginated query.
@@ -1568,6 +1571,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bpm             REAL,
                     key_name        TEXT,
                     lufs            REAL,
+                    bpm_exhausted   INTEGER NOT NULL DEFAULT 0,
                     scan_id         TEXT NOT NULL,
                     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
                 );
@@ -2057,11 +2061,21 @@ DROP TABLE _pl_refresh_paths;"#;
         if current < 18 {
             // Stops background analysis from re-queuing the same files forever when BPM
             // detection returns None but key + LUFS succeed (`unanalyzed_paths` used only `bpm IS NULL`).
-            conn.execute(
-                "ALTER TABLE audio_samples ADD COLUMN bpm_exhausted INTEGER NOT NULL DEFAULT 0",
-                [],
-            )
-            .map_err(|e| format!("Migration v18 (bpm_exhausted) failed: {e}"))?;
+            // Fresh installs may already have `bpm_exhausted` from v1 `CREATE TABLE audio_samples`.
+            let has_bpm_exhausted: bool = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('audio_samples') WHERE name = 'bpm_exhausted'",
+                    [],
+                    |row| row.get::<_, i64>(0).map(|n| n > 0),
+                )
+                .unwrap_or(false);
+            if !has_bpm_exhausted {
+                conn.execute(
+                    "ALTER TABLE audio_samples ADD COLUMN bpm_exhausted INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )
+                .map_err(|e| format!("Migration v18 (bpm_exhausted) failed: {e}"))?;
+            }
             conn.execute("INSERT INTO schema_version (version) VALUES (18)", [])
                 .map_err(|e| format!("Migration v18 schema_version failed: {e}"))?;
         }
@@ -2856,7 +2870,7 @@ DROP TABLE _pl_refresh_paths;"#;
                 (
                     String::from(
                         "SELECT s.name, s.path, s.directory, s.format, s.size, s.size_formatted, s.modified,
-                s.duration, s.channels, s.sample_rate, s.bits_per_sample, s.bpm, s.key_name, s.lufs
+                s.duration, s.channels, s.sample_rate, s.bits_per_sample, s.bpm, s.key_name, s.lufs, s.bpm_exhausted
                 FROM audio_samples_fts
                 INNER JOIN audio_samples s ON s.id = audio_samples_fts.rowid
                  WHERE audio_samples_fts MATCH ?1 AND s.scan_id = ?2",
@@ -2867,7 +2881,7 @@ DROP TABLE _pl_refresh_paths;"#;
                 (
                     String::from(
                         "SELECT s.name, s.path, s.directory, s.format, s.size, s.size_formatted, s.modified,
-                s.duration, s.channels, s.sample_rate, s.bits_per_sample, s.bpm, s.key_name, s.lufs
+                s.duration, s.channels, s.sample_rate, s.bits_per_sample, s.bpm, s.key_name, s.lufs, s.bpm_exhausted
                 FROM audio_samples_fts
                 INNER JOIN audio_samples s ON s.id = audio_samples_fts.rowid
                  INNER JOIN audio_library lib ON lib.sample_id = s.id
@@ -2899,7 +2913,7 @@ DROP TABLE _pl_refresh_paths;"#;
         } else {
             format!(
                 "SELECT name, path, directory, format, size, size_formatted, modified,
-                    duration, channels, sample_rate, bits_per_sample, bpm, key_name, lufs
+                    duration, channels, sample_rate, bits_per_sample, bpm, key_name, lufs, bpm_exhausted
              FROM audio_samples
              WHERE {where_clause}
              ORDER BY {sort_col} {sort_dir} {nulls}
@@ -2988,6 +3002,11 @@ DROP TABLE _pl_refresh_paths;"#;
                 bpm: row.get(11).ok(),
                 key: row.get(12).ok(),
                 lufs: row.get(13).ok(),
+                bpm_exhausted: row
+                    .get::<_, i64>(14)
+                    .ok()
+                    .map(|v| v != 0)
+                    .unwrap_or(false),
             });
         }
 

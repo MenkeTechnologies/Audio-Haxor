@@ -16,7 +16,7 @@ plugin_type_cases! {
     pt_vst3: ".vst3" => "VST3"
     pt_au: ".component" => "AU"
     pt_dll: ".dll" => "VST2"
-    pt_clap: ".clap" => "Unknown"
+    pt_clap: ".clap" => "CLAP"
     pt_aax: ".aaxplugin" => "Unknown"
     pt_exe: ".exe" => "Unknown"
     pt_txt: ".txt" => "Unknown"
