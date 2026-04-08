@@ -155,11 +155,15 @@ static juce::StringArray mergePluginScanSkipList(const juce::File& skipFile)
 static juce::StringArray filterOutSkippedPluginIdentifiers(const juce::StringArray& files, const juce::File& skipFile)
 {
     const juce::StringArray skips = mergePluginScanSkipList(skipFile);
-    if (skips.isEmpty())
-        return files;
     juce::StringArray out;
     for (const juce::String& f : files)
     {
+        /* Apple AUSpatialMixer (subtype 'spmx'); category path can differ by OS/JUCE — match subtype+manu. */
+        if (f.endsWithIgnoreCase(",spmx,appl"))
+        {
+            appLogLine("plugin scan: SKIP_LIST apple_spatial_mixer file=\"" + f + "\"");
+            continue;
+        }
         if (skips.contains(f))
         {
             appLogLine("plugin scan: SKIP_LIST file=\"" + f + "\"");
