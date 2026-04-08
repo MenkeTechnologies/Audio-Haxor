@@ -69,9 +69,18 @@ jobs:
         if: matrix.os != 'ubuntu-latest'
         run: node scripts/run-audio-engine-tests.mjs
 
+      # Windows: `cargo test` compiles before it runs. Tauri/audio-engine build scripts can drop
+      # JUCE/MSVC DLLs into `target/debug` during that compile; loading the test EXE then resolves
+      # the wrong DLL and fails with STATUS_ENTRYPOINT_NOT_FOUND. Cleaning *before* `cargo test`
+      # is not enough — the compile step repopulates junk. Compile everything with `--no-run` first,
+      # then clean, then run tests (incremental; no relink that re-copies DLLs before execute).
+      - name: Compile Rust tests only (Windows, no run)
+        if: matrix.os == 'windows-latest'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-run
+
       # Swatinem/rust-cache can restore an old `target/debug` that still had JUCE/MSVC outputs
       # from before audio-engine moved to `audio-engine-artifacts/` — stray DLLs next to Cargo's
-      # outputs break `cargo test --lib` with STATUS_ENTRYPOINT_NOT_FOUND on Windows.
+      # outputs break `cargo test` with STATUS_ENTRYPOINT_NOT_FOUND on Windows.
       - name: Clean legacy JUCE/MSVC junk from target/debug (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
