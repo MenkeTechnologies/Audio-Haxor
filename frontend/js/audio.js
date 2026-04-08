@@ -1356,7 +1356,7 @@ function _playbackRafLoop() {
 }
 
 // Real-time FFT spectrum curve in the player's visualizer section.
-// Mirrors the parametric EQ's filled-curve style (magenta→cyan gradient).
+// Matches parametric EQ spectrum: neutral gray fill + light outline (EQ response curve stays cyan).
 let _npFftBuf = null;
 let _npFftGrad = null;
 let _npFftCanvas = null;
@@ -1479,9 +1479,9 @@ function _renderNpFft() {
 
     if (!_npFftGrad) {
         _npFftGrad = ctx.createLinearGradient(0, 0, 0, h);
-        _npFftGrad.addColorStop(0, 'rgba(211,0,197,0.35)');
-        _npFftGrad.addColorStop(0.5, 'rgba(5,217,232,0.18)');
-        _npFftGrad.addColorStop(1, 'rgba(5,217,232,0.03)');
+        _npFftGrad.addColorStop(0, 'rgba(210, 212, 218, 0.32)');
+        _npFftGrad.addColorStop(0.55, 'rgba(95, 98, 108, 0.16)');
+        _npFftGrad.addColorStop(1, 'rgba(45, 46, 52, 0.05)');
     }
 
     const fMin = 20;
@@ -1502,7 +1502,7 @@ function _renderNpFft() {
         return (v0 + (v1 - v0) * frac) / 255;
     }
 
-    const maxCols = Math.min(Math.max(w, 1), 2048);
+    const maxCols = Math.min(Math.max(Math.floor(w * 2.5), 1), 3200);
     let nPts = 0;
     const maxPts = maxCols * 2 + 8;
     if (!_npFftPts || _npFftPts.length < maxPts) _npFftPts = new Float32Array(maxPts);
@@ -1532,7 +1532,7 @@ function _renderNpFft() {
         ctx.beginPath();
         ctx.moveTo(0, specH);
         for (let p = 0; p < nPts; p += 2) ctx.lineTo(pts[p], pts[p + 1]);
-        ctx.strokeStyle = 'rgba(5,217,232,0.5)';
+        ctx.strokeStyle = 'rgba(220, 222, 230, 0.45)';
         ctx.lineWidth = 1;
         ctx.stroke();
     }
@@ -4866,6 +4866,21 @@ function updateMetaLine() {
 
     const FREQ_MIN = 20, FREQ_MAX = 20000;
     const GAIN_MIN = -12, GAIN_MAX = 12;
+    /** Log-spaced samples for Ableton-style smooth spectrum (not one vertex per FFT bin). */
+    const EQ_SPECTRUM_POINTS = 512;
+    const EQ_MARGIN_BOTTOM = 22;
+
+    /** Interpolate FFT bin magnitudes in linear bin index space (0–1). */
+    function sampleSpectrumMag01(freqHz, dataArr, bufLen, sampleRate, fftSize) {
+        const binF = (freqHz * fftSize) / sampleRate;
+        if (binF < 0 || bufLen < 2) return 0;
+        const i0 = Math.floor(binF);
+        const i1 = Math.min(bufLen - 1, i0 + 1);
+        const frac = binF - i0;
+        const v0 = dataArr[Math.max(0, i0)] / 255;
+        const v1 = dataArr[i1] / 255;
+        return v0 + frac * (v1 - v0);
+    }
 
     function freqToX(freq, w) {
         return (Math.log10(freq / FREQ_MIN) / Math.log10(FREQ_MAX / FREQ_MIN)) * w;
@@ -4887,6 +4902,98 @@ function updateMetaLine() {
     let _dragState = null;
     let _eqDragEngineSyncTs = 0;
 
+    /** Dark panel + log grid + dB lines (Ableton EQ8–style); EQ curve stays cyan. */
+    function drawEqPanelGrid(ctx, w, h, zeroY) {
+        ctx.fillStyle = '#141414';
+        ctx.fillRect(0, 0, w, h);
+        ctx.lineWidth = 1;
+        const majorFreqs = [100, 1000, 10000];
+        const minorFreqs = [50, 200, 500, 2000, 5000, 20000];
+        for (const f of minorFreqs) {
+            if (f < FREQ_MIN || f > FREQ_MAX) continue;
+            const x = freqToX(f, w);
+            ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h - EQ_MARGIN_BOTTOM);
+            ctx.stroke();
+        }
+        for (const f of majorFreqs) {
+            const x = freqToX(f, w);
+            ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h - EQ_MARGIN_BOTTOM);
+            ctx.stroke();
+        }
+        for (const g of [-12, -6, 6, 12]) {
+            const gy = gainToY(g, h);
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.beginPath();
+            ctx.moveTo(0, gy);
+            ctx.lineTo(w, gy);
+            ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+        ctx.beginPath();
+        ctx.moveTo(0, zeroY);
+        ctx.lineTo(w, zeroY);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.font = '9px "Share Tech Mono", ui-monospace, sans-serif';
+        ctx.textAlign = 'center';
+        for (const f of majorFreqs) {
+            const x = freqToX(f, w);
+            const lab = f >= 1000 ? (f / 1000) + 'k' : String(f);
+            ctx.fillText(lab, x, h - 5);
+        }
+        ctx.textAlign = 'start';
+    }
+
+    /** Log-spaced spectrum fill + top outline (neutral gray; interpolated magnitudes). */
+    function drawEqSpectrumFill(ctx, w, h, dataArr, bufLen, sampleRate, fftSize) {
+        const plotH = h - EQ_MARGIN_BOTTOM;
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, 'rgba(210, 212, 218, 0.28)');
+        grad.addColorStop(0.55, 'rgba(95, 98, 108, 0.14)');
+        grad.addColorStop(1, 'rgba(45, 46, 52, 0.06)');
+        ctx.beginPath();
+        ctx.moveTo(0, h);
+        let firstY = h;
+        for (let i = 0; i < EQ_SPECTRUM_POINTS; i++) {
+            const t = i / (EQ_SPECTRUM_POINTS - 1);
+            const freq = FREQ_MIN * Math.pow(FREQ_MAX / FREQ_MIN, t);
+            const x = freqToX(freq, w);
+            const mag = sampleSpectrumMag01(freq, dataArr, bufLen, sampleRate, fftSize);
+            const y = plotH - mag * plotH;
+            if (i === 0) {
+                firstY = y;
+                ctx.lineTo(0, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.lineTo(w, h);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(0, firstY);
+        for (let i = 0; i < EQ_SPECTRUM_POINTS; i++) {
+            const t = i / (EQ_SPECTRUM_POINTS - 1);
+            const freq = FREQ_MIN * Math.pow(FREQ_MAX / FREQ_MIN, t);
+            const x = freqToX(freq, w);
+            const mag = sampleSpectrumMag01(freq, dataArr, bufLen, sampleRate, fftSize);
+            const y = plotH - mag * plotH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = 'rgba(220, 222, 230, 0.42)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
     function drawParametricEqOnCanvas(canvas) {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
@@ -4900,25 +5007,8 @@ function updateMetaLine() {
         const w = canvas.width || 800;
         const h = canvas.height || 120;
         ctx.clearRect(0, 0, w, h);
-
-        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-        ctx.lineWidth = 1;
-        for (const f of [100, 1000, 10000]) {
-            const x = freqToX(f, w);
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, h);
-            ctx.stroke();
-            ctx.fillStyle = 'rgba(255,255,255,0.15)';
-            ctx.font = '9px sans-serif';
-            ctx.fillText(f >= 1000 ? (f / 1000) + 'k' : f, x + 2, h - 3);
-        }
         const zeroY = gainToY(0, h);
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-        ctx.beginPath();
-        ctx.moveTo(0, zeroY);
-        ctx.lineTo(w, zeroY);
-        ctx.stroke();
+        drawEqPanelGrid(ctx, w, h, zeroY);
 
         if (useEngineEqSpectrum) {
             const axis = getPinnedEngineSpectrumAxis();
@@ -4936,25 +5026,7 @@ function updateMetaLine() {
                 if (_eqSpectrumBuf && _eqSpectrumBuf.length === bufLen) {
                     const sampleRate = axis.sr;
                     const fftSize = axis.fft;
-
-                    ctx.beginPath();
-                    ctx.moveTo(0, h);
-                    for (let k = 0; k < bufLen; k++) {
-                        const freq = ((k + 1) * sampleRate) / fftSize;
-                        if (freq < FREQ_MIN || freq > FREQ_MAX) continue;
-                        const x = freqToX(freq, w);
-                        const magnitude = _eqSpectrumBuf[k] / 255;
-                        const y = h - magnitude * (h - 20);
-                        ctx.lineTo(x, y);
-                    }
-                    ctx.lineTo(w, h);
-                    ctx.closePath();
-                    const grad = ctx.createLinearGradient(0, 0, 0, h);
-                    grad.addColorStop(0, 'rgba(211,0,197,0.25)');
-                    grad.addColorStop(0.5, 'rgba(5,217,232,0.12)');
-                    grad.addColorStop(1, 'rgba(5,217,232,0.02)');
-                    ctx.fillStyle = grad;
-                    ctx.fill();
+                    drawEqSpectrumFill(ctx, w, h, _eqSpectrumBuf, bufLen, sampleRate, fftSize);
                 }
                 }
             }
@@ -4972,30 +5044,12 @@ function updateMetaLine() {
                 }
                 const sampleRate = _npFftWebAxisSrHz;
                 const fftSizeForBins = _npFftWebAxisFftSize;
-
-                ctx.beginPath();
-                ctx.moveTo(0, h);
-                for (let i = 1; i < bufLen; i++) {
-                    const freq = (i * sampleRate) / fftSizeForBins;
-                    if (freq < FREQ_MIN || freq > FREQ_MAX) continue;
-                    const x = freqToX(freq, w);
-                    const magnitude = _eqSpectrumBuf[i] / 255;
-                    const y = h - magnitude * (h - 20);
-                    ctx.lineTo(x, y);
-                }
-                ctx.lineTo(w, h);
-                ctx.closePath();
-                const grad = ctx.createLinearGradient(0, 0, 0, h);
-                grad.addColorStop(0, 'rgba(211,0,197,0.25)');
-                grad.addColorStop(0.5, 'rgba(5,217,232,0.12)');
-                grad.addColorStop(1, 'rgba(5,217,232,0.02)');
-                ctx.fillStyle = grad;
-                ctx.fill();
+                drawEqSpectrumFill(ctx, w, h, _eqSpectrumBuf, bufLen, sampleRate, fftSizeForBins);
             }
         }
 
         if (_eqLow && _eqMid && _eqHigh) {
-            const nPoints = 200;
+            const nPoints = 480;
             const freqs = new Float32Array(nPoints);
             for (let i = 0; i < nPoints; i++) {
                 freqs[i] = FREQ_MIN * Math.pow(FREQ_MAX / FREQ_MIN, i / (nPoints - 1));
