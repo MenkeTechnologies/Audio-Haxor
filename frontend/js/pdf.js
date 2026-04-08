@@ -564,9 +564,16 @@ async function stopPdfScan() {
 function patchPdfPagesCell(path, pages) {
     const tbody = document.getElementById('pdfTableBody');
     if (!tbody) return;
-    // Escape matches the attribute format set in buildPdfRow
-    const escaped = typeof escapeHtml === 'function' ? escapeHtml(path) : path;
-    const cell = tbody.querySelector('[data-pdf-pages-cell="' + CSS.escape(escaped) + '"]');
+    // `data-pdf-pages-cell` is set with escapeHtml in the template, but the DOM attribute
+    // value is the decoded path (same as getAttribute). Do not querySelector with HTML
+    // entities or CSS.escape — paths with & " \ etc. break attribute selectors.
+    let cell = null;
+    for (const td of tbody.querySelectorAll('td[data-pdf-pages-cell]')) {
+        if (td.getAttribute('data-pdf-pages-cell') === path) {
+            cell = td;
+            break;
+        }
+    }
     if (!cell) return;
     if (pages == null) {
         cell.innerHTML = pdfPagesUnknownHtml();

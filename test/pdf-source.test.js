@@ -3,7 +3,7 @@
  */
 const { describe, it, before } = require('node:test');
 const assert = require('node:assert/strict');
-const { loadFrontendScripts } = require('./frontend-vm-harness.js');
+const { loadFrontendScripts, defaultDocument } = require('./frontend-vm-harness.js');
 
 describe('frontend/js/pdf.js (vm-loaded)', () => {
   let P;
@@ -64,5 +64,38 @@ describe('frontend/js/pdf.js (vm-loaded)', () => {
       size: 1000,
     });
     assert.ok(html.includes('data-pdf-name="say &quot;hello&quot;"'));
+  });
+
+  it('patchPdfPagesCell finds td by decoded path (ampersands break CSS attribute selectors)', () => {
+    const tricky = '/tmp/report & co/file.pdf';
+    const td = {
+      getAttribute(n) {
+        return n === 'data-pdf-pages-cell' ? tricky : null;
+      },
+      innerHTML: '',
+      textContent: '',
+    };
+    const tbody = {
+      querySelectorAll(sel) {
+        return sel === 'td[data-pdf-pages-cell]' ? [td] : [];
+      },
+    };
+    const base = defaultDocument();
+    const doc = {
+      ...base,
+      getElementById(id) {
+        if (id === 'pdfTableBody') return tbody;
+        return base.getElementById(id);
+      },
+    };
+    const Px = loadFrontendScripts(['utils.js', 'pdf.js'], {
+      document: doc,
+      showToast: () => {},
+      toastFmt: (k) => k,
+      rowBadges: () => '',
+    });
+    assert.equal(typeof Px.patchPdfPagesCell, 'function');
+    Px.patchPdfPagesCell(tricky, 42);
+    assert.equal(td.textContent, '42');
   });
 });
