@@ -503,9 +503,22 @@ static void applyDspFrame(float& l, float& r, double sr, const DspAtomics& dsp, 
     r = (float) (dr * std::sin(ang));
 }
 
+class InsertChainRunner;
+
+struct InsertChainPreparePayload
+{
+    InsertChainRunner* self = nullptr;
+    double sr = 44100.0;
+    int maxBlock = 512;
+};
+
+static void* insertChainPrepareOnMessageThreadFn(void* userData);
+
 /** Stereo insert chain (VST3 / AU) after file decode + built-in DSP. Not applied in reverse-playback mode (sample-at-a-time path). */
 class InsertChainRunner
 {
+    friend void* insertChainPrepareOnMessageThreadFn(void*);
+
 public:
     std::vector<std::unique_ptr<juce::AudioPluginInstance>> instances;
     std::vector<juce::String> paths;
@@ -526,20 +539,25 @@ public:
         paths.clear();
     }
 
+    /** VST3 `prepareToPlay` must run on the JUCE message thread (`JUCE_ASSERT_MESSAGE_THREAD` in JUCE).
+        `AudioSource::prepareToPlay` is invoked from the device graph (often not the message thread), so we
+        marshal here. Also applies `setPlayConfigDetails(2,2,…)` + `disableNonMainBuses()` so sidechain/aux
+        buses do not leave garbage in `processBlock`. */
     void prepare(double sr, int maxBlock)
     {
-        scratch.setSize(2, juce::jmax(1, maxBlock), false, false, true);
-        for (auto& p : instances)
-            if (p != nullptr)
-                p->prepareToPlay(sr, maxBlock);
+        InsertChainPreparePayload payload { this, sr, maxBlock };
+        juce::MessageManager::getInstance()->callFunctionOnMessageThread(insertChainPrepareOnMessageThreadFn,
+                                                                         &payload);
     }
 
     void process(juce::AudioBuffer<float>& buf, int start, int n)
     {
         if (instances.empty() || n <= 0)
             return;
-        if (scratch.getNumSamples() < n)
-            scratch.setSize(2, n, false, false, true);
+        const int nc = scratchChannels;
+        if (scratch.getNumSamples() < n || scratch.getNumChannels() < nc)
+            scratch.setSize(nc, juce::jmax(1, n), false, false, true);
+        scratch.clear();
         scratch.copyFrom(0, 0, buf, 0, start, n);
         scratch.copyFrom(1, 0, buf, 1, start, n);
         juce::MidiBuffer midi;
@@ -552,7 +570,31 @@ public:
 
 private:
     juce::AudioBuffer<float> scratch;
+    int scratchChannels = 2;
 };
+
+static void* insertChainPrepareOnMessageThreadFn(void* userData)
+{
+    auto* p = static_cast<InsertChainPreparePayload*>(userData);
+    InsertChainRunner* self = p->self;
+    if (self == nullptr)
+        return nullptr;
+    const double sr = p->sr;
+    const int block = juce::jmax(1, p->maxBlock);
+    int maxCh = 2;
+    for (auto& inst : self->instances)
+    {
+        if (inst == nullptr)
+            continue;
+        inst->releaseResources();
+        inst->setPlayConfigDetails(2, 2, sr, block);
+        inst->prepareToPlay(sr, block);
+        maxCh = juce::jmax(maxCh, inst->getTotalNumInputChannels(), inst->getTotalNumOutputChannels());
+    }
+    self->scratchChannels = juce::jmax(2, maxCh);
+    self->scratch.setSize(self->scratchChannels, block, false, false, true);
+    return nullptr;
+}
 
 /** Native VST3/AU editor window; must be created/destroyed on the JUCE message thread. */
 class PluginEditorHostWindow : public juce::DocumentWindow
@@ -602,24 +644,11 @@ class ToneAudioSource final : public juce::AudioSource
 public:
     std::atomic<bool> toneOn{false};
     std::atomic<uint64_t> phase{0};
-    /** Same insert chain as file playback; must be set when output starts (see `startOutputStreamLocked`). */
-    InsertChainRunner* insertChain = nullptr;
-    /** Optional: tap post-insert stereo for spectrum (matches file path: after DSP + inserts). */
+    /** Optional: tap stereo for spectrum (test tone path; inserts apply to file playback only). */
     std::function<void(float, float)> spectrumPush;
 
-    void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override
-    {
-        sr = sampleRate;
-        preparedBlock = juce::jmax(1, samplesPerBlockExpected);
-        if (insertChain != nullptr)
-            insertChain->prepare(sampleRate, preparedBlock);
-    }
-
-    void releaseResources() override
-    {
-        if (insertChain != nullptr)
-            insertChain->release();
-    }
+    void prepareToPlay(int, double sampleRate) override { sr = sampleRate; }
+    void releaseResources() override {}
 
     void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override
     {
@@ -632,38 +661,24 @@ public:
             for (int c = 0; c < ch; ++c)
                 bufferToFill.buffer->clear(c, bufferToFill.startSample, n);
             phase.fetch_add((uint64_t) n);
+            return;
         }
-        else
+        uint64_t p = phase.load();
+        const double twoPi = juce::MathConstants<double>::twoPi;
+        for (int i = 0; i < n; ++i)
         {
-            uint64_t p = phase.load();
-            const double twoPi = juce::MathConstants<double>::twoPi;
-            for (int i = 0; i < n; ++i)
-            {
-                const float s = (float) (std::sin((double) p * twoPi * (double) kTestToneHz / sr) * (double) kTestToneGain);
-                for (int c = 0; c < ch; ++c)
-                    bufferToFill.buffer->setSample(c, bufferToFill.startSample + i, s);
-                ++p;
-            }
-            phase.store(p);
+            const float s = (float) (std::sin((double) p * twoPi * (double) kTestToneHz / sr) * (double) kTestToneGain);
+            for (int c = 0; c < ch; ++c)
+                bufferToFill.buffer->setSample(c, bufferToFill.startSample + i, s);
+            if (spectrumPush)
+                spectrumPush(s, s);
+            ++p;
         }
-
-        if (insertChain != nullptr && insertChain->isActive() && ch >= 2)
-            insertChain->process(*bufferToFill.buffer, bufferToFill.startSample, n);
-
-        if (spectrumPush && ch >= 2)
-        {
-            for (int i = 0; i < n; ++i)
-            {
-                const float l = bufferToFill.buffer->getSample(0, bufferToFill.startSample + i);
-                const float r = bufferToFill.buffer->getSample(1, bufferToFill.startSample + i);
-                spectrumPush(l, r);
-            }
-        }
+        phase.store(p);
     }
 
 private:
     double sr = 44100.0;
-    int preparedBlock = 512;
 };
 
 class DspStereoFileSource final : public juce::PositionableAudioSource
@@ -1849,7 +1864,6 @@ struct Engine::Impl
         playbackMode = false;
         toneMode = false;
         playbackPeak.store(0.0f);
-        toneSource.insertChain = nullptr;
     }
 
     void stopInputLocked()
@@ -2028,7 +2042,6 @@ struct Engine::Impl
             toneMode = true;
             toneSource.toneOn.store(tone);
             toneSource.phase.store(0);
-            toneSource.insertChain = insertRunner.get();
             sourcePlayer.setSource(&toneSource);
             outputManager.addAudioCallback(&sourcePlayer);
             playbackMode = false;
