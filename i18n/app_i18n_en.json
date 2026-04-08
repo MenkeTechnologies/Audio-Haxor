@@ -2060,5 +2060,7 @@
   "ui.welcome.presets": "Presets",
   "ui.welcome.recently_played": "Recently Played",
   "ui.welcome.samples": "Samples",
-  "ui.welcome.tags": "Tags"
+  "ui.welcome.tags": "Tags",
+  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
+  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed"
 }

@@ -3492,13 +3492,27 @@ document.addEventListener('keydown', () => {
     }, 3000);
 }, true);
 
+function _setBgAnalysisBadgeRunning(badge) {
+    if (!badge) return;
+    badge.textContent = catalogFmt('ui.stats.bpm_bg_working');
+}
+
+function _setBgAnalysisBadgeProgress(badge, n) {
+    if (!badge) return;
+    badge.textContent = catalogFmt('ui.stats.bpm_bg_progress', {n});
+}
+
 async function startBackgroundAnalysis() {
     if (_bgAnalysisRunning) return;
     _bgAnalysisRunning = true;
     _bgAnalysisAbort = false;
 
     const badge = document.getElementById('bgAnalysisBadge');
-    const BATCH = 50; // 50 files analyzed in parallel per batch via rayon
+    const BATCH = 50; // 50 files analyzed in parallel per rayon
+    if (badge) {
+        if (_bgDone > 0) _setBgAnalysisBadgeProgress(badge, _bgDone);
+        else _setBgAnalysisBadgeRunning(badge);
+    }
 
     while (!_bgAnalysisAbort) {
         while (_bgPaused && !_bgAnalysisAbort) await new Promise(r => setTimeout(r, 200));
@@ -3516,6 +3530,7 @@ async function startBackgroundAnalysis() {
         // Returns results directly so we skip N individual dbGetAnalysis roundtrips.
         let analysisResult;
         try {
+            _setBgAnalysisBadgeRunning(badge);
             analysisResult = await window.vstUpdater.batchAnalyze(paths);
             _bgDone += analysisResult.count || 0;
         } catch (e) {
@@ -3527,6 +3542,24 @@ async function startBackgroundAnalysis() {
         const tbody = document.getElementById('audioTableBody');
         if (tbody && analysisResult.results) {
             for (const a of analysisResult.results) {
+                if (a.bpm) {
+                    _bpmCache[a.path] = a.bpm;
+                    _debounceBpmSave();
+                }
+                if (a.key) {
+                    _keyCache[a.path] = a.key;
+                    _debounceKeySave();
+                }
+                if (a.lufs != null) {
+                    _lufsCache[a.path] = a.lufs;
+                    _debounceLufsSave();
+                }
+                const sample = typeof findByPath === 'function' ? findByPath(allAudioSamples, a.path) : null;
+                if (sample) {
+                    if (a.bpm) sample.bpm = a.bpm;
+                    if (a.key) sample.key = a.key;
+                    if (a.lufs != null) sample.lufs = a.lufs;
+                }
                 const row = tbody.querySelector(`tr[data-audio-path="${CSS.escape(a.path)}"]`);
                 if (row) {
                     if (a.bpm) {
@@ -3545,10 +3578,11 @@ async function startBackgroundAnalysis() {
                         }
                     }
                 }
+                if (a.path === audioPlayerPath) updateMetaLine();
             }
         }
 
-        if (badge) badge.textContent = `BPM/Key/LUFS: ${_bgDone} analyzed`;
+        _setBgAnalysisBadgeProgress(badge, _bgDone);
         await new Promise(r => setTimeout(r, 100));
     }
 
@@ -4511,9 +4545,12 @@ function updateMetaLine() {
         return;
     }
     const parts = [sample.format, sample.sizeFormatted];
-    if (_bpmCache[audioPlayerPath]) parts.push(_bpmCache[audioPlayerPath] + ' BPM');
-    if (_keyCache[audioPlayerPath]) parts.push(_keyCache[audioPlayerPath]);
-    if (_lufsCache[audioPlayerPath] != null) parts.push(_lufsCache[audioPlayerPath] + ' LUFS');
+    const bpmShow = sample.bpm || _bpmCache[audioPlayerPath];
+    const keyShow = sample.key || _keyCache[audioPlayerPath];
+    const lufsShow = sample.lufs != null ? sample.lufs : (_lufsCache[audioPlayerPath] != null ? _lufsCache[audioPlayerPath] : null);
+    if (bpmShow) parts.push(bpmShow + ' BPM');
+    if (keyShow) parts.push(keyShow);
+    if (lufsShow != null) parts.push(lufsShow + ' LUFS');
     if (sample.directory) parts.push(sample.directory);
     el.textContent = parts.join(' \u2022 ');
 }

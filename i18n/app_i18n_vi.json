@@ -2060,5 +2060,7 @@
   "ui.welcome.presets": "cài đặt trước",
   "ui.welcome.recently_played": "Đã chơi gần đây",
   "ui.welcome.samples": "Mẫu",
-  "ui.welcome.tags": "Thẻ"
+  "ui.welcome.tags": "Thẻ",
+  "ui.stats.bpm_bg_working": "BPM/Key/LUFS: analyzing…",
+  "ui.stats.bpm_bg_progress": "BPM/Key/LUFS: {n} analyzed"
 }
