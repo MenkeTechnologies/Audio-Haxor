@@ -4841,6 +4841,11 @@ mod tests {
     /// Serialize tests that read/write `app.log` (parallel test runs would race otherwise).
     static APP_LOG_TEST_LOCK: Mutex<()> = Mutex::new(());
 
+    /// `history::set_test_data_dir_path` uses a process-global override; parallel tests would
+    /// overwrite each other. Also `read_log` uses `spawn_blocking` — worker threads do not see
+    /// thread-local test dirs, so only one test may set the global override at a time.
+    static TEST_DATA_DIR_SERIAL: Mutex<()> = Mutex::new(());
+
     fn app_log_lock() -> std::sync::MutexGuard<'static, ()> {
         APP_LOG_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner())
     }
@@ -4852,18 +4857,25 @@ mod tests {
             .block_on(f)
     }
 
-    /// Isolated temp data dir for log tests; cleared on drop.
-    struct LogTestGuard(std::path::PathBuf);
-    impl Drop for LogTestGuard {
+    /// Isolated temp data dir for tests that call `set_test_data_dir_path`; cleared on drop.
+    /// Holds [`TEST_DATA_DIR_SERIAL`] so no other test can clobber the global override mid-case.
+    struct TestDataDirGuard {
+        path: std::path::PathBuf,
+        _serial: std::sync::MutexGuard<'static, ()>,
+    }
+    impl Drop for TestDataDirGuard {
         fn drop(&mut self) {
             history::clear_test_data_dir_path();
-            let _ = fs::remove_dir_all(&self.0);
+            let _ = fs::remove_dir_all(&self.path);
         }
     }
 
-    fn log_test_dir() -> LogTestGuard {
+    fn test_data_dir() -> TestDataDirGuard {
+        let serial = TEST_DATA_DIR_SERIAL
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let tmp = std::env::temp_dir().join(format!(
-            "ah_log_test_{}_{}",
+            "ah_data_test_{}_{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -4873,7 +4885,10 @@ mod tests {
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
         history::set_test_data_dir_path(tmp.clone());
-        LogTestGuard(tmp)
+        TestDataDirGuard {
+            path: tmp,
+            _serial: serial,
+        }
     }
 
     fn make_plugin(name: &str, plugin_type: &str) -> PluginInfo {
@@ -5878,52 +5893,28 @@ mod tests {
 
     #[test]
     fn test_cache_file_roundtrip() {
-        let tmp = std::env::temp_dir().join(format!(
-            "ah_cache_rt_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0)
-        ));
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp).unwrap();
-        history::set_test_data_dir_path(tmp.clone());
+        let _guard = test_data_dir();
         let db = db::Database::open().expect("open db for cache roundtrip");
         let data = serde_json::json!({"hello": "world", "count": 42});
         db.write_cache("test-cache-roundtrip.json", &data).unwrap();
         let result = db.read_cache("test-cache-roundtrip.json").unwrap();
         assert_eq!(result["hello"], "world");
         assert_eq!(result["count"], 42);
-        history::clear_test_data_dir_path();
-        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
     fn test_cache_file_nonexistent() {
-        let tmp = std::env::temp_dir().join(format!(
-            "ah_cache_ne_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0)
-        ));
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp).unwrap();
-        history::set_test_data_dir_path(tmp.clone());
+        let _guard = test_data_dir();
         let db = db::Database::open().expect("open db for cache read");
         let result = db.read_cache("nonexistent-cache-xyz.json").unwrap();
         // Falls back to waveform_cache table — result is valid JSON (may be empty or populated)
         assert!(result.is_object());
-        history::clear_test_data_dir_path();
-        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
     fn test_append_and_read_log() {
         let _guard = app_log_lock();
-        let _tmp = log_test_dir();
+        let _tmp = test_data_dir();
         rt_block_on(clear_log()).unwrap();
         let token = format!(
             "log-test-{}",
@@ -5950,7 +5941,7 @@ mod tests {
     #[test]
     fn test_clear_log() {
         let _guard = app_log_lock();
-        let _tmp = log_test_dir();
+        let _tmp = test_data_dir();
         rt_block_on(clear_log()).unwrap();
         append_log("before clear".into());
         rt_block_on(clear_log()).unwrap();
@@ -5961,15 +5952,15 @@ mod tests {
     #[test]
     fn test_read_log_missing_file_returns_empty() {
         let _guard = app_log_lock();
-        let tmp = log_test_dir();
-        let _ = fs::remove_file(tmp.0.join("app.log"));
+        let tmp = test_data_dir();
+        let _ = fs::remove_file(tmp.path.join("app.log"));
         assert_eq!(rt_block_on(read_log()).unwrap(), "");
     }
 
     #[test]
     fn test_log_entries_have_timestamp() {
         let _guard = app_log_lock();
-        let _tmp = log_test_dir();
+        let _tmp = test_data_dir();
         rt_block_on(clear_log()).unwrap();
         append_log("timestamp-check".into());
         let log = rt_block_on(read_log()).unwrap();
@@ -5982,7 +5973,7 @@ mod tests {
     #[test]
     fn test_log_appends_not_overwrites() {
         let _guard = app_log_lock();
-        let _tmp = log_test_dir();
+        let _tmp = test_data_dir();
         rt_block_on(clear_log()).unwrap();
         append_log("first".into());
         append_log("second".into());
@@ -6010,7 +6001,7 @@ mod tests {
     #[test]
     fn test_log_handles_special_characters() {
         let _guard = app_log_lock();
-        let _tmp = log_test_dir();
+        let _tmp = test_data_dir();
         rt_block_on(clear_log()).unwrap();
         append_log("unicode: 日本語テスト 🎵 emoji".into());
         append_log("newlines: line1\nline2".into());
@@ -6024,9 +6015,9 @@ mod tests {
     #[test]
     fn test_log_concurrent_appends() {
         let _guard = app_log_lock();
-        let tmp = log_test_dir();
+        let tmp = test_data_dir();
         rt_block_on(clear_log()).unwrap();
-        let path = tmp.0.clone();
+        let path = tmp.path.clone();
         let handles: Vec<_> = (0..10)
             .map(|i| {
                 let path = path.clone();
@@ -6051,7 +6042,7 @@ mod tests {
     #[test]
     fn test_clear_log_then_append_works() {
         let _guard = app_log_lock();
-        let _tmp = log_test_dir();
+        let _tmp = test_data_dir();
         rt_block_on(clear_log()).unwrap();
         append_log("before".into());
         rt_block_on(clear_log()).unwrap();
