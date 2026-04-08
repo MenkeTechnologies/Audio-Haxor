@@ -555,15 +555,21 @@ public:
         if (instances.empty() || n <= 0)
             return;
         const int nc = scratchChannels;
-        if (scratch.getNumSamples() < n || scratch.getNumChannels() < nc)
-            scratch.setSize(nc, juce::jmax(1, n), false, false, true);
+        /* `processBlock` uses `buffer.getNumSamples()` — the buffer must be exactly `n`, not a larger
+           scratch left over from a previous (longer) block; otherwise plugins process stale samples
+           (garbled audio). */
+        scratch.setSize(nc, n, false, false, true);
         scratch.clear();
         scratch.copyFrom(0, 0, buf, 0, start, n);
         scratch.copyFrom(1, 0, buf, 1, start, n);
         juce::MidiBuffer midi;
         for (auto& p : instances)
-            if (p != nullptr)
-                p->processBlock(scratch, midi);
+        {
+            if (p == nullptr || p->isSuspended())
+                continue;
+            const juce::ScopedLock sl(p->getCallbackLock());
+            p->processBlock(scratch, midi);
+        }
         buf.copyFrom(0, start, scratch, 0, 0, n);
         buf.copyFrom(1, start, scratch, 1, 0, n);
     }
@@ -588,6 +594,7 @@ static void* insertChainPrepareOnMessageThreadFn(void* userData)
             continue;
         inst->releaseResources();
         inst->setPlayConfigDetails(2, 2, sr, block);
+        inst->setProcessingPrecision(juce::AudioProcessor::singlePrecision);
         inst->prepareToPlay(sr, block);
         maxCh = juce::jmax(maxCh, inst->getTotalNumInputChannels(), inst->getTotalNumOutputChannels());
     }
