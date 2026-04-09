@@ -958,6 +958,14 @@ function settingToggleAutoScan() {
     refreshSettingsUI();
 }
 
+function settingToggleIncrementalDirectoryScan() {
+    const current = prefs.getItem('incrementalDirectoryScan') !== 'off';
+    const next = !current;
+    prefs.setItem('incrementalDirectoryScan', next ? 'on' : 'off');
+    showToast(toastFmt('toast.incremental_directory_scan', {state: next ? 'on' : 'off'}));
+    refreshSettingsUI();
+}
+
 function settingToggleFolderWatch() {
     const current = prefs.getItem('folderWatch') === 'on';
     const next = !current;
@@ -1382,6 +1390,17 @@ function refreshSettingsUI() {
     }
     if (fwLabel) {
         fwLabel.textContent = _uiToggle(folderWatch);
+    }
+
+    // Incremental unified scan (default on — matches config.default.toml)
+    const incrementalScan = prefs.getItem('incrementalDirectoryScan') !== 'off';
+    const incBtn = document.getElementById('settingIncrementalDirectoryScan');
+    const incLabel = document.getElementById('settingIncrementalDirectoryScanLabel');
+    if (incBtn) {
+        incBtn.classList.toggle('active', incrementalScan);
+    }
+    if (incLabel) {
+        incLabel.textContent = _uiToggle(incrementalScan);
     }
 
     // Auto-update

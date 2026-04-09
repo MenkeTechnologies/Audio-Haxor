@@ -512,6 +512,12 @@ function buildPaletteStaticItems() {
         icon: '&#128065;',
         action: () => settingToggleFolderWatch()
     });
+    if (typeof settingToggleIncrementalDirectoryScan === 'function') items.push({
+        type: 'action',
+        name: appFmt('menu.toggle_incremental_directory_scan'),
+        icon: '&#128193;',
+        action: () => settingToggleIncrementalDirectoryScan()
+    });
     if (typeof settingToggleSingleClickPlay === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_single_click_play'),

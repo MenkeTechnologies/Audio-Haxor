@@ -761,6 +761,9 @@ document.addEventListener('click', (e) => {
             case 'settingToggleFolderWatch':
                 settingToggleFolderWatch();
                 break;
+            case 'settingToggleIncrementalDirectoryScan':
+                settingToggleIncrementalDirectoryScan();
+                break;
             case 'settingToggleAutoUpdate':
                 settingToggleAutoUpdate();
                 break;

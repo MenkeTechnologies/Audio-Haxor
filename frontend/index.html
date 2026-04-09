@@ -10354,6 +10354,22 @@
                 </div>
                 <div class="settings-row">
                     <div class="settings-label">
+                        <span class="settings-title" data-i18n="ui.st.incremental_directory_scan">Incremental Unified Scan</span>
+                        <span class="settings-desc"
+                              data-i18n="ui.sd.incremental_directory_scan">When on, skip subtrees whose directory mtime is unchanged since the last complete unified scan (faster). Turn off to always walk the full tree.</span>
+                    </div>
+                    <div class="settings-control">
+                        <button class="settings-toggle" data-action="settingToggleIncrementalDirectoryScan"
+                                data-i18n-title="ui.tt.incremental_directory_scan"
+                                id="settingIncrementalDirectoryScan"
+                                title="Skip unchanged directories in unified scan (incrementalDirectoryScan)">
+                            <span class="settings-toggle-label" id="settingIncrementalDirectoryScanLabel">On</span>
+                            <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+                        </button>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-label">
                         <span class="settings-title" data-i18n="ui.st.auto_check_updates_on_launch">Auto-Check Updates on Launch</span>
                         <span class="settings-desc"
                               data-i18n="ui.sd.automatically_check_for_plugin_updates_after_scann">Automatically check for plugin updates after scanning</span>
