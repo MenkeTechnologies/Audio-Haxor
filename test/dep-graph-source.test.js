@@ -487,4 +487,107 @@ describe('frontend/js/dep-graph.js buildDepGraphData (vm-loaded)', () => {
     const d = G.buildDepGraphData();
     assert.strictEqual(d.orphaned.length, 0);
   });
+
+  it('buildDepGraphData allows orphans with no xref projects (index never built but library scanned)', () => {
+    G.allDawProjects = [];
+    G._xrefCache = {};
+    G.allPlugins = [{ name: 'OnlyInstalled', path: '/a.vst3', type: 'VST3' }];
+    const d = G.buildDepGraphData();
+    assert.strictEqual(d.totalProjects, 0);
+    assert.strictEqual(d.pluginsByUsage.length, 0);
+    assert.strictEqual(d.orphaned.length, 1);
+  });
+
+  it('lists multiple installed plugins as orphaned when none appear in xref', () => {
+    G._xrefCache = {};
+    G.allPlugins = [
+      { name: 'A', path: '/a.vst3', type: 'VST3' },
+      { name: 'B', path: '/b.vst3', type: 'AU' },
+    ];
+    const d = G.buildDepGraphData();
+    assert.strictEqual(d.orphaned.length, 2);
+    const set = new Set(d.orphaned.map((p) => p.name));
+    assert.strictEqual(set.size, 2);
+    assert.ok(set.has('A') && set.has('B'));
+  });
+
+  it('buildAnalyticsHtml format breakdown percentages sum to 100% for two plugin types', () => {
+    const html = G.buildAnalyticsHtml({
+      pluginsByUsage: [
+        {
+          key: 'a',
+          name: 'V1',
+          type: 'VST3',
+          manufacturer: 'M',
+          count: 2,
+          projects: new Set(['/p/1', '/p/2']),
+        },
+        {
+          key: 'b',
+          name: 'V2',
+          type: 'AU',
+          manufacturer: 'M',
+          count: 1,
+          projects: new Set(['/p/1']),
+        },
+      ],
+      projectsByCount: [
+        { path: '/p/1', name: 'A', daw: 'ALS', count: 2, plugins: [] },
+        { path: '/p/2', name: 'B', daw: 'ALS', count: 1, plugins: [] },
+      ],
+      orphaned: [],
+      totalProjects: 2,
+    });
+    assert.ok(html.includes('67%'));
+    assert.ok(html.includes('33%'));
+  });
+
+  it('buildAnalyticsHtml Top Manufacturers lists at most 15 manufacturers', () => {
+    const pluginsByUsage = Array.from({ length: 16 }, (_, i) => ({
+      key: `k${i}`,
+      name: `P${i}`,
+      type: 'VST3',
+      manufacturer: `Mfg${String(i).padStart(2, '0')}`,
+      count: 16 - i,
+      projects: new Set([`/p${i}`]),
+    }));
+    const html = G.buildAnalyticsHtml({
+      pluginsByUsage,
+      projectsByCount: pluginsByUsage.map((p, i) => ({
+        path: `/p${i}`,
+        name: `Proj${i}`,
+        daw: 'ALS',
+        count: 1,
+        plugins: [],
+      })),
+      orphaned: [],
+      totalProjects: 16,
+    });
+    assert.ok(html.includes('Mfg00'));
+    const mfgBlock = html.slice(html.indexOf('Top Manufacturers'), html.indexOf('Key Insights'));
+    assert.strictEqual((mfgBlock.match(/<div class="dep-plugin-row">/g) || []).length, 15);
+  });
+
+  it('buildAnalyticsHtml uses xref-type-clap for CLAP plugin type in go-to section', () => {
+    const html = G.buildAnalyticsHtml({
+      pluginsByUsage: [
+        {
+          key: 'c',
+          name: 'ClapPlug',
+          type: 'CLAP',
+          manufacturer: 'Co',
+          count: 2,
+          projects: new Set(['/a', '/b']),
+        },
+      ],
+      projectsByCount: [
+        { path: '/a', name: 'A', daw: 'ALS', count: 1, plugins: [] },
+        { path: '/b', name: 'B', daw: 'ALS', count: 1, plugins: [] },
+      ],
+      orphaned: [],
+      totalProjects: 2,
+    });
+    assert.ok(html.includes('xref-type-clap'));
+    assert.ok(html.includes('ClapPlug'));
+  });
 });
