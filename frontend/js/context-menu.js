@@ -3,6 +3,32 @@ const ctxMenu = document.getElementById('ctxMenu');
 /** Spread into menu items that already toast or should not echo the label (locale-safe; no English heuristics). */
 const _noEcho = {skipEchoToast: true};
 
+/**
+ * Attach a shortcuts.js id so the row tooltip includes formatKey(...) in parentheses.
+ * (scripts load before context-menu.js may still call this at contextmenu time.)
+ */
+function shortcutTip(shortcutId) {
+    return shortcutId ? {shortcutId} : {};
+}
+
+function escapeAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/\r?\n/g, ' ');
+}
+
+/** Tooltip: label, or label + (shortcut) when shortcutId / shortcutHint is set. */
+function ctxMenuItemTitle(item) {
+    const label = item.label != null ? String(item.label) : '';
+    let hint = '';
+    if (item.shortcutId && typeof getShortcuts === 'function' && typeof formatKey === 'function') {
+        const sc = getShortcuts()[item.shortcutId];
+        if (sc && sc.key !== undefined) hint = formatKey(sc);
+    } else if (item.shortcutHint) {
+        hint = String(item.shortcutHint);
+    }
+    if (!hint) return escapeAttr(label);
+    return escapeAttr(`${label} (${hint})`);
+}
+
 function showContextMenu(e, items) {
     e.preventDefault();
     // Store callbacks and render
@@ -17,7 +43,9 @@ function showContextMenu(e, items) {
             if (item.skipEchoToast) ctxMenu._skipEcho[i] = true;
         }
         const cls = item.disabled ? ' ctx-disabled' : '';
-        return `<div class="ctx-menu-item${cls}" data-ctx-idx="${i}">
+        const title = ctxMenuItemTitle(item);
+        const titleAttr = title ? ` title="${title}"` : '';
+        return `<div class="ctx-menu-item${cls}" data-ctx-idx="${i}"${titleAttr}>
       <span class="ctx-icon">${item.icon || ''}</span>${item.label}
     </div>`;
     }).join('');
@@ -88,13 +116,13 @@ function buildFallbackShellContextMenu(e) {
     const items = [];
     const sel = window.getSelection?.()?.toString?.()?.trim();
     if (sel) {
-        items.push({icon: '&#128203;', label: appFmt('menu.copy'), ..._noEcho, action: () => copyToClipboard(sel)});
+        items.push({icon: '&#128203;', label: appFmt('menu.copy'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(sel)});
     }
     if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') {
         const iv = t.value || '';
         if (iv) items.push({
             icon: '&#128203;',
-            label: appFmt('menu.copy'), ..._noEcho,
+            label: appFmt('menu.copy'), ..._noEcho, ...shortcutTip('copyPath'),
             action: () => copyToClipboard(iv)
         });
     }
@@ -125,23 +153,23 @@ function buildFallbackShellContextMenu(e) {
         if (vis.length > 0 && vis.length <= 10000) {
             items.push({
                 icon: '&#128203;',
-                label: appFmt('menu.ctx_copy_visible_text'), ..._noEcho,
+                label: appFmt('menu.ctx_copy_visible_text'), ..._noEcho, ...shortcutTip('copyPath'),
                 action: () => copyToClipboard(vis.slice(0, 16000))
             });
         }
     }
     if (items.length > 0) items.push('---');
     items.push({
-        icon: '&#128179;', label: appFmt('menu.cmd_palette'), action: () => {
+        icon: '&#128179;', label: appFmt('menu.cmd_palette'), ...shortcutTip('commandPalette'), action: () => {
             if (typeof openPalette === 'function') openPalette();
         }
     });
     items.push({
-        icon: '&#10068;', label: appFmt('menu.help_keyboard_shortcuts'), action: () => {
+        icon: '&#10068;', label: appFmt('menu.help_keyboard_shortcuts'), ...shortcutTip('help'), action: () => {
             if (typeof toggleHelpOverlay === 'function') toggleHelpOverlay();
         }
     });
-    items.push({icon: '&#9881;', label: appFmt('menu.tab_settings'), action: () => switchTab('settings')});
+    items.push({icon: '&#9881;', label: appFmt('menu.tab_settings'), ...shortcutTip('openPrefs'), action: () => switchTab('settings')});
     return items;
 }
 
@@ -163,12 +191,12 @@ document.addEventListener('contextmenu', (e) => {
             const items = [
                 {
                     icon: isPlaying ? '&#9646;&#9646;' : '&#9654;',
-                    label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho,
+                    label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho, ...shortcutTip('playPause'),
                     action: () => typeof previewAudio === 'function' && previewAudio(path)
                 },
                 {
                     icon: '&#8634;',
-                    label: appFmt('menu.loop'), ..._noEcho,
+                    label: appFmt('menu.loop'), ..._noEcho, ...shortcutTip('toggleLoop'),
                     action: () => typeof toggleRowLoop === 'function' && toggleRowLoop(path, new MouseEvent('click'))
                 },
                 '---',
@@ -190,7 +218,7 @@ document.addEventListener('contextmenu', (e) => {
                 '---',
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => typeof openAudioFolder === 'function' && openAudioFolder(path)
                 },
                 {
@@ -249,14 +277,14 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 '---',
                 {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name)},
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
                 '---',
             ];
             if (typeof isFavorite === 'function') {
                 const fav = isFavorite(path);
                 items.push({
                     icon: fav ? '&#9734;' : '&#9733;',
-                    label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                    label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                     action: () => fav ? removeFavorite(path) : addFavorite('sample', path, name)
                 });
             }
@@ -264,6 +292,7 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#128221;',
                     label: appFmt('menu.add_note_tags'),
+                    ...shortcutTip('addNote'),
                     action: () => showNoteEditor(path, name)
                 });
             }
@@ -272,7 +301,7 @@ document.addEventListener('contextmenu', (e) => {
             items.push({
                 icon: '&#128270;',
                 label: appFmt('menu.find_similar_samples'),
-                action: () => typeof findSimilarSamples === 'function' && findSimilarSamples(path)
+                ...shortcutTip('findSimilar'), action: () => typeof findSimilarSamples === 'function' && findSimilarSamples(path)
             });
             showContextMenu(e, items);
             return;
@@ -286,18 +315,18 @@ document.addEventListener('contextmenu', (e) => {
             const items = [
                 {
                     icon: '&#9654;',
-                    label: appFmt('menu.play'), ..._noEcho,
+                    label: appFmt('menu.play'), ..._noEcho, ...shortcutTip('playPause'),
                     action: () => typeof previewAudio === 'function' && previewAudio(path)
                 },
                 {
                     icon: '&#8634;',
-                    label: appFmt('menu.loop'), ..._noEcho,
+                    label: appFmt('menu.loop'), ..._noEcho, ...shortcutTip('toggleLoop'),
                     action: () => typeof toggleRowLoop === 'function' && toggleRowLoop(path, new MouseEvent('click'))
                 },
                 '---',
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => typeof openAudioFolder === 'function' && openAudioFolder(path)
                 },
                 {
@@ -309,7 +338,7 @@ document.addEventListener('contextmenu', (e) => {
                     }
                 },
                 '---',
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
                 {
                     icon: '&#128270;', label: appFmt('menu.find_similar_to_this'), action: () => {
                         typeof closeSimilarPanel === 'function' && closeSimilarPanel();
@@ -321,7 +350,7 @@ document.addEventListener('contextmenu', (e) => {
                 const fav = isFavorite(path);
                 items.push({
                     icon: fav ? '&#9734;' : '&#9733;',
-                    label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                    label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                     action: () => fav ? removeFavorite(path) : addFavorite('sample', path, name)
                 });
             }
@@ -380,7 +409,7 @@ document.addEventListener('contextmenu', (e) => {
             }
             items.push({
                 icon: '&#128193;',
-                label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                 action: () => folderBtn && openFolder(folderBtn.dataset.path)
             });
             items.push({
@@ -397,7 +426,7 @@ document.addEventListener('contextmenu', (e) => {
             });
             items.push({
                 icon: '&#128203;',
-                label: appFmt('menu.copy_path'), ..._noEcho,
+                label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'),
                 action: () => copyToClipboard(path)
             });
             if (archBadges) {
@@ -412,14 +441,14 @@ document.addEventListener('contextmenu', (e) => {
                 const pluginFav = isFavorite(path);
                 items.push({
                     icon: pluginFav ? '&#9734;' : '&#9733;',
-                    label: pluginFav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                    label: pluginFav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                     action: () => pluginFav ? removeFavorite(path) : addFavorite('plugin', path, name, {format: pluginCard.querySelector('.plugin-type')?.textContent})
                 });
             }
             if (typeof showNoteEditor === 'function') items.push({
                 icon: '&#128221;',
                 label: appFmt('menu.add_note'),
-                action: () => showNoteEditor(path, name)
+                ...shortcutTip('addNote'), action: () => showNoteEditor(path, name)
             });
             if (typeof findProjectsUsingPlugin === 'function') {
                 items.push({
@@ -443,11 +472,11 @@ document.addEventListener('contextmenu', (e) => {
             const items = [
                 {
                     icon: isPlaying ? '&#9646;&#9646;' : '&#9654;',
-                    label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho,
+                    label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho, ...shortcutTip('playPause'),
                     action: () => previewAudio(path)
                 },
                 {
-                    icon: '&#8634;', label: appFmt('menu.loop'), ..._noEcho, action: () => {
+                    icon: '&#8634;', label: appFmt('menu.loop'), ..._noEcho, ...shortcutTip('toggleLoop'), action: () => {
                         toggleRowLoop(path, new MouseEvent('click'));
                     }
                 },
@@ -477,7 +506,7 @@ document.addEventListener('contextmenu', (e) => {
                 '---',
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => openAudioFolder(path)
                 },
                 {
@@ -488,13 +517,13 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 '---',
                 {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name)},
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
                 '---',
                 ...[(() => {
                     const f = typeof isFavorite === 'function' && isFavorite(path);
                     return {
                         icon: f ? '&#9734;' : '&#9733;',
-                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                         action: () => f ? removeFavorite(path) : addFavorite('sample', path, name, {format: audioRow.querySelector('.format-badge')?.textContent})
                     };
                 })()],
@@ -504,7 +533,7 @@ document.addEventListener('contextmenu', (e) => {
                 {
                     icon: '&#128270;',
                     label: appFmt('menu.find_similar_samples'),
-                    action: () => typeof findSimilarSamples === 'function' && findSimilarSamples(path)
+                    ...shortcutTip('findSimilar'), action: () => typeof findSimilarSamples === 'function' && findSimilarSamples(path)
                 },
                 '---',
                 ...[(() => {
@@ -581,7 +610,7 @@ document.addEventListener('contextmenu', (e) => {
                 '---',
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => typeof openAudioFolder === 'function' && openAudioFolder(path)
                 },
                 {
@@ -600,7 +629,7 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 {
                     icon: '&#128203;',
-                    label: appFmt('menu.copy_path'), ..._noEcho,
+                    label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'),
                     action: () => typeof copyToClipboard === 'function' && copyToClipboard(path)
                 },
                 '---',
@@ -608,14 +637,14 @@ document.addEventListener('contextmenu', (e) => {
                     const f = typeof isFavorite === 'function' && isFavorite(path);
                     return {
                         icon: f ? '&#9734;' : '&#9733;',
-                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                         action: () => f ? removeFavorite(path) : addFavorite('midi', path, name)
                     };
                 })()],
                 {
                     icon: '&#128221;',
                     label: appFmt('menu.add_note'),
-                    action: () => typeof showNoteEditor === 'function' && showNoteEditor(path, name)
+                    ...shortcutTip('addNote'), action: () => typeof showNoteEditor === 'function' && showNoteEditor(path, name)
                 },
                 ...(typeof quickTagItems === 'function' ? quickTagItems(path, name) : []),
             ];
@@ -641,7 +670,7 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => openDawFolder(path)
                 },
                 {
@@ -697,13 +726,13 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 '---',
                 {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name)},
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
                 '---',
                 ...[(() => {
                     const f = typeof isFavorite === 'function' && isFavorite(path);
                     return {
                         icon: f ? '&#9734;' : '&#9733;',
-                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                         action: () => f ? removeFavorite(path) : addFavorite('daw', path, name, {
                             format: dawRow.querySelector('.format-badge:last-of-type')?.textContent,
                             daw: dawName
@@ -725,7 +754,7 @@ document.addEventListener('contextmenu', (e) => {
             const items = [
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => openPdfFile(path)
                 },
                 {
@@ -751,13 +780,13 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 '---',
                 {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name)},
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
                 '---',
                 ...[(() => {
                     const f = typeof isFavorite === 'function' && isFavorite(path);
                     return {
                         icon: f ? '&#9734;' : '&#9733;',
-                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                         action: () => f ? removeFavorite(path) : addFavorite('pdf', path, name)
                     };
                 })()],
@@ -776,7 +805,7 @@ document.addEventListener('contextmenu', (e) => {
             const items = [
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => openPresetFolder(path)
                 },
                 {
@@ -787,13 +816,13 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 '---',
                 {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name)},
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
                 '---',
                 ...[(() => {
                     const f = typeof isFavorite === 'function' && isFavorite(path);
                     return {
                         icon: f ? '&#9734;' : '&#9733;',
-                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                         action: () => f ? removeFavorite(path) : addFavorite('preset', path, name, {format: presetRow.querySelector('.format-badge')?.textContent})
                     };
                 })()],
@@ -930,44 +959,44 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#8615;',
                     label: appFmt('menu.export_plugins'),
-                    action: () => {
+                    ...shortcutTip('exportTab'), action: () => {
                         if (typeof runExport === 'function') runExport(exportPlugins); else if (typeof exportPlugins === 'function') exportPlugins();
                     },
                     disabled: (typeof getPluginExportableCount === 'function' ? getPluginExportableCount() : allPlugins.length) === 0,
                 });
-                items.push({icon: '&#8613;', label: appFmt('menu.import_plugins'), action: () => importPlugins()});
+                items.push({icon: '&#8613;', label: appFmt('menu.import_plugins'), ...shortcutTip('importTab'), action: () => importPlugins()});
             } else if (tabId === 'tabSamples') {
                 items.push({icon: '&#127925;', label: appFmt('menu.scan_samples'), action: () => scanAudioSamples()});
                 items.push('---');
                 items.push({
                     icon: '&#8615;',
                     label: appFmt('menu.export_samples'),
-                    action: () => (typeof runExport === 'function' ? runExport(exportAudio) : exportAudio()),
+                    ...shortcutTip('exportTab'), action: () => (typeof runExport === 'function' ? runExport(exportAudio) : exportAudio()),
                     disabled: Math.max(audioTotalCount || 0, allAudioSamples.length) === 0
                 });
-                items.push({icon: '&#8613;', label: appFmt('menu.import_samples'), action: () => importAudio()});
+                items.push({icon: '&#8613;', label: appFmt('menu.import_samples'), ...shortcutTip('importTab'), action: () => importAudio()});
             } else if (tabId === 'tabDaw') {
                 items.push({icon: '&#127911;', label: appFmt('menu.scan_daw'), action: () => scanDawProjects()});
                 items.push('---');
                 items.push({
                     icon: '&#8615;',
                     label: appFmt('menu.export_projects'),
-                    action: () => (typeof runExport === 'function' ? runExport(exportDaw) : exportDaw()),
+                    ...shortcutTip('exportTab'), action: () => (typeof runExport === 'function' ? runExport(exportDaw) : exportDaw()),
                     disabled: Math.max(_dawTotalCount || 0, allDawProjects.length) === 0
                 });
-                items.push({icon: '&#8613;', label: appFmt('menu.import_projects_short'), action: () => importDaw()});
+                items.push({icon: '&#8613;', label: appFmt('menu.import_projects_short'), ...shortcutTip('importTab'), action: () => importDaw()});
             } else if (tabId === 'tabPresets') {
                 items.push({icon: '&#127924;', label: appFmt('menu.scan_presets'), action: () => scanPresets()});
                 items.push('---');
                 items.push({
                     icon: '&#8615;',
                     label: appFmt('menu.export_presets'),
-                    action: () => {
+                    ...shortcutTip('exportTab'), action: () => {
                         if (typeof runExport === 'function') runExport(exportPresets); else if (typeof exportPresets === 'function') exportPresets();
                     },
                     disabled: Math.max(_presetTotalCount || 0, allPresets.length) === 0,
                 });
-                items.push({icon: '&#8613;', label: appFmt('menu.import_presets'), action: () => importPresets()});
+                items.push({icon: '&#8613;', label: appFmt('menu.import_presets'), ...shortcutTip('importTab'), action: () => importPresets()});
             } else if (tabId === 'tabMidi') {
                 items.push({
                     icon: '&#127929;', label: appFmt('menu.scan_midi'), action: () => {
@@ -978,13 +1007,13 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#8615;',
                     label: appFmt('menu.export_midi_files'),
-                    action: () => {
+                    ...shortcutTip('exportTab'), action: () => {
                         if (typeof exportMidi === 'function' && typeof runExport === 'function') runExport(exportMidi); else if (typeof exportMidi === 'function') exportMidi();
                     },
                     disabled: Math.max(_midiTotalCount || 0, typeof allMidiFiles !== 'undefined' ? allMidiFiles.length : 0) === 0
                 });
                 items.push({
-                    icon: '&#8613;', label: appFmt('menu.import_midi_list'), action: () => {
+                    icon: '&#8613;', label: appFmt('menu.import_midi_list'), ...shortcutTip('importTab'), action: () => {
                         if (typeof importAudio === 'function') importAudio();
                     }
                 });
@@ -998,13 +1027,13 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#8615;',
                     label: appFmt('menu.export_pdfs'),
-                    action: () => {
+                    ...shortcutTip('exportTab'), action: () => {
                         if (typeof exportPdfs === 'function' && typeof runExport === 'function') runExport(exportPdfs); else if (typeof exportPdfs === 'function') exportPdfs();
                     },
                     disabled: Math.max(_pdfTotalCount || 0, typeof allPdfs !== 'undefined' ? allPdfs.length : 0) === 0
                 });
                 items.push({
-                    icon: '&#8613;', label: appFmt('menu.import_pdfs'), action: () => {
+                    icon: '&#8613;', label: appFmt('menu.import_pdfs'), ...shortcutTip('importTab'), action: () => {
                         if (typeof importPdfs === 'function') importPdfs();
                     }
                 });
@@ -1014,7 +1043,7 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#128270;',
                     label: appFmt('menu.find_duplicates'),
-                    action: () => showDuplicateReport()
+                    ...shortcutTip('findDuplicates'), action: () => showDuplicateReport()
                 });
                 showContextMenu(e, items);
                 return;
@@ -1028,11 +1057,11 @@ document.addEventListener('contextmenu', (e) => {
             const items = [
                 {
                     icon: '&#128203;',
-                    label: appFmt('menu.copy_stats'), ..._noEcho,
+                    label: appFmt('menu.copy_stats'), ..._noEcho, ...shortcutTip('copyPath'),
                     action: () => copyToClipboard(statsText)
                 },
                 '---',
-                {icon: '&#9889;', label: appFmt('menu.scan_all'), action: () => scanAll()},
+                {icon: '&#9889;', label: appFmt('menu.scan_all'), ...shortcutTip('scanAll'), action: () => scanAll()},
             ];
             showContextMenu(e, items);
             return;
@@ -1047,7 +1076,7 @@ document.addEventListener('contextmenu', (e) => {
                 const items = [
                     {
                         icon: '&#128203;',
-                        label: appFmt('menu.copy_process_stats'), ..._noEcho,
+                        label: appFmt('menu.copy_process_stats'), ..._noEcho, ...shortcutTip('copyPath'),
                         action: () => copyToClipboard(statsText)
                     },
                 ];
@@ -1056,12 +1085,12 @@ document.addEventListener('contextmenu', (e) => {
             }
             const items = [
                 {
-                    icon: '&#128202;', label: appFmt('menu.heatmap_dashboard'), action: () => {
+                    icon: '&#128202;', label: appFmt('menu.heatmap_dashboard'), ...shortcutTip('heatmapDash'), action: () => {
                         if (typeof showHeatmapDashboard === 'function') void showHeatmapDashboard();
                     }
                 },
                 {
-                    icon: '&#128200;', label: appFmt('menu.dep_graph'), action: () => {
+                    icon: '&#128200;', label: appFmt('menu.dep_graph'), ...shortcutTip('depGraph'), action: () => {
                         if (typeof showDepGraph === 'function') showDepGraph();
                     }
                 },
@@ -1071,9 +1100,9 @@ document.addEventListener('contextmenu', (e) => {
                     label: appFmt('menu.open_github_repository'),
                     action: () => openUpdate('https://github.com/MenkeTechnologies/Audio-Haxor')
                 },
-                {icon: '&#9881;', label: appFmt('menu.tab_settings'), action: () => switchTab('settings')},
+                {icon: '&#9881;', label: appFmt('menu.tab_settings'), ...shortcutTip('openPrefs'), action: () => switchTab('settings')},
                 '---',
-                {icon: '&#9889;', label: appFmt('menu.scan_all'), action: () => scanAll()},
+                {icon: '&#9889;', label: appFmt('menu.scan_all'), ...shortcutTip('scanAll'), action: () => scanAll()},
             ];
             showContextMenu(e, items);
             return;
@@ -1088,7 +1117,7 @@ document.addEventListener('contextmenu', (e) => {
                 const items = [
                     {icon: '&#128269;', label: appFmt('menu.view_details'), action: () => selectScan(id, type)},
                     {
-                        icon: '&#128465;', label: appFmt('menu.delete_entry'), action: () => {
+                        icon: '&#128465;', label: appFmt('menu.delete_entry'), ...shortcutTip('deleteItem'), action: () => {
                             if (type === 'audio') deleteAudioScanEntry(id);
                             else if (type === 'daw') deleteDawScanEntry(id);
                             else if (type === 'preset') deletePresetScanEntry(id);
@@ -1107,7 +1136,7 @@ document.addEventListener('contextmenu', (e) => {
         const historyTab = e.target.closest('#tabHistory');
         if (historyTab) {
             const items = [
-                {icon: '&#128465;', label: appFmt('menu.clear_history'), action: () => settingClearAllHistory()},
+                {icon: '&#128465;', label: appFmt('menu.clear_history'), ...shortcutTip('clearPlayHistory'), action: () => settingClearAllHistory()},
             ];
             showContextMenu(e, items);
             return;
@@ -1139,12 +1168,12 @@ document.addEventListener('contextmenu', (e) => {
             if (audioPlayerPath) {
                 items.push({
                     icon: isPlaying ? '&#9646;&#9646;' : '&#9654;',
-                    label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho,
+                    label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho, ...shortcutTip('playPause'),
                     action: () => toggleAudioPlayback()
                 });
                 items.push({
                     icon: '&#8634;',
-                    label: audioLooping ? appFmt('menu.disable_loop') : appFmt('menu.enable_loop'), ..._noEcho,
+                    label: audioLooping ? appFmt('menu.disable_loop') : appFmt('menu.enable_loop'), ..._noEcho, ...shortcutTip('toggleLoop'),
                     action: () => toggleAudioLoop()
                 });
             }
@@ -1163,23 +1192,23 @@ document.addEventListener('contextmenu', (e) => {
             if (audioPlayerPath) {
                 items.push({
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => openAudioFolder(audioPlayerPath)
                 });
                 items.push('---');
                 items.push({
                     icon: '&#128203;',
-                    label: appFmt('menu.copy_path'), ..._noEcho,
+                    label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'),
                     action: () => copyToClipboard(audioPlayerPath)
                 });
                 items.push('---');
             }
             items.push({
                 icon: isExpanded ? '&#9660;' : '&#9650;',
-                label: isExpanded ? appFmt('menu.player_collapse') : appFmt('menu.player_expand'), ..._noEcho,
+                label: isExpanded ? appFmt('menu.player_collapse') : appFmt('menu.player_expand'), ..._noEcho, ...shortcutTip('togglePlayerExpand'),
                 action: () => togglePlayerExpanded()
             });
-            items.push({icon: '&#9868;', label: appFmt('menu.hide_player'), action: () => hidePlayer()});
+            items.push({icon: '&#9868;', label: appFmt('menu.hide_player'), ...shortcutTip('togglePlayer'), action: () => hidePlayer()});
             items.push({
                 icon: '&#10005;',
                 label: appFmt('menu.stop_and_close'), ..._noEcho,
@@ -1201,12 +1230,12 @@ document.addEventListener('contextmenu', (e) => {
                 const isPlaying = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === path && (typeof isAudioPlaying === 'function' ? isAudioPlaying() : !audioPlayer.paused);
                 items.push({
                     icon: isPlaying ? '&#9646;&#9646;' : '&#9654;',
-                    label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho,
+                    label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho, ...shortcutTip('playPause'),
                     action: () => previewAudio(path)
                 });
                 items.push({
                     icon: '&#8634;',
-                    label: appFmt('menu.loop'), ..._noEcho,
+                    label: appFmt('menu.loop'), ..._noEcho, ...shortcutTip('toggleLoop'),
                     action: () => toggleRowLoop(path, new MouseEvent('click'))
                 });
                 items.push('---');
@@ -1275,7 +1304,7 @@ document.addEventListener('contextmenu', (e) => {
             }
 
             items.push({
-                icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, action: () => {
+                icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'), action: () => {
                     if (type === 'sample') openAudioFolder(path);
                     else if (type === 'daw') openDawFolder(path);
                     else if (type === 'preset') openPresetFolder(path);
@@ -1297,15 +1326,15 @@ document.addEventListener('contextmenu', (e) => {
             });
             items.push({
                 icon: '&#128203;',
-                label: appFmt('menu.copy_path'), ..._noEcho,
+                label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'),
                 action: () => copyToClipboard(path)
             });
             items.push('---');
-            items.push({icon: '&#128221;', label: appFmt('menu.add_note'), action: () => showNoteEditor(path, name)});
+            items.push({icon: '&#128221;', label: appFmt('menu.add_note'), ...shortcutTip('addNote'), action: () => showNoteEditor(path, name)});
             items.push(...quickTagItems(path, name));
             items.push('---');
             items.push({
-                icon: '&#9734;', label: appFmt('menu.remove_from_favorites'), ..._noEcho, action: () => {
+                icon: '&#9734;', label: appFmt('menu.remove_from_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'), action: () => {
                     removeFavorite(path);
                     if (typeof renderFavorites === 'function') renderFavorites();
                 }
@@ -1321,8 +1350,8 @@ document.addEventListener('contextmenu', (e) => {
             const path = noteItem.dataset.path || '';
             const name = noteItem.querySelector('.note-item-name')?.textContent?.trim() || '';
             const items = [
-                {icon: '&#128221;', label: appFmt('menu.edit_note'), action: () => showNoteEditor(path, name)},
-                {icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, action: () => openFolder(path)},
+                {icon: '&#128221;', label: appFmt('menu.edit_note'), ...shortcutTip('addNote'), action: () => showNoteEditor(path, name)},
+                {icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'), action: () => openFolder(path)},
                 {
                     icon: '&#128194;', label: appFmt('menu.show_file_browser'), ..._noEcho, action: () => {
                         switchTab('files');
@@ -1331,15 +1360,15 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 '---',
                 {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name)},
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
                 '---',
                 {
                     icon: '&#9733;',
-                    label: isFavorite(path) ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                    label: isFavorite(path) ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                     action: () => isFavorite(path) ? removeFavorite(path) : addFavorite('item', path, name)
                 },
                 {
-                    icon: '&#128465;', label: appFmt('menu.delete_note'), action: () => {
+                    icon: '&#128465;', label: appFmt('menu.delete_note'), ...shortcutTip('deleteItem'), action: () => {
                         if (typeof deleteNote === 'function') {
                             deleteNote(path);
                             if (typeof renderNotesTab === 'function') renderNotesTab();
@@ -1368,7 +1397,7 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 '---',
                 {
-                    icon: '&#128465;', label: appFmt('menu.delete_tag_globally'), action: () => {
+                    icon: '&#128465;', label: appFmt('menu.delete_tag_globally'), ...shortcutTip('deleteItem'), action: () => {
                         if (typeof deleteTagGlobally === 'function' && confirm(appFmt('confirm.delete_tag_globally', {tag}))) {
                             deleteTagGlobally(tag);
                         }
@@ -1389,11 +1418,11 @@ document.addEventListener('contextmenu', (e) => {
             const editBtn = noteCard.querySelector('[data-action-note="edit"]');
             const items = [
                 {
-                    icon: '&#128221;', label: appFmt('menu.edit_note'), action: () => {
+                    icon: '&#128221;', label: appFmt('menu.edit_note'), ...shortcutTip('addNote'), action: () => {
                         if (editBtn) editBtn.click(); else if (typeof showNoteEditor === 'function') showNoteEditor(path, name);
                     }
                 },
-                {icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, action: () => openFolder(path)},
+                {icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'), action: () => openFolder(path)},
                 {
                     icon: '&#128194;', label: appFmt('menu.show_file_browser'), ..._noEcho, action: () => {
                         switchTab('files');
@@ -1402,10 +1431,10 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 '---',
                 {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name)},
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
                 '---',
                 {
-                    icon: '&#128465;', label: appFmt('menu.delete_note'), action: () => {
+                    icon: '&#128465;', label: appFmt('menu.delete_note'), ...shortcutTip('deleteItem'), action: () => {
                         if (typeof deleteNote === 'function') {
                             deleteNote(path);
                             if (typeof renderNotesTab === 'function') renderNotesTab();
@@ -1480,7 +1509,7 @@ document.addEventListener('contextmenu', (e) => {
                 });
                 items.push({
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => openFolder(plugin.path)
                 });
             }
@@ -1503,12 +1532,12 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => typeof openDawFolder === 'function' && openDawFolder(path)
                 },
                 '---',
                 {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name)},
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
             ];
             showContextMenu(e, items);
             return;
@@ -1525,10 +1554,10 @@ document.addEventListener('contextmenu', (e) => {
                     label: appFmt('menu.copy_plugin_name'), ..._noEcho,
                     action: () => copyToClipboard(name)
                 },
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, action: () => copyToClipboard(path)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => typeof openFolder === 'function' && openFolder(path)
                 },
             ];
@@ -1580,7 +1609,7 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#8615;',
                     label: appFmt('menu.export_tab_data'),
-                    action: () => {
+                    ...shortcutTip('exportTab'), action: () => {
                         const fn = window[exportFn];
                         if (typeof runExport === 'function') runExport(fn);
                         else fn();
@@ -1628,7 +1657,7 @@ document.addEventListener('contextmenu', (e) => {
                 });
                 items.push({
                     icon: '&#128203;',
-                    label: appFmt('menu.copy'), ..._noEcho,
+                    label: appFmt('menu.copy'), ..._noEcho, ...shortcutTip('copyPath'),
                     action: () => copyToClipboard(textarea.value)
                 });
             }
@@ -1707,7 +1736,7 @@ document.addEventListener('contextmenu', (e) => {
             const items = [
                 {icon: '&#8596;', label: appFmt('menu.reset_columns'), action: () => settingResetColumns()},
                 {icon: '&#8644;', label: appFmt('menu.reset_tabs'), action: () => settingResetTabOrder()},
-                {icon: '&#128465;', label: appFmt('menu.clear_history'), action: () => settingClearAllHistory()},
+                {icon: '&#128465;', label: appFmt('menu.clear_history'), ...shortcutTip('clearPlayHistory'), action: () => settingClearAllHistory()},
                 '---',
                 {icon: '&#128206;', label: appFmt('menu.open_prefs_file'), action: () => openPrefsFile()},
             ];
@@ -1728,7 +1757,7 @@ document.addEventListener('contextmenu', (e) => {
                     },
                     {
                         icon: '&#128203;',
-                        label: appFmt('menu.copy_path'), ..._noEcho,
+                        label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'),
                         action: () => copyToClipboard(dirPath)
                     },
                 ];
@@ -1744,7 +1773,7 @@ document.addEventListener('contextmenu', (e) => {
             const items = [
                 {
                     icon: '&#128203;',
-                    label: appFmt('menu.copy_stats'), ..._noEcho,
+                    label: appFmt('menu.copy_stats'), ..._noEcho, ...shortcutTip('copyPath'),
                     action: () => copyToClipboard(statsText)
                 },
             ];
@@ -1759,12 +1788,12 @@ document.addEventListener('contextmenu', (e) => {
             const items = [
                 {
                     icon: '&#128193;',
-                    label: appFmt('menu.open_in_finder'), ..._noEcho,
+                    label: appFmt('menu.open_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => typeof openFolder === 'function' && openFolder(crumbPath)
                 },
                 {
                     icon: '&#128203;',
-                    label: appFmt('menu.copy_path'), ..._noEcho,
+                    label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'),
                     action: () => copyToClipboard(crumbPath)
                 },
                 {
@@ -1789,7 +1818,7 @@ document.addEventListener('contextmenu', (e) => {
             if (isAudio) {
                 items.push({
                     icon: '&#9654;',
-                    label: appFmt('menu.play'), ..._noEcho,
+                    label: appFmt('menu.play'), ..._noEcho, ...shortcutTip('playPause'),
                     action: () => typeof previewAudio === 'function' && previewAudio(path)
                 });
                 items.push({
@@ -1837,6 +1866,7 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#128270;',
                     label: appFmt('menu.find_similar'),
+                    ...shortcutTip('findSimilar'),
                     action: () => typeof findSimilarSamples === 'function' && findSimilarSamples(path)
                 });
                 items.push('---');
@@ -1849,7 +1879,7 @@ document.addEventListener('contextmenu', (e) => {
                 });
             }
             items.push({
-                icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, action: () => {
+                icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'), action: () => {
                     const dir = isDir ? path : path.replace(/\/[^/]+$/, '');
                     if (typeof openFolder === 'function') openFolder(dir);
                     else if (typeof openAudioFolder === 'function') openAudioFolder(path);
@@ -1857,7 +1887,7 @@ document.addEventListener('contextmenu', (e) => {
             });
             items.push({
                 icon: '&#128203;',
-                label: appFmt('menu.copy_path'), ..._noEcho,
+                label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'),
                 action: () => copyToClipboard(path)
             });
             items.push({
@@ -1871,7 +1901,7 @@ document.addEventListener('contextmenu', (e) => {
                 const favType = isDir ? 'folder' : 'file';
                 items.push({
                     icon: fav ? '&#9734;' : '&#9733;',
-                    label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                    label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                     action: () => {
                         fav ? removeFavorite(path) : addFavorite(favType, path, name);
                         if (typeof renderFileList === 'function') renderFileList();
@@ -1950,7 +1980,7 @@ document.addEventListener('contextmenu', (e) => {
                 });
                 items.push({
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => typeof openAudioFolder === 'function' && openAudioFolder(path)
                 });
                 items.push('---');
@@ -1964,12 +1994,12 @@ document.addEventListener('contextmenu', (e) => {
                     const name = metaPanel.querySelector('.meta-value')?.textContent || '';
                     items.push({
                         icon: fav ? '&#9734;' : '&#9733;',
-                        label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho,
+                        label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
                         action: () => fav ? removeFavorite(path) : addFavorite('sample', path, name)
                     });
                 }
                 items.push({
-                    icon: '&#128221;', label: appFmt('menu.add_note'), action: () => {
+                    icon: '&#128221;', label: appFmt('menu.add_note'), ...shortcutTip('addNote'), action: () => {
                         const name = metaPanel.querySelector('.meta-value')?.textContent || '';
                         typeof showNoteEditor === 'function' && showNoteEditor(path, name);
                     }
@@ -1977,6 +2007,7 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#128270;',
                     label: appFmt('menu.find_similar'),
+                    ...shortcutTip('findSimilar'),
                     action: () => typeof findSimilarSamples === 'function' && findSimilarSamples(path)
                 });
                 items.push('---');
@@ -2001,12 +2032,12 @@ document.addEventListener('contextmenu', (e) => {
             if (typeof audioPlayerPath !== 'undefined' && audioPlayerPath) {
                 items.push({
                     icon: '&#128203;',
-                    label: appFmt('menu.copy_file_path'), ..._noEcho,
+                    label: appFmt('menu.copy_file_path'), ..._noEcho, ...shortcutTip('copyPath'),
                     action: () => copyToClipboard(audioPlayerPath)
                 });
                 items.push({
                     icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho,
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
                     action: () => typeof openAudioFolder === 'function' && openAudioFolder(audioPlayerPath)
                 });
             }
@@ -2020,8 +2051,15 @@ document.addEventListener('contextmenu', (e) => {
         const shortcutKey = e.target.closest('.shortcut-key');
         if (shortcutKey) {
             const scId = shortcutKey.dataset.shortcutId;
+            let currentBindingHint = '';
+            if (scId && typeof getShortcuts === 'function' && typeof formatKey === 'function') {
+                const sc = getShortcuts()[scId];
+                if (sc) currentBindingHint = formatKey(sc);
+            }
+            const rebindItem = {icon: '&#9881;', label: appFmt('menu.rebind_shortcut'), action: () => shortcutKey.click()};
+            if (currentBindingHint) rebindItem.shortcutHint = currentBindingHint;
             const items = [
-                {icon: '&#9881;', label: appFmt('menu.rebind_shortcut'), action: () => shortcutKey.click()},
+                rebindItem,
                 {
                     icon: '&#8634;',
                     label: appFmt('menu.reset_all_shortcuts'),
@@ -2059,7 +2097,7 @@ document.addEventListener('contextmenu', (e) => {
                 {
                     icon: '&#9632;',
                     label: appFmt('menu.stop_all_scans'),
-                    action: () => typeof stopAll === 'function' && stopAll()
+                    ...shortcutTip('stopAll'), action: () => typeof stopAll === 'function' && stopAll()
                 },
             ];
             showContextMenu(e, items);
@@ -2073,6 +2111,7 @@ document.addEventListener('contextmenu', (e) => {
                 {
                     icon: '&#127926;',
                     label: appFmt('menu.new_smart_playlist'),
+                    ...shortcutTip('newSmartPlaylist'),
                     action: () => typeof showSmartPlaylistEditor === 'function' && showSmartPlaylistEditor(null)
                 },
                 '---',
@@ -2082,6 +2121,7 @@ document.addEventListener('contextmenu', (e) => {
                     items.push({
                         icon: '&#127925;',
                         label: appFmt('menu.add_smart_playlist_named', {name: preset.name}),
+                        ...shortcutTip('newSmartPlaylist'),
                         action: () => {
                             if (typeof createSmartPlaylist === 'function') {
                                 const pl = createSmartPlaylist(preset.name, preset.rules);

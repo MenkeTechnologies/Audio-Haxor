@@ -946,6 +946,9 @@ function _drawBands(ctx, w, h, analyser) {
 
 // ── Context menus for visualizer tiles (export / copy / fullscreen + mode tools — single handler; was duplicated in context-menu.js) ──
 const _vizMenuNoEcho = {skipEchoToast: true};
+function _vizShortcutTip(id) {
+    return typeof shortcutTip === 'function' ? shortcutTip(id) : {};
+}
 document.addEventListener('contextmenu', (e) => {
     const tile = e.target.closest('.viz-tile');
     if (!tile) return;
@@ -967,7 +970,7 @@ document.addEventListener('contextmenu', (e) => {
         },
         {
             icon: '&#128203;',
-            label: appFmt('menu.copy_tile_name'), ..._vizMenuNoEcho,
+            label: appFmt('menu.copy_tile_name'), ..._vizMenuNoEcho, ..._vizShortcutTip('copyPath'),
             action: () => typeof copyToClipboard === 'function' && copyToClipboard(label)
         },
         '---',

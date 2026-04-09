@@ -3,6 +3,10 @@
 
 const _spMenuNoEcho = {skipEchoToast: true};
 
+function _spShortcutTip(id) {
+    return typeof shortcutTip === 'function' ? shortcutTip(id) : {};
+}
+
 let _smartPlaylists = [];
 let _activeSmartPlaylist = null;
 
@@ -415,13 +419,13 @@ document.addEventListener('contextmenu', (e) => {
             }
         },
         {
-            icon: '&#128203;', label: appFmt('menu.sp_copy_rules_json'), ..._spMenuNoEcho, action: () => {
+            icon: '&#128203;', label: appFmt('menu.sp_copy_rules_json'), ..._spMenuNoEcho, ..._spShortcutTip('copyPath'), action: () => {
                 if (typeof copyToClipboard === 'function') copyToClipboard(JSON.stringify(pl.rules, null, 2));
             }
         },
         '---',
         {
-            icon: '&#128465;', label: appFmt('menu.delete'), action: () => {
+            icon: '&#128465;', label: appFmt('menu.delete'), ..._spShortcutTip('deleteItem'), action: () => {
                 if (confirm(appFmt('confirm.delete_smart_playlist', {name: pl.name}))) deleteSmartPlaylist(id);
             }
         },

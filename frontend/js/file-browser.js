@@ -1,6 +1,10 @@
 // ── File Browser ──
 const _ctxMenuNoEcho = {skipEchoToast: true};
 
+function _ctxShortcutTip(id) {
+    return typeof shortcutTip === 'function' ? shortcutTip(id) : {};
+}
+
 /** Rust `fs_list_dir` may return `\` on Windows; normalize for split/join logic. */
 function normalizePathSeparators(p) {
     if (p == null || typeof p !== 'string') return '';
@@ -663,34 +667,34 @@ document.addEventListener('contextmenu', (e) => {
         });
         items.push({
             icon: '&#128193;',
-            label: appFmt('menu.reveal_in_finder'), ..._ctxMenuNoEcho,
+            label: appFmt('menu.reveal_in_finder'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('revealFile'),
             action: () => window.vstUpdater.openPresetFolder(path)
         });
         const dirFav = isFavDir(path);
         items.push({
             icon: dirFav ? '&#9734;' : '&#9733;',
-            label: dirFav ? appFmt('menu.remove_bookmark') : appFmt('menu.bookmark_directory'), ..._ctxMenuNoEcho,
+            label: dirFav ? appFmt('menu.remove_bookmark') : appFmt('menu.bookmark_directory'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('toggleFavorite'),
             action: () => dirFav ? removeFavDir(path) : addFavDir(path)
         });
     } else {
         if (AUDIO_EXTS.includes(ext)) {
             items.push({
                 icon: '&#9654;',
-                label: appFmt('menu.play'), ..._ctxMenuNoEcho,
+                label: appFmt('menu.play'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('playPause'),
                 action: () => previewAudio(path)
             });
         }
         items.push({icon: '&#128194;', label: appFmt('menu.open'), ..._ctxMenuNoEcho, action: () => opener_open(path)});
         items.push({
             icon: '&#128193;',
-            label: appFmt('menu.reveal_in_finder'), ..._ctxMenuNoEcho,
+            label: appFmt('menu.reveal_in_finder'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('revealFile'),
             action: () => window.vstUpdater.openPresetFolder(path)
         });
     }
     items.push('---');
     items.push({
         icon: '&#128203;',
-        label: appFmt('menu.copy_path'), ..._ctxMenuNoEcho,
+        label: appFmt('menu.copy_path'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('copyPath'),
         action: () => copyToClipboard(path)
     });
     items.push({
@@ -715,6 +719,7 @@ document.addEventListener('contextmenu', (e) => {
     items.push({
         icon: '&#128221;',
         label: note ? appFmt('menu.edit_note') : appFmt('menu.add_note'),
+        ..._ctxShortcutTip('addNote'),
         action: () => showNoteEditor(path, name)
     });
 
@@ -740,13 +745,13 @@ document.addEventListener('contextmenu', (e) => {
     const fav = isFavorite(path);
     items.push({
         icon: fav ? '&#9734;' : '&#9733;',
-        label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._ctxMenuNoEcho,
+        label: fav ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('toggleFavorite'),
         action: () => fav ? removeFavorite(path) : addFavorite(isDir ? 'folder' : (AUDIO_EXTS.includes(ext) ? 'sample' : 'file'), path, name, {format: ext.toUpperCase()})
     });
 
     items.push('---');
     items.push({
-        icon: '&#128465;', label: appFmt('menu.delete'), action: async () => {
+        icon: '&#128465;', label: appFmt('menu.delete'), ..._ctxShortcutTip('deleteItem'), action: async () => {
             if (!confirm(appFmt('confirm.delete_file_browser', {name}))) return;
             try {
                 await window.vstUpdater.deleteFile(path);

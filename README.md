@@ -454,7 +454,7 @@ frontend/
     batch-select.js    -- Checkbox selection + batch operations
     command-palette.js -- Cmd+K fuzzy search; static rows + session item list + type-label cache; arrow keys update selection class only; 2+ char DB merge uses `db_query_palette_preview` (SQLite); **Build fingerprint cache** loads paths from `db_audio_library_paths` (SQLite `audio_library`), same as Settings → cache fingerprint build; **Start/Stop BPM/Key/LUFS background analysis** matches Settings → Database Caches (`triggerBackgroundBpmKeyLufsAnalysis` / `triggerStopBackgroundBpmKeyLufsAnalysis`)
     columns.js         -- Resizable table columns with width persistence
-    context-menu.js    -- Right-click context menus for all elements
+    context-menu.js    -- Right-click context menus for all elements; each row has a `title` tooltip, and items that mirror a global shortcut include `formatKey` output in parentheses (via `shortcutTip` / `shortcutHint`; `file-browser.js` / `smart-playlists.js` / `visualizer.js` use the same helper when building menus)
     daw.js             -- DAW project scanning + stats; `fetchAllDawProjectsForXref` loads the full SQLite list for **Plugin Index** (paginated UI keeps `allDawProjects` to one page)
     disk-usage.js      -- Stacked bar charts for storage breakdown
     content_hash.rs    -- SHA-256 streaming hash for byte-identical duplicate groups
