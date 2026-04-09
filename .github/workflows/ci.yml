@@ -79,66 +79,12 @@ jobs:
         if: matrix.os != 'ubuntu-latest'
         run: node scripts/run-audio-engine-tests.mjs
 
-      # Windows: see the Windows-only step below — a second `cargo test` after stripping DLLs
-      # re-invokes `tauri-build` and recopies JUCE/vcrt sidecars → STATUS_ENTRYPOINT_NOT_FOUND.
+      # Same `cargo test` on every OS. An older Windows-only flow ran `cargo test --no-run`, deleted
+      # every `*.dll` under `target/debug` (to avoid JUCE/VC sidecars shadowing the loader), then
+      # invoked each test exe manually — that stripped DLLs the harnesses still need and produced
+      # exit code 1 from the first libtest binary.
       - name: Run Rust tests (library + integration)
-        if: matrix.os != 'windows-latest'
         run: cargo test --manifest-path src-tauri/Cargo.toml
-
-      # Second `cargo test` after stripping DLLs re-runs build.rs / Tauri externalBin and copies
-      # JUCE/VC DLLs back beside test exes → STATUS_ENTRYPOINT_NOT_FOUND. Build once, strip, then
-      # run each harness from `cargo test --no-run` output (no second Cargo invoke). Do not glob
-      # `deps/*.exe` by hash length — rustc naming changes left only a subset matched and skipped
-      # unittests + most integration crates. Invoke each harness with `&` from the workspace so
-      # env/cwd match `cargo test`; `Start-Process` can mis-handle libtest exit codes.
-      # `--color never`: default colored output inserts ANSI between `Executable` and the path and
-      # breaks the regex that collects `target\debug\deps\*.exe` lines.
-      - name: Run Rust tests (library + integration, Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          # Redirect all streams to a file: `2>&1` into an array wraps stderr as ErrorRecord lines
-          # (fragile to parse); `*` avoids that. Keep cargo's exit code right after `& cargo`.
-          $logFile = Join-Path $env:RUNNER_TEMP 'cargo-test-no-run.txt'
-          & cargo test --manifest-path src-tauri/Cargo.toml --no-run --color never *> $logFile
-          $cargoExit = $LASTEXITCODE
-          Get-Content -LiteralPath $logFile | ForEach-Object { $_ }
-          if ($cargoExit -ne 0) { exit $cargoExit }
-          $exeRelPaths = [System.Collections.Generic.List[string]]::new()
-          foreach ($line in (Get-Content -LiteralPath $logFile)) {
-            if ($line -match 'Executable\s+(.+)\s+\((target[\\/]debug[\\/]deps[\\/][^\)]+\.exe)\)') {
-              $exeRelPaths.Add($matches[2])
-            }
-          }
-          if ($exeRelPaths.Count -lt 1) {
-            throw "no test exe paths parsed from cargo test --no-run (expected target\debug\deps\*.exe on Windows)"
-          }
-          # JUCE/VC DLLs can land under target/debug/** (not only deps/). The loader resolves
-          # *.dll beside the test exe first → STATUS_ENTRYPOINT_NOT_FOUND. Strip recursively.
-          function Remove-JuceSidecars([string]$rootDir) {
-            if (-not (Test-Path $rootDir)) { return }
-            Get-ChildItem -Path $rootDir -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
-              if ($_.Extension -ieq '.dll') {
-                Remove-Item -Force -LiteralPath $_.FullName -ErrorAction SilentlyContinue
-              } elseif ($_.Name -ieq 'audio-engine.exe' -or $_.Name -ieq 'audio-engine.pdb') {
-                Remove-Item -Force -LiteralPath $_.FullName -ErrorAction SilentlyContinue
-              }
-            }
-          }
-          $td = Join-Path $env:GITHUB_WORKSPACE 'target/debug'
-          Remove-JuceSidecars $td
-          Push-Location $env:GITHUB_WORKSPACE
-          try {
-            foreach ($rel in $exeRelPaths) {
-              $full = Join-Path $env:GITHUB_WORKSPACE ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
-              if (-not (Test-Path -LiteralPath $full)) { throw "missing test exe: $full" }
-              & $full --quiet
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            }
-          } finally {
-            Pop-Location
-          }
-          exit 0
 
   build:
     needs: test
