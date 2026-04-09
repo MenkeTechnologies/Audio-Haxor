@@ -18,6 +18,8 @@
 //!    level and treated as projects; their subtree is NOT descended.
 //! 5. Plugin bundles (`.vst3`, `.component`, etc.) are skipped entirely for DAW,
 //!    but their interiors ARE still walked for audio/preset/pdf content.
+//! 6. Symlinks: `readdir` does not mark symlink targets as files/dirs; each
+//!    symlink is `stat`ed and classified by its target (broken symlinks skipped).
 //!
 //! Per-type progress callbacks stream batches as they're discovered.
 
@@ -665,7 +667,28 @@ fn walk_dir_parallel(
         let path = entry.path.clone();
         let name_lower = name_str.to_lowercase();
 
-        if entry.is_dir {
+        // Bulk `d_type` lists symlinks as neither file nor dir — follow target.
+        let (is_dir, is_file, size, mtime_secs) = if entry.is_symlink {
+            match fs::metadata(&path) {
+                Ok(m) => {
+                    let is_d = m.is_dir();
+                    let is_f = m.is_file();
+                    let sz = if is_f { m.len() } else { 0 };
+                    let mt = m
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs() as i64)
+                        .unwrap_or(0);
+                    (is_d, is_f, sz, mt)
+                }
+                Err(_) => continue,
+            }
+        } else {
+            (entry.is_dir, entry.is_file, entry.size, entry.mtime_secs)
+        };
+
+        if is_dir {
             // 1) Plugin bundle directory? DAW never enters; other types DO enter
             //    since plugin bundles may contain presets/PDFs/audio.
             let is_plugin_bundle = DAW_PLUGIN_BUNDLE_EXTENSIONS
@@ -691,8 +714,8 @@ fn walk_dir_parallel(
                             // portable fallback (Linux/Windows) entry.mtime_secs
                             // is 0 for dirs, so stat lazily here — only for
                             // packages we actually emit, not every dir.
-                            let modified = if entry.mtime_secs > 0 {
-                                fmt_mtime_ymd(entry.mtime_secs)
+                            let modified = if mtime_secs > 0 {
+                                fmt_mtime_ymd(mtime_secs)
                             } else {
                                 fs::metadata(&path)
                                     .ok()
@@ -743,7 +766,7 @@ fn walk_dir_parallel(
             continue;
         }
 
-        if !entry.is_file {
+        if !is_file {
             continue;
         }
 
@@ -752,8 +775,7 @@ fn walk_dir_parallel(
             Some(i) => &name_lower[i..],
             None => continue,
         };
-        let size = entry.size;
-        let modified = fmt_mtime_ymd(entry.mtime_secs);
+        let modified = fmt_mtime_ymd(mtime_secs);
 
         // Audio
         if AUDIO_EXTENSIONS.contains(&ext_with_dot) && under_any_root(&path, &spec.audio_roots) {
@@ -789,7 +811,11 @@ fn walk_dir_parallel(
             if !spec.daw_exclude.contains(&path_str) {
                 let format = ext_with_dot.strip_prefix('.').unwrap_or("").to_uppercase();
                 // .band is ONLY valid as a package — skip files with this ext.
-                if format != "BAND" {
+                // .ptx/.ptf must match Pro Tools session BOF (filters CUDA .ptx, etc.).
+                if format != "BAND"
+                    && ((format != "PTX" && format != "PTF")
+                        || crate::daw_scanner::is_valid_pro_tools_session_file(&path))
+                {
                     let project_name = path
                         .file_stem()
                         .map(|s| s.to_string_lossy().to_string())
@@ -910,7 +936,24 @@ mod tests {
     use std::collections::HashMap;
     use std::fs::{self, File};
     use std::io::Write;
+    use std::path::Path;
     use std::sync::Arc;
+
+    fn try_symlink(target: &Path, link: &Path) -> bool {
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(target, link).is_ok()
+        }
+        #[cfg(windows)]
+        {
+            std::os::windows::fs::symlink_file(target, link).is_ok()
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = (target, link);
+            false
+        }
+    }
 
     struct TestDir {
         path: PathBuf,
@@ -1014,6 +1057,39 @@ mod tests {
             1,
             "expected 1 preset (fxp) — .mid routes to MIDI bucket"
         );
+    }
+
+    #[test]
+    fn test_walk_unified_follows_symlink_to_als() {
+        let tmp = TestDir::new("symlink_als");
+        let root = tmp.path.clone();
+        touch(&root.join("real.als"), b"<?xml");
+        let link = root.join("link.als");
+        if !try_symlink(&root.join("real.als"), &link) {
+            return;
+        }
+
+        let spec = UnifiedSpec {
+            daw_roots: vec![root.clone()],
+            ..Default::default()
+        };
+
+        let mut daw = Vec::new();
+        walk_unified(
+            &spec,
+            &mut |batch, _counts| {
+                if let ClassifiedBatch::Daw(b) = batch {
+                    daw.extend(b);
+                }
+            },
+            &|| false,
+            Vec::new(),
+            None,
+        );
+
+        assert_eq!(daw.len(), 2, "real file + symlink path both classify as DAW");
+        assert!(daw.iter().any(|d| d.path.ends_with("link.als")));
+        assert!(daw.iter().any(|d| d.path.ends_with("real.als")));
     }
 
     #[test]

@@ -3,6 +3,7 @@
 //! Discovers `.mid` / `.midi` files across the user home directory (`~`,
 //! resolved via [`dirs::home_dir`]) plus system-wide locations. Supports
 //! parallel traversal and stop signaling.
+//! Symlinks are followed so link targets are scanned.
 
 use crate::history::MidiFile;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
@@ -237,6 +238,16 @@ fn walk_dir_parallel(
             subdirs.push(path);
         } else if ft.is_file() {
             files.push((path, dir.to_path_buf()));
+        } else if ft.is_symlink() {
+            match fs::metadata(&path) {
+                Ok(m) if m.is_dir() => {
+                    subdirs.push(path);
+                }
+                Ok(m) if m.is_file() => {
+                    files.push((path, dir.to_path_buf()));
+                }
+                _ => {}
+            }
         }
     }
 

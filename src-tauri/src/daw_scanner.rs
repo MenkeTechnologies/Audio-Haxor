@@ -4,6 +4,13 @@
 //! Bitwig, Studio One, Reason, Audacity, GarageBand, Ardour, and
 //! DAWproject files. Handles macOS package directories (.logicx, .band)
 //! and validates GarageBand bundles by internal structure.
+//!
+//! `.ptx`/`.ptf` are validated by the Pro Tools session BOF signature (PRONOM
+//! fmt/1727 / fmt/1951; Library of Congress FDD fdd000639) so unrelated files
+//! that reuse `.ptx` (e.g. NVIDIA CUDA assembly) are not listed as DAW projects.
+//!
+//! `readdir(3)` reports symlinks as neither file nor directory; the walker
+//! `stat`s symlink targets and classifies them (broken symlinks are skipped).
 
 use crate::history::DawProject;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
@@ -12,6 +19,7 @@ use rayon::prelude::*;
 use dashmap::DashSet;
 use std::collections::HashSet;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -116,6 +124,28 @@ pub fn is_package_ext(path: &Path) -> bool {
         .map(|n| n.to_string_lossy().to_lowercase())
         .unwrap_or_default();
     PACKAGE_EXTENSIONS.iter().any(|ext| name.ends_with(ext))
+}
+
+/// BOF bytes shared by Pro Tools `.ptx` (v10+) and `.ptf`/`.pts` session files.
+/// See UK National Archives PRONOM fmt/1727 / fmt/1951; LOC FDD fdd000639.
+const PRO_TOOLS_SESSION_MAGIC: &[u8] = &[
+    0x03,
+    b'0', b'0', b'1', b'0', b'1', b'1', b'1', b'1',
+    b'0', b'0', b'1', b'0', b'1', b'0', b'1', b'1',
+];
+
+/// Returns true if `path` is a regular file whose first bytes match the Pro
+/// Tools session format (same check for `.ptx` and `.ptf`).
+pub fn is_valid_pro_tools_session_file(path: &Path) -> bool {
+    let mut file = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return false,
+    };
+    let mut header = [0u8; PRO_TOOLS_SESSION_MAGIC.len()];
+    if file.read_exact(&mut header).is_err() {
+        return false;
+    }
+    header == *PRO_TOOLS_SESSION_MAGIC
 }
 
 /// Validate that a .band directory is actually a GarageBand project.
@@ -368,6 +398,28 @@ fn walk_dir_parallel(
             }
         } else if ft.is_file() {
             files_and_packages.push((path, dir.to_path_buf(), false));
+        } else if ft.is_symlink() {
+            // Symlinks are neither is_dir nor is_file in d_type — follow target.
+            match fs::metadata(&path) {
+                Ok(m) if m.is_dir() => {
+                    let name_lower = name_str.to_lowercase();
+                    if PLUGIN_BUNDLE_EXTENSIONS
+                        .iter()
+                        .any(|ext| name_lower.ends_with(ext))
+                    {
+                        continue;
+                    }
+                    if is_package_ext(&path) {
+                        files_and_packages.push((path, dir.to_path_buf(), true));
+                    } else {
+                        subdirs.push(path);
+                    }
+                }
+                Ok(m) if m.is_file() => {
+                    files_and_packages.push((path, dir.to_path_buf(), false));
+                }
+                _ => {}
+            }
         }
     }
 
@@ -379,6 +431,9 @@ fn walk_dir_parallel(
         if let Some(format) = ext_matches(&path) {
             // .band is ONLY valid as a GarageBand package directory, never as a plain file
             if format == "BAND" && (!is_pkg || !is_valid_band_package(&path)) {
+                continue;
+            }
+            if (format == "PTX" || format == "PTF") && !is_valid_pro_tools_session_file(&path) {
                 continue;
             }
             let (size, modified) = if is_pkg {
@@ -460,6 +515,7 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
     use std::fs;
+    use std::path::Path;
     use std::slice::from_ref;
 
     #[test]
@@ -571,6 +627,106 @@ mod tests {
     fn test_ext_matches_pro_tools_ptf_vs_ptx() {
         assert_eq!(ext_matches(Path::new("session.ptf")), Some("PTF".into()));
         assert_eq!(ext_matches(Path::new("session.ptx")), Some("PTX".into()));
+    }
+
+    #[test]
+    fn test_is_valid_pro_tools_session_file_accepts_pronom_magic() {
+        let tmp = std::env::temp_dir().join("upum_test_pt_session_magic_ok");
+        let _ = fs::remove_file(&tmp);
+        let mut payload = PRO_TOOLS_SESSION_MAGIC.to_vec();
+        payload.extend_from_slice(&[0u8; 32]);
+        fs::write(&tmp, &payload).unwrap();
+        assert!(is_valid_pro_tools_session_file(&tmp));
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_is_valid_pro_tools_session_file_rejects_cuda_style_ptx() {
+        let tmp = std::env::temp_dir().join("upum_test_cuda_ptx_fake.ptx");
+        let _ = fs::remove_file(&tmp);
+        fs::write(&tmp, b".version 7.0\n.target sm_75\n").unwrap();
+        assert!(!is_valid_pro_tools_session_file(&tmp));
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_is_valid_pro_tools_session_file_rejects_too_short() {
+        let tmp = std::env::temp_dir().join("upum_test_pt_short.ptx");
+        let _ = fs::remove_file(&tmp);
+        fs::write(&tmp, &PRO_TOOLS_SESSION_MAGIC[..8]).unwrap();
+        assert!(!is_valid_pro_tools_session_file(&tmp));
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_walk_for_daw_skips_non_protools_ptx() {
+        let tmp = std::env::temp_dir().join("upum_test_daw_skip_cuda_ptx");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("real.als"), b"ableton").unwrap();
+        fs::write(tmp.join("kernel.ptx"), b".version 7.0\n").unwrap();
+
+        let mut found = Vec::new();
+        walk_for_daw(
+            from_ref(&tmp),
+            &mut |batch, _count| {
+                found.extend_from_slice(batch);
+            },
+            &|| false,
+            None,
+            false,
+            None,
+            None,
+        );
+        assert_eq!(found.len(), 1);
+        assert!(found[0].path.ends_with("real.als"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    fn try_symlink(target: &Path, link: &Path) -> bool {
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(target, link).is_ok()
+        }
+        #[cfg(windows)]
+        {
+            std::os::windows::fs::symlink_file(target, link).is_ok()
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = (target, link);
+            false
+        }
+    }
+
+    #[test]
+    fn test_walk_for_daw_follows_symlink_to_file() {
+        let tmp = std::env::temp_dir().join("upum_test_daw_symlink_als");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let real = tmp.join("real.als");
+        fs::write(&real, b"ableton").unwrap();
+        let link = tmp.join("link.als");
+        if !try_symlink(&real, &link) {
+            return;
+        }
+
+        let mut found = Vec::new();
+        walk_for_daw(
+            from_ref(&tmp),
+            &mut |batch, _count| {
+                found.extend_from_slice(batch);
+            },
+            &|| false,
+            None,
+            false,
+            None,
+            None,
+        );
+        assert_eq!(found.len(), 2, "real file + symlink path both appear");
+        assert!(found.iter().any(|d| d.path.ends_with("link.als")));
+        assert!(found.iter().any(|d| d.path.ends_with("real.als")));
+        let _ = fs::remove_dir_all(&tmp);
     }
 
     #[test]

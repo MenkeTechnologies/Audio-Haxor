@@ -225,7 +225,7 @@ function showSmartPlaylistEditor(existingId) {
 
     const titleText = existing ? appFmt('ui.sp_modal_title_edit') : appFmt('ui.sp_modal_title_create');
     const html = `<div class="modal-overlay" id="smartPlaylistModal" data-action-modal="closeSmartPlaylist">
-    <div class="modal-content modal-small" style="max-width:520px;">
+    <div class="modal-content modal-wide smart-playlist-modal">
       <div class="modal-header">
         <h2>${escapeHtml(titleText)}</h2>
         <button type="button" class="modal-close" data-action-modal="closeSmartPlaylist" title="Close">&#10005;</button>
@@ -244,7 +244,9 @@ function showSmartPlaylistEditor(existingId) {
         if (mmPrev) matchMode = mmPrev.value;
         const mm = matchMode;
         bodyEl.innerHTML = `
-      <input class="sp-name-input" value="${escapeHtml(name)}" placeholder="${escapeHtml(appFmt('ui.sp_playlist_name_placeholder'))}" style="width:100%;padding:6px 10px;margin-bottom:10px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;font-size:12px;box-sizing:border-box;" title="Playlist name">
+      <div style="margin-bottom:10px;">
+        <input type="text" class="np-search-input sp-name-input" value="${escapeHtml(name)}" placeholder="${escapeHtml(appFmt('ui.sp_playlist_name_placeholder'))}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Playlist name" style="width:100%;box-sizing:border-box;">
+      </div>
       <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
         <label style="font-size:11px;color:var(--text-muted);">${escapeHtml(appFmt('ui.sp_match_label'))}</label>
         <select class="sp-match-mode" style="font-size:11px;padding:2px 6px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border);border-radius:3px;" title="Match mode">

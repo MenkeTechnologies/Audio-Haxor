@@ -5,6 +5,8 @@
 //! system-wide locations outside `~` (e.g. `/Library/Audio/Presets` on
 //! macOS, `Program Files\\Common Files\\VST3 Presets` on Windows).
 //! Supports parallel traversal and stop signaling.
+//! Symlinks are followed (`metadata` on the link) so file and directory
+//! targets are scanned; broken links are skipped.
 
 use crate::history::PresetFile;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
@@ -214,6 +216,16 @@ fn walk_dir_parallel(
             subdirs.push(path);
         } else if ft.is_file() {
             files.push((path, dir.to_path_buf()));
+        } else if ft.is_symlink() {
+            match fs::metadata(&path) {
+                Ok(m) if m.is_dir() => {
+                    subdirs.push(path);
+                }
+                Ok(m) if m.is_file() => {
+                    files.push((path, dir.to_path_buf()));
+                }
+                _ => {}
+            }
         }
     }
 

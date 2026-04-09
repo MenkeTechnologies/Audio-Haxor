@@ -4,6 +4,8 @@
 //! the filesystem. Extracts audio metadata (sample rate, bit depth,
 //! channels, duration) by reading file headers directly. Supports
 //! symlink deduplication and parallel directory traversal via Rayon.
+//! Symlinks in directory listings are resolved via `metadata(2)` so links to
+//! files and subdirectories are scanned (broken links are skipped).
 
 use crate::history::AudioSample;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
@@ -234,6 +236,16 @@ fn walk_dir_parallel(
             subdirs.push(path);
         } else if ft.is_file() {
             files.push((path, dir.to_path_buf()));
+        } else if ft.is_symlink() {
+            match fs::metadata(&path) {
+                Ok(m) if m.is_dir() => {
+                    subdirs.push(path);
+                }
+                Ok(m) if m.is_file() => {
+                    files.push((path, dir.to_path_buf()));
+                }
+                _ => {}
+            }
         }
     }
 
