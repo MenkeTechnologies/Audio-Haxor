@@ -389,4 +389,102 @@ describe('frontend/js/dep-graph.js buildDepGraphData (vm-loaded)', () => {
     assert.ok(html.includes('Evil&lt;script&gt;'));
     assert.ok(!html.includes('<script>'));
   });
+
+  it('buildAnalyticsHtml omits go-to section when no plugin exceeds half of projects', () => {
+    const html = G.buildAnalyticsHtml({
+      pluginsByUsage: [
+        {
+          key: 'a',
+          name: 'Half',
+          type: 'VST3',
+          manufacturer: 'M',
+          count: 2,
+          projects: new Set(['/p/1', '/p/2']),
+        },
+        {
+          key: 'b',
+          name: 'Other',
+          type: 'AU',
+          manufacturer: 'M',
+          count: 2,
+          projects: new Set(['/p/3', '/p/4']),
+        },
+      ],
+      projectsByCount: [
+        { path: '/p/1', name: 'A', daw: 'ALS', count: 1, plugins: [] },
+        { path: '/p/2', name: 'B', daw: 'ALS', count: 1, plugins: [] },
+        { path: '/p/3', name: 'C', daw: 'ALS', count: 1, plugins: [] },
+        { path: '/p/4', name: 'D', daw: 'ALS', count: 1, plugins: [] },
+      ],
+      orphaned: [],
+      totalProjects: 4,
+    });
+    assert.ok(!html.includes('Your Go-To Plugins'));
+  });
+
+  it('buildAnalyticsHtml labels missing pluginType as Unknown in format breakdown', () => {
+    const html = G.buildAnalyticsHtml({
+      pluginsByUsage: [
+        {
+          key: 'x',
+          name: 'NoType',
+          type: undefined,
+          manufacturer: 'M',
+          count: 1,
+          projects: new Set(['/a']),
+        },
+      ],
+      projectsByCount: [{ path: '/a', name: 'P', daw: 'ALS', count: 1, plugins: [] }],
+      orphaned: [],
+      totalProjects: 1,
+    });
+    assert.ok(html.includes('>Unknown</span>'));
+    assert.ok(html.includes('xref-type-unknown'));
+  });
+
+  it('buildAnalyticsHtml truncates single-use list with a count when more than 30', () => {
+    const singleUse = Array.from({ length: 31 }, (_, i) => ({
+      key: `k${i}`,
+      name: `Plug${i}`,
+      type: 'VST3',
+      manufacturer: 'M',
+      count: 1,
+      projects: new Set([`/p${i}`]),
+    }));
+    const html = G.buildAnalyticsHtml({
+      pluginsByUsage: singleUse,
+      projectsByCount: singleUse.map((_, i) => ({
+        path: `/p${i}`,
+        name: `Proj${i}`,
+        daw: 'ALS',
+        count: 1,
+        plugins: [],
+      })),
+      orphaned: [],
+      totalProjects: 31,
+    });
+    assert.ok(html.includes('...and 1 more'));
+  });
+
+  it('uses project format as daw label when daw field is missing (SQLite row shape)', () => {
+    G.allDawProjects = [{ path: '/p/x.als', name: 'ProjX', format: 'ALS' }];
+    G._xrefCache = {
+      '/p/x.als': [{ name: 'Z', normalizedName: 'z', manufacturer: 'M', pluginType: 'VST3' }],
+    };
+    G.allPlugins = [];
+    const d = G.buildDepGraphData();
+    const row = d.projectsByCount.find((p) => p.path === '/p/x.als');
+    assert.ok(row);
+    assert.strictEqual(row.daw, 'ALS');
+  });
+
+  it('treats installed plugin as used when its normalized name matches xref key (display name differs by suffix)', () => {
+    G.allDawProjects = [];
+    G._xrefCache = {
+      '/p/a.als': [{ name: 'Serum', normalizedName: 'serum', manufacturer: 'Xfer', pluginType: 'VST3' }],
+    };
+    G.allPlugins = [{ name: 'Serum (VST3)', path: '/x.vst3', type: 'VST3' }];
+    const d = G.buildDepGraphData();
+    assert.strictEqual(d.orphaned.length, 0);
+  });
 });
