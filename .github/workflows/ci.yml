@@ -138,8 +138,10 @@ jobs:
 
           Push-Location $env:GITHUB_WORKSPACE
           try {
-            # STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139 / exit -1073741511): a ucrt/vcruntime from Git/MSYS/etc.
-            # can still win if PATH is long. For harnesses only, use minimal PATH (System32 + Windows).
+            # STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139): DLL search includes cwd (repo root has node_modules
+            # and other native bits). Run each harness with cwd = empty dir + minimal PATH (System32 + Windows).
+            $harnessWd = Join-Path $env:RUNNER_TEMP 'rust-test-harness-wd'
+            New-Item -ItemType Directory -Path $harnessWd -Force | Out-Null
             $savedPath = $env:PATH
             $env:PATH = 'C:\Windows\System32;C:\Windows'
             $i = 0
@@ -152,6 +154,7 @@ jobs:
               # Start-Process + redirect: plain & $exe in GHA sometimes yielded exit 1 with no captured libtest output.
               $sp = @{
                 FilePath               = $full
+                WorkingDirectory       = $harnessWd
                 Wait                   = $true
                 PassThru               = $true
                 NoNewWindow            = $true
