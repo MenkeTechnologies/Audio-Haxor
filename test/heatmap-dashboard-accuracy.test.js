@@ -72,6 +72,49 @@ describe('heatmap-dashboard.js accuracy', () => {
     assert.strictEqual(t.totalBytes, 0);
   });
 
+  it('_hmOverviewTotals without agg uses array lengths when totals globals are absent', () => {
+    const t = H._hmOverviewTotals(
+      null,
+      [{}, {}],
+      [{}, {}, {}],
+      [{ p: 1 }],
+      [{ q: 1 }, { q: 2 }]
+    );
+    assert.strictEqual(t.nSamples, 2);
+    assert.strictEqual(t.nPlugins, 3);
+    assert.strictEqual(t.nDaw, 1);
+    assert.strictEqual(t.nPresets, 2);
+    assert.strictEqual(t.totalBytes, 0);
+  });
+
+  it('_hmOverviewTotals without agg uses audioStatBytes when set', () => {
+    const S = loadHm({ audioStatBytes: 999 });
+    const t = S._hmOverviewTotals(null, [{ sizeBytes: 1 }], [], [], []);
+    assert.strictEqual(t.totalBytes, 999);
+  });
+
+  it('_hmPartialSampleHintCard empty when no partial view or no rows', () => {
+    assert.strictEqual(H._hmPartialSampleHintCard({ audio: { count: 100 } }, []), '');
+    assert.strictEqual(H._hmPartialSampleHintCard({ audio: { count: 10 } }, new Array(10).fill({})), '');
+    assert.strictEqual(H._hmPartialSampleHintCard(null, [{ x: 1 }]), '');
+  });
+
+  it('_hmPartialSampleHintCard shows shown vs total when paginated subset', () => {
+    const html = H._hmPartialSampleHintCard({ audio: { count: 1000 } }, new Array(42).fill({ path: '/a' }));
+    assert.ok(html.includes('data-hm-card="partialHint"'));
+    assert.ok(html.includes('42'));
+    assert.ok(html.includes('1,000'));
+  });
+
+  it('buildTimelineCard omitted without modified dates; present when YYYY-MM prefix exists', () => {
+    assert.strictEqual(H.buildTimelineCard([]), '');
+    assert.strictEqual(H.buildTimelineCard([{ modified: '' }]), '');
+    assert.strictEqual(H.buildTimelineCard([{ modified: 'short' }]), '');
+    const ok = H.buildTimelineCard([{ modified: '2024-03-01' }]);
+    assert.ok(ok.includes('data-hm-card="timeline"'));
+    assert.ok(ok.includes('hmTimelineCanvas'));
+  });
+
   it('buildFormatCard sample path: bar counts sum to number of samples', () => {
     const samples = [
       { format: 'WAV' },
@@ -293,5 +336,87 @@ describe('heatmap-dashboard.js accuracy', () => {
     assert.strictEqual(monthSum, 3);
     assert.strictEqual(months['2024-06'], 2);
     assert.strictEqual(months['2024-07'], 1);
+  });
+
+  it('renderTimelineChart bar heights follow count / maxCount within canvas mock', () => {
+    const hCanvas = 100;
+    const rects = [];
+    const root = {
+      querySelector(sel) {
+        if (sel !== '#hmTimelineCanvas') return null;
+        return {
+          width: 800,
+          height: hCanvas,
+          getContext() {
+            return {
+              clearRect: () => {},
+              fillStyle: '',
+              fillRect(x, y, w, h) {
+                rects.push({ x, y, w, h });
+              },
+              fillText: () => {},
+              font: '',
+              textAlign: '',
+            };
+          },
+        };
+      },
+    };
+    const samples = [
+      { modified: '2024-01-10' },
+      { modified: '2024-02-01' },
+      { modified: '2024-02-15' },
+      { modified: '2024-02-20' },
+    ];
+    H.renderTimelineChart(root, samples);
+    assert.strictEqual(rects.length, 2);
+    const jan = rects.find((r) => r.x < 400);
+    const feb = rects.find((r) => r.x >= 400);
+    assert.ok(jan && feb);
+    const innerH = hCanvas - 20;
+    assert.ok(Math.abs(jan.h - (1 / 3) * innerH) < 1e-6);
+    assert.ok(Math.abs(feb.h - innerH) < 1e-6);
+  });
+
+  it('renderBpmHistogram draws one bar per bin when DB bpmBuckets length matches', () => {
+    const rects = [];
+    const minBpm = 50;
+    const maxBpm = 220;
+    const binWidth = 5;
+    const numBins = Math.ceil((maxBpm - minBpm) / binWidth);
+    const buckets = new Array(numBins).fill(0);
+    buckets[5] = 3;
+    buckets[10] = 7;
+    const root = {
+      querySelector(sel) {
+        if (sel !== '#hmBpmCanvas') return null;
+        return {
+          width: 400,
+          height: 120,
+          getContext() {
+            return {
+              clearRect: () => {},
+              fillStyle: '',
+              fillRect(x, y, w, h) {
+                rects.push({ x, y, w, h });
+              },
+              fillText: () => {},
+              font: '',
+              textAlign: '',
+            };
+          },
+        };
+      },
+    };
+    H.renderBpmHistogram(root, {
+      audio: { bpmBuckets: buckets, bpmAnalyzedCount: 10 },
+    });
+    assert.strictEqual(rects.length, numBins);
+    const maxCount = 7;
+    const innerH = 120 - 20;
+    const at5 = rects[5];
+    const at10 = rects[10];
+    assert.ok(Math.abs(at5.h - (3 / maxCount) * innerH) < 1e-6);
+    assert.ok(Math.abs(at10.h - innerH) < 1e-6);
   });
 });
