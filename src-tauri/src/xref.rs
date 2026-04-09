@@ -56,14 +56,12 @@ static RPP_PLUGIN_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"<(?:VST|AU|CLAP)\s+"(VST3?|AU|CLAP):\s*(.+?)\s*(?:\(([^)]+)\))?\s*""#).unwrap()
 });
 
-// ── Studio One / DAWproject XML regexes (compiled once) ──
+// ── Studio One (plugName only) / DAWproject XML regexes (compiled once) ──
 
 static XML_PLUG_NAME_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"plugName="([^"]+)""#).unwrap());
 static XML_DEVICE_NAME_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"deviceName="([^"]+)""#).unwrap());
-static XML_LABEL_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"label="([^"]+)""#).unwrap());
 static XML_PLUGIN_NAME_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"<Plugin\s+name="([^"]+)""#).unwrap());
 
@@ -315,14 +313,10 @@ fn parse_studio_one(path: &Path) -> Vec<PluginRef> {
     if all_xml.is_empty() {
         return vec![];
     }
-    extract_plugins_from_xml(
-        &all_xml,
-        &[
-            (&XML_PLUG_NAME_RE, "", "VST"),
-            (&XML_DEVICE_NAME_RE, "", "VST"),
-            (&XML_LABEL_RE, "", "VST"),
-        ],
-    )
+    // Only `plugName=` denotes a plugin instance. Studio One XML also has many
+    // `label="..."` (tracks, buses, UI) and `deviceName="..."` is often the
+    // vendor/model alongside `plugName` — matching those inflated xref counts badly.
+    extract_plugins_from_xml(&all_xml, &[(&XML_PLUG_NAME_RE, "", "VST")])
 }
 
 /// Parse .dawproject file (ZIP containing project.xml — open standard).
@@ -1825,6 +1819,31 @@ mod tests {
         let result = extract_plugins(tmp.to_str().unwrap());
         let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"Pro-Q 3"), "missing Pro-Q 3: {:?}", names);
+        assert!(
+            !names.iter().any(|n| *n == "FabFilter"),
+            "deviceName is vendor/model, not a second plugin: {:?}",
+            names
+        );
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn test_studio_one_ignores_generic_label_attributes() {
+        use std::io::Write;
+        let tmp = std::env::temp_dir().join("test_xref_s1_labels.song");
+        let file = fs::File::create(&tmp).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file::<_, ()>("Song/song.xml", Default::default())
+            .unwrap();
+        zip.write_all(
+            b"<Song><MediaTrack label=\"Lead Vocals\"/><Channel label=\"Main\"/>\
+              <Insert plugName=\"True-Plugin\"/></Song>",
+        )
+        .unwrap();
+        zip.finish().unwrap();
+        let result = extract_plugins(tmp.to_str().unwrap());
+        let names: Vec<&str> = result.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["True-Plugin"]);
         let _ = fs::remove_file(&tmp);
     }
 
