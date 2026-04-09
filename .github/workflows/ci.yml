@@ -138,9 +138,10 @@ jobs:
 
           Push-Location $env:GITHUB_WORKSPACE
           try {
-            # STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139 / exit -1073741511): wrong ucrt/vcruntime can be
-            # resolved from Git/MSYS/Strawberry paths before System32. Prepend Windows dirs for harnesses.
-            $env:PATH = 'C:\Windows\System32;C:\Windows;' + $env:PATH
+            # STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139 / exit -1073741511): a ucrt/vcruntime from Git/MSYS/etc.
+            # can still win if PATH is long. For harnesses only, use minimal PATH (System32 + Windows).
+            $savedPath = $env:PATH
+            $env:PATH = 'C:\Windows\System32;C:\Windows'
             $i = 0
             foreach ($rel in $exeRelPaths) {
               $full = Join-Path $env:GITHUB_WORKSPACE ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
@@ -171,6 +172,7 @@ jobs:
               $i++
             }
           } finally {
+            $env:PATH = $savedPath
             Pop-Location
           }
           exit 0
