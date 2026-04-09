@@ -10,9 +10,11 @@ const DISK_LABEL_KIND = {
     'Ableton Live': 'cyan', 'Logic Pro': 'green', 'FL Studio': 'orange', REAPER: 'yellow',
     Cubase: 'accent', Nuendo: 'accent', 'Pro Tools': 'magenta', 'Bitwig Studio': 'accent',
     'Studio One': 'orange', Reason: 'magenta', GarageBand: 'green', Audacity: 'cyan',
+    Ardour: 'green', DAWproject: 'accent',
     Other: 'muted',
     FXP: 'cyan', FXB: 'accent', VSTPRESET: 'green', AUPRESET: 'yellow',
-    ADG: 'orange', ADV: 'magenta', NKI: 'cyan', H2P: 'accent', SYX: 'green',
+    ADG: 'orange', ADV: 'magenta', NKI: 'cyan', NKSN: 'cyan', H2P: 'accent', SYX: 'green',
+    TFX: 'orange', PJUNOXL: 'magenta',
 };
 
 function diskLabelKind(label) {

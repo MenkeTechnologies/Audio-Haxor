@@ -608,6 +608,7 @@ const EXT_TO_FILTER = {
     'logicx': 'Logic Pro', 'logic': 'Logic Pro',
     'flp': 'FL Studio', 'fl': 'FL Studio',
     'cpr': 'Cubase', 'cubase': 'Cubase',
+    'npr': 'Nuendo', 'nuendo': 'Nuendo',
     'rpp': 'REAPER', 'reaper': 'REAPER',
     'ptx': 'Pro Tools', 'ptf': 'Pro Tools', 'protools': 'Pro Tools',
     'bwproject': 'Bitwig Studio', 'bitwig': 'Bitwig Studio',
