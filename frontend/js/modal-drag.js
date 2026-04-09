@@ -7,6 +7,31 @@
     let _dragState = null;
     let _resizeState = null;
 
+    /** Dock classes pin the player with bottom/right (or top/left) using !important — conflicts with resize math that uses left/top + width/height. */
+    const PLAYER_DOCK_CLASSES = ['dock-tl', 'dock-tr', 'dock-bl', 'dock-br'];
+
+    function stripPlayerDockForResize(modal) {
+        if (modal.id !== 'audioNowPlaying') return;
+        PLAYER_DOCK_CLASSES.forEach((c) => modal.classList.remove(c));
+    }
+
+    function restorePlayerDockAfterResize(modal) {
+        if (modal.id !== 'audioNowPlaying') return;
+        let dock = 'dock-br';
+        if (typeof prefs !== 'undefined') {
+            const saved = prefs.getItem('playerDock');
+            if (saved && PLAYER_DOCK_CLASSES.includes(saved)) {
+                dock = saved;
+            }
+        }
+        modal.style.left = '';
+        modal.style.top = '';
+        modal.style.right = '';
+        modal.style.bottom = '';
+        PLAYER_DOCK_CLASSES.forEach((c) => modal.classList.remove(c));
+        modal.classList.add(dock);
+    }
+
     function getModalKey(modal) {
         const overlay = modal.closest('.modal-overlay');
         return overlay?.id || modal.id || modal.closest('[id]')?.id || '';
@@ -136,6 +161,8 @@
                 overlay.style.justifyContent = 'flex-start';
             }
 
+            stripPlayerDockForResize(modal);
+
             modal.style.position = 'fixed';
             modal.style.left = rect.left + 'px';
             modal.style.top = rect.top + 'px';
@@ -144,6 +171,11 @@
             modal.style.height = rect.height + 'px';
             modal.style.maxWidth = 'none';
             modal.style.maxHeight = 'none';
+
+            if (modal.id === 'audioNowPlaying') {
+                modal.style.right = 'auto';
+                modal.style.bottom = 'auto';
+            }
 
             document.body.style.userSelect = 'none';
             _resizeState = {
@@ -200,6 +232,7 @@
         }
         if (_resizeState) {
             saveGeometry(_resizeState.modal);
+            restorePlayerDockAfterResize(_resizeState.modal);
         }
         if (_dragState || _resizeState) {
             document.body.style.userSelect = '';
