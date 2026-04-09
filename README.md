@@ -269,7 +269,7 @@ pnpm run doc:sync   # Regenerate rustdoc and copy to docs/api/ + use docs/index.
 
 ## // TESTING //
 
-`pnpm test` runs **`scripts/test.sh`**: JS (`run-js-tests.mjs`), optional AudioEngine IPC tests if the binary exists, then **`cargo test --manifest-path src-tauri/Cargo.toml`** (unit tests under `src-tauri/src/` plus all integration test crates in `src-tauri/tests/`). Multiple `test result:` lines are summed for the pass total.
+`pnpm test` runs **`scripts/test.sh`**: JS (`run-js-tests.mjs` runs `node --test` with **`--test-timeout=300000`** per test so a stuck case cannot block CI), optional AudioEngine IPC tests if the binary exists, then **`cargo test --manifest-path src-tauri/Cargo.toml`** (unit tests under `src-tauri/src/` plus all integration test crates in `src-tauri/tests/`). Multiple `test result:` lines are summed for the pass total.
 
 ```bash
 pnpm test

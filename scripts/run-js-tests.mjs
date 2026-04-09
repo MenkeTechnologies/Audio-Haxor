@@ -21,9 +21,12 @@ const files = readdirSync('test', { withFileTypes: true })
 /** Stay well under Windows ~8191 char limit for the full command line. */
 const BATCH_SIZE = 28;
 
+/** Per-test timeout (ms) so a stuck test cannot hang CI indefinitely (windows-latest observed). */
+const TEST_TIMEOUT_MS = 300_000;
+
 for (let i = 0; i < files.length; i += BATCH_SIZE) {
   const batch = files.slice(i, i + BATCH_SIZE);
-  const r = spawnSync(process.execPath, ['--test', ...batch], {
+  const r = spawnSync(process.execPath, ['--test', `--test-timeout=${TEST_TIMEOUT_MS}`, ...batch], {
     stdio: 'inherit',
     shell: false,
   });
