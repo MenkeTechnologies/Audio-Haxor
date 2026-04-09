@@ -3720,7 +3720,7 @@ fn build_process_stats(app: AppHandle) -> serde_json::Value {
         "hostname": hostname,
         "appVersion": env!("CARGO_PKG_VERSION"),
         "tauriVersion": tauri::VERSION,
-        "rustcTarget": option_env!("TARGET").unwrap_or("unknown"),
+        "rustcTarget": option_env!("AUDIO_HAXOR_TARGET_TRIPLE").unwrap_or("unknown"),
         "buildProfile": if cfg!(debug_assertions) { "debug" } else { "release" },
         "diskTotalBytes": disk_total,
         "diskFreeBytes": disk_free,
