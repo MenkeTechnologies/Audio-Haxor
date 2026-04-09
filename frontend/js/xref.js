@@ -166,14 +166,29 @@ function normalizePluginName(name) {
     return s.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+/** Stable key for xref PluginRef rows: must match `normalizePluginName` for installed plugins (orphan detection, dep graph). */
+function xrefPluginRefKey(p) {
+    if (p.normalizedName) return p.normalizedName;
+    return typeof normalizePluginName === 'function' ? normalizePluginName(p.name) : String(p.name || '').trim().toLowerCase();
+}
+
+/** When the DAW list omits a path (SQLite pagination), derive labels from the path — same shape as dep-graph fallbacks. */
+function xrefProjectFromPath(path) {
+    const name = path.split('/').pop() || path;
+    const directory = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+    return {name, path, daw: '—', format: '', directory};
+}
+
 // Reverse lookup: find all loaded DAW projects that use a given plugin name
 function findProjectsUsingPlugin(pluginName) {
     const normalized = normalizePluginName(pluginName);
     const matches = [];
     for (const [path, plugins] of Object.entries(_xrefCache)) {
-        if (plugins.some(p => (p.normalizedName || p.name.toLowerCase()) === normalized)) {
-            const project = findByPath(allDawProjects, path);
-            if (project) matches.push(project);
+        if (plugins.some(p => xrefPluginRefKey(p) === normalized)) {
+            const project = typeof findByPath === 'function' && typeof allDawProjects !== 'undefined'
+                ? findByPath(allDawProjects, path)
+                : undefined;
+            matches.push(project || xrefProjectFromPath(path));
         }
     }
     return matches;

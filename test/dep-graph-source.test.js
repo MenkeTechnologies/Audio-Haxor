@@ -39,6 +39,27 @@ function loadDepGraphSandbox() {
   vm.createContext(sandbox);
   const root = path.join(__dirname, '..', 'frontend', 'js');
   vm.runInContext(fs.readFileSync(path.join(root, 'utils.js'), 'utf8'), sandbox);
+  // Mirror xref.js plugin-key helpers so buildDepGraphData matches the live app when normalizedName is absent.
+  vm.runInContext(
+    `function normalizePluginName(name) {
+  let s = name.trim();
+  const bracketRe = /\\s*[\\(\\[](x64|x86_64|x86|arm64|aarch64|64-?bit|32-?bit|intel|apple silicon|universal|stereo|mono|vst3?|au|aax)[\\)\\]]$/i;
+  let prev;
+  do { prev = s; s = s.replace(bracketRe, ''); } while (s !== prev);
+  s = s.replace(/\\s+(x64|x86_64|x86|64bit|32bit)$/i, '');
+  return s.replace(/\\s+/g, ' ').trim().toLowerCase();
+}
+function xrefPluginRefKey(p) {
+  if (p.normalizedName) return p.normalizedName;
+  return normalizePluginName(p.name);
+}
+function xrefProjectFromPath(path) {
+  const name = path.split('/').pop() || path;
+  const directory = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+  return { name, path, daw: '—', format: '', directory };
+}`,
+    sandbox
+  );
   vm.runInContext(fs.readFileSync(path.join(root, 'dep-graph.js'), 'utf8'), sandbox);
   return sandbox;
 }
@@ -96,10 +117,19 @@ describe('frontend/js/dep-graph.js buildDepGraphData (vm-loaded)', () => {
       ],
     };
     G.allPlugins = [{ name: 'Orphan FX', path: '/x.vst3', type: 'VST3' }];
-    G.normalizePluginName = (n) => n.toLowerCase();
     const d = G.buildDepGraphData();
     assert.strictEqual(d.orphaned.length, 1);
     assert.strictEqual(d.orphaned[0].name, 'Orphan FX');
+  });
+
+  it('xref rows without normalizedName still match installed plugins via normalizePluginName (orphan accuracy)', () => {
+    G.allDawProjects = [];
+    G._xrefCache = {
+      '/p/a.als': [{ name: 'Serum (x64)', manufacturer: 'Xfer', pluginType: 'VST3' }],
+    };
+    G.allPlugins = [{ name: 'Serum', path: '/lib/Serum.vst3', type: 'VST3' }];
+    const d = G.buildDepGraphData();
+    assert.strictEqual(d.orphaned.length, 0);
   });
 
   it('sorts projects by plugin count descending', () => {

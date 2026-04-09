@@ -2,6 +2,13 @@
 // Visual map of plugin usage across DAW projects.
 // Shows most-used plugins, orphaned plugins, and per-project breakdowns.
 
+/** Canonical plugin key for xref rows — defined in xref.js (`xrefPluginRefKey`); fallback keeps vm tests working without xref. */
+function _depPluginKey(p) {
+    if (typeof xrefPluginRefKey === 'function') return xrefPluginRefKey(p);
+    if (p.normalizedName) return p.normalizedName;
+    return typeof normalizePluginName === 'function' ? normalizePluginName(p.name) : String(p.name || '').trim().toLowerCase();
+}
+
 /** When the DAW tab is SQLite-paginated, `allDawProjects` may omit paths that exist in `_xrefCache` (index built via `fetchAllDawProjectsForXref`). Fall back to path-derived labels. */
 function _depProjectMetaForPath(path) {
     const fromList = typeof findByPath === 'function' && typeof allDawProjects !== 'undefined'
@@ -10,6 +17,7 @@ function _depProjectMetaForPath(path) {
     if (fromList) {
         return fromList;
     }
+    if (typeof xrefProjectFromPath === 'function') return xrefProjectFromPath(path);
     const name = path.split('/').pop() || path;
     return {name, daw: '—', format: '', path};
 }
@@ -27,7 +35,7 @@ function buildDepGraphData() {
         const project = _depProjectMetaForPath(path);
         projectPlugins[path] = {name: project.name, daw: project.daw || project.format, plugins};
         for (const p of plugins) {
-            const key = p.normalizedName || p.name.toLowerCase();
+            const key = _depPluginKey(p);
             if (!pluginProjects[key]) {
                 pluginProjects[key] = {
                     name: p.name,
