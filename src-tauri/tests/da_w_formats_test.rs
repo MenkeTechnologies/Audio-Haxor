@@ -40,7 +40,7 @@ fn test_studio_one_session() {
 
     assert!(song_path.exists());
 
-    let _ = std::fs::remove_dir_all(temp.parent().unwrap());
+    let _ = std::fs::remove_dir_all(&temp);
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn test_reason_rea_project() {
 
     assert!(rea_path.exists());
 
-    let _ = std::fs::remove_dir_all(temp.parent().unwrap());
+    let _ = std::fs::remove_dir_all(&temp);
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn test_fl_project() {
 
     assert!(flp_path.exists());
 
-    let _ = std::fs::remove_dir_all(temp.parent().unwrap());
+    let _ = std::fs::remove_dir_all(&temp);
 }
 
 #[test]
@@ -86,5 +86,5 @@ fn test_bitwig_project() {
 
     assert!(pkg_path.exists());
 
-    let _ = std::fs::remove_dir_all(temp.parent().unwrap());
+    let _ = std::fs::remove_dir_all(&temp);
 }

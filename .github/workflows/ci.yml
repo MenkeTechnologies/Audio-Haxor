@@ -80,11 +80,10 @@ jobs:
         run: node scripts/run-audio-engine-tests.mjs
 
       # Windows: plain `cargo test` hits STATUS_ENTRYPOINT_NOT_FOUND — MSVC/JUCE copies beside test
-      # exes shadow the correct CRT. Deleting every `*.dll` under `target/debug` fixes that but
-      # removes DLLs the harness still needs (e.g. WebView2Loader). Build once (`--no-run`), strip
-      # CRT/OpenMP/api-ms-win-crt duplicates by filename pattern (not a fixed short list — JUCE may
-      # ship ucrtbase, libiomp5md, etc.), keep WebView2Loader, remove stray audio-engine copies, then
-      # run each harness (no second Cargo invoke — avoids tauri-build recopying sidecars).
+      # exes shadow the correct CRT. Pattern-matching CRT names still misses arbitrary JUCE DLLs.
+      # Build once (`--no-run`), delete every `*.dll` under `target/debug` except a small allowlist
+      # (WebView2Loader — required beside the harness), remove stray audio-engine copies, then run
+      # each harness (no second Cargo invoke — avoids tauri-build recopying sidecars).
       - name: Run Rust tests (library + integration)
         if: matrix.os != 'windows-latest'
         run: cargo test --manifest-path src-tauri/Cargo.toml
@@ -110,17 +109,8 @@ jobs:
           }
 
           function Remove-WindowsTestSidecars([string]$rootDir) {
-            $neverRemove = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-            @('WebView2Loader.dll') | ForEach-Object { [void]$neverRemove.Add($_) }
-            $dllRemovePatterns = @(
-              '(?i)^vcruntime.*\.dll$',
-              '(?i)^msvcp.*\.dll$',
-              '(?i)^concrt.*\.dll$',
-              '(?i)^vccorlib.*\.dll$',
-              '(?i)^ucrtbase.*\.dll$',
-              '(?i)^libiomp.*\.dll$',
-              '(?i)^api-ms-win-crt-.*\.dll$'
-            )
+            $keepDlls = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            @('WebView2Loader.dll') | ForEach-Object { [void]$keepDlls.Add($_) }
 
             if (-not (Test-Path -LiteralPath $rootDir)) { return }
             foreach ($f in (Get-ChildItem -Path $rootDir -Recurse -File -ErrorAction SilentlyContinue)) {
@@ -129,14 +119,8 @@ jobs:
                 Remove-Item -Force -LiteralPath $f.FullName -ErrorAction SilentlyContinue
                 continue
               }
-              if ($f.Extension -ieq '.dll') {
-                if ($neverRemove.Contains($name)) { continue }
-                foreach ($pat in $dllRemovePatterns) {
-                  if ($name -match $pat) {
-                    Remove-Item -Force -LiteralPath $f.FullName -ErrorAction SilentlyContinue
-                    break
-                  }
-                }
+              if ($f.Extension -ieq '.dll' -and -not $keepDlls.Contains($name)) {
+                Remove-Item -Force -LiteralPath $f.FullName -ErrorAction SilentlyContinue
               }
             }
           }
