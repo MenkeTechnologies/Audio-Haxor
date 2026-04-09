@@ -93,6 +93,12 @@ describe('heatmap-dashboard.js accuracy', () => {
     assert.strictEqual(t.totalBytes, 999);
   });
 
+  it('_hmOverviewTotals without agg prefers audioTotalCount over samples.length', () => {
+    const S = loadHm({ audioTotalCount: 50_000 });
+    const t = S._hmOverviewTotals(null, [{}, {}, {}], [], [], []);
+    assert.strictEqual(t.nSamples, 50_000);
+  });
+
   it('_hmPartialSampleHintCard empty when no partial view or no rows', () => {
     assert.strictEqual(H._hmPartialSampleHintCard({ audio: { count: 100 } }, []), '');
     assert.strictEqual(H._hmPartialSampleHintCard({ audio: { count: 10 } }, new Array(10).fill({})), '');
@@ -232,6 +238,26 @@ describe('heatmap-dashboard.js accuracy', () => {
     assert.ok(Math.abs(sumPct - 100) < 0.15);
   });
 
+  it('buildFormatCard aggregate audio.byType wins over audioStatCounts', () => {
+    const S = loadHm({ audioStatCounts: { WAV: 999 } });
+    const html = S.buildFormatCard([], { audio: { byType: { OGG: 3 } } });
+    assert.ok(html.includes('OGG'));
+    assert.ok(!html.includes('999'));
+    const rows = extractBarRows(html, 'format');
+    assert.strictEqual(rows.length, 1);
+    assert.strictEqual(rows[0].count, 3);
+  });
+
+  it('buildFormatCard shows at most 10 formats; row counts sum to displayed total only', () => {
+    const counts = {};
+    for (let i = 0; i < 11; i++) counts[`F${i}`] = 1;
+    const samples = Object.keys(counts).map((format) => ({ format }));
+    const html = H.buildFormatCard(samples);
+    const rows = extractBarRows(html, 'format');
+    assert.strictEqual(rows.length, 10);
+    assert.strictEqual(rows.reduce((s, r) => s + r.count, 0), 10);
+  });
+
   it('buildPluginTypeCard aggregate byType: counts sum to total', () => {
     const html = H.buildPluginTypeCard([], {
       plugins: { byType: { VST3: 7, AU: 3, CLAP: 2 } },
@@ -250,6 +276,27 @@ describe('heatmap-dashboard.js accuracy', () => {
     assert.strictEqual(rows.reduce((s, r) => s + r.count, 0), 5);
     const sumPct = rows.reduce((s, r) => s + r.pct, 0);
     assert.ok(Math.abs(sumPct - 100) < 0.15);
+  });
+
+  it('buildDawFormatCard uses dawStatCounts when no aggregate byType', () => {
+    const S = loadHm({ dawStatCounts: { ALS: 6, RPP: 4 } });
+    const html = S.buildDawFormatCard([], {});
+    const rows = extractBarRows(html, 'dawFormats');
+    assert.strictEqual(rows.reduce((s, r) => s + r.count, 0), 10);
+    const sumPct = rows.reduce((s, r) => s + r.pct, 0);
+    assert.ok(Math.abs(sumPct - 100) < 0.15);
+  });
+
+  it('buildDawFormatCard prefers _dawStatsSnapshot over dawStatCounts', () => {
+    const S = loadHm({
+      _dawStatsSnapshot: { counts: { Reaper: 9 } },
+      dawStatCounts: { ALS: 3 },
+    });
+    const html = S.buildDawFormatCard([], {});
+    assert.ok(html.includes('Reaper'));
+    const rows = extractBarRows(html, 'dawFormats');
+    assert.strictEqual(rows.length, 1);
+    assert.strictEqual(rows[0].count, 9);
   });
 
   it('buildFolderCard sample path: folder bucket counts sum to sample count', () => {
@@ -376,6 +423,115 @@ describe('heatmap-dashboard.js accuracy', () => {
     const innerH = hCanvas - 20;
     assert.ok(Math.abs(jan.h - (1 / 3) * innerH) < 1e-6);
     assert.ok(Math.abs(feb.h - innerH) < 1e-6);
+  });
+
+  it('renderBpmHistogram in-memory _bpmCache bins match floor((bpm-50)/5)', () => {
+    const rects = [];
+    const minBpm = 50;
+    const maxBpm = 220;
+    const binWidth = 5;
+    const numBins = Math.ceil((maxBpm - minBpm) / binWidth);
+    const S = loadHm({
+      _bpmCache: { p1: 60, p2: 65, p3: 130 },
+    });
+    const root = {
+      querySelector(sel) {
+        if (sel !== '#hmBpmCanvas') return null;
+        return {
+          width: 400,
+          height: 120,
+          getContext() {
+            return {
+              clearRect: () => {},
+              fillStyle: '',
+              fillRect(x, y, w, h) {
+                rects.push({ x, y, w, h });
+              },
+              fillText: () => {},
+              font: '',
+              textAlign: '',
+            };
+          },
+        };
+      },
+    };
+    S.renderBpmHistogram(root, {});
+    assert.strictEqual(rects.length, numBins);
+    const innerH = 120 - 20;
+    /* One sample per occupied bin → maxCount === 1 → full-height bars */
+    assert.ok(Math.abs(rects[2].h - innerH) < 1e-6);
+    assert.ok(Math.abs(rects[3].h - innerH) < 1e-6);
+    assert.ok(Math.abs(rects[16].h - innerH) < 1e-6);
+  });
+
+  it('renderKeyWheel DB keyCounts draws one bar row per key up to 12', () => {
+    const rects = [];
+    const fillTexts = [];
+    const root = {
+      querySelector(sel) {
+        if (sel !== '#hmKeyCanvas') return null;
+        return {
+          width: 400,
+          height: 200,
+          getContext() {
+            return {
+              clearRect: () => {},
+              fillStyle: '',
+              fillRect(x, y, w, h) {
+                rects.push({ x, y, w, h });
+              },
+              fillText(txt, x, y) {
+                fillTexts.push(String(txt));
+              },
+              font: '',
+              textAlign: '',
+            };
+          },
+        };
+      },
+    };
+    H.renderKeyWheel(root, {
+      audio: {
+        keyCounts: { 'D Minor': 4, 'C Major': 10 },
+        keyAnalyzedCount: 14,
+      },
+    });
+    const dataBars = rects.filter((r) => r.x === 80);
+    assert.strictEqual(dataBars.length, 2);
+    assert.ok(fillTexts.some((t) => t.includes('10 (71%)')));
+    assert.ok(fillTexts.some((t) => t.includes('4 (29%)')));
+  });
+
+  it('renderTimelineChart uses last 24 months when more than 24 distinct months exist', () => {
+    const rects = [];
+    const root = {
+      querySelector(sel) {
+        if (sel !== '#hmTimelineCanvas') return null;
+        return {
+          width: 800,
+          height: 100,
+          getContext() {
+            return {
+              clearRect: () => {},
+              fillStyle: '',
+              fillRect(x, y, w, h) {
+                rects.push({ x, y, w, h });
+              },
+              fillText: () => {},
+              font: '',
+              textAlign: '',
+            };
+          },
+        };
+      },
+    };
+    const samples = [];
+    for (let m = 1; m <= 25; m++) {
+      const mm = String(m).padStart(2, '0');
+      samples.push({ modified: `2020-${mm}-01` });
+    }
+    H.renderTimelineChart(root, samples);
+    assert.strictEqual(rects.length, 24);
   });
 
   it('renderBpmHistogram draws one bar per bin when DB bpmBuckets length matches', () => {
