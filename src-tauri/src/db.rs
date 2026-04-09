@@ -681,6 +681,13 @@ pub struct PdfStatsResult {
     pub total_bytes: u64,
 }
 
+/// One row for heatmap dashboard “top folders” (matches `heatmap-dashboard.js` folder keys).
+#[derive(Debug, Clone, Serialize)]
+pub struct TopFolderRow {
+    pub path: String,
+    pub count: u64,
+}
+
 /// Filtered aggregate stats — count + size + per-type breakdown reflecting
 /// the active search/filter. One round-trip: COUNT + SUM + GROUP BY in SQL.
 #[derive(Debug, Serialize)]
@@ -700,6 +707,39 @@ pub struct FilterStatsResult {
     /// Audio-only: file-size histogram (6 buckets, same thresholds as `heatmap-dashboard.js`).
     #[serde(default, rename = "sizeBuckets")]
     pub size_buckets: Vec<u64>,
+    /// Audio-only: BPM histogram (34 bins, 50–220 step 5) for heatmap; empty for non-audio.
+    #[serde(default, skip_serializing_if = "Vec::is_empty", rename = "bpmBuckets")]
+    pub bpm_buckets: Vec<u64>,
+    /// Audio-only: library rows with `bpm IS NOT NULL` in the filtered scope.
+    #[serde(default, rename = "bpmAnalyzedCount")]
+    pub bpm_analyzed_count: u64,
+    /// Audio-only: key_name → count (top keys) for heatmap key card.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty", rename = "keyCounts")]
+    pub key_counts: HashMap<String, u64>,
+    #[serde(default, rename = "keyAnalyzedCount")]
+    pub key_analyzed_count: u64,
+    /// Audio-only: top directory groups (first 3 path segments), sorted by count.
+    #[serde(default, skip_serializing_if = "Vec::is_empty", rename = "topFolders")]
+    pub top_folders: Vec<TopFolderRow>,
+}
+
+impl Default for FilterStatsResult {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            count_capped: false,
+            total_bytes: 0,
+            by_type: HashMap::new(),
+            bytes_by_type: HashMap::new(),
+            total_unfiltered: 0,
+            size_buckets: vec![],
+            bpm_buckets: vec![],
+            bpm_analyzed_count: 0,
+            key_counts: HashMap::new(),
+            key_analyzed_count: 0,
+            top_folders: vec![],
+        }
+    }
 }
 
 /// One row persisted for the last unified home-tree scan (SQLite `unified_scan_run.id` is always 1).
@@ -5740,6 +5780,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
             if capped {
@@ -5751,6 +5792,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
         }
@@ -5798,6 +5840,7 @@ DROP TABLE _pl_refresh_paths;"#;
             bytes_by_type,
             total_unfiltered,
             size_buckets: vec![],
+            ..Default::default()
         })
     }
 
@@ -6568,6 +6611,151 @@ DROP TABLE _pl_refresh_paths;"#;
             .join(",")
     }
 
+    /// First three path segments of `directory`, matching `heatmap-dashboard.js` `buildFolderCard`.
+    fn heatmap_audio_folder_key(dir: &str) -> String {
+        let parts: Vec<&str> = dir
+            .split(|c| c == '/' || c == '\\')
+            .filter(|s| !s.is_empty())
+            .collect();
+        let n = parts.len().min(3);
+        if n == 0 {
+            return "/".to_string();
+        }
+        format!("/{}", parts[..n].join("/"))
+    }
+
+    /// BPM/key/folder aggregates for the heatmap dashboard (same `where_cl` as `audio_filter_stats`).
+    fn audio_heatmap_aggregates(
+        conn: &Connection,
+        where_cl: &str,
+        fts_match: &Option<String>,
+        regex_pat: &Option<String>,
+        like_pat: &Option<String>,
+        format_filter: Option<&str>,
+    ) -> Result<(Vec<u64>, u64, HashMap<String, u64>, u64, Vec<TopFolderRow>), String> {
+        let mut bin_cases = Vec::with_capacity(34);
+        for i in 0..34 {
+            let lo = 50 + i * 5;
+            let hi = lo + 5;
+            bin_cases.push(format!(
+                "COALESCE(SUM(CASE WHEN bpm IS NOT NULL AND bpm >= {lo} AND bpm < {hi} THEN 1 ELSE 0 END),0)"
+            ));
+        }
+        let sql_bpm = format!(
+            "SELECT COALESCE(SUM(CASE WHEN bpm IS NOT NULL THEN 1 ELSE 0 END),0), {} FROM audio_samples WHERE {}",
+            bin_cases.join(", "),
+            where_cl
+        );
+        let mut bpm_buckets = vec![0u64; 34];
+        let mut bpm_analyzed_count = 0u64;
+        let mut stmt = conn.prepare(&sql_bpm).map_err(|e| e.to_string())?;
+        let mut bi = 1;
+        if let Some(m) = fts_match {
+            stmt.raw_bind_parameter(bi, m).map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(r) = regex_pat {
+            stmt.raw_bind_parameter(bi, r).map_err(|e| e.to_string())?;
+            bi += 1;
+        } else if let Some(pat) = like_pat {
+            stmt.raw_bind_parameter(bi, pat)
+                .map_err(|e| e.to_string())?;
+            bi += 1;
+        }
+        if let Some(f) = format_filter {
+            if !f.is_empty() && f != "all" && !f.contains(',') {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+            }
+        }
+        let mut rows = stmt.raw_query();
+        if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            bpm_analyzed_count = row.get::<_, i64>(0).unwrap_or(0).max(0) as u64;
+            for i in 0..34 {
+                bpm_buckets[i] = row.get::<_, i64>(i + 1).unwrap_or(0).max(0) as u64;
+            }
+        }
+
+        let sql_key = format!(
+            "SELECT key_name, COUNT(*) AS c FROM audio_samples WHERE {} AND key_name IS NOT NULL AND TRIM(key_name) != '' GROUP BY key_name ORDER BY c DESC LIMIT 32",
+            where_cl
+        );
+        let mut key_counts: HashMap<String, u64> = HashMap::new();
+        let mut key_analyzed_count = 0u64;
+        let mut stmt_k = conn.prepare(&sql_key).map_err(|e| e.to_string())?;
+        let mut bi_k = 1;
+        if let Some(m) = fts_match {
+            stmt_k.raw_bind_parameter(bi_k, m).map_err(|e| e.to_string())?;
+            bi_k += 1;
+        } else if let Some(r) = regex_pat {
+            stmt_k.raw_bind_parameter(bi_k, r).map_err(|e| e.to_string())?;
+            bi_k += 1;
+        } else if let Some(pat) = like_pat {
+            stmt_k
+                .raw_bind_parameter(bi_k, pat)
+                .map_err(|e| e.to_string())?;
+            bi_k += 1;
+        }
+        if let Some(f) = format_filter {
+            if !f.is_empty() && f != "all" && !f.contains(',') {
+                stmt_k.raw_bind_parameter(bi_k, f).map_err(|e| e.to_string())?;
+            }
+        }
+        let mut rows_k = stmt_k.raw_query();
+        while let Some(row) = rows_k.next().map_err(|e| e.to_string())? {
+            let k: String = row.get(0).unwrap_or_default();
+            let c: u64 = row.get::<_, i64>(1).unwrap_or(0).max(0) as u64;
+            if !k.is_empty() {
+                key_counts.insert(k, c);
+                key_analyzed_count += c;
+            }
+        }
+
+        let sql_dir = format!(
+            "SELECT directory FROM audio_samples WHERE {} AND TRIM(directory) != ''",
+            where_cl
+        );
+        let mut folder_acc: HashMap<String, u64> = HashMap::new();
+        let mut stmt_d = conn.prepare(&sql_dir).map_err(|e| e.to_string())?;
+        let mut bi_d = 1;
+        if let Some(m) = fts_match {
+            stmt_d.raw_bind_parameter(bi_d, m).map_err(|e| e.to_string())?;
+            bi_d += 1;
+        } else if let Some(r) = regex_pat {
+            stmt_d.raw_bind_parameter(bi_d, r).map_err(|e| e.to_string())?;
+            bi_d += 1;
+        } else if let Some(pat) = like_pat {
+            stmt_d
+                .raw_bind_parameter(bi_d, pat)
+                .map_err(|e| e.to_string())?;
+            bi_d += 1;
+        }
+        if let Some(f) = format_filter {
+            if !f.is_empty() && f != "all" && !f.contains(',') {
+                stmt_d.raw_bind_parameter(bi_d, f).map_err(|e| e.to_string())?;
+            }
+        }
+        let mut rows_d = stmt_d.raw_query();
+        while let Some(row) = rows_d.next().map_err(|e| e.to_string())? {
+            let dir: String = row.get(0).unwrap_or_default();
+            let key = Self::heatmap_audio_folder_key(&dir);
+            *folder_acc.entry(key).or_insert(0) += 1;
+        }
+        let mut top_pairs: Vec<(String, u64)> = folder_acc.into_iter().collect();
+        top_pairs.sort_by(|a, b| b.1.cmp(&a.1));
+        let top_folders: Vec<TopFolderRow> = top_pairs
+            .into_iter()
+            .take(12)
+            .map(|(path, count)| TopFolderRow { path, count })
+            .collect();
+
+        Ok((
+            bpm_buckets,
+            bpm_analyzed_count,
+            key_counts,
+            key_analyzed_count,
+            top_folders,
+        ))
+    }
+
     pub fn audio_filter_stats(
         &self,
         search: Option<&str>,
@@ -6617,6 +6805,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![0; 6],
+                    ..Default::default()
                 });
             }
             if capped {
@@ -6628,6 +6817,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![0; 6],
+                    ..Default::default()
                 });
             }
         }
@@ -6707,6 +6897,20 @@ DROP TABLE _pl_refresh_paths;"#;
                 vec![0; 6]
             }
         };
+        let (
+            bpm_buckets,
+            bpm_analyzed_count,
+            key_counts,
+            key_analyzed_count,
+            top_folders,
+        ) = Self::audio_heatmap_aggregates(
+            &conn,
+            &where_cl,
+            &fts_match,
+            &regex_pat,
+            &like_pat,
+            format_filter,
+        )?;
         Ok(FilterStatsResult {
             count,
             count_capped: false,
@@ -6715,6 +6919,11 @@ DROP TABLE _pl_refresh_paths;"#;
             bytes_by_type,
             total_unfiltered,
             size_buckets,
+            bpm_buckets,
+            bpm_analyzed_count,
+            key_counts,
+            key_analyzed_count,
+            top_folders,
         })
     }
 
@@ -6769,6 +6978,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
             if capped {
@@ -6780,6 +6990,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
         }
@@ -6827,6 +7038,7 @@ DROP TABLE _pl_refresh_paths;"#;
             bytes_by_type,
             total_unfiltered,
             size_buckets: vec![],
+            ..Default::default()
         })
     }
 
@@ -6884,6 +7096,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
             if capped {
@@ -6895,6 +7108,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
         }
@@ -6942,6 +7156,7 @@ DROP TABLE _pl_refresh_paths;"#;
             bytes_by_type,
             total_unfiltered,
             size_buckets: vec![],
+            ..Default::default()
         })
     }
 
@@ -6991,6 +7206,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
             if capped {
@@ -7002,6 +7218,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
         }
@@ -7042,6 +7259,7 @@ DROP TABLE _pl_refresh_paths;"#;
             bytes_by_type,
             total_unfiltered,
             size_buckets: vec![],
+            ..Default::default()
         })
     }
 
@@ -7065,6 +7283,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
             if capped {
@@ -7076,6 +7295,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     bytes_by_type: HashMap::new(),
                     total_unfiltered,
                     size_buckets: vec![],
+                    ..Default::default()
                 });
             }
         }
@@ -7113,6 +7333,7 @@ DROP TABLE _pl_refresh_paths;"#;
             bytes_by_type: HashMap::new(),
             total_unfiltered,
             size_buckets: vec![],
+            ..Default::default()
         })
     }
 

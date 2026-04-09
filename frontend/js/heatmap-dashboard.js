@@ -142,11 +142,11 @@ function renderDashboard(root, samples, plugins, projects, presets, agg) {
     // 3. Folder heatmap (top directories by file count)
     cards += buildFolderCard(samples, agg);
 
-    // 4. BPM distribution (if any cached)
-    cards += buildBpmCard();
+    // 4. BPM distribution (DB aggregates; fallback to in-memory cache)
+    cards += buildBpmCard(agg);
 
-    // 5. Key distribution (if any cached)
-    cards += buildKeyCard();
+    // 5. Key distribution (DB aggregates; fallback to in-memory cache)
+    cards += buildKeyCard(agg);
 
     // 6. Activity timeline (files by modified month)
     cards += buildTimelineCard(samples);
@@ -167,8 +167,8 @@ function renderDashboard(root, samples, plugins, projects, presets, agg) {
     }
 
     // Render canvases after DOM insertion (scoped to this modal — getElementById would hit the wrong overlay if ids ever duplicated)
-    renderBpmHistogram(root);
-    renderKeyWheel(root);
+    renderBpmHistogram(root, agg);
+    renderKeyWheel(root, agg);
     renderTimelineChart(root, samples);
 
     // Apply bar widths after layout resolves (flex containers need a frame to get correct widths)
@@ -252,16 +252,28 @@ function buildSizeCard(samples, agg) {
 }
 
 function buildFolderCard(samples, agg) {
-    const dirs = {};
-    for (const s of samples) {
-        const dir = s.directory || s.path?.replace(/\/[^/]+$/, '') || _hmFmt('ui.hm.unknown');
-        // Use top 2 path components for grouping
-        const parts = dir.split('/').filter(Boolean);
-        const key = '/' + parts.slice(0, Math.min(parts.length, 3)).join('/');
-        dirs[key] = (dirs[key] || 0) + 1;
+    const libCount = agg?.audio?.count;
+    const fromDb = Array.isArray(agg?.audio?.topFolders) && agg.audio.topFolders.length > 0;
+    let sorted;
+    let pageTotal;
+    if (fromDb) {
+        sorted = agg.audio.topFolders.map((r) => [r.path, Number(r.count) || 0]);
+        pageTotal = (typeof libCount === 'number' && !Number.isNaN(libCount) && libCount > 0)
+            ? libCount
+            : sorted.reduce((s, [, c]) => s + c, 0) || 1;
+    } else {
+        const dirs = {};
+        for (const s of samples) {
+            const dir = s.directory || s.path?.replace(/\/[^/]+$/, '') || _hmFmt('ui.hm.unknown');
+            const parts = dir.split('/').filter(Boolean);
+            const key = '/' + parts.slice(0, Math.min(parts.length, 3)).join('/');
+            dirs[key] = (dirs[key] || 0) + 1;
+        }
+        sorted = Object.entries(dirs).sort((a, b) => b[1] - a[1]).slice(0, 12);
+        pageTotal = (typeof libCount === 'number' && !Number.isNaN(libCount) && libCount > 0)
+            ? libCount
+            : (samples.length || 1);
     }
-    const sorted = Object.entries(dirs).sort((a, b) => b[1] - a[1]).slice(0, 12);
-    const pageTotal = samples.length || 1;
     const maxFolder = sorted.length > 0 ? sorted[0][1] : 1;
 
     const bars = sorted.map(([dir, count]) => {
@@ -278,20 +290,32 @@ function buildFolderCard(samples, agg) {
     return `<div class="hm-card" data-hm-card="folders"><h3 class="hm-card-title">${escapeHtml(_hmFmt('ui.hm.card_top_folders'))}</h3>${bars || `<span class="hm-empty">${escapeHtml(_hmFmt('ui.hm.empty_no_data'))}</span>`}</div>`;
 }
 
-function buildBpmCard() {
+function buildBpmCard(agg) {
+    const a = agg?.audio;
+    const dbCount = a && typeof a.bpmAnalyzedCount === 'number' ? a.bpmAnalyzedCount : 0;
+    const dbBuckets = a && Array.isArray(a.bpmBuckets) && a.bpmBuckets.length === 34;
     const bpms = typeof _bpmCache !== 'undefined' ? Object.values(_bpmCache).filter(v => v && v > 0) : [];
-    if (bpms.length === 0) {
+    const hasDb = dbBuckets && (dbCount > 0 || (a.bpmBuckets || []).some((x) => Number(x) > 0));
+    const hasCache = bpms.length > 0;
+    if (!hasDb && !hasCache) {
         return `<div class="hm-card" data-hm-card="bpm"><h3 class="hm-card-title">${escapeHtml(_hmFmt('ui.hm.card_bpm_dist'))}</h3><span class="hm-empty">${escapeHtml(_hmFmt('ui.hm.card_bpm_empty'))}</span></div>`;
     }
-    return `<div class="hm-card" data-hm-card="bpm"><h3 class="hm-card-title">${escapeHtml(_hmFmt('ui.hm.card_bpm_title_analyzed', {n: bpms.length}))}</h3><canvas id="hmBpmCanvas" width="400" height="120" style="width:100%;height:120px;" title="${escapeHtml(_hmFmt('ui.hm.card_bpm_canvas_title'))}"></canvas></div>`;
+    const n = hasDb ? dbCount : bpms.length;
+    return `<div class="hm-card" data-hm-card="bpm"><h3 class="hm-card-title">${escapeHtml(_hmFmt('ui.hm.card_bpm_title_analyzed', {n}))}</h3><canvas id="hmBpmCanvas" width="400" height="120" style="width:100%;height:120px;" title="${escapeHtml(_hmFmt('ui.hm.card_bpm_canvas_title'))}"></canvas></div>`;
 }
 
-function buildKeyCard() {
+function buildKeyCard(agg) {
+    const a = agg?.audio;
+    const dbCount = a && typeof a.keyAnalyzedCount === 'number' ? a.keyAnalyzedCount : 0;
+    const dbKeys = a && a.keyCounts && typeof a.keyCounts === 'object' && Object.keys(a.keyCounts).length > 0;
     const keys = typeof _keyCache !== 'undefined' ? Object.values(_keyCache).filter(Boolean) : [];
-    if (keys.length === 0) {
+    const hasDb = dbKeys && dbCount > 0;
+    const hasCache = keys.length > 0;
+    if (!hasDb && !hasCache) {
         return `<div class="hm-card" data-hm-card="key"><h3 class="hm-card-title">${escapeHtml(_hmFmt('ui.hm.card_key_dist'))}</h3><span class="hm-empty">${escapeHtml(_hmFmt('ui.hm.card_key_empty'))}</span></div>`;
     }
-    return `<div class="hm-card" data-hm-card="key"><h3 class="hm-card-title">${escapeHtml(_hmFmt('ui.hm.card_key_title_analyzed', {n: keys.length}))}</h3><canvas id="hmKeyCanvas" width="400" height="200" style="width:100%;height:200px;" title="${escapeHtml(_hmFmt('ui.hm.card_key_canvas_title'))}"></canvas></div>`;
+    const n = hasDb ? dbCount : keys.length;
+    return `<div class="hm-card" data-hm-card="key"><h3 class="hm-card-title">${escapeHtml(_hmFmt('ui.hm.card_key_title_analyzed', {n}))}</h3><canvas id="hmKeyCanvas" width="400" height="200" style="width:100%;height:200px;" title="${escapeHtml(_hmFmt('ui.hm.card_key_canvas_title'))}"></canvas></div>`;
 }
 
 function buildTimelineCard(samples) {
@@ -354,23 +378,27 @@ function buildDawFormatCard(projects, agg) {
 
 // ── Canvas Renderers ──
 
-function renderBpmHistogram(root) {
+function renderBpmHistogram(root, agg) {
     const canvas = root.querySelector('#hmBpmCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const bpms = typeof _bpmCache !== 'undefined' ? Object.values(_bpmCache).filter(v => v && v > 0) : [];
-    if (bpms.length === 0) return;
-
-    // Histogram: 50-220 BPM in 5 BPM bins
     const minBpm = 50, maxBpm = 220, binWidth = 5;
     const numBins = Math.ceil((maxBpm - minBpm) / binWidth);
-    const bins = new Array(numBins).fill(0);
-    for (const bpm of bpms) {
-        const idx = Math.floor((bpm - minBpm) / binWidth);
-        if (idx >= 0 && idx < numBins) bins[idx]++;
+    const a = agg?.audio;
+    let bins;
+    if (a && Array.isArray(a.bpmBuckets) && a.bpmBuckets.length === numBins) {
+        bins = a.bpmBuckets.map((x) => Number(x) || 0);
+    } else {
+        const bpms = typeof _bpmCache !== 'undefined' ? Object.values(_bpmCache).filter(v => v && v > 0) : [];
+        if (bpms.length === 0) return;
+        bins = new Array(numBins).fill(0);
+        for (const bpm of bpms) {
+            const idx = Math.floor((bpm - minBpm) / binWidth);
+            if (idx >= 0 && idx < numBins) bins[idx]++;
+        }
     }
     const maxCount = Math.max(...bins, 1);
 
@@ -397,20 +425,31 @@ function renderBpmHistogram(root) {
     }
 }
 
-function renderKeyWheel(root) {
+function renderKeyWheel(root, agg) {
     const canvas = root.querySelector('#hmKeyCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    const keys = typeof _keyCache !== 'undefined' ? Object.values(_keyCache).filter(Boolean) : [];
-    if (keys.length === 0) return;
-
-    // Count by key
-    const counts = {};
-    for (const k of keys) counts[k] = (counts[k] || 0) + 1;
-    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const a = agg?.audio;
+    let sorted;
+    let keyTotal;
+    if (a && a.keyCounts && typeof a.keyCounts === 'object' && Object.keys(a.keyCounts).length > 0) {
+        sorted = Object.entries(a.keyCounts)
+            .map(([k, c]) => [k, Number(c) || 0])
+            .sort((x, y) => y[1] - x[1]);
+        keyTotal = typeof a.keyAnalyzedCount === 'number' && a.keyAnalyzedCount > 0
+            ? a.keyAnalyzedCount
+            : sorted.reduce((s, [, c]) => s + c, 0);
+    } else {
+        const keys = typeof _keyCache !== 'undefined' ? Object.values(_keyCache).filter(Boolean) : [];
+        if (keys.length === 0) return;
+        const counts = {};
+        for (const k of keys) counts[k] = (counts[k] || 0) + 1;
+        sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        keyTotal = keys.length || 1;
+    }
     const maxCount = sorted[0]?.[1] || 1;
 
     // Draw as horizontal bars (cleaner than wheel for small datasets)
@@ -436,9 +475,8 @@ function renderKeyWheel(root) {
         ctx.textAlign = 'right';
         ctx.fillText(key, 75, y + barH - 3);
 
-        // Count + percentage
-        const keyTotal = keys.length || 1;
-        const keyShare = ((count / keyTotal) * 100).toFixed(0);
+        // Count + percentage (of all library rows with key, or in-memory list length)
+        const keyShare = ((count / Math.max(keyTotal, 1)) * 100).toFixed(0);
         ctx.textAlign = 'left';
         ctx.fillStyle = 'rgba(122,139,168,0.8)';
         ctx.fillText(`${count} (${keyShare}%)`, 82 + barW + 4, y + barH - 3);

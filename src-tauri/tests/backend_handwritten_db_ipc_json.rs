@@ -338,6 +338,7 @@ fn filter_stats_result_shape() {
         bytes_by_type: bbt,
         total_unfiltered: 100,
         size_buckets: vec![1, 2, 0, 0, 0, 0],
+        ..Default::default()
     };
     let v = serde_json::to_value(&f).unwrap();
     let o = as_obj(&v);
@@ -532,6 +533,7 @@ fn filter_stats_empty_breakdown_maps() {
         bytes_by_type: HashMap::new(),
         total_unfiltered: 0,
         size_buckets: vec![],
+        ..Default::default()
     };
     let v = serde_json::to_value(&f).unwrap();
     let o = as_obj(&v);

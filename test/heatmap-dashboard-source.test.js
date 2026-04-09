@@ -134,4 +134,28 @@ describe('frontend/js/heatmap-dashboard.js card builders (vm-loaded)', () => {
     const html = H.buildFolderCard([]);
     assert.ok(html.includes('ui.hm.empty_no_data'));
   });
+
+  it('buildFolderCard uses DB topFolders when samples empty', () => {
+    const html = H.buildFolderCard([], {
+      audio: {
+        count: 100,
+        topFolders: [{path: '/Music/Samples', count: 42}, {path: '/Loops', count: 10}],
+      },
+    });
+    assert.ok(html.includes('Samples'));
+    assert.ok(html.includes('42'));
+    assert.ok(!html.includes('ui.hm.empty_no_data'));
+  });
+
+  it('buildBpmCard uses bpmAnalyzedCount from aggregate when present', () => {
+    const html = H.buildBpmCard({
+      audio: {
+        bpmAnalyzedCount: 500,
+        bpmBuckets: new Array(34).fill(0).map((_, i) => (i === 10 ? 3 : 0)),
+      },
+    });
+    assert.ok(html.includes('hmBpmCanvas'));
+    assert.ok(html.includes('ui.hm.card_bpm_title_analyzed'));
+    assert.ok(html.includes('500'));
+  });
 });
