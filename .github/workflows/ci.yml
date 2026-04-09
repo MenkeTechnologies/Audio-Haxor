@@ -92,6 +92,9 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         env:
+          # Link MSVC CRT statically so test exes do not depend on vcruntime/ucrt DLLs beside target/
+          # (0xC0000139 STATUS_ENTRYPOINT_NOT_FOUND persisted with empty deps + minimal PATH + empty cwd).
+          RUSTFLAGS: -C target-feature=+crt-static
           RUST_BACKTRACE: 1
         run: |
           $logFile = Join-Path $env:RUNNER_TEMP 'cargo-test-no-run.txt'
