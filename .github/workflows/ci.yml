@@ -138,6 +138,9 @@ jobs:
 
           Push-Location $env:GITHUB_WORKSPACE
           try {
+            # STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139 / exit -1073741511): wrong ucrt/vcruntime can be
+            # resolved from Git/MSYS/Strawberry paths before System32. Prepend Windows dirs for harnesses.
+            $env:PATH = 'C:\Windows\System32;C:\Windows;' + $env:PATH
             $i = 0
             foreach ($rel in $exeRelPaths) {
               $full = Join-Path $env:GITHUB_WORKSPACE ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
