@@ -193,8 +193,8 @@ function loadSmartPlaylistIntoPlayer(id) {
 function showSmartPlaylistEditor(existingId) {
     const existing = existingId ? _smartPlaylists.find(p => p.id === existingId) : null;
     const rules = existing ? [...existing.rules] : [{type: 'format', value: 'WAV'}];
-    const name = existing ? existing.name : appFmt('ui.sp_new_playlist_default');
-    const matchMode = existing?.matchMode || 'all';
+    let name = existing ? existing.name : appFmt('ui.sp_new_playlist_default');
+    let matchMode = existing?.matchMode || 'all';
 
     const ruleTypes = [
         {value: 'format', label: appFmt('ui.sp_rule_format')},
@@ -220,51 +220,62 @@ function showSmartPlaylistEditor(existingId) {
     </div>`;
     }
 
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
+    const prev = document.getElementById('smartPlaylistModal');
+    if (prev) prev.remove();
 
-    const card = document.createElement('div');
-    card.style.cssText = 'background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:20px;width:420px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+    const titleText = existing ? appFmt('ui.sp_modal_title_edit') : appFmt('ui.sp_modal_title_create');
+    const html = `<div class="modal-overlay" id="smartPlaylistModal" data-action-modal="closeSmartPlaylist">
+    <div class="modal-content modal-small" style="max-width:520px;">
+      <div class="modal-header">
+        <h2>${escapeHtml(titleText)}</h2>
+        <button type="button" class="modal-close" data-action-modal="closeSmartPlaylist" title="Close">&#10005;</button>
+      </div>
+      <div class="modal-body" id="smartPlaylistModalBody"></div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('smartPlaylistModal');
+    const bodyEl = document.getElementById('smartPlaylistModalBody');
 
     function render() {
-        card.innerHTML = `
-      <h3 style="margin:0 0 12px 0;color:var(--text-primary);font-size:14px;">${existing ? appFmt('ui.sp_modal_title_edit') : appFmt('ui.sp_modal_title_create')}</h3>
+        const nameInput = bodyEl.querySelector('.sp-name-input');
+        if (nameInput) name = nameInput.value;
+        const mmPrev = bodyEl.querySelector('.sp-match-mode');
+        if (mmPrev) matchMode = mmPrev.value;
+        const mm = matchMode;
+        bodyEl.innerHTML = `
       <input class="sp-name-input" value="${escapeHtml(name)}" placeholder="${escapeHtml(appFmt('ui.sp_playlist_name_placeholder'))}" style="width:100%;padding:6px 10px;margin-bottom:10px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;font-size:12px;box-sizing:border-box;" title="Playlist name">
       <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
         <label style="font-size:11px;color:var(--text-muted);">${escapeHtml(appFmt('ui.sp_match_label'))}</label>
         <select class="sp-match-mode" style="font-size:11px;padding:2px 6px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border);border-radius:3px;" title="Match mode">
-          <option value="all"${matchMode === 'all' ? ' selected' : ''}>${escapeHtml(appFmt('ui.sp_match_all'))}</option>
-          <option value="any"${matchMode === 'any' ? ' selected' : ''}>${escapeHtml(appFmt('ui.sp_match_any'))}</option>
+          <option value="all"${mm === 'all' ? ' selected' : ''}>${escapeHtml(appFmt('ui.sp_match_all'))}</option>
+          <option value="any"${mm === 'any' ? ' selected' : ''}>${escapeHtml(appFmt('ui.sp_match_any'))}</option>
         </select>
       </div>
       <div class="sp-rules-list">${rules.map((r, i) => buildRuleRow(r, i)).join('')}</div>
       <div style="display:flex;gap:8px;margin-top:10px;">
-        <button class="btn-small btn-secondary sp-add-rule" style="font-size:10px;padding:4px 10px;" title="Add another rule">${escapeHtml(appFmt('ui.sp_add_rule'))}</button>
+        <button type="button" class="btn-small btn-secondary sp-add-rule" style="font-size:10px;padding:4px 10px;" title="Add another rule">${escapeHtml(appFmt('ui.sp_add_rule'))}</button>
         <span style="flex:1"></span>
-        <button class="btn-small btn-secondary sp-cancel" style="font-size:10px;padding:4px 12px;" title="Cancel without saving">${escapeHtml(appFmt('ui.sp_cancel'))}</button>
-        <button class="btn-small btn-play sp-save" style="font-size:10px;padding:4px 12px;" title="${existing ? 'Update playlist rules' : 'Create new smart playlist'}">${existing ? escapeHtml(appFmt('ui.sp_update')) : escapeHtml(appFmt('ui.sp_create'))}</button>
+        <button type="button" class="btn-small btn-secondary sp-cancel" style="font-size:10px;padding:4px 12px;" title="Cancel without saving">${escapeHtml(appFmt('ui.sp_cancel'))}</button>
+        <button type="button" class="btn-small btn-play sp-save" style="font-size:10px;padding:4px 12px;" title="${existing ? 'Update playlist rules' : 'Create new smart playlist'}">${existing ? escapeHtml(appFmt('ui.sp_update')) : escapeHtml(appFmt('ui.sp_create'))}</button>
       </div>
       <div class="sp-preview" style="margin-top:10px;font-size:10px;color:var(--text-dim);border-top:1px solid var(--border);padding-top:8px;"></div>
     `;
 
-        // Preview
-        const previewEl = card.querySelector('.sp-preview');
-        const preview = evaluateSmartPlaylist({rules, matchMode: card.querySelector('.sp-match-mode')?.value || 'all'});
+        const previewEl = bodyEl.querySelector('.sp-preview');
+        const preview = evaluateSmartPlaylist({rules, matchMode: bodyEl.querySelector('.sp-match-mode')?.value || 'all'});
         previewEl.textContent = appFmt('ui.sp_preview_n', {n: preview.length});
     }
 
     render();
-    modal.appendChild(card);
-    document.body.appendChild(modal);
 
     // Events
-    card.addEventListener('click', (e) => {
+    bodyEl.addEventListener('click', (e) => {
         if (e.target.classList.contains('sp-cancel')) {
             modal.remove();
         } else if (e.target.classList.contains('sp-save')) {
-            const plName = card.querySelector('.sp-name-input').value.trim() || appFmt('ui.sp_untitled');
-            const plMatchMode = card.querySelector('.sp-match-mode').value;
+            const plName = bodyEl.querySelector('.sp-name-input').value.trim() || appFmt('ui.sp_untitled');
+            const plMatchMode = bodyEl.querySelector('.sp-match-mode').value;
             if (existing) {
                 existing.name = plName;
                 existing.rules = rules;
@@ -291,7 +302,7 @@ function showSmartPlaylistEditor(existingId) {
         }
     });
 
-    card.addEventListener('change', (e) => {
+    bodyEl.addEventListener('change', (e) => {
         if (e.target.classList.contains('sp-rule-type')) {
             const idx = parseInt(e.target.dataset.ridx);
             rules[idx].type = e.target.value;
@@ -302,16 +313,15 @@ function showSmartPlaylistEditor(existingId) {
         }
     });
 
-    card.addEventListener('input', (e) => {
+    bodyEl.addEventListener('input', (e) => {
         if (e.target.classList.contains('sp-rule-value')) {
             const idx = parseInt(e.target.dataset.ridx);
             rules[idx].value = e.target.value;
-            // Debounce preview
-            clearTimeout(card._previewTimer);
-            card._previewTimer = setTimeout(() => {
-                const previewEl = card.querySelector('.sp-preview');
+            clearTimeout(bodyEl._previewTimer);
+            bodyEl._previewTimer = setTimeout(() => {
+                const previewEl = bodyEl.querySelector('.sp-preview');
                 if (previewEl) {
-                    const mm = card.querySelector('.sp-match-mode')?.value || 'all';
+                    const mm = bodyEl.querySelector('.sp-match-mode')?.value || 'all';
                     previewEl.textContent = appFmt('ui.sp_preview_n', {
                         n: evaluateSmartPlaylist({
                             rules,
@@ -322,11 +332,15 @@ function showSmartPlaylistEditor(existingId) {
             }, 200);
         }
     });
-
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-    });
 }
+
+document.addEventListener('click', (e) => {
+    const action = e.target.closest('[data-action-modal="closeSmartPlaylist"]');
+    if (!action || !document.getElementById('smartPlaylistModal')?.contains(action)) return;
+    if (e.target === action || action.classList.contains('modal-close')) {
+        document.getElementById('smartPlaylistModal')?.remove();
+    }
+});
 
 // ── Click handlers ──
 document.addEventListener('click', (e) => {
