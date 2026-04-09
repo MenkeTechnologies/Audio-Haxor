@@ -99,6 +99,24 @@ describe('heatmap-dashboard.js accuracy', () => {
     assert.strictEqual(t.nSamples, 50_000);
   });
 
+  it('_hmOverviewTotals without agg uses audioTotalUnfiltered when audioTotalCount is 0', () => {
+    const S = loadHm({ audioTotalCount: 0, audioTotalUnfiltered: 12_345 });
+    const t = S._hmOverviewTotals(null, [], [], [], []);
+    assert.strictEqual(t.nSamples, 12_345);
+  });
+
+  it('_hmOverviewTotals without agg uses _pluginTotalCount _dawTotalCount _presetTotalCount', () => {
+    const S = loadHm({
+      _pluginTotalCount: 42,
+      _dawTotalCount: 7,
+      _presetTotalCount: 99,
+    });
+    const t = S._hmOverviewTotals(null, [], [], [], []);
+    assert.strictEqual(t.nPlugins, 42);
+    assert.strictEqual(t.nDaw, 7);
+    assert.strictEqual(t.nPresets, 99);
+  });
+
   it('_hmPartialSampleHintCard empty when no partial view or no rows', () => {
     assert.strictEqual(H._hmPartialSampleHintCard({ audio: { count: 100 } }, []), '');
     assert.strictEqual(H._hmPartialSampleHintCard({ audio: { count: 10 } }, new Array(10).fill({})), '');
@@ -199,6 +217,15 @@ describe('heatmap-dashboard.js accuracy', () => {
       const expected = ((r.count / lib) * 100).toFixed(1);
       assert.strictEqual(r.pct, parseFloat(expected));
     }
+  });
+
+  it('buildSizeCard ignores sizeBuckets when length does not match bucket count', () => {
+    const html = H.buildSizeCard(
+      [{ sizeBytes: 50 }, { sizeBytes: 50 }],
+      { audio: { count: 9999, sizeBuckets: [1, 1] } }
+    );
+    const rows = extractBarRows(html, 'size');
+    assert.strictEqual(rows.reduce((s, r) => s + r.count, 0), 2);
   });
 
   it('buildPluginTypeCard in-memory: type counts sum to plugin list length', () => {
@@ -313,6 +340,15 @@ describe('heatmap-dashboard.js accuracy', () => {
     assert.ok(Math.abs(sumPct - 100) < 0.15);
   });
 
+  it('buildFolderCard uses directory when path is absent', () => {
+    const html = H.buildFolderCard(
+      [{ directory: '/Stem/a' }, { directory: '/Stem/b' }],
+      {}
+    );
+    const rows = extractBarRows(html, 'folders');
+    assert.strictEqual(rows.reduce((s, r) => s + r.count, 0), 2);
+  });
+
   it('buildFolderCard DB topFolders: percentages use library count as denominator', () => {
     const lib = 10_000;
     const html = H.buildFolderCard([], {
@@ -327,6 +363,43 @@ describe('heatmap-dashboard.js accuracy', () => {
     const rows = extractBarRows(html, 'folders');
     assert.strictEqual(rows[0].pct, parseFloat(((2500 / lib) * 100).toFixed(1)));
     assert.strictEqual(rows[1].pct, parseFloat(((1500 / lib) * 100).toFixed(1)));
+  });
+
+  it('buildBpmCard title n uses bpmAnalyzedCount when DB buckets present', () => {
+    const bins = new Array(34).fill(0);
+    bins[0] = 1;
+    const html = H.buildBpmCard({
+      audio: { bpmAnalyzedCount: 88, bpmBuckets: bins },
+    });
+    /* escapeHtml encodes JSON quotes in catalogFmt output */
+    assert.ok(html.includes('ui.hm.card_bpm_title_analyzed:{&quot;n&quot;:88}'));
+  });
+
+  it('buildBpmCard title n uses _bpmCache value count when no DB data', () => {
+    const S = loadHm({ _bpmCache: { a: 100, b: 110 } });
+    const html = S.buildBpmCard({});
+    assert.ok(html.includes('ui.hm.card_bpm_title_analyzed:{&quot;n&quot;:2}'));
+  });
+
+  it('buildKeyCard title n uses keyAnalyzedCount when DB keyCounts present', () => {
+    const html = H.buildKeyCard({
+      audio: {
+        keyAnalyzedCount: 55,
+        keyCounts: { 'E Minor': 30, 'G Major': 25 },
+      },
+    });
+    assert.ok(html.includes('ui.hm.card_key_title_analyzed:{&quot;n&quot;:55}'));
+  });
+
+  it('buildKeyCard title n uses _keyCache length when no DB key data', () => {
+    const S = loadHm({ _keyCache: { p1: 'A', p2: 'B', p3: 'A' } });
+    const html = S.buildKeyCard({});
+    assert.ok(html.includes('ui.hm.card_key_title_analyzed:{&quot;n&quot;:3}'));
+  });
+
+  it('buildPluginTypeCard and buildDawFormatCard return empty when no sources', () => {
+    assert.strictEqual(H.buildPluginTypeCard([], {}), '');
+    assert.strictEqual(H.buildDawFormatCard([], {}), '');
   });
 
   it('BPM histogram binning (same rules as renderBpmHistogram in-memory path)', () => {
@@ -500,6 +573,42 @@ describe('heatmap-dashboard.js accuracy', () => {
     assert.strictEqual(dataBars.length, 2);
     assert.ok(fillTexts.some((t) => t.includes('10 (71%)')));
     assert.ok(fillTexts.some((t) => t.includes('4 (29%)')));
+  });
+
+  it('renderKeyWheel aggregates _keyCache values by key string', () => {
+    const rects = [];
+    const fillTexts = [];
+    const S = loadHm({
+      _keyCache: { p1: 'F Major', p2: 'F Major', p3: 'B Minor' },
+    });
+    const root = {
+      querySelector(sel) {
+        if (sel !== '#hmKeyCanvas') return null;
+        return {
+          width: 400,
+          height: 200,
+          getContext() {
+            return {
+              clearRect: () => {},
+              fillStyle: '',
+              fillRect(x, y, w, h) {
+                rects.push({ x, y, w, h });
+              },
+              fillText(txt) {
+                fillTexts.push(String(txt));
+              },
+              font: '',
+              textAlign: '',
+            };
+          },
+        };
+      },
+    };
+    S.renderKeyWheel(root, {});
+    const dataBars = rects.filter((r) => r.x === 80);
+    assert.strictEqual(dataBars.length, 2);
+    assert.ok(fillTexts.some((t) => t.includes('2 (67%)')));
+    assert.ok(fillTexts.some((t) => t.includes('1 (33%)')));
   });
 
   it('renderTimelineChart uses last 24 months when more than 24 distinct months exist', () => {
