@@ -424,14 +424,14 @@ function exportNotes() {
     const data = {notes, standaloneTags: tags};
     const count = entries.length + tags.length;
     _exportCtx = {
-        title: 'Notes & Tags',
+        title: catalogFmt('ui.dialog.notes_and_tags'),
         defaultName: exportFileName('notes', count),
         exportFn: async (fmt, filePath) => {
             if (fmt === 'pdf') {
                 const headers = ['Path', 'Note', 'Tags', 'Updated'];
                 const rows = entries.map(([path, n]) => [path, n.note || '', (n.tags || []).join(', '), n.updatedAt || '']);
                 if (tags.length > 0) rows.push(['[Standalone Tags]', tags.join(', '), '', '']);
-                await window.vstUpdater.exportPdf('Notes & Tags', headers, rows, filePath);
+                await window.vstUpdater.exportPdf(catalogFmt('ui.dialog.notes_and_tags'), headers, rows, filePath);
             } else if (fmt === 'csv' || fmt === 'tsv') {
                 const sep = fmt === 'tsv' ? '\t' : ',';
                 const esc = (v) => {
@@ -451,13 +451,13 @@ function exportNotes() {
             }
         }
     };
-    showExportModal('notes', 'Notes & Tags', count);
+    showExportModal('notes', catalogFmt('ui.dialog.notes_and_tags'), count);
 }
 
 async function importNotes() {
     const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
     if (!dialogApi) return;
-    const selected = await dialogApi.open({title: 'Import Notes & Tags', multiple: false, filters: ALL_IMPORT_FILTERS});
+    const selected = await dialogApi.open({title: catalogFmt('ui.dialog.import_notes_and_tags'), multiple: false, filters: ALL_IMPORT_FILTERS});
     if (!selected) return;
     const filePath = typeof selected === 'string' ? selected : selected.path;
     if (!filePath) return;

@@ -60,13 +60,13 @@ function exportFavorites() {
         return;
     }
     _exportCtx = {
-        title: 'Favorites',
+        title: catalogFmt('ui.dialog.favorites'),
         defaultName: exportFileName('favorites', favs.length),
         exportFn: async (fmt, filePath) => {
             if (fmt === 'pdf') {
                 const headers = ['Name', 'Type', 'Format', 'Path'];
                 const rows = favs.map(f => [f.name, f.type, f.format || f.daw || '', f.path]);
-                await window.vstUpdater.exportPdf('Favorites', headers, rows, filePath);
+                await window.vstUpdater.exportPdf(catalogFmt('ui.dialog.favorites'), headers, rows, filePath);
             } else if (fmt === 'csv' || fmt === 'tsv') {
                 const sep = fmt === 'tsv' ? '\t' : ',';
                 const esc = (v) => {
@@ -86,13 +86,13 @@ function exportFavorites() {
             }
         }
     };
-    showExportModal('favorites', 'Favorites', favs.length);
+    showExportModal('favorites', catalogFmt('ui.dialog.favorites'), favs.length);
 }
 
 async function importFavorites() {
     const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
     if (!dialogApi) return;
-    const selected = await dialogApi.open({title: 'Import Favorites', multiple: false, filters: ALL_IMPORT_FILTERS});
+    const selected = await dialogApi.open({title: catalogFmt('ui.dialog.import_favorites'), multiple: false, filters: ALL_IMPORT_FILTERS});
     if (!selected) return;
     const filePath = typeof selected === 'string' ? selected : selected.path;
     if (!filePath) return;

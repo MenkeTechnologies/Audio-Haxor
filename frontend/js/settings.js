@@ -698,7 +698,7 @@ async function renderCacheFilesList() {
           <td style="padding:3px 6px;color:var(--text);cursor:pointer;" data-action="revealDataFile" data-path="${escapeHtml(f.path)}">${escapeHtml(f.name)}</td>
           <td style="padding:3px 6px;text-align:right;color:var(--cyan);font-family:Orbitron,sans-serif;">${f.sizeFormatted}</td>
           <td style="padding:3px 6px;color:var(--text-muted);">${f.modified}</td>
-          <td style="padding:3px 6px;"><button class="btn-small btn-stop" data-action="deleteDataFile" data-name="${escapeHtml(f.name)}" title="Delete ${escapeHtml(f.name)}" style="padding:1px 6px;font-size:9px;">&#10005;</button></td>
+          <td style="padding:3px 6px;"><button class="btn-small btn-stop" data-action="deleteDataFile" data-name="${escapeHtml(f.name)}" title="${escapeHtml(catalogFmt('ui.settings.cache_delete_file_tooltip', {name: f.name}))}" style="padding:1px 6px;font-size:9px;">&#10005;</button></td>
         </tr>`).join('')}
       </table>`;
     } catch (e) {

@@ -1209,13 +1209,13 @@ function exportRecentlyPlayed() {
         return;
     }
     _exportCtx = {
-        title: 'Play History',
+        title: catalogFmt('ui.dialog.play_history'),
         defaultName: exportFileName('play-history', recentlyPlayed.length),
         exportFn: async (fmt, filePath) => {
             if (fmt === 'pdf') {
                 const headers = ['Name', 'Format', 'Size', 'Path'];
                 const rows = recentlyPlayed.map(r => [r.name, r.format, r.size || '', r.path]);
-                await window.vstUpdater.exportPdf('Play History', headers, rows, filePath);
+                await window.vstUpdater.exportPdf(catalogFmt('ui.dialog.play_history'), headers, rows, filePath);
             } else if (fmt === 'csv' || fmt === 'tsv') {
                 const sep = fmt === 'tsv' ? '\t' : ',';
                 const esc = (v) => {
@@ -1233,14 +1233,14 @@ function exportRecentlyPlayed() {
             }
         }
     };
-    showExportModal('history', 'Play History', recentlyPlayed.length);
+    showExportModal('history', catalogFmt('ui.dialog.play_history'), recentlyPlayed.length);
 }
 
 async function importRecentlyPlayed() {
     const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
     if (!dialogApi) return;
     const selected = await dialogApi.open({
-        title: 'Import Play History',
+        title: catalogFmt('ui.dialog.import_play_history'),
         multiple: false,
         filters: ALL_IMPORT_FILTERS,
     });
