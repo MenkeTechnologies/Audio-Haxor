@@ -597,7 +597,7 @@ function applyScanCellHighlight(cell, originalText, search, mode, hlFn) {
 
 // Extension-to-dropdown value mapping for auto-select
 const EXT_TO_FILTER = {
-    // Audio formats (`AUDIO_EXTENSIONS` in `src-tauri/src/audio_scanner.rs`)
+    // Audio formats (`AUDIO_EXTENSIONS` in `src-tauri/src/audio_extensions.rs`)
     'wav': 'WAV', 'mp3': 'MP3', 'aiff': 'AIFF', 'aif': 'AIF',
     'flac': 'FLAC', 'ogg': 'OGG', 'm4a': 'M4A', 'aac': 'AAC',
     'opus': 'OPUS', 'wma': 'WMA', 'rex': 'REX', 'rx2': 'RX2', 'sf2': 'SF2', 'sfz': 'SFZ',

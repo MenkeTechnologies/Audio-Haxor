@@ -37,7 +37,7 @@ fn normalize_macos_path(p: PathBuf) -> PathBuf {
 
 /// File extensions for DAW project files.
 /// Includes both single-file formats and macOS bundle/package formats.
-const DAW_EXTENSIONS: &[&str] = &[
+pub(crate) const DAW_EXTENSIONS: &[&str] = &[
     ".als",        // Ableton Live Set
     ".logicx",     // Logic Pro X (macOS package)
     ".flp",        // FL Studio
@@ -116,6 +116,14 @@ pub fn ext_matches(path: &Path) -> Option<String> {
         }
     }
     None
+}
+
+/// `Path::extension()` lowercased, no dot — used by the file watcher to match [`DAW_EXTENSIONS`].
+#[inline]
+pub(crate) fn is_daw_extension_lowercase(ext: &str) -> bool {
+    DAW_EXTENSIONS
+        .iter()
+        .any(|e| e.strip_prefix('.') == Some(ext))
 }
 
 pub fn is_package_ext(path: &Path) -> bool {

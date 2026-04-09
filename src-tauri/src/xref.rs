@@ -14,6 +14,12 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::LazyLock;
 
+/// Extensions implemented in [`extract_plugins`] (plugin cross-reference).
+pub(crate) const XREF_SUPPORTED_EXTENSIONS: &[&str] = &[
+    ".als", ".rpp", ".rpp-bak", ".bwproject", ".song", ".dawproject", ".flp", ".logicx", ".cpr",
+    ".npr", ".ptx", ".ptf", ".reason",
+];
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PluginRef {
     pub name: String,

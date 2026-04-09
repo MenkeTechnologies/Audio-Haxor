@@ -30,7 +30,7 @@ fn normalize_macos_path(p: PathBuf) -> PathBuf {
     p
 }
 
-const PRESET_EXTENSIONS: &[&str] = &[
+pub(crate) const PRESET_EXTENSIONS: &[&str] = &[
     ".fxp",       // VST2 preset
     ".fxb",       // VST2 bank
     ".vstpreset", // VST3 preset
@@ -50,6 +50,14 @@ const PRESET_EXTENSIONS: &[&str] = &[
 
 fn format_size(bytes: u64) -> String {
     crate::format_size(bytes)
+}
+
+/// `Path::extension()` lowercased, no dot — used by the file watcher to match [`PRESET_EXTENSIONS`].
+#[inline]
+pub(crate) fn is_preset_extension_lowercase(ext: &str) -> bool {
+    PRESET_EXTENSIONS
+        .iter()
+        .any(|e| e.strip_prefix('.') == Some(ext))
 }
 
 pub fn get_preset_roots() -> Vec<PathBuf> {

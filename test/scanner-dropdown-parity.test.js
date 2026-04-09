@@ -1,7 +1,7 @@
 /**
- * Parity: `src-tauri` extension tables ↔ `frontend/index.html` filter `<select>`s
- * and `frontend/js/file-browser.js` AUDIO_EXTS. Fails when a scanner adds/removes
- * a type but the UI dropdown (or Files-tab audio list) is not updated.
+ * Parity: `src-tauri/src/audio_extensions.rs` (and other Rust extension tables) ↔
+ * `frontend/index.html` filter `<select>`s and `frontend/js/file-browser.js` AUDIO_EXTS.
+ * Fails when a scanner adds/removes a type but the UI dropdown (or Files-tab audio list) is not updated.
  */
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
@@ -152,6 +152,7 @@ function assertSameSet(label, a, b) {
 }
 
 describe('scanner ↔ unified_walker ↔ dropdown parity', () => {
+  const audioExtensions = read('src-tauri/src/audio_extensions.rs');
   const audioScanner = read('src-tauri/src/audio_scanner.rs');
   const unified = read('src-tauri/src/unified_walker.rs');
   const presetScanner = read('src-tauri/src/preset_scanner.rs');
@@ -160,10 +161,20 @@ describe('scanner ↔ unified_walker ↔ dropdown parity', () => {
   const fileBrowser = read('frontend/js/file-browser.js');
   const utilsSrc = read('frontend/js/utils.js');
 
-  it('AUDIO_EXTENSIONS matches between audio_scanner.rs and unified_walker.rs', () => {
-    const a = extractRustStrArray(audioScanner, 'AUDIO_EXTENSIONS');
-    const b = extractRustStrArray(unified, 'AUDIO_EXTENSIONS');
-    assertSameSet('AUDIO_EXTENSIONS', a, b);
+  it('audio_scanner and unified_walker import AUDIO_EXTENSIONS from audio_extensions.rs', () => {
+    assert.ok(
+      audioScanner.includes('use crate::audio_extensions::AUDIO_EXTENSIONS'),
+      'audio_scanner.rs must import AUDIO_EXTENSIONS'
+    );
+    assert.ok(
+      unified.includes('use crate::audio_extensions::AUDIO_EXTENSIONS'),
+      'unified_walker.rs must import AUDIO_EXTENSIONS'
+    );
+  });
+
+  it('AUDIO_EXTENSIONS is defined only in audio_extensions.rs', () => {
+    const exts = extractRustStrArray(audioExtensions, 'AUDIO_EXTENSIONS');
+    assert.ok(exts.length > 0, 'AUDIO_EXTENSIONS must be non-empty');
   });
 
   it('PRESET_EXTENSIONS matches between preset_scanner.rs and unified_walker.rs', () => {
@@ -179,7 +190,7 @@ describe('scanner ↔ unified_walker ↔ dropdown parity', () => {
   });
 
   it('Samples #audioFormatFilter options match AUDIO_EXTENSIONS (uppercase)', () => {
-    const rust = extractRustStrArray(audioScanner, 'AUDIO_EXTENSIONS');
+    const rust = extractRustStrArray(audioExtensions, 'AUDIO_EXTENSIONS');
     const expected = rust.map(rustDotExtToFilterValue);
     const html = extractHtmlSelectValues(indexHtml, 'audioFormatFilter');
     assertSameSet('audioFormatFilter', expected, html);
@@ -199,14 +210,21 @@ describe('scanner ↔ unified_walker ↔ dropdown parity', () => {
   });
 
   it('file-browser AUDIO_EXTS (lowercase) matches AUDIO_EXTENSIONS', () => {
-    const rust = extractRustStrArray(audioScanner, 'AUDIO_EXTENSIONS');
+    const rust = extractRustStrArray(audioExtensions, 'AUDIO_EXTENSIONS');
     const expected = rust.map((e) => e.replace(/^\./, '').toLowerCase());
     const js = extractJsQuotedArray(fileBrowser, 'AUDIO_EXTS');
     assertSameSet('AUDIO_EXTS', expected, js);
   });
 
+  it('file-browser DAW_EXTS (lowercase) matches DAW_EXTENSIONS', () => {
+    const rust = extractRustStrArray(dawScanner, 'DAW_EXTENSIONS');
+    const expected = rust.map((e) => e.replace(/^\./, '').toLowerCase());
+    const js = extractJsQuotedArray(fileBrowser, 'DAW_EXTS');
+    assertSameSet('DAW_EXTS', expected, js);
+  });
+
   it('utils EXT_TO_FILTER audio keys cover every AUDIO_EXTENSIONS entry', () => {
-    const rust = extractRustStrArray(audioScanner, 'AUDIO_EXTENSIONS');
+    const rust = extractRustStrArray(audioExtensions, 'AUDIO_EXTENSIONS');
     const map = extractUtilsExtToFilterAudio(utilsSrc);
     for (const dot of rust) {
       const ext = dot.replace(/^\./, '').toLowerCase();

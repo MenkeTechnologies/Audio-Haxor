@@ -8,6 +8,7 @@
 //!
 //! - [`scanner`] — Plugin filesystem scanner with architecture detection
 //! - [`scanner_skip_dirs`] — Shared directory-name blocklist for recursive scans
+//! - [`audio_extensions`] — Canonical audio sample extension list (scanner, walker, App Info)
 //! - [`audio_scanner`] — Audio sample discovery and metadata extraction
 //! - [`daw_scanner`] — DAW project scanner (14+ formats)
 //! - [`preset_scanner`] — Plugin preset discovery
@@ -18,6 +19,7 @@
 
 pub mod app_i18n;
 pub mod audio_engine;
+pub mod audio_extensions;
 pub mod audio_scanner;
 pub mod bpm;
 pub mod bulk_stat;
@@ -3545,6 +3547,12 @@ fn cached_slow_stats(data_dir: &std::path::Path) -> (u64, u64, u64, u64, serde_j
     (disk_total, disk_free, db_bytes, prefs_bytes, table_counts)
 }
 
+fn dotted_extensions_to_upper_tags(exts: &[&str]) -> Vec<String> {
+    exts.iter()
+        .map(|e| e.strip_prefix('.').unwrap_or(e).to_ascii_uppercase())
+        .collect()
+}
+
 fn build_process_stats(app: AppHandle) -> serde_json::Value {
     let rss = get_rss_bytes();
     let virt = get_virtual_bytes();
@@ -3652,56 +3660,11 @@ fn build_process_stats(app: AppHandle) -> serde_json::Value {
     #[cfg(not(unix))]
     let (fd_soft, fd_hard) = (0u64, 0u64);
 
-    // Supported formats
-    let audio_formats = [
-        "WAV", "FLAC", "MP3", "OGG", "M4A", "AIF", "AIFF", "WMA", "APE", "OPUS",
-    ];
+    // Supported formats: audio → `audio_extensions`; DAW/preset → scanners; xref → `xref::XREF_SUPPORTED_EXTENSIONS`
     let plugin_formats = ["VST2", "VST3", "AU", "CLAP", "AAX"];
-    let daw_formats = [
-        "ALS",
-        "RPP",
-        "BWPROJECT",
-        "FLP",
-        "LOGICX",
-        "CPR",
-        "NPR",
-        "SONG",
-        "DAWPROJECT",
-        "PTX",
-        "PTF",
-        "REASON",
-        "BAND",
-    ];
-    let preset_formats = [
-        "fxp",
-        "fxb",
-        "vstpreset",
-        "aupreset",
-        "tfx",
-        "nmsv",
-        "pjunoxl",
-        "h2p",
-        "vital",
-        "nkm",
-        "nki",
-        "adg",
-        "adv",
-        "als",
-    ];
-    let xref_formats = [
-        "ALS",
-        "RPP",
-        "BWPROJECT",
-        "FLP",
-        "LOGICX",
-        "CPR",
-        "NPR",
-        "SONG",
-        "DAWPROJECT",
-        "PTX",
-        "PTF",
-        "REASON",
-    ];
+    let daw_formats = dotted_extensions_to_upper_tags(crate::daw_scanner::DAW_EXTENSIONS);
+    let preset_formats = dotted_extensions_to_upper_tags(crate::preset_scanner::PRESET_EXTENSIONS);
+    let xref_formats = dotted_extensions_to_upper_tags(crate::xref::XREF_SUPPORTED_EXTENSIONS);
     let midi_formats = ["MID", "MIDI"];
     let pdf_formats = ["PDF"];
 
@@ -3727,7 +3690,7 @@ fn build_process_stats(app: AppHandle) -> serde_json::Value {
         "diskTotalBytes": disk_total,
         "diskFreeBytes": disk_free,
         "app": {
-            "audioFormats": audio_formats,
+            "audioFormats": crate::audio_extensions::audio_format_tags_for_app_info(),
             "pluginFormats": plugin_formats,
             "dawFormats": daw_formats,
             "presetFormats": preset_formats,

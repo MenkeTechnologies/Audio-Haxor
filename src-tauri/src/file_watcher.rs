@@ -5,6 +5,9 @@
 //! (parent dir for files; bundle dirs as-is), debounces 2s, collapses nested roots, then emits `file-watcher-change`
 //! with `roots_by_category` so the UI runs each scanner **only on those subtrees**.
 
+use crate::audio_extensions::is_audio_extension_lowercase;
+use crate::daw_scanner::is_daw_extension_lowercase;
+use crate::preset_scanner::is_preset_extension_lowercase;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -12,51 +15,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
-
-/// Audio sample extensions (lowercase, no dot).
-const AUDIO_EXTS: &[&str] = &[
-    "wav", "mp3", "flac", "ogg", "aif", "aiff", "m4a", "wma", "opus", "ape",
-];
-
-/// DAW project extensions.
-const DAW_EXTS: &[&str] = &[
-    "als",
-    "rpp",
-    "rpp-bak",
-    "flp",
-    "cpr",
-    "npr",
-    "song",
-    "dawproject",
-    "bwproject",
-    "logicx",
-    "band",
-    "ptx",
-    "ptf",
-    "reason",
-];
-
-/// Preset extensions.
-const PRESET_EXTS: &[&str] = &[
-    "fxp",
-    "fxb",
-    "vstpreset",
-    "aupreset",
-    "nmsv",
-    "nkm",
-    "nki",
-    "adg",
-    "adv",
-    "agr",
-    "als",
-    "fst",
-    "ksd",
-    "pjunoxl",
-    "bwpreset",
-    "clap-preset",
-    "tfx",
-    "h2p",
-];
 
 /// Plugin extensions.
 const PLUGIN_EXTS: &[&str] = &["dll", "vst3", "component", "clap", "aaxplugin"];
@@ -90,11 +48,11 @@ fn minimize_scan_roots(paths: Vec<PathBuf>) -> Vec<PathBuf> {
 /// Classify a file path into a change category.
 fn classify(path: &Path) -> Option<&'static str> {
     let ext = path.extension()?.to_str()?.to_lowercase();
-    if AUDIO_EXTS.contains(&ext.as_str()) {
+    if is_audio_extension_lowercase(ext.as_str()) {
         Some("audio")
-    } else if DAW_EXTS.contains(&ext.as_str()) || path.is_dir() && ext == "logicx" {
+    } else if is_daw_extension_lowercase(ext.as_str()) {
         Some("daw")
-    } else if PRESET_EXTS.contains(&ext.as_str()) {
+    } else if is_preset_extension_lowercase(ext.as_str()) {
         Some("preset")
     } else if PLUGIN_EXTS.contains(&ext.as_str()) {
         Some("plugin")
@@ -264,7 +222,20 @@ mod tests {
     #[test]
     fn test_classify_audio() {
         for ext in &[
-            "wav", "mp3", "flac", "ogg", "aif", "aiff", "m4a", "wma", "opus", "ape",
+            "wav",
+            "mp3",
+            "flac",
+            "ogg",
+            "aif",
+            "aiff",
+            "m4a",
+            "wma",
+            "opus",
+            "aac",
+            "rex",
+            "rx2",
+            "sf2",
+            "sfz",
         ] {
             let name = format!("test.{ext}");
             assert_eq!(
@@ -279,18 +250,22 @@ mod tests {
     fn test_classify_daw() {
         for ext in &[
             "als",
-            "rpp",
+            "logicx",
             "flp",
             "cpr",
             "npr",
-            "song",
-            "dawproject",
             "bwproject",
-            "logicx",
-            "band",
+            "rpp",
+            "rpp-bak",
             "ptx",
             "ptf",
+            "song",
             "reason",
+            "aup",
+            "aup3",
+            "band",
+            "ardour",
+            "dawproject",
         ] {
             let name = format!("project.{ext}");
             assert_eq!(
@@ -308,10 +283,14 @@ mod tests {
             "fxb",
             "vstpreset",
             "aupreset",
-            "nmsv",
-            "nki",
-            "adg",
             "adv",
+            "adg",
+            "nki",
+            "nksn",
+            "h2p",
+            "syx",
+            "tfx",
+            "pjunoxl",
         ] {
             let name = format!("preset.{ext}");
             assert_eq!(
@@ -402,17 +381,20 @@ mod tests {
     }
 
     #[test]
-    fn test_classify_preset_nmsv_extension() {
-        // Multi-dot names: std::path::extension is the final segment only — .nmsv matches PRESET_EXTS
-        assert_eq!(classify(Path::new("preset.nmsv")), Some("preset"));
+    fn test_classify_preset_nmsv_not_indexed() {
+        assert_eq!(
+            classify(Path::new("preset.nmsv")),
+            None,
+            ".nmsv is not in preset_scanner::PRESET_EXTENSIONS — watcher must not flag preset scans"
+        );
     }
 
     #[test]
-    fn test_classify_preset_clap_hyphen_extension() {
+    fn test_classify_preset_clap_hyphen_not_indexed() {
         assert_eq!(
             classify(Path::new("Analog.clap-preset")),
-            Some("preset"),
-            ".clap-preset must classify as preset (extension is full hyphenated token)"
+            None,
+            ".clap-preset is not in PRESET_EXTENSIONS"
         );
     }
 
@@ -436,18 +418,18 @@ mod tests {
     }
 
     #[test]
-    fn test_classify_preset_nkm_kontakt_multi() {
-        assert_eq!(classify(Path::new("Bank.nkm")), Some("preset"));
+    fn test_classify_preset_nkm_not_indexed() {
+        assert_eq!(classify(Path::new("Bank.nkm")), None);
     }
 
     #[test]
-    fn test_classify_preset_bwpreset_bitwig() {
-        assert_eq!(classify(Path::new("Analog.bwpreset")), Some("preset"));
+    fn test_classify_preset_bwpreset_not_indexed() {
+        assert_eq!(classify(Path::new("Analog.bwpreset")), None);
     }
 
     #[test]
-    fn test_classify_preset_agr_ableton_groove() {
-        assert_eq!(classify(Path::new("Swing.agr")), Some("preset"));
+    fn test_classify_preset_agr_not_indexed() {
+        assert_eq!(classify(Path::new("Swing.agr")), None);
     }
 
     #[test]

@@ -23,6 +23,7 @@
 //!
 //! Per-type progress callbacks stream batches as they're discovered.
 
+use crate::audio_extensions::AUDIO_EXTENSIONS;
 use crate::bulk_stat::{read_dir_bulk, BulkEntry};
 use crate::history::{AudioSample, DawProject, PdfFile, PresetFile};
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
@@ -168,14 +169,8 @@ fn is_network_path(path: &Path) -> bool {
     network_fs_type(path).is_some()
 }
 
-// Re-exported from individual scanners to keep extension lists in sync. If
-// either scanner's list changes, update the constant there and this module
-// will see it via the `pub(crate)` re-exports at the bottom of each scanner.
-const AUDIO_EXTENSIONS: &[&str] = &[
-    ".wav", ".mp3", ".aiff", ".aif", ".flac", ".ogg", ".m4a", ".wma", ".aac", ".opus", ".rex",
-    ".rx2", ".sf2", ".sfz",
-];
-
+// Audio: `crate::audio_extensions::AUDIO_EXTENSIONS`. DAW/preset lists are local
+// to this walker (keep aligned with `daw_scanner` / `preset_scanner` / file watcher).
 const DAW_EXTENSIONS: &[&str] = &[
     ".als",
     ".logicx",

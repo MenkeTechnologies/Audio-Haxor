@@ -1,12 +1,13 @@
 //! Audio sample file scanner with metadata extraction.
 //!
-//! Discovers WAV, FLAC, AIFF, MP3, OGG, M4A, and AAC files across
+//! Discovers audio samples (extensions in [`crate::audio_extensions::AUDIO_EXTENSIONS`]) across
 //! the filesystem. Extracts audio metadata (sample rate, bit depth,
 //! channels, duration) by reading file headers directly. Supports
 //! symlink deduplication and parallel directory traversal via Rayon.
 //! Symlinks in directory listings are resolved via `metadata(2)` so links to
 //! files and subdirectories are scanned (broken links are skipped).
 
+use crate::audio_extensions::AUDIO_EXTENSIONS;
 use crate::history::AudioSample;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
 use crate::unified_walker::IncrementalDirState;
@@ -32,11 +33,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-
-const AUDIO_EXTENSIONS: &[&str] = &[
-    ".wav", ".mp3", ".aiff", ".aif", ".flac", ".ogg", ".m4a", ".wma", ".aac", ".opus", ".rex",
-    ".rx2", ".sf2", ".sfz",
-];
 
 pub fn format_size(bytes: u64) -> String {
     crate::format_size(bytes)

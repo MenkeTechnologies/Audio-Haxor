@@ -97,11 +97,12 @@ function updateBookmarkBtn() {
     btn.title = fav ? fmt('ui.tt.remove_current_directory_from_bookmarks') : fmt('ui.tt.bookmark_current_directory');
 }
 
-/** Keep in sync with `AUDIO_EXTENSIONS` in `src-tauri/src/audio_scanner.rs`. */
+/** Keep in sync with `AUDIO_EXTENSIONS` in `src-tauri/src/audio_extensions.rs`. */
 const AUDIO_EXTS = [
     'wav', 'mp3', 'aiff', 'aif', 'flac', 'ogg', 'm4a', 'wma', 'aac', 'opus', 'rex', 'rx2', 'sf2', 'sfz',
 ];
-const DAW_EXTS = ['als', 'logicx', 'flp', 'rpp', 'cpr', 'npr', 'ptx', 'ptf', 'song', 'reason', 'aup', 'aup3', 'band', 'ardour', 'dawproject', 'bwproject'];
+/** Keep in sync with `DAW_EXTENSIONS` in `src-tauri/src/daw_scanner.rs` (lowercase, no dot). */
+const DAW_EXTS = ['als', 'logicx', 'flp', 'cpr', 'npr', 'bwproject', 'rpp', 'rpp-bak', 'ptx', 'ptf', 'song', 'reason', 'aup', 'aup3', 'band', 'ardour', 'dawproject'];
 const PLUGIN_EXTS = ['vst', 'vst3', 'component', 'aaxplugin'];
 
 function fileIcon(entry) {
