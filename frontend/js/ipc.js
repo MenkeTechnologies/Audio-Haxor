@@ -1025,6 +1025,15 @@ document.addEventListener('change', (e) => {
     } else if (action === 'settingDawSort') {
         settingSaveSelect('dawSort', e.target.value);
         showToast(toastFmt('toast.daw_sort', {value: e.target.value}));
+    } else if (action === 'settingPresetSort') {
+        settingSaveSelect('presetSort', e.target.value);
+        showToast(toastFmt('toast.preset_sort', {value: e.target.value}));
+    } else if (action === 'settingMidiSort') {
+        settingSaveSelect('midiSort', e.target.value);
+        showToast(toastFmt('toast.midi_sort', {value: e.target.value}));
+    } else if (action === 'settingPdfSort') {
+        settingSaveSelect('pdfSort', e.target.value);
+        showToast(toastFmt('toast.pdf_sort', {value: e.target.value}));
     } else if (action === 'settingTagBarPosition') {
         const pos = e.target.value || 'top';
         prefs.setItem('tagBarPosition', pos);

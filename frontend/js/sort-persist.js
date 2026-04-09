@@ -46,6 +46,37 @@ function restoreAllSortStates() {
         presetSortKey = preset.key;
         presetSortAsc = preset.asc;
     }
+    if (!preset && typeof presetSortKey !== 'undefined') {
+        const def = prefs.getItem('presetSort');
+        if (def) {
+            presetSortKey = def;
+            presetSortAsc = true;
+        }
+    }
+    const midi = restoreSortState('midi');
+    if (midi && typeof midiSortKey !== 'undefined') {
+        midiSortKey = midi.key;
+        midiSortAsc = midi.asc;
+    }
+    if (!midi && typeof midiSortKey !== 'undefined') {
+        const def = prefs.getItem('midiSort');
+        if (def) {
+            midiSortKey = def;
+            midiSortAsc = true;
+        }
+    }
+    const pdf = restoreSortState('pdf');
+    if (pdf && typeof pdfSortKey !== 'undefined') {
+        pdfSortKey = pdf.key;
+        pdfSortAsc = pdf.asc;
+    }
+    if (!pdf && typeof pdfSortKey !== 'undefined') {
+        const def = prefs.getItem('pdfSort');
+        if (def) {
+            pdfSortKey = def;
+            pdfSortAsc = true;
+        }
+    }
 }
 
 function initSortPersistence() {

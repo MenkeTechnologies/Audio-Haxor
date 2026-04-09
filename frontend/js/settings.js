@@ -1845,6 +1845,18 @@ function refreshSettingsUI() {
     const dawSortEl = document.getElementById('settingDawSort');
     if (dawSortEl) dawSortEl.value = dawSort;
 
+    const presetSort = getSettingValue('presetSort', 'name');
+    const presetSortEl = document.getElementById('settingPresetSort');
+    if (presetSortEl) presetSortEl.value = presetSort;
+
+    const midiSort = getSettingValue('midiSort', 'name');
+    const midiSortEl = document.getElementById('settingMidiSort');
+    if (midiSortEl) midiSortEl.value = midiSort;
+
+    const pdfSort = getSettingValue('pdfSort', 'name');
+    const pdfSortEl = document.getElementById('settingPdfSort');
+    if (pdfSortEl) pdfSortEl.value = pdfSort;
+
     const logVerbosity = getSettingValue('logVerbosity', 'normal');
     const logVerbosityEl = document.getElementById('settingLogVerbosity');
     if (logVerbosityEl) logVerbosityEl.value = logVerbosity;

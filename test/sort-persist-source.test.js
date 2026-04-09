@@ -29,6 +29,10 @@ function loadSortPersistSandbox(extra = {}) {
     dawSortAsc: true,
     presetSortKey: 'name',
     presetSortAsc: true,
+    midiSortKey: 'name',
+    midiSortAsc: true,
+    pdfSortKey: 'name',
+    pdfSortAsc: true,
     ...extra,
   });
 }
@@ -62,6 +66,8 @@ describe('frontend/js/sort-persist.js (vm-loaded)', () => {
     S.prefs._cache.sort_audio = JSON.stringify({ key: 'path', asc: true });
     S.prefs._cache.sort_daw = JSON.stringify({ key: 'modified', asc: false });
     S.prefs._cache.sort_preset = JSON.stringify({ key: 'name', asc: true });
+    S.prefs._cache.sort_midi = JSON.stringify({ key: 'bpm', asc: false });
+    S.prefs._cache.sort_pdf = JSON.stringify({ key: 'pages', asc: true });
     S.restoreAllSortStates();
     assert.strictEqual(S._pluginSortKey, 'size');
     assert.strictEqual(S._pluginSortAsc, false);
@@ -71,6 +77,10 @@ describe('frontend/js/sort-persist.js (vm-loaded)', () => {
     assert.strictEqual(S.dawSortAsc, false);
     assert.strictEqual(S.presetSortKey, 'name');
     assert.strictEqual(S.presetSortAsc, true);
+    assert.strictEqual(S.midiSortKey, 'bpm');
+    assert.strictEqual(S.midiSortAsc, false);
+    assert.strictEqual(S.pdfSortKey, 'pages');
+    assert.strictEqual(S.pdfSortAsc, true);
   });
 
   it('restoreAllSortStates seeds plugin from pluginSort when no runtime sort saved', () => {
@@ -78,6 +88,19 @@ describe('frontend/js/sort-persist.js (vm-loaded)', () => {
     S.restoreAllSortStates();
     assert.strictEqual(S._pluginSortKey, 'vendor');
     assert.strictEqual(S._pluginSortAsc, false);
+  });
+
+  it('restoreAllSortStates seeds preset/midi/pdf from prefs when no runtime sort saved', () => {
+    S.prefs._cache.presetSort = 'size';
+    S.prefs._cache.midiSort = 'duration';
+    S.prefs._cache.pdfSort = 'directory';
+    S.restoreAllSortStates();
+    assert.strictEqual(S.presetSortKey, 'size');
+    assert.strictEqual(S.presetSortAsc, true);
+    assert.strictEqual(S.midiSortKey, 'duration');
+    assert.strictEqual(S.midiSortAsc, true);
+    assert.strictEqual(S.pdfSortKey, 'directory');
+    assert.strictEqual(S.pdfSortAsc, true);
   });
 
   it('pluginSort without hyphen uses ascending (d undefined)', () => {

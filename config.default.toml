@@ -26,6 +26,9 @@ incrementalDirectoryScan = "on"
 pluginSort = "name-asc"
 audioSort = "name"
 dawSort = "name"
+presetSort = "name"
+midiSort = "name"
+pdfSort = "name"
 
 [performance]
 pageSize = "200"

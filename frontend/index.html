@@ -10008,6 +10008,62 @@
                         </select>
                     </div>
                 </div>
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title" data-i18n="ui.st.default_preset_sort">Default Preset Sort</span>
+                        <span class="settings-desc" data-i18n="ui.sd.how_presets_are_ordered_after_scanning">How presets are ordered after scanning</span>
+                    </div>
+                    <div class="settings-control">
+                        <select class="settings-select" data-action="settingPresetSort" data-i18n-title="ui.tt.default_sort_order_for_presets"
+                                id="settingPresetSort"
+                                title="Default sort order for presets">
+                            <option data-i18n="ui.opt.name" value="name">Name</option>
+                            <option data-i18n="ui.opt.format" value="format">Format</option>
+                            <option data-i18n="ui.opt.path" value="directory">Path</option>
+                            <option data-i18n="ui.opt.size" value="size">Size</option>
+                            <option data-i18n="ui.opt.modified_date" value="modified">Modified Date</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title" data-i18n="ui.st.default_midi_sort">Default MIDI Sort</span>
+                        <span class="settings-desc" data-i18n="ui.sd.how_midi_files_are_ordered_after_scanning">How MIDI files are ordered after scanning</span>
+                    </div>
+                    <div class="settings-control">
+                        <select class="settings-select" data-action="settingMidiSort" data-i18n-title="ui.tt.default_sort_order_for_midi_files"
+                                id="settingMidiSort"
+                                title="Default sort order for MIDI files">
+                            <option data-i18n="ui.opt.name" value="name">Name</option>
+                            <option data-i18n="ui.export.col_tracks" value="tracks">Tracks</option>
+                            <option data-i18n="ui.export.col_bpm" value="bpm">BPM</option>
+                            <option data-i18n="ui.midi.th_time" value="time">Time</option>
+                            <option data-i18n="ui.export.col_key" value="key">Key</option>
+                            <option data-i18n="ui.export.col_notes" value="notes">Notes</option>
+                            <option data-i18n="ui.export.col_ch" value="ch">Ch</option>
+                            <option data-i18n="ui.audio.th_dur" value="duration">Duration</option>
+                            <option data-i18n="ui.opt.size" value="size">Size</option>
+                            <option data-i18n="ui.opt.path" value="path">Path</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title" data-i18n="ui.st.default_pdf_sort">Default PDF Sort</span>
+                        <span class="settings-desc" data-i18n="ui.sd.how_pdf_files_are_ordered_after_scanning">How PDFs are ordered after scanning</span>
+                    </div>
+                    <div class="settings-control">
+                        <select class="settings-select" data-action="settingPdfSort" data-i18n-title="ui.tt.default_sort_order_for_pdf_files"
+                                id="settingPdfSort"
+                                title="Default sort order for PDFs">
+                            <option data-i18n="ui.opt.name" value="name">Name</option>
+                            <option data-i18n="ui.opt.path" value="directory">Path</option>
+                            <option data-i18n="ui.opt.size" value="size">Size</option>
+                            <option data-i18n="ui.export.col_pages" value="pages">Pages</option>
+                            <option data-i18n="ui.opt.modified_date" value="modified">Modified Date</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <div class="settings-section" data-section="fuzzy-search">
@@ -10725,45 +10781,45 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=19133"></script>
-<script src="js/utils.js?v=19133"></script>
-<script src="js/ui-idle.js?v=19133"></script>
-<script src="js/ipc.js?v=19133"></script>
-<script src="js/drag-reorder.js?v=19133"></script>
-<script src="js/modal-drag.js?v=19133"></script>
-<script src="js/columns.js?v=19133"></script>
-<script src="js/notes.js?v=19133"></script>
-<script src="js/favorites.js?v=19133"></script>
-<script src="js/export.js?v=19133"></script>
-<script src="js/plugins.js?v=19133"></script>
-<script src="js/settings.js?v=19133"></script>
-<script src="js/history.js?v=19133"></script>
-<script src="js/kvr.js?v=19133"></script>
-<script src="js/audio.js?v=19133"></script>
-<script src="js/daw.js?v=19133"></script>
-<script src="js/disk-usage.js?v=19133"></script>
-<script src="js/presets.js?v=19133"></script>
-<script src="js/batch-select.js?v=19133"></script>
-<script src="js/native-file-drag.js?v=19133"></script>
-<script src="js/sort-persist.js?v=19133"></script>
-<script src="js/multi-filter.js?v=19133"></script>
-<script src="js/file-browser.js?v=19133"></script>
-<script src="js/duplicates.js?v=19133"></script>
-<script src="js/command-palette.js?v=19133"></script>
-<script src="js/xref.js?v=19133"></script>
-<script src="js/dep-graph.js?v=19133"></script>
-<script src="js/smart-playlists.js?v=19133"></script>
-<script src="js/heatmap-dashboard.js?v=19133"></script>
-<script src="js/midi.js?v=19133"></script>
-<script src="js/pdf.js?v=19133"></script>
-<script src="js/settings-search.js?v=19133"></script>
-<script src="js/visualizer.js?v=19133"></script>
-<script src="js/walker-status.js?v=19133"></script>
-<script src="js/audio-engine.js?v=19133"></script>
-<script src="js/context-menu.js?v=19133"></script>
-<script src="js/shortcuts.js?v=19133"></script>
-<script src="js/help-overlay.js?v=19133"></script>
-<script src="js/keyboard-nav.js?v=19133"></script>
-<script src="js/app.js?v=19133"></script>
+<script src="js/i18n-ui.js?v=86081"></script>
+<script src="js/utils.js?v=86081"></script>
+<script src="js/ui-idle.js?v=86081"></script>
+<script src="js/ipc.js?v=86081"></script>
+<script src="js/drag-reorder.js?v=86081"></script>
+<script src="js/modal-drag.js?v=86081"></script>
+<script src="js/columns.js?v=86081"></script>
+<script src="js/notes.js?v=86081"></script>
+<script src="js/favorites.js?v=86081"></script>
+<script src="js/export.js?v=86081"></script>
+<script src="js/plugins.js?v=86081"></script>
+<script src="js/settings.js?v=86081"></script>
+<script src="js/history.js?v=86081"></script>
+<script src="js/kvr.js?v=86081"></script>
+<script src="js/audio.js?v=86081"></script>
+<script src="js/daw.js?v=86081"></script>
+<script src="js/disk-usage.js?v=86081"></script>
+<script src="js/presets.js?v=86081"></script>
+<script src="js/batch-select.js?v=86081"></script>
+<script src="js/native-file-drag.js?v=86081"></script>
+<script src="js/sort-persist.js?v=86081"></script>
+<script src="js/multi-filter.js?v=86081"></script>
+<script src="js/file-browser.js?v=86081"></script>
+<script src="js/duplicates.js?v=86081"></script>
+<script src="js/command-palette.js?v=86081"></script>
+<script src="js/xref.js?v=86081"></script>
+<script src="js/dep-graph.js?v=86081"></script>
+<script src="js/smart-playlists.js?v=86081"></script>
+<script src="js/heatmap-dashboard.js?v=86081"></script>
+<script src="js/midi.js?v=86081"></script>
+<script src="js/pdf.js?v=86081"></script>
+<script src="js/settings-search.js?v=86081"></script>
+<script src="js/visualizer.js?v=86081"></script>
+<script src="js/walker-status.js?v=86081"></script>
+<script src="js/audio-engine.js?v=86081"></script>
+<script src="js/context-menu.js?v=86081"></script>
+<script src="js/shortcuts.js?v=86081"></script>
+<script src="js/help-overlay.js?v=86081"></script>
+<script src="js/keyboard-nav.js?v=86081"></script>
+<script src="js/app.js?v=86081"></script>
 </body>
 </html>

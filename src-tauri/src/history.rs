@@ -533,6 +533,9 @@ const SECTION_MAP: &[(&str, &[(&str, &str)])] = &[
             ("pluginSort", "pluginSort"),
             ("audioSort", "audioSort"),
             ("dawSort", "dawSort"),
+            ("presetSort", "presetSort"),
+            ("midiSort", "midiSort"),
+            ("pdfSort", "pdfSort"),
         ],
     ),
     (
