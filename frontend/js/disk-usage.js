@@ -5,6 +5,7 @@
 const DISK_LABEL_KIND = {
     WAV: 'cyan', MP3: 'accent', AIFF: 'green', AIF: 'green', FLAC: 'yellow', OGG: 'magenta',
     M4A: 'orange', AAC: 'orange',
+    OPUS: 'magenta', WMA: 'muted', REX: 'accent', RX2: 'accent', SF2: 'green', SFZ: 'green',
     VST2: 'cyan', VST3: 'accent', AU: 'green', CLAP: 'orange',
     'Ableton Live': 'cyan', 'Logic Pro': 'green', 'FL Studio': 'orange', REAPER: 'yellow',
     Cubase: 'accent', Nuendo: 'accent', 'Pro Tools': 'magenta', 'Bitwig Studio': 'accent',

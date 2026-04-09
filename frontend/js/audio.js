@@ -1893,7 +1893,13 @@ function closeMetaRow() {
 
 function getFormatClass(format) {
     const f = format.toLowerCase();
-    if (['wav', 'mp3', 'aiff', 'aif', 'flac', 'ogg', 'm4a', 'aac'].includes(f)) return 'format-' + f;
+    if (
+        [
+            'wav', 'mp3', 'aiff', 'aif', 'flac', 'ogg', 'm4a', 'aac', 'opus', 'wma', 'rex', 'rx2', 'sf2', 'sfz',
+        ].includes(f)
+    ) {
+        return 'format-' + f;
+    }
     return 'format-default';
 }
 
