@@ -731,6 +731,8 @@ public:
         /* Native title bar + wrong outer size often yields blank VST3 (IPlugView::attached needs a peer)
          * and mis-sized AU Cocoa views. Use JUCE title bar and size the *content* via setContentComponentSize. */
         setUsingNativeTitleBar(false);
+        /* Opaque NSWindow + opaque client; avoids compositing glitches with some AU Cocoa views. */
+        setOpaque(true);
         /* Some hosts leave instances suspended; a suspended processor can yield a blank or uninitialized UI. */
         inst.suspendProcessing(false);
         juce::AudioProcessorEditor* ed = inst.createEditorIfNeeded();
@@ -1971,9 +1973,6 @@ struct Engine::Impl
                 p->result = errObj("plugin has no editor");
                 return nullptr;
             }
-            w->setVisible(true);
-            w->toFront(true);
-            w->schedulePostShowLayout();
             {
                 std::lock_guard<std::mutex> lock(p->self->mutex);
                 if (p->self->insertRunner == nullptr || p->slot < 0
@@ -1986,6 +1985,32 @@ struct Engine::Impl
                 p->self->insertEditorWindows[(size_t) p->slot] = std::move(w);
             }
             p->result = okObj();
+            /* Defer show to the next message-loop tick: AU kAudioUnitProperty_RequestViewController often
+             * posts embedViewController asynchronously during/after createEditor; showing in the same stack
+             * can leave an empty NSView until the callback runs. Subprocess must also activate NSApp or Cocoa
+             * UIs may not attach (blank white client). */
+            {
+                Impl* self = p->self;
+                const int slot = p->slot;
+                juce::MessageManager::callAsync([self, slot]() {
+                    if (self == nullptr)
+                        return;
+                    PluginEditorHostWindow* win = nullptr;
+                    {
+                        std::lock_guard<std::mutex> lk(self->mutex);
+                        if (self->insertRunner == nullptr || slot < 0
+                            || slot >= (int) self->insertEditorWindows.size())
+                            return;
+                        win = self->insertEditorWindows[(size_t) slot].get();
+                    }
+                    if (win == nullptr)
+                        return;
+                    juce::Process::makeForegroundProcess();
+                    win->setVisible(true);
+                    win->toFront(true);
+                    win->schedulePostShowLayout();
+                });
+            }
         }
         catch (...)
         {
