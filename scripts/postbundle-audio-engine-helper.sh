@@ -308,4 +308,4 @@ codesign --force --sign - "$DMG_OUT" 2>&1 | sed 's/^/postbundle-audio-engine-hel
 
 install_reshaped_app_to_applications
 echo "postbundle-audio-engine-helper: helper .app installed at $HELPER_APP"
-mv "$DMG_OUT" /Applications
+echo "postbundle-audio-engine-helper: DMG left at $DMG_OUT (not copied to /Applications)"

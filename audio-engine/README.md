@@ -141,7 +141,7 @@ The helper's `Main.cpp` also calls `[NSApp finishLaunching]` at startup (via `au
 5. Seals the helper `.app` (`codesign --force --sign - "$HELPER_APP"`).
 6. Re-seals the outer `.app` (`codesign --force --sign - "$APP"` — **without** `--deep`, so the inner helper signature we just made is not overwritten).
 7. Verifies both signatures with `codesign --verify --verbose=2`.
-8. Regenerates the DMG from the reshaped bundle (when `scripts/bundle_dmg.sh` is present), re-signs the DMG, copies the reshaped **`AUDIO_HAXOR.app`** to **`/Applications/AUDIO_HAXOR.app`** (replacing any previous install via `ditto`), and moves the versioned **`.dmg`** into **`/Applications/`**. If DMG bundling is skipped, the script still installs the reshaped **`/Applications/AUDIO_HAXOR.app`** only.
+8. Regenerates the DMG from the reshaped bundle (when `scripts/bundle_dmg.sh` is present), re-signs the DMG, and copies the reshaped **`AUDIO_HAXOR.app`** to **`/Applications/AUDIO_HAXOR.app`** (replacing any previous install via `ditto`). The **`.dmg`** stays under **`target/.../bundle/dmg/`** (or next to the bundle Tauri used). If DMG bundling is skipped, the script still installs **`/Applications/AUDIO_HAXOR.app`** only.
 
 Order matters: the outer `.app`'s `_CodeSignature/CodeResources` includes a hash of the inner helper `.app`'s signature, so the inner one must be fully signed first. Re-signing the outer with `--deep` would recursively replace inner signatures and break this.
 
