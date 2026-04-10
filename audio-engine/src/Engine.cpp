@@ -700,18 +700,38 @@ public:
           slot(chainSlot),
           closeFn(std::move(onClose))
     {
-        setUsingNativeTitleBar(true);
+        /* Native title bar + wrong outer size often yields blank VST3 (IPlugView::attached needs a peer)
+         * and mis-sized AU Cocoa views. Use JUCE title bar and size the *content* via setContentComponentSize. */
+        setUsingNativeTitleBar(false);
         juce::AudioProcessorEditor* ed = inst.createEditorIfNeeded();
         if (ed != nullptr)
         {
-            setContentOwned(ed, true);
-            ed->setVisible(true);
             const int w = juce::jmax(200, ed->getWidth());
             const int h = juce::jmax(150, ed->getHeight());
-            setSize(w, h);
+            ed->setSize(w, h);
+            setContentOwned(ed, true);
+            setContentComponentSize(w, h);
         }
         setResizable(true, true);
         setAlwaysOnTop(true);
+    }
+
+    /** VST3 defers view attach until visibility + valid peer; AU sometimes needs a second layout tick. */
+    void schedulePostShowLayout()
+    {
+        juce::Component::SafePointer<PluginEditorHostWindow> safe(this);
+        auto bump = [safe]() {
+            if (safe == nullptr)
+                return;
+            safe->resized();
+            if (auto* c = safe->getContentComponent())
+            {
+                c->resized();
+                c->repaint();
+            }
+        };
+        juce::MessageManager::callAsync(bump);
+        juce::Timer::callAfterDelay(50, bump);
     }
 
     bool hasEditorContent() const { return getContentComponent() != nullptr; }
@@ -1904,6 +1924,7 @@ struct Engine::Impl
             }
             w->setVisible(true);
             w->toFront(true);
+            w->schedulePostShowLayout();
             {
                 std::lock_guard<std::mutex> lock(p->self->mutex);
                 if (p->self->insertRunner == nullptr || p->slot < 0
