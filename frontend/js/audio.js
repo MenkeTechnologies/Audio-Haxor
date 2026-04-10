@@ -3797,11 +3797,6 @@ async function startBackgroundAnalysis() {
     while (!_bgAnalysisAbort) {
         while (_bgPaused && !_bgAnalysisAbort) await new Promise(r => setTimeout(r, 200));
         if (_bgAnalysisAbort) break;
-        /* Pause batch work while minimized / unfocused / background tab — avoids multi-hour CPU burn and main-thread pressure (`isUiIdleHeavyCpu` in ui-idle.js). */
-        while (typeof isUiIdleHeavyCpu === 'function' && isUiIdleHeavyCpu() && !_bgAnalysisAbort) {
-            await new Promise((r) => setTimeout(r, 2000));
-        }
-        if (_bgAnalysisAbort) break;
 
         let paths;
         try {
