@@ -954,6 +954,7 @@ function setEqBand(band, value) {
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
         window.syncEnginePlaybackDspFromPrefs();
     }
+    if (typeof window.scheduleParametricEqFrame === 'function') window.scheduleParametricEqFrame();
 }
 
 function setPreampGain(value) {
@@ -1405,6 +1406,16 @@ function _playbackRafLoop() {
     }
     updatePlaybackTime();
     _renderNpFft();
+    /* Web Audio path: parametric EQ spectrum only animates while playing — engine playback uses `ensureEnginePlaybackFftRaf` + `scheduleParametricEqFrame`. */
+    if (
+        !_enginePlaybackActive &&
+        typeof window.scheduleParametricEqFrame === 'function' &&
+        (typeof isFftAnimationPaused !== 'function' || !isFftAnimationPaused()) &&
+        typeof isAudioPlaying === 'function' &&
+        isAudioPlaying()
+    ) {
+        window.scheduleParametricEqFrame();
+    }
     if (isAudioPlaying()) {
         _playbackRafId = requestAnimationFrame(_playbackRafLoop);
     }
@@ -3786,6 +3797,11 @@ async function startBackgroundAnalysis() {
     while (!_bgAnalysisAbort) {
         while (_bgPaused && !_bgAnalysisAbort) await new Promise(r => setTimeout(r, 200));
         if (_bgAnalysisAbort) break;
+        /* Pause batch work while minimized / unfocused / background tab — avoids multi-hour CPU burn and main-thread pressure (`isUiIdleHeavyCpu` in ui-idle.js). */
+        while (typeof isUiIdleHeavyCpu === 'function' && isUiIdleHeavyCpu() && !_bgAnalysisAbort) {
+            await new Promise((r) => setTimeout(r, 2000));
+        }
+        if (_bgAnalysisAbort) break;
 
         let paths;
         try {
@@ -5344,6 +5360,40 @@ function updateMetaLine() {
     let _dragState = null;
     let _eqDragEngineSyncTs = 0;
 
+    /** Reused for `getFrequencyResponse` — was 6× `new Float32Array(480)` per frame at 60fps (GC + CPU). */
+    const EQ_FREQ_RESPONSE_POINTS = 480;
+    let _eqRespFreqs = null;
+    let _eqRespMagLow = null;
+    let _eqRespPhaseLow = null;
+    let _eqRespMagMid = null;
+    let _eqRespPhaseMid = null;
+    let _eqRespMagHigh = null;
+    let _eqRespPhaseHigh = null;
+
+    function ensureEqFreqResponseBuffers() {
+        const n = EQ_FREQ_RESPONSE_POINTS;
+        if (_eqRespFreqs && _eqRespFreqs.length === n) return;
+        _eqRespFreqs = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+            _eqRespFreqs[i] = FREQ_MIN * Math.pow(FREQ_MAX / FREQ_MIN, i / (n - 1));
+        }
+        _eqRespMagLow = new Float32Array(n);
+        _eqRespPhaseLow = new Float32Array(n);
+        _eqRespMagMid = new Float32Array(n);
+        _eqRespPhaseMid = new Float32Array(n);
+        _eqRespMagHigh = new Float32Array(n);
+        _eqRespPhaseHigh = new Float32Array(n);
+    }
+
+    /** Keep parametric EQ rAF only while spectrum animates, audio plays, or the user drags a band — not 24/7 when the panel is open. */
+    function needsParametricEqRafContinuation() {
+        if (_dragState) return true;
+        if (typeof window.isFftAnimationPaused === 'function' && window.isFftAnimationPaused()) return false;
+        if (typeof engineSpectrumLive === 'function' && engineSpectrumLive()) return true;
+        if (typeof isAudioPlaying === 'function' && isAudioPlaying()) return true;
+        return false;
+    }
+
     /** Light log grid + 0 dB line (transparent background; EQ response stroke stays cyan). */
     function drawEqPanelGrid(ctx, w, h, zeroY) {
         ctx.strokeStyle = 'rgba(255,255,255,0.05)';
@@ -5465,23 +5515,18 @@ function updateMetaLine() {
         }
 
         if (_eqLow && _eqMid && _eqHigh) {
-            const nPoints = 480;
-            const freqs = new Float32Array(nPoints);
-            for (let i = 0; i < nPoints; i++) {
-                freqs[i] = FREQ_MIN * Math.pow(FREQ_MAX / FREQ_MIN, i / (nPoints - 1));
-            }
-            const magLow = new Float32Array(nPoints), phaseLow = new Float32Array(nPoints);
-            const magMid = new Float32Array(nPoints), phaseMid = new Float32Array(nPoints);
-            const magHigh = new Float32Array(nPoints), phaseHigh = new Float32Array(nPoints);
-            _eqLow.getFrequencyResponse(freqs, magLow, phaseLow);
-            _eqMid.getFrequencyResponse(freqs, magMid, phaseMid);
-            _eqHigh.getFrequencyResponse(freqs, magHigh, phaseHigh);
+            ensureEqFreqResponseBuffers();
+            const nPoints = EQ_FREQ_RESPONSE_POINTS;
+            const freqs = _eqRespFreqs;
+            _eqLow.getFrequencyResponse(freqs, _eqRespMagLow, _eqRespPhaseLow);
+            _eqMid.getFrequencyResponse(freqs, _eqRespMagMid, _eqRespPhaseMid);
+            _eqHigh.getFrequencyResponse(freqs, _eqRespMagHigh, _eqRespPhaseHigh);
 
             ctx.beginPath();
             ctx.strokeStyle = 'rgba(5,217,232,0.6)';
             ctx.lineWidth = 2;
             for (let i = 0; i < nPoints; i++) {
-                const totalDb = 20 * Math.log10(magLow[i] * magMid[i] * magHigh[i]);
+                const totalDb = 20 * Math.log10(_eqRespMagLow[i] * _eqRespMagMid[i] * _eqRespMagHigh[i]);
                 const x = freqToX(freqs[i], w);
                 const y = gainToY(Math.max(GAIN_MIN, Math.min(GAIN_MAX, totalDb)), h);
                 if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
@@ -5544,7 +5589,9 @@ function updateMetaLine() {
                 console.error('parametricEqTick', err);
             }
         }
-        _paramEqRafId = requestAnimationFrame(parametricEqTick);
+        if (needsParametricEqRafContinuation()) {
+            _paramEqRafId = requestAnimationFrame(parametricEqTick);
+        }
     }
 
     function scheduleParametricEqFrame() {
