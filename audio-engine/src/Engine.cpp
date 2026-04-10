@@ -701,12 +701,11 @@ public:
           closeFn(std::move(onClose))
     {
         setUsingNativeTitleBar(true);
-        inst.suspendProcessing(true);
         juce::AudioProcessorEditor* ed = inst.createEditorIfNeeded();
-        inst.suspendProcessing(false);
         if (ed != nullptr)
         {
             setContentOwned(ed, true);
+            ed->setVisible(true);
             const int w = juce::jmax(200, ed->getWidth());
             const int h = juce::jmax(150, ed->getHeight());
             setSize(w, h);
@@ -1823,12 +1822,13 @@ struct Engine::Impl
         }
 
         // ── Phase 3: re-lock — install the chain ──
+        juce::var out;
         {
             std::lock_guard<std::mutex> lock(mutex);
             if (outputRunning)
                 return errObj("output stream started while loading plugins — stop it first");
             insertRunner = std::move(next);
-            juce::var out = okObj();
+            out = okObj();
             if (auto* o = out.getDynamicObject())
             {
                 juce::Array<juce::var> pathVars;
@@ -1836,8 +1836,17 @@ struct Engine::Impl
                     pathVars.add(p);
                 o->setProperty("insert_paths", juce::var(pathVars));
             }
-            return out;
         }
+        /* `InsertChainRunner::prepare` normally runs from `DspStereoFileSource::prepareToPlay` when the
+         * output device opens. If the user applies inserts with the stream stopped then opens the native
+         * editor, instances were never prepared — many VST3/AU UIs stay blank until `prepareToPlay`.
+         * Re-prepare when playback starts (same `prepare` path). */
+        if (insertRunner != nullptr && insertRunner->isActive())
+        {
+            insertRunner->prepare(44100.0, 512);
+            appLogLine("playback_set_inserts: prepared insert chain (44100 Hz, 512 samples) for editor / device");
+        }
+        return out;
     }
 
     void closeAllInsertEditorsLocked()
