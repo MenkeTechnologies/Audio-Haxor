@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="AUDIO_HAXOR developer docs: rustdoc app_lib, IPC bridge, i18n, command palette, keyboard shortcuts, tray WebView, playback. Version in package.json / tauri.conf.json.">
+  <meta name="description" content="AUDIO_HAXOR developer docs: full feature map (tabs, scans, DB, playback, engine, tooling), rustdoc, IPC, i18n, palette, shortcuts, tray. Version in package.json / tauri.conf.json.">
   <title>AUDIO_HAXOR — Documentation</title>
   <style>
     :root {
@@ -23,7 +23,7 @@
       min-height: 100vh;
       line-height: 1.55;
     }
-    .wrap { max-width: 42rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+    .wrap { max-width: 48rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
     h1 {
       font-weight: 700;
       font-size: 1.75rem;
@@ -62,6 +62,14 @@
     }
     ul { margin: 0.5rem 0 0; padding-left: 1.2rem; color: var(--dim); }
     li { margin: 0.35rem 0; }
+    .feat-sub {
+      margin: 1rem 0 0.35rem;
+      color: var(--text);
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .card > p + .feat-sub { margin-top: 0.75rem; }
   </style>
 </head>
 <body>
@@ -69,6 +77,63 @@
     <h1>// AUDIO_HAXOR — DOCS</h1>
     <p class="ver">Tauri v2 · Rust backend <code>app_lib</code> · app release version in <code>package.json</code> / <code>src-tauri/tauri.conf.json</code> / <code>src-tauri/Cargo.toml</code></p>
     <p>Static hub for developer documentation. The main UI is <code>frontend/index.html</code>; the menu-bar tray uses a separate WebView (<code>frontend/tray-popover.html</code> + <code>frontend/js/tray-popover.js</code>).</p>
+
+    <div class="card">
+      <h2>Application feature map</h2>
+      <p>Checklist-style index of shipped surfaces (verify in <code>frontend/</code> + <code>src-tauri/</code>). Deeper behavior lives in <code>README.md</code> and rustdoc.</p>
+
+      <p class="feat-sub">Main tabs</p>
+      <ul>
+        <li><strong>Plugins</strong> — VST/VST3/AU/CLAP scan, SQLite table, KVR resolve + update check with queued “next update” flow (<code>js/kvr.js</code>), export/import (JSON/CSV/TOML), per-scan history + diff, optional disk-usage strip (<code>js/disk-usage.js</code>), plugin dependency graph (<code>js/dep-graph.js</code>).</li>
+        <li><strong>Samples</strong> — audio library scan + history/diff, paginated table with sort/persisted columns (<code>js/sort-persist.js</code>, <code>js/columns.js</code>), inline preview / floating player (<code>js/audio.js</code>), waveform/spectrogram caches + decode worker, BPM/key/LUFS fields and batch analysis, chromaprint fingerprint cache + <strong>find similar</strong> + <strong>content duplicates</strong>, smart playlists (<code>js/smart-playlists.js</code>).</li>
+        <li><strong>DAW</strong> — project scan (multiple DAW formats), open folder/project, extract plugins from project, xref/index build and cached plugin lists per project (<code>js/daw.js</code>, <code>js/xref.js</code>), Ableton ALS/XML and generic project file reads, Bitwig <code>.bwproject</code> via <code>read_bwproject</code>, history/diff, disk usage.</li>
+        <li><strong>Presets</strong> — preset scan, history/diff, export/import, disk usage.</li>
+        <li><strong>MIDI</strong> — MIDI scan + SQLite (<code>db_query_midi</code>), history/diff, note/tempo/key metadata (<code>js/midi.js</code>), export full tab or selection subset (<code>js/export.js</code>).</li>
+        <li><strong>PDFs</strong> — PDF scan, optional metadata extraction batch + progress events, open in viewer / default app, export DSV/JSON, import JSON, history/diff (<code>js/pdf.js</code>).</li>
+        <li><strong>Favorites</strong> — starred paths across types (<code>js/favorites.js</code>), export/import.</li>
+        <li><strong>Notes</strong> — per-item notes (<code>js/notes.js</code>), export/import, clear.</li>
+        <li><strong>Tags</strong> — global tag manager + filter bar (position top/bottom; <code>js/multi-filter.js</code>).</li>
+        <li><strong>Files</strong> — directory browser: list, rename, delete, reveal, open-with / default app (<code>open_with_app</code>, <code>open_file_default</code>), native drag/drop (<code>js/file-browser.js</code>, <code>js/native-file-drag.js</code>).</li>
+        <li><strong>History</strong> — unified scan run + per-inventory scan records, compare/diff, prune/delete entries (<code>js/history.js</code>).</li>
+        <li><strong>Visualizer</strong> — spectrum/waveform views driven from playback / engine (<code>js/visualizer.js</code>).</li>
+        <li><strong>Walkers</strong> — live unified-walker status (<code>js/walker-status.js</code>, <code>get_walker_status</code>).</li>
+        <li><strong>Audio Engine</strong> — subprocess JSON API: file decode, transport, seek, loop/speed/reverse, DSP/EQ/mono, optional spectrum bins, VST3/AU insert chain + editor windows (<code>js/audio-engine.js</code> + IPC <code>audio_engine_invoke</code>).</li>
+        <li><strong>Settings</strong> — file-backed prefs + SQLite app strings; UI locale; light/dark + CRT + neon; color schemes / custom presets; scan roots &amp; blacklists; auto-scan, folder watch, incremental scan, prune-old-scans, include-backups; autoplay &amp; playback toggles; auto-update; PDF metadata auto-extract; analysis auto-run; table page size; log verbosity; cache table rebuild/clear (incl. xref/fingerprint); BPM/LUFS jobs; data-dir file list; export settings/log as PDF; shortcut editor (<code>js/settings.js</code>, <code>js/settings-search.js</code>, <code>js/i18n-ui.js</code>).</li>
+      </ul>
+
+      <p class="feat-sub">Scanning &amp; database</p>
+      <ul>
+        <li><strong>Unified scan</strong> — <code>scan_unified</code> walks configured roots once and fans progress into the same per-type events as standalone scans (<code>prepare_unified_scan</code>, <code>stop_unified_scan</code>, <code>get_unified_scan_run</code>).</li>
+        <li><strong>Standalone scans</strong> — plugins, samples, DAW, presets, MIDI, PDF each support custom roots, exclude paths, stop/resume where applicable, progress listeners, and a header <strong>resume all</strong> when workers are paused.</li>
+        <li><strong>SQLite</strong> — library tables for inventory + analysis fields; filter stats helpers; palette preview query; audio-library path list for fingerprints.</li>
+        <li><strong>Import/export</strong> — tab-scoped JSON/DSV/CSV/TOML where implemented; plugin xref export; smart-playlist export; favorites/notes; PDFs; MIDI export.</li>
+      </ul>
+
+      <p class="feat-sub">Playback &amp; tray (summary)</p>
+      <ul>
+        <li>Floating player: history list, filter field, shuffle, loop modes, A/B loop, 3-band EQ + gain + pan, mono, volume, playback speed + reverse, favorite/tag current track, export/import/clear <strong>recently played</strong>, expand/collapse, hide/show pill — see <code>js/audio.js</code>.</li>
+        <li><strong>Autoplay next source</strong> — Settings chooses whether EOF / failure-chain advance follows player history or visible Samples table; tray/menu/shortcuts/palette use <code>respectAutoplaySource</code>; floating <strong>Next/Previous</strong> buttons use history order only (see tray section below).</li>
+      </ul>
+
+      <p class="feat-sub">Tooling &amp; discovery</p>
+      <ul>
+        <li><strong>Heatmap dashboard</strong> — sample metadata visualization (<code>js/heatmap-dashboard.js</code>).</li>
+        <li><strong>Duplicate finder</strong> — content-level reports (<code>js/duplicates.js</code>).</li>
+        <li><strong>Process stats</strong> — main and audio-engine RSS/CPU/thread probes in header/settings.</li>
+        <li><strong>Logging</strong> — in-app log, clear, open log file, optional PDF export.</li>
+      </ul>
+
+      <p class="feat-sub">UX &amp; desktop integration</p>
+      <ul>
+        <li><strong>Help overlay</strong> — shortcut reference (<code>js/help-overlay.js</code>).</li>
+        <li><strong>Context menus</strong> — row actions across tabs (<code>js/context-menu.js</code>).</li>
+        <li><strong>Tooltips</strong> — hover titles for dense controls (<code>js/tooltip-hover.js</code>).</li>
+        <li><strong>Keyboard</strong> — navigable tables (<code>js/keyboard-nav.js</code>), batch selection (<code>js/batch-select.js</code>), drag-reorder for sections/tabs (<code>js/drag-reorder.js</code>).</li>
+        <li><strong>Modals</strong> — draggable custom dialogs where enabled (<code>js/modal-drag.js</code>).</li>
+        <li><strong>UI idle</strong> — <code>js/ui-idle.js</code> sets <code>html.ui-idle-heavy-cpu</code> when the window is backgrounded/minimized/hidden to pause scanlines and suppress toasts.</li>
+        <li><strong>Native menus</strong> — macOS/Windows menu bar mirrors many actions; <strong>GitHub</strong> / <strong>Docs</strong> items open external links.</li>
+      </ul>
+    </div>
 
     <div class="card">
       <h2>Rust API (rustdoc)</h2>
