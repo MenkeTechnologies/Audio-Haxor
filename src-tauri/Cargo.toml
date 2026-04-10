@@ -1,6 +1,6 @@
 [package]
 name = "audio-haxor"
-version = "1.18.20"
+version = "1.18.21"
 description = "Desktop app to scan and manage VST/VST3/AU audio plugins, samples, and DAW projects"
 authors = ["MenkeTechnologies <MenkeTechnologies@gmail.com>"]
 edition = "2024"
