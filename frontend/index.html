@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <meta content="AUDIO_HAXOR v1.18.24 — Tauri desktop app: VST/VST3/AU/CLAP plugin scanner, audio samples, DAW projects, KVR updates, SQLite history."
+    <meta content="AUDIO_HAXOR v1.18.25 — Tauri desktop app: VST/VST3/AU/CLAP plugin scanner, audio samples, DAW projects, KVR updates, SQLite history."
           name="description">
     <meta content="AUDIO_HAXOR" name="application-name">
     <title data-i18n="ui.page_title">AUDIO_HAXOR</title>
@@ -6328,41 +6328,6 @@
             gap: 6px;
         }
 
-        .np-history-title-bar .np-autoplay-toggle {
-            font-size: 10px;
-        }
-
-        .np-history-title-bar .np-autoplay-toggle .settings-toggle-label {
-            font-size: 9px;
-            min-width: 26px;
-        }
-
-        .np-history-title-bar .np-autoplay-toggle .settings-toggle-track {
-            width: 34px;
-            height: 18px;
-        }
-
-        .np-history-title-bar .np-autoplay-toggle .settings-toggle-thumb {
-            width: 12px;
-            height: 12px;
-            top: 3px;
-            left: 3px;
-        }
-
-        .np-history-title-bar .np-autoplay-toggle.active .settings-toggle-thumb {
-            left: 17px;
-        }
-
-        .np-history-title-bar .np-autoplay-source-select {
-            font-size: 9px;
-            max-width: 148px;
-            padding: 2px 4px;
-            background: var(--bg-input);
-            color: var(--text-muted);
-            border: 1px solid var(--border);
-            border-radius: 3px;
-        }
-
         /* Visualizer tab — HUD / cyberdeck panels (chamfered, glow, not flat blocks) */
         .viz-container {
             position: relative;
@@ -8186,18 +8151,6 @@
         <div class="np-section" data-np-section="history">
             <div class="np-history" id="npHistory">
                 <div class="np-history-title np-history-title-bar">Recently Played
-                    <button class="settings-toggle np-autoplay-toggle" data-action="settingToggleAutoplayNext"
-                            data-i18n-title="ui.tt.toggle_auto_advance_to_next_track_on_playback_end"
-                            id="npAutoplayNextBtn" type="button"
-                            title="Toggle auto-advance to next track on playback end">
-                        <span class="settings-toggle-label" id="npAutoplayNextLabel">On</span>
-                        <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
-                    </button>
-                    <select id="npAutoplayNextSource" class="np-autoplay-source-select" data-action="settingAutoplayNextSource"
-                            data-i18n-title="ui.tt.autoplay_next_source" title="Autoplay next queue">
-                        <option value="samples" data-i18n="ui.opt.autoplay_next_source_samples">Samples</option>
-                        <option value="player" data-i18n="ui.opt.autoplay_next_source_player">Player</option>
-                    </select>
                     <button class="btn-small btn-secondary" data-action="exportRecentlyPlayed"
                             data-i18n="ui.btn.export"
                             data-i18n-title="ui.tt.export_play_history_as_json"
@@ -10901,46 +10854,46 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=45395"></script>
-<script src="js/utils.js?v=45395"></script>
-<script src="js/ui-idle.js?v=45395"></script>
-<script src="js/ipc.js?v=45395"></script>
-<script src="js/tooltip-hover.js?v=45395"></script>
-<script src="js/drag-reorder.js?v=45395"></script>
-<script src="js/modal-drag.js?v=45395"></script>
-<script src="js/columns.js?v=45395"></script>
-<script src="js/notes.js?v=45395"></script>
-<script src="js/favorites.js?v=45395"></script>
-<script src="js/export.js?v=45395"></script>
-<script src="js/plugins.js?v=45395"></script>
-<script src="js/settings.js?v=45395"></script>
-<script src="js/history.js?v=45395"></script>
-<script src="js/kvr.js?v=45395"></script>
-<script src="js/audio.js?v=45395"></script>
-<script src="js/daw.js?v=45395"></script>
-<script src="js/disk-usage.js?v=45395"></script>
-<script src="js/presets.js?v=45395"></script>
-<script src="js/batch-select.js?v=45395"></script>
-<script src="js/native-file-drag.js?v=45395"></script>
-<script src="js/sort-persist.js?v=45395"></script>
-<script src="js/multi-filter.js?v=45395"></script>
-<script src="js/file-browser.js?v=45395"></script>
-<script src="js/duplicates.js?v=45395"></script>
-<script src="js/command-palette.js?v=45395"></script>
-<script src="js/xref.js?v=45395"></script>
-<script src="js/dep-graph.js?v=45395"></script>
-<script src="js/smart-playlists.js?v=45395"></script>
-<script src="js/heatmap-dashboard.js?v=45395"></script>
-<script src="js/midi.js?v=45395"></script>
-<script src="js/pdf.js?v=45395"></script>
-<script src="js/settings-search.js?v=45395"></script>
-<script src="js/visualizer.js?v=45395"></script>
-<script src="js/walker-status.js?v=45395"></script>
-<script src="js/audio-engine.js?v=45395"></script>
-<script src="js/context-menu.js?v=45395"></script>
-<script src="js/shortcuts.js?v=45395"></script>
-<script src="js/help-overlay.js?v=45395"></script>
-<script src="js/keyboard-nav.js?v=45395"></script>
-<script src="js/app.js?v=45395"></script>
+<script src="js/i18n-ui.js?v=8451"></script>
+<script src="js/utils.js?v=8451"></script>
+<script src="js/ui-idle.js?v=8451"></script>
+<script src="js/ipc.js?v=8451"></script>
+<script src="js/tooltip-hover.js?v=8451"></script>
+<script src="js/drag-reorder.js?v=8451"></script>
+<script src="js/modal-drag.js?v=8451"></script>
+<script src="js/columns.js?v=8451"></script>
+<script src="js/notes.js?v=8451"></script>
+<script src="js/favorites.js?v=8451"></script>
+<script src="js/export.js?v=8451"></script>
+<script src="js/plugins.js?v=8451"></script>
+<script src="js/settings.js?v=8451"></script>
+<script src="js/history.js?v=8451"></script>
+<script src="js/kvr.js?v=8451"></script>
+<script src="js/audio.js?v=8451"></script>
+<script src="js/daw.js?v=8451"></script>
+<script src="js/disk-usage.js?v=8451"></script>
+<script src="js/presets.js?v=8451"></script>
+<script src="js/batch-select.js?v=8451"></script>
+<script src="js/native-file-drag.js?v=8451"></script>
+<script src="js/sort-persist.js?v=8451"></script>
+<script src="js/multi-filter.js?v=8451"></script>
+<script src="js/file-browser.js?v=8451"></script>
+<script src="js/duplicates.js?v=8451"></script>
+<script src="js/command-palette.js?v=8451"></script>
+<script src="js/xref.js?v=8451"></script>
+<script src="js/dep-graph.js?v=8451"></script>
+<script src="js/smart-playlists.js?v=8451"></script>
+<script src="js/heatmap-dashboard.js?v=8451"></script>
+<script src="js/midi.js?v=8451"></script>
+<script src="js/pdf.js?v=8451"></script>
+<script src="js/settings-search.js?v=8451"></script>
+<script src="js/visualizer.js?v=8451"></script>
+<script src="js/walker-status.js?v=8451"></script>
+<script src="js/audio-engine.js?v=8451"></script>
+<script src="js/context-menu.js?v=8451"></script>
+<script src="js/shortcuts.js?v=8451"></script>
+<script src="js/help-overlay.js?v=8451"></script>
+<script src="js/keyboard-nav.js?v=8451"></script>
+<script src="js/app.js?v=8451"></script>
 </body>
 </html>

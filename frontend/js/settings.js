@@ -1478,19 +1478,13 @@ function refreshSettingsUI() {
         showPlayerLabel.textContent = _uiToggle(showPlayer);
     }
 
-    // Autoplay next (Settings + floating player Recently Played header)
+    // Autoplay next (Settings + Command Palette)
     const autoplay = prefs.getItem('autoplayNext') !== 'off';
     const autoplayBtn = document.getElementById('settingAutoplayNext');
     const autoplayLabel = document.getElementById('settingAutoplayNextLabel');
     if (autoplayBtn) {
         autoplayBtn.classList.toggle('active', autoplay);
         autoplayLabel.textContent = _uiToggle(autoplay);
-    }
-    const npAutoplayBtn = document.getElementById('npAutoplayNextBtn');
-    const npAutoplayLabel = document.getElementById('npAutoplayNextLabel');
-    if (npAutoplayBtn && npAutoplayLabel) {
-        npAutoplayBtn.classList.toggle('active', autoplay);
-        npAutoplayLabel.textContent = _uiToggle(autoplay);
     }
     const apSrc =
         typeof getAutoplayNextSource === 'function'
@@ -1500,8 +1494,6 @@ function refreshSettingsUI() {
                 : 'samples';
     const settingApSrc = document.getElementById('settingAutoplayNextSource');
     if (settingApSrc) settingApSrc.value = apSrc;
-    const npApSrc = document.getElementById('npAutoplayNextSource');
-    if (npApSrc) npApSrc.value = apSrc;
 
     // Include Ableton backups
     const includeBackups = prefs.getItem('includeAbletonBackups') === 'on';

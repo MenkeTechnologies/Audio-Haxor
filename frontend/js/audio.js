@@ -2653,7 +2653,11 @@ async function showEngineUnplayablePreview(filePath) {
 }
 
 // ── Audio Preview / Playback ──
-async function previewAudio(filePath) {
+/**
+ * @param {string} filePath
+ * @param { { skipRecentReorder?: boolean } } [opts] — When true, **`addToRecentlyPlayed`** updates or appends without moving the row to the top (autoplay, prev/next, and clicks on the player history list keep stable order).
+ */
+async function previewAudio(filePath, opts) {
     const ext = filePath.split('.').pop().toLowerCase();
     if (isEngineUnplayablePath(filePath)) {
         const extU = (filePath.split('.').pop() || '').toLowerCase();
@@ -2790,7 +2794,7 @@ async function previewAudio(filePath) {
         document.getElementById('npName').textContent = displayName;
 
         // Track recently played
-        addToRecentlyPlayed(filePath, sample);
+        addToRecentlyPlayed(filePath, sample, opts);
 
         updatePlayBtnStates();
         updateNowPlayingBtn();
@@ -4018,7 +4022,7 @@ async function tryPreviewAutoplayNextOnFailureAsync(failedPath, errDetail) {
         }
         showToast(toastFmt('toast.playback_failed_autoplay_next', { ext, err: errMsg }), 4000, 'error');
     }
-    await previewAudio(nextPath);
+    await previewAudio(nextPath, { skipRecentReorder: true });
     if (typeof window.syncAeTransportFromPlayback === 'function') {
         window.syncAeTransportFromPlayback();
     }
@@ -4057,18 +4061,32 @@ function getPlayerHistoryListItems() {
 }
 
 // ── Recently Played / Expanded Player ──
-function addToRecentlyPlayed(filePath, sample) {
-    // Remove duplicate if already in list
-    recentlyPlayed = recentlyPlayed.filter(r => r.path !== filePath);
-    // Add to front
-    recentlyPlayed.unshift({
+/**
+ * @param {string} filePath
+ * @param {*} sample — from **`findByPath`**, or null for unknown paths
+ * @param { { skipRecentReorder?: boolean } } [opts] — When set (autoplay / in-player list navigation), do not move the entry to the top — otherwise EOF **`nextTrack`** sees a reshuffled list and ping-pongs between the top two items.
+ */
+function addToRecentlyPlayed(filePath, sample, opts) {
+    const skipReorder = opts && opts.skipRecentReorder === true;
+    const entry = {
         path: filePath,
         name: sample ? sample.name : filePath.split('/').pop().replace(/\.[^.]+$/, ''),
         format: sample ? sample.format : filePath.split('.').pop().toUpperCase(),
         size: sample ? sample.sizeFormatted : '',
-    });
-    // Cap
-    if (recentlyPlayed.length > MAX_RECENT) recentlyPlayed.length = MAX_RECENT;
+    };
+    if (skipReorder) {
+        const idx = recentlyPlayed.findIndex(r => r.path === filePath);
+        if (idx >= 0) {
+            recentlyPlayed[idx] = entry;
+        } else {
+            recentlyPlayed.push(entry);
+            while (recentlyPlayed.length > MAX_RECENT) recentlyPlayed.shift();
+        }
+    } else {
+        recentlyPlayed = recentlyPlayed.filter(r => r.path !== filePath);
+        recentlyPlayed.unshift(entry);
+        if (recentlyPlayed.length > MAX_RECENT) recentlyPlayed.length = MAX_RECENT;
+    }
     saveRecentlyPlayed();
     renderRecentlyPlayed();
 }
@@ -4273,7 +4291,7 @@ document.getElementById('npHistoryList')?.addEventListener('click', (e) => {
     const item = e.target.closest('[data-action="playRecent"]');
     if (item) {
         e.stopPropagation();
-        previewAudio(item.dataset.path);
+        previewAudio(item.dataset.path, { skipRecentReorder: true });
     }
 });
 
@@ -4296,7 +4314,7 @@ function prevTrack() {
         }
     }
     void (async () => {
-        await previewAudio(prevPath);
+        await previewAudio(prevPath, { skipRecentReorder: true });
         if (hadExpanded) await expandMetaForPath(prevPath);
     })();
 }
@@ -4312,7 +4330,7 @@ function nextTrack(opts) {
     const nextPath = getAutoplayNextPathAfter(audioPlayerPath, { autoplay });
     if (!nextPath) return;
     void (async () => {
-        await previewAudio(nextPath);
+        await previewAudio(nextPath, { skipRecentReorder: true });
         if (hadExpanded) await expandMetaForPath(nextPath);
     })();
 }
