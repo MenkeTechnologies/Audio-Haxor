@@ -73,7 +73,6 @@ async function reloadAppStrings(locale) {
             await invoke('refresh_native_menu');
         } catch (_) {
         }
-        if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
     } catch (_) {
     }
 }
