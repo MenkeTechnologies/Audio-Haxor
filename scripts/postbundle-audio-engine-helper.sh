@@ -25,7 +25,7 @@
 # fully signed before the outer .app re-signs. Re-signing the outer must NOT use --deep
 # (which would recursively re-sign and overwrite the inner signatures we just made).
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -51,7 +51,7 @@ fi
 # Copy the reshaped main bundle to system Applications (replaces any prior install).
 install_reshaped_app_to_applications() {
   echo "postbundle-audio-engine-helper: installing reshaped bundle -> /Applications/AUDIO_HAXOR.app"
-  sudo rm -rf /Applications/AUDIO_HAXOR.app
+  sudo rm -rf /Applications/AUDIO_HAXOR.app || true
   sudo ditto "$APP" /Applications/AUDIO_HAXOR.app
 }
 
@@ -307,6 +307,12 @@ echo "postbundle-audio-engine-helper: DMG ready: $DMG_OUT $(du -h "$DMG_OUT" | a
 codesign --force --sign - "$DMG_OUT" 2>&1 | sed 's/^/postbundle-audio-engine-helper: dmg sign: /' || true
 
 install_reshaped_app_to_applications
+echo kill pid
+pid="$(pgrep audio-haxor | awk '{print $1}')"
+
+if [[ -n "$pid" ]]; then
+    kill $pid
+fi
 echo "postbundle-audio-engine-helper: helper .app installed at $HELPER_APP"
 echo "postbundle-audio-engine-helper: DMG left at $DMG_OUT (not copied to /Applications)"
 open "/Applications/AUDIO_HAXOR.app"

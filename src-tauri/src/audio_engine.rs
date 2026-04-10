@@ -76,9 +76,14 @@ static ENGINE_CHILD: Mutex<Option<EngineChild>> = Mutex::new(None);
 static ENGINE_CHILD_PID: AtomicU32 = AtomicU32::new(0);
 
 /// Host-side `playback_status` poll for end-of-file — **not** throttled like the WebView `setInterval`
-/// poll in `audio-engine.js`. When the window is backgrounded, JS timers can fire too rarely for
-/// autoplay-next; this thread emits `audio-engine-playback-eof` on the same EOF edge as the UI poll.
+/// poll in `audio-engine.js`. The UI only starts this when **`document.hidden`** (see
+/// `syncEnginePlaybackEofWatchdog` in `audio-engine.js`) so foreground playback does not duplicate IPC.
+/// When the window is backgrounded, JS timers can fire too rarely for autoplay-next; this thread emits
+/// `audio-engine-playback-eof` on the same EOF edge as the UI poll.
 static EOF_WATCHDOG_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Sleep between watchdog polls — intentionally slow (~1 Hz) to keep idle CPU low; EOF/auto-next may lag by this much when hidden.
+const EOF_WATCHDOG_POLL_MS: u64 = 1000;
 
 #[inline]
 fn record_engine_pid(child: &Child) {
@@ -395,8 +400,9 @@ pub fn shutdown_audio_engine_child() -> Result<(), String> {
     Ok(())
 }
 
-/// Start a background thread that polls `playback_status` ~4×/s and emits `audio-engine-playback-eof`
-/// when `loaded && eof` transitions to true (same edge `audio-engine.js` uses for autoplay next).
+/// Start a background thread that polls `playback_status` at [`EOF_WATCHDOG_POLL_MS`] and emits
+/// `audio-engine-playback-eof` when `loaded && eof` transitions to true (same edge `audio-engine.js`
+/// uses for autoplay next).
 /// Idempotent — if already running, returns immediately.
 pub fn audio_engine_eof_watchdog_start(app: AppHandle) {
     if EOF_WATCHDOG_ACTIVE.swap(true, Ordering::SeqCst) {
@@ -405,7 +411,7 @@ pub fn audio_engine_eof_watchdog_start(app: AppHandle) {
     thread::spawn(move || {
         let mut prev_eof = false;
         while EOF_WATCHDOG_ACTIVE.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_millis(250));
+            thread::sleep(Duration::from_millis(EOF_WATCHDOG_POLL_MS));
             if !EOF_WATCHDOG_ACTIVE.load(Ordering::SeqCst) {
                 break;
             }

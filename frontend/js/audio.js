@@ -525,7 +525,7 @@ function isAudioPlaying() {
 }
 
 /**
- * `playback_status` poll (~100ms) sets `_enginePlaybackPaused`. After `playback_pause` IPC, apply the
+ * `playback_status` poll (~250 ms with AudioEngine library playback) sets `_enginePlaybackPaused`. After `playback_pause` IPC, apply the
  * same value immediately so `isAudioPlaying()` matches buttons (context menu → `previewAudio`, main bar,
  * sample rows) before the next poll.
  */

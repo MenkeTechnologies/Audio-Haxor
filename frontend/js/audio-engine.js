@@ -2313,8 +2313,39 @@ async function stopAeOutputStream(opts) {
 
 // ── Library playback via AudioEngine (PCM + EQ in engine; WebView stays silent) ──
 
+/** WebView `playback_status` interval — was 100 ms (high CPU with host EOF duplicate); 250 ms is enough for seek bar / levels. */
+const ENGINE_PLAYBACK_POLL_MS = 250;
+
 /** @type {ReturnType<typeof setInterval> | null} */
 let _enginePlaybackPollTimer = null;
+
+/** @type {boolean} */
+let _enginePlaybackVisibilityHooked = false;
+
+/**
+ * Host EOF watchdog runs only while **`document.hidden`** so foreground playback does not double
+ * `playback_status` IPC with the WebView poll (keeps idle CPU low for typical library playback).
+ */
+function syncEnginePlaybackEofWatchdog() {
+    if (_enginePlaybackPollTimer == null) {
+        return;
+    }
+    try {
+        const u = typeof window !== 'undefined' ? window.vstUpdater : undefined;
+        if (!u) {
+            return;
+        }
+        if (typeof document !== 'undefined' && document.hidden) {
+            if (typeof u.audioEngineEofWatchdogStart === 'function') {
+                void u.audioEngineEofWatchdogStart().catch(() => {});
+            }
+        } else if (typeof u.audioEngineEofWatchdogStop === 'function') {
+            void u.audioEngineEofWatchdogStop();
+        }
+    } catch (_) {
+        /* non-Tauri */
+    }
+}
 
 function stopEnginePlaybackPoll() {
     if (_enginePlaybackPollTimer != null) {
@@ -2357,13 +2388,13 @@ function applyPlaybackStatusSpectrum(st) {
 
 function startEnginePlaybackPoll() {
     stopEnginePlaybackPoll();
-    try {
-        const u = typeof window !== 'undefined' ? window.vstUpdater : undefined;
-        if (u && typeof u.audioEngineEofWatchdogStart === 'function') {
-            void u.audioEngineEofWatchdogStart().catch(() => {});
-        }
-    } catch (_) {
-        /* non-Tauri */
+    if (typeof document !== 'undefined' && !_enginePlaybackVisibilityHooked) {
+        _enginePlaybackVisibilityHooked = true;
+        document.addEventListener('visibilitychange', () => {
+            if (_enginePlaybackPollTimer != null) {
+                syncEnginePlaybackEofWatchdog();
+            }
+        });
     }
     const tick = async () => {
         const inv = getAeAudioEngineInvoke();
@@ -2397,7 +2428,8 @@ function startEnginePlaybackPoll() {
         }
     };
     void tick();
-    _enginePlaybackPollTimer = setInterval(() => void tick(), 100);
+    _enginePlaybackPollTimer = setInterval(() => void tick(), ENGINE_PLAYBACK_POLL_MS);
+    syncEnginePlaybackEofWatchdog();
 }
 
 /**
@@ -2505,7 +2537,7 @@ async function enginePlaybackStart(filePath) {
     if (!inv) throw new Error('audio engine IPC unavailable');
     let r = await inv({cmd: 'playback_load', path: filePath});
     throwIfAeNotOk(r, 'playback_load failed');
-    /* Seek math (`seekPlaybackToPercent`) needs duration before the first `playback_status` poll (~100ms). */
+    /* Seek math (`seekPlaybackToPercent`) needs duration before the first `playback_status` poll (see `ENGINE_PLAYBACK_POLL_MS`). */
     window._enginePlaybackPosSec = 0;
     window._enginePlaybackDurSec =
         typeof r.duration_sec === 'number' && !Number.isNaN(r.duration_sec) ? r.duration_sec : 0;
