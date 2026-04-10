@@ -137,6 +137,43 @@ static bool loadKnownPluginListFromCacheFile(juce::KnownPluginList& out)
     return true;
 }
 
+/** How many prior scans to keep as `known-plugin-list.backup.N.xml` when `plugin_rescan` runs (N = 1 is most recent). */
+static constexpr int kKnownPluginListBackupSlots = 4;
+
+/** Before removing `known-plugin-list.xml` on `plugin_rescan`, rotate rolling backups for manual diff / parity checks. */
+static void rotateKnownPluginListBackupsBeforeWipe()
+{
+    const juce::File cache = knownPluginListCacheFilePath();
+    if (!cache.existsAsFile())
+        return;
+
+    const juce::File dir = cache.getParentDirectory();
+    (void) dir.createDirectory();
+
+    const juce::File oldest = dir.getChildFile("known-plugin-list.backup." + juce::String(kKnownPluginListBackupSlots) + ".xml");
+    (void) oldest.deleteFile();
+
+    for (int i = kKnownPluginListBackupSlots - 1; i >= 1; --i)
+    {
+        const juce::File from = dir.getChildFile("known-plugin-list.backup." + juce::String(i) + ".xml");
+        const juce::File to = dir.getChildFile("known-plugin-list.backup." + juce::String(i + 1) + ".xml");
+        if (from.existsAsFile())
+        {
+            (void) to.deleteFile();
+            if (!from.moveFileTo(to))
+                appLogLine("plugin_rescan: backup rotate failed (" + from.getFileName() + " -> " + to.getFileName() + ")");
+        }
+    }
+
+    const juce::File b1 = dir.getChildFile("known-plugin-list.backup.1.xml");
+    (void) b1.deleteFile();
+    if (!cache.moveFileTo(b1))
+        appLogLine("plugin_rescan: could not move known-plugin-list.xml to backup.1 (parity copy lost)");
+    else
+        appLogLine("plugin_rescan: previous known-plugin-list.xml saved as known-plugin-list.backup.1.xml (rolling backups "
+                   + juce::String(kKnownPluginListBackupSlots) + " deep)");
+}
+
 static juce::StringArray readDeadMansPedalLines(const juce::File& deadMans)
 {
     juce::StringArray lines;
@@ -1430,7 +1467,7 @@ struct Engine::Impl
         }
 #endif
         pluginScanProgress.total.store(vst3Total + auTotal, std::memory_order_relaxed);
-        appLogLine("plugin scan: worker starting total_candidates=" + juce::String(vst3Total + auTotal) + " vst3=" + juce::String(vst3Total)
+        appLogLine("plugin scan: started total_candidates=" + juce::String(vst3Total + auTotal) + " vst3=" + juce::String(vst3Total)
 #if JUCE_MAC
                    + " au=" + juce::String(auTotal)
 #endif
@@ -1456,7 +1493,7 @@ struct Engine::Impl
 #if JUCE_MAC
         if (pluginScanCancel.load(std::memory_order_relaxed))
         {
-            appLogLine("plugin scan: cancelled before AU phase");
+            appLogLine("plugin scan: finished cancelled (before AU phase)");
             std::lock_guard<std::mutex> lock(pluginScanMutex);
             pluginScanCache = list.getTypes();
             pluginScanPhase = PluginScanPhase::Idle;
@@ -1483,6 +1520,11 @@ struct Engine::Impl
 #endif
 
         const juce::Array<juce::PluginDescription> types = list.getTypes();
+        const bool scanCancelled = pluginScanCancel.load(std::memory_order_relaxed);
+        if (scanCancelled)
+            appLogLine("plugin scan: finished cancelled plugin_count=" + juce::String(types.size()));
+        else
+            appLogLine("plugin scan: finished ok plugin_count=" + juce::String(types.size()));
         std::lock_guard<std::mutex> lock(pluginScanMutex);
         pluginScanCache = types;
         pluginScanPhase = PluginScanPhase::Done;
@@ -1673,7 +1715,7 @@ struct Engine::Impl
             pluginScanThread.join();
         pluginScanCancel.store(false, std::memory_order_relaxed);
 
-        (void) knownPluginListCacheFilePath().deleteFile();
+        rotateKnownPluginListBackupsBeforeWipe();
         (void) pluginScanSkipFilePath().deleteFile();
         (void) deadMansPedalFilePath().deleteFile();
 
@@ -1938,6 +1980,9 @@ struct Engine::Impl
 
     void stopOutputLocked()
     {
+        const bool wasRunning = outputRunning;
+        const juce::String prevName = outDeviceName;
+        const juce::String prevId = outDeviceId;
         outputManager.removeAudioCallback(&sourcePlayer);
         clearSpectrumCallbacks();
         sourcePlayer.setSource(nullptr);
@@ -1951,14 +1996,21 @@ struct Engine::Impl
         playbackMode = false;
         toneMode = false;
         playbackPeak.store(0.0f);
+        if (wasRunning)
+            appLogLine("audio device: output stream stopped name=\"" + prevName + "\" id=\"" + prevId + "\"");
     }
 
     void stopInputLocked()
     {
+        const bool wasRunning = inputRunning;
+        const juce::String prevName = inDeviceName;
+        const juce::String prevId = inDeviceId;
         inputManager.removeAudioCallback(&inputCb);
         inputManager.closeAudioDevice();
         inputRunning = false;
         inputCb.peak.store(0.0f);
+        if (wasRunning)
+            appLogLine("audio device: input stream stopped name=\"" + prevName + "\" id=\"" + prevId + "\"");
     }
 
     juce::var playbackLoad(const juce::var& req)
@@ -2145,6 +2197,13 @@ struct Engine::Impl
         clearSpectrumRing();
         wireSpectrumCallbacks();
 
+        {
+            const char* mode = startPlayback ? "playback" : (tone ? "tone" : "silence");
+            appLogLine("audio device: output stream started name=\"" + outDeviceName + "\" id=\"" + outDeviceId
+                       + "\" sample_rate_hz=" + juce::String(outSampleRate) + " channels=" + juce::String(outChannels)
+                       + " mode=" + juce::String(mode));
+        }
+
         juce::var out = okObj();
         if (auto* o = out.getDynamicObject())
         {
@@ -2211,6 +2270,9 @@ struct Engine::Impl
         inputManager.addAudioCallback(&inputCb);
 
         inputRunning = true;
+
+        appLogLine("audio device: input stream started name=\"" + inDeviceName + "\" id=\"" + inDeviceId
+                   + "\" sample_rate_hz=" + juce::String(inSampleRate) + " channels=" + juce::String(inChannels));
 
         juce::var out = okObj();
         if (auto* o = out.getDynamicObject())
@@ -2456,6 +2518,8 @@ juce::var Engine::dispatch(const juce::var& req)
             o->setProperty("default_device_id", defaultId.isEmpty() ? juce::var() : juce::var(defaultId));
             o->setProperty("devices", juce::var(rows));
         }
+        appLogLine("audio device: output discovery type=\"" + impl->outputManager.getCurrentAudioDeviceType() + "\" count="
+                    + juce::String(names.size()) + " default_id=\"" + defaultId + "\" default_name=\"" + curName + "\"");
         return out;
     }
 
@@ -2484,6 +2548,8 @@ juce::var Engine::dispatch(const juce::var& req)
             o->setProperty("default_device_id", defaultId.isEmpty() ? juce::var() : juce::var(defaultId));
             o->setProperty("devices", juce::var(rows));
         }
+        appLogLine("audio device: input discovery type=\"" + impl->inputManager.getCurrentAudioDeviceType() + "\" count="
+                    + juce::String(names.size()) + " default_id=\"" + defaultId + "\" default_name=\"" + curName + "\"");
         return out;
     }
 
@@ -2532,6 +2598,8 @@ juce::var Engine::dispatch(const juce::var& req)
             }
             o->setProperty("audio_device_type", impl->outputManager.getCurrentAudioDeviceType());
         }
+        appLogLine("audio device: output info probe name=\"" + dev->getName() + "\" sample_rate_hz="
+                    + juce::String(dev->getCurrentSampleRate()) + " type=\"" + impl->outputManager.getCurrentAudioDeviceType() + "\"");
         return out;
     }
 
@@ -2580,6 +2648,8 @@ juce::var Engine::dispatch(const juce::var& req)
             }
             o->setProperty("audio_device_type", impl->inputManager.getCurrentAudioDeviceType());
         }
+        appLogLine("audio device: input info probe name=\"" + dev->getName() + "\" sample_rate_hz="
+                    + juce::String(dev->getCurrentSampleRate()) + " type=\"" + impl->inputManager.getCurrentAudioDeviceType() + "\"");
         return out;
     }
 
@@ -2609,6 +2679,8 @@ juce::var Engine::dispatch(const juce::var& req)
             o->setProperty("types", juce::var(typeNames));
             o->setProperty("current", impl->outputManager.getCurrentAudioDeviceType());
         }
+        appLogLine("audio device: types discovery count=" + juce::String(typeNames.size()) + " current=\""
+                    + impl->outputManager.getCurrentAudioDeviceType() + "\"");
         return out;
     }
 
@@ -2621,6 +2693,7 @@ juce::var Engine::dispatch(const juce::var& req)
         impl->stopInputLocked();
         impl->outputManager.setCurrentAudioDeviceType(t, true);
         impl->inputManager.setCurrentAudioDeviceType(t, true);
+        appLogLine("audio device: driver type set to \"" + t + "\" (streams stopped)");
         juce::var out = okObj();
         if (auto* o = out.getDynamicObject())
         {
@@ -2635,8 +2708,10 @@ juce::var Engine::dispatch(const juce::var& req)
         const juce::String id = req["device_id"].toString();
         if (id.isEmpty())
             return errObj("device_id required");
-        if (resolveOutputDeviceName(impl->outputManager, id).isEmpty())
+        const juce::String resolvedName = resolveOutputDeviceName(impl->outputManager, id);
+        if (resolvedName.isEmpty())
             return errObj("unknown device_id: " + id);
+        appLogLine("audio device: output device_id selected id=\"" + id + "\" name=\"" + resolvedName + "\" (stream not open)");
         juce::var out = okObj();
         if (auto* o = out.getDynamicObject())
         {
@@ -2651,8 +2726,10 @@ juce::var Engine::dispatch(const juce::var& req)
         const juce::String id = req["device_id"].toString();
         if (id.isEmpty())
             return errObj("device_id required");
-        if (resolveInputDeviceName(impl->inputManager, id).isEmpty())
+        const juce::String resolvedNameIn = resolveInputDeviceName(impl->inputManager, id);
+        if (resolvedNameIn.isEmpty())
             return errObj("unknown device_id: " + id);
+        appLogLine("audio device: input device_id selected id=\"" + id + "\" name=\"" + resolvedNameIn + "\" (stream not open)");
         juce::var out = okObj();
         if (auto* o = out.getDynamicObject())
         {
