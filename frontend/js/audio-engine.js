@@ -1140,7 +1140,10 @@ async function aeOpenInsertEditor(uiSlotIndex) {
         return;
     }
     try {
-        await applyAePlaybackInserts({ showAppliedToast: false });
+        /* `playback_set_inserts` rejects while `outputRunning` — same as Apply inserts. Open editor always
+         * re-syncs inserts first; stop output so we never race UI state vs engine (playback/tone still on). */
+        await stopAeOutputStream({ throwOnFailure: true });
+        await applyAePlaybackInserts({ showAppliedToast: false, rethrowOnFailure: true });
         const chainIdx = aeChainIndexForInsertUiSlot(uiSlotIndex);
         if (chainIdx < 0) return;
         const r = await inv({cmd: 'playback_open_insert_editor', slot: chainIdx});
@@ -1155,9 +1158,11 @@ async function aeOpenInsertEditor(uiSlotIndex) {
 /**
  * @param {object} [opts]
  * @param {boolean} [opts.showAppliedToast=true] — `false` when syncing for open editor (Apply inserts still uses default).
+ * @param {boolean} [opts.rethrowOnFailure=false] — when true, failed `playback_set_inserts` rethrows after toast (open editor must not call `playback_open_insert_editor`).
  */
 async function applyAePlaybackInserts(opts) {
     const showAppliedToast = opts == null || opts.showAppliedToast !== false;
+    const rethrowOnFailure = opts != null && opts.rethrowOnFailure === true;
     const inv = getAeAudioEngineInvoke();
     if (!inv) { aeNotifyNoAudioEngineIpc(); return; }
     const paths = [];
@@ -1181,8 +1186,14 @@ async function applyAePlaybackInserts(opts) {
         fillAePluginSection(chain);
     } catch (e) {
         const err = e && e.message ? String(e.message) : String(e);
-        if (typeof showToast === 'function' && typeof toastFmt === 'function')
+        if (
+            !rethrowOnFailure &&
+            typeof showToast === 'function' &&
+            typeof toastFmt === 'function'
+        ) {
             showToast(toastFmt('toast.ae_inserts_failed', {err}), 5000, 'error');
+        }
+        if (rethrowOnFailure) throw e;
     }
 }
 
@@ -2054,7 +2065,12 @@ async function stopAeInputCapture() {
     }
 }
 
-async function stopAeOutputStream() {
+/**
+ * @param {object} [opts]
+ * @param {boolean} [opts.throwOnFailure=false] — if true, rethrow after UI error state (used before `playback_set_inserts`).
+ */
+async function stopAeOutputStream(opts) {
+    const throwOnFailure = opts != null && opts.throwOnFailure === true;
     const statusEl = document.getElementById('aeEngineStatus');
     const toneCb = document.getElementById('aeTestTone');
     const inv = getAeAudioEngineInvoke();
@@ -2085,6 +2101,7 @@ async function stopAeOutputStream() {
         const es = await fillAeStreamsAfterEngineError();
         fillAeEngineStatusFromError(statusEl, e);
         if (es && es.stream) syncAeToneCheckboxFromStream(toneCb, es.stream);
+        if (throwOnFailure) throw e;
     }
 }
 
