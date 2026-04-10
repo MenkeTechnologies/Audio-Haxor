@@ -4151,6 +4151,8 @@ async function tryPreviewAutoplayNextOnFailureAsync(failedPath, errDetail) {
     if (!canAutoplayAdvanceTrack()) return false;
     const nextPath = getAutoplayNextPathAfter(failedPath, { autoplay: true });
     if (!nextPath || nextPath === failedPath) return false;
+    /** Same as {@link nextTrack}: keep expanded metadata under the playing row; only when this hop is the one that stuck (see chained failures below). */
+    const hadExpanded = expandedMetaPath !== null;
     if (typeof showToast === 'function' && typeof toastFmt === 'function') {
         const extRaw = (failedPath.split('.').pop() || '').toLowerCase();
         const ext = extRaw ? extRaw.toUpperCase() : '?';
@@ -4163,6 +4165,9 @@ async function tryPreviewAutoplayNextOnFailureAsync(failedPath, errDetail) {
         showToast(toastFmt('toast.playback_failed_autoplay_next', { ext, err: errMsg }), 4000, 'error');
     }
     await previewAudio(nextPath, { skipRecentReorder: true });
+    if (hadExpanded && audioPlayerPath === nextPath) {
+        await expandMetaForPath(nextPath);
+    }
     if (typeof window.syncAeTransportFromPlayback === 'function') {
         window.syncAeTransportFromPlayback();
     }
