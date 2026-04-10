@@ -3130,7 +3130,8 @@ function syncTrayNowPlayingFromPlayback() {
         metaEl && typeof metaEl.textContent === 'string' ? metaEl.textContent.trim() : '';
     const durKey = Number.isFinite(dur) && dur > 0 ? Math.floor(dur) : -1;
     const sigPath = audioPlayerPath || resumePath || '';
-    const sig = `${sigPath}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}`;
+    /* Include title + subtitle: first ticks often have empty `#npName` / meta; dedupe must not block later updates. */
+    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}`;
     if (sig === _traySyncSig) return;
     _traySyncSig = sig;
     void inv('update_tray_now_playing', {
