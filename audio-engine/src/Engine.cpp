@@ -1,7 +1,5 @@
 #include "AppLog.hpp"
-#if defined(__APPLE__)
- #include "CocoaHelpers.hpp"
-#endif
+#include "CocoaHelpers.hpp"
 #include "Engine.hpp"
 #include "VisualPreview.hpp"
 
