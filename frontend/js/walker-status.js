@@ -36,6 +36,17 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
+// Same as visibility for Tauri: minimized / other Space often keeps `document.hidden` false — match `isUiIdleHeavyCpu`.
+document.addEventListener('ui-idle-heavy-cpu', (e) => {
+    const heavy = e.detail && e.detail.idle;
+    if (heavy) {
+        stopWalkerPolling();
+    } else {
+        const tab = document.getElementById('tabWalkers');
+        if (tab && tab.classList.contains('active')) startWalkerPolling();
+    }
+});
+
 let _walkerIdleCount = 0;
 
 async function _updateWalkerTiles() {

@@ -141,6 +141,14 @@
             background-attachment: fixed;
         }
 
+        /* `ui-idle.js` toggles this on `<html>` when `isUiIdleHeavyCpu()` — background tab, unfocused window,
+           minimized, or macOS Space without reliable `visibilitychange`. Pauses scanlines, spinners, pulses, etc. */
+        html.ui-idle-heavy-cpu *,
+        html.ui-idle-heavy-cpu *::before,
+        html.ui-idle-heavy-cpu *::after {
+            animation-play-state: paused !important;
+        }
+
         /* Horizontal scanline overlay */
         .app::after {
             content: '';
@@ -10804,46 +10812,46 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=95045"></script>
-<script src="js/utils.js?v=95045"></script>
-<script src="js/ui-idle.js?v=95045"></script>
-<script src="js/ipc.js?v=95045"></script>
-<script src="js/tooltip-hover.js?v=95045"></script>
-<script src="js/drag-reorder.js?v=95045"></script>
-<script src="js/modal-drag.js?v=95045"></script>
-<script src="js/columns.js?v=95045"></script>
-<script src="js/notes.js?v=95045"></script>
-<script src="js/favorites.js?v=95045"></script>
-<script src="js/export.js?v=95045"></script>
-<script src="js/plugins.js?v=95045"></script>
-<script src="js/settings.js?v=95045"></script>
-<script src="js/history.js?v=95045"></script>
-<script src="js/kvr.js?v=95045"></script>
-<script src="js/audio.js?v=95045"></script>
-<script src="js/daw.js?v=95045"></script>
-<script src="js/disk-usage.js?v=95045"></script>
-<script src="js/presets.js?v=95045"></script>
-<script src="js/batch-select.js?v=95045"></script>
-<script src="js/native-file-drag.js?v=95045"></script>
-<script src="js/sort-persist.js?v=95045"></script>
-<script src="js/multi-filter.js?v=95045"></script>
-<script src="js/file-browser.js?v=95045"></script>
-<script src="js/duplicates.js?v=95045"></script>
-<script src="js/command-palette.js?v=95045"></script>
-<script src="js/xref.js?v=95045"></script>
-<script src="js/dep-graph.js?v=95045"></script>
-<script src="js/smart-playlists.js?v=95045"></script>
-<script src="js/heatmap-dashboard.js?v=95045"></script>
-<script src="js/midi.js?v=95045"></script>
-<script src="js/pdf.js?v=95045"></script>
-<script src="js/settings-search.js?v=95045"></script>
-<script src="js/visualizer.js?v=95045"></script>
-<script src="js/walker-status.js?v=95045"></script>
-<script src="js/audio-engine.js?v=95045"></script>
-<script src="js/context-menu.js?v=95045"></script>
-<script src="js/shortcuts.js?v=95045"></script>
-<script src="js/help-overlay.js?v=95045"></script>
-<script src="js/keyboard-nav.js?v=95045"></script>
-<script src="js/app.js?v=95045"></script>
+<script src="js/i18n-ui.js?v=78563"></script>
+<script src="js/utils.js?v=78563"></script>
+<script src="js/ui-idle.js?v=78563"></script>
+<script src="js/ipc.js?v=78563"></script>
+<script src="js/tooltip-hover.js?v=78563"></script>
+<script src="js/drag-reorder.js?v=78563"></script>
+<script src="js/modal-drag.js?v=78563"></script>
+<script src="js/columns.js?v=78563"></script>
+<script src="js/notes.js?v=78563"></script>
+<script src="js/favorites.js?v=78563"></script>
+<script src="js/export.js?v=78563"></script>
+<script src="js/plugins.js?v=78563"></script>
+<script src="js/settings.js?v=78563"></script>
+<script src="js/history.js?v=78563"></script>
+<script src="js/kvr.js?v=78563"></script>
+<script src="js/audio.js?v=78563"></script>
+<script src="js/daw.js?v=78563"></script>
+<script src="js/disk-usage.js?v=78563"></script>
+<script src="js/presets.js?v=78563"></script>
+<script src="js/batch-select.js?v=78563"></script>
+<script src="js/native-file-drag.js?v=78563"></script>
+<script src="js/sort-persist.js?v=78563"></script>
+<script src="js/multi-filter.js?v=78563"></script>
+<script src="js/file-browser.js?v=78563"></script>
+<script src="js/duplicates.js?v=78563"></script>
+<script src="js/command-palette.js?v=78563"></script>
+<script src="js/xref.js?v=78563"></script>
+<script src="js/dep-graph.js?v=78563"></script>
+<script src="js/smart-playlists.js?v=78563"></script>
+<script src="js/heatmap-dashboard.js?v=78563"></script>
+<script src="js/midi.js?v=78563"></script>
+<script src="js/pdf.js?v=78563"></script>
+<script src="js/settings-search.js?v=78563"></script>
+<script src="js/visualizer.js?v=78563"></script>
+<script src="js/walker-status.js?v=78563"></script>
+<script src="js/audio-engine.js?v=78563"></script>
+<script src="js/context-menu.js?v=78563"></script>
+<script src="js/shortcuts.js?v=78563"></script>
+<script src="js/help-overlay.js?v=78563"></script>
+<script src="js/keyboard-nav.js?v=78563"></script>
+<script src="js/app.js?v=78563"></script>
 </body>
 </html>

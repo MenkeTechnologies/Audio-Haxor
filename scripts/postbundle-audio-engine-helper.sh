@@ -311,4 +311,4 @@ pid="$(pgrep audio-haxor | awk '{print $1}')"
 if [[ -n "$pid" ]]; then
     kill $pid
 fi
-open -a "/Applications/AUDIO_HAXOR.app"
+open -a "/Applications/AUDIO_HAXOR.app" &>/dev/null </dev/tty

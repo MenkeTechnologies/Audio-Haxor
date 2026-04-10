@@ -9,6 +9,8 @@
  *
  * Paused work is rAF-driven visualization and idle-gated **`playback_status`** polling — background
  * BPM/Key/LUFS batch analysis runs only when **`autoAnalysis`** is **`on`** (`audio.js`).
+ * **`document.documentElement`** gets **`ui-idle-heavy-cpu`** so **`index.html`** can pause infinite CSS
+ * animations (scanlines, spinners) while idle — same signal as **`isUiIdleHeavyCpu()`**.
  */
 (function initUiIdleHeavyCpu() {
     let docHidden = typeof document !== 'undefined' && document.hidden;
@@ -25,12 +27,18 @@
     }
 
     let idle = recompute();
+    if (typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.classList.toggle('ui-idle-heavy-cpu', idle);
+    }
 
     function setState() {
         const next = recompute();
         if (next === idle) return;
         idle = next;
         try {
+            if (typeof document !== 'undefined' && document.documentElement) {
+                document.documentElement.classList.toggle('ui-idle-heavy-cpu', idle);
+            }
             document.dispatchEvent(new CustomEvent('ui-idle-heavy-cpu', {detail: {idle}}));
         } catch (_) {
             /* ignore */

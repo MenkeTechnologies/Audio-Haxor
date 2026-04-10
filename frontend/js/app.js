@@ -261,16 +261,28 @@ async function handleFileWatcherChange(event) {
     renderWelcomeDashboard();
     renderShortcutSettings();
     updateHeaderInfo();
-    // Refresh process stats every 3s, but pause when tab is hidden
+    // Refresh process stats every 3s, but pause when tab is hidden or window is backgrounded/minimized (`isUiIdleHeavyCpu`).
     let _headerInterval = setInterval(updateHeaderInfo, 3000);
+    function pauseHeaderIntervalIfHidden() {
+        clearInterval(_headerInterval);
+        _headerInterval = null;
+    }
+    function resumeHeaderIntervalIfNeeded() {
+        if (_headerInterval) return;
+        updateHeaderInfo();
+        _headerInterval = setInterval(updateHeaderInfo, 3000);
+    }
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
-            clearInterval(_headerInterval);
-            _headerInterval = null;
-        } else if (!_headerInterval) {
-            updateHeaderInfo();
-            _headerInterval = setInterval(updateHeaderInfo, 3000);
+            pauseHeaderIntervalIfHidden();
+        } else {
+            resumeHeaderIntervalIfNeeded();
         }
+    });
+    document.addEventListener('ui-idle-heavy-cpu', (e) => {
+        const idle = e.detail && e.detail.idle;
+        if (idle) pauseHeaderIntervalIfHidden();
+        else resumeHeaderIntervalIfNeeded();
     });
 
     // Auto-scan on launch
