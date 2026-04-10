@@ -1109,7 +1109,7 @@ async function aeOpenInsertEditor(uiSlotIndex) {
         return;
     }
     try {
-        await applyAePlaybackInserts();
+        await applyAePlaybackInserts({ showAppliedToast: false });
         const chainIdx = aeChainIndexForInsertUiSlot(uiSlotIndex);
         if (chainIdx < 0) return;
         const r = await inv({cmd: 'playback_open_insert_editor', slot: chainIdx});
@@ -1121,7 +1121,12 @@ async function aeOpenInsertEditor(uiSlotIndex) {
     }
 }
 
-async function applyAePlaybackInserts() {
+/**
+ * @param {object} [opts]
+ * @param {boolean} [opts.showAppliedToast=true] — `false` when syncing for open editor (Apply inserts still uses default).
+ */
+async function applyAePlaybackInserts(opts) {
+    const showAppliedToast = opts == null || opts.showAppliedToast !== false;
     const inv = getAeAudioEngineInvoke();
     if (!inv) { aeNotifyNoAudioEngineIpc(); return; }
     const paths = [];
@@ -1134,8 +1139,13 @@ async function applyAePlaybackInserts() {
         throwIfAeNotOk(r, 'playback_set_inserts failed');
         if (typeof prefs !== 'undefined' && typeof prefs.setItem === 'function')
             prefs.setItem(AE_PREFS_INSERT_PATHS_JSON, JSON.stringify(paths));
-        if (typeof showToast === 'function' && typeof toastFmt === 'function')
+        if (
+            showAppliedToast &&
+            typeof showToast === 'function' &&
+            typeof toastFmt === 'function'
+        ) {
             showToast(toastFmt('toast.ae_inserts_applied'), 3000, 'success');
+        }
         const chain = await fetchPluginChainUntilSettled(inv, undefined, aePluginChainPollGeneration);
         fillAePluginSection(chain);
     } catch (e) {
