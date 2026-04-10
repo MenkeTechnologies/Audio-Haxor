@@ -24,6 +24,25 @@ function _paletteSwitchTab(id) {
 }
 
 /**
+ * Same shape as context-menu `shortcutTip` — this file loads before `context-menu.js`.
+ * @param {string} [shortcutId]
+ * @returns {{shortcutId?: string}}
+ */
+function paletteShortcutTip(shortcutId) {
+    return shortcutId ? {shortcutId} : {};
+}
+
+/** Visible kbd hint for `paintPaletteRows` (uses live `getShortcuts` + `formatKey` from `shortcuts.js`). */
+function paletteShortcutHintHtml(shortcutId) {
+    if (!shortcutId || typeof getShortcuts !== 'function' || typeof formatKey !== 'function') return '';
+    const sc = getShortcuts()[shortcutId];
+    if (!sc || sc.key === undefined) return '';
+    const fk = formatKey(sc);
+    const title = typeof catalogFmt === 'function' ? catalogFmt('menu.rebind_shortcut') : '';
+    return `<span class="palette-shortcut" title="${escapeHtml(title)}"><kbd>${escapeHtml(fk)}</kbd></span>`;
+}
+
+/**
  * Library hits for Cmd+K from SQLite (same scope as tab search: deduped by path across scans).
  * In-memory `allPlugins` / `allDawProjects` / etc. are only one paginated page (or empty) after
  * restart — the palette must not rely on them for discovery.
@@ -196,87 +215,89 @@ function buildPaletteStaticItems() {
 
     // Tabs — always available
     const tabs = [
-        {type: 'tab', name: appFmt('menu.tab_plugins'), icon: '&#9889;', action: () => _paletteSwitchTab('plugins')},
-        {type: 'tab', name: appFmt('menu.tab_samples'), icon: '&#127925;', action: () => _paletteSwitchTab('samples')},
-        {type: 'tab', name: appFmt('menu.tab_daw'), icon: '&#127911;', action: () => _paletteSwitchTab('daw')},
-        {type: 'tab', name: appFmt('menu.tab_presets'), icon: '&#127924;', action: () => _paletteSwitchTab('presets')},
+        {type: 'tab', name: appFmt('menu.tab_plugins'), icon: '&#9889;', ...paletteShortcutTip('tab1'), action: () => _paletteSwitchTab('plugins')},
+        {type: 'tab', name: appFmt('menu.tab_samples'), icon: '&#127925;', ...paletteShortcutTip('tab2'), action: () => _paletteSwitchTab('samples')},
+        {type: 'tab', name: appFmt('menu.tab_daw'), icon: '&#127911;', ...paletteShortcutTip('tab3'), action: () => _paletteSwitchTab('daw')},
+        {type: 'tab', name: appFmt('menu.tab_presets'), icon: '&#127924;', ...paletteShortcutTip('tab4'), action: () => _paletteSwitchTab('presets')},
         {
             type: 'tab',
             name: appFmt('menu.tab_favorites'),
             icon: '&#9733;',
+            ...paletteShortcutTip('tab7'),
             action: () => _paletteSwitchTab('favorites')
         },
-        {type: 'tab', name: appFmt('menu.tab_notes'), icon: '&#128221;', action: () => _paletteSwitchTab('notes')},
-        {type: 'tab', name: appFmt('menu.tab_tags'), icon: '&#127991;', action: () => _paletteSwitchTab('tags')},
-        {type: 'tab', name: appFmt('menu.tab_history'), icon: '&#128197;', action: () => _paletteSwitchTab('history')},
-        {type: 'tab', name: appFmt('menu.tab_files'), icon: '&#128193;', action: () => _paletteSwitchTab('files')},
+        {type: 'tab', name: appFmt('menu.tab_notes'), icon: '&#128221;', ...paletteShortcutTip('tab8'), action: () => _paletteSwitchTab('notes')},
+        {type: 'tab', name: appFmt('menu.tab_tags'), icon: '&#127991;', ...paletteShortcutTip('tab9'), action: () => _paletteSwitchTab('tags')},
+        {type: 'tab', name: appFmt('menu.tab_history'), icon: '&#128197;', ...paletteShortcutTip('tab11'), action: () => _paletteSwitchTab('history')},
+        {type: 'tab', name: appFmt('menu.tab_files'), icon: '&#128193;', ...paletteShortcutTip('tab10'), action: () => _paletteSwitchTab('files')},
         {
             type: 'tab',
             name: appFmt('menu.tab_visualizer'),
             icon: '&#127911;',
+            ...paletteShortcutTip('tab12'),
             action: () => _paletteSwitchTab('visualizer')
         },
-        {type: 'tab', name: appFmt('menu.tab_walkers'), icon: '&#128270;', action: () => _paletteSwitchTab('walkers')},
-        {type: 'tab', name: appFmt('menu.tab_audio_engine'), icon: '&#127898;', action: () => _paletteSwitchTab('audioEngine')},
-        {type: 'tab', name: appFmt('menu.tab_midi'), icon: '&#127929;', action: () => _paletteSwitchTab('midi')},
-        {type: 'tab', name: appFmt('menu.tab_pdf'), icon: '&#128196;', action: () => _paletteSwitchTab('pdf')},
-        {type: 'tab', name: appFmt('menu.tab_settings'), icon: '&#9881;', action: () => _paletteSwitchTab('settings')},
+        {type: 'tab', name: appFmt('menu.tab_walkers'), icon: '&#128270;', ...paletteShortcutTip('tab13'), action: () => _paletteSwitchTab('walkers')},
+        {type: 'tab', name: appFmt('menu.tab_audio_engine'), icon: '&#127898;', ...paletteShortcutTip('tab14'), action: () => _paletteSwitchTab('audioEngine')},
+        {type: 'tab', name: appFmt('menu.tab_midi'), icon: '&#127929;', ...paletteShortcutTip('tab5'), action: () => _paletteSwitchTab('midi')},
+        {type: 'tab', name: appFmt('menu.tab_pdf'), icon: '&#128196;', ...paletteShortcutTip('tab6'), action: () => _paletteSwitchTab('pdf')},
+        {type: 'tab', name: appFmt('menu.tab_settings'), icon: '&#9881;', ...paletteShortcutTip('openPrefs'), action: () => _paletteSwitchTab('settings')},
     ];
     items.push(...tabs);
 
     // Actions — all trigger toast confirmation
     items.push({
-        type: 'action', name: appFmt('menu.scan_plugins'), icon: '&#8635;', action: () => {
+        type: 'action', name: appFmt('menu.scan_plugins'), icon: '&#8635;', ...paletteShortcutTip('scanPluginsOnly'), action: () => {
             showToast(toastFmt('toast.scanning_plugins'));
             typeof scanPlugins === 'function' && scanPlugins();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.scan_samples'), icon: '&#8635;', action: () => {
+        type: 'action', name: appFmt('menu.scan_samples'), icon: '&#8635;', ...paletteShortcutTip('scanSamplesOnly'), action: () => {
             showToast(toastFmt('toast.scanning_samples'));
             typeof scanAudioSamples === 'function' && scanAudioSamples();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.scan_daw'), icon: '&#8635;', action: () => {
+        type: 'action', name: appFmt('menu.scan_daw'), icon: '&#8635;', ...paletteShortcutTip('scanDawOnly'), action: () => {
             showToast(toastFmt('toast.scanning_daw_projects'));
             typeof scanDawProjects === 'function' && scanDawProjects();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.scan_presets'), icon: '&#8635;', action: () => {
+        type: 'action', name: appFmt('menu.scan_presets'), icon: '&#8635;', ...paletteShortcutTip('scanPresetsOnly'), action: () => {
             showToast(toastFmt('toast.scanning_presets'));
             typeof scanPresets === 'function' && scanPresets();
         }
     });
     items.push({
-        type: 'action', name: appFmt('ui.btn.scan_pdfs'), icon: '&#8635;', action: () => {
+        type: 'action', name: appFmt('ui.btn.scan_pdfs'), icon: '&#8635;', ...paletteShortcutTip('scanPdfsOnly'), action: () => {
             showToast(toastFmt('toast.scanning_pdfs_progress'));
             typeof scanPdfs === 'function' && scanPdfs();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.stop_pdf_scan'), icon: '&#9632;', action: () => {
+        type: 'action', name: appFmt('menu.stop_pdf_scan'), icon: '&#9632;', ...paletteShortcutTip('stopPdfScan'), action: () => {
             if (typeof stopPdfScan === 'function') stopPdfScan();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.export_pdfs'), icon: '&#8615;', action: () => {
+        type: 'action', name: appFmt('menu.export_pdfs'), icon: '&#8615;', ...paletteShortcutTip('exportTab'), action: () => {
             if (typeof exportPdfs === 'function' && typeof runExport === 'function') runExport(exportPdfs); else if (typeof exportPdfs === 'function') exportPdfs();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.import_pdfs'), icon: '&#8613;', action: () => {
+        type: 'action', name: appFmt('menu.import_pdfs'), icon: '&#8613;', ...paletteShortcutTip('importTab'), action: () => {
             if (typeof importPdfs === 'function') importPdfs();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.extract_pdf_metadata'), icon: '&#128196;', action: () => {
+        type: 'action', name: appFmt('menu.extract_pdf_metadata'), icon: '&#128196;', ...paletteShortcutTip('extractPdfMetadata'), action: () => {
             if (typeof buildPdfPagesCache === 'function') buildPdfPagesCache();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.stop_pdf_metadata'), icon: '&#9632;', action: () => {
+        type: 'action', name: appFmt('menu.stop_pdf_metadata'), icon: '&#9632;', ...paletteShortcutTip('stopPdfMetadata'), action: () => {
             if (typeof stopPdfMetadataExtractionUser === 'function') void stopPdfMetadataExtractionUser();
         }
     });
@@ -285,11 +306,12 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.toggle_pdf_metadata_background'),
             icon: '&#128196;',
+            ...paletteShortcutTip('togglePdfMetadataAutoExtract'),
             action: () => settingTogglePdfMetadataAutoExtract()
         });
     }
     items.push({
-        type: 'action', name: appFmt('menu.build_fingerprint_cache'), icon: '&#127925;', action: () => {
+        type: 'action', name: appFmt('menu.build_fingerprint_cache'), icon: '&#127925;', ...paletteShortcutTip('buildFingerprintCache'), action: () => {
             void (async () => {
                 const paths = await fetchAudioLibraryPathsForFingerprint();
                 if (paths.length === 0) {
@@ -313,6 +335,7 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.start_bpm_key_lufs_analysis'),
             icon: '&#9654;',
+            ...paletteShortcutTip('bpmKeyLufsStart'),
             action: () => triggerBackgroundBpmKeyLufsAnalysis()
         });
     }
@@ -321,30 +344,31 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.stop_bpm_key_lufs_analysis'),
             icon: '&#9632;',
+            ...paletteShortcutTip('bpmKeyLufsStop'),
             action: () => triggerStopBackgroundBpmKeyLufsAnalysis()
         });
     }
     items.push({
-        type: 'action', name: appFmt('menu.check_updates'), icon: '&#9889;', action: () => {
+        type: 'action', name: appFmt('menu.check_updates'), icon: '&#9889;', ...paletteShortcutTip('checkUpdates'), action: () => {
             showToast(toastFmt('toast.checking_updates'));
             typeof checkUpdates === 'function' && checkUpdates();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.find_duplicates'), icon: '&#128270;', action: () => {
+        type: 'action', name: appFmt('menu.find_duplicates'), icon: '&#128270;', ...paletteShortcutTip('findDuplicates'), action: () => {
             showToast(toastFmt('toast.scanning_duplicates'));
             typeof showDuplicateReport === 'function' && showDuplicateReport();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.reset_all_scans'), icon: '&#128465;', action: () => {
+        type: 'action', name: appFmt('menu.reset_all_scans'), icon: '&#128465;', ...paletteShortcutTip('resetAllScans'), action: () => {
             showToast(toastFmt('toast.resetting_scans'));
             typeof resetAllScans === 'function' && resetAllScans();
         }
     });
     if (typeof buildXrefIndex === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.build_plugin_index'), icon: '&#9889;', action: () => {
+            type: 'action', name: appFmt('menu.build_plugin_index'), icon: '&#9889;', ...paletteShortcutTip('buildPluginIndex'), action: () => {
                 showToast(toastFmt('toast.building_plugin_index'));
                 buildXrefIndex();
             }
@@ -352,7 +376,7 @@ function buildPaletteStaticItems() {
     }
     if (typeof showDepGraph === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.dep_graph'), icon: '&#128200;', action: () => {
+            type: 'action', name: appFmt('menu.dep_graph'), icon: '&#128200;', ...paletteShortcutTip('depGraph'), action: () => {
                 showToast(toastFmt('toast.opening_dep_graph'));
                 showDepGraph();
             }
@@ -360,7 +384,7 @@ function buildPaletteStaticItems() {
     }
     if (typeof showHeatmapDashboard === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.heatmap_dashboard'), icon: '&#128202;', action: () => {
+            type: 'action', name: appFmt('menu.heatmap_dashboard'), icon: '&#128202;', ...paletteShortcutTip('heatmapDash'), action: () => {
                 showToast(toastFmt('toast.opening_dashboard'));
                 void showHeatmapDashboard();
             }
@@ -368,7 +392,7 @@ function buildPaletteStaticItems() {
     }
     if (typeof showSmartPlaylistEditor === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.new_smart_playlist'), icon: '&#127926;', action: () => {
+            type: 'action', name: appFmt('menu.new_smart_playlist'), icon: '&#127926;', ...paletteShortcutTip('newSmartPlaylist'), action: () => {
                 showToast(toastFmt('toast.creating_smart_playlist'));
                 showSmartPlaylistEditor(null);
             }
@@ -376,7 +400,7 @@ function buildPaletteStaticItems() {
     }
     if (typeof exportSettingsPdf === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.export_settings_keybindings'), icon: '&#128196;', action: () => {
+            type: 'action', name: appFmt('menu.export_settings_keybindings'), icon: '&#128196;', ...paletteShortcutTip('exportSettingsPdf'), action: () => {
                 showToast(toastFmt('toast.exporting_settings_pdf'));
                 exportSettingsPdf();
             }
@@ -384,7 +408,7 @@ function buildPaletteStaticItems() {
     }
     if (typeof exportLogPdf === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.export_app_log'), icon: '&#128196;', action: () => {
+            type: 'action', name: appFmt('menu.export_app_log'), icon: '&#128196;', ...paletteShortcutTip('exportLogPdf'), action: () => {
                 showToast(toastFmt('toast.exporting_log'));
                 exportLogPdf();
             }
@@ -392,7 +416,7 @@ function buildPaletteStaticItems() {
     }
     if (typeof exportMidi === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.export_midi_files'), icon: '&#127929;', action: () => {
+            type: 'action', name: appFmt('menu.export_midi_files'), icon: '&#127929;', ...paletteShortcutTip('exportMidiPalette'), action: () => {
                 showToast(toastFmt('toast.exporting_midi'));
                 if (typeof runExport === 'function') runExport(exportMidi); else exportMidi();
             }
@@ -400,7 +424,7 @@ function buildPaletteStaticItems() {
     }
     if (typeof exportXref === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.export_plugin_xref'), icon: '&#9889;', action: () => {
+            type: 'action', name: appFmt('menu.export_plugin_xref'), icon: '&#9889;', ...paletteShortcutTip('exportPluginXref'), action: () => {
                 showToast(toastFmt('toast.exporting_xref'));
                 exportXref();
             }
@@ -408,14 +432,14 @@ function buildPaletteStaticItems() {
     }
     if (typeof exportSmartPlaylists === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.export_smart_playlists'), icon: '&#127926;', action: () => {
+            type: 'action', name: appFmt('menu.export_smart_playlists'), icon: '&#127926;', ...paletteShortcutTip('exportSmartPlaylists'), action: () => {
                 showToast(toastFmt('toast.exporting_playlists'));
                 exportSmartPlaylists();
             }
         });
     }
     items.push({
-        type: 'action', name: appFmt('menu.clear_all_caches'), icon: '&#128465;', action: () => {
+        type: 'action', name: appFmt('menu.clear_all_caches'), icon: '&#128465;', ...paletteShortcutTip('clearAllCaches'), action: () => {
             const vu = window.vstUpdater;
             if (!vu || typeof vu.dbClearCaches !== 'function') return;
             showToast(toastFmt('toast.clearing_caches'));
@@ -438,38 +462,39 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.toggle_dark_light_theme'),
             icon: '&#127912;',
+            ...paletteShortcutTip('toggleTheme'),
             action: () => settingToggleTheme()
         });
     }
     items.push({
-        type: 'action', name: appFmt('menu.scan_all'), icon: '&#9889;', action: () => {
+        type: 'action', name: appFmt('menu.scan_all'), icon: '&#9889;', ...paletteShortcutTip('scanAll'), action: () => {
             showToast(toastFmt('toast.scanning_all'));
             typeof scanAll === 'function' && scanAll();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.stop_all_scans'), icon: '&#9632;', action: () => {
+        type: 'action', name: appFmt('menu.stop_all_scans'), icon: '&#9632;', ...paletteShortcutTip('stopAll'), action: () => {
             showToast(toastFmt('toast.stopping_scans'));
             typeof stopAll === 'function' && stopAll();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.export_current_tab'), icon: '&#8615;', action: () => {
+        type: 'action', name: appFmt('menu.export_current_tab'), icon: '&#8615;', ...paletteShortcutTip('exportTab'), action: () => {
             typeof _exportCurrentTab === 'function' && _exportCurrentTab();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.import_to_current_tab'), icon: '&#8613;', action: () => {
+        type: 'action', name: appFmt('menu.import_to_current_tab'), icon: '&#8613;', ...paletteShortcutTip('importTab'), action: () => {
             typeof _importCurrentTab === 'function' && _importCurrentTab();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.help_keyboard_shortcuts'), icon: '&#10068;', action: () => {
+        type: 'action', name: appFmt('menu.help_keyboard_shortcuts'), icon: '&#10068;', ...paletteShortcutTip('help'), action: () => {
             typeof toggleHelpOverlay === 'function' && toggleHelpOverlay();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.open_log_file'), icon: '&#128196;', action: () => {
+        type: 'action', name: appFmt('menu.open_log_file'), icon: '&#128196;', ...paletteShortcutTip('openLogFile'), action: () => {
             const vu = window.vstUpdater;
             if (!vu || typeof vu.getPrefsPath !== 'function' || typeof vu.openWithApp !== 'function') return;
             showToast(toastFmt('toast.opening_log'));
@@ -487,60 +512,70 @@ function buildPaletteStaticItems() {
         type: 'action',
         name: appFmt('menu.toggle_crt'),
         icon: '&#128187;',
+        ...paletteShortcutTip('toggleCrt'),
         action: () => settingToggleCrt()
     });
     if (typeof settingToggleNeonGlow === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_neon_glow'),
         icon: '&#10024;',
+        ...paletteShortcutTip('toggleNeonGlow'),
         action: () => settingToggleNeonGlow()
     });
     if (typeof toggleTagFilterBarVisibility === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_tag_filter_bar'),
         icon: '&#127991;',
+        ...paletteShortcutTip('toggleTagFilterBar'),
         action: () => toggleTagFilterBarVisibility()
     });
     if (typeof settingToggleAutoAnalysis === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_auto_analyze_startup'),
         icon: '&#127925;',
+        ...paletteShortcutTip('toggleAutoAnalysis'),
         action: () => settingToggleAutoAnalysis()
     });
     if (typeof settingToggleAutoScan === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_auto_scan_launch'),
         icon: '&#8635;',
+        ...paletteShortcutTip('toggleAutoScan'),
         action: () => settingToggleAutoScan()
     });
     if (typeof settingToggleAutoUpdate === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_auto_check_updates'),
         icon: '&#9889;',
+        ...paletteShortcutTip('toggleAutoUpdate'),
         action: () => settingToggleAutoUpdate()
     });
     if (typeof settingToggleFolderWatch === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_folder_watch'),
         icon: '&#128065;',
+        ...paletteShortcutTip('toggleFolderWatch'),
         action: () => settingToggleFolderWatch()
     });
     if (typeof settingToggleIncrementalDirectoryScan === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_incremental_directory_scan'),
         icon: '&#128193;',
+        ...paletteShortcutTip('toggleIncrementalDirectoryScan'),
         action: () => settingToggleIncrementalDirectoryScan()
     });
     if (typeof settingToggleSingleClickPlay === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_single_click_play'),
         icon: '&#9654;',
+        ...paletteShortcutTip('toggleSingleClickPlay'),
         action: () => settingToggleSingleClickPlay()
     });
     if (typeof settingToggleAutoPlaySampleOnSelect === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_play_sample_on_keyboard_select'),
         icon: '&#9835;',
+        ...paletteShortcutTip('toggleAutoPlaySampleOnSelect'),
         action: () => settingToggleAutoPlaySampleOnSelect()
     });
     // Autoplay next: session row in buildPaletteDynamicItems (live On/Off detail; see menu.palette_autoplay_next)
@@ -548,24 +583,28 @@ function buildPaletteStaticItems() {
         type: 'action',
         name: appFmt('menu.toggle_show_player_startup'),
         icon: '&#9835;',
+        ...paletteShortcutTip('toggleShowPlayerStartup'),
         action: () => settingToggleShowPlayerOnStartup()
     });
     if (typeof settingToggleExpandOnClick === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_expand_on_click'),
         icon: '&#8597;',
+        ...paletteShortcutTip('toggleExpandOnClick'),
         action: () => settingToggleExpandOnClick()
     });
     if (typeof settingToggleIncludeBackups === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_include_ableton_backups'),
         icon: '&#128190;',
+        ...paletteShortcutTip('toggleIncludeBackups'),
         action: () => settingToggleIncludeBackups()
     });
     if (typeof settingTogglePruneOldScans === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_prune_old_scans'),
         icon: '&#128465;',
+        ...paletteShortcutTip('togglePruneOldScans'),
         action: () => settingTogglePruneOldScans()
     });
     if (typeof paletteNudgeTablePageSize === 'function') {
@@ -573,12 +612,14 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.increase_table_page_size'),
             icon: '&#8593;',
+            ...paletteShortcutTip('increaseTablePageSize'),
             action: () => paletteNudgeTablePageSize(100)
         });
         items.push({
             type: 'action',
             name: appFmt('menu.decrease_table_page_size'),
             icon: '&#8595;',
+            ...paletteShortcutTip('decreaseTablePageSize'),
             action: () => paletteNudgeTablePageSize(-100)
         });
     }
@@ -587,12 +628,14 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.increase_scan_history_keep'),
             icon: '&#8593;',
+            ...paletteShortcutTip('increasePruneKeep'),
             action: () => paletteNudgePruneKeep(1)
         });
         items.push({
             type: 'action',
             name: appFmt('menu.decrease_scan_history_keep'),
             icon: '&#8595;',
+            ...paletteShortcutTip('decreasePruneKeep'),
             action: () => paletteNudgePruneKeep(-1)
         });
     }
@@ -600,12 +643,14 @@ function buildPaletteStaticItems() {
         type: 'action',
         name: appFmt('menu.cycle_log_verbosity'),
         icon: '&#128196;',
+        ...paletteShortcutTip('cycleLogVerbosity'),
         action: () => paletteCycleLogVerbosity()
     });
     if (typeof settingClearAnalysisCache === 'function') items.push({
         type: 'action',
         name: appFmt('menu.clear_analysis_cache'),
         icon: '&#128465;',
+        ...paletteShortcutTip('clearAnalysisCache'),
         action: () => {
             void settingClearAnalysisCache();
         }
@@ -686,13 +731,13 @@ function buildPaletteStaticItems() {
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.preferences'), icon: '&#128196;', action: () => {
+        type: 'action', name: appFmt('menu.preferences'), icon: '&#128196;', ...paletteShortcutTip('openPrefsFile'), action: () => {
             showToast(toastFmt('toast.opening_preferences'));
             typeof openPrefsFile === 'function' && openPrefsFile();
         }
     });
     items.push({
-        type: 'action', name: appFmt('menu.open_data_directory'), icon: '&#128193;', action: () => {
+        type: 'action', name: appFmt('menu.open_data_directory'), icon: '&#128193;', ...paletteShortcutTip('openDataDirectory'), action: () => {
             const vu = window.vstUpdater;
             if (!vu || typeof vu.getPrefsPath !== 'function' || typeof vu.openPluginFolder !== 'function') return;
             showToast(toastFmt('toast.opening_data_dir'));
@@ -706,6 +751,7 @@ function buildPaletteStaticItems() {
         type: 'action',
         name: appFmt('menu.clear_play_history'),
         icon: '&#128465;',
+        ...paletteShortcutTip('clearPlayHistory'),
         action: () => clearRecentlyPlayed()
     });
     if (typeof clearFavorites === 'function') items.push({
@@ -721,7 +767,7 @@ function buildPaletteStaticItems() {
         action: () => clearAllNotes()
     });
     items.push({
-        type: 'action', name: appFmt('menu.focus_search'), icon: '&#128269;', action: () => {
+        type: 'action', name: appFmt('menu.focus_search'), icon: '&#128269;', ...paletteShortcutTip('search'), action: () => {
             const tab = document.querySelector('.tab-content.active');
             const input = tab?.querySelector('input[type="text"]');
             if (input) {
@@ -737,20 +783,22 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.play_pause'),
             icon: '&#9654;',
+            ...paletteShortcutTip('playPause'),
             action: () => toggleAudioPlayback()
         });
     }
     if (typeof nextTrack === 'function') {
-        items.push({type: 'action', name: appFmt('menu.next_track'), icon: '&#9193;', action: () => nextTrack()});
+        items.push({type: 'action', name: appFmt('menu.next_track'), icon: '&#9193;', ...paletteShortcutTip('nextTrack'), action: () => nextTrack()});
     }
     if (typeof prevTrack === 'function') {
-        items.push({type: 'action', name: appFmt('menu.prev_track'), icon: '&#9194;', action: () => prevTrack()});
+        items.push({type: 'action', name: appFmt('menu.prev_track'), icon: '&#9194;', ...paletteShortcutTip('prevTrack'), action: () => prevTrack()});
     }
     if (typeof toggleAudioLoop === 'function') {
         items.push({
             type: 'action',
             name: appFmt('menu.toggle_loop'),
             icon: '&#128257;',
+            ...paletteShortcutTip('toggleLoop'),
             action: () => toggleAudioLoop()
         });
     }
@@ -759,20 +807,22 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.toggle_shuffle'),
             icon: '&#128256;',
+            ...paletteShortcutTip('toggleShuffle'),
             action: () => toggleShuffle()
         });
     }
     if (typeof toggleMute === 'function') {
-        items.push({type: 'action', name: appFmt('menu.toggle_mute'), icon: '&#128263;', action: () => toggleMute()});
+        items.push({type: 'action', name: appFmt('menu.toggle_mute'), icon: '&#128263;', ...paletteShortcutTip('toggleMute'), action: () => toggleMute()});
     }
     if (typeof toggleMono === 'function') {
-        items.push({type: 'action', name: appFmt('menu.toggle_mono'), icon: '&#127897;', action: () => toggleMono()});
+        items.push({type: 'action', name: appFmt('menu.toggle_mono'), icon: '&#127897;', ...paletteShortcutTip('toggleMono'), action: () => toggleMono()});
     }
     if (typeof toggleEqSection === 'function') {
         items.push({
             type: 'action',
             name: appFmt('menu.toggle_eq_panel'),
             icon: '&#127900;',
+            ...paletteShortcutTip('toggleEq'),
             action: () => toggleEqSection()
         });
     }
@@ -781,12 +831,13 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.expand_player'),
             icon: '&#9744;',
+            ...paletteShortcutTip('togglePlayerExpand'),
             action: () => togglePlayerExpanded()
         });
     }
     if (typeof setAbLoopStart === 'function') {
         items.push({
-            type: 'action', name: appFmt('menu.toggle_ab_loop'), icon: '&#128260;', action: () => {
+            type: 'action', name: appFmt('menu.toggle_ab_loop'), icon: '&#128260;', ...paletteShortcutTip('toggleABLoop'), action: () => {
                 if (typeof _abLoop !== 'undefined' && _abLoop) {
                     if (typeof clearAbLoop === 'function') clearAbLoop();
                 } else {
@@ -802,6 +853,7 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.toggle_select_all_visible'),
             icon: '&#9745;',
+            ...paletteShortcutTip('selectAll'),
             action: () => selectAllVisible()
         });
     }
@@ -810,6 +862,7 @@ function buildPaletteStaticItems() {
             type: 'action',
             name: appFmt('menu.toggle_deselect_all'),
             icon: '&#9744;',
+            ...paletteShortcutTip('deselectAll'),
             action: () => deselectAll()
         });
     }
@@ -826,7 +879,7 @@ function buildPaletteDynamicItems() {
     const items = [];
     if (typeof findSimilarSamples === 'function' && typeof audioPlayerPath !== 'undefined' && audioPlayerPath) {
         items.push({
-            type: 'action', name: appFmt('menu.find_similar_current'), icon: '&#128270;', action: () => {
+            type: 'action', name: appFmt('menu.find_similar_current'), icon: '&#128270;', ...paletteShortcutTip('findSimilar'), action: () => {
                 showToast(toastFmt('toast.finding_similar'));
                 findSimilarSamples(audioPlayerPath);
             }
@@ -839,6 +892,7 @@ function buildPaletteDynamicItems() {
             type: 'action',
             name: visible ? appFmt('menu.hide_audio_player') : appFmt('menu.show_audio_player'),
             icon: '&#9835;',
+            ...paletteShortcutTip('togglePlayer'),
             action: () => {
                 visible ? (typeof hidePlayer === 'function' && hidePlayer()) : (typeof showPlayer === 'function' && showPlayer());
                 showToast(visible ? toastFmt('toast.player_hidden') : toastFmt('toast.player_shown'));
@@ -869,6 +923,7 @@ function buildPaletteDynamicItems() {
                 catalogFmt('menu.palette_autoplay_source_samples'),
             ],
             icon: '&#9197;',
+            ...paletteShortcutTip('toggleAutoplayNext'),
             action: () => settingToggleAutoplayNext()
         });
     }
@@ -891,6 +946,7 @@ function buildPaletteDynamicItems() {
                 catalogFmt('menu.palette_autoplay_next_player'),
             ],
             icon: '&#9835;',
+            ...paletteShortcutTip('autoplaySourcePlayer'),
             action: () => settingSetAutoplayNextSource('player')
         });
         items.push({
@@ -904,6 +960,7 @@ function buildPaletteDynamicItems() {
                 catalogFmt('menu.palette_autoplay_next_player'),
             ],
             icon: '&#127925;',
+            ...paletteShortcutTip('autoplaySourceSamples'),
             action: () => settingSetAutoplayNextSource('samples')
         });
     }
@@ -1049,10 +1106,12 @@ function paintPaletteRows(container) {
         const sel = i === _paletteSelected ? ' palette-selected' : '';
         const typeLabel = typeLabels[item.type] || item.type;
         const detail = item.detail ? `<span class="palette-detail">${escapeHtml(item.detail)}</span>` : '';
+        const shortcutHint = paletteShortcutHintHtml(item.shortcutId);
         return `<div class="palette-row${sel}" data-palette-idx="${i}">
       <span class="palette-icon">${item.icon}</span>
       <span class="palette-name">${_paletteQuery ? highlightMatch(item.name, _paletteQuery, 'fuzzy') : escapeHtml(item.name)}</span>
       ${detail}
+      ${shortcutHint}
       <span class="palette-badge ${typeCls}">${typeLabel}</span>
     </div>`;
     }).join('');
