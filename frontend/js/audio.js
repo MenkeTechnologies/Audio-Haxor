@@ -3009,7 +3009,7 @@ function enginePlaybackDurationSec() {
     return dur;
 }
 
-/** Dedupes `invoke('update_tray_now_playing')` — ~1 Hz while playing (signature uses floor seconds). */
+/** Dedupes `invoke('update_tray_now_playing')` — includes duration so tray updates when total length loads. */
 let _traySyncSig = '';
 
 function syncTrayNowPlayingFromPlayback() {
@@ -3042,6 +3042,10 @@ function syncTrayNowPlayingFromPlayback() {
     } else {
         cur = audioPlayer.currentTime;
         dur = audioPlayer.duration;
+        if ((!Number.isFinite(dur) || dur <= 0) && audioPlayerPath && typeof findByPath === 'function' && typeof allAudioSamples !== 'undefined') {
+            const s = findByPath(allAudioSamples, audioPlayerPath);
+            if (s && typeof s.duration === 'number' && s.duration > 0) dur = s.duration;
+        }
     }
     const np = document.getElementById('npName');
     let track = np && typeof np.textContent === 'string' ? np.textContent.trim() : '';
@@ -3051,7 +3055,8 @@ function syncTrayNowPlayingFromPlayback() {
     }
     const playing = typeof isAudioPlaying === 'function' && isAudioPlaying();
     const ft = typeof formatTime === 'function' ? formatTime : (x) => String(x);
-    const timeLine = `${ft(cur)} / ${ft(dur)}`;
+    const totalStr = Number.isFinite(dur) && dur > 0 ? ft(dur) : '—';
+    const timeLine = `${ft(cur)} / ${totalStr}`;
     const status = playing
         ? typeof appFmt === 'function'
             ? appFmt('tray.status_playing')
@@ -3059,10 +3064,12 @@ function syncTrayNowPlayingFromPlayback() {
         : typeof appFmt === 'function'
           ? appFmt('tray.status_paused')
           : 'Paused';
-    const tooltip = `${track}\n${timeLine} • ${status}`;
+    /* Single line: macOS status-item tooltips often drop or truncate after \n */
+    const tooltip = `${track} — ${timeLine} • ${status}`;
     const shortT = track.length > 44 ? `${track.slice(0, 41)}…` : track;
-    const title_bar = `${shortT} — ${ft(cur)}/${ft(dur)}`;
-    const sig = `${audioPlayerPath}|${Math.floor(cur)}|${playing ? 1 : 0}`;
+    const title_bar = `${shortT} — ${ft(cur)} / ${totalStr}`;
+    const durKey = Number.isFinite(dur) && dur > 0 ? Math.floor(dur) : -1;
+    const sig = `${audioPlayerPath}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}`;
     if (sig === _traySyncSig) return;
     _traySyncSig = sig;
     void inv('update_tray_now_playing', {title_bar, tooltip, idle: false}).catch(() => {});
