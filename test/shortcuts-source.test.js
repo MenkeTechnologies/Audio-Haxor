@@ -53,15 +53,18 @@ describe('frontend/js/shortcuts.js (vm-loaded)', () => {
     assert.strictEqual(sc.tab2.mod, true);
   });
 
-  it('saveShortcuts persists only key+mod per id', () => {
+  it('saveShortcuts persists key+mod+shift per id', () => {
     const S = loadShortcutsSandbox('MacIntel');
     S.saveShortcuts({
       tab1: { key: 'q', mod: false, label: 'ignored' },
+      scanSamplesOnly: { key: 's', mod: true, shift: true, label: 'ignored' },
     });
     const slim = S.prefs._cache.customShortcuts;
     assert.strictEqual(slim.tab1.key, 'q');
     assert.strictEqual(slim.tab1.mod, false);
     assert.strictEqual(slim.tab1.label, undefined);
+    assert.strictEqual(slim.tab1.shift, undefined);
+    assert.strictEqual(slim.scanSamplesOnly.shift, true);
   });
 
   it('formatKey uses Cmd glyph on Mac and Ctrl on Windows', () => {
@@ -88,6 +91,13 @@ describe('frontend/js/shortcuts.js (vm-loaded)', () => {
   it('formatKey uppercases single letter keys', () => {
     const S = loadShortcutsSandbox('Win32');
     assert.strictEqual(S.formatKey({ key: 'a', mod: false }), 'A');
+  });
+
+  it('formatKey shows shift when shortcut.shift is true', () => {
+    const S = loadShortcutsSandbox('MacIntel');
+    const fk = S.formatKey({ key: 'm', mod: true, shift: true });
+    assert.ok(fk.includes('\u21E7'), 'includes shift glyph');
+    assert.ok(fk.includes('M'));
   });
 
   it('formatKey no mod is only the key part', () => {

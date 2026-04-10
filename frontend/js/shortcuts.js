@@ -56,6 +56,50 @@ const SHORTCUT_LABEL_KEYS = {
     toggleCrt: 'ui.shortcut.toggle_crt',
     toggleNeonGlow: 'ui.shortcut.toggle_neon_glow',
     clearPlayHistory: 'ui.shortcut.clear_play_history',
+    scanPluginsOnly: 'ui.shortcut.scan_plugins_only',
+    scanSamplesOnly: 'ui.shortcut.scan_samples_only',
+    scanDawOnly: 'ui.shortcut.scan_daw_only',
+    scanPresetsOnly: 'ui.shortcut.scan_presets_only',
+    scanPdfsOnly: 'ui.shortcut.scan_pdfs_only',
+    stopPdfScan: 'ui.shortcut.stop_pdf_scan',
+    extractPdfMetadata: 'ui.shortcut.extract_pdf_metadata',
+    stopPdfMetadata: 'ui.shortcut.stop_pdf_metadata',
+    buildFingerprintCache: 'ui.shortcut.build_fingerprint_cache',
+    checkUpdates: 'ui.shortcut.check_updates',
+    buildPluginIndex: 'ui.shortcut.build_plugin_index',
+    bpmKeyLufsStart: 'ui.shortcut.bpm_key_lufs_start',
+    bpmKeyLufsStop: 'ui.shortcut.bpm_key_lufs_stop',
+    clearAllCaches: 'ui.shortcut.clear_all_caches',
+    exportSettingsPdf: 'ui.shortcut.export_settings_pdf',
+    exportLogPdf: 'ui.shortcut.export_log_pdf',
+    exportMidiPalette: 'ui.shortcut.export_midi_palette',
+    exportPluginXref: 'ui.shortcut.export_plugin_xref',
+    exportSmartPlaylists: 'ui.shortcut.export_smart_playlists',
+    openLogFile: 'ui.shortcut.open_log_file',
+    openPrefsFile: 'ui.shortcut.open_prefs_file',
+    openDataDirectory: 'ui.shortcut.open_data_directory',
+    toggleTagFilterBar: 'ui.shortcut.toggle_tag_filter_bar',
+    toggleAutoplayNext: 'ui.shortcut.toggle_autoplay_next',
+    autoplaySourcePlayer: 'ui.shortcut.autoplay_source_player',
+    autoplaySourceSamples: 'ui.shortcut.autoplay_source_samples',
+    clearAnalysisCache: 'ui.shortcut.clear_analysis_cache',
+    cycleLogVerbosity: 'ui.shortcut.cycle_log_verbosity',
+    increasePruneKeep: 'ui.shortcut.increase_prune_keep',
+    decreasePruneKeep: 'ui.shortcut.decrease_prune_keep',
+    increaseTablePageSize: 'ui.shortcut.increase_table_page_size',
+    decreaseTablePageSize: 'ui.shortcut.decrease_table_page_size',
+    toggleAutoAnalysis: 'ui.shortcut.toggle_auto_analysis',
+    toggleAutoPlaySampleOnSelect: 'ui.shortcut.toggle_auto_play_sample_on_select',
+    toggleAutoScan: 'ui.shortcut.toggle_auto_scan',
+    toggleShowPlayerStartup: 'ui.shortcut.toggle_show_player_startup',
+    toggleAutoUpdate: 'ui.shortcut.toggle_auto_update',
+    toggleExpandOnClick: 'ui.shortcut.toggle_expand_on_click',
+    toggleFolderWatch: 'ui.shortcut.toggle_folder_watch',
+    toggleIncludeBackups: 'ui.shortcut.toggle_include_backups',
+    toggleIncrementalDirectoryScan: 'ui.shortcut.toggle_incremental_directory_scan',
+    togglePruneOldScans: 'ui.shortcut.toggle_prune_old_scans',
+    toggleSingleClickPlay: 'ui.shortcut.toggle_single_click_play',
+    togglePdfMetadataAutoExtract: 'ui.shortcut.toggle_pdf_metadata_auto_extract',
 };
 
 const DEFAULT_SHORTCUT_DEFS = {
@@ -73,47 +117,91 @@ const DEFAULT_SHORTCUT_DEFS = {
     tab12: {key: 'F4', mod: false},
     tab13: {key: 'F5', mod: false},
     tab14: {key: 'F6', mod: false},
-    search: {key: 'f', mod: true},
+    search: {key: 'f', mod: true, shift: false},
     help: {key: '?', mod: false},
     playPause: {key: ' ', mod: false},
-    nextTrack: {key: 'ArrowRight', mod: true},
-    prevTrack: {key: 'ArrowLeft', mod: true},
-    scanAll: {key: 's', mod: true},
-    stopAll: {key: '.', mod: true},
-    commandPalette: {key: 'k', mod: true},
+    nextTrack: {key: 'ArrowRight', mod: true, shift: false},
+    prevTrack: {key: 'ArrowLeft', mod: true, shift: false},
+    scanAll: {key: 's', mod: true, shift: false},
+    stopAll: {key: '.', mod: true, shift: false},
+    commandPalette: {key: 'k', mod: true, shift: false},
     toggleLoop: {key: 'l', mod: false},
     toggleMute: {key: 'm', mod: false},
-    volumeUp: {key: 'ArrowUp', mod: true},
-    volumeDown: {key: 'ArrowDown', mod: true},
+    volumeUp: {key: 'ArrowUp', mod: true, shift: false},
+    volumeDown: {key: 'ArrowDown', mod: true, shift: false},
     revealFile: {key: 'r', mod: false},
     copyPath: {key: 'c', mod: false},
     toggleFavorite: {key: 'f', mod: false},
     addNote: {key: 'n', mod: false},
     deleteItem: {key: 'Backspace', mod: false},
-    selectAll: {key: 'a', mod: true},
+    selectAll: {key: 'a', mod: true, shift: false},
     escape: {key: 'Escape', mod: false},
-    exportTab: {key: 'e', mod: true},
-    importTab: {key: 'i', mod: true},
+    exportTab: {key: 'e', mod: true, shift: false},
+    importTab: {key: 'i', mod: true, shift: false},
     toggleShuffle: {key: 's', mod: false},
-    findDuplicates: {key: 'd', mod: true},
-    depGraph: {key: 'g', mod: true},
-    resetAllScans: {key: 'Backspace', mod: true},
-    toggleTheme: {key: 't', mod: true},
-    openPrefs: {key: ',', mod: true},
-    nextTab: {key: ']', mod: true},
-    prevTab: {key: '[', mod: true},
+    findDuplicates: {key: 'd', mod: true, shift: false},
+    depGraph: {key: 'g', mod: true, shift: false},
+    resetAllScans: {key: 'Backspace', mod: true, shift: false},
+    toggleTheme: {key: 't', mod: true, shift: false},
+    openPrefs: {key: ',', mod: true, shift: false},
+    nextTab: {key: ']', mod: true, shift: false},
+    prevTab: {key: '[', mod: true, shift: false},
     findSimilar: {key: 'w', mod: false},
     togglePlayerExpand: {key: 'e', mod: false},
     toggleEq: {key: 'q', mod: false},
     toggleMono: {key: 'u', mod: false},
-    newSmartPlaylist: {key: 'p', mod: true},
-    deselectAll: {key: 'Escape', mod: true},
+    newSmartPlaylist: {key: 'p', mod: true, shift: false},
+    deselectAll: {key: 'Escape', mod: true, shift: false},
     toggleABLoop: {key: 'b', mod: false},
     heatmapDash: {key: 'd', mod: false},
     togglePlayer: {key: 'p', mod: false},
     toggleCrt: {key: 'F1', mod: false},
     toggleNeonGlow: {key: 'F2', mod: false},
-    clearPlayHistory: {key: 'h', mod: true},
+    clearPlayHistory: {key: 'h', mod: true, shift: false},
+    scanPluginsOnly: {key: 'p', mod: true, shift: true},
+    scanSamplesOnly: {key: 's', mod: true, shift: true},
+    scanDawOnly: {key: '`', mod: true, shift: true},
+    scanPresetsOnly: {key: 'r', mod: true, shift: true},
+    scanPdfsOnly: {key: 'f', mod: true, shift: true},
+    stopPdfScan: {key: 'y', mod: true, shift: true},
+    extractPdfMetadata: {key: 'm', mod: true, shift: true},
+    stopPdfMetadata: {key: 'z', mod: true, shift: true},
+    buildFingerprintCache: {key: 'b', mod: true, shift: true},
+    checkUpdates: {key: 'u', mod: true, shift: true},
+    buildPluginIndex: {key: 'x', mod: true, shift: true},
+    bpmKeyLufsStart: {key: 'v', mod: true, shift: true},
+    bpmKeyLufsStop: {key: 'c', mod: true, shift: true},
+    clearAllCaches: {key: 'Backspace', mod: true, shift: true},
+    exportSettingsPdf: {key: 'w', mod: true, shift: true},
+    exportLogPdf: {key: 'l', mod: true, shift: true},
+    exportMidiPalette: {key: 'i', mod: true, shift: true},
+    exportPluginXref: {key: 'j', mod: true, shift: true},
+    exportSmartPlaylists: {key: '\\', mod: true, shift: true},
+    openLogFile: {key: 'o', mod: true, shift: true},
+    openPrefsFile: {key: 'g', mod: true, shift: true},
+    openDataDirectory: {key: 'd', mod: true, shift: true},
+    toggleTagFilterBar: {key: 't', mod: true, shift: true},
+    toggleAutoplayNext: {key: 'n', mod: true, shift: true},
+    autoplaySourcePlayer: {key: '[', mod: true, shift: true},
+    autoplaySourceSamples: {key: ']', mod: true, shift: true},
+    clearAnalysisCache: {key: '9', mod: true, shift: true},
+    cycleLogVerbosity: {key: '?', mod: true, shift: true},
+    increasePruneKeep: {key: '+', mod: true, shift: true},
+    decreasePruneKeep: {key: '-', mod: true, shift: true},
+    increaseTablePageSize: {key: 'ArrowUp', mod: true, shift: true},
+    decreaseTablePageSize: {key: 'ArrowDown', mod: true, shift: true},
+    toggleAutoAnalysis: {key: 'F7', mod: true, shift: false},
+    toggleAutoPlaySampleOnSelect: {key: 'F7', mod: true, shift: true},
+    toggleAutoScan: {key: 'F8', mod: true, shift: false},
+    toggleShowPlayerStartup: {key: 'F8', mod: true, shift: true},
+    toggleAutoUpdate: {key: 'F9', mod: true, shift: false},
+    toggleExpandOnClick: {key: 'F9', mod: true, shift: true},
+    toggleFolderWatch: {key: 'F10', mod: true, shift: false},
+    toggleIncludeBackups: {key: 'F10', mod: true, shift: true},
+    toggleIncrementalDirectoryScan: {key: 'F11', mod: true, shift: false},
+    togglePruneOldScans: {key: 'F11', mod: true, shift: true},
+    toggleSingleClickPlay: {key: 'F12', mod: true, shift: false},
+    togglePdfMetadataAutoExtract: {key: 'F12', mod: true, shift: true},
 };
 
 const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'midi', 'pdf', 'favorites', 'notes', 'tags', 'files', 'history', 'visualizer', 'walkers', 'audioEngine', 'settings'];
@@ -129,9 +217,11 @@ function getShortcuts() {
             mod: def.mod,
             label: lk ? fmt(lk) : id,
         };
+        if (def.shift !== undefined) merged[id].shift = def.shift;
         if (saved && saved[id]) {
             merged[id].key = saved[id].key;
             merged[id].mod = saved[id].mod;
+            if (saved[id].shift !== undefined) merged[id].shift = saved[id].shift;
         }
     }
     return merged;
@@ -141,6 +231,7 @@ function saveShortcuts(shortcuts) {
     const slim = {};
     for (const [id, sc] of Object.entries(shortcuts)) {
         slim[id] = {key: sc.key, mod: sc.mod};
+        if (sc.shift !== undefined) slim[id].shift = sc.shift;
     }
     prefs.setItem('customShortcuts', slim);
 }
@@ -162,10 +253,25 @@ function eventKeyForShortcutMatch(e) {
     return e.key;
 }
 
+/** Unify letter case and '=' vs '+' for US keyboards (Cmd+Shift+= often reports '+'). */
+function normalizeKeyForMatch(k) {
+    const n = normalizeStoredShortcutKey(k);
+    if (n === '+' || n === '=') return '+';
+    if (n.length === 1 && /[A-Za-z]/.test(n)) return n.toLowerCase();
+    return n;
+}
+
+function shortcutShiftMatches(sc, e) {
+    if (sc.shift === true) return e.shiftKey === true;
+    if (sc.shift === false) return e.shiftKey === false;
+    return true;
+}
+
 function formatKey(shortcut) {
     const isMac = navigator.platform.includes('Mac');
     let parts = [];
     if (shortcut.mod) parts.push(isMac ? '\u2318' : 'Ctrl');
+    if (shortcut.shift === true) parts.push(isMac ? '\u21E7' : 'Shift');
     let k = shortcut.key;
     if (k === ' ') k = 'Space';
     else if (k === 'ArrowLeft') k = '\u2190';
@@ -173,6 +279,8 @@ function formatKey(shortcut) {
     else if (k === 'ArrowUp') k = '\u2191';
     else if (k === 'ArrowDown') k = '\u2193';
     else if (k === 'Escape') k = 'Esc';
+    else if (k === '\\') k = '\\';
+    else if (k === '`') k = '`';
     else k = k.toUpperCase();
     parts.push(k);
     return parts.join('+');
@@ -242,6 +350,13 @@ document.addEventListener('click', (e) => {
     }
 });
 
+function _recordShortcutKey(e) {
+    let k = eventKeyForShortcutMatch(e);
+    if (k.length === 1 && /[a-zA-Z]/.test(k)) k = k.toLowerCase();
+    if (k === '=' || k === '+') k = '+';
+    return k;
+}
+
 document.addEventListener('keydown', (e) => {
     if (_recordingId) {
         e.preventDefault();
@@ -258,11 +373,23 @@ document.addEventListener('keydown', (e) => {
         if (['Meta', 'Control', 'Shift', 'Alt'].includes(e.key)) return;
 
         const shortcuts = getShortcuts();
-        shortcuts[_recordingId] = {...shortcuts[_recordingId], key: eventKeyForShortcutMatch(e), mod};
+        const k = _recordShortcutKey(e);
+        const shift = e.shiftKey;
+        shortcuts[_recordingId] = {...shortcuts[_recordingId], key: k, mod, shift};
         saveShortcuts(shortcuts);
         _recordingId = null;
         renderShortcutSettings();
         showToast(toastFmt('toast.shortcut_updated'));
+        return;
+    }
+
+    const isMac = navigator.platform.includes('Mac');
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    // Command palette: must work while the palette search input is focused
+    if (mod && e.key === 'k') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof toggleCommandPalette === 'function') toggleCommandPalette();
         return;
     }
 
@@ -271,17 +398,16 @@ document.addEventListener('keydown', (e) => {
     if (e.target.isContentEditable || e.target.closest('[contenteditable]')) return;
     if (e.target.closest('.ctx-menu')) return;
 
-    const isMac = navigator.platform.includes('Mac');
-    const mod = isMac ? e.metaKey : e.ctrlKey;
     const shortcuts = getShortcuts();
-    const eventKey = eventKeyForShortcutMatch(e);
+    const eventKey = normalizeKeyForMatch(eventKeyForShortcutMatch(e));
 
     for (const [id, sc] of Object.entries(shortcuts)) {
-        if (normalizeStoredShortcutKey(sc.key) === eventKey && sc.mod === mod) {
-            e.preventDefault();
-            executeShortcut(id);
-            return;
-        }
+        if (normalizeKeyForMatch(sc.key) !== eventKey) continue;
+        if (sc.mod !== mod) continue;
+        if (!shortcutShiftMatches(sc, e)) continue;
+        e.preventDefault();
+        executeShortcut(id);
+        return;
     }
 }, true); // capture phase to override other handlers
 
@@ -367,7 +493,6 @@ function executeShortcut(id) {
     } else if (id === 'deselectAll') {
         if (typeof deselectAll === 'function') deselectAll();
     } else if (id === 'toggleABLoop') {
-        // Cycle: no loop → set A → set B → clear
         if (typeof _abLoop !== 'undefined' && _abLoop) {
             if (typeof clearAbLoop === 'function') clearAbLoop();
         } else {
@@ -388,6 +513,156 @@ function executeShortcut(id) {
         if (typeof settingToggleNeonGlow === 'function') settingToggleNeonGlow();
     } else if (id === 'clearPlayHistory') {
         if (typeof clearRecentlyPlayed === 'function') clearRecentlyPlayed();
+    } else if (id === 'scanPluginsOnly') {
+        if (typeof scanPlugins === 'function') scanPlugins();
+    } else if (id === 'scanSamplesOnly') {
+        if (typeof scanAudioSamples === 'function') scanAudioSamples();
+    } else if (id === 'scanDawOnly') {
+        if (typeof scanDawProjects === 'function') scanDawProjects();
+    } else if (id === 'scanPresetsOnly') {
+        if (typeof scanPresets === 'function') scanPresets();
+    } else if (id === 'scanPdfsOnly') {
+        if (typeof scanPdfs === 'function') scanPdfs();
+    } else if (id === 'stopPdfScan') {
+        if (typeof stopPdfScan === 'function') stopPdfScan();
+    } else if (id === 'extractPdfMetadata') {
+        if (typeof buildPdfPagesCache === 'function') buildPdfPagesCache();
+    } else if (id === 'stopPdfMetadata') {
+        if (typeof stopPdfMetadataExtractionUser === 'function') void stopPdfMetadataExtractionUser();
+    } else if (id === 'buildFingerprintCache') {
+        void (async () => {
+            const paths = typeof fetchAudioLibraryPathsForFingerprint === 'function'
+                ? await fetchAudioLibraryPathsForFingerprint()
+                : [];
+            if (paths.length === 0) {
+                if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                    showToast(toastFmt('toast.no_audio_samples_scan_first'), 4000, 'error');
+                }
+                return;
+            }
+            if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                showToast(toastFmt('toast.fingerprint_building_n', {n: paths.length.toLocaleString()}), 4000);
+            }
+            const vu = window.vstUpdater;
+            if (!vu || typeof vu.buildFingerprintCache !== 'function') return;
+            try {
+                const res = await vu.buildFingerprintCache(paths);
+                if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                    showToast(toastFmt('toast.fingerprint_build_complete_n', {n: res.built.toLocaleString()}));
+                }
+            } catch (err) {
+                if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                    showToast(toastFmt('toast.fingerprint_build_failed', {err: err.message || err}), 4000, 'error');
+                }
+            }
+        })();
+    } else if (id === 'checkUpdates') {
+        if (typeof checkUpdates === 'function') checkUpdates();
+    } else if (id === 'buildPluginIndex') {
+        if (typeof buildXrefIndex === 'function') buildXrefIndex();
+    } else if (id === 'bpmKeyLufsStart') {
+        if (typeof triggerBackgroundBpmKeyLufsAnalysis === 'function') triggerBackgroundBpmKeyLufsAnalysis();
+    } else if (id === 'bpmKeyLufsStop') {
+        if (typeof triggerStopBackgroundBpmKeyLufsAnalysis === 'function') triggerStopBackgroundBpmKeyLufsAnalysis();
+    } else if (id === 'clearAllCaches') {
+        const vu = window.vstUpdater;
+        if (!vu || typeof vu.dbClearCaches !== 'function') return;
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') showToast(toastFmt('toast.clearing_caches'));
+        vu.dbClearCaches().then(() => {
+            if (typeof _bpmCache !== 'undefined') {
+                _bpmCache = {};
+                _keyCache = {};
+                _lufsCache = {};
+            }
+            if (typeof _waveformCache !== 'undefined') {
+                _waveformCache = {};
+                _spectrogramCache = {};
+            }
+            if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                showToast(toastFmt('toast.all_caches_cleared'));
+            }
+        }).catch((err) => {
+            if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                showToast(toastFmt('toast.failed', {err}), 4000, 'error');
+            }
+        });
+    } else if (id === 'exportSettingsPdf') {
+        if (typeof exportSettingsPdf === 'function') exportSettingsPdf();
+    } else if (id === 'exportLogPdf') {
+        if (typeof exportLogPdf === 'function') exportLogPdf();
+    } else if (id === 'exportMidiPalette') {
+        const run = typeof runExport === 'function' ? runExport : (fn) => {
+            if (typeof fn === 'function') fn();
+        };
+        if (typeof exportMidi === 'function') run(exportMidi);
+    } else if (id === 'exportPluginXref') {
+        if (typeof exportXref === 'function') exportXref();
+    } else if (id === 'exportSmartPlaylists') {
+        if (typeof exportSmartPlaylists === 'function') exportSmartPlaylists();
+    } else if (id === 'openLogFile') {
+        const vu = window.vstUpdater;
+        if (!vu || typeof vu.getPrefsPath !== 'function' || typeof vu.openWithApp !== 'function') return;
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') showToast(toastFmt('toast.opening_log'));
+        vu.getPrefsPath().then((p) => {
+            const lp = p.replace(/preferences\.toml$/, 'app.log');
+            vu.openWithApp(lp, 'TextEdit').catch((err) => {
+                if (typeof showToast === 'function') showToast(String(err), 4000, 'error');
+            });
+        });
+    } else if (id === 'openPrefsFile') {
+        if (typeof openPrefsFile === 'function') openPrefsFile();
+    } else if (id === 'openDataDirectory') {
+        const vu = window.vstUpdater;
+        if (!vu || typeof vu.getPrefsPath !== 'function' || typeof vu.openPluginFolder !== 'function') return;
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') showToast(toastFmt('toast.opening_data_dir'));
+        vu.getPrefsPath().then((p) => {
+            const dir = p.replace(/[/\\][^/\\]+$/, '');
+            vu.openPluginFolder(dir);
+        });
+    } else if (id === 'toggleTagFilterBar') {
+        if (typeof toggleTagFilterBarVisibility === 'function') toggleTagFilterBarVisibility();
+    } else if (id === 'toggleAutoplayNext') {
+        if (typeof settingToggleAutoplayNext === 'function') settingToggleAutoplayNext();
+    } else if (id === 'autoplaySourcePlayer') {
+        if (typeof settingSetAutoplayNextSource === 'function') settingSetAutoplayNextSource('player');
+    } else if (id === 'autoplaySourceSamples') {
+        if (typeof settingSetAutoplayNextSource === 'function') settingSetAutoplayNextSource('samples');
+    } else if (id === 'clearAnalysisCache') {
+        if (typeof settingClearAnalysisCache === 'function') void settingClearAnalysisCache();
+    } else if (id === 'cycleLogVerbosity') {
+        if (typeof paletteCycleLogVerbosity === 'function') paletteCycleLogVerbosity();
+    } else if (id === 'increasePruneKeep') {
+        if (typeof paletteNudgePruneKeep === 'function') paletteNudgePruneKeep(1);
+    } else if (id === 'decreasePruneKeep') {
+        if (typeof paletteNudgePruneKeep === 'function') paletteNudgePruneKeep(-1);
+    } else if (id === 'increaseTablePageSize') {
+        if (typeof paletteNudgeTablePageSize === 'function') paletteNudgeTablePageSize(100);
+    } else if (id === 'decreaseTablePageSize') {
+        if (typeof paletteNudgeTablePageSize === 'function') paletteNudgeTablePageSize(-100);
+    } else if (id === 'toggleAutoAnalysis') {
+        if (typeof settingToggleAutoAnalysis === 'function') settingToggleAutoAnalysis();
+    } else if (id === 'toggleAutoPlaySampleOnSelect') {
+        if (typeof settingToggleAutoPlaySampleOnSelect === 'function') settingToggleAutoPlaySampleOnSelect();
+    } else if (id === 'toggleAutoScan') {
+        if (typeof settingToggleAutoScan === 'function') settingToggleAutoScan();
+    } else if (id === 'toggleShowPlayerStartup') {
+        if (typeof settingToggleShowPlayerOnStartup === 'function') settingToggleShowPlayerOnStartup();
+    } else if (id === 'toggleAutoUpdate') {
+        if (typeof settingToggleAutoUpdate === 'function') settingToggleAutoUpdate();
+    } else if (id === 'toggleExpandOnClick') {
+        if (typeof settingToggleExpandOnClick === 'function') settingToggleExpandOnClick();
+    } else if (id === 'toggleFolderWatch') {
+        if (typeof settingToggleFolderWatch === 'function') settingToggleFolderWatch();
+    } else if (id === 'toggleIncludeBackups') {
+        if (typeof settingToggleIncludeBackups === 'function') settingToggleIncludeBackups();
+    } else if (id === 'toggleIncrementalDirectoryScan') {
+        if (typeof settingToggleIncrementalDirectoryScan === 'function') settingToggleIncrementalDirectoryScan();
+    } else if (id === 'togglePruneOldScans') {
+        if (typeof settingTogglePruneOldScans === 'function') settingTogglePruneOldScans();
+    } else if (id === 'toggleSingleClickPlay') {
+        if (typeof settingToggleSingleClickPlay === 'function') settingToggleSingleClickPlay();
+    } else if (id === 'togglePdfMetadataAutoExtract') {
+        if (typeof settingTogglePdfMetadataAutoExtract === 'function') settingTogglePdfMetadataAutoExtract();
     }
 }
 
@@ -472,7 +747,7 @@ function _handleEscape() {
         return;
     }
     // Close command palette
-    const palette = document.getElementById('commandPalette');
+    const palette = document.getElementById('paletteOverlay');
     if (palette) {
         palette.remove();
         return;

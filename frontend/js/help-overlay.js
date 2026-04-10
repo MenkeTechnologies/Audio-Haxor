@@ -43,6 +43,16 @@ const HELP_MORE_SHORTCUT_IDS = [
     'newSmartPlaylist', 'togglePlayerExpand', 'toggleEq', 'toggleMono',
     'toggleABLoop', 'heatmapDash', 'togglePlayer', 'toggleCrt', 'toggleNeonGlow',
     'clearPlayHistory', 'deselectAll', 'openPrefs',
+    'scanPluginsOnly', 'scanSamplesOnly', 'scanDawOnly', 'scanPresetsOnly', 'scanPdfsOnly',
+    'stopPdfScan', 'extractPdfMetadata', 'stopPdfMetadata', 'togglePdfMetadataAutoExtract',
+    'buildFingerprintCache', 'checkUpdates', 'buildPluginIndex', 'bpmKeyLufsStart', 'bpmKeyLufsStop',
+    'clearAllCaches', 'exportSettingsPdf', 'exportLogPdf', 'exportMidiPalette', 'exportPluginXref', 'exportSmartPlaylists',
+    'openLogFile', 'openPrefsFile', 'openDataDirectory', 'toggleTagFilterBar', 'toggleAutoplayNext',
+    'autoplaySourcePlayer', 'autoplaySourceSamples', 'clearAnalysisCache', 'cycleLogVerbosity',
+    'increasePruneKeep', 'decreasePruneKeep', 'increaseTablePageSize', 'decreaseTablePageSize',
+    'toggleAutoAnalysis', 'toggleAutoPlaySampleOnSelect', 'toggleAutoScan', 'toggleShowPlayerStartup',
+    'toggleAutoUpdate', 'toggleExpandOnClick', 'toggleFolderWatch', 'toggleIncludeBackups',
+    'toggleIncrementalDirectoryScan', 'togglePruneOldScans', 'toggleSingleClickPlay',
 ];
 
 function _helpMoreRows() {

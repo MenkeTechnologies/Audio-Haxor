@@ -280,6 +280,14 @@ function buildPaletteStaticItems() {
             if (typeof stopPdfMetadataExtractionUser === 'function') void stopPdfMetadataExtractionUser();
         }
     });
+    if (typeof settingTogglePdfMetadataAutoExtract === 'function') {
+        items.push({
+            type: 'action',
+            name: appFmt('menu.toggle_pdf_metadata_background'),
+            icon: '&#128196;',
+            action: () => settingTogglePdfMetadataAutoExtract()
+        });
+    }
     items.push({
         type: 'action', name: appFmt('menu.build_fingerprint_cache'), icon: '&#127925;', action: () => {
             void (async () => {
@@ -1023,6 +1031,11 @@ function closePalette() {
     if (overlay) overlay.remove();
 }
 
+function toggleCommandPalette() {
+    if (_paletteOpen) closePalette();
+    else openPalette();
+}
+
 function paintPaletteRows(container) {
     if (_paletteResults.length === 0) {
         const empty = catalogFmt('ui.palette.empty');
@@ -1098,19 +1111,8 @@ function executePaletteItem(idx) {
     item.action();
 }
 
-// Keyboard navigation
+// Keyboard navigation (Cmd/Ctrl+K is handled in shortcuts.js so it works from the palette input)
 document.addEventListener('keydown', (e) => {
-    // Open palette: Cmd+K or Ctrl+K
-    const isMac = navigator.platform.includes('Mac');
-    const mod = isMac ? e.metaKey : e.ctrlKey;
-    if (mod && e.key === 'k') {
-        e.preventDefault();
-        e.stopPropagation();
-        if (_paletteOpen) closePalette();
-        else openPalette();
-        return;
-    }
-
     if (!_paletteOpen) return;
 
     if (e.key === 'Escape') {
