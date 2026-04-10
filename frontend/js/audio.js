@@ -440,9 +440,6 @@ let _enginePlaybackActive = false;
 
 function setEnginePlaybackActive(value) {
     _enginePlaybackActive = value;
-    if (value) {
-        stopPlaybackCtxResumeWatchdog();
-    }
     if (typeof window !== 'undefined') {
         window._enginePlaybackActive = value;
     }
@@ -760,9 +757,6 @@ function startReverseBufferFromOffset(offsetInRev) {
     };
     _bufSrc.start(0, off);
     _bufPlaying = true;
-    if (typeof window.isUiIdleHeavyCpu === 'function' && window.isUiIdleHeavyCpu()) {
-        startPlaybackCtxResumeWatchdog();
-    }
     if (!_playbackRafId) _playbackRafId = requestAnimationFrame(_playbackRafLoop);
 }
 
@@ -1416,41 +1410,6 @@ function _playbackRafLoop() {
     }
 }
 
-/**
- * When `ui-idle-heavy-cpu` is true, `_playbackRafLoop` stops so `_renderNpFft` never runs — Web Audio
- * then stays suspended after OS/WebKit backgrounding, `<audio>`/buffer playback stalls, and `ended` /
- * `onended` never fires (autoplay next breaks). A 1s interval keeps `AudioContext` resumed while playing.
- */
-let _playbackCtxResumeWatchdog = null;
-
-function stopPlaybackCtxResumeWatchdog() {
-    if (_playbackCtxResumeWatchdog != null) {
-        clearInterval(_playbackCtxResumeWatchdog);
-        _playbackCtxResumeWatchdog = null;
-    }
-}
-
-function ensurePlaybackAudioContextResumedIfPlaying() {
-    if (_enginePlaybackActive) return;
-    if (typeof isAudioPlaying !== 'function' || !isAudioPlaying()) return;
-    ensureAudioGraph();
-    if (_playbackCtx && _playbackCtx.state === 'suspended') {
-        void _playbackCtx.resume().catch(() => {});
-    }
-}
-
-function startPlaybackCtxResumeWatchdog() {
-    stopPlaybackCtxResumeWatchdog();
-    if (typeof setInterval === 'undefined') return;
-    _playbackCtxResumeWatchdog = setInterval(() => {
-        if (typeof isAudioPlaying !== 'function' || !isAudioPlaying()) {
-            stopPlaybackCtxResumeWatchdog();
-            return;
-        }
-        ensurePlaybackAudioContextResumedIfPlaying();
-    }, 1000);
-}
-
 // Real-time FFT spectrum curve in the player's visualizer section.
 // Magenta→cyan gradient + cyan outline (matches parametric EQ spectrum fill).
 let _npFftBuf = null;
@@ -1652,14 +1611,10 @@ function _renderNpFft() {
 
 audioPlayer.addEventListener('play', () => {
     if (audioReverseMode && _bufPlaying) return;
-    if (typeof window.isUiIdleHeavyCpu === 'function' && window.isUiIdleHeavyCpu()) {
-        startPlaybackCtxResumeWatchdog();
-    }
     if (!_playbackRafId) _playbackRafId = requestAnimationFrame(_playbackRafLoop);
 });
 audioPlayer.addEventListener('pause', () => {
     if (audioReverseMode && _bufPlaying) return;
-    stopPlaybackCtxResumeWatchdog();
     if (_playbackRafId) {
         cancelAnimationFrame(_playbackRafId);
         _playbackRafId = null;
@@ -5726,22 +5681,13 @@ window.preloadAudioDecodeWorker = preloadAudioDecodeWorker;
             }
             stopEnginePlaybackFftRaf();
             if (typeof window.cancelParametricEqRaf === 'function') window.cancelParametricEqRaf();
-            if (typeof isAudioPlaying === 'function' && isAudioPlaying() && !_enginePlaybackActive) {
-                startPlaybackCtxResumeWatchdog();
-            }
             return;
         }
-        stopPlaybackCtxResumeWatchdog();
-        ensurePlaybackAudioContextResumedIfPlaying();
         if (typeof updatePlaybackTime === 'function') updatePlaybackTime();
         if (typeof isAudioPlaying === 'function' && isAudioPlaying() && !_playbackRafId) {
             _playbackRafId = requestAnimationFrame(_playbackRafLoop);
         }
         if (typeof ensureEnginePlaybackFftRaf === 'function') ensureEnginePlaybackFftRaf();
         if (typeof window.scheduleParametricEqFrame === 'function') window.scheduleParametricEqFrame();
-    });
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) return;
-        ensurePlaybackAudioContextResumedIfPlaying();
     });
 })();

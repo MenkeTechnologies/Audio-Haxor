@@ -3,8 +3,7 @@
  * `WebviewWindow` focus / minimize / visible when available.
  *
  * Paused work is rAF-driven visualization only — background BPM/Key/LUFS analysis (`startBackgroundAnalysis`
- * in `audio.js`) is unrelated and keeps running. Web Audio `AudioContext` resume while unfocused uses a
- * lightweight interval in `audio.js` so autoplay next still fires after background suspend.
+ * in `audio.js`) is unrelated and keeps running.
  */
 (function initUiIdleHeavyCpu() {
     let docHidden = typeof document !== 'undefined' && document.hidden;
