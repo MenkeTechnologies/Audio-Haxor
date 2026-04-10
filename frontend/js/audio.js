@@ -2662,7 +2662,7 @@ async function previewAudio(filePath) {
             typeof toastFmt === 'function'
                 ? toastFmt('toast.preview_not_supported_format', { ext: extDisplay })
                 : undefined;
-        if (tryPreviewAutoplayNextOnFailure(filePath, unplayableErr)) return;
+        if (await tryPreviewAutoplayNextOnFailureAsync(filePath, unplayableErr)) return;
         await showEngineUnplayablePreview(filePath);
         return;
     }
@@ -2691,15 +2691,12 @@ async function previewAudio(filePath) {
                     if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
                 });
             }
-            let advancedAfterPlayFailure = false;
-            await audioPlayer.play().catch(e => {
-                if (tryPreviewAutoplayNextOnFailure(filePath, e)) {
-                    advancedAfterPlayFailure = true;
-                    return;
-                }
+            try {
+                await audioPlayer.play();
+            } catch (e) {
+                if (await tryPreviewAutoplayNextOnFailureAsync(filePath, e)) return;
                 if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
-            });
-            if (advancedAfterPlayFailure) return;
+            }
         }
         updatePlayBtnStates();
         updateNowPlayingBtn();
@@ -2802,10 +2799,11 @@ async function previewAudio(filePath) {
         updateMetaLine();
         // Deferred one task — layout for the waveform flex child is often 0×0 until after paint (WKWebView).
         scheduleNowPlayingWaveform(filePath);
+        if (typeof window.syncAeTransportFromPlayback === 'function') window.syncAeTransportFromPlayback();
     } catch (err) {
         setEnginePlaybackActive(false);
         if (typeof window.stopEnginePlaybackPoll === 'function') window.stopEnginePlaybackPoll();
-        if (tryPreviewAutoplayNextOnFailure(filePath, err)) return;
+        if (await tryPreviewAutoplayNextOnFailureAsync(filePath, err)) return;
         showToast(toastFmt('toast.playback_failed', {
             ext: ext.toUpperCase(),
             err: err.message || err || 'Unknown error'
@@ -3993,15 +3991,16 @@ function getAutoplayNextPathAfter(currentPath, opts) {
 
 /**
  * When autoplay-next is on, skip to the following sample after a failed preview (decode/play/unplayable).
- * Shows an error toast with the failure reason while starting the next sample.
+ * Shows an error toast with the failure reason, then awaits **`previewAudio`** for the next path so callers
+ * (including **`nextTrack`**) do not resolve before the chain finishes and play/pause state stays consistent.
  * @param {string} failedPath
  * @param {string | Error | undefined} [errDetail]
+ * @returns {Promise<boolean>}
  */
-function tryPreviewAutoplayNextOnFailure(failedPath, errDetail) {
+async function tryPreviewAutoplayNextOnFailureAsync(failedPath, errDetail) {
     if (!canAutoplayAdvanceTrack()) return false;
     const nextPath = getAutoplayNextPathAfter(failedPath, { autoplay: true });
     if (!nextPath || nextPath === failedPath) return false;
-    void previewAudio(nextPath);
     if (typeof showToast === 'function' && typeof toastFmt === 'function') {
         const extRaw = (failedPath.split('.').pop() || '').toLowerCase();
         const ext = extRaw ? extRaw.toUpperCase() : '?';
@@ -4012,6 +4011,10 @@ function tryPreviewAutoplayNextOnFailure(failedPath, errDetail) {
             errMsg = typeof catalogFmt === 'function' ? catalogFmt('toast.unknown_error') : 'Unknown error';
         }
         showToast(toastFmt('toast.playback_failed_autoplay_next', { ext, err: errMsg }), 4000, 'error');
+    }
+    await previewAudio(nextPath);
+    if (typeof window.syncAeTransportFromPlayback === 'function') {
+        window.syncAeTransportFromPlayback();
     }
     return true;
 }

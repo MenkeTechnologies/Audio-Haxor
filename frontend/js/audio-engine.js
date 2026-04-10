@@ -2623,6 +2623,8 @@ async function enginePlaybackStart(filePath) {
     syncEnginePlaybackDspFromPrefs();
     syncEnginePlaybackSpeedFromPrefs();
     startEnginePlaybackPoll();
+    /* Next `playback_status` poll may be ~250 ms later; avoid stale `paused` from a prior session skewing `isAudioPlaying()`. */
+    window._enginePlaybackPaused = false;
 }
 
 async function enginePlaybackStop() {
