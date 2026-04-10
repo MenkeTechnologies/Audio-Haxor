@@ -530,12 +530,7 @@ function buildPaletteStaticItems() {
         icon: '&#9835;',
         action: () => settingToggleAutoPlaySampleOnSelect()
     });
-    if (typeof settingToggleAutoplayNext === 'function') items.push({
-        type: 'action',
-        name: appFmt('menu.toggle_autoplay_next'),
-        icon: '&#9197;',
-        action: () => settingToggleAutoplayNext()
-    });
+    // Autoplay next: session row in buildPaletteDynamicItems (live On/Off detail; see menu.palette_autoplay_next)
     if (typeof settingToggleShowPlayerOnStartup === 'function') items.push({
         type: 'action',
         name: appFmt('menu.toggle_show_player_startup'),
@@ -835,6 +830,20 @@ function buildPaletteDynamicItems() {
                 visible ? (typeof hidePlayer === 'function' && hidePlayer()) : (typeof showPlayer === 'function' && showPlayer());
                 showToast(visible ? toastFmt('toast.player_hidden') : toastFmt('toast.player_shown'));
             }
+        });
+    }
+    if (typeof settingToggleAutoplayNext === 'function' && typeof prefs !== 'undefined') {
+        const apOn = prefs.getItem('autoplayNext') !== 'off';
+        const detail = apOn ? catalogFmt('ui.js.toggle_on') : catalogFmt('ui.js.toggle_off');
+        const name = catalogFmt('menu.palette_autoplay_next');
+        const toggleLabel = catalogFmt('menu.toggle_autoplay_next');
+        items.push({
+            type: 'action',
+            name,
+            detail,
+            fields: [name, detail, toggleLabel],
+            icon: '&#9197;',
+            action: () => settingToggleAutoplayNext()
         });
     }
     if (typeof getFavDirs === 'function') {

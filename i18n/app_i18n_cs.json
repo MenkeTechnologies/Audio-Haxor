@@ -232,6 +232,7 @@
   "menu.open_manufacturer_site": "Open Manufacturer Site",
   "menu.open_prefs_file": "Open Prefs File",
   "menu.open_with_default_app": "Open with Default App",
+  "menu.palette_autoplay_next": "Autoplay next (advance on track end)",
   "menu.paste_and_search": "Paste & Search",
   "menu.pause": "Pause",
   "menu.play": "Play",

@@ -232,6 +232,7 @@
   "menu.open_manufacturer_site": "Abrir sitio del fabricante",
   "menu.open_prefs_file": "Abrir archivo de preferencias",
   "menu.open_with_default_app": "Abrir con la aplicación predeterminada",
+  "menu.palette_autoplay_next": "Autoplay next (advance on track end)",
   "menu.paste_and_search": "Pegar y buscar",
   "menu.pause": "Pausa",
   "menu.play": "Jugar",
