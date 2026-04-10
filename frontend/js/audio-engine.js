@@ -921,7 +921,9 @@ async function fetchPluginChainUntilSettled(inv, initialChain, expectedGen) {
     }
 
     let attempts = 0;
-    const maxAttempts = 600;
+    /* ~69h at 250ms — large libraries exceed the old cap (600 ≈ 2.5min), so the UI stayed on
+     * "scanning" forever after the engine finished (`plugin_chain` never polled to `phase: juce`). */
+    const maxAttempts = 1_000_000;
     while (chain && chain.phase === 'scanning' && attempts < maxAttempts) {
         if (expectedGen != null && aePluginChainPollGeneration !== expectedGen) {
             dismissAePluginScanProgressToast();
@@ -966,7 +968,14 @@ async function fetchPluginChainUntilSettled(inv, initialChain, expectedGen) {
     } else if (chain && chain.phase === 'failed') {
         const err = chain.error != null ? String(chain.error) : '';
         toast('toast.ae_plugin_scan_failed', {err}, 6500, 'error');
+    } else if (chain && chain.phase === 'scanning' && attempts >= maxAttempts) {
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+            showToast(toastFmt('toast.ae_plugin_scan_timeout'), 8000, 'warning');
+        }
     }
+
+    /* Last poll may leave `phase` as `juce` — inner loop only fills while `scanning`; always sync UI. */
+    fillAePluginSection(chain);
 
     return chain;
 }
