@@ -696,7 +696,7 @@
   "ui.ae.insert_editor_tt": "Open the native plug-in window for this insert slot. Apply inserts first.",
   "ui.ae.insert_editors_row_tt": "Native plug-in editor windows (JUCE host).",
   "ui.ae.insert_hide_audio_units": "Audio Units elrejtése",
-  "ui.ae.insert_hide_audio_units_tt": "AU plugin editor windows are blank in this build because audiocomponentd refuses out-of-process AU view delivery to ad-hoc signed hosts. Hide AUs from the insert picker (default) until the project is signed with a real Developer ID. Turn off if you only need AU audio processing without opening the editor.",
+  "ui.ae.insert_hide_audio_units_tt": "Az AU bővítményeditor ablakok üresek ebben a buildben, mert az audiocomponentd megtagadja a folyamaton kívüli AU nézet átadását ad-hoc aláírt hostoknak. Rejtsd el az AU-kat a beszúrás választóból (alapértelmezés), amíg a projekt nincs valódi Developer ID-vel aláírva. Kapcsold ki, ha csak AU hangfeldolgozásra van szükséged szerkesztő megnyitása nélkül.",
   "ui.ae.insert_show_instruments": "Show instruments",
   "ui.ae.insert_show_instruments_tt": "When off, the insert picker lists only plug-ins JUCE marks as effects (not synths or samplers). Turn on to include instruments.",
   "ui.ae.insert_slot_empty_opt": "— none —",
