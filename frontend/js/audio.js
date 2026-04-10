@@ -3713,15 +3713,38 @@ document.addEventListener('keydown', () => {
     }, getBgAnalysisPauseMs());
 }, true);
 
+/** Skip badge DOM writes while the window is hidden / unfocused / minimized (`ui-idle.js`). Analysis keeps running. */
+function _shouldUpdateBgAnalysisBadgeUi() {
+    return !(typeof isUiIdleHeavyCpu === 'function' && isUiIdleHeavyCpu());
+}
+
 function _setBgAnalysisBadgeRunning(badge) {
     if (!badge) return;
+    if (!_shouldUpdateBgAnalysisBadgeUi()) return;
     badge.textContent = catalogFmt('ui.stats.bpm_bg_working');
 }
 
 function _setBgAnalysisBadgeProgress(badge, n) {
     if (!badge) return;
+    if (!_shouldUpdateBgAnalysisBadgeUi()) return;
     badge.textContent = catalogFmt('ui.stats.bpm_bg_progress', {n});
 }
+
+document.addEventListener('ui-idle-heavy-cpu', (ev) => {
+    try {
+        if (!ev.detail || ev.detail.idle !== false) return;
+        const badge = document.getElementById('bgAnalysisBadge');
+        if (!badge) return;
+        if (_bgAnalysisRunning) {
+            if (_bgDone > 0) _setBgAnalysisBadgeProgress(badge, _bgDone);
+            else _setBgAnalysisBadgeRunning(badge);
+        } else {
+            badge.innerHTML = '';
+        }
+    } catch (_) {
+        /* ignore */
+    }
+});
 
 /** Keep Settings cache stats table in sync while BPM/Key/LUFS batches run (not only on tab open). */
 function _refreshCacheStatsIfSettingsTab() {
@@ -3831,7 +3854,7 @@ async function startBackgroundAnalysis() {
 
     _refreshCacheStatsIfSettingsTab();
     _bgAnalysisRunning = false;
-    if (badge) badge.innerHTML = '';
+    if (badge && _shouldUpdateBgAnalysisBadgeUi()) badge.innerHTML = '';
 }
 
 function stopBackgroundAnalysis() {
