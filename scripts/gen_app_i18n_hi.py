@@ -112,6 +112,18 @@ def main() -> None:
     k_pdf = "ui.history.footer_pdfs_other"
     if k_pdf in out_map and "{count}" not in out_map[k_pdf]:
         out_map[k_pdf] = "{count} PDF इस स्कैन में"
+    # Long AU insert tooltip: MT often leaves English; keep stable Hindi aligned with `app_i18n_en.json` meaning.
+    k_au = "ui.ae.insert_hide_audio_units"
+    k_au_tt = "ui.ae.insert_hide_audio_units_tt"
+    if k_au in out_map:
+        out_map[k_au] = "Audio Units छिपाएं"
+    if k_au_tt in out_map:
+        out_map[k_au_tt] = (
+            "इस बिल्ड में AU प्लगइन इडिटर विंडो खाली रहती हैं क्योंकि audiocomponentd "
+            "ad-hoc हस्ताक्षरित होस्ट्स को प्रोसेस-बाहर AU व्यू डिलीवरी अस्वीकार करता है। "
+            "जब तक प्रोजेक्ट वास्तविक Developer ID से हस्ताक्षरित न हो, इंसर्ट पिकर से AU छिपाएँ (डिफ़ॉल्ट)। "
+            "यदि आपको केवल AU ऑडियो प्रोसेसिंग चाहिए और इडिटर नहीं खोलना, तो बंद करें।"
+        )
 
     out_path.write_text(json.dumps(out_map, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"Wrote {len(out_map)} keys to {out_path}", file=sys.stderr)

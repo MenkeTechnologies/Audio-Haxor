@@ -696,7 +696,7 @@
   "ui.ae.insert_editor_tt": "Open the native plug-in window for this insert slot. Apply inserts first.",
   "ui.ae.insert_editors_row_tt": "Native plug-in editor windows (JUCE host).",
   "ui.ae.insert_hide_audio_units": "Audio Units छिपाएं",
-  "ui.ae.insert_hide_audio_units_tt": "AU plugin editor windows are blank in this build because audiocomponentd refuses out-of-process AU view delivery to ad-hoc signed hosts. Hide AUs from the insert picker (default) until the project is signed with a real Developer ID. Turn off if you only need AU audio processing without opening the editor.",
+  "ui.ae.insert_hide_audio_units_tt": "इस बिल्ड में AU प्लगइन इडिटर विंडो खाली रहती हैं क्योंकि audiocomponentd ad-hoc हस्ताक्षरित होस्ट्स को प्रोसेस-बाहर AU व्यू डिलीवरी अस्वीकार करता है। जब तक प्रोजेक्ट वास्तविक Developer ID से हस्ताक्षरित न हो, इंसर्ट पिकर से AU छिपाएँ (डिफ़ॉल्ट)। यदि आपको केवल AU ऑडियो प्रोसेसिंग चाहिए और इडिटर नहीं खोलना, तो बंद करें।",
   "ui.ae.insert_show_instruments": "Show instruments",
   "ui.ae.insert_show_instruments_tt": "When off, the insert picker lists only plug-ins JUCE marks as effects (not synths or samplers). Turn on to include instruments.",
   "ui.ae.insert_slot_empty_opt": "— none —",

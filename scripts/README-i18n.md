@@ -69,6 +69,8 @@ Or run per-locale generators individually:
 .venv-i18n/bin/python scripts/gen_app_i18n_vi.py
 ```
 
+- **Hindi (`hi`):** `gen_app_i18n_hi.py` applies a few fixed strings after machine translation (language endonyms, `ui.history.footer_pdfs_other` when `{count}` is dropped, and `ui.ae.insert_hide_audio_units` / `ui.ae.insert_hide_audio_units_tt` so long tooltips stay in Devanagari).
+
 - **German (`de`) — translate keys that still match English** (after stub sync or partial merges): `fill_de_i18n_gaps.py` calls Google Translate only for keys where the German value is still identical to English (skips `ui.ph.ui_ph_*` indirection strings and branding). Run `de_i18n_manual_overrides.py` afterward for hyphenation (`Plug-ins`), menu labels, localized `/pfad/zu/…` placeholders, and other strings machine translation leaves as English cognates.
 
 ```bash
