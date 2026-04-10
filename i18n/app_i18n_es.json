@@ -695,6 +695,8 @@
   "ui.ae.insert_editor_slot_4": "Redactor (4)",
   "ui.ae.insert_editor_tt": "Abra la ventana del complemento nativo para esta ranura de inserción. Aplique las inserciones primero.",
   "ui.ae.insert_editors_row_tt": "Ventanas de edición de complementos nativos (host JUCE).",
+  "ui.ae.insert_show_instruments": "Show instruments",
+  "ui.ae.insert_show_instruments_tt": "When off, the insert picker lists only plug-ins JUCE marks as effects (not synths or samplers). Turn on to include instruments.",
   "ui.ae.insert_slot_empty_opt": "- ninguno -",
   "ui.ae.insert_slot_tt": "Optional VST3 or AU effect (from scan). Order is serial: slot 1 → slot 4.",
   "ui.ae.intro": "JUCE AudioEngine de baja latencia: seleccione el controlador (tipo de dispositivo), la frecuencia de muestreo opcional y luego el dispositivo de salida. Aplicar abre un flujo de salida (silencio o tono de prueba opcional de 440 Hz en dispositivos F32). La sección de entrada puede iniciar un flujo de captura (muestras descartadas hasta la medición/DSP). Engine_state devuelve la salida `stream` y `input_stream`. Los buffer_frames opcionales se aplican a ambas direcciones. La salida de reproducción y el ecualizador reflejan el reproductor flotante; Las inserciones VST3/AU se ejecutan después del ecualizador incorporado cuando aplica las inserciones (detenga primero el flujo de salida).",

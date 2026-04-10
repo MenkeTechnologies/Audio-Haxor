@@ -695,6 +695,8 @@
   "ui.ae.insert_editor_slot_4": "Herausgeber (4)",
   "ui.ae.insert_editor_tt": "Öffnen Sie das native Plug-In-Fenster für diesen Insert-Slot. Bringen Sie zuerst die Einlagen an.",
   "ui.ae.insert_editors_row_tt": "Native Plug-in-Editor-Fenster (JUCE-Host).",
+  "ui.ae.insert_show_instruments": "Show instruments",
+  "ui.ae.insert_show_instruments_tt": "When off, the insert picker lists only plug-ins JUCE marks as effects (not synths or samplers). Turn on to include instruments.",
   "ui.ae.insert_slot_empty_opt": "– keine –",
   "ui.ae.insert_slot_tt": "Optional VST3 or AU effect (from scan). Order is serial: slot 1 → slot 4.",
   "ui.ae.intro": "JUCE AudioEngine mit geringer Latenz: Wählen Sie Treiber (Gerätetyp), optionale Abtastrate und dann Ausgabegerät – Übernehmen öffnet einen Ausgabestream (Stille oder optionaler 440-Hz-Testton auf F32-Geräten). Der Eingabebereich kann einen Capture-Stream starten (Samples werden bis zur Messung/DSP verworfen). engine_state gibt die Ausgabe „stream“ und „input_stream“ zurück. Optionale buffer_frames gelten für beide Richtungen. Wiedergabeausgang und EQ spiegeln den schwebenden Player wider; VST3/AU-Inserts werden nach dem integrierten EQ ausgeführt, wenn Sie Inserts anwenden (stoppen Sie zuerst den Ausgabestream).",

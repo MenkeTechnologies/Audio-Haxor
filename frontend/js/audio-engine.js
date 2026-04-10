@@ -14,6 +14,8 @@ const AE_LEGACY_BUFFER_FRAMES = 'audioEngineBufferFrames';
 
 /** Live plugin list from the last `plugin_chain` response (populated by `aePopulateInsertSlotSelects`). */
 let aePluginCatalog = [];
+/** Last `plugin_chain` payload (for re-filtering when “show instruments” toggles). */
+let aeLastPluginChain = null;
 
 /** Active picker instances (one per insert row in the UI). */
 let aeInsertPickers = [];
@@ -869,13 +871,42 @@ function aeRemoveInsertRow(idx) {
     }
 }
 
-function aePopulateInsertSlotSelects(chain) {
+function aePluginEntriesFromChain(chain) {
     const plugins = chain && Array.isArray(chain.plugins) ? chain.plugins : [];
-    aePluginCatalog = plugins.map((p) => ({
-        path: p && p.path != null ? String(p.path) : '',
-        name: p && p.name != null ? String(p.name) : String(p && p.path || '').split('/').pop(),
-        format: p && p.format != null ? String(p.format) : '',
-    })).filter((p) => p.path);
+    return plugins
+        .map((p) => ({
+            path: p && p.path != null ? String(p.path) : '',
+            name: p && p.name != null ? String(p.name) : String((p && p.path) || '').split('/').pop(),
+            format: p && p.format != null ? String(p.format) : '',
+            isInstrument: !!(p && p.isInstrument === true),
+        }))
+        .filter((p) => p.path);
+}
+
+function aeInsertPickerShowInstrumentsEnabled() {
+    return typeof prefs !== 'undefined' && typeof prefs.getItem === 'function'
+        && prefs.getItem('aeInsertPickerShowInstruments') === 'on';
+}
+
+/** Rebuild `aePluginCatalog` from `aeLastPluginChain` without rebuilding rows (picker filter toggle). */
+function aeRefreshInsertPickerCatalogOnly() {
+    const full = aePluginEntriesFromChain(aeLastPluginChain);
+    aePluginCatalog = aeInsertPickerShowInstrumentsEnabled() ? full : full.filter((p) => !p.isInstrument);
+    for (const picker of aeInsertPickers) {
+        if (picker && typeof picker.refresh === 'function') picker.refresh();
+    }
+}
+
+function syncAeInsertPickerShowInstrumentsCheckbox() {
+    const cb = document.getElementById('aeInsertPickerShowInstruments');
+    if (!cb || typeof cb !== 'object') return;
+    cb.checked = aeInsertPickerShowInstrumentsEnabled();
+}
+
+function aePopulateInsertSlotSelects(chain) {
+    aeLastPluginChain = chain || null;
+    const full = aePluginEntriesFromChain(chain);
+    aePluginCatalog = aeInsertPickerShowInstrumentsEnabled() ? full : full.filter((p) => !p.isInstrument);
 
     const fromServer = chain && Array.isArray(chain.insert_paths) ? chain.insert_paths.map((x) => String(x)) : [];
     let pick = [];
@@ -1218,6 +1249,7 @@ function initAudioEngineTab() {
     if (!root) return;
     if (root.dataset.aeInit === '1') {
         syncAePlaybackControlsFromPrefs();
+        syncAeInsertPickerShowInstrumentsCheckbox();
         void resumeAeInputPeakPollIfNeeded();
         void refreshAeProcessStats();
         return;
@@ -1255,6 +1287,15 @@ function initAudioEngineTab() {
     if (addSlotBtn && typeof addSlotBtn.addEventListener === 'function') {
         addSlotBtn.addEventListener('click', () => {
             aeAddInsertRow(null, '');
+        });
+    }
+    syncAeInsertPickerShowInstrumentsCheckbox();
+    const insertShowInstrumentsCb = document.getElementById('aeInsertPickerShowInstruments');
+    if (insertShowInstrumentsCb && typeof insertShowInstrumentsCb.addEventListener === 'function'
+        && typeof prefs !== 'undefined' && typeof prefs.setItem === 'function') {
+        insertShowInstrumentsCb.addEventListener('change', () => {
+            prefs.setItem('aeInsertPickerShowInstruments', insertShowInstrumentsCb.checked ? 'on' : 'off');
+            aeRefreshInsertPickerCatalogOnly();
         });
     }
     const wipeRescanBtn = document.getElementById('aeWipeRescan');
