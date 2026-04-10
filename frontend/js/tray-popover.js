@@ -30,10 +30,10 @@
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     }
 
-    /** `.shell` box-shadow blur extends outside the border box; layout metrics do not include it. */
-    const SHADOW_PAD_X = 22;
-    const SHADOW_PAD_Y = 32;
-    const LAYOUT_PAD = 8;
+    /** Small pad: outer glow is toned down in CSS so we do not need huge margins (avoids “box in a box”). */
+    const SHADOW_PAD_X = 12;
+    const SHADOW_PAD_Y = 14;
+    const LAYOUT_PAD = 4;
 
     function syncWindowSize() {
         if (!invoke) return;

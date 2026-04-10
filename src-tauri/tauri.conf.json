@@ -24,8 +24,8 @@
       {
         "label": "tray-popover",
         "title": "",
-        "width": 300,
-        "height": 280,
+        "width": 280,
+        "height": 220,
         "decorations": false,
         "transparent": true,
         "shadow": false,

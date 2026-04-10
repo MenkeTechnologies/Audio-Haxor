@@ -13,9 +13,9 @@ use tauri::{
 /// Max characters for the first row of the tray dropdown (macOS truncates visually; keep readable).
 const TRAY_MENU_NOW_PLAYING_MAX: usize = 96;
 
-const TRAY_POPOVER_W: u32 = 300;
+const TRAY_POPOVER_W: u32 = 280;
 /// Default height until JS measures `#shell` (`tray_popover_resize`); must fit title+meta+transport.
-const TRAY_POPOVER_H: u32 = 280;
+const TRAY_POPOVER_H: u32 = 220;
 
 /// Prefer the bundle window icon; otherwise embed `32x32.png` so dev/release always have pixels.
 fn tray_menu_bar_icon(app: &App) -> tauri::Result<Image<'static>> {
@@ -281,8 +281,8 @@ pub fn tray_popover_resize(app: AppHandle<Wry>, width: f64, height: f64) -> Resu
     let Some(win) = app.get_webview_window("tray-popover") else {
         return Ok(());
     };
-    let w = width.clamp(260.0, 560.0);
-    let h = height.clamp(180.0, 720.0);
+    let w = width.clamp(240.0, 520.0);
+    let h = height.clamp(130.0, 640.0);
     let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(w, h)));
     Ok(())
 }
