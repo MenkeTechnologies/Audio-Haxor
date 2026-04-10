@@ -82,9 +82,6 @@ static ENGINE_CHILD_PID: AtomicU32 = AtomicU32::new(0);
 /// `audio-engine-playback-eof` on the same EOF edge as the UI poll.
 static EOF_WATCHDOG_ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// Sleep between watchdog polls — intentionally slow (~1 Hz) to keep idle CPU low; EOF/auto-next may lag by this much when hidden.
-const EOF_WATCHDOG_POLL_MS: u64 = 1000;
-
 #[inline]
 fn record_engine_pid(child: &Child) {
     ENGINE_CHILD_PID.store(child.id(), Ordering::SeqCst);
@@ -400,9 +397,8 @@ pub fn shutdown_audio_engine_child() -> Result<(), String> {
     Ok(())
 }
 
-/// Start a background thread that polls `playback_status` at [`EOF_WATCHDOG_POLL_MS`] and emits
-/// `audio-engine-playback-eof` when `loaded && eof` transitions to true (same edge `audio-engine.js`
-/// uses for autoplay next).
+/// Start a background thread that polls `playback_status` ~4×/s and emits `audio-engine-playback-eof`
+/// when `loaded && eof` transitions to true (same edge `audio-engine.js` uses for autoplay next).
 /// Idempotent — if already running, returns immediately.
 pub fn audio_engine_eof_watchdog_start(app: AppHandle) {
     if EOF_WATCHDOG_ACTIVE.swap(true, Ordering::SeqCst) {
@@ -411,7 +407,7 @@ pub fn audio_engine_eof_watchdog_start(app: AppHandle) {
     thread::spawn(move || {
         let mut prev_eof = false;
         while EOF_WATCHDOG_ACTIVE.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_millis(EOF_WATCHDOG_POLL_MS));
+            thread::sleep(Duration::from_millis(250));
             if !EOF_WATCHDOG_ACTIVE.load(Ordering::SeqCst) {
                 break;
             }
