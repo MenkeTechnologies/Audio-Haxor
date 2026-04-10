@@ -748,7 +748,7 @@ function startReverseBufferFromOffset(offsetInRev) {
             startReverseBufferFromOffset(0);
             return;
         }
-        if (typeof recentlyPlayed !== 'undefined' && recentlyPlayed.length > 1 && prefs.getItem('autoplayNext') !== 'off') {
+        if (canAutoplayAdvanceTrack()) {
             nextTrack({ autoplay: true });
         } else {
             updatePlayBtnStates();
@@ -1290,7 +1290,7 @@ async function importRecentlyPlayed() {
 
 audioPlayer.addEventListener('ended', () => {
     if (!audioLooping) {
-        if (typeof recentlyPlayed !== 'undefined' && recentlyPlayed.length > 1 && prefs.getItem('autoplayNext') !== 'off') {
+        if (canAutoplayAdvanceTrack()) {
             nextTrack({ autoplay: true });
         } else {
             updatePlayBtnStates();
@@ -1311,7 +1311,7 @@ function handleEnginePlaybackEofFromPoll() {
     if (!_enginePlaybackActive) return;
     if (audioLooping) return;
     _enginePlaybackEofHandled = true;
-    if (typeof recentlyPlayed !== 'undefined' && recentlyPlayed.length > 1 && prefs.getItem('autoplayNext') !== 'off') {
+    if (canAutoplayAdvanceTrack()) {
         nextTrack({ autoplay: true });
     } else {
         updatePlayBtnStates();
@@ -3855,6 +3855,48 @@ function openAudioFolder(filePath) {
     window.vstUpdater.openAudioFolder(filePath).then(() => showToast(toastFmt('toast.revealed_in_finder'))).catch(e => showToast(toastFmt('toast.failed', {err: e}), 4000, 'error'));
 }
 
+/**
+ * Samples table row order (`#audioTableBody`), for autoplay next/prev through the visible library list
+ * (current sort, filter, and loaded page — same order the user sees).
+ * @returns {Array<{ path: string, name: string, format: string, size: string }>}
+ */
+function getTablePlaybackListItems() {
+    const tbody = document.getElementById('audioTableBody');
+    if (!tbody) return [];
+    const rows = tbody.querySelectorAll('tr[data-audio-path]');
+    const items = [];
+    for (const tr of rows) {
+        const path = tr.getAttribute('data-audio-path');
+        if (!path) continue;
+        const sample =
+            typeof findByPath === 'function' && typeof allAudioSamples !== 'undefined'
+                ? findByPath(allAudioSamples, path)
+                : null;
+        if (sample) {
+            items.push({
+                path: sample.path,
+                name: sample.name,
+                format: sample.format,
+                size: sample.sizeFormatted || '',
+            });
+        } else {
+            const fmt = tr.getAttribute('data-audio-format') || '';
+            const nameCell = tr.querySelector('.col-name');
+            const nameRaw = nameCell ? nameCell.textContent.trim().replace(/\s+/g, ' ') : '';
+            const name = nameRaw || path.split('/').pop().replace(/\.[^.]+$/, '');
+            items.push({ path, name, format: fmt, size: '' });
+        }
+    }
+    return items;
+}
+
+/** Whether autoplay-after-EOF may run (Settings + enough items in table or recently played). */
+function canAutoplayAdvanceTrack() {
+    if (typeof prefs === 'undefined' || prefs.getItem('autoplayNext') === 'off') return false;
+    if (getTablePlaybackListItems().length >= 2) return true;
+    return typeof recentlyPlayed !== 'undefined' && recentlyPlayed.length > 1;
+}
+
 /** Same items/order as `#npHistoryList` (Recently Played, drag order) or search results when the player search box has text. */
 function getPlayerHistoryListItems() {
     const searchInput = document.getElementById('npSearchInput');
@@ -4131,14 +4173,27 @@ function prevTrack() {
     })();
 }
 
-/** @param { { autoplay?: boolean } } [opts] — When `autoplay`, advance using full Recently Played order (ignores the player search box). */
+/**
+ * @param { { autoplay?: boolean } } [opts] — When `autoplay`, advance using the **Samples table** row order when at least
+ * two rows are visible (current sort/filter/page); otherwise Recently Played. Manual next (no `autoplay`) still uses
+ * `getPlayerHistoryListItems()` (history list + player search).
+ */
 function nextTrack(opts) {
     const hadExpanded = expandedMetaPath !== null;
     const autoplay = opts && opts.autoplay === true;
-    const items =
-        autoplay && typeof recentlyPlayed !== 'undefined' && Array.isArray(recentlyPlayed) && recentlyPlayed.length > 0
-            ? recentlyPlayed
-            : getPlayerHistoryListItems();
+    let items;
+    if (autoplay) {
+        const tableItems = getTablePlaybackListItems();
+        if (tableItems.length >= 2) {
+            items = tableItems;
+        } else if (typeof recentlyPlayed !== 'undefined' && Array.isArray(recentlyPlayed) && recentlyPlayed.length > 0) {
+            items = recentlyPlayed;
+        } else {
+            items = getPlayerHistoryListItems();
+        }
+    } else {
+        items = getPlayerHistoryListItems();
+    }
     let nextPath = null;
     if (audioShuffling) {
         if (items.length === 0) return;

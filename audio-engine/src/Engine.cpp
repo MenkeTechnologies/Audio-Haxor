@@ -731,17 +731,28 @@ public:
         /* Native title bar + wrong outer size often yields blank VST3 (IPlugView::attached needs a peer)
          * and mis-sized AU Cocoa views. Use JUCE title bar and size the *content* via setContentComponentSize. */
         setUsingNativeTitleBar(false);
+        /* Some hosts leave instances suspended; a suspended processor can yield a blank or uninitialized UI. */
+        inst.suspendProcessing(false);
         juce::AudioProcessorEditor* ed = inst.createEditorIfNeeded();
         if (ed != nullptr)
         {
             const int w = juce::jmax(200, ed->getWidth());
             const int h = juce::jmax(150, ed->getHeight());
             ed->setSize(w, h);
-            setContentOwned(ed, true);
+            /* resizeToFitContent=true lets childBoundsChanged() resize the outer window when VST3/AU report
+             * transient 0x0 or changing sizes — that can leave the client area effectively blank. Host owns size. */
+            setContentOwned(ed, false);
             setContentComponentSize(w, h);
+            applyEditorHostScale();
         }
         setResizable(true, true);
         setAlwaysOnTop(true);
+    }
+
+    void resized() override
+    {
+        DocumentWindow::resized();
+        applyEditorHostScale();
     }
 
     /** VST3 defers view attach until visibility + valid peer; AU sometimes needs a second layout tick. */
@@ -757,9 +768,14 @@ public:
                 c->resized();
                 c->repaint();
             }
+            if (safe != nullptr)
+                safe->applyEditorHostScale();
         };
         juce::MessageManager::callAsync(bump);
+        juce::Timer::callAfterDelay(16, bump);
         juce::Timer::callAfterDelay(50, bump);
+        juce::Timer::callAfterDelay(150, bump);
+        juce::Timer::callAfterDelay(300, bump);
     }
 
     bool hasEditorContent() const { return getContentComponent() != nullptr; }
@@ -777,6 +793,13 @@ public:
     }
 
 private:
+    void applyEditorHostScale()
+    {
+        if (auto* c = getContentComponent())
+            if (auto* ed = dynamic_cast<juce::AudioProcessorEditor*>(c))
+                ed->setScaleFactor((float) getDesktopScaleFactor());
+    }
+
     int slot = -1;
     std::function<void(int)> closeFn;
 };
