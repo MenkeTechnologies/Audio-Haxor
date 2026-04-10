@@ -2923,6 +2923,8 @@ function clearAudioPlaybackUI() {
     updateNowPlayingBtn();
     updateFavBtn();
     updateNoteBtn();
+    _traySyncSig = '';
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
 let _prevPlayingRow = null;
@@ -3007,6 +3009,65 @@ function enginePlaybackDurationSec() {
     return dur;
 }
 
+/** Dedupes `invoke('update_tray_now_playing')` — ~1 Hz while playing (signature uses floor seconds). */
+let _traySyncSig = '';
+
+function syncTrayNowPlayingFromPlayback() {
+    const inv =
+        typeof window !== 'undefined' &&
+        window.__TAURI__ &&
+        window.__TAURI__.core &&
+        typeof window.__TAURI__.core.invoke === 'function'
+            ? window.__TAURI__.core.invoke
+            : null;
+    if (!inv) return;
+    const idle = !audioPlayerPath;
+    const tooltipBase = typeof appFmt === 'function' ? appFmt('tray.tooltip') : 'AUDIO_HAXOR';
+    if (idle) {
+        if (_traySyncSig === 'idle') return;
+        _traySyncSig = 'idle';
+        void inv('update_tray_now_playing', {title_bar: null, tooltip: tooltipBase, idle: true}).catch(() => {});
+        return;
+    }
+    let cur;
+    let dur;
+    if (_enginePlaybackActive && typeof window !== 'undefined' && typeof window._enginePlaybackPosSec === 'number') {
+        cur = window._enginePlaybackPosSec;
+        dur = enginePlaybackDurationSec();
+    } else if (audioReverseMode && _reversedBuf && _bufPlaying) {
+        dur = _reversedBuf.duration;
+        const elapsed = _playbackCtx.currentTime - _bufSegStartCtx;
+        const posInRev = _bufOffsetInRev + elapsed * _bufPlaybackRate;
+        cur = Math.max(0, dur - posInRev);
+    } else {
+        cur = audioPlayer.currentTime;
+        dur = audioPlayer.duration;
+    }
+    const np = document.getElementById('npName');
+    let track = np && typeof np.textContent === 'string' ? np.textContent.trim() : '';
+    if (!track && audioPlayerPath) {
+        const base = audioPlayerPath.split('/').pop();
+        track = base || '';
+    }
+    const playing = typeof isAudioPlaying === 'function' && isAudioPlaying();
+    const ft = typeof formatTime === 'function' ? formatTime : (x) => String(x);
+    const timeLine = `${ft(cur)} / ${ft(dur)}`;
+    const status = playing
+        ? typeof appFmt === 'function'
+            ? appFmt('tray.status_playing')
+            : 'Playing'
+        : typeof appFmt === 'function'
+          ? appFmt('tray.status_paused')
+          : 'Paused';
+    const tooltip = `${track}\n${timeLine} • ${status}`;
+    const shortT = track.length > 44 ? `${track.slice(0, 41)}…` : track;
+    const title_bar = `${shortT} — ${ft(cur)}/${ft(dur)}`;
+    const sig = `${audioPlayerPath}|${Math.floor(cur)}|${playing ? 1 : 0}`;
+    if (sig === _traySyncSig) return;
+    _traySyncSig = sig;
+    void inv('update_tray_now_playing', {title_bar, tooltip, idle: false}).catch(() => {});
+}
+
 function updatePlaybackTime() {
     let cur;
     let dur;
@@ -3068,6 +3129,7 @@ function updatePlaybackTime() {
             window.syncAeTransportFromPlayback();
         }
     }
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
 /** Seek current playback to a normalized position [0, 1]. Used by now-playing and metadata waveforms. */
@@ -5897,4 +5959,18 @@ window.preloadAudioDecodeWorker = preloadAudioDecodeWorker;
         if (typeof ensureEnginePlaybackFftRaf === 'function') ensureEnginePlaybackFftRaf();
         if (typeof window.scheduleParametricEqFrame === 'function') window.scheduleParametricEqFrame();
     });
+})();
+
+/** After `__appStr` loads, align idle tray tooltip with localized `tray.tooltip`. */
+(function syncTrayAfterAppStrings() {
+    if (typeof window === 'undefined') return;
+    const run = () => {
+        if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
+    };
+    const p = window.__appReady;
+    if (p && typeof p.then === 'function') {
+        void p.then(run).catch(() => {});
+    } else {
+        run();
+    }
 })();

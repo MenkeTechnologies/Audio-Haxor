@@ -117,10 +117,13 @@ fn app_strings_en_contains_tray_keys() {
         "tray.show",
         "tray.scan_all",
         "tray.stop_all",
+        "tray.previous_track",
         "tray.play_pause",
         "tray.next_track",
         "tray.quit",
         "tray.tooltip",
+        "tray.status_playing",
+        "tray.status_paused",
     ] {
         assert!(
             m.get(key).map(|s| !s.is_empty()).unwrap_or(false),

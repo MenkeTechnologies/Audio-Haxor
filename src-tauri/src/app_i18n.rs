@@ -188,15 +188,18 @@ mod tests {
         "menu.window",
     ];
 
-    /// Keys passed to `t("tray.…", …)` for the system tray in `lib.rs`.
+    /// Keys passed to `t("tray.…", …)` for the system tray in `tray_menu.rs` (+ dynamic strings from `audio.js`).
     const TRAY_KEYS: &[&str] = &[
         "tray.show",
         "tray.scan_all",
         "tray.stop_all",
+        "tray.previous_track",
         "tray.play_pause",
         "tray.next_track",
         "tray.quit",
         "tray.tooltip",
+        "tray.status_playing",
+        "tray.status_paused",
     ];
 
     fn key_matches_catalog_prefix(k: &str) -> bool {
@@ -2025,7 +2028,7 @@ mod tests {
         for key in TRAY_KEYS {
             assert!(
                 en.get(*key).map(|s| !s.trim().is_empty()).unwrap_or(false),
-                "English seed missing tray key {key} (sync with lib.rs tray menu)"
+                "English seed missing tray key {key} (sync with tray_menu.rs)"
             );
         }
     }

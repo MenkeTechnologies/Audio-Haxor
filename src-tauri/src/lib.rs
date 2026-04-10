@@ -42,6 +42,7 @@ pub mod preset_scanner;
 pub mod scanner;
 pub mod scanner_skip_dirs;
 pub mod similarity;
+pub mod tray_menu;
 pub mod unified_walker;
 pub mod xref;
 
@@ -7013,6 +7014,12 @@ fn refresh_native_menu(app: AppHandle) -> Result<(), String> {
     let strings = db::global().get_app_strings(&ui_locale).unwrap_or_default();
     let menu = native_menu::build_native_menu_bar(&app, &strings).map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
+    let state = app.state::<tray_menu::TrayState>();
+    if let Ok(guard) = state.0.lock() {
+        if let Some(ref tray) = *guard {
+            tray_menu::refresh_tray_popup_menu(&app, tray, &strings)?;
+        }
+    }
     Ok(())
 }
 
@@ -7279,6 +7286,7 @@ pub fn run() {
             unified_scanning: AtomicBool::new(false),
         })
         .manage(file_watcher::FileWatcherState::new())
+        .manage(tray_menu::TrayState(std::sync::Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_version,
             get_walker_status,
@@ -7447,6 +7455,7 @@ pub fn run() {
             get_app_strings,
             get_toast_strings,
             refresh_native_menu,
+            tray_menu::update_tray_now_playing,
             start_file_watcher,
             stop_file_watcher,
             get_file_watcher_status,
@@ -7479,14 +7488,6 @@ pub fn run() {
                 .and_then(|v| v.as_str().map(|s| s.to_string()))
                 .unwrap_or_else(|| "en".to_string());
             let strings = db::global().get_app_strings(&ui_locale).unwrap_or_default();
-            let t = |key: &str, fallback: &str| -> String {
-                strings
-                    .get(key)
-                    .map(|s| s.as_str())
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(fallback)
-                    .to_string()
-            };
             let menu =
                 native_menu::build_native_menu_bar(handle, &strings).map_err(|e| e.to_string())?;
             app.set_menu(menu).map_err(|e| e.to_string())?;
@@ -7500,45 +7501,15 @@ pub fn run() {
                 }
             });
 
-            // System tray
-            use tauri::menu::MenuBuilder;
-            use tauri::tray::*;
-            let tray_menu = MenuBuilder::new(app)
-                .text("tray_show", t("tray.show", "Show AUDIO_HAXOR"))
-                .separator()
-                .text("tray_scan_all", t("tray.scan_all", "Scan All"))
-                .text("tray_stop_all", t("tray.stop_all", "Stop All"))
-                .separator()
-                .text("tray_play_pause", t("tray.play_pause", "Play / Pause"))
-                .text("tray_next", t("tray.next_track", "Next Track"))
-                .separator()
-                .text("tray_quit", t("tray.quit", "Quit"))
-                .build()?;
-
-            let _tray = TrayIconBuilder::new()
-                .menu(&tray_menu)
-                .tooltip(t("tray.tooltip", "AUDIO_HAXOR"))
-                .on_menu_event(move |app_handle, event| {
-                    let id = event.id().as_ref();
-                    if id == "tray_quit" {
-                        app_handle.exit(0);
-                    } else if id == "tray_show" {
-                        if let Some(win) = app_handle.get_webview_window("main") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
-                        }
-                    } else if let Some(win) = app_handle.get_webview_window("main") {
-                        let action = match id {
-                            "tray_scan_all" => "scan_all",
-                            "tray_stop_all" => "stop_all",
-                            "tray_play_pause" => "play_pause",
-                            "tray_next" => "next_track",
-                            _ => return,
-                        };
-                        let _ = win.emit("menu-action", action);
-                    }
-                })
-                .build(app)?;
+            let tray = tray_menu::create_tray(app, &strings)?;
+            {
+                let state = app.state::<tray_menu::TrayState>();
+                let mut guard = state
+                    .0
+                    .lock()
+                    .map_err(|_| "tray state mutex poisoned".to_string())?;
+                *guard = Some(tray);
+            }
 
             Ok(())
         })

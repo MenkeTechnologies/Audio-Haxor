@@ -465,10 +465,13 @@ TRAY_EN: dict[str, str] = {
     "tray.show": "Show AUDIO_HAXOR",
     "tray.scan_all": "Scan All",
     "tray.stop_all": "Stop All",
+    "tray.previous_track": "Previous Track",
     "tray.play_pause": "Play / Pause",
     "tray.next_track": "Next Track",
     "tray.quit": "Quit",
     "tray.tooltip": "AUDIO_HAXOR",
+    "tray.status_playing": "Playing",
+    "tray.status_paused": "Paused",
 }
 
 HELP_EN: dict[str, str] = {
