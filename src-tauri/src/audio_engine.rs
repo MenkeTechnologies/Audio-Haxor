@@ -213,7 +213,7 @@ pub fn resolve_audio_engine_binary() -> Result<PathBuf, String> {
     }
 
     Err(format!(
-        "audio engine binary not found (tried helper .app in Contents/Frameworks/, workspace walk, `{}`, and `audio-engine-{}` next to host)",
+        "audio engine binary not found (tried helper .app in Contents/MacOS/, workspace walk, `{}`, and `audio-engine-{}` next to host)",
         sibling.display(),
         option_env!("AUDIO_HAXOR_TARGET_TRIPLE").unwrap_or("?")
     ))

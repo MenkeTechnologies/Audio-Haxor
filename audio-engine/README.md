@@ -141,6 +141,7 @@ The helper's `Main.cpp` also calls `[NSApp finishLaunching]` at startup (via `au
 5. Seals the helper `.app` (`codesign --force --sign - "$HELPER_APP"`).
 6. Re-seals the outer `.app` (`codesign --force --sign - "$APP"` — **without** `--deep`, so the inner helper signature we just made is not overwritten).
 7. Verifies both signatures with `codesign --verify --verbose=2`.
+8. Regenerates the DMG from the reshaped bundle (when `scripts/bundle_dmg.sh` is present), re-signs the DMG, copies the reshaped **`AUDIO_HAXOR.app`** to **`/Applications/AUDIO_HAXOR.app`** (replacing any previous install via `ditto`), and moves the versioned **`.dmg`** into **`/Applications/`**. If DMG bundling is skipped, the script still installs the reshaped **`/Applications/AUDIO_HAXOR.app`** only.
 
 Order matters: the outer `.app`'s `_CodeSignature/CodeResources` includes a hash of the inner helper `.app`'s signature, so the inner one must be fully signed first. Re-signing the outer with `--deep` would recursively replace inner signatures and break this.
 
@@ -151,7 +152,7 @@ Order matters: the outer `.app`'s `_CodeSignature/CodeResources` includes a hash
 
 **Plain `pnpm tauri build` / `pnpm tauri:build` does NOT** run the postbundle reshape and produces a bundle whose AU plugin editors will be blank. Either use one of the entry points above, or invoke `bash scripts/postbundle-audio-engine-helper.sh` manually after `tauri build`.
 
-**Rust resolver.** `src-tauri/src/audio_engine.rs::resolve_audio_engine_binary()` checks the helper path (`Contents/Frameworks/AudioHaxorEngineHelper.app/Contents/MacOS/audio-engine`) **before** the legacy sibling/triple-suffix paths, so a bundled `.app` always uses the helper. Dev builds (`pnpm tauri dev`) keep using the workspace artifact at `audio-engine-artifacts/<profile>/audio-engine` via the parent-walk fallback — no helper involved.
+**Rust resolver.** `src-tauri/src/audio_engine.rs::resolve_audio_engine_binary()` checks the helper path (`Contents/MacOS/AudioHaxorEngineHelper.app/Contents/MacOS/audio-engine`) **before** the legacy sibling/triple-suffix paths, so a bundled `.app` always uses the helper. Dev builds (`pnpm tauri dev`) keep using the workspace artifact at `audio-engine-artifacts/<profile>/audio-engine` via the parent-walk fallback — no helper involved.
 
 ### JUCE source patches (macOS)
 
