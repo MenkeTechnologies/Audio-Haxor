@@ -675,6 +675,7 @@
   "tray.status_playing": "Playing",
   "tray.stop_all": "Stop All",
   "tray.tooltip": "AUDIO_HAXOR",
+  "tray.popover_idle": "Nothing playing",
   "ui.ae.add_insert_slot": "Add slot",
   "ui.ae.add_insert_slot_tt": "Add another insert row (fuzzy search from the plugin scan).",
   "ui.ae.apply_device": "Apply",

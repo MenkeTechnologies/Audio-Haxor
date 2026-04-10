@@ -667,6 +667,7 @@
   "toast.xml_exported": "XML exportováno",
   "tray.next_track": "Další stopa",
   "tray.play_pause": "Přehrát / Pozastavit",
+  "tray.popover_idle": "Nothing playing",
   "tray.previous_track": "Previous Track",
   "tray.quit": "Přestat",
   "tray.scan_all": "Skenovat vše",

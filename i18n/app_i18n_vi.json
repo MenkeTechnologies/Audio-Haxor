@@ -667,6 +667,7 @@
   "toast.xml_exported": "Đã xuất XML",
   "tray.next_track": "Bài hát tiếp theo",
   "tray.play_pause": "Phát / Tạm dừng",
+  "tray.popover_idle": "Nothing playing",
   "tray.previous_track": "Previous Track",
   "tray.quit": "Từ bỏ",
   "tray.scan_all": "Quét tất cả",

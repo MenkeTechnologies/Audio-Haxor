@@ -667,6 +667,7 @@
   "toast.xml_exported": "XML exportálva",
   "tray.next_track": "Következő szám",
   "tray.play_pause": "Lejátszás / Szünet",
+  "tray.popover_idle": "Nothing playing",
   "tray.previous_track": "Previous Track",
   "tray.quit": "Kilép",
   "tray.scan_all": "Összes beolvasása",

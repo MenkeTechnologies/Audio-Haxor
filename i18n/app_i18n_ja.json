@@ -667,6 +667,7 @@
   "toast.xml_exported": "XML がエクスポートされました",
   "tray.next_track": "次のトラック",
   "tray.play_pause": "再生/一時停止",
+  "tray.popover_idle": "Nothing playing",
   "tray.previous_track": "Previous Track",
   "tray.quit": "やめる",
   "tray.scan_all": "すべてスキャン",

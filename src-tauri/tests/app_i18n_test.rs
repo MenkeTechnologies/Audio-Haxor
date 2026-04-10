@@ -122,6 +122,7 @@ fn app_strings_en_contains_tray_keys() {
         "tray.next_track",
         "tray.quit",
         "tray.tooltip",
+        "tray.popover_idle",
         "tray.status_playing",
         "tray.status_paused",
     ] {

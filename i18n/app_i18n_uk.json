@@ -667,6 +667,7 @@
   "toast.xml_exported": "XML експортовано",
   "tray.next_track": "Наступний трек",
   "tray.play_pause": "Відтворення / Пауза",
+  "tray.popover_idle": "Nothing playing",
   "tray.previous_track": "Previous Track",
   "tray.quit": "Вийти",
   "tray.scan_all": "Сканувати все",

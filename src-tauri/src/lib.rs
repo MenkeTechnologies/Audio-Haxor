@@ -7452,6 +7452,7 @@ pub fn run() {
             get_toast_strings,
             refresh_native_menu,
             tray_menu::update_tray_now_playing,
+            tray_menu::tray_popover_action,
             start_file_watcher,
             stop_file_watcher,
             get_file_watcher_status,

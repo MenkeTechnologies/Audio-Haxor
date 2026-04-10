@@ -19,6 +19,20 @@
         "minHeight": 600,
         "decorations": true,
         "transparent": false
+      },
+      {
+        "label": "tray-popover",
+        "title": "",
+        "width": 300,
+        "height": 168,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "visible": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": false,
+        "url": "tray-popover.html"
       }
     ],
     "security": {

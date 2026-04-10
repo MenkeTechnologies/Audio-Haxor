@@ -667,6 +667,7 @@
   "toast.xml_exported": "XML을 내보냈습니다.",
   "tray.next_track": "다음 트랙",
   "tray.play_pause": "재생/일시 정지",
+  "tray.popover_idle": "Nothing playing",
   "tray.previous_track": "Previous Track",
   "tray.quit": "그만두다",
   "tray.scan_all": "모두 스캔",

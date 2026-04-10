@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title></title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: transparent;
+    }
+    .shell {
+      width: 300px;
+      min-height: 168px;
+      margin: 0 auto;
+      padding: 14px 16px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.55);
+      backdrop-filter: blur(48px) saturate(180%);
+      -webkit-backdrop-filter: blur(48px) saturate(180%);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18), 0 0 0 0.5px rgba(0, 0, 0, 0.06) inset;
+    }
+    @media (prefers-color-scheme: dark) {
+      .shell {
+        border-color: rgba(255, 255, 255, 0.08);
+        background: rgba(40, 40, 42, 0.72);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.06) inset;
+      }
+      .title { color: rgba(255, 255, 255, 0.95); }
+      .subtitle { color: rgba(255, 255, 255, 0.45); }
+      .time { color: rgba(255, 255, 255, 0.45); }
+      .track-fill { background: rgba(255, 255, 255, 0.55); }
+      .track-bg { background: rgba(255, 255, 255, 0.12); }
+    }
+    .title {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      color: rgba(0, 0, 0, 0.88);
+      max-height: 2.5em;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.3;
+      color: rgba(0, 0, 0, 0.45);
+      max-height: 2.6em;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .subtitle:empty { display: none; }
+    .progress-wrap { margin-top: 12px; }
+    .track-bg {
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+    .track-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 2px;
+      background: rgba(0, 0, 0, 0.45);
+      transition: width 0.12s linear;
+    }
+    .times {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+      color: rgba(0, 0, 0, 0.45);
+    }
+    .transport {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      margin-top: 14px;
+    }
+    .transport button {
+      appearance: none;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      color: inherit;
+      opacity: 0.85;
+      line-height: 1;
+      font-size: 18px;
+    }
+    .transport button:hover { opacity: 1; background: rgba(0, 0, 0, 0.06); }
+    @media (prefers-color-scheme: dark) {
+      .transport button:hover { background: rgba(255, 255, 255, 0.08); }
+    }
+    .transport button:active { transform: scale(0.96); }
+    .transport .play-btn { font-size: 22px; }
+    .idle .progress-wrap,
+    .idle .transport { opacity: 0.35; pointer-events: none; }
+    .idle-hint {
+      font-size: 12px;
+      color: rgba(0, 0, 0, 0.4);
+      margin-top: 8px;
+    }
+    @media (prefers-color-scheme: dark) {
+      .idle-hint { color: rgba(255, 255, 255, 0.35); }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell" id="shell">
+    <div class="title" id="title"></div>
+    <div class="subtitle" id="subtitle"></div>
+    <div class="idle-hint" id="idleHint" hidden></div>
+    <div class="progress-wrap">
+      <div class="track-bg"><div class="track-fill" id="fill"></div></div>
+      <div class="times">
+        <span id="elapsed">0:00</span>
+        <span id="total">—</span>
+      </div>
+    </div>
+    <div class="transport">
+      <button type="button" id="btnPrev" title="Previous">⏮</button>
+      <button type="button" class="play-btn" id="btnPlay" title="Play/Pause">⏸</button>
+      <button type="button" id="btnNext" title="Next">⏭</button>
+    </div>
+  </div>
+  <script src="js/tray-popover.js"></script>
+</body>
+</html>

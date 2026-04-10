@@ -3051,7 +3051,17 @@ function syncTrayNowPlayingFromPlayback() {
     if (idle) {
         if (_traySyncSig === 'idle') return;
         _traySyncSig = 'idle';
-        void inv('update_tray_now_playing', {title_bar: null, tooltip: tooltipBase, idle: true}).catch(() => {});
+        void inv('update_tray_now_playing', {
+            title_bar: null,
+            tooltip: tooltipBase,
+            idle: true,
+            popover_title: '',
+            popover_subtitle: '',
+            elapsed_sec: 0,
+            total_sec: null,
+            popover_playing: false,
+            popover_idle_label: typeof appFmt === 'function' ? appFmt('tray.popover_idle') : 'Nothing playing',
+        }).catch(() => {});
         return;
     }
     let cur;
@@ -3097,12 +3107,24 @@ function syncTrayNowPlayingFromPlayback() {
     const tooltip = `${track} — ${timeLine} • ${status}`;
     const shortT = track.length > 44 ? `${track.slice(0, 41)}…` : track;
     const title_bar = `${shortT} — ${ft(cur)} / ${totalStr}`;
+    const metaEl = document.getElementById('npMetaLine');
+    const popover_subtitle =
+        metaEl && typeof metaEl.textContent === 'string' ? metaEl.textContent.trim() : '';
     const durKey = Number.isFinite(dur) && dur > 0 ? Math.floor(dur) : -1;
     const sigPath = audioPlayerPath || resumePath || '';
     const sig = `${sigPath}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}`;
     if (sig === _traySyncSig) return;
     _traySyncSig = sig;
-    void inv('update_tray_now_playing', {title_bar, tooltip, idle: false}).catch(() => {});
+    void inv('update_tray_now_playing', {
+        title_bar,
+        tooltip,
+        idle: false,
+        popover_title: track,
+        popover_subtitle,
+        elapsed_sec: cur,
+        total_sec: Number.isFinite(dur) && dur > 0 ? dur : null,
+        popover_playing: playing,
+    }).catch(() => {});
 }
 
 function updatePlaybackTime() {

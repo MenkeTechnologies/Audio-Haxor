@@ -667,6 +667,7 @@
   "toast.xml_exported": "XML geëxporteerd",
   "tray.next_track": "Volgende nummer",
   "tray.play_pause": "Afspelen / pauzeren",
+  "tray.popover_idle": "Nothing playing",
   "tray.previous_track": "Previous Track",
   "tray.quit": "Ontslag nemen",
   "tray.scan_all": "Alles scannen",

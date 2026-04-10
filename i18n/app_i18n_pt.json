@@ -667,6 +667,7 @@
   "toast.xml_exported": "XML exportado",
   "tray.next_track": "Próxima faixa",
   "tray.play_pause": "Reproduzir/Pausar",
+  "tray.popover_idle": "Nothing playing",
   "tray.previous_track": "Previous Track",
   "tray.quit": "Desistir",
   "tray.scan_all": "Digitalizar tudo",
