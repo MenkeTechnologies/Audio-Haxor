@@ -71,6 +71,9 @@ pub const DIRECTORY_SCAN_INCREMENTAL_DOMAIN: &str = "unified";
 /// Cached `app.log` verbosity: `0` = quiet (suppress selected normal-level chatter), `1` = normal, `2` = verbose (extra scan/KVR diagnostics).
 static LOG_VERBOSITY_LEVEL: AtomicU8 = AtomicU8::new(1);
 
+/// Set by `pdf_metadata_extract_abort`; checked between PDF page-count extraction chunks so the UI can stop CPU-heavy work when the PDF tab is hidden or the window is idle.
+static PDF_META_EXTRACT_ABORT: AtomicBool = AtomicBool::new(false);
+
 #[inline]
 pub fn log_verbosity_level() -> u8 {
     LOG_VERBOSITY_LEVEL.load(Ordering::Relaxed)
@@ -2334,14 +2337,20 @@ async fn pdf_metadata_get(paths: Vec<String>) -> Result<serde_json::Value, Strin
 }
 
 #[tauri::command]
+fn pdf_metadata_extract_abort() {
+    PDF_META_EXTRACT_ABORT.store(true, Ordering::Relaxed);
+}
+
+#[tauri::command]
 async fn pdf_metadata_extract_batch(
     app: AppHandle,
     paths: Vec<String>,
 ) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
+        PDF_META_EXTRACT_ABORT.store(false, Ordering::Relaxed);
         let total = paths.len();
         if total == 0 {
-            return serde_json::json!({ "extracted": 0, "total": 0 });
+            return serde_json::json!({ "extracted": 0, "total": 0, "aborted": false });
         }
         let _ = app.emit(
             "pdf-metadata-progress",
@@ -2352,6 +2361,21 @@ async fn pdf_metadata_extract_batch(
         let mut done = 0usize;
         let mut extracted = 0usize;
         for chunk in paths.chunks(CHUNK) {
+            if PDF_META_EXTRACT_ABORT.load(Ordering::Relaxed) {
+                let _ = app.emit(
+                    "pdf-metadata-progress",
+                    serde_json::json!({
+                        "phase": "aborted", "done": done, "total": total, "extracted": extracted
+                    }),
+                );
+                let _ = app.emit(
+                    "pdf-metadata-progress",
+                    serde_json::json!({
+                        "phase": "done", "extracted": extracted, "total": total, "aborted": true
+                    }),
+                );
+                return serde_json::json!({ "extracted": extracted, "total": total, "aborted": true });
+            }
             let pairs = pdf_meta::extract_pages_batch(chunk);
             // Build a HashMap for O(1) lookup instead of O(n) linear scan per element
             let pairs_map: std::collections::HashMap<&String, u32> =
@@ -2372,9 +2396,9 @@ async fn pdf_metadata_extract_batch(
         }
         let _ = app.emit(
             "pdf-metadata-progress",
-            serde_json::json!({ "phase": "done", "extracted": extracted, "total": total }),
+            serde_json::json!({ "phase": "done", "extracted": extracted, "total": total, "aborted": false }),
         );
-        serde_json::json!({ "extracted": extracted, "total": total })
+        serde_json::json!({ "extracted": extracted, "total": total, "aborted": false })
     })
     .await
     .map_err(|e| e.to_string())
@@ -7366,6 +7390,7 @@ pub fn run() {
             pdf_history_diff,
             open_pdf_file,
             pdf_metadata_get,
+            pdf_metadata_extract_abort,
             pdf_metadata_extract_batch,
             pdf_metadata_unindexed,
             open_file_default,

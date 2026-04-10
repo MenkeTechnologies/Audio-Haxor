@@ -1299,6 +1299,7 @@ window.vstUpdater = {
     buildFingerprintCache: (candidatePaths) => invoke('build_fingerprint_cache', {candidatePaths}),
     findContentDuplicates: () => invoke('find_content_duplicates', {}),
     pdfMetadataGet: (paths) => invoke('pdf_metadata_get', {paths}),
+    pdfMetadataExtractAbort: () => invoke('pdf_metadata_extract_abort'),
     pdfMetadataExtractBatch: (paths) => invoke('pdf_metadata_extract_batch', {paths}),
     pdfMetadataUnindexed: (limit) => invoke('pdf_metadata_unindexed', {limit: limit || 100000}),
     onPdfMetadataProgress: (callback) => listen('pdf-metadata-progress', (event) => callback(event.payload)),

@@ -46,6 +46,10 @@ let _pdfStatsTotalBytes = 0;
 const _pdfPagesCache = {};
 let _pdfMetaRunning = false;
 let _pdfMetaProgressCleanup = null;
+/** Debounced + single-flight `pdfMetadataGet` from progress events (avoids SQL churn every 100 files). */
+let _pdfMetaProgDebounceTimer = null;
+let _pdfMetaProgGetInFlight = false;
+let _pdfMetaProgGetPending = false;
 
 let _lastPdfSearch = '';
 let _lastPdfMode = 'fuzzy';
@@ -582,6 +586,66 @@ function patchPdfPagesCell(path, pages) {
     }
 }
 
+function isPdfTabActive() {
+    const tab = document.querySelector('.tab-content.active');
+    return !!(tab && tab.id === 'tabPdf');
+}
+
+function shouldStartPdfMetadataExtraction(forceNoIdle) {
+    if (!isPdfTabActive()) return false;
+    if (!forceNoIdle && typeof window.isUiIdleHeavyCpu === 'function' && window.isUiIdleHeavyCpu()) return false;
+    return true;
+}
+
+function clearPdfMetaProgressDebounceState() {
+    if (_pdfMetaProgDebounceTimer) {
+        clearTimeout(_pdfMetaProgDebounceTimer);
+        _pdfMetaProgDebounceTimer = null;
+    }
+    _pdfMetaProgGetPending = false;
+}
+
+function schedulePdfMetaProgressPageFetch() {
+    if (_pdfMetaProgDebounceTimer) clearTimeout(_pdfMetaProgDebounceTimer);
+    _pdfMetaProgDebounceTimer = setTimeout(() => {
+        _pdfMetaProgDebounceTimer = null;
+        void runPdfMetaProgressPageFetch();
+    }, 300);
+}
+
+async function runPdfMetaProgressPageFetch() {
+    const missing = filteredPdfs.slice(0, 2000).map(r => r.path).filter(p => _pdfPagesCache[p] === undefined);
+    if (missing.length === 0) return;
+    if (_pdfMetaProgGetInFlight) {
+        _pdfMetaProgGetPending = true;
+        return;
+    }
+    _pdfMetaProgGetInFlight = true;
+    try {
+        const map = await window.vstUpdater.pdfMetadataGet(missing);
+        for (const [path, pages] of Object.entries(map || {})) {
+            _pdfPagesCache[path] = pages;
+            patchPdfPagesCell(path, pages);
+        }
+    } catch {
+    } finally {
+        _pdfMetaProgGetInFlight = false;
+        if (_pdfMetaProgGetPending) {
+            _pdfMetaProgGetPending = false;
+            void runPdfMetaProgressPageFetch();
+        }
+    }
+}
+
+async function abortPdfMetadataExtraction() {
+    try {
+        if (window.vstUpdater && typeof window.vstUpdater.pdfMetadataExtractAbort === 'function') {
+            await window.vstUpdater.pdfMetadataExtractAbort();
+        }
+    } catch {
+    }
+}
+
 // Load cached page counts from DB for currently-visible rows, then trigger a
 // background extraction pass for any paths still uncached.
 async function loadPdfPagesForVisible() {
@@ -600,28 +664,24 @@ async function loadPdfPagesForVisible() {
     startPdfMetadataExtraction();
 }
 
-async function startPdfMetadataExtraction() {
+async function startPdfMetadataExtraction(opts) {
+    const forceNoIdle = opts && opts.forceNoIdle === true;
     if (_pdfMetaRunning) return;
+    if (!shouldStartPdfMetadataExtraction(forceNoIdle)) return;
     _pdfMetaRunning = true;
+    let hadUncachedWork = false;
     try {
         const uncached = await window.vstUpdater.pdfMetadataUnindexed(100000);
         if (!Array.isArray(uncached) || uncached.length === 0) return;
+        hadUncachedWork = true;
         // Listen to progress events to patch cells as they resolve
         if (_pdfMetaProgressCleanup) {
             _pdfMetaProgressCleanup();
             _pdfMetaProgressCleanup = null;
         }
+        clearPdfMetaProgressDebounceState();
         _pdfMetaProgressCleanup = await window.vstUpdater.onPdfMetadataProgress(() => {
-            // After each progress event, re-fetch the visible paths that are still missing
-            const missing = filteredPdfs.slice(0, 2000).map(r => r.path).filter(p => _pdfPagesCache[p] === undefined);
-            if (missing.length === 0) return;
-            window.vstUpdater.pdfMetadataGet(missing).then(map => {
-                for (const [path, pages] of Object.entries(map || {})) {
-                    _pdfPagesCache[path] = pages;
-                    patchPdfPagesCell(path, pages);
-                }
-            }).catch(() => {
-            });
+            schedulePdfMetaProgressPageFetch();
         });
         await window.vstUpdater.pdfMetadataExtractBatch(uncached);
     } catch (e) {
@@ -629,13 +689,14 @@ async function startPdfMetadataExtraction() {
             showToast(toastFmt('toast.pdf_page_extract_failed', {err: e && e.message ? e.message : e}), 4000, 'error');
         }
     } finally {
+        clearPdfMetaProgressDebounceState();
         if (_pdfMetaProgressCleanup) {
             _pdfMetaProgressCleanup();
             _pdfMetaProgressCleanup = null;
         }
         _pdfMetaRunning = false;
-        // Final reload for any rows we missed via progress events
-        loadPdfPagesForVisible();
+        // Final reload for any rows we missed via progress events (only after a real batch or listener was set up)
+        if (hadUncachedWork) loadPdfPagesForVisible();
     }
 }
 
@@ -643,8 +704,27 @@ async function startPdfMetadataExtraction() {
 async function buildPdfPagesCache() {
     // Force re-scan of all paths currently loaded in the PDF table
     for (const p of allPdfs) delete _pdfPagesCache[p.path];
-    _pdfMetaRunning = false;
+    await abortPdfMetadataExtraction();
+    const deadline = Date.now() + 120000;
+    while (_pdfMetaRunning && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 50));
+    }
     if (typeof showToast === 'function') showToast(toastFmt('toast.pdf_extracting_page_counts'), 3000);
-    await startPdfMetadataExtraction();
+    await startPdfMetadataExtraction({ forceNoIdle: true });
     if (typeof showToast === 'function') showToast(toastFmt('toast.pdf_page_extract_complete'), 2500);
 }
+
+(function initPdfMetadataExtractionLifecycle() {
+    if (typeof document === 'undefined') return;
+    document.addEventListener('ui-idle-heavy-cpu', (e) => {
+        const idle = e && e.detail && e.detail.idle;
+        if (idle) {
+            void abortPdfMetadataExtraction();
+        } else {
+            const tab = document.querySelector('.tab-content.active');
+            if (tab && tab.id === 'tabPdf' && typeof loadPdfPagesForVisible === 'function') {
+                void loadPdfPagesForVisible();
+            }
+        }
+    });
+})();
