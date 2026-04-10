@@ -1131,6 +1131,24 @@ function aeChainIndexForInsertUiSlot(uiSlotIndex) {
     return idx;
 }
 
+function aeCollectInsertPathsFromUi() {
+    const paths = [];
+    for (const pk of aeInsertPickers) {
+        const v = pk.getValue();
+        if (v) paths.push(String(v));
+    }
+    return paths;
+}
+
+function aeInsertPathArraysEqual(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+}
+
 async function aeOpenInsertEditor(uiSlotIndex) {
     const inv = getAeAudioEngineInvoke();
     if (!inv) { aeNotifyNoAudioEngineIpc(); return; }
@@ -1140,10 +1158,18 @@ async function aeOpenInsertEditor(uiSlotIndex) {
         return;
     }
     try {
-        /* `playback_set_inserts` rejects while `outputRunning` — same as Apply inserts. Open editor always
-         * re-syncs inserts first; stop output so we never race UI state vs engine (playback/tone still on). */
-        await stopAeOutputStream({ throwOnFailure: true });
-        await applyAePlaybackInserts({ showAppliedToast: false, rethrowOnFailure: true });
+        const uiPaths = aeCollectInsertPathsFromUi();
+        const chain = await inv({cmd: 'plugin_chain'});
+        throwIfAeNotOk(chain, 'plugin_chain failed');
+        const enginePaths = Array.isArray(chain.insert_paths) ? chain.insert_paths.map((x) => String(x)) : [];
+        const needApply = !aeInsertPathArraysEqual(uiPaths, enginePaths);
+
+        /* `playback_set_inserts` rejects while `outputRunning`. If the chain is already loaded, skip
+         * stop + apply so opening the editor does not interrupt playback. */
+        if (needApply) {
+            await stopAeOutputStream({ throwOnFailure: true });
+            await applyAePlaybackInserts({ showAppliedToast: false, rethrowOnFailure: true });
+        }
         const chainIdx = aeChainIndexForInsertUiSlot(uiSlotIndex);
         if (chainIdx < 0) return;
         const r = await inv({cmd: 'playback_open_insert_editor', slot: chainIdx});
