@@ -7,9 +7,38 @@
     const listen = tauri && tauri.event && typeof tauri.event.listen === 'function' ? tauri.event.listen : null;
     const invoke =
         tauri && tauri.core && typeof tauri.core.invoke === 'function' ? tauri.core.invoke : null;
-    const TW = tauri && tauri.webviewWindow && typeof tauri.webviewWindow.getCurrentWebviewWindow === 'function'
-        ? tauri.webviewWindow.getCurrentWebviewWindow()
-        : null;
+    /* `getCurrentWebviewWindow()` must run after the webview exists — call in init, not at parse time. */
+    function getTrayWebviewWindow() {
+        return tauri && tauri.webviewWindow && typeof tauri.webviewWindow.getCurrentWebviewWindow === 'function'
+            ? tauri.webviewWindow.getCurrentWebviewWindow()
+            : null;
+    }
+
+    /** Tray IPC may use snake_case (`ui_theme`) or camelCase (`uiTheme`) depending on serializer. */
+    function extractUiTheme(obj) {
+        if (!obj || typeof obj !== 'object') return null;
+        if (typeof obj.ui_theme === 'string') return obj.ui_theme;
+        if (typeof obj.uiTheme === 'string') return obj.uiTheme;
+        return null;
+    }
+
+    function extractAppearance(obj) {
+        if (!obj || typeof obj !== 'object') return null;
+        const a = obj.appearance;
+        return a && typeof a === 'object' ? a : null;
+    }
+
+    /** Main-window scheme vars (`--cyan`, …) → popover `document.documentElement` (feeds `--cp-*` aliases in CSS). */
+    function applyTrayAppearanceFromPayload(map) {
+        if (!map || typeof map !== 'object') return;
+        const root = document.documentElement.style;
+        for (const [k, v] of Object.entries(map)) {
+            if (typeof k === 'string' && k.startsWith('--') && typeof v === 'string' && v.length > 0) {
+                root.setProperty(k, v);
+            }
+        }
+    }
+
     /* Do not hide on blur: focus moves to the tray before the tray Click event, which would fight Rust toggle. */
 
     const shell = document.getElementById('shell');
@@ -24,6 +53,35 @@
     const btnPrev = document.getElementById('btnPrev');
     const btnPlay = document.getElementById('btnPlay');
     const btnNext = document.getElementById('btnNext');
+
+    let _trayPopoverDomTheme = '';
+
+    function applyTrayDocumentTheme(theme) {
+        const t = theme === 'light' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+        if (t !== _trayPopoverDomTheme) {
+            _trayPopoverDomTheme = t;
+            console.info('[tray-popover] documentElement data-theme ->', t);
+        }
+        scheduleResize();
+    }
+
+    let _trayPopoverApplyLog = { idle: null, playing: null, ui: null };
+
+    function logTrayPopoverApplyState(p, idle, playing, themed) {
+        const ui = themed || document.documentElement.getAttribute('data-theme') || '';
+        if (_trayPopoverApplyLog.idle === idle && _trayPopoverApplyLog.playing === playing && _trayPopoverApplyLog.ui === ui) {
+            return;
+        }
+        _trayPopoverApplyLog = { idle, playing, ui };
+        const title = typeof p.title === 'string' ? p.title : '';
+        console.info('[tray-popover] applyState', {
+            idle,
+            playing,
+            ui_theme: ui,
+            titleLen: title.length,
+        });
+    }
 
     function fmt(sec) {
         if (typeof sec !== 'number' || !Number.isFinite(sec) || sec < 0) return '0:00';
@@ -118,6 +176,9 @@
     function applyState(raw) {
         const p = normalizePayload(raw);
         if (!p) return;
+        const themed = extractUiTheme(p);
+        if (themed) applyTrayDocumentTheme(themed);
+        applyTrayAppearanceFromPayload(extractAppearance(p));
         const idle = p.idle === true;
         if (shell) shell.classList.toggle('idle', idle);
         if (elTitle) elTitle.textContent = typeof p.title === 'string' ? p.title : '';
@@ -153,6 +214,7 @@
         }
         if (btnPlay) btnPlay.textContent = playing ? '⏸' : '▶';
         if (btnPlay) btnPlay.setAttribute('title', playing ? 'Pause' : 'Play');
+        logTrayPopoverApplyState(p, idle, playing, themed);
         scheduleResize();
         setTimeout(() => {
             syncWindowSize();
@@ -229,34 +291,64 @@
     if (btnPlay) btnPlay.addEventListener('click', () => send('play_pause'));
     if (btnNext) btnNext.addEventListener('click', () => send('next_track'));
 
-    function bindTrayPopoverListener() {
-        const handler = (e) => {
-            const p = e && e.payload !== undefined ? e.payload : e;
-            applyState(p);
+    /** `WebviewWindow.listen` / `event.listen` return Promises — await so emits are not dropped on first open. */
+    async function initTrayIpc() {
+        const onState = (e) => {
+            const raw = e && e.payload !== undefined ? e.payload : e;
+            applyState(raw);
         };
-        const attach = (fn) => {
-            try {
-                const r = fn('tray-popover-state', handler);
-                if (r && typeof r.then === 'function') void r.catch(() => {});
-            } catch (_) {
-                /* ignore */
+        const onTheme = (e) => {
+            const raw = e && e.payload !== undefined ? e.payload : e;
+            console.info('[tray-popover] event tray-popover-ui-theme', raw);
+            const th = extractUiTheme(raw) || (raw && typeof raw === 'object' && typeof raw.theme === 'string' ? raw.theme : null);
+            if (th) applyTrayDocumentTheme(th);
+        };
+        const scoped = { target: 'tray-popover' };
+        try {
+            const tw = getTrayWebviewWindow();
+            if (tw && typeof tw.listen === 'function') {
+                await tw.listen('tray-popover-state', onState);
+                await tw.listen('tray-popover-ui-theme', onTheme);
+                console.info('[tray-popover] IPC listeners registered (WebviewWindow.listen)', {
+                    label: typeof tw.label === 'string' ? tw.label : '(unknown)',
+                });
+            } else if (listen) {
+                try {
+                    await listen('tray-popover-state', onState, scoped);
+                    await listen('tray-popover-ui-theme', onTheme, scoped);
+                    console.info('[tray-popover] IPC listeners registered (event.listen + target)', scoped);
+                } catch (_) {
+                    /* Older/global bundles may omit the `target` option. */
+                    await listen('tray-popover-state', onState);
+                    await listen('tray-popover-ui-theme', onTheme);
+                    console.info('[tray-popover] IPC listeners registered (event.listen, no target)');
+                }
+            } else {
+                console.warn('[tray-popover] no listen API — tray-popover-state events will not apply');
             }
-        };
-        if (TW && typeof TW.listen === 'function') {
-            attach(TW.listen.bind(TW));
-            return;
+        } catch (err) {
+            console.warn('[tray-popover] IPC listen failed', err);
         }
-        if (listen) attach(listen);
-    }
-    bindTrayPopoverListener();
 
-    if (invoke) {
-        void invoke('tray_popover_get_state')
-            .then((emit) => {
+        if (invoke) {
+            try {
+                const [theme, emit] = await Promise.all([
+                    invoke('tray_popover_get_ui_theme').catch(() => 'dark'),
+                    invoke('tray_popover_get_state').catch(() => null),
+                ]);
+                console.info('[tray-popover] bootstrap invoke', {
+                    tray_popover_get_ui_theme: theme,
+                    tray_popover_get_state: emit ? 'some' : 'null',
+                });
+                applyTrayDocumentTheme(typeof theme === 'string' ? theme : 'dark');
                 if (emit) applyState(emit);
-            })
-            .catch(() => {});
+            } catch (err) {
+                console.warn('[tray-popover] bootstrap invoke failed', err);
+            }
+        }
     }
+
+    void initTrayIpc();
 
     function initSizeAfterFonts() {
         const run = () => scheduleResize();
@@ -280,8 +372,8 @@
     }
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && TW && typeof TW.hide === 'function') {
-            void TW.hide().catch(() => {});
-        }
+        if (e.key !== 'Escape') return;
+        const tw = getTrayWebviewWindow();
+        if (tw && typeof tw.hide === 'function') void tw.hide().catch(() => {});
     });
 })();

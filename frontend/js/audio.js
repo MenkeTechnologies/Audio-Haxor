@@ -3036,6 +3036,32 @@ function enginePlaybackDurationSec() {
 /** Dedupes `invoke('update_tray_now_playing')` — includes duration so tray updates when total length loads. */
 let _traySyncSig = '';
 
+/** DevTools: log only when `idle` vs playing, `ui_theme`, or scheme snapshot changes. */
+let _trayMainIpcLog = { idle: null, ui_theme: null, app_sig: null };
+
+function logTrayMainNowPlayingInvoke(idle, uiTheme, appSig) {
+    const sig = appSig == null ? '' : String(appSig);
+    if (_trayMainIpcLog.idle === idle && _trayMainIpcLog.ui_theme === uiTheme && _trayMainIpcLog.app_sig === sig) return;
+    _trayMainIpcLog = { idle, ui_theme: uiTheme, app_sig: sig };
+    console.info('[tray-main] update_tray_now_playing', { idle, ui_theme: uiTheme });
+}
+
+/** Scheme vars for tray popover HUD — matches `SCHEME_VAR_KEYS` from `settings.js`. */
+function trayAppearanceForTraySync() {
+    const keys =
+        typeof window !== 'undefined' && Array.isArray(window.SCHEME_VAR_KEYS) ? window.SCHEME_VAR_KEYS : null;
+    if (!keys || keys.length === 0 || typeof document === 'undefined') return { appearance: null, sig: '' };
+    const cs = getComputedStyle(document.documentElement);
+    const appearance = {};
+    const parts = [];
+    for (const k of keys) {
+        const v = cs.getPropertyValue(k).trim();
+        parts.push(v);
+        if (v) appearance[k] = v;
+    }
+    return { appearance: Object.keys(appearance).length ? appearance : null, sig: parts.join('|') };
+}
+
 /** Tray popover + menu line: `#npName`, else library sample basename, else path basename. */
 function trayNowPlayingDisplayName() {
     const np = document.getElementById('npName');
@@ -3062,6 +3088,13 @@ function trayNowPlayingDisplayName() {
     return '';
 }
 
+/** Matches `document.documentElement` `data-theme` for `update_tray_now_playing` → `TrayNowPlayingPayload.ui_theme`. */
+function traySyncUiTheme() {
+    return typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light'
+        ? 'light'
+        : 'dark';
+}
+
 function syncTrayNowPlayingFromPlayback() {
     const inv =
         typeof window !== 'undefined' &&
@@ -3084,9 +3117,13 @@ function syncTrayNowPlayingFromPlayback() {
         !_enginePlaybackActive &&
         !(audioReverseMode && _reversedBuf && _bufPlaying);
     const tooltipBase = typeof appFmt === 'function' ? appFmt('tray.tooltip') : 'AUDIO_HAXOR';
+    const uiTheme = traySyncUiTheme();
+    const { appearance: trayAppearance, sig: trayAppSig } = trayAppearanceForTraySync();
     if (idle) {
-        if (_traySyncSig === 'idle') return;
-        _traySyncSig = 'idle';
+        const idleSig = `idle|${uiTheme}|${trayAppSig}`;
+        if (_traySyncSig === idleSig) return;
+        _traySyncSig = idleSig;
+        logTrayMainNowPlayingInvoke(true, uiTheme, trayAppSig);
         /* Tauri v2 requires struct command args to be wrapped in the Rust parameter name (`payload`),
          * not passed flat. Passing flat fails with "missing required key payload" and the tray stays
          * frozen at its last known state — this was the silent root cause of the broken tray updates. */
@@ -3101,6 +3138,8 @@ function syncTrayNowPlayingFromPlayback() {
                 total_sec: null,
                 popover_playing: false,
                 popover_idle_label: typeof appFmt === 'function' ? appFmt('tray.popover_idle') : 'Nothing playing',
+                ui_theme: uiTheme,
+                appearance: trayAppearance,
             },
         }).catch(() => {});
         return;
@@ -3145,10 +3184,12 @@ function syncTrayNowPlayingFromPlayback() {
         metaEl && typeof metaEl.textContent === 'string' ? metaEl.textContent.trim() : '';
     const durKey = Number.isFinite(dur) && dur > 0 ? Math.floor(dur) : -1;
     const sigPath = audioPlayerPath || resumePath || '';
+    const { appearance: trayAppearancePlaying, sig: trayAppSigPlaying } = trayAppearanceForTraySync();
     /* Include title + subtitle: first ticks often have empty `#npName` / meta; dedupe must not block later updates. */
-    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}`;
+    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|${trayAppSigPlaying}`;
     if (sig === _traySyncSig) return;
     _traySyncSig = sig;
+    logTrayMainNowPlayingInvoke(false, uiTheme, trayAppSigPlaying);
     void inv('update_tray_now_playing', {
         payload: {
             title_bar,
@@ -3159,6 +3200,8 @@ function syncTrayNowPlayingFromPlayback() {
             elapsed_sec: cur,
             total_sec: Number.isFinite(dur) && dur > 0 ? dur : null,
             popover_playing: playing,
+            ui_theme: uiTheme,
+            appearance: trayAppearancePlaying,
         },
     }).catch(() => {});
 }

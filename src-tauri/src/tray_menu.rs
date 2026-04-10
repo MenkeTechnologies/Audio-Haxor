@@ -13,6 +13,8 @@ use tauri::{
     Size, State, Wry,
 };
 
+use crate::history;
+
 /// Max characters for the first row of the tray dropdown (macOS truncates visually; keep readable).
 const TRAY_MENU_NOW_PLAYING_MAX: usize = 96;
 
@@ -36,6 +38,14 @@ fn t(strings: &HashMap<String, String>, key: &str, fallback: &str) -> String {
         .filter(|s| !s.is_empty())
         .unwrap_or(fallback)
         .to_string()
+}
+
+/// Prefs key `theme` → popover `data-theme` (`light` vs `dark` HUD).
+fn tray_popover_ui_theme_from_prefs() -> String {
+    match history::get_preference("theme") {
+        Some(serde_json::Value::String(s)) if s == "light" => "light".to_string(),
+        _ => "dark".to_string(),
+    }
 }
 
 fn truncate_tray_menu_line(s: &str) -> String {
@@ -66,6 +76,11 @@ pub struct TrayPopoverEmit {
     pub playing: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idle_hint: Option<String>,
+    /// `"light"` or `"dark"` — tray-popover.html uses this for `html[data-theme]`.
+    pub ui_theme: String,
+    /// Main-window scheme snapshot (`--cyan`, `--bg-primary`, …) applied on the popover root.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<HashMap<String, String>>,
 }
 
 /// Per-tray state: icon + cached i18n for rebuilding the popup without hitting SQLite each tick.
@@ -78,6 +93,7 @@ pub struct TrayStateInner {
     pub menu_strings: HashMap<String, String>,
     pub now_playing_menu_line: Option<String>,
     pub last_popover_emit: Option<TrayPopoverEmit>,
+    pub last_tray_appearance: Option<HashMap<String, String>>,
 }
 
 impl Default for TrayStateInner {
@@ -87,6 +103,7 @@ impl Default for TrayStateInner {
             menu_strings: HashMap::new(),
             now_playing_menu_line: None,
             last_popover_emit: None,
+            last_tray_appearance: None,
         }
     }
 }
@@ -191,7 +208,7 @@ fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> 
         let _ = win.hide();
         return Ok(());
     }
-    let emit = last.unwrap_or(TrayPopoverEmit {
+    let mut emit = last.unwrap_or(TrayPopoverEmit {
         idle: true,
         title: String::new(),
         subtitle: String::new(),
@@ -199,7 +216,10 @@ fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> 
         total_sec: None,
         playing: false,
         idle_hint: None,
+        ui_theme: tray_popover_ui_theme_from_prefs(),
+        appearance: None,
     });
+    emit.ui_theme = tray_popover_ui_theme_from_prefs();
     let _ = app.emit_to("tray-popover", "tray-popover-state", &emit);
     let scale = win.scale_factor().unwrap_or(1.0);
     let (mut x, y) = popover_xy_below_tray(rect, scale);
@@ -266,6 +286,20 @@ pub struct TrayNowPlayingPayload {
     pub popover_playing: Option<bool>,
     #[serde(default)]
     pub popover_idle_label: Option<String>,
+    /// Optional: main window `data-theme` (`"light"` / `"dark"`). When omitted, Rust reads prefs.
+    #[serde(default)]
+    pub ui_theme: Option<String>,
+    /// Optional: `getComputedStyle(document.documentElement)` snapshot for scheme vars (`--cyan`, …).
+    #[serde(default)]
+    pub appearance: Option<HashMap<String, String>>,
+}
+
+fn tray_emit_ui_theme(payload: &TrayNowPlayingPayload) -> String {
+    match payload.ui_theme.as_deref() {
+        Some("light") => "light".to_string(),
+        Some(_) => "dark".to_string(),
+        None => tray_popover_ui_theme_from_prefs(),
+    }
 }
 
 #[tauri::command]
@@ -290,6 +324,8 @@ pub fn tray_popover_resize(app: AppHandle<Wry>, width: f64, height: f64) -> Resu
     Ok(())
 }
 
+/// **Tauri v2 IPC:** call `invoke('update_tray_now_playing', { payload: … })` — the outer key must be
+/// `payload` (matches this parameter name); a flat object fails deserialization.
 #[tauri::command]
 pub fn update_tray_now_playing(
     app: AppHandle<Wry>,
@@ -316,6 +352,14 @@ pub fn update_tray_now_playing(
     };
     guard.now_playing_menu_line.clone_from(&np_line);
 
+    if let Some(ref map) = payload.appearance {
+        if !map.is_empty() {
+            guard.last_tray_appearance = Some(map.clone());
+        }
+    }
+
+    let theme = tray_emit_ui_theme(&payload);
+    let appearance = guard.last_tray_appearance.clone();
     let emit = if payload.idle {
         TrayPopoverEmit {
             idle: true,
@@ -328,6 +372,8 @@ pub fn update_tray_now_playing(
                 .popover_idle_label
                 .clone()
                 .filter(|s| !s.trim().is_empty()),
+            ui_theme: theme,
+            appearance: appearance.clone(),
         }
     } else {
         TrayPopoverEmit {
@@ -338,6 +384,8 @@ pub fn update_tray_now_playing(
             total_sec: payload.total_sec,
             playing: payload.popover_playing.unwrap_or(false),
             idle_hint: None,
+            ui_theme: theme,
+            appearance: appearance.clone(),
         }
     };
     guard.last_popover_emit = Some(emit.clone());
@@ -367,6 +415,11 @@ pub fn tray_popover_get_state(tray_state: State<'_, TrayState>) -> Result<Option
         .lock()
         .map_err(|_| "tray state mutex poisoned".to_string())?;
     Ok(guard.last_popover_emit.clone())
+}
+
+#[tauri::command]
+pub fn tray_popover_get_ui_theme() -> String {
+    tray_popover_ui_theme_from_prefs()
 }
 
 static TRAY_POLL_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -477,6 +530,8 @@ pub fn start_tray_host_poll(app: AppHandle<Wry>) {
                     total_sec,
                     playing: !paused,
                     idle_hint: None,
+                    ui_theme: last.ui_theme.clone(),
+                    appearance: last.appearance.clone(),
                 };
                 guard.last_popover_emit = Some(new_emit.clone());
 

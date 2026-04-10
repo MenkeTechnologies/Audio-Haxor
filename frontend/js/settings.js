@@ -23,6 +23,7 @@ const SCHEME_VAR_KEYS = [
     '--bg-primary', '--bg-secondary', '--bg-card', '--bg-hover',
     '--border', '--border-glow',
 ];
+if (typeof window !== 'undefined') window.SCHEME_VAR_KEYS = SCHEME_VAR_KEYS;
 
 const COLOR_SCHEMES = {
     cyberpunk: {
@@ -254,6 +255,7 @@ function applyColorScheme(name) {
     if (typeof window !== 'undefined' && typeof window.invalidateNativeDragIconCache === 'function') {
         window.invalidateNativeDragIconCache();
     }
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
 function settingColorScheme(name) {
@@ -311,6 +313,7 @@ function applySchemeVars(vars) {
     if (typeof window !== 'undefined' && typeof window.invalidateNativeDragIconCache === 'function') {
         window.invalidateNativeDragIconCache();
     }
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
 function applyCustomScheme() {
@@ -442,6 +445,8 @@ function settingToggleTheme() {
         applyColorScheme(scheme);
     }
     refreshSettingsUI();
+    /* Tray popover HUD: push `ui_theme` on the same `TrayNowPlayingPayload` path as playback (belt-and-suspenders with `tray-popover-ui-theme`). */
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
 function settingToggleCrt() {
@@ -1972,6 +1977,7 @@ function restoreSettings() {
     } else if (scheme && scheme !== 'cyberpunk') {
         applyColorScheme(scheme);
     }
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
     const pageSize = parseInt(prefs.getItem('pageSize') || '200', 10);
     AUDIO_PAGE_SIZE = pageSize;
     DAW_PAGE_SIZE = pageSize;

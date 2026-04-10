@@ -8,18 +8,42 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
+    html {
+      color-scheme: dark;
+    }
+    /* `--cp-*` track main-window scheme tokens (`--cyan`, …) set from IPC; fallbacks match the default HUD. */
     :root {
-      /* Desaturated navy HUD (CRT reference) */
-      --cp-bg0: #0a0e14;
-      --cp-bg1: #121820;
-      --cp-cyan: #5ce1ff;
-      --cp-cyan-hot: #88eeff;
-      --cp-cyan-dim: rgba(92, 225, 255, 0.5);
-      --cp-magenta: #ff2aa3;
-      --cp-magenta-dim: rgba(255, 42, 163, 0.45);
-      --cp-text: #d8f8ff;
-      --cp-muted: rgba(200, 235, 255, 0.42);
-      --cp-scan: rgba(0, 0, 0, 0.22);
+      --cp-bg0: var(--bg-primary, #0a0e14);
+      --cp-bg1: var(--bg-card, #121820);
+      --cp-cyan: var(--cyan, #5ce1ff);
+      --cp-cyan-hot: var(--accent-light, #88eeff);
+      --cp-cyan-dim: var(--cyan-dim, rgba(92, 225, 255, 0.5));
+      --cp-magenta: var(--magenta, #ff2aa3);
+      --cp-magenta-dim: var(--magenta-glow, rgba(255, 42, 163, 0.45));
+      --cp-text: var(--text, #d8f8ff);
+      --cp-muted: var(--text-muted, rgba(200, 235, 255, 0.42));
+      --cp-scan: color-mix(in srgb, var(--bg-primary, #0a0e14) 50%, black);
+      --cp-shell-grad-top: var(--bg-secondary, #161c26);
+      --cp-shell-border: color-mix(in srgb, var(--cyan, #5ce1ff) 22%, transparent);
+      --cp-title-glow: var(--cyan-glow, rgba(92, 225, 255, 0.35));
+      --cp-divider-cyan: color-mix(in srgb, var(--cyan, #5ce1ff) 35%, transparent);
+      --cp-divider-magenta: var(--magenta-glow, rgba(255, 42, 163, 0.22));
+      --cp-track-bg: color-mix(in srgb, var(--bg-primary, #05050a) 65%, black);
+      --cp-track-border: color-mix(in srgb, var(--cyan, #5ce1ff) 18%, transparent);
+      --cp-elapsed-glow1: var(--cyan-glow, rgba(92, 225, 255, 0.55));
+      --cp-elapsed-glow2: color-mix(in srgb, var(--cyan-glow, rgba(92, 225, 255, 0.55)) 40%, transparent);
+      --cp-total-color: color-mix(in srgb, var(--text, #e0f0ff) 92%, transparent);
+      --cp-total-glow: var(--magenta-glow, rgba(255, 42, 163, 0.35));
+      --cp-btn-border: color-mix(in srgb, var(--cyan, #5ce1ff) 28%, transparent);
+      --cp-btn-bg: color-mix(in srgb, var(--bg-card, #0d0d1a) 42%, black);
+      --cp-btn-shadow: var(--accent-glow, rgba(92, 225, 255, 0.45));
+      --cp-btn-hover-bg: var(--bg-hover, rgba(0, 0, 0, 0.55));
+      --cp-wash-line: color-mix(in srgb, var(--text, #d8f8ff) 9%, transparent);
+      --cp-wash-radial: color-mix(in srgb, var(--cyan, #5ce1ff) 5%, transparent);
+      --cp-thumb-glow: var(--cyan-glow, rgba(92, 225, 255, 0.75));
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
@@ -43,8 +67,8 @@
       margin: 0;
       padding: 10px 12px 8px;
       border-radius: 16px;
-      background: linear-gradient(168deg, #161c26 0%, var(--cp-bg1) 42%, var(--cp-bg0) 100%);
-      border: 1px solid rgba(92, 225, 255, 0.22);
+      background: linear-gradient(168deg, var(--cp-shell-grad-top) 0%, var(--cp-bg1) 42%, var(--cp-bg0) 100%);
+      border: 1px solid var(--cp-shell-border);
       overflow: hidden;
     }
     .shell .crt-wash {
@@ -52,8 +76,8 @@
       inset: 0;
       pointer-events: none;
       background:
-        repeating-linear-gradient(180deg, transparent, transparent 1px, rgba(0, 0, 0, 0.15) 1px, rgba(0, 0, 0, 0.15) 2px),
-        radial-gradient(ellipse 120% 80% at 50% 0%, rgba(92, 225, 255, 0.05) 0%, transparent 55%);
+        repeating-linear-gradient(180deg, transparent, transparent 1px, var(--cp-wash-line) 1px, var(--cp-wash-line) 2px),
+        radial-gradient(ellipse 120% 80% at 50% 0%, var(--cp-wash-radial) 0%, transparent 55%);
     }
     .title:empty { display: none; }
     .title {
@@ -64,7 +88,7 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--cp-text);
-      text-shadow: 0 0 14px rgba(92, 225, 255, 0.35);
+      text-shadow: 0 0 14px var(--cp-title-glow);
       max-height: 2.6em;
       overflow: hidden;
       display: -webkit-box;
@@ -89,7 +113,7 @@
       position: relative;
       height: 1px;
       margin: 8px 0 6px;
-      background: linear-gradient(90deg, transparent, rgba(92, 225, 255, 0.35) 35%, rgba(255, 42, 163, 0.22) 65%, transparent);
+      background: linear-gradient(90deg, transparent, var(--cp-divider-cyan) 35%, var(--cp-divider-magenta) 65%, transparent);
     }
     .idle-hint {
       position: relative;
@@ -112,8 +136,8 @@
       position: relative;
       height: 2px;
       border-radius: 1px;
-      background: rgba(0, 0, 0, 0.5);
-      border: 1px solid rgba(92, 225, 255, 0.18);
+      background: var(--cp-track-bg);
+      border: 1px solid var(--cp-track-border);
     }
     .track-fill {
       height: 100%;
@@ -131,7 +155,7 @@
       margin-left: -5px;
       border-radius: 50%;
       background: var(--cp-cyan-hot);
-      box-shadow: 0 0 6px rgba(92, 225, 255, 0.75), 0 0 1px rgba(255, 255, 255, 0.8) inset;
+      box-shadow: 0 0 6px var(--cp-thumb-glow), 0 0 1px rgba(255, 255, 255, 0.8) inset;
       pointer-events: none;
       transform: translateY(-50%);
     }
@@ -151,12 +175,12 @@
     }
     #elapsed {
       color: var(--cp-cyan-hot);
-      text-shadow: 0 0 12px rgba(92, 225, 255, 0.55), 0 0 24px rgba(92, 225, 255, 0.2);
+      text-shadow: 0 0 12px var(--cp-elapsed-glow1), 0 0 24px var(--cp-elapsed-glow2);
     }
     #total {
-      color: rgba(230, 252, 255, 0.92);
+      color: var(--cp-total-color);
       font-weight: 600;
-      text-shadow: 0 0 8px rgba(255, 42, 163, 0.35);
+      text-shadow: 0 0 8px var(--cp-total-glow);
     }
     .transport {
       position: relative;
@@ -169,8 +193,8 @@
     }
     .transport button {
       appearance: none;
-      border: 1px solid rgba(92, 225, 255, 0.28);
-      background: rgba(0, 0, 0, 0.42);
+      border: 1px solid var(--cp-btn-border);
+      background: var(--cp-btn-bg);
       cursor: pointer;
       padding: 4px 7px;
       border-radius: 3px;
@@ -178,14 +202,14 @@
       line-height: 1;
       font-size: 14px;
       font-family: "JetBrains Mono", monospace;
-      text-shadow: 0 0 8px rgba(92, 225, 255, 0.45);
+      text-shadow: 0 0 8px var(--cp-btn-shadow);
       box-shadow: none;
       transition: border-color 0.15s, color 0.15s, background 0.15s;
     }
     .transport button:hover {
       border-color: var(--cp-cyan-hot);
-      background: rgba(0, 0, 0, 0.55);
-      color: #fff;
+      background: var(--cp-btn-hover-bg);
+      color: var(--cp-text);
     }
     .transport button:active { transform: scale(0.96); }
     .transport .play-btn { font-size: 16px; padding: 4px 8px; }

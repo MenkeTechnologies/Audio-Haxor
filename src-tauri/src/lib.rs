@@ -2872,8 +2872,21 @@ async fn prefs_get_all() -> history::PrefsMap {
 }
 
 #[tauri::command]
-async fn prefs_set(key: String, value: serde_json::Value) {
+async fn prefs_set(app: AppHandle, key: String, value: serde_json::Value) {
     let refresh_log = key == "logVerbosity";
+    let tray_theme = if key == "theme" {
+        let s = match &value {
+            serde_json::Value::String(t) => t.as_str(),
+            _ => "",
+        };
+        Some(if s == "light" {
+            "light".to_string()
+        } else {
+            "dark".to_string()
+        })
+    } else {
+        None
+    };
     let _ = blocking_res(move || {
         history::set_preference(&key, value);
         Ok(())
@@ -2881,6 +2894,13 @@ async fn prefs_set(key: String, value: serde_json::Value) {
     .await;
     if refresh_log {
         refresh_log_verbosity_from_prefs();
+    }
+    if let Some(t) = tray_theme {
+        let _ = app.emit_to(
+            "tray-popover",
+            "tray-popover-ui-theme",
+            serde_json::json!({ "ui_theme": t }),
+        );
     }
 }
 
@@ -7455,6 +7475,7 @@ pub fn run() {
             tray_menu::tray_popover_action,
             tray_menu::tray_popover_resize,
             tray_menu::tray_popover_get_state,
+            tray_menu::tray_popover_get_ui_theme,
             start_file_watcher,
             stop_file_watcher,
             get_file_watcher_status,
