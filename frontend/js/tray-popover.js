@@ -30,14 +30,20 @@
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     }
 
+    /** `.shell` box-shadow blur extends outside the border box; layout metrics do not include it. */
+    const SHADOW_PAD_X = 22;
+    const SHADOW_PAD_Y = 32;
+    const LAYOUT_PAD = 8;
+
     function syncWindowSize() {
         if (!invoke) return;
         const root = document.getElementById('shell');
         if (!root) return;
         const br = root.getBoundingClientRect();
-        const pad = 6;
-        const h = Math.ceil(Math.max(root.scrollHeight, br.height) + pad);
-        const w = Math.ceil(Math.max(root.scrollWidth, br.width) + pad);
+        const innerH = Math.max(root.scrollHeight, root.offsetHeight, br.height);
+        const innerW = Math.max(root.scrollWidth, root.offsetWidth, br.width);
+        const h = Math.ceil(innerH + LAYOUT_PAD + SHADOW_PAD_Y);
+        const w = Math.ceil(innerW + LAYOUT_PAD + SHADOW_PAD_X);
         void invoke('tray_popover_resize', { width: w, height: h }).catch(() => {});
     }
 
@@ -75,6 +81,12 @@
         if (btnPlay) btnPlay.textContent = playing ? '⏸' : '▶';
         if (btnPlay) btnPlay.setAttribute('title', playing ? 'Pause' : 'Play');
         scheduleResize();
+        setTimeout(() => {
+            syncWindowSize();
+        }, 0);
+        setTimeout(() => {
+            syncWindowSize();
+        }, 80);
     }
 
     function send(action) {
@@ -101,6 +113,13 @@
             run();
         }
     }
+    if (typeof ResizeObserver === 'function' && shell) {
+        const ro = new ResizeObserver(() => {
+            scheduleResize();
+        });
+        ro.observe(shell);
+    }
+
     if (document.readyState === 'complete') {
         initSizeAfterFonts();
     } else {
