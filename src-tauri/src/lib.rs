@@ -2856,18 +2856,32 @@ async fn open_plugin_folder(plugin_path: String) -> Result<(), String> {
         let raw = plugin_path.trim();
         let p = std::path::Path::new(raw);
         let target = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+        /* `-g` keeps Finder in the **background** so Audio Haxor stays frontmost. If Finder were
+         * to activate, the WebView would lose focus → `ui-idle.js` marks the app idle → the Web
+         * Audio `AudioContext` powering `audioPlayer` gets suspended by WebKit → playback cuts
+         * out mid-track. The user still sees the file revealed in Finder's window; they just have
+         * to click Finder's Dock icon to bring it forward. */
         if target.is_file() {
             std::process::Command::new("open")
                 .arg("-R")
+                .arg("-g")
                 .arg(&target)
                 .spawn()
                 .map_err(|e| e.to_string())?;
         } else if target.is_dir() {
-            opener::open(&target).map_err(|e| e.to_string())?;
+            std::process::Command::new("open")
+                .arg("-g")
+                .arg(&target)
+                .spawn()
+                .map_err(|e| e.to_string())?;
         } else if let Some(parent) = p.parent() {
             if !parent.as_os_str().is_empty() {
                 let pp = parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf());
-                opener::open(&pp).map_err(|e| e.to_string())?;
+                std::process::Command::new("open")
+                    .arg("-g")
+                    .arg(&pp)
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
             } else {
                 return Err("Invalid path".into());
             }

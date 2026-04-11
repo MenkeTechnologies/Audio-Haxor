@@ -149,15 +149,19 @@ listen('menu-action', (event) => {
         }
         return;
     }
-    /* Tray popover volume — `volume:<0..100>` matches `#npVolume`. */
+    /* Tray popover volume — `volume:<0..100>` matches `#npVolume`. Do NOT force an
+     * immediate `syncTrayNowPlayingFromPlayback` here. The tray `input` event fires at
+     * pointer-move rate (~120 Hz on macOS WebKit) and each forced full state push goes
+     * Rust → tray popover → `applyState` → 4× `syncWindowSize` → IPC roundtrip, which
+     * saturates the Tauri IPC thread and locks the app UI during a volume drag. The
+     * debounced 150 ms sync inside `setAudioVolume` plus the tray popover's local
+     * `_trayVolUserActive` guard is enough — host poll pushes that arrive mid-drag are
+     * ignored by the popover for 400 ms after the last local input, so no stale volume
+     * clobbers the slider. */
     if (typeof id === 'string' && id.startsWith('volume:')) {
         const v = parseInt(id.slice(7), 10);
         if (Number.isFinite(v) && typeof setAudioVolume === 'function') {
             setAudioVolume(String(Math.max(0, Math.min(100, v))));
-            /* Host poll can emit stale volume before `setAudioVolume`'s debounced tray sync — refresh now. */
-            if (typeof syncTrayNowPlayingFromPlayback === 'function') {
-                syncTrayNowPlayingFromPlayback();
-            }
         }
         return;
     }

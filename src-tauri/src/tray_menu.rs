@@ -398,6 +398,37 @@ fn tray_volume_pct_merge(payload: &TrayNowPlayingPayload, last: Option<&TrayPopo
 
 #[tauri::command]
 pub fn tray_popover_action(app: AppHandle<Wry>, action: String) -> Result<(), String> {
+    /* For `volume:<N>` and `speed:<N>` actions, update `TrayState.last_popover_emit` synchronously
+     * with the incoming value. The main window's JS debounces `syncTrayNowPlayingFromPlayback` by
+     * 150 ms, but the `start_tray_host_poll` thread re-emits `tray-popover-state` every 500 ms
+     * using the cached `volume_pct` / `playback_speed`. Without this pre-update, a host poll tick
+     * that fires between the last drag input and the debounced JS sync would broadcast the stale
+     * cached value — once the popover's `_trayVolUserActive` 400 ms guard expires, the slider
+     * snaps back to the old value. Updating the cache here makes the host poll always emit the
+     * latest user intent. */
+    if let Some(rest) = action.strip_prefix("volume:") {
+        if let Ok(n) = rest.parse::<f64>() {
+            if let Some(tray_state) = app.try_state::<TrayState>() {
+                if let Ok(mut guard) = tray_state.inner.lock() {
+                    if let Some(emit) = guard.last_popover_emit.as_mut() {
+                        emit.volume_pct = n.clamp(0.0, 100.0).round() as u8;
+                    }
+                }
+            }
+        }
+    } else if let Some(rest) = action.strip_prefix("speed:") {
+        if let Ok(s) = rest.parse::<f64>() {
+            if s.is_finite() {
+                if let Some(tray_state) = app.try_state::<TrayState>() {
+                    if let Ok(mut guard) = tray_state.inner.lock() {
+                        if let Some(emit) = guard.last_popover_emit.as_mut() {
+                            emit.playback_speed = s.clamp(0.25, 2.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
     // Same delivery path as `on_menu_event` in lib.rs: only the **main** webview runs `ipc.js`
     // playback handlers — broadcast `emit` does not reliably hit the main window listener.
     let _ = app.emit_to("main", "menu-action", action);

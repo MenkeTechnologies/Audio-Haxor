@@ -3581,6 +3581,19 @@ function setAudioVolume(value) {
     const aePct = document.getElementById('aeVolumePct');
     if (aePct) aePct.textContent = value + '%';
     prefs.setItem('audioVolume', value);
+    /* Debounced tray-popover sync MUST run in both playback modes. The engine-playback branch
+     * below `return`s early, and if this sync were only after the return, Rust's
+     * `TrayState.last_popover_emit.volume_pct` would never update from this `setAudioVolume` call.
+     * Rust's `start_tray_host_poll` thread then re-emits the stale cached volume every
+     * `TRAY_POLL_MS`, and once the tray popover's `_trayVolUserActive` 400 ms guard expires the
+     * slider snaps back to the old value. Schedule the sync unconditionally. */
+    if (typeof window !== 'undefined') {
+        if (window._trayVolSyncTimer) clearTimeout(window._trayVolSyncTimer);
+        window._trayVolSyncTimer = setTimeout(() => {
+            window._trayVolSyncTimer = null;
+            if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
+        }, 150);
+    }
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
         audioPlayer.volume = 0;
         audioPlayer.muted = true;
@@ -3593,13 +3606,6 @@ function setAudioVolume(value) {
     audioPlayer.volume = Math.max(0, Math.min(1, vol));
     if (_gainNode) {
         _gainNode.gain.value = vol * parseFloat(document.getElementById('npGainSlider')?.value || '1');
-    }
-    if (typeof window !== 'undefined') {
-        if (window._trayVolSyncTimer) clearTimeout(window._trayVolSyncTimer);
-        window._trayVolSyncTimer = setTimeout(() => {
-            window._trayVolSyncTimer = null;
-            if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
-        }, 150);
     }
 }
 

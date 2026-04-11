@@ -59,7 +59,15 @@ function runEngineExchange(bin, requestLines, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? 45_000;
   const expectedOut = opts.expectedOutputLines ?? requestLines.length;
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    /* Arm the C++ `ParentWatchdog` (see `audio-engine/src/ParentWatchdog.cpp`) so the spawned
+     * audio-engine self-destructs within ~2 s if this test runner dies (Ctrl+C, crash, timeout).
+     * Without this, test-spawned engines linger forever when the node process exits abnormally,
+     * and they collide with `pnpm tauri dev`'s audio-engine on the CoreAudio output device,
+     * which manifests as continuous audio crackling in the main app. */
+    const child = spawn(bin, [], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, AUDIO_HAXOR_PARENT_PID: String(process.pid) },
+    });
     const outLines = [];
     const stderrChunks = [];
     let settled = false;

@@ -779,15 +779,34 @@
         const elapsed = typeof p.elapsed_sec === 'number' && Number.isFinite(p.elapsed_sec) ? p.elapsed_sec : 0;
         const total = typeof p.total_sec === 'number' && Number.isFinite(p.total_sec) && p.total_sec > 0 ? p.total_sec : null;
         const playing = p.playing === true;
-        /* Re-base the animation model from the host-reported values. `performance.now()` is the
-         * zero-point for interpolation until the next push. */
-        _baseElapsed = elapsed;
-        _baseTime = performance.now();
+        /* Re-base the animation model ONLY on discontinuities: idle toggle, play/pause, total
+         * change, or a large elapsed jump (user seek / track change). Routine 500 ms polls AND
+         * sibling pushes from volume / speed updates (see `setAudioVolume` →
+         * `syncTrayNowPlayingFromPlayback`) must NOT re-base, otherwise the 60 fps local
+         * interpolation snaps back to the slightly stale host value on every volume input event
+         * and the progress thumb visibly yanks backward while the user is dragging the tray volume
+         * slider. Keep the smooth interpolation when host elapsed and interpolated elapsed agree. */
+        const nowMs = performance.now();
+        const interpolated = _currentIdle
+            ? elapsed
+            : _currentPlaying
+                ? _baseElapsed + (nowMs - _baseTime) / 1000
+                : _baseElapsed;
+        const drift = Math.abs(elapsed - interpolated);
+        const discontinuity =
+            idle !== _currentIdle ||
+            playing !== _currentPlaying ||
+            total !== _currentTotal ||
+            drift > 0.75;
+        if (discontinuity) {
+            _baseElapsed = elapsed;
+            _baseTime = nowMs;
+        }
         _currentTotal = total;
         _currentPlaying = playing;
         _currentIdle = idle;
         if (elTotal) elTotal.textContent = total != null ? fmt(total) : '—';
-        if (!_dragging) renderProgress(elapsed, total);
+        if (!_dragging && discontinuity) renderProgress(elapsed, total);
         if (idle) {
             if (_rafId != null) {
                 cancelAnimationFrame(_rafId);
