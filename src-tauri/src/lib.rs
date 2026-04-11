@@ -7558,10 +7558,40 @@ pub fn run() {
                 native_menu::build_native_menu_bar(handle, &strings).map_err(|e| e.to_string())?;
             app.set_menu(menu).map_err(|e| e.to_string())?;
 
-            // Handle menu events — emit to frontend JS
+            // Handle menu events — emit to frontend JS.
+            //
+            // `toggle_shuffle` / `toggle_loop` are intercepted here and dispatched through the
+            // Rust-side tray toggle handlers instead of being emitted to the main webview.
+            // Reason: the menu-bar right-click tray menu (built in `tray_menu::build_tray_popup_menu`)
+            // uses these same ids, and when the main window is minimized on macOS, WebKit
+            // freezes `<audio>` state so the frontend path `toggleShuffle()` →
+            // `syncTrayNowPlayingFromPlayback()` reads a stale `audioPlayer.currentTime` and
+            // yanks the tray popover progress thumb backward on every click. The Rust path
+            // writes prefs, updates the engine (for loop), updates the tray cache, and pushes
+            // the lightweight `tray-popover-shuffle-loop` event directly — no progress fields
+            // touched, no frozen `currentTime` read. The absolute-flag sync to the main window
+            // (`tray_sync_shuffle_loop` menu-action → `applyTrayPlaybackFlagsFromHost`) keeps
+            // the main-window now-playing buttons + `audioPlayer.loop` in step.
             let handle2 = app.handle().clone();
             app.on_menu_event(move |_app, event| {
                 let id = event.id().0.as_str();
+                if id == "toggle_shuffle" {
+                    let _ = tray_menu::tray_popover_toggle_shuffle(&handle2);
+                    return;
+                }
+                if id == "toggle_loop" {
+                    let _ = tray_menu::tray_popover_toggle_loop(&handle2);
+                    return;
+                }
+                /* Menu-bar right-click tray menu "Show AUDIO_HAXOR" item: reuse the exact same
+                 * `show_main_window` path the popover's internal right-click context menu uses
+                 * (`frontend/js/tray-popover.js` → `invoke('show_main_window')`). Emitting
+                 * `menu-action: tray_show` to main is wrong — `ipc.js` has no case for it, and
+                 * a minimized/backgrounded main webview wouldn't run the emit anyway. */
+                if id == "tray_show" {
+                    let _ = tray_menu::show_main_window(handle2.clone());
+                    return;
+                }
                 if let Some(win) = handle2.get_webview_window("main") {
                     let _ = win.emit("menu-action", id);
                 }

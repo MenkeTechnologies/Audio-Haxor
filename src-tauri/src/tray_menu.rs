@@ -507,7 +507,14 @@ fn tray_popover_emit_shuffle_loop_sync(app: &AppHandle<Wry>, shuffle_on: bool, l
 /// backgrounded, `listen('menu-action')` may not run until the window is shown, so `toggle_shuffle` /
 /// `toggle_loop` would not update prefs or engine. Apply prefs + tray cache + engine here, then
 /// tell the main window the **absolute** flag values (no toggle) when it wakes.
-fn tray_popover_toggle_shuffle(app: &AppHandle<Wry>) -> Result<(), String> {
+///
+/// Also called directly from `lib.rs::on_menu_event` for the **menu-bar right-click tray menu**
+/// (`build_tray_popup_menu`): routing that through the frontend's `listen('menu-action')` →
+/// `toggleShuffle()` path invoked `syncTrayNowPlayingFromPlayback`, which read a frozen
+/// `audioPlayer.currentTime` while the main window was minimized and yanked the tray popover
+/// progress thumb backward on every menu click. Handling it in Rust keeps the frontend out of
+/// the loop entirely.
+pub(crate) fn tray_popover_toggle_shuffle(app: &AppHandle<Wry>) -> Result<(), String> {
     let cur = pref_bool_on_off(history::get_preference("shuffleMode").as_ref());
     let next = !cur;
     history::set_preference(
@@ -544,7 +551,9 @@ fn tray_popover_toggle_shuffle(app: &AppHandle<Wry>) -> Result<(), String> {
     Ok(())
 }
 
-fn tray_popover_toggle_loop(app: &AppHandle<Wry>) -> Result<(), String> {
+/// Menu-bar right-click tray menu sibling of [`tray_popover_toggle_shuffle`] — same rationale
+/// for handling it in Rust rather than round-tripping through the main webview.
+pub(crate) fn tray_popover_toggle_loop(app: &AppHandle<Wry>) -> Result<(), String> {
     let cur = pref_bool_on_off(history::get_preference("audioLoop").as_ref());
     let next = !cur;
     history::set_preference(

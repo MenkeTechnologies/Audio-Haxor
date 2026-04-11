@@ -796,11 +796,29 @@ public:
     /** JUCE's `~AudioUnitPluginWindowCocoa` can throw in some situations (the AU's view-controller callback
      *  block is invoked from a destructor cleanup path and propagates an Obj-C/std exception). An exception
      *  out of a destructor calls `std::terminate` and kills the engine. Catch + log so the rest of the
-     *  shutdown still runs and the engine survives. */
+     *  shutdown still runs and the engine survives.
+     *
+     *  TEARDOWN ORDER MATTERS. The old implementation called `clearContentComponent()` as the first thing,
+     *  which destroyed the plugin's embedded NSView while the NSWindow was still on the desktop. When the
+     *  base class dtors then closed the NSWindow, AppKit's `-[NSWMWindowCoordinator performTransactionUsingBlock:]`
+     *  walked the window's still-tracked subview hierarchy during the close transaction and tripped a
+     *  consistency assertion against the dangling NSView reference — crashing the engine with
+     *  `EXC_BREAKPOINT` inside `NSWindow _reallyDoOrderWindowOutRelativeTo:` during
+     *  `playbackSetInserts` → `closeAllInsertEditorsLocked()`.
+     *
+     *  Fix: drive the close explicitly in the order AppKit expects — hide, then detach from desktop
+     *  (closes the NSWindow while its content subview is still live), THEN destroy the content component.
+     *  By the time the base class dtors run, the component is already invisible, off-desktop, and
+     *  content-cleared, so they have nothing left to do. See
+     *  `~/Library/Logs/DiagnosticReports/audio-engine-2026-04-11-040835.ips` /
+     *  `audio-engine-2026-04-11-043749.ips` for the two crashes this resolves. */
     ~PluginEditorHostWindow() override
     {
         try
         {
+            if (isVisible())
+                setVisible(false);
+            removeFromDesktop();
             clearContentComponent();
         }
         catch (const std::exception& e)
@@ -2653,7 +2671,10 @@ juce::var Engine::dispatch(const juce::var& req)
     if (cmd == "waveform_preview" || cmd == "spectrogram_preview")
     {
         // High-frequency IPC: omit from engine.log (same as ping / playback_status polls).
-        if (cmd.isNotEmpty() && cmd != "ping" && cmd != "playback_status" && cmd != "playback_seek")
+        // `playback_set_dsp` fires on every volume/EQ input tick during a drag (~120 Hz on
+        // macOS WebKit) — logging each one drowns out every other entry.
+        if (cmd.isNotEmpty() && cmd != "ping" && cmd != "playback_status" && cmd != "playback_seek"
+            && cmd != "playback_set_dsp")
             appLogLine("cmd " + cmd);
         // Decode off the stdin thread; do not hold `impl->mutex` during heavy IIR/FFT work.
         auto fut = std::async(std::launch::async, [this, req, cmd]() -> juce::var {
@@ -2685,7 +2706,10 @@ juce::var Engine::dispatch(const juce::var& req)
 
     std::lock_guard<std::mutex> lock(impl->mutex);
     // High-frequency IPC: omit from engine.log (same as ping / playback_status polls).
-    if (cmd.isNotEmpty() && cmd != "ping" && cmd != "playback_status" && cmd != "playback_seek")
+    // `playback_set_dsp` fires on every volume/EQ drag input tick — excluding it keeps the
+    // log useful during playback interaction instead of being wall-to-wall DSP entries.
+    if (cmd.isNotEmpty() && cmd != "ping" && cmd != "playback_status" && cmd != "playback_seek"
+        && cmd != "playback_set_dsp")
         appLogLine("cmd " + cmd);
 
     if (cmd == "ping")

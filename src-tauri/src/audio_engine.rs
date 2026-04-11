@@ -276,14 +276,40 @@ fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
     let scan_timeout_sec = crate::history::get_preference("pluginScanTimeoutSec")
         .and_then(|v| v.as_u64())
         .unwrap_or(30);
-    let mut child = Command::new(path)
-        .env("AUDIO_HAXOR_ENGINE_LOG", engine_log.as_os_str())
+    let mut cmd = Command::new(path);
+    cmd.env("AUDIO_HAXOR_ENGINE_LOG", engine_log.as_os_str())
         .env("AUDIO_HAXOR_APP_LOG", app_log.as_os_str())
         .env("AUDIO_HAXOR_PARENT_PID", format!("{}", std::process::id()))
         .env(
             "AUDIO_HAXOR_PLUGIN_SCAN_TIMEOUT_SEC",
             scan_timeout_sec.to_string(),
-        )
+        );
+
+    /* Opt-in libmalloc heap debugging for diagnosing plugin-chain corruption crashes. Off by
+     * default (significant allocation overhead + massive engine.log growth from stack logs),
+     * on when `AUDIO_HAXOR_ENGINE_MALLOC_DEBUG=1` is set in the user's environment.
+     *
+     * - `MallocGuardEdges=1` places unmapped guard pages around large allocations so a write
+     *   past the end of a buffer SIGSEGVs at the write site, not when the allocator's
+     *   freelist is later walked by an unrelated call.
+     * - `MallocScribble=1` fills freed memory with `0x55` so use-after-free derefs crash
+     *   loudly on the next read of the UAF pointer instead of silently seeing stale data.
+     * - `MallocStackLogging=1` + `MallocStackLoggingNoCompact=1` record every malloc/free
+     *   call site to a temp file — `malloc_history <pid> <addr>` then prints the allocation
+     *   + free backtrace for any address the crash handler logs. Critical for tracing
+     *   corruption caught by the above detectors back to the code that wrote the bad value.
+     *
+     * Do NOT enable unconditionally: each of these has measurable impact. Stack logging
+     * especially can make the engine 3–5× slower and consume gigabytes. Set the env var
+     * explicitly when trying to reproduce a crash, then unset. */
+    if std::env::var_os("AUDIO_HAXOR_ENGINE_MALLOC_DEBUG").is_some() {
+        cmd.env("MallocGuardEdges", "1")
+            .env("MallocScribble", "1")
+            .env("MallocStackLogging", "1")
+            .env("MallocStackLoggingNoCompact", "1");
+    }
+
+    let mut child = cmd
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
