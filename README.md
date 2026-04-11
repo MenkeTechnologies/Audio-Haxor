@@ -15,7 +15,7 @@
 
 > **// SYSTEM ONLINE -- AUDIO_HAXOR v1.18.26 // by MenkeTechnologies**
 
-A high-voltage **Tauri v2** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU/CLAP module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
+A high-voltage **Tauri v2/JUCE** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU/CLAP module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
 
 ---
 

@@ -438,6 +438,7 @@ MENU_EN: dict[str, str] = {
     "menu.next_track": "Next Track",
     "menu.prev_track": "Previous Track",
     "menu.toggle_shuffle": "Toggle Shuffle",
+    "menu.toggle_favorite": "Toggle Favorite",
     "menu.toggle_mute": "Mute / Unmute",
     "menu.data": "Data",
     "menu.clear_history": "Clear All History...",

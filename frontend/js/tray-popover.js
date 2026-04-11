@@ -154,6 +154,7 @@
     const btnPlay = document.getElementById('btnPlay');
     const btnNext = document.getElementById('btnNext');
     const btnLoop = document.getElementById('btnLoop');
+    const btnFav = document.getElementById('btnFav');
     const elTrayVol = document.getElementById('trayVol');
     const elTrayVolPct = document.getElementById('trayVolPct');
     const elTrayVolLabel = document.getElementById('trayVolLabel');
@@ -857,8 +858,10 @@
         }
         const shuf = p.shuffle_on === true;
         const loopOn = p.loop_on === true;
+        const favOn = p.favorite_on === true || p.favoriteOn === true;
         if (btnShuffle) btnShuffle.classList.toggle('active', shuf);
         if (btnLoop) btnLoop.classList.toggle('active', loopOn);
+        if (btnFav) btnFav.classList.toggle('active', favOn);
         applyTrayExtrasFromState(p.volume_pct, p.playback_speed);
         logTrayPopoverApplyState(p, idle, playing, themed);
         syncTrayPopoverTooltips();
@@ -995,6 +998,7 @@
     if (btnPlay) btnPlay.addEventListener('click', () => send('play_pause'));
     if (btnNext) btnNext.addEventListener('click', () => send('next_track'));
     if (btnLoop) btnLoop.addEventListener('click', () => send('toggle_loop'));
+    if (btnFav) btnFav.addEventListener('click', () => send('toggle_favorite'));
 
     /* Force key window on click inside `#shell`. On macOS, `NonactivatingPanel`-style popovers
      * can receive mouse without becoming key; `setFocus` makes `onFocusChanged(false)` fire when
@@ -1092,6 +1096,8 @@
         if (btnShuffle && shuffleTt) btnShuffle.setAttribute('title', shuffleTt);
         const loopTt = appFmtResolved('menu.toggle_loop', 'ui.tt.toggle_loop_l');
         if (btnLoop && loopTt) btnLoop.setAttribute('title', loopTt);
+        const favTt = appFmtResolved('ui.tt.add_remove_current_track_from_favorites_f');
+        if (btnFav && favTt) btnFav.setAttribute('title', favTt);
         populateTraySpeedSelect();
         if (elTrayVolLabel) {
             const vLabel = appFmtResolved('ui.ae.playback_volume_label');
@@ -1160,6 +1166,13 @@
                 btnLoop.classList.toggle('active', raw.loop_on);
             }
         };
+        const onFavorite = (e) => {
+            const raw = trayListenUnwrap(e);
+            if (!raw || typeof raw !== 'object') return;
+            if (typeof raw.favorite_on === 'boolean' && btnFav) {
+                btnFav.classList.toggle('active', raw.favorite_on);
+            }
+        };
         /* Lightweight subtitle refresh: fires after main JS's `ensureAudioAnalysisForPath`
          * completes and calls `tray_popover_push_subtitle`. Only the subtitle DOM updates —
          * progress, transport, title, etc. are untouched, so interpolation keeps running and
@@ -1186,6 +1199,7 @@
                 await tw.listen('tray-popover-state', onState);
                 await tw.listen('tray-popover-ui-theme', onTheme);
                 await tw.listen('tray-popover-shuffle-loop', onShuffleLoop);
+                await tw.listen('tray-popover-favorite', onFavorite);
                 await tw.listen('tray-popover-subtitle', onSubtitle);
                 console.info('[tray-popover] IPC listeners registered (WebviewWindow.listen)', {
                     label: typeof tw.label === 'string' ? tw.label : '(unknown)',
@@ -1195,6 +1209,7 @@
                     await listen('tray-popover-state', onState, scoped);
                     await listen('tray-popover-ui-theme', onTheme, scoped);
                     await listen('tray-popover-shuffle-loop', onShuffleLoop, scoped);
+                    await listen('tray-popover-favorite', onFavorite, scoped);
                     await listen('tray-popover-subtitle', onSubtitle, scoped);
                     console.info('[tray-popover] IPC listeners registered (event.listen + target)', scoped);
                 } catch (_) {
@@ -1202,6 +1217,7 @@
                     await listen('tray-popover-state', onState);
                     await listen('tray-popover-ui-theme', onTheme);
                     await listen('tray-popover-shuffle-loop', onShuffleLoop);
+                    await listen('tray-popover-favorite', onFavorite);
                     await listen('tray-popover-subtitle', onSubtitle);
                     console.info('[tray-popover] IPC listeners registered (event.listen, no target)');
                 }

@@ -76,6 +76,7 @@ const NATIVE_MENU_BAR_KEYS = [
   'menu.tab_samples',
   'menu.tab_settings',
   'menu.toggle_crt',
+  'menu.toggle_favorite',
   'menu.toggle_loop',
   'menu.toggle_mute',
   'menu.toggle_shuffle',

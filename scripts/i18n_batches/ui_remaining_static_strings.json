@@ -72,7 +72,7 @@
   "ui.audio.th_size": "Size",
   "ui.audio.th_bpm": "BPM",
   "ui.audio.th_key": "Key",
-  "ui.audio.th_dur": "Dur",
+  "ui.audio.th_dur": "Duration",
   "ui.audio.th_ch": "Ch",
   "ui.audio.th_lufs": "LUFS",
   "ui.audio.th_modified": "Modified",

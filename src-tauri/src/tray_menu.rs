@@ -1,6 +1,7 @@
 //! System tray / menu bar icon: playback controls, dynamic title + tooltip, popup menu,
 //! and (non-Linux) a **WebView popover** styled like macOS Now Playing (no artwork).
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -54,6 +55,21 @@ fn emit_tray_popover_state(app: &AppHandle<Wry>, emit: &TrayPopoverEmit) {
 /// Re-emitting `tray-popover-state` on a toggle while the main window is minimized was replaying
 /// a stale `last_popover_emit.elapsed_sec` (frozen at the last main-window push before suspend),
 /// yanking the progress thumb on every shuffle/loop click.
+/// Lightweight favorite toggle sync — same rationale as [`emit_tray_popover_shuffle_loop`].
+fn emit_tray_popover_favorite(app: &AppHandle<Wry>, favorite_on: bool) {
+    let payload = serde_json::json!({ "favorite_on": favorite_on });
+    match app.emit_to("tray-popover", "tray-popover-favorite", payload) {
+        Ok(()) => {
+            if std::env::var_os("AUDIO_HAXOR_TRAY_DEBUG").is_some() {
+                eprintln!("[tray-popover-host] emit tray-popover-favorite ok favorite_on={favorite_on}");
+            }
+        }
+        Err(e) => {
+            eprintln!("[tray-popover-host] emit tray-popover-favorite FAILED: {e}");
+        }
+    }
+}
+
 fn emit_tray_popover_shuffle_loop(app: &AppHandle<Wry>, shuffle_on: bool, loop_on: bool) {
     let payload = serde_json::json!({
         "shuffle_on": shuffle_on,
@@ -181,6 +197,25 @@ pub struct TrayPopoverEmit {
     pub shuffle_on: bool,
     /// Mirrors prefs `audioLoop` — tray popover transport highlight.
     pub loop_on: bool,
+    /// Current track is in favorites (`favCurrentTrack` / `isFavorite`).
+    pub favorite_on: bool,
+}
+
+/// Absolute path for **Reveal in Finder** when the user activates the native tray menu's first row
+/// (now-playing title). `None` when idle, unknown, or empty — same source as [`TrayPopoverEmit::reveal_path`].
+pub(crate) fn tray_now_playing_reveal_path(app: &AppHandle<Wry>) -> Option<String> {
+    let tray_state = app.state::<TrayState>();
+    let guard = tray_state.inner.lock().ok()?;
+    guard.last_popover_emit.as_ref().and_then(|e| {
+        e.reveal_path.as_ref().and_then(|s| {
+            let t = s.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        })
+    })
 }
 
 /// Per-tray state: icon + cached i18n for rebuilding the popup without hitting SQLite each tick.
@@ -271,6 +306,10 @@ fn build_tray_popup_menu(
         )
         .text("tray_next", t(strings, "tray.next_track", "Next Track"))
         .text("toggle_loop", t(strings, "menu.toggle_loop", "Toggle Loop"))
+        .text(
+            "toggle_favorite",
+            t(strings, "menu.toggle_favorite", "Toggle Favorite"),
+        )
         .separator()
         .text("tray_quit", t(strings, "tray.quit", "Quit"))
         .build()
@@ -334,6 +373,7 @@ fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> 
         appearance: None,
         shuffle_on: false,
         loop_on: false,
+        favorite_on: false,
     });
     emit.ui_theme = tray_popover_ui_theme_from_prefs();
     emit_tray_popover_state(app, &emit);
@@ -432,6 +472,8 @@ pub struct TrayNowPlayingPayload {
     pub shuffle_on: Option<bool>,
     #[serde(default)]
     pub loop_on: Option<bool>,
+    #[serde(default)]
+    pub favorite_on: Option<bool>,
 }
 
 fn normalized_popover_reveal_path(payload: &TrayNowPlayingPayload) -> Option<String> {
@@ -481,6 +523,122 @@ fn tray_loop_merge(payload: &TrayNowPlayingPayload, last: Option<&TrayPopoverEmi
         Some(s) => s,
         None => last.map(|e| e.loop_on).unwrap_or(false),
     }
+}
+
+fn tray_favorite_merge(payload: &TrayNowPlayingPayload, last: Option<&TrayPopoverEmit>) -> bool {
+    match payload.favorite_on {
+        Some(s) => s,
+        None => last.map(|e| e.favorite_on).unwrap_or(false),
+    }
+}
+
+fn normalize_fav_path_key(s: &str) -> String {
+    s.replace('\\', "/").trim().to_string()
+}
+
+fn prefs_favorites_array() -> Vec<serde_json::Value> {
+    match history::get_preference("favorites") {
+        Some(serde_json::Value::Array(a)) => a,
+        Some(serde_json::Value::String(s)) => {
+            if let Ok(a) = serde_json::from_str::<Vec<serde_json::Value>>(&s) {
+                return a;
+            }
+            match serde_json::from_str::<serde_json::Value>(&s) {
+                Ok(serde_json::Value::Array(a)) => a,
+                _ => vec![],
+            }
+        }
+        _ => vec![],
+    }
+}
+
+/// Toggle favorite for `path` in prefs (`favorites` key). Returns new `favorite_on` and the updated list.
+fn tray_prefs_toggle_favorite(path: &str) -> Option<(bool, Vec<serde_json::Value>)> {
+    let key = normalize_fav_path_key(path);
+    if key.is_empty() {
+        return None;
+    }
+    let mut arr = prefs_favorites_array();
+    let mut found: Option<usize> = None;
+    for (i, item) in arr.iter().enumerate() {
+        let p = item
+            .get("path")
+            .and_then(|v| v.as_str())
+            .map(normalize_fav_path_key);
+        if p.as_deref() == Some(key.as_str()) {
+            found = Some(i);
+            break;
+        }
+    }
+    let now_fav = if let Some(i) = found {
+        arr.remove(i);
+        false
+    } else {
+        let name = Path::new(&key)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(key.as_str())
+            .to_string();
+        let entry = serde_json::json!({
+            "type": "sample",
+            "path": key,
+            "name": name,
+            "format": "",
+            "addedAt": chrono::Utc::now().to_rfc3339(),
+        });
+        arr.insert(0, entry);
+        true
+    };
+    history::set_preference("favorites", serde_json::Value::Array(arr.clone()));
+    Some((now_fav, arr))
+}
+
+/// Tray popover / menu-bar — same rationale as [`tray_popover_toggle_shuffle`]: prefs + tray cache
+/// update without requiring a live main webview (minimized / backgrounded).
+pub(crate) fn tray_popover_toggle_favorite(app: &AppHandle<Wry>) -> Result<(), String> {
+    let path_raw = {
+        let tray_state = app.state::<TrayState>();
+        let guard = tray_state
+            .inner
+            .lock()
+            .map_err(|_| "tray state mutex poisoned".to_string())?;
+        let Some(ref last) = guard.last_popover_emit else {
+            return Ok(());
+        };
+        if last.idle {
+            return Ok(());
+        }
+        last.reveal_path.clone()
+    };
+    let Some(path) = path_raw else {
+        return Ok(());
+    };
+    let Some((now_fav, fav_arr)) = tray_prefs_toggle_favorite(&path) else {
+        return Ok(());
+    };
+    {
+        let tray_state = app.state::<TrayState>();
+        let mut guard = tray_state
+            .inner
+            .lock()
+            .map_err(|_| "tray state mutex poisoned".to_string())?;
+        if let Some(ref mut emit) = guard.last_popover_emit {
+            emit.favorite_on = now_fav;
+        }
+    }
+    emit_tray_popover_favorite(app, now_fav);
+    let path_norm = normalize_fav_path_key(&path);
+    let _ = app.emit_to(
+        "main",
+        "menu-action",
+        serde_json::json!({
+            "action": "tray_sync_favorite",
+            "favorite_on": now_fav,
+            "favorites": fav_arr,
+            "path": path_norm,
+        }),
+    );
+    Ok(())
 }
 
 fn pref_bool_on_off(v: Option<&serde_json::Value>) -> bool {
@@ -664,6 +822,8 @@ pub fn tray_popover_action(app: AppHandle<Wry>, action: String) -> Result<(), St
         return tray_popover_toggle_shuffle(&app);
     } else if action == "toggle_loop" {
         return tray_popover_toggle_loop(&app);
+    } else if action == "toggle_favorite" {
+        return tray_popover_toggle_favorite(&app);
     }
     // Same delivery path as `on_menu_event` in lib.rs: only the **main** webview runs `ipc.js`
     // playback handlers — broadcast `emit` does not reliably hit the main window listener.
@@ -730,6 +890,11 @@ pub fn update_tray_now_playing(
     let volume_pct = tray_volume_pct_merge(&payload, last_emit);
     let shuffle_on = tray_shuffle_merge(&payload, last_emit);
     let loop_on = tray_loop_merge(&payload, last_emit);
+    let favorite_on = if payload.idle {
+        false
+    } else {
+        tray_favorite_merge(&payload, last_emit)
+    };
     let emit = if payload.idle {
         TrayPopoverEmit {
             idle: true,
@@ -749,6 +914,7 @@ pub fn update_tray_now_playing(
             appearance: appearance.clone(),
             shuffle_on,
             loop_on,
+            favorite_on,
         }
     } else {
         TrayPopoverEmit {
@@ -766,6 +932,7 @@ pub fn update_tray_now_playing(
             appearance: appearance.clone(),
             shuffle_on,
             loop_on,
+            favorite_on,
         }
     };
     guard.last_popover_emit = Some(emit.clone());
@@ -1003,6 +1170,7 @@ pub fn start_tray_host_poll(app: AppHandle<Wry>) {
                     appearance: last.appearance.clone(),
                     shuffle_on: last.shuffle_on,
                     loop_on: last.loop_on,
+                    favorite_on: last.favorite_on,
                 };
                 guard.last_popover_emit = Some(new_emit.clone());
 

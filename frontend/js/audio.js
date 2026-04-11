@@ -2611,7 +2611,7 @@ function buildAudioRow(s) {
     </tr>`;
 }
 
-async function showEngineUnplayablePreview(filePath) {
+async function showEngineUnplayablePreview(filePath, keepFloatingPlayerHidden = false) {
     if (_enginePlaybackActive && typeof window !== 'undefined' && typeof window.enginePlaybackStop === 'function') {
         await window.enginePlaybackStop();
         setEnginePlaybackActive(false);
@@ -2635,12 +2635,17 @@ async function showEngineUnplayablePreview(filePath) {
     audioPlayer.loop = false;
     const np = document.getElementById('audioNowPlaying');
     if (!np) return;
-    np.classList.add('active');
-    np.classList.remove('np-playing');
-    if (prefs.getItem('playerExpanded') === 'on') {
-        np.classList.add('expanded');
-        renderRecentlyPlayed();
+    if (!keepFloatingPlayerHidden) {
+        np.classList.add('active');
+        if (prefs.getItem('playerExpanded') === 'on') {
+            np.classList.add('expanded');
+            renderRecentlyPlayed();
+        }
+    } else {
+        const pill = document.getElementById('audioRestorePill');
+        if (pill) pill.classList.remove('active');
     }
+    np.classList.remove('np-playing');
     const sample = findByPath(allAudioSamples, filePath);
     const displayName = sample ? `${sample.name}.${sample.format.toLowerCase()}` : filePath.split('/').pop();
     const npName = document.getElementById('npName');
@@ -2675,6 +2680,11 @@ async function showEngineUnplayablePreview(filePath) {
  * @param { { skipRecentReorder?: boolean } } [opts] — When true, **`addToRecentlyPlayed`** updates or appends without moving the row to the top (autoplay, prev/next, and clicks on the player history list keep stable order).
  */
 async function previewAudio(filePath, opts) {
+    const np0 = document.getElementById('audioNowPlaying');
+    /** User hid the floating player (`hidePlayer`) while a path was still loaded — keep it hidden on new previews. */
+    const keepFloatingPlayerHidden =
+        !!(np0 && !np0.classList.contains('active') && audioPlayerPath != null);
+
     const ext = filePath.split('.').pop().toLowerCase();
     if (isEngineUnplayablePath(filePath)) {
         const extU = (filePath.split('.').pop() || '').toLowerCase();
@@ -2684,7 +2694,7 @@ async function previewAudio(filePath, opts) {
                 ? toastFmt('toast.preview_not_supported_format', { ext: extDisplay })
                 : undefined;
         if (await tryPreviewAutoplayNextOnFailureAsync(filePath, unplayableErr)) return;
-        await showEngineUnplayablePreview(filePath);
+        await showEngineUnplayablePreview(filePath, keepFloatingPlayerHidden);
         return;
     }
 
@@ -2809,12 +2819,17 @@ async function previewAudio(filePath, opts) {
             }
         }
 
-        // Show now-playing bar, restore expanded state from prefs
+        // Show now-playing bar unless the user hid it while another track was loaded (`hidePlayer`).
         const np = document.getElementById('audioNowPlaying');
-        np.classList.add('active');
-        if (prefs.getItem('playerExpanded') === 'on') {
-            np.classList.add('expanded');
-            renderRecentlyPlayed();
+        if (!keepFloatingPlayerHidden) {
+            np.classList.add('active');
+            if (prefs.getItem('playerExpanded') === 'on') {
+                np.classList.add('expanded');
+                renderRecentlyPlayed();
+            }
+        } else {
+            const pill = document.getElementById('audioRestorePill');
+            if (pill && isAudioPlaying()) pill.classList.add('active');
         }
         const sample = findByPath(allAudioSamples, filePath);
         const displayName = sample ? `${sample.name}.${sample.format.toLowerCase()}` : filePath.split('/').pop();
@@ -3241,7 +3256,7 @@ function syncTrayNowPlayingFromPlayback() {
     const traySp = trayPlaybackSpeedForSync();
     const trayVol = trayVolumeForSync();
     if (idle) {
-        const idleSig = `idle|${uiTheme}|${trayAppSig}|sp:${traySp}|vol:${trayVol}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}`;
+        const idleSig = `idle|${uiTheme}|${trayAppSig}|sp:${traySp}|vol:${trayVol}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}|fav:0`;
         if (_traySyncSig === idleSig) return;
         _traySyncSig = idleSig;
         console.info('[tray-main] update_tray_now_playing → Rust', {
@@ -3270,6 +3285,7 @@ function syncTrayNowPlayingFromPlayback() {
                 appearance: trayAppearance,
                 shuffle_on: audioShuffling,
                 loop_on: audioLooping,
+                favorite_on: false,
             },
         }).catch(() => {});
         return;
@@ -3321,9 +3337,10 @@ function syncTrayNowPlayingFromPlayback() {
     }
     const durKey = Number.isFinite(dur) && dur > 0 ? Math.floor(dur) : -1;
     const sigPath = audioPlayerPath || resumePath || '';
+    const trayFavOn = !!(sigPath && typeof isFavorite === 'function' && isFavorite(sigPath));
     const { appearance: trayAppearancePlaying, sig: trayAppSigPlaying } = trayAppearanceForTraySync();
     /* Include title + subtitle: first ticks often have empty `#npName` / meta; dedupe must not block later updates. */
-    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|${trayAppSigPlaying}|sp:${trayPlaybackSpeedForSync()}|vol:${trayVolumeForSync()}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}`;
+    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|${trayAppSigPlaying}|sp:${trayPlaybackSpeedForSync()}|vol:${trayVolumeForSync()}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}|fav:${trayFavOn ? 1 : 0}`;
     if (sig === _traySyncSig) return;
     _traySyncSig = sig;
     console.info('[tray-main] update_tray_now_playing → Rust', {
@@ -3355,6 +3372,7 @@ function syncTrayNowPlayingFromPlayback() {
             appearance: trayAppearancePlaying,
             shuffle_on: audioShuffling,
             loop_on: audioLooping,
+            favorite_on: trayFavOn,
         },
     }).catch(() => {});
 }

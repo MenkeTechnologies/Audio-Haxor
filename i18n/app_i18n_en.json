@@ -2396,5 +2396,6 @@
   "ui.xref.tt_search_project_data": "Search within project data",
   "ui.xref.tt_search_xml_content": "Search within XML content",
   "ui.xref.tt_toggle_node": "Click to collapse or expand",
-  "ui.xref.xml_collapsed_n_children": "…{n} children"
+  "ui.xref.xml_collapsed_n_children": "…{n} children",
+  "menu.toggle_favorite": "Toggle Favorite"
 }

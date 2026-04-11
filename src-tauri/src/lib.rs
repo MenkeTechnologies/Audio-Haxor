@@ -7583,6 +7583,10 @@ pub fn run() {
                     let _ = tray_menu::tray_popover_toggle_loop(&handle2);
                     return;
                 }
+                if id == "toggle_favorite" {
+                    let _ = tray_menu::tray_popover_toggle_favorite(&handle2);
+                    return;
+                }
                 /* Menu-bar right-click tray menu "Show AUDIO_HAXOR" item: reuse the exact same
                  * `show_main_window` path the popover's internal right-click context menu uses
                  * (`frontend/js/tray-popover.js` → `invoke('show_main_window')`). Emitting
@@ -7590,6 +7594,16 @@ pub fn run() {
                  * a minimized/backgrounded main webview wouldn't run the emit anyway. */
                 if id == "tray_show" {
                     let _ = tray_menu::show_main_window(handle2.clone());
+                    return;
+                }
+                /* First menu row: track title — reveal the playing file in Finder / Explorer / file
+                 * manager. Rust path so it works when the main WebView is suspended (same as tray_show). */
+                if id == "tray_now_playing" {
+                    if let Some(path) = tray_menu::tray_now_playing_reveal_path(&handle2) {
+                        tauri::async_runtime::spawn(async move {
+                            let _ = open_plugin_folder(path).await;
+                        });
+                    }
                     return;
                 }
                 if let Some(win) = handle2.get_webview_window("main") {

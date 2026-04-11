@@ -142,6 +142,23 @@ listen('menu-action', (event) => {
         }
         return;
     }
+    /* Tray popover favorite: Rust toggles `favorites` in prefs + `TrayState.last_popover_emit.favorite_on`.
+     * Main applies the payload with `applyTrayFavoritesFromHost` only (in-memory cache, NP star, list UI).
+     *
+     * CRITICAL: that path must NOT call `syncTrayNowPlayingFromPlayback` — same frozen-`<audio>`
+     * / stale-`elapsed_sec` failure mode documented on `applyTrayPlaybackFlagsFromHost` and on the
+     * `speed:` / `volume:` branches below. A full `update_tray_now_playing` from here re-emits
+     * `tray-popover-state` and yanks the popover progress thumb. The star uses lightweight
+     * `tray-popover-favorite` from Rust; nothing here should drive tray transport/progress. */
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.action === 'tray_sync_favorite') {
+        const favs = raw.favorites;
+        const path = raw.path != null ? String(raw.path) : '';
+        const on = raw.favorite_on === true;
+        if (typeof window.applyTrayFavoritesFromHost === 'function') {
+            window.applyTrayFavoritesFromHost(favs, path, on);
+        }
+        return;
+    }
     const id = typeof raw === 'string' ? raw : raw && typeof raw === 'object' && raw.action != null ? String(raw.action) : String(raw ?? '');
     /* Tray popover slider seek — encoded as `seek:<fraction>` (0..1) to avoid a second IPC command. */
     if (typeof id === 'string' && id.startsWith('seek:')) {

@@ -26,6 +26,38 @@ function saveFavorites(favs) {
     if (typeof window.updateFavBtn === 'function') window.updateFavBtn();
 }
 
+/** After tray popover toggles favorite in Rust (main webview may have been suspended).
+ *
+ * CRITICAL: do NOT call `syncTrayNowPlayingFromPlayback` here. Rust already owns the authoritative
+ * favorite flag (it was set inside `tray_popover_toggle_favorite` before this event fired), so a
+ * round-trip push is redundant. Worse, when the main window is minimized on macOS, WebKit freezes
+ * `<audio>` element state updates to background windows — `audioPlayer.currentTime` gets stuck at
+ * the value it held when the window lost visibility. Pushing that stale elapsed back through
+ * `update_tray_now_playing` then re-emits `tray-popover-state` to the popover with the stale value,
+ * and the popover's drift-rebase yanks the progress thumb backward to the "last point where main app
+ * was visible" on every favorite click. The tray popover gets its own lightweight
+ * `tray-popover-favorite` event for the star highlight, so nothing here needs to drive it. */
+function applyTrayFavoritesFromHost(favorites, pathForBadge, favoriteOn) {
+    if (!Array.isArray(favorites)) return;
+    _favsCache = favorites;
+    _favsPathSet = new Set(favorites.map((f) => normalizeFavoritePathKey(f.path)));
+    if (typeof prefs !== 'undefined' && prefs._cache) {
+        prefs._cache.favorites = favorites;
+    }
+    if (typeof window.updateFavBtn === 'function') window.updateFavBtn();
+    const key = pathForBadge ? normalizeFavoritePathKey(String(pathForBadge)) : '';
+    if (key && typeof refreshRowBadges === 'function') refreshRowBadges(key);
+    if (typeof renderFavorites === 'function') renderFavorites();
+    if (typeof showToast === 'function' && typeof toastFmt === 'function' && key) {
+        const row = favorites.find((f) => normalizeFavoritePathKey(f.path) === key);
+        const name = row && row.name ? row.name : key.split('/').pop() || key;
+        if (favoriteOn) showToast(toastFmt('toast.added_to_favorites', {name}));
+        else showToast(toastFmt('toast.removed_from_favorites'));
+    }
+}
+
+window.applyTrayFavoritesFromHost = applyTrayFavoritesFromHost;
+
 function isFavorite(path) {
     if (!_favsPathSet) getFavorites();
     return _favsPathSet.has(normalizeFavoritePathKey(path));
