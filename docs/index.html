@@ -6,208 +6,791 @@
   <meta name="description" content="AUDIO_HAXOR developer docs: full feature map (tabs, scans, DB, playback, engine, tooling), rustdoc, IPC, i18n, palette, shortcuts, tray. Version in package.json / tauri.conf.json.">
   <title>AUDIO_HAXOR — Documentation</title>
   <style>
-    :root {
-      --bg: #05050a;
-      --card: #0d0d1a;
-      --text: #e0f0ff;
-      --dim: #7a8ba8;
-      --cyan: #05d9e8;
-      --accent: #ff2a6d;
-    }
-    * { box-sizing: border-box; }
-    body {
-      font-family: "Segoe UI", system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&display=swap');
+
+    * {
       margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    ::selection {
+      background: rgba(5, 217, 232, 0.3);
+      color: #fff;
+    }
+
+    :root {
+      --bg-primary: #05050a;
+      --bg-secondary: #0a0a14;
+      --bg-card: #0d0d1a;
+      --bg-hover: #12122a;
+      --accent: #ff2a6d;
+      --accent-light: #ff6b9d;
+      --accent-glow: rgba(255, 42, 109, 0.4);
+      --cyan: #05d9e8;
+      --cyan-glow: rgba(5, 217, 232, 0.4);
+      --cyan-dim: rgba(5, 217, 232, 0.15);
+      --magenta: #d300c5;
+      --magenta-glow: rgba(211, 0, 197, 0.3);
+      --yellow: #f9f002;
+      --yellow-glow: rgba(249, 240, 2, 0.2);
+      --green: #39ff14;
+      --green-bg: rgba(57, 255, 20, 0.08);
+      --orange: #ff6b35;
+      --orange-bg: rgba(255, 107, 53, 0.1);
+      --red: #ff073a;
+      --text: #e0f0ff;
+      --text-dim: #7a8ba8;
+      --text-muted: #3d4f6a;
+      --border: #1a1a3e;
+      --border-glow: #2a1a4e;
+      --cyber-grid-line: rgba(5, 217, 232, 0.042);
+      --cyber-grid-cross: rgba(5, 217, 232, 0.034);
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #f0f2f5;
+      --bg-secondary: #e4e7ec;
+      --bg-card: #ffffff;
+      --bg-hover: #f7f8fa;
+      --accent: #d6196e;
+      --accent-light: #e84d8a;
+      --accent-glow: rgba(214, 25, 110, 0.15);
+      --cyan: #0891b2;
+      --cyan-glow: rgba(8, 145, 178, 0.2);
+      --cyan-dim: rgba(8, 145, 178, 0.08);
+      --magenta: #a300a3;
+      --magenta-glow: rgba(163, 0, 163, 0.15);
+      --yellow: #a16207;
+      --yellow-glow: rgba(161, 98, 7, 0.1);
+      --green: #15803d;
+      --green-bg: rgba(21, 128, 61, 0.08);
+      --orange: #c2410c;
+      --orange-bg: rgba(194, 65, 12, 0.06);
+      --red: #dc2626;
+      --text: #1e293b;
+      --text-dim: #475569;
+      --text-muted: #94a3b8;
+      --border: #cbd5e1;
+      --border-glow: #a5b4c8;
+      --cyber-grid-line: rgba(8, 145, 178, 0.08);
+      --cyber-grid-cross: rgba(8, 145, 178, 0.055);
+    }
+
+    [data-theme="light"] .app::after {
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.02) 2px,
+        rgba(0, 0, 0, 0.02) 4px
+      );
+    }
+
+    [data-theme="light"] .app::before {
+      background: radial-gradient(ellipse at center, transparent 65%, rgba(0, 0, 0, 0.12) 100%);
+    }
+
+    [data-theme="light"] .crt-scanline {
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(0, 0, 0, 0.04) 20%,
+        rgba(0, 0, 0, 0.08) 50%,
+        rgba(0, 0, 0, 0.04) 80%,
+        transparent 100%
+      );
+      box-shadow: 0 0 15px 5px rgba(0, 0, 0, 0.03);
+    }
+
+    [data-theme="light"] .crt-scanline-v {
+      background: linear-gradient(180deg,
+        transparent 0%,
+        rgba(0, 0, 0, 0.03) 20%,
+        rgba(0, 0, 0, 0.06) 50%,
+        rgba(0, 0, 0, 0.03) 80%,
+        transparent 100%
+      );
+      box-shadow: 0 0 15px 5px rgba(0, 0, 0, 0.02);
+    }
+
+    body {
+      font-family: 'Share Tech Mono', 'SF Mono', 'Fira Code', monospace;
+      background-color: var(--bg-primary);
+      background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(5, 217, 232, 0.045) 0%, transparent 52%),
+        radial-gradient(ellipse at 80% 20%, rgba(211, 0, 197, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 82%, rgba(255, 42, 109, 0.035) 0%, transparent 48%),
+        linear-gradient(var(--cyber-grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--cyber-grid-cross) 1px, transparent 1px);
+      background-size: auto, auto, auto, 52px 52px, 52px 52px;
+      background-attachment: fixed;
+      color: var(--text);
       min-height: 100vh;
       line-height: 1.55;
     }
-    .wrap { max-width: 48rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
-    h1 {
-      font-weight: 700;
-      font-size: 1.75rem;
-      margin: 0 0 0.5rem;
-      color: var(--cyan);
-      text-shadow: 0 0 12px rgba(5, 217, 232, 0.35);
+
+    [data-theme="light"] body {
+      background-image:
+        radial-gradient(ellipse at 22% 48%, rgba(8, 145, 178, 0.09) 0%, transparent 52%),
+        radial-gradient(ellipse at 78% 22%, rgba(163, 0, 163, 0.07) 0%, transparent 50%),
+        linear-gradient(var(--cyber-grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--cyber-grid-cross) 1px, transparent 1px);
+      background-size: auto, auto, 44px 44px, 44px 44px;
+      background-attachment: fixed;
     }
-    .ver { color: var(--dim); font-size: 0.9rem; margin-bottom: 1.5rem; }
-    p { margin: 0 0 1rem; color: var(--dim); }
-    a { color: var(--cyan); text-decoration: none; }
-    a:hover { text-decoration: underline; color: #7eeefc; }
-    .card {
-      background: var(--card);
-      border: 1px solid #1a1a3e;
-      border-radius: 8px;
+
+    .app {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(5, 217, 232, 0.015) 2px,
+        rgba(5, 217, 232, 0.015) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .app::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.5) 100%);
+      pointer-events: none;
+      z-index: 9998;
+    }
+
+    .app.no-crt::after,
+    .app.no-crt::before {
+      display: none;
+    }
+
+    .crt-scanline {
+      position: fixed;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(5, 217, 232, 0.03) 20%,
+        rgba(5, 217, 232, 0.08) 50%,
+        rgba(5, 217, 232, 0.03) 80%,
+        transparent 100%
+      );
+      box-shadow: 0 0 15px 5px rgba(5, 217, 232, 0.04);
+      pointer-events: none;
+      z-index: 9997;
+      animation: hscan 12s linear infinite;
+    }
+
+    .crt-scanline-v {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(180deg,
+        transparent 0%,
+        rgba(255, 42, 109, 0.03) 20%,
+        rgba(255, 42, 109, 0.06) 50%,
+        rgba(255, 42, 109, 0.03) 80%,
+        transparent 100%
+      );
+      box-shadow: 0 0 15px 5px rgba(255, 42, 109, 0.03);
+      pointer-events: none;
+      z-index: 9997;
+      animation: vscan 18s linear infinite;
+    }
+
+    @keyframes hscan {
+      0% { top: -2px; opacity: 0; }
+      5% { opacity: 1; }
+      95% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+
+    @keyframes vscan {
+      0% { left: -2px; opacity: 0; }
+      5% { opacity: 1; }
+      95% { opacity: 1; }
+      100% { left: 100%; opacity: 0; }
+    }
+
+    body.no-neon-glow * {
+      animation-name: none !important;
+      animation-duration: 0s !important;
+    }
+
+    body.no-neon-glow .doc-card {
+      box-shadow: 0 0 20px var(--cyan-glow), 0 4px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(5, 5, 10, 0.5);
+    }
+
+    [data-theme="light"] ::-webkit-scrollbar-track {
+      background: rgba(226, 232, 240, 0.8);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, var(--cyan) 0%, var(--magenta) 100%);
+      border-radius: 4px;
+      box-shadow: 0 0 8px var(--cyan-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, var(--accent) 0%, var(--cyan) 100%);
+    }
+
+    .docs-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #070714 0%, #0d0d22 42%, var(--bg-secondary) 100%);
+      position: relative;
+      box-shadow:
+        0 4px 28px rgba(0, 0, 0, 0.55),
+        0 1px 0 rgba(5, 217, 232, 0.1),
+        inset 0 1px 0 rgba(5, 217, 232, 0.06);
+      z-index: 1;
+    }
+
+    [data-theme="light"] .docs-header {
+      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    .docs-header::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), var(--accent), var(--cyan), transparent);
+      opacity: 0.6;
+    }
+
+    .docs-header-inner {
+      max-width: 56rem;
+      margin: 0 auto;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .docs-title-block h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: clamp(1rem, 2.5vw, 1.25rem);
+      font-weight: 900;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, var(--cyan), #fff, var(--accent), var(--cyan));
+      background-size: 300% 100%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 8px var(--cyan-glow));
+      animation: logo-shimmer 6s linear infinite;
+      margin: 0 0 6px;
+    }
+
+    [data-theme="light"] .docs-title-block h1 {
+      filter: drop-shadow(0 0 4px var(--cyan-glow));
+    }
+
+    @keyframes logo-shimmer {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 300% 0%; }
+    }
+
+    .docs-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.5px;
+      max-width: 36rem;
+    }
+
+    .docs-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button {
+      font-family: 'Share Tech Mono', monospace;
+      -webkit-app-region: no-drag;
+    }
+
+    .btn {
+      padding: 8px 14px;
+      border-radius: 2px;
+      border: none;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 60%);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--cyan);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 0 8px var(--cyan-dim);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(5, 217, 232, 0.08);
+      box-shadow: 0 0 15px var(--cyan-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary:active {
+      transform: translateY(1px) scale(0.98);
+    }
+
+    .btn-secondary.active {
+      background: rgba(5, 217, 232, 0.12);
+      box-shadow: 0 0 12px var(--cyan-glow);
+    }
+
+    [data-theme="light"] .btn-secondary:hover {
+      background: rgba(8, 145, 178, 0.1);
+    }
+
+    .docs-main {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      max-width: 56rem;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+      width: 100%;
+    }
+
+    .doc-lead {
+      margin: 0 0 1.5rem;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .doc-card {
+      background-color: var(--bg-card);
+      background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 30%, transparent 50%);
+      border: 1px solid var(--cyan);
+      border-radius: 2px;
       padding: 1.25rem 1.35rem;
       margin: 1.25rem 0;
+      position: relative;
+      box-shadow: 0 0 40px var(--cyan-glow);
+      backdrop-filter: blur(12px) saturate(1.4);
+      -webkit-backdrop-filter: blur(12px) saturate(1.4);
     }
-    .card h2 {
+
+    .doc-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      pointer-events: none;
+    }
+
+    body:not(.no-neon-glow) .doc-card {
+      animation: neon-border-glow 2.5s ease-in-out infinite;
+    }
+
+    @keyframes neon-border-glow {
+      0%, 100% {
+        box-shadow: 0 0 20px var(--cyan-glow), 0 0 4px var(--cyan-glow);
+        border-color: var(--cyan);
+      }
+      50% {
+        box-shadow: 0 0 40px var(--cyan-glow), 0 0 12px var(--magenta-glow);
+        border-color: var(--accent);
+      }
+    }
+
+    .doc-card h2 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 13px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 2px;
       margin: 0 0 0.75rem;
-      font-size: 1.05rem;
-      color: var(--accent);
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
     }
-    code, pre {
-      font-family: ui-monospace, "Cascadia Code", monospace;
-      font-size: 0.85rem;
+
+    .doc-card > p {
+      margin: 0 0 1rem;
+      color: var(--text-dim);
+      font-size: 13px;
     }
+
+    a {
+      color: var(--cyan);
+      text-decoration: none;
+      transition: color 0.15s, text-shadow 0.15s;
+    }
+
+    a:hover {
+      color: var(--accent-light);
+      text-shadow: 0 0 8px var(--cyan-glow);
+    }
+
+    code {
+      font-family: 'Share Tech Mono', ui-monospace, monospace;
+      font-size: 0.88em;
+      padding: 2px 6px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      color: var(--text);
+    }
+
     pre {
-      background: #0a0a14;
-      border: 1px solid #1a1a3e;
-      border-radius: 6px;
+      font-family: 'Share Tech Mono', ui-monospace, monospace;
+      font-size: 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 2px;
       padding: 0.85rem 1rem;
       overflow-x: auto;
-      color: #c8e6ff;
+      color: var(--text);
       margin: 0.5rem 0 0;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.25);
     }
-    ul { margin: 0.5rem 0 0; padding-left: 1.2rem; color: var(--dim); }
-    li { margin: 0.35rem 0; }
+
+    [data-theme="light"] pre {
+      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.04);
+    }
+
+    ul {
+      margin: 0.5rem 0 0;
+      padding-left: 1.2rem;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    li {
+      margin: 0.4rem 0;
+    }
+
+    li strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
     .feat-sub {
       margin: 1rem 0 0.35rem;
-      color: var(--text);
-      font-size: 0.88rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+      font-family: 'Orbitron', sans-serif;
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
     }
-    .card > p + .feat-sub { margin-top: 0.75rem; }
+
+    .doc-card > p + .feat-sub {
+      margin-top: 0.75rem;
+    }
+
+    .crt-scanline[hidden],
+    .crt-scanline-v[hidden] {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>// AUDIO_HAXOR — DOCS</h1>
-    <p class="ver">Tauri v2 · Rust backend <code>app_lib</code> · app release version in <code>package.json</code> / <code>src-tauri/tauri.conf.json</code> / <code>src-tauri/Cargo.toml</code></p>
-    <p>Static hub for developer documentation. The main UI is <code>frontend/index.html</code>; the menu-bar tray uses a separate WebView (<code>frontend/tray-popover.html</code> + <code>frontend/js/tray-popover.js</code>).</p>
+  <div class="app" id="docsApp">
+    <div class="crt-scanline" id="crtH" aria-hidden="true"></div>
+    <div class="crt-scanline-v" id="crtV" aria-hidden="true"></div>
 
-    <div class="card">
-      <h2>Application feature map</h2>
-      <p>Checklist-style index of shipped surfaces (verify in <code>frontend/</code> + <code>src-tauri/</code>). Deeper behavior lives in <code>README.md</code> and rustdoc.</p>
+    <header class="docs-header">
+      <div class="docs-header-inner">
+        <div class="docs-title-block">
+          <h1>// AUDIO_HAXOR — DOCS</h1>
+          <p class="docs-sub">Tauri v2 · Rust backend <code>app_lib</code> · app release version in <code>package.json</code> / <code>src-tauri/tauri.conf.json</code> / <code>src-tauri/Cargo.toml</code></p>
+        </div>
+        <div class="docs-toolbar">
+          <button type="button" class="btn btn-secondary" id="btnTheme" title="Toggle light/dark">Theme</button>
+          <button type="button" class="btn btn-secondary active" id="btnCrt" title="CRT scanline overlay">CRT</button>
+          <button type="button" class="btn btn-secondary active" id="btnNeon" title="Neon border pulse on cards">Neon</button>
+        </div>
+      </div>
+    </header>
 
-      <p class="feat-sub">Main tabs</p>
-      <ul>
-        <li><strong>Plugins</strong> — VST/VST3/AU/CLAP scan, SQLite table, KVR resolve + update check with queued “next update” flow (<code>js/kvr.js</code>), export/import (JSON/CSV/TOML), per-scan history + diff, optional disk-usage strip (<code>js/disk-usage.js</code>), plugin dependency graph (<code>js/dep-graph.js</code>).</li>
-        <li><strong>Samples</strong> — audio library scan + history/diff, paginated table with sort/persisted columns (<code>js/sort-persist.js</code>, <code>js/columns.js</code>), inline preview / floating player (<code>js/audio.js</code>), waveform/spectrogram caches + decode worker, BPM/key/LUFS fields and batch analysis, chromaprint fingerprint cache + <strong>find similar</strong> + <strong>content duplicates</strong>, smart playlists (<code>js/smart-playlists.js</code>).</li>
-        <li><strong>DAW</strong> — project scan (multiple DAW formats), open folder/project, extract plugins from project, xref/index build and cached plugin lists per project (<code>js/daw.js</code>, <code>js/xref.js</code>), Ableton ALS/XML and generic project file reads, Bitwig <code>.bwproject</code> via <code>read_bwproject</code>, history/diff, disk usage.</li>
-        <li><strong>Presets</strong> — preset scan, history/diff, export/import, disk usage.</li>
-        <li><strong>MIDI</strong> — MIDI scan + SQLite (<code>db_query_midi</code>), history/diff, note/tempo/key metadata (<code>js/midi.js</code>), export full tab or selection subset (<code>js/export.js</code>).</li>
-        <li><strong>PDFs</strong> — PDF scan, optional metadata extraction batch + progress events, open in viewer / default app, export DSV/JSON, import JSON, history/diff (<code>js/pdf.js</code>).</li>
-        <li><strong>Favorites</strong> — starred paths across types (<code>js/favorites.js</code>), export/import.</li>
-        <li><strong>Notes</strong> — per-item notes (<code>js/notes.js</code>), export/import, clear.</li>
-        <li><strong>Tags</strong> — global tag manager + filter bar (position top/bottom; <code>js/multi-filter.js</code>).</li>
-        <li><strong>Files</strong> — directory browser: list, rename, delete, reveal, open-with / default app (<code>open_with_app</code>, <code>open_file_default</code>), native drag/drop (<code>js/file-browser.js</code>, <code>js/native-file-drag.js</code>).</li>
-        <li><strong>History</strong> — unified scan run + per-inventory scan records, compare/diff, prune/delete entries (<code>js/history.js</code>).</li>
-        <li><strong>Visualizer</strong> — spectrum/waveform views driven from playback / engine (<code>js/visualizer.js</code>).</li>
-        <li><strong>Walkers</strong> — live unified-walker status (<code>js/walker-status.js</code>, <code>get_walker_status</code>).</li>
-        <li><strong>Audio Engine</strong> — subprocess JSON API: file decode, transport, seek, loop/speed/reverse, DSP/EQ/mono, optional spectrum bins, VST3/AU insert chain + editor windows (<code>js/audio-engine.js</code> + IPC <code>audio_engine_invoke</code>).</li>
-        <li><strong>Settings</strong> — file-backed prefs + SQLite app strings; UI locale; light/dark + CRT + neon; color schemes / custom presets; scan roots &amp; blacklists; auto-scan, folder watch, incremental scan, prune-old-scans, include-backups; autoplay &amp; playback toggles; auto-update; PDF metadata auto-extract; analysis auto-run; table page size; log verbosity; cache table rebuild/clear (incl. xref/fingerprint); BPM/LUFS jobs; data-dir file list; export settings/log as PDF; shortcut editor (<code>js/settings.js</code>, <code>js/settings-search.js</code>, <code>js/i18n-ui.js</code>).</li>
-      </ul>
+    <main class="docs-main">
+      <p class="doc-lead">Static hub for developer documentation. The main UI is <code>frontend/index.html</code>; the menu-bar tray uses a separate WebView (<code>frontend/tray-popover.html</code> + <code>frontend/js/tray-popover.js</code>).</p>
 
-      <p class="feat-sub">Scanning &amp; database</p>
-      <ul>
-        <li><strong>Unified scan</strong> — <code>scan_unified</code> walks configured roots once and fans progress into the same per-type events as standalone scans (<code>prepare_unified_scan</code>, <code>stop_unified_scan</code>, <code>get_unified_scan_run</code>).</li>
-        <li><strong>Standalone scans</strong> — plugins, samples, DAW, presets, MIDI, PDF each support custom roots, exclude paths, stop/resume where applicable, progress listeners, and a header <strong>resume all</strong> when workers are paused.</li>
-        <li><strong>SQLite</strong> — library tables for inventory + analysis fields; filter stats helpers; palette preview query; audio-library path list for fingerprints.</li>
-        <li><strong>Import/export</strong> — tab-scoped JSON/DSV/CSV/TOML where implemented; plugin xref export; smart-playlist export; favorites/notes; PDFs; MIDI export.</li>
-      </ul>
+      <div class="doc-card">
+        <h2>Application feature map</h2>
+        <p>Checklist-style index of shipped surfaces (verify in <code>frontend/</code> + <code>src-tauri/</code>). Deeper behavior lives in <code>README.md</code> and rustdoc.</p>
 
-      <p class="feat-sub">Playback &amp; tray (summary)</p>
-      <ul>
-        <li>Floating player: history list, filter field, shuffle, loop modes, A/B loop, 3-band EQ + gain + pan, mono, volume, playback speed + reverse, favorite/tag current track, export/import/clear <strong>recently played</strong>, expand/collapse, hide/show pill — see <code>js/audio.js</code>.</li>
-        <li><strong>Autoplay next source</strong> — Settings chooses whether EOF / failure-chain advance follows player history or visible Samples table; tray/menu/shortcuts/palette use <code>respectAutoplaySource</code>; floating <strong>Next/Previous</strong> buttons use history order only (see tray section below).</li>
-      </ul>
+        <p class="feat-sub">Main tabs</p>
+        <ul>
+          <li><strong>Plugins</strong> — VST/VST3/AU/CLAP scan, SQLite table, KVR resolve + update check with queued “next update” flow (<code>js/kvr.js</code>), export/import (JSON/CSV/TOML), per-scan history + diff, optional disk-usage strip (<code>js/disk-usage.js</code>), plugin dependency graph (<code>js/dep-graph.js</code>).</li>
+          <li><strong>Samples</strong> — audio library scan + history/diff, paginated table with sort/persisted columns (<code>js/sort-persist.js</code>, <code>js/columns.js</code>), inline preview / floating player (<code>js/audio.js</code>), waveform/spectrogram caches + decode worker, BPM/key/LUFS fields and batch analysis, chromaprint fingerprint cache + <strong>find similar</strong> + <strong>content duplicates</strong>, smart playlists (<code>js/smart-playlists.js</code>).</li>
+          <li><strong>DAW</strong> — project scan (multiple DAW formats), open folder/project, extract plugins from project, xref/index build and cached plugin lists per project (<code>js/daw.js</code>, <code>js/xref.js</code>), Ableton ALS/XML and generic project file reads, Bitwig <code>.bwproject</code> via <code>read_bwproject</code>, history/diff, disk usage.</li>
+          <li><strong>Presets</strong> — preset scan, history/diff, export/import, disk usage.</li>
+          <li><strong>MIDI</strong> — MIDI scan + SQLite (<code>db_query_midi</code>), history/diff, note/tempo/key metadata (<code>js/midi.js</code>), export full tab or selection subset (<code>js/export.js</code>).</li>
+          <li><strong>PDFs</strong> — PDF scan, optional metadata extraction batch + progress events, open in viewer / default app, export DSV/JSON, import JSON, history/diff (<code>js/pdf.js</code>).</li>
+          <li><strong>Favorites</strong> — starred paths across types (<code>js/favorites.js</code>), export/import.</li>
+          <li><strong>Notes</strong> — per-item notes (<code>js/notes.js</code>), export/import, clear.</li>
+          <li><strong>Tags</strong> — global tag manager + filter bar (position top/bottom; <code>js/multi-filter.js</code>).</li>
+          <li><strong>Files</strong> — directory browser: list, rename, delete, reveal, open-with / default app (<code>open_with_app</code>, <code>open_file_default</code>), native drag/drop (<code>js/file-browser.js</code>, <code>js/native-file-drag.js</code>).</li>
+          <li><strong>History</strong> — unified scan run + per-inventory scan records, compare/diff, prune/delete entries (<code>js/history.js</code>).</li>
+          <li><strong>Visualizer</strong> — spectrum/waveform views driven from playback / engine (<code>js/visualizer.js</code>).</li>
+          <li><strong>Walkers</strong> — live unified-walker status (<code>js/walker-status.js</code>, <code>get_walker_status</code>).</li>
+          <li><strong>Audio Engine</strong> — subprocess JSON API: file decode, transport, seek, loop/speed/reverse, DSP/EQ/mono, optional spectrum bins, VST3/AU insert chain + editor windows (<code>js/audio-engine.js</code> + IPC <code>audio_engine_invoke</code>).</li>
+          <li><strong>Settings</strong> — file-backed prefs + SQLite app strings; UI locale; light/dark + CRT + neon; color schemes / custom presets; scan roots &amp; blacklists; auto-scan, folder watch, incremental scan, prune-old-scans, include-backups; autoplay &amp; playback toggles; auto-update; PDF metadata auto-extract; analysis auto-run; table page size; log verbosity; cache table rebuild/clear (incl. xref/fingerprint); BPM/LUFS jobs; data-dir file list; export settings/log as PDF; shortcut editor (<code>js/settings.js</code>, <code>js/settings-search.js</code>, <code>js/i18n-ui.js</code>).</li>
+        </ul>
 
-      <p class="feat-sub">Tooling &amp; discovery</p>
-      <ul>
-        <li><strong>Heatmap dashboard</strong> — sample metadata visualization (<code>js/heatmap-dashboard.js</code>).</li>
-        <li><strong>Duplicate finder</strong> — content-level reports (<code>js/duplicates.js</code>).</li>
-        <li><strong>Process stats</strong> — main and audio-engine RSS/CPU/thread probes in header/settings.</li>
-        <li><strong>Logging</strong> — in-app log, clear, open log file, optional PDF export.</li>
-      </ul>
+        <p class="feat-sub">Scanning &amp; database</p>
+        <ul>
+          <li><strong>Unified scan</strong> — <code>scan_unified</code> walks configured roots once and fans progress into the same per-type events as standalone scans (<code>prepare_unified_scan</code>, <code>stop_unified_scan</code>, <code>get_unified_scan_run</code>).</li>
+          <li><strong>Standalone scans</strong> — plugins, samples, DAW, presets, MIDI, PDF each support custom roots, exclude paths, stop/resume where applicable, progress listeners, and a header <strong>resume all</strong> when workers are paused.</li>
+          <li><strong>SQLite</strong> — library tables for inventory + analysis fields; filter stats helpers; palette preview query; audio-library path list for fingerprints.</li>
+          <li><strong>Import/export</strong> — tab-scoped JSON/DSV/CSV/TOML where implemented; plugin xref export; smart-playlist export; favorites/notes; PDFs; MIDI export.</li>
+        </ul>
 
-      <p class="feat-sub">UX &amp; desktop integration</p>
-      <ul>
-        <li><strong>Help overlay</strong> — shortcut reference (<code>js/help-overlay.js</code>).</li>
-        <li><strong>Context menus</strong> — row actions across tabs (<code>js/context-menu.js</code>).</li>
-        <li><strong>Tooltips</strong> — hover titles for dense controls (<code>js/tooltip-hover.js</code>).</li>
-        <li><strong>Keyboard</strong> — navigable tables (<code>js/keyboard-nav.js</code>), batch selection (<code>js/batch-select.js</code>), drag-reorder for sections/tabs (<code>js/drag-reorder.js</code>).</li>
-        <li><strong>Modals</strong> — draggable custom dialogs where enabled (<code>js/modal-drag.js</code>).</li>
-        <li><strong>UI idle</strong> — <code>js/ui-idle.js</code> sets <code>html.ui-idle-heavy-cpu</code> when the window is backgrounded/minimized/hidden to pause scanlines and suppress toasts.</li>
-        <li><strong>Native menus</strong> — macOS/Windows menu bar mirrors many actions; <strong>GitHub</strong> / <strong>Docs</strong> items open external links.</li>
-      </ul>
-    </div>
+        <p class="feat-sub">Playback &amp; tray (summary)</p>
+        <ul>
+          <li>Floating player: history list, filter field, shuffle, loop modes, A/B loop, 3-band EQ + gain + pan, mono, volume, playback speed + reverse, favorite/tag current track, export/import/clear <strong>recently played</strong>, expand/collapse, hide/show pill — see <code>js/audio.js</code>.</li>
+          <li><strong>Autoplay next source</strong> — Settings chooses whether EOF / failure-chain advance follows player history or visible Samples table; tray/menu/shortcuts/palette use <code>respectAutoplaySource</code>; floating <strong>Next/Previous</strong> buttons use history order only (see tray section below).</li>
+        </ul>
 
-    <div class="card">
-      <h2>Rust API (rustdoc)</h2>
-      <p>Generated HTML for the library crate:</p>
-      <ul>
-        <li><a href="api/app_lib/index.html">Browse <code>app_lib</code> docs</a> (after <code>pnpm run doc:sync</code>)</li>
-        <li>Local cargo output: <code>src-tauri/target/doc/app_lib/index.html</code></li>
-      </ul>
-      <pre>pnpm run doc:open    # build + open in browser
+        <p class="feat-sub">Tooling &amp; discovery</p>
+        <ul>
+          <li><strong>Heatmap dashboard</strong> — sample metadata visualization (<code>js/heatmap-dashboard.js</code>).</li>
+          <li><strong>Duplicate finder</strong> — content-level reports (<code>js/duplicates.js</code>).</li>
+          <li><strong>Process stats</strong> — main and audio-engine RSS/CPU/thread probes in header/settings.</li>
+          <li><strong>Logging</strong> — in-app log, clear, open log file, optional PDF export.</li>
+        </ul>
+
+        <p class="feat-sub">UX &amp; desktop integration</p>
+        <ul>
+          <li><strong>Help overlay</strong> — shortcut reference (<code>js/help-overlay.js</code>).</li>
+          <li><strong>Context menus</strong> — row actions across tabs (<code>js/context-menu.js</code>).</li>
+          <li><strong>Tooltips</strong> — hover titles for dense controls (<code>js/tooltip-hover.js</code>).</li>
+          <li><strong>Keyboard</strong> — navigable tables (<code>js/keyboard-nav.js</code>), batch selection (<code>js/batch-select.js</code>), drag-reorder for sections/tabs (<code>js/drag-reorder.js</code>).</li>
+          <li><strong>Modals</strong> — draggable custom dialogs where enabled (<code>js/modal-drag.js</code>).</li>
+          <li><strong>UI idle</strong> — <code>js/ui-idle.js</code> sets <code>html.ui-idle-heavy-cpu</code> when the window is backgrounded/minimized/hidden to pause scanlines and suppress toasts.</li>
+          <li><strong>Native menus</strong> — macOS/Windows menu bar mirrors many actions; <strong>GitHub</strong> / <strong>Docs</strong> items open external links.</li>
+        </ul>
+      </div>
+
+      <div class="doc-card">
+        <h2>Rust API (rustdoc)</h2>
+        <p>Generated HTML for the library crate:</p>
+        <ul>
+          <li><a href="api/app_lib/index.html">Browse <code>app_lib</code> docs</a> (after <code>pnpm run doc:sync</code>)</li>
+          <li>Local cargo output: <code>src-tauri/target/doc/app_lib/index.html</code></li>
+        </ul>
+        <pre>pnpm run doc:open    # build + open in browser
 pnpm run doc:sync    # copy tree into docs/api/</pre>
-    </div>
+      </div>
 
-    <div class="card">
-      <h2>Main window IPC &amp; i18n</h2>
-      <p><code>frontend/js/ipc.js</code> is the Tauri bridge (replaces an Electron-style preload):</p>
-      <ul>
-        <li><strong><code>window.vstUpdater</code>:</strong> wraps <code>invoke</code> for DB queries, prefs, scans, PDF/MIDI helpers, <code>audio_engine_invoke</code> (subprocess audio engine JSON API — UI in <code>frontend/js/audio-engine.js</code> + <code>frontend/js/audio.js</code>), and palette search (<code>db_query_palette_preview</code>).</li>
-        <li><strong>Strings:</strong> startup <code>get_app_strings</code> fills <code>window.__appStr</code>; <code>appFmt</code> / <code>toastFmt</code> for UI and toasts. <code>reloadAppStrings(locale)</code> reloads maps, reapplies i18n, invalidates the command palette static cache, refreshes the native menu (<code>refresh_native_menu</code>), and re-syncs tray now playing.</li>
-        <li><strong><code>menu-action</code> events:</strong> native menu bar and tray dispatch action IDs into the main window. Tray seek uses a single payload form <code>seek:&lt;fraction&gt;</code> (0..1) → <code>seekPlaybackToPercent</code> without a separate IPC command.</li>
-        <li><strong>Host EOF poll:</strong> <code>listen('audio-engine-playback-eof', …)</code> forwards to <code>handleEnginePlaybackEofFromPoll</code> when Rust detects end-of-file while WebView timers may be throttled — same advance behavior as the in-window playback path.</li>
-      </ul>
-    </div>
+      <div class="doc-card">
+        <h2>Main window IPC &amp; i18n</h2>
+        <p><code>frontend/js/ipc.js</code> is the Tauri bridge (replaces an Electron-style preload):</p>
+        <ul>
+          <li><strong><code>window.vstUpdater</code>:</strong> wraps <code>invoke</code> for DB queries, prefs, scans, PDF/MIDI helpers, <code>audio_engine_invoke</code> (subprocess audio engine JSON API — UI in <code>frontend/js/audio-engine.js</code> + <code>frontend/js/audio.js</code>), and palette search (<code>db_query_palette_preview</code>).</li>
+          <li><strong>Strings:</strong> startup <code>get_app_strings</code> fills <code>window.__appStr</code>; <code>appFmt</code> / <code>toastFmt</code> for UI and toasts. <code>reloadAppStrings(locale)</code> reloads maps, reapplies i18n, invalidates the command palette static cache, refreshes the native menu (<code>refresh_native_menu</code>), and re-syncs tray now playing.</li>
+          <li><strong><code>menu-action</code> events:</strong> native menu bar and tray dispatch action IDs into the main window. Tray seek uses a single payload form <code>seek:&lt;fraction&gt;</code> (0..1) → <code>seekPlaybackToPercent</code> without a separate IPC command.</li>
+          <li><strong>Host EOF poll:</strong> <code>listen('audio-engine-playback-eof', …)</code> forwards to <code>handleEnginePlaybackEofFromPoll</code> when Rust detects end-of-file while WebView timers may be throttled — same advance behavior as the in-window playback path.</li>
+        </ul>
+      </div>
 
-    <div class="card">
-      <h2>Command palette (Cmd+K)</h2>
-      <p><code>frontend/js/command-palette.js</code> — quick launcher bound by default to <strong>Cmd+K</strong> / <strong>Ctrl+K</strong> via <code>shortcuts.js</code> (<code>commandPalette</code>).</p>
-      <ul>
-        <li><strong>Static rows:</strong> jump to tabs, start/stop scans, exports/imports, transport, EQ/mono, theme/CRT, and many settings toggles. Labels use <code>appFmt</code>; shortcut hints use live <code>getShortcuts</code> + <code>formatKey</code>.</li>
-        <li><strong>Database search:</strong> with query length ≥ 2, calls <code>dbQueryPalettePreview</code> (one pooled Rust task, six capped inventory queries). Results cover plugins, audio samples, DAW projects, presets, PDFs, and MIDI files. Choosing a hit switches to the right tab and seeds that tab’s search field — the palette does not rely on in-memory paginated tables alone.</li>
-        <li><strong>Transport alignment:</strong> palette <strong>Next track</strong> / <strong>Previous track</strong> call <code>nextTrack({ respectAutoplaySource: true })</code> / <code>prevTrack({ respectAutoplaySource: true })</code>, same as the tray, menu bar, and keyboard shortcuts (see below).</li>
-      </ul>
-    </div>
+      <div class="doc-card">
+        <h2>Command palette (Cmd+K)</h2>
+        <p><code>frontend/js/command-palette.js</code> — quick launcher bound by default to <strong>Cmd+K</strong> / <strong>Ctrl+K</strong> via <code>shortcuts.js</code> (<code>commandPalette</code>).</p>
+        <ul>
+          <li><strong>Static rows:</strong> jump to tabs, start/stop scans, exports/imports, transport, EQ/mono, theme/CRT, and many settings toggles. Labels use <code>appFmt</code>; shortcut hints use live <code>getShortcuts</code> + <code>formatKey</code>.</li>
+          <li><strong>Database search:</strong> with query length ≥ 2, calls <code>dbQueryPalettePreview</code> (one pooled Rust task, six capped inventory queries). Results cover plugins, audio samples, DAW projects, presets, PDFs, and MIDI files. Choosing a hit switches to the right tab and seeds that tab’s search field — the palette does not rely on in-memory paginated tables alone.</li>
+          <li><strong>Transport alignment:</strong> palette <strong>Next track</strong> / <strong>Previous track</strong> call <code>nextTrack({ respectAutoplaySource: true })</code> / <code>prevTrack({ respectAutoplaySource: true })</code>, same as the tray, menu bar, and keyboard shortcuts (see below).</li>
+        </ul>
+      </div>
 
-    <div class="card">
-      <h2>Keyboard shortcuts</h2>
-      <p><code>frontend/js/shortcuts.js</code> — persisted overrides and <code>executeShortcut(id)</code> dispatch.</p>
-      <ul>
-        <li><strong>Rebinding:</strong> Settings UI lists every action in <code>SHORTCUT_LABEL_KEYS</code>; custom bindings are persisted (see that module for storage and capture UI).</li>
-        <li><strong>Scope:</strong> tab switching (plugins through audio engine), focus search, help overlay, playback (play/pause, loop, mute, volume, shuffle, A/B loop, player visibility), file ops (reveal, copy path, favorite, notes), selection, export/import current tab, dependency graph, duplicates/similar, theme, prefs, scan/stop variants, PDF metadata, fingerprint cache, BPM/key/LUFS jobs, cache clears, log verbosity, table page size, autoplay source, tag filter bar, and more.</li>
-        <li><strong>Next / Previous track keys</strong> invoke <code>nextTrack</code> / <code>prevTrack</code> with <code>respectAutoplaySource: true</code> so ordering follows <code>autoplayNextSource</code> (player history vs Samples table), not only the floating history list.</li>
-      </ul>
-    </div>
+      <div class="doc-card">
+        <h2>Keyboard shortcuts</h2>
+        <p><code>frontend/js/shortcuts.js</code> — persisted overrides and <code>executeShortcut(id)</code> dispatch.</p>
+        <ul>
+          <li><strong>Rebinding:</strong> Settings UI lists every action in <code>SHORTCUT_LABEL_KEYS</code>; custom bindings are persisted (see that module for storage and capture UI).</li>
+          <li><strong>Scope:</strong> tab switching (plugins through audio engine), focus search, help overlay, playback (play/pause, loop, mute, volume, shuffle, A/B loop, player visibility), file ops (reveal, copy path, favorite, notes), selection, export/import current tab, dependency graph, duplicates/similar, theme, prefs, scan/stop variants, PDF metadata, fingerprint cache, BPM/key/LUFS jobs, cache clears, log verbosity, table page size, autoplay source, tag filter bar, and more.</li>
+          <li><strong>Next / Previous track keys</strong> invoke <code>nextTrack</code> / <code>prevTrack</code> with <code>respectAutoplaySource: true</code> so ordering follows <code>autoplayNextSource</code> (player history vs Samples table), not only the floating history list.</li>
+        </ul>
+      </div>
 
-    <div class="card">
-      <h2>Tray popover &amp; playback IPC</h2>
-      <p>High level (details in source comments):</p>
-      <ul>
-        <li><strong>State:</strong> Main window calls <code>update_tray_now_playing</code> (Tauri v2: <code>invoke(..., { payload: { … } })</code>) from <code>syncTrayNowPlayingFromPlayback</code> in <code>frontend/js/audio.js</code>. Payload includes <code>ui_theme</code>, optional <code>appearance</code> (CSS variables from <code>SCHEME_VAR_KEYS</code>), and now-playing fields.</li>
-        <li><strong>Theme &amp; color schemes:</strong> Popover applies <code>data-theme</code> and inline scheme vars so the HUD tracks Settings light/dark and color presets.</li>
-        <li><strong>Previous / Next:</strong> Snake-case menu IDs <code>prev_track</code> / <code>next_track</code> (tray popover, native menu bar, <code>tray_prev</code> / <code>tray_next</code>) call <code>prevTrack</code> / <code>nextTrack</code> with <code>respectAutoplaySource: true</code> so the list follows <code>autoplayNextSource</code> (player history vs visible Samples table). Floating player buttons use camelCase actions and stay on the history list only.</li>
-        <li><strong>Autoplay next (on/off):</strong> Gates end-of-track and <strong>failed-preview</strong> auto-advance (<code>tryPreviewAutoplayNextOnFailureAsync</code> in <code>previewAudio</code>) along the same list as EOF (<code>autoplayNextSource</code>), after an error toast; can chain across multiple bad files. Does not gate manual prev/next from tray/menu/shortcuts.</li>
-        <li><strong>Tray mirror:</strong> The popover has no separate queue — it reflects the main window via <code>syncTrayNowPlayingFromPlayback</code> after the current path updates.</li>
-        <li><strong>Tray seek:</strong> Popover scrubber sends <code>menu-action</code> with payload <code>seek:&lt;fraction&gt;</code>; see IPC section above.</li>
-        <li><strong>HUD subtitle:</strong> <code>syncTrayNowPlayingFromPlayback</code> clears a redundant subtitle when <code>#npMetaLine</code> would duplicate the track title (e.g. basename-only path matching the displayed name).</li>
-      </ul>
-    </div>
+      <div class="doc-card">
+        <h2>Tray popover &amp; playback IPC</h2>
+        <p>High level (details in source comments):</p>
+        <ul>
+          <li><strong>State:</strong> Main window calls <code>update_tray_now_playing</code> (Tauri v2: <code>invoke(..., { payload: { … } })</code>) from <code>syncTrayNowPlayingFromPlayback</code> in <code>frontend/js/audio.js</code>. Payload includes <code>ui_theme</code>, optional <code>appearance</code> (CSS variables from <code>SCHEME_VAR_KEYS</code>), and now-playing fields.</li>
+          <li><strong>Theme &amp; color schemes:</strong> Popover applies <code>data-theme</code> and inline scheme vars so the HUD tracks Settings light/dark and color presets.</li>
+          <li><strong>Previous / Next:</strong> Snake-case menu IDs <code>prev_track</code> / <code>next_track</code> (tray popover, native menu bar, <code>tray_prev</code> / <code>tray_next</code>) call <code>prevTrack</code> / <code>nextTrack</code> with <code>respectAutoplaySource: true</code> so the list follows <code>autoplayNextSource</code> (player history vs visible Samples table). Floating player buttons use camelCase actions and stay on the history list only.</li>
+          <li><strong>Autoplay next (on/off):</strong> Gates end-of-track and <strong>failed-preview</strong> auto-advance (<code>tryPreviewAutoplayNextOnFailureAsync</code> in <code>previewAudio</code>) along the same list as EOF (<code>autoplayNextSource</code>), after an error toast; can chain across multiple bad files. Does not gate manual prev/next from tray/menu/shortcuts.</li>
+          <li><strong>Tray mirror:</strong> The popover has no separate queue — it reflects the main window via <code>syncTrayNowPlayingFromPlayback</code> after the current path updates.</li>
+          <li><strong>Tray seek:</strong> Popover scrubber sends <code>menu-action</code> with payload <code>seek:&lt;fraction&gt;</code>; see IPC section above.</li>
+          <li><strong>HUD subtitle:</strong> <code>syncTrayNowPlayingFromPlayback</code> clears a redundant subtitle when <code>#npMetaLine</code> would duplicate the track title (e.g. basename-only path matching the displayed name).</li>
+        </ul>
+      </div>
 
-    <div class="card">
-      <h2>Repository</h2>
-      <ul>
-        <li><a href="https://github.com/MenkeTechnologies/Audio-Haxor">GitHub — Audio-Haxor</a></li>
-        <li>Full prose docs: <code>README.md</code> at repo root (features, testing, architecture).</li>
-      </ul>
-    </div>
+      <div class="doc-card">
+        <h2>Repository</h2>
+        <ul>
+          <li><a href="https://github.com/MenkeTechnologies/Audio-Haxor">GitHub — Audio-Haxor</a></li>
+          <li>Full prose docs: <code>README.md</code> at repo root (features, testing, architecture).</li>
+        </ul>
+      </div>
 
-    <div class="card">
-      <h2>Tests (quick ref)</h2>
-      <p>Counts change with every commit; run locally for current totals.</p>
-      <ul>
-        <li><strong>Rust:</strong> <code>cargo test --manifest-path src-tauri/Cargo.toml</code></li>
-        <li><strong>JavaScript:</strong> <code>pnpm run test:js</code> — pure helpers and micro-tests; not DOM/Tauri/E2E (see README)</li>
-        <li><strong>Combined:</strong> <code>pnpm test</code></li>
-      </ul>
-    </div>
+      <div class="doc-card">
+        <h2>Tests (quick ref)</h2>
+        <p>Counts change with every commit; run locally for current totals.</p>
+        <ul>
+          <li><strong>Rust:</strong> <code>cargo test --manifest-path src-tauri/Cargo.toml</code></li>
+          <li><strong>JavaScript:</strong> <code>pnpm run test:js</code> — pure helpers and micro-tests; not DOM/Tauri/E2E (see README)</li>
+          <li><strong>Combined:</strong> <code>pnpm test</code></li>
+        </ul>
+      </div>
+    </main>
   </div>
+
+  <script>
+    (function () {
+      var K_THEME = 'audio-haxor-docs-theme';
+      var K_CRT = 'audio-haxor-docs-crt';
+      var K_NEON = 'audio-haxor-docs-neon';
+
+      function readStored(key, fallback) {
+        try {
+          var v = localStorage.getItem(key);
+          return v === null ? fallback : v;
+        } catch (e) {
+          return fallback;
+        }
+      }
+
+      function writeStored(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch (e) { /* ignore */ }
+      }
+
+      function applyTheme(mode) {
+        var html = document.documentElement;
+        if (mode === 'light') html.setAttribute('data-theme', 'light');
+        else html.removeAttribute('data-theme');
+      }
+
+      function applyCrt(on) {
+        var app = document.getElementById('docsApp');
+        var h = document.getElementById('crtH');
+        var v = document.getElementById('crtV');
+        var btn = document.getElementById('btnCrt');
+        if (app) app.classList.toggle('no-crt', !on);
+        if (h) h.hidden = !on;
+        if (v) v.hidden = !on;
+        if (btn) btn.classList.toggle('active', on);
+      }
+
+      function applyNeon(on) {
+        document.body.classList.toggle('no-neon-glow', !on);
+        var btn = document.getElementById('btnNeon');
+        if (btn) btn.classList.toggle('active', on);
+      }
+
+      function initTheme() {
+        var saved = readStored(K_THEME, '');
+        if (saved === 'light' || saved === 'dark') {
+          applyTheme(saved === 'light' ? 'light' : 'dark');
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+          applyTheme('light');
+        } else {
+          applyTheme('dark');
+        }
+      }
+
+      function initCrt() {
+        var v = readStored(K_CRT, 'on');
+        applyCrt(v !== 'off');
+      }
+
+      function initNeon() {
+        var v = readStored(K_NEON, 'on');
+        applyNeon(v !== 'off');
+      }
+
+      function syncThemeButton() {
+        var btn = document.getElementById('btnTheme');
+        if (!btn) return;
+        var light = document.documentElement.getAttribute('data-theme') === 'light';
+        btn.textContent = light ? 'Dark mode' : 'Light mode';
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        initTheme();
+        initCrt();
+        initNeon();
+        syncThemeButton();
+
+        var btnTheme = document.getElementById('btnTheme');
+        if (btnTheme) {
+          btnTheme.addEventListener('click', function () {
+            var light = document.documentElement.getAttribute('data-theme') === 'light';
+            var next = light ? 'dark' : 'light';
+            applyTheme(next === 'light' ? 'light' : 'dark');
+            writeStored(K_THEME, next);
+            syncThemeButton();
+          });
+        }
+
+        var btnCrt = document.getElementById('btnCrt');
+        if (btnCrt) {
+          btnCrt.addEventListener('click', function () {
+            var on = document.getElementById('crtH') && !document.getElementById('crtH').hidden;
+            applyCrt(!on);
+            writeStored(K_CRT, !on ? 'on' : 'off');
+          });
+        }
+
+        var btnNeon = document.getElementById('btnNeon');
+        if (btnNeon) {
+          btnNeon.addEventListener('click', function () {
+            var on = !document.body.classList.contains('no-neon-glow');
+            applyNeon(!on);
+            writeStored(K_NEON, !on ? 'on' : 'off');
+          });
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
