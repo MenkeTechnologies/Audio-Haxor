@@ -145,12 +145,14 @@ jobs:
 
           Push-Location $env:GITHUB_WORKSPACE
           try {
-            # STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139): DLL search includes cwd (repo root has node_modules
-            # and other native bits). Run each harness with cwd = empty dir + minimal PATH (System32 + Windows).
+            # STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139): run with cwd away from repo root (node_modules).
+            # Harness exes are under `target/debug/deps`, but `WebView2Loader.dll` is typically next to the
+            # app in `target/debug`; Windows does not search the parent directory for DLLs. After the
+            # sidecar strip only allowlisted *.dll remain under `target/debug`, so prepending that dir is safe.
             $harnessWd = Join-Path $env:RUNNER_TEMP 'rust-test-harness-wd'
             New-Item -ItemType Directory -Path $harnessWd -Force | Out-Null
             $savedPath = $env:PATH
-            $env:PATH = 'C:\Windows\System32;C:\Windows'
+            $env:PATH = "$td;C:\Windows\System32;C:\Windows"
             $i = 0
             foreach ($rel in $exeRelPaths) {
               $full = Join-Path $env:GITHUB_WORKSPACE ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
