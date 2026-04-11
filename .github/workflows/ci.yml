@@ -138,17 +138,22 @@ jobs:
           Remove-WindowsTestSidecars $td
 
           $depsDll = Join-Path $td 'deps'
+          # Harness exes sit in `deps/`; Windows resolves static imports from the exe directory before PATH.
+          # `WebView2Loader.dll` is normally next to the main app in `target/debug` only — copy every
+          # surviving root `target/debug/*.dll` (post-strip: allowlist is tiny) beside test binaries.
           if (Test-Path -LiteralPath $depsDll) {
+            foreach ($dll in (Get-ChildItem -LiteralPath $td -Filter *.dll -File -ErrorAction SilentlyContinue)) {
+              Copy-Item -Force -LiteralPath $dll.FullName -Destination $depsDll
+            }
             $names = @(Get-ChildItem -LiteralPath $depsDll -Filter *.dll -File -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Sort-Object -Unique)
-            Write-Host "target/debug/deps *.dll after sidecar strip ($($names.Count)):" ($names -join ', ')
+            Write-Host "target/debug/deps *.dll after sidecar strip + root copy ($($names.Count)):" ($names -join ', ')
           }
 
           Push-Location $env:GITHUB_WORKSPACE
           try {
             # STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139): run with cwd away from repo root (node_modules).
-            # Harness exes are under `target/debug/deps`, but `WebView2Loader.dll` is typically next to the
-            # app in `target/debug`; Windows does not search the parent directory for DLLs. After the
-            # sidecar strip only allowlisted *.dll remain under `target/debug`, so prepending that dir is safe.
+            # Still prepend `target/debug` on PATH for any DLL loads that walk the search path after the
+            # exe directory (and for `WebView2Loader` transitive loads).
             $harnessWd = Join-Path $env:RUNNER_TEMP 'rust-test-harness-wd'
             New-Item -ItemType Directory -Path $harnessWd -Force | Out-Null
             $savedPath = $env:PATH
