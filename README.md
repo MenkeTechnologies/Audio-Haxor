@@ -24,35 +24,139 @@ A high-voltage **Tauri v2** desktop app that jacks into your system's audio plug
 
 ## // VISUAL INTERFACE //
 
-### `> BOOT SEQUENCE`
+### `> PLUGIN GRID`
 
-![Welcome Screen](screenshots/welcome.png)
+![Plugin Grid](docs/assets/plugins.png)
 
-*Initial state -- the grid is dark, awaiting your scan command. Last scan auto-loads on startup.*
-
----
-
-### `> SCANNING AUDIO NODES...`
-
-![Scan Results](screenshots/scan-results.png)
-
-*Plugins stream into the list in real-time as the background worker discovers them. Progress counter and bar show live status. Hit Stop to cancel anytime -- discovered plugins are kept.*
+*VST2 / VST3 / AU / CLAP plugins streamed live into the grid by the background worker. Architecture badges (ARM64 / x86_64 / Universal) come from direct Mach-O / PE parsing. Yellow `KVR` button jumps to the product page, globe opens the manufacturer site, green download shows up when a newer build is confirmed.*
 
 ---
 
-### `> UPDATE MATRIX LOADED`
+### `> SAMPLE VAULT`
 
-![Update Checker](screenshots/updates.png)
+![Sample Vault](docs/assets/samples.png)
 
-*Checks KVR Audio for the latest version of each plugin. Cards update incrementally with `Update Available` or `Up to Date` badges as results arrive. Yellow `KVR` buttons link directly to the product page. A live status bar shows the current plugin being checked and running tallies.*
+*Audio samples indexed with duration, channels, sample rate, and bit depth pulled from file headers. Single-click preview and keyboard-selection playback are on by default; double-click still works with single-click disabled. Every row is draggable to Finder, Desktop, or a DAW track as a native OS file drag.*
+
+---
+
+### `> DAW PROJECT INDEX`
+
+![DAW Projects](docs/assets/daw.png)
+
+*14+ DAW project formats — Ableton, Logic, FL Studio, REAPER, Cubase/Nuendo, Pro Tools, Bitwig, Studio One, Reason, Audacity, GarageBand, Ardour, dawproject. Plugin-count badges come from the cross-reference engine that parses each project format. Double-click opens the project in its native DAW.*
+
+---
+
+### `> PRESET ARCHIVE`
+
+![Preset Archive](docs/assets/presets.png)
+
+*Preset files indexed into SQLite with a stacked disk-usage bar and legend, format filter, and live scan progress. Chrome matches the DAW tab — same progress bar, stats row, and `table-cell` segmented bar that works reliably in WKWebView release builds.*
+
+---
+
+### `> MIDI MATRIX`
+
+![MIDI Matrix](docs/assets/midi.png)
+
+*SMF / MIDI files walked out of every configured directory with tempo, track count, and duration metadata. Drag rows straight into a DAW.*
+
+---
+
+### `> PDF LIBRARY`
+
+![PDF Library](docs/assets/pdf.png)
+
+*Manuals, cheatsheets, and reference PDFs discovered across the filesystem with page count and size metadata. Draggable to any app that accepts file drops.*
+
+---
+
+### `> FAVORITES CACHE`
+
+![Favorites](docs/assets/favorites.png)
+
+*Star anything from any tab — plugins, samples, projects, presets, MIDI, PDFs — and it lands here with its native row rendering, filters, and drag support preserved.*
+
+---
+
+### `> NOTES TERMINAL`
+
+![Notes](docs/assets/notes.png)
+
+*Per-item notes with full-text search, attached to any scanned asset. Backed by SQLite, exports alongside the rest of the library.*
+
+---
+
+### `> TAG NETWORK`
+
+![Tag Network](docs/assets/tags.png)
+
+*User-defined tags applied across any tab. Filter by tag, rename in place, merge duplicates — the tag index is shared with every scanner tab.*
+
+---
+
+### `> FILE SYSTEM JACK`
+
+![File Browser](docs/assets/files.png)
+
+*Live filesystem browser with audio-format icons and format-badge styling driven by the same `AUDIO_EXTENSIONS` list as the Samples scanner and watcher. Drag any file straight out.*
 
 ---
 
 ### `> SCAN HISTORY // DIFF ENGINE`
 
-![History & Diff](screenshots/history.png)
+![History & Diff](docs/assets/history.png)
 
-*Every scan is timestamped and archived. Select any two snapshots and the diff engine shows plugins added, removed, or version-changed between them.*
+*Every plugin, audio, DAW, preset, MIDI, and PDF scan is timestamped and archived in a unified SQLite timeline. Pick any two snapshots of the same type and the diff engine shows what was added, removed, or version-changed.*
+
+---
+
+### `> SPECTRUM DECK`
+
+![Visualizers](docs/assets/visualizers.png)
+
+*Real-time audio visualizers driven by the Web Audio / AudioEngine playback pipeline — spectrum analyzer, waveform, and level meters rendered on fixed-size canvas elements to stay reliable in release WebView.*
+
+---
+
+### `> WALKER THREADS`
+
+![Walker Threads](docs/assets/walkers.png)
+
+*Live view of every background walker — plugins, samples, DAW, presets, MIDI, PDF — with per-scanner thread pool stats, progress, and stop controls. Symlinks are resolved and broken links skipped uniformly across every walker.*
+
+---
+
+### `> AUDIO ENGINE CORE`
+
+![AudioEngine](docs/assets/audioengine.png)
+
+*JUCE-powered audio engine sidecar for low-latency playback and plugin hosting. Exposes playback status to the WebView over IPC for the floating player, autoplay next track, and EOF detection.*
+
+---
+
+### `> CONTROL PANEL`
+
+![Settings](docs/assets/settings.png)
+
+*Every toggle — playback behavior, single-click preview, autoplay next track, scanner directories, color scheme, keyboard shortcuts, export format defaults, locale. App Info block surfaces the shared `AUDIO_EXTENSIONS` and format lists so the UI never drifts from the Rust source of truth.*
+
+---
+
+### `> TRAY HUD`
+
+![Tray Popover](docs/assets/tray.png)
+
+*Menu-bar tray popover with quick playback controls, current track, and library shortcuts — same cyberpunk styling as the main window, scoped to the compact popover chrome.*
+
+---
+
+### `> FLOATING PLAYER`
+
+![Floating Player](docs/assets/player.png)
+
+*Persistent floating player across every tab: volume, playback speed, seek bar, loop, and autoplay-next controls. Advances on the `<audio>` `ended` event for Web Audio, or via the `playback_status.eof` poll when AudioEngine is active.*
 
 ---
 
