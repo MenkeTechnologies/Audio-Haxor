@@ -6,15 +6,15 @@
 use std::cmp::Ordering;
 
 use app_lib::history::{
-    build_audio_snapshot, build_daw_snapshot, build_plugin_snapshot, build_preset_snapshot,
-    compute_audio_diff, compute_daw_diff, compute_plugin_diff, compute_preset_diff, radix_string,
     AudioSample, AudioScanDiff, AudioScanSummary, DawProject, DawScanDiff, DawScanSummary,
     KvrCacheEntry, KvrCacheUpdateEntry, PresetFile, PresetScanDiff, PresetScanSummary, ScanDiff,
-    ScanSnapshot, ScanSummary, VersionChangedPlugin,
+    ScanSnapshot, ScanSummary, VersionChangedPlugin, build_audio_snapshot, build_daw_snapshot,
+    build_plugin_snapshot, build_preset_snapshot, compute_audio_diff, compute_daw_diff,
+    compute_plugin_diff, compute_preset_diff, radix_string,
 };
 use app_lib::scanner::PluginInfo;
-use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
-use app_lib::xref::{extract_plugins, PluginRef};
+use app_lib::similarity::{AudioFingerprint, find_similar, fingerprint_distance};
+use app_lib::xref::{PluginRef, extract_plugins};
 use app_lib::{ExportPayload, ExportPlugin};
 
 fn sample_plugin(path: &str, version: &str) -> PluginInfo {

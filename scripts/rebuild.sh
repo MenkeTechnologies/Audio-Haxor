@@ -41,7 +41,7 @@ if [ "$TAURI_RC" -ne 0 ]; then
   exit "$TAURI_RC"
 fi
 
-# macOS only: nest audio-engine into Contents/Frameworks/AudioHaxorEngineHelper.app so the
+# macOS only: nest audio-engine into Contents/MacOS/AudioHaxorEngine.app so the
 # helper has its own bundle identity for audiocomponentd / OOP AU plugin loading. See
 # scripts/postbundle-audio-engine-helper.sh for details.
 if [[ "$(uname -s)" == "Darwin" ]]; then

@@ -113,7 +113,7 @@ AUDIO_HAXOR.app/
   Contents/
     MacOS/
       audio-haxor                                # Tauri main binary
-      AudioHaxorEngineHelper.app/                # nested helper bundle (sibling of audio-haxor)
+      AudioHaxorEngine.app/                      # nested helper bundle (sibling of audio-haxor)
         Contents/
           Info.plist                             # bundle id: com.menketechnologies.audio-haxor.audio-engine-helper
           MacOS/
@@ -126,7 +126,7 @@ AUDIO_HAXOR.app/
 
 **Why a nested `.app` instead of the bare sidecar Tauri's `externalBin` produces?** macOS routes most third-party AUv2 plugins through `audiocomponentd` via `kAudioComponentInstantiation_LoadOutOfProcess`, even when the host calls the legacy `AudioComponentInstanceNew`. The plugin's UI is then delivered as a `_RemoteAUv2ViewFactory` proxy NSView (from `AudioToolboxCore.framework`) whose actual view is shipped over an XPC connection. For `audiocomponentd` to authorize the host process and complete the audit-token handshake, the host must look like a real Cocoa application from LaunchServices' perspective — its own bundle, its own `Info.plist`, its own bundle identifier, its own NSApp activation context.
 
-A bare Mach-O sibling of `audio-haxor` inside `Contents/MacOS/` does **not** qualify: `[NSBundle mainBundle]` for that process resolves up the directory tree and returns the parent `AUDIO_HAXOR.app`, so `audiocomponentd` considers it part of the main app and the XPC view delivery either stalls or returns the **1×1 placeholder NSView** indefinitely → permanently blank plugin editor windows. Wrapping the binary in a nested `.app` makes `[NSBundle mainBundle]` stop at `AudioHaxorEngineHelper.app` (its own bundle id, distinct from the parent's `com.menketechnologies.audio-haxor`), and `audiocomponentd` accepts the helper as a real host. This is the standard pattern Bitwig, Reaper, Chromium and Electron all use for their helper processes.
+A bare Mach-O sibling of `audio-haxor` inside `Contents/MacOS/` does **not** qualify: `[NSBundle mainBundle]` for that process resolves up the directory tree and returns the parent `AUDIO_HAXOR.app`, so `audiocomponentd` considers it part of the main app and the XPC view delivery either stalls or returns the **1×1 placeholder NSView** indefinitely → permanently blank plugin editor windows. Wrapping the binary in a nested `.app` makes `[NSBundle mainBundle]` stop at `AudioHaxorEngine.app` (its own bundle id, distinct from the parent's `com.menketechnologies.audio-haxor`), and `audiocomponentd` accepts the helper as a real host. This is the standard pattern Bitwig, Reaper, Chromium and Electron all use for their helper processes.
 
 The helper `Info.plist` sets `LSUIElement=true`, which makes the helper an "agent" process — no Dock icon, no menu bar at startup. When a plugin editor window is opened, the helper transitions to a regular foreground app at runtime via `audio_haxor::activateAsForegroundApp()` (which does both `setActivationPolicy:Regular` and `activateIgnoringOtherApps:YES` — JUCE's `juce::Process::makeForegroundProcess()` only does the first half, which is necessary but not sufficient for `audiocomponentd` to deliver XPC view callbacks).
 
@@ -134,8 +134,8 @@ The helper's `Main.cpp` also calls `[NSApp finishLaunching]` at startup (via `au
 
 **Bundling pipeline.** Tauri's `externalBin` ships the audio-engine binary at `Contents/MacOS/audio-engine` as usual; immediately afterwards `scripts/postbundle-audio-engine-helper.sh` runs and:
 
-1. Moves `Contents/MacOS/audio-engine` → `Contents/MacOS/AudioHaxorEngineHelper.app/Contents/MacOS/audio-engine`.
-2. Drops `audio-engine/helper-app/Info.plist` into `Contents/MacOS/AudioHaxorEngineHelper.app/Contents/Info.plist`.
+1. Moves `Contents/MacOS/audio-engine` → `Contents/MacOS/AudioHaxorEngine.app/Contents/MacOS/audio-engine`.
+2. Drops `audio-engine/helper-app/Info.plist` into `Contents/MacOS/AudioHaxorEngine.app/Contents/Info.plist`.
 3. Strips quarantine xattrs (`xattr -cr`) so they don't invalidate `codesign`.
 4. **Codesigns innermost first**: signs the helper binary with `--options runtime` + `src-tauri/Entitlements.plist` (hardened runtime + the plugin-host entitlements: `disable-library-validation`, `allow-jit`, `allow-unsigned-executable-memory`, `disable-executable-page-protection`).
 5. Seals the helper `.app` (`codesign --force --sign - "$HELPER_APP"`).
@@ -152,7 +152,7 @@ Order matters: the outer `.app`'s `_CodeSignature/CodeResources` includes a hash
 
 **Plain `pnpm tauri build` / `pnpm tauri:build` does NOT** run the postbundle reshape and produces a bundle whose AU plugin editors will be blank. Either use one of the entry points above, or invoke `bash scripts/postbundle-audio-engine-helper.sh` manually after `tauri build`.
 
-**Rust resolver.** `src-tauri/src/audio_engine.rs::resolve_audio_engine_binary()` checks the helper path (`Contents/MacOS/AudioHaxorEngineHelper.app/Contents/MacOS/audio-engine`) **before** the legacy sibling/triple-suffix paths, so a bundled `.app` always uses the helper. Dev builds (`pnpm tauri dev`) keep using the workspace artifact at `audio-engine-artifacts/<profile>/audio-engine` via the parent-walk fallback — no helper involved.
+**Rust resolver.** `src-tauri/src/audio_engine.rs::resolve_audio_engine_binary()` checks the helper path (`Contents/MacOS/AudioHaxorEngine.app/Contents/MacOS/audio-engine`) **before** the legacy sibling/triple-suffix paths, so a bundled `.app` always uses the helper. Dev builds (`pnpm tauri dev`) keep using the workspace artifact at `audio-engine-artifacts/<profile>/audio-engine` via the parent-walk fallback — no helper involved.
 
 ### JUCE source patches (macOS)
 

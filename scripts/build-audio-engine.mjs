@@ -77,7 +77,13 @@ if (process.platform === 'win32' && !process.env.__AUDIO_ENGINE_VCVARS) {
 }
 
 const buildType = process.env.AUDIO_ENGINE_BUILD_TYPE === 'release' ? 'Release' : 'Debug';
-const buildDir = path.join(root, 'audio-engine', 'build');
+/* Separate Ninja dirs per configuration: one shared `build/` across Debug/Release leaves stale .o
+ * files and JUCE fails to link (`this_will_fail_to_link_if_some_of_your_compile_units_are_built_in_debug_mode`). */
+const buildDir = path.join(
+  root,
+  'audio-engine',
+  buildType === 'Release' ? 'build-release' : 'build-debug',
+);
 const ext = process.platform === 'win32' ? '.exe' : '';
 
 fs.mkdirSync(buildDir, { recursive: true });

@@ -19,11 +19,7 @@ pub fn is_audio_extension_lowercase(ext_no_dot: &str) -> bool {
 pub fn audio_format_tags_for_app_info() -> Vec<String> {
     AUDIO_EXTENSIONS
         .iter()
-        .map(|e| {
-            e.strip_prefix('.')
-                .unwrap_or(e)
-                .to_ascii_uppercase()
-        })
+        .map(|e| e.strip_prefix('.').unwrap_or(e).to_ascii_uppercase())
         .collect()
 }
 

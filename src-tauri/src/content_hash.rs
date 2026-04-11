@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 use tauri::{AppHandle, Emitter};
@@ -151,11 +151,8 @@ mod tests {
     use super::*;
 
     fn test_dir(name: &str) -> std::path::PathBuf {
-        let p = std::env::temp_dir().join(format!(
-            "ah_content_hash_{}_{}",
-            std::process::id(),
-            name
-        ));
+        let p =
+            std::env::temp_dir().join(format!("ah_content_hash_{}_{}", std::process::id(), name));
         let _ = std::fs::create_dir_all(&p);
         p
     }

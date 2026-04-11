@@ -12,11 +12,11 @@
 # via _RemoteAUv2ViewFactory, leaving plugin editor windows blank (1×1 stub NSView).
 #
 # After this script:
-#   AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngineHelper.app/Contents/MacOS/audio-engine
-#   AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngineHelper.app/Contents/Info.plist
-#   AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngineHelper.app/Contents/Resources/icon.icns
+#   AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngine.app/Contents/MacOS/audio-engine
+#   AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngine.app/Contents/Info.plist
+#   AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngine.app/Contents/Resources/icon.icns
 #
-# [NSBundle mainBundle] from the helper now resolves to AudioHaxorEngineHelper.app (its own
+# [NSBundle mainBundle] from the helper now resolves to AudioHaxorEngine.app (its own
 # bundle ID, its own Info.plist, distinct from the parent), and audiocomponentd accepts the
 # helper as a real Cocoa host. The Rust resolver in src-tauri/src/audio_engine.rs looks for
 # the helper at this path before falling back to the legacy sibling-in-Contents/MacOS/ layout.
@@ -65,7 +65,7 @@ ENGINE_BIN_OLD="$APP/Contents/MacOS/audio-engine"
 # `Contents/Frameworks/` as embedded frameworks rather than registrable apps. Bitwig's
 # `Bitwig Plug-in Host ARM64-NEON.app` lives at `Bitwig Studio.app/Contents/MacOS/` and
 # their AU plugin editors work — that's our existence proof.
-HELPER_APP="$APP/Contents/MacOS/AudioHaxorEngineHelper.app"
+HELPER_APP="$APP/Contents/MacOS/AudioHaxorEngine.app"
 HELPER_CONTENTS="$HELPER_APP/Contents"
 HELPER_MACOS="$HELPER_CONTENTS/MacOS"
 HELPER_INFO="$HELPER_CONTENTS/Info.plist"
@@ -76,7 +76,8 @@ HELPER_ICON_SRC="$REPO_ROOT/src-tauri/icons/icon.icns"
 ENTITLEMENTS="$REPO_ROOT/src-tauri/Entitlements.plist"
 MAIN_BIN="$APP/Contents/MacOS/audio-haxor"
 # Stale helper from previous postbundle runs that put it under Contents/Frameworks/.
-LEGACY_HELPER_APP="$APP/Contents/Frameworks/AudioHaxorEngineHelper.app"
+LEGACY_HELPER_APP="$APP/Contents/Frameworks/AudioHaxorEngine.app"
+LEGACY_MACOS_HELPER_APP="$APP/Contents/MacOS/AudioHaxorEngine.app"
 
 if [ ! -f "$INFO_TEMPLATE" ]; then
   echo "postbundle-audio-engine-helper: missing template $INFO_TEMPLATE" >&2
@@ -95,6 +96,11 @@ fi
 if [ -d "$LEGACY_HELPER_APP" ]; then
   echo "postbundle-audio-engine-helper: removing stale legacy helper at $LEGACY_HELPER_APP"
   command rm -rf "$LEGACY_HELPER_APP"
+fi
+# Prior bundle name (Contents/MacOS/) — remove so we never ship two nested helpers.
+if [ -d "$LEGACY_MACOS_HELPER_APP" ]; then
+  echo "postbundle-audio-engine-helper: removing legacy helper bundle name $LEGACY_MACOS_HELPER_APP"
+  command rm -rf "$LEGACY_MACOS_HELPER_APP"
 fi
 
 # Idempotency: if the helper .app already exists with a binary, assume a previous
@@ -146,7 +152,7 @@ codesign --force --options runtime \
 # Step 2: re-sign the outer .app bundle. Tauri already signed it with hardened runtime
 # + the same Entitlements.plist for the `audio-haxor` main binary; the only thing we
 # need to redo is the bundle's CodeResources (which was sealed before we moved the
-# audio-engine sidecar into Contents/MacOS/AudioHaxorEngineHelper.app/). The main
+# audio-engine sidecar into Contents/MacOS/AudioHaxorEngine.app/). The main
 # `audio-haxor` binary's existing signature is still valid (we never touched it).
 #
 # NOT --deep — that would recursively re-sign the inner helper .app we just signed in

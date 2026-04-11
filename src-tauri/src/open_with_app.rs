@@ -30,11 +30,7 @@ pub fn open_with_application(file_path: &Path, app_name: &str) -> Result<(), Str
     {
         return open_linux(file_path, app);
     }
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "linux",
-        target_os = "windows"
-    )))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         let _ = (file_path, app);
         Err("open_with_app is not supported on this platform".into())
@@ -89,15 +85,12 @@ fn resolve_windows_executable(app_name: &str) -> Result<PathBuf, String> {
 
     match app_name {
         "TextEdit" => {
-            return where_win("notepad.exe").ok_or_else(|| {
-                "notepad.exe not found (expected on Windows)".into()
-            });
+            return where_win("notepad.exe")
+                .ok_or_else(|| "notepad.exe not found (expected on Windows)".into());
         }
         "Music" => {
-            return first_existing_file(&[
-                r"C:\Program Files\Windows Media Player\wmplayer.exe",
-            ])
-            .or_else(|_| vlc_windows());
+            return first_existing_file(&[r"C:\Program Files\Windows Media Player\wmplayer.exe"])
+                .or_else(|_| vlc_windows());
         }
         "QuickTime Player" => return vlc_windows(),
         "Audacity" => {
@@ -132,7 +125,10 @@ fn resolve_windows_executable(app_name: &str) -> Result<PathBuf, String> {
 
 #[cfg(target_os = "windows")]
 fn where_win(name: &str) -> Option<PathBuf> {
-    let output = std::process::Command::new("where").arg(name).output().ok()?;
+    let output = std::process::Command::new("where")
+        .arg(name)
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -158,14 +154,15 @@ fn first_existing_file(paths: &[&str]) -> Result<PathBuf, String> {
 
 #[cfg(target_os = "windows")]
 fn vlc_windows() -> Result<PathBuf, String> {
-    where_win("vlc.exe").or_else(|| {
-        first_existing_file(&[
-            r"C:\Program Files\VideoLAN\VLC\vlc.exe",
-            r"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe",
-        ])
-        .ok()
-    })
-    .ok_or_else(|| "VLC not found (install VLC or map QuickTime to another player)".into())
+    where_win("vlc.exe")
+        .or_else(|| {
+            first_existing_file(&[
+                r"C:\Program Files\VideoLAN\VLC\vlc.exe",
+                r"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe",
+            ])
+            .ok()
+        })
+        .ok_or_else(|| "VLC not found (install VLC or map QuickTime to another player)".into())
 }
 
 #[cfg(target_os = "windows")]
@@ -232,9 +229,8 @@ fn find_adobe_acrobat_windows() -> Result<PathBuf, String> {
             }
         }
     }
-    where_win("AcroRd32.exe").ok_or_else(|| {
-        "Adobe Acrobat Reader not found under Program Files or PATH".into()
-    })
+    where_win("AcroRd32.exe")
+        .ok_or_else(|| "Adobe Acrobat Reader not found under Program Files or PATH".into())
 }
 
 #[cfg(target_os = "linux")]

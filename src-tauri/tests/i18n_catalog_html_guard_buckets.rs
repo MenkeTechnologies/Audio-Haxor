@@ -5,8 +5,8 @@
 //! `seq-macro` expands to `BUCKETS × 16` separate `#[test]` functions (parallel-friendly).
 
 use seq_macro::seq;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 

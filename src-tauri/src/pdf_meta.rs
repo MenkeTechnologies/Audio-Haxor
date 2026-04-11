@@ -59,9 +59,21 @@ mod tests {
         let tmp =
             std::env::temp_dir().join(format!("ah_pdf_meta_three_{}.pdf", std::process::id()));
         let mut doc = PdfDocument::new("pdf_meta_test");
-        let p1 = PdfPage::new(Mm(40.0), Mm(40.0), vec![Op::SaveGraphicsState, Op::RestoreGraphicsState]);
-        let p2 = PdfPage::new(Mm(40.0), Mm(40.0), vec![Op::SaveGraphicsState, Op::RestoreGraphicsState]);
-        let p3 = PdfPage::new(Mm(40.0), Mm(40.0), vec![Op::SaveGraphicsState, Op::RestoreGraphicsState]);
+        let p1 = PdfPage::new(
+            Mm(40.0),
+            Mm(40.0),
+            vec![Op::SaveGraphicsState, Op::RestoreGraphicsState],
+        );
+        let p2 = PdfPage::new(
+            Mm(40.0),
+            Mm(40.0),
+            vec![Op::SaveGraphicsState, Op::RestoreGraphicsState],
+        );
+        let p3 = PdfPage::new(
+            Mm(40.0),
+            Mm(40.0),
+            vec![Op::SaveGraphicsState, Op::RestoreGraphicsState],
+        );
         doc.with_pages(vec![p1, p2, p3]);
         let bytes = doc.save(&PdfSaveOptions::default(), &mut Vec::new());
         std::io::Write::write_all(

@@ -6,7 +6,7 @@
         Embedded helper .app for the JUCE-based AudioEngine sidecar.
 
         The audio-engine sidecar lives at:
-            AUDIO_HAXOR.app/Contents/Frameworks/AudioHaxorEngineHelper.app/Contents/MacOS/audio-engine
+            AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngine.app/Contents/MacOS/audio-engine
 
         Why a nested .app instead of bare Contents/MacOS/audio-engine?
         macOS routes most third-party AUv2 plugins through audiocomponentd via
@@ -52,7 +52,7 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>AudioHaxorEngineHelper</string>
+    <string>AudioHaxorEngine</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

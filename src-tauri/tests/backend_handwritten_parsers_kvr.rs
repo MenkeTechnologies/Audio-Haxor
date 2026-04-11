@@ -6,10 +6,10 @@ use std::collections::HashSet;
 
 use app_lib::history::{gen_id, radix_string};
 use app_lib::kvr::{
-    compare_versions, extract_download_url, extract_version, parse_version, KvrResult, UpdateResult,
+    KvrResult, UpdateResult, compare_versions, extract_download_url, extract_version, parse_version,
 };
-use app_lib::similarity::{fingerprint_distance, AudioFingerprint};
-use app_lib::xref::{normalize_plugin_name, PluginRef};
+use app_lib::similarity::{AudioFingerprint, fingerprint_distance};
+use app_lib::xref::{PluginRef, normalize_plugin_name};
 
 // ── KVR: `extract_download_url` ─────────────────────────────────────────────────
 

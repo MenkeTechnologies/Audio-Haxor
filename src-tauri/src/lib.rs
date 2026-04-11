@@ -35,14 +35,15 @@ pub mod midi;
 pub mod midi_scanner;
 pub mod native_menu;
 mod open_with_app;
-pub mod pdf_meta;
 pub mod path_norm;
+pub mod pdf_meta;
 pub mod pdf_scanner;
 pub mod preset_scanner;
 pub mod scanner;
 pub mod scanner_skip_dirs;
 pub mod similarity;
 pub mod tray_menu;
+mod tray_popover_escape_macos;
 pub mod unified_walker;
 pub mod xref;
 
@@ -62,8 +63,8 @@ use path_norm::normalize_path_for_db;
 use scanner::PluginInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Domain string for SQLite `directory_scan_state` — shared by unified and standalone walkers.
@@ -147,22 +148,23 @@ fn load_incremental_dir_state_for_walk() -> Option<Arc<unified_walker::Increment
             ));
             None
         }
-        Ok(true) => match db::global().load_directory_scan_snapshot(DIRECTORY_SCAN_INCREMENTAL_DOMAIN)
-        {
-            Ok(m) => {
-                let n = m.len();
-                crate::app_log_verbose(move || {
-                    format!("SCAN VERBOSE — incremental snapshot loaded: {n} directory keys")
-                });
-                Some(Arc::new(unified_walker::IncrementalDirState::new(m)))
+        Ok(true) => {
+            match db::global().load_directory_scan_snapshot(DIRECTORY_SCAN_INCREMENTAL_DOMAIN) {
+                Ok(m) => {
+                    let n = m.len();
+                    crate::app_log_verbose(move || {
+                        format!("SCAN VERBOSE — incremental snapshot loaded: {n} directory keys")
+                    });
+                    Some(Arc::new(unified_walker::IncrementalDirState::new(m)))
+                }
+                Err(e) => {
+                    crate::write_app_log(format!(
+                        "SCAN INCREMENTAL — load directory snapshot failed ({e}); full walk",
+                    ));
+                    None
+                }
             }
-            Err(e) => {
-                crate::write_app_log(format!(
-                    "SCAN INCREMENTAL — load directory snapshot failed ({e}); full walk",
-                ));
-                None
-            }
-        },
+        }
     }
 }
 
@@ -839,8 +841,8 @@ async fn history_latest() -> Result<Option<history::ScanSnapshot>, String> {
 }
 
 #[tauri::command]
-async fn kvr_cache_get(
-) -> Result<std::collections::HashMap<String, history::KvrCacheEntry>, String> {
+async fn kvr_cache_get() -> Result<std::collections::HashMap<String, history::KvrCacheEntry>, String>
+{
     blocking_res(|| db::global().load_kvr_cache()).await
 }
 
@@ -1676,11 +1678,7 @@ async fn db_midi_filter_stats(
 ) -> Result<db::FilterStatsResult, String> {
     let search_regex = search_regex.unwrap_or(false);
     tokio::task::spawn_blocking(move || {
-        db::global().midi_filter_stats(
-            search.as_deref(),
-            format_filter.as_deref(),
-            search_regex,
-        )
+        db::global().midi_filter_stats(search.as_deref(), format_filter.as_deref(), search_regex)
     })
     .await
     .map_err(|e| format!("db_midi_filter_stats task: {e}"))?
@@ -1934,11 +1932,7 @@ async fn scan_unified(
                     .map(std::path::PathBuf::from)
                     .filter(|p| p.exists())
                     .collect();
-                if v.is_empty() {
-                    default()
-                } else {
-                    v
-                }
+                if v.is_empty() { default() } else { v }
             } else {
                 default()
             }
@@ -2121,7 +2115,10 @@ async fn scan_unified(
                 || pdf_state2.stop_scan.load(Ordering::Relaxed);
 
             if !stopped {
-                persist_incremental_dir_state_after_walk(incremental_state.as_ref(), &audio_scan_id);
+                persist_incremental_dir_state_after_walk(
+                    incremental_state.as_ref(),
+                    &audio_scan_id,
+                );
             }
 
             // Clear WalkerStatus dir lists so tiles return to idle state.
@@ -2188,12 +2185,8 @@ async fn scan_unified(
         match closure_result {
             Ok(v) => Ok(v),
             Err(_) => {
-                let _ = db.unified_scan_run_finish(
-                    &history::now_iso(),
-                    "error",
-                    Some("panic"),
-                    None,
-                );
+                let _ =
+                    db.unified_scan_run_finish(&history::now_iso(), "error", Some("panic"), None);
                 Err("unified scan panicked".into())
             }
         }
@@ -2495,7 +2488,9 @@ async fn extract_project_plugins(file_path: String) -> Result<Vec<xref::PluginRe
     let mut result = xref::extract_plugins(&file_path);
     // Enrich empty manufacturers from scanned plugin database
     if result.iter().any(|p| p.manufacturer.is_empty()) {
-        if let Ok(all) = db::global().query_plugins(None, None, None, "name", true, false, 0, 100000) {
+        if let Ok(all) =
+            db::global().query_plugins(None, None, None, "name", true, false, 0, 100000)
+        {
             let mfg_map: std::collections::HashMap<String, String> = all
                 .plugins
                 .iter()
@@ -2879,7 +2874,9 @@ async fn open_plugin_folder(plugin_path: String) -> Result<(), String> {
                 let _ = std::process::Command::new("open").arg(&target).spawn();
             } else if let Some(parent) = p.parent() {
                 if !parent.as_os_str().is_empty() {
-                    let pp = parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf());
+                    let pp = parent
+                        .canonicalize()
+                        .unwrap_or_else(|_| parent.to_path_buf());
                     let _ = std::process::Command::new("open").arg(&pp).spawn();
                 }
             }
@@ -3003,14 +3000,8 @@ async fn audio_engine_invoke(request: serde_json::Value) -> Result<serde_json::V
     .await
     .map_err(|e| format!("audio-engine spawn_blocking: {e}"))??;
     if v.get("ok") == Some(&serde_json::Value::Bool(false)) {
-        let cmd = payload
-            .get("cmd")
-            .and_then(|c| c.as_str())
-            .unwrap_or("?");
-        let err = v
-            .get("error")
-            .and_then(|e| e.as_str())
-            .unwrap_or("?");
+        let cmd = payload.get("cmd").and_then(|c| c.as_str()).unwrap_or("?");
+        let err = v.get("error").and_then(|e| e.as_str()).unwrap_or("?");
         write_app_log(format!("audio-engine [{cmd}] {err}"));
     }
     Ok(v)
@@ -4067,7 +4058,11 @@ fn foreign_process_cpu_times_us(pid: u32) -> Option<(i64, i64)> {
         use std::mem::MaybeUninit;
         #[link(name = "kernel32")]
         unsafe extern "system" {
-            fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut c_void;
+            fn OpenProcess(
+                dwDesiredAccess: u32,
+                bInheritHandle: i32,
+                dwProcessId: u32,
+            ) -> *mut c_void;
             fn CloseHandle(h: *mut c_void) -> i32;
             fn GetProcessTimes(
                 h: *mut c_void,
@@ -4365,10 +4360,7 @@ fn open_fd_count_for_pid(pid: u32) -> u32 {
                 return 0;
             }
             let stdout = String::from_utf8_lossy(&out.stdout);
-            let lines: Vec<&str> = stdout
-                .lines()
-                .filter(|l| !l.trim().is_empty())
-                .collect();
+            let lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
             if lines.is_empty() {
                 return 0;
             }
@@ -4380,7 +4372,11 @@ fn open_fd_count_for_pid(pid: u32) -> u32 {
         use std::ffi::c_void;
         #[link(name = "kernel32")]
         unsafe extern "system" {
-            fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut c_void;
+            fn OpenProcess(
+                dwDesiredAccess: u32,
+                bInheritHandle: i32,
+                dwProcessId: u32,
+            ) -> *mut c_void;
             fn CloseHandle(h: *mut c_void) -> i32;
             fn GetProcessHandleCount(hProcess: *mut c_void, lpdwHandleCount: *mut u32) -> i32;
         }
@@ -4685,16 +4681,7 @@ fn export_pdf_impl(
         Color::Rgb(Rgb::new(r, g, b, None))
     }
 
-    fn push_fill_rect(
-        ops: &mut Vec<Op>,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
-        r: f32,
-        g: f32,
-        b: f32,
-    ) {
+    fn push_fill_rect(ops: &mut Vec<Op>, x: f32, y: f32, w: f32, h: f32, r: f32, g: f32, b: f32) {
         ops.push(Op::SetFillColor {
             col: rgb_color(r, g, b),
         });
@@ -4705,12 +4692,7 @@ fn export_pdf_impl(
         ops.push(Op::DrawPolygon {
             polygon: Polygon {
                 rings: vec![PolygonRing {
-                    points: vec![
-                        lp(x, y),
-                        lp(x + w, y),
-                        lp(x + w, y + h),
-                        lp(x, y + h),
-                    ],
+                    points: vec![lp(x, y), lp(x + w, y), lp(x + w, y + h), lp(x, y + h)],
                 }],
                 mode: PaintMode::Fill,
                 winding_order: WindingOrder::NonZero,
@@ -4732,9 +4714,7 @@ fn export_pdf_impl(
         ops.push(Op::SetOutlineColor {
             col: rgb_color(r, g, b),
         });
-        ops.push(Op::SetOutlineThickness {
-            pt: Pt(thick_pt),
-        });
+        ops.push(Op::SetOutlineThickness { pt: Pt(thick_pt) });
         ops.push(Op::DrawLine {
             line: Line {
                 points: vec![
@@ -4924,16 +4904,7 @@ fn export_pdf_impl(
 
     let render_footer = |ops: &mut Vec<Op>, page: usize| {
         let footer_y = 8.0;
-        push_fill_rect(
-            ops,
-            0.0,
-            0.0,
-            page_w,
-            footer_y + 4.0,
-            0.02,
-            0.02,
-            0.04,
-        );
+        push_fill_rect(ops, 0.0, 0.0, page_w, footer_y + 4.0, 0.02, 0.02, 0.04);
         push_stroke_line(
             ops,
             margin_x,
@@ -5586,7 +5557,11 @@ mod tests {
         let _ = fs::remove_file(&tmp);
 
         let plugins = vec![make_plugin("Test", "VST2")];
-        rt_block_on(export_plugins_json(plugins, tmp.to_string_lossy().to_string())).unwrap();
+        rt_block_on(export_plugins_json(
+            plugins,
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
 
         let content = fs::read_to_string(&tmp).unwrap();
         let payload: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -5603,7 +5578,11 @@ mod tests {
         let _ = fs::remove_file(&tmp);
 
         let plugins = vec![make_plugin("Serum", "VST3")];
-        rt_block_on(export_plugins_csv(plugins, tmp.to_string_lossy().to_string())).unwrap();
+        rt_block_on(export_plugins_csv(
+            plugins,
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
 
         let content = fs::read_to_string(&tmp).unwrap();
         let lines: Vec<&str> = content.lines().collect();
@@ -5623,7 +5602,11 @@ mod tests {
 
         let mut p = make_plugin("Plugin, With Comma", "VST3");
         p.manufacturer = "Company, Inc.".into();
-        rt_block_on(export_plugins_csv(vec![p], tmp.to_string_lossy().to_string())).unwrap();
+        rt_block_on(export_plugins_csv(
+            vec![p],
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
 
         let content = fs::read_to_string(&tmp).unwrap();
         assert!(content.contains("\"Plugin, With Comma\""));
@@ -5638,7 +5621,11 @@ mod tests {
         let _ = fs::remove_file(&tmp);
 
         let plugins = vec![make_plugin("Serum", "VST3")];
-        rt_block_on(export_plugins_csv(plugins, tmp.to_string_lossy().to_string())).unwrap();
+        rt_block_on(export_plugins_csv(
+            plugins,
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
 
         let content = fs::read_to_string(&tmp).unwrap();
         let lines: Vec<&str> = content.lines().collect();
@@ -5743,7 +5730,11 @@ mod tests {
         let tmp = std::env::temp_dir().join("upum_test_export_empty.csv");
         let _ = fs::remove_file(&tmp);
 
-        rt_block_on(export_plugins_csv(vec![], tmp.to_string_lossy().to_string())).unwrap();
+        rt_block_on(export_plugins_csv(
+            vec![],
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
         let content = fs::read_to_string(&tmp).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 1); // header only
@@ -6117,7 +6108,9 @@ mod tests {
 
     #[test]
     fn test_import_presets_json_nonexistent() {
-        let result = rt_block_on(import_presets_json("/tmp/nonexistent_preset_file.json".into()));
+        let result = rt_block_on(import_presets_json(
+            "/tmp/nonexistent_preset_file.json".into(),
+        ));
         assert!(result.is_err());
     }
 
@@ -6513,7 +6506,11 @@ mod tests {
             size_formatted: "1.0 KB".into(),
             modified: "2024-01-01".into(),
         }];
-        rt_block_on(export_presets_dsv(presets, tmp.to_string_lossy().to_string())).unwrap();
+        rt_block_on(export_presets_dsv(
+            presets,
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
         let content = fs::read_to_string(&tmp).unwrap();
         assert!(content.contains("Lead"));
         assert!(content.contains("FXP"));
@@ -6533,7 +6530,11 @@ mod tests {
             size_formatted: "2.0 KB".into(),
             modified: "2024-02-01".into(),
         }];
-        rt_block_on(export_presets_dsv(presets, tmp.to_string_lossy().to_string())).unwrap();
+        rt_block_on(export_presets_dsv(
+            presets,
+            tmp.to_string_lossy().to_string(),
+        ))
+        .unwrap();
         let content = fs::read_to_string(&tmp).unwrap();
         assert!(content.contains("Bass"));
         assert!(content.contains("\t"));
@@ -6853,11 +6854,7 @@ async fn db_audio_filter_stats(
 ) -> Result<db::FilterStatsResult, String> {
     let search_regex = search_regex.unwrap_or(false);
     tokio::task::spawn_blocking(move || {
-        db::global().audio_filter_stats(
-            search.as_deref(),
-            format_filter.as_deref(),
-            search_regex,
-        )
+        db::global().audio_filter_stats(search.as_deref(), format_filter.as_deref(), search_regex)
     })
     .await
     .map_err(|e| format!("db_audio_filter_stats task: {e}"))?
@@ -6871,11 +6868,7 @@ async fn db_daw_filter_stats(
 ) -> Result<db::FilterStatsResult, String> {
     let search_regex = search_regex.unwrap_or(false);
     tokio::task::spawn_blocking(move || {
-        db::global().daw_filter_stats(
-            search.as_deref(),
-            daw_filter.as_deref(),
-            search_regex,
-        )
+        db::global().daw_filter_stats(search.as_deref(), daw_filter.as_deref(), search_regex)
     })
     .await
     .map_err(|e| format!("db_daw_filter_stats task: {e}"))?
@@ -6889,11 +6882,7 @@ async fn db_preset_filter_stats(
 ) -> Result<db::FilterStatsResult, String> {
     let search_regex = search_regex.unwrap_or(false);
     tokio::task::spawn_blocking(move || {
-        db::global().preset_filter_stats(
-            search.as_deref(),
-            format_filter.as_deref(),
-            search_regex,
-        )
+        db::global().preset_filter_stats(search.as_deref(), format_filter.as_deref(), search_regex)
     })
     .await
     .map_err(|e| format!("db_preset_filter_stats task: {e}"))?
@@ -6907,11 +6896,7 @@ async fn db_plugin_filter_stats(
 ) -> Result<db::FilterStatsResult, String> {
     let search_regex = search_regex.unwrap_or(false);
     tokio::task::spawn_blocking(move || {
-        db::global().plugin_filter_stats(
-            search.as_deref(),
-            type_filter.as_deref(),
-            search_regex,
-        )
+        db::global().plugin_filter_stats(search.as_deref(), type_filter.as_deref(), search_regex)
     })
     .await
     .map_err(|e| format!("db_plugin_filter_stats task: {e}"))?
@@ -7222,7 +7207,15 @@ pub fn run() {
     ));
     append_log(format!(
         "CONFIG — fd_limit: {} | batch_size: {} | channel_buffer: {} | flush_interval: {}ms | analysis_pause: {}ms | page_size: {} | auto_scan: {} | folder_watch: {} | log_verbosity: {}",
-        fd_target, batch_size, channel_buffer, flush_interval, analysis_pause, page_size, auto_scan, folder_watch, log_verbosity,
+        fd_target,
+        batch_size,
+        channel_buffer,
+        flush_interval,
+        analysis_pause,
+        page_size,
+        auto_scan,
+        folder_watch,
+        log_verbosity,
     ));
 
     #[cfg(unix)]
@@ -7296,8 +7289,15 @@ pub fn run() {
             let get = |k: &str| m.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
             append_log(format!(
                 "DB STATS — {} plugins | {} samples | {} DAW projects | {} presets | {} KVR cache | {} waveforms | {} spectrograms | {} xref | {} fingerprints",
-                get("plugins"), get("audio_samples"), get("daw_projects"), get("presets"),
-                get("kvr_cache"), get("waveform_cache"), get("spectrogram_cache"), get("xref_cache"), get("fingerprint_cache"),
+                get("plugins"),
+                get("audio_samples"),
+                get("daw_projects"),
+                get("presets"),
+                get("kvr_cache"),
+                get("waveform_cache"),
+                get("spectrogram_cache"),
+                get("xref_cache"),
+                get("fingerprint_cache"),
             ));
         }
     });
@@ -7582,6 +7582,8 @@ pub fn run() {
              * behind `isUiIdleHeavyCpu`, leaving the tray frozen). JS still pushes the track name. */
             tray_menu::start_tray_host_poll(app.handle().clone());
 
+            tray_popover_escape_macos::install(app.handle().clone());
+
             /* Finder pre-warm: the first AppleEvent to Finder in a session loads Finder's scripting
              * support + Launch Services cache. On a cold machine (and ESPECIALLY when the user's
              * audio library lives on an SMB share), this cost can run multiple seconds on the first
@@ -7614,46 +7616,19 @@ pub fn run() {
                 let _ = audio_engine::shutdown_audio_engine_child();
                 log_shutdown();
             }
-            /* Click-outside-dismiss for the tray popover, Rust side. Two complementary handlers:
-             *
-             * 1. Popover loses key focus → DEFERRED hide (200 ms). Fires when the user clicks
-             *    into another app or onto a different Space — the main window isn't gaining
-             *    focus in that case (it may be on a different Space entirely), so handler #2
-             *    below can't catch it. Requires `set_focus` on the popover at show time (see
-             *    `toggle_tray_popover`) so the popover is actually key in the first place.
-             *
-             *    The 200 ms defer defuses a tray-icon-toggle race: clicking the tray icon
-             *    while the popover is key makes the popover lose key status (menubar becomes
-             *    the click target) → this blur handler fires → if we hid immediately, the
-             *    subsequent tray-icon toggle would see `is_visible=false` and REOPEN the
-             *    popover instead of leaving it closed. By deferring and re-checking
-             *    `is_focused()` on a background thread, we skip the hide when the tray toggle
-             *    has already handled the close path itself.
-             *
-             * 2. Any OTHER window gains focus → hide. Handles clicking into the main window
-             *    (same Space) where the popover blur may not fire reliably. Non-deferred
-             *    because there's no race with the tray icon toggle here. */
+            /* Tray popover click-outside-dismiss (Rust): (1) popover loses key focus — e.g. click
+             * into another app / different Space where the main window does not gain focus;
+             * (2) any other window gains focus — e.g. main window (blur may be unreliable). */
             tauri::RunEvent::WindowEvent {
                 label,
                 event: tauri::WindowEvent::Focused(false),
                 ..
             } if label == "tray-popover" => {
-                let app_handle = app.clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(200));
-                    let Some(popover) = app_handle.get_webview_window("tray-popover") else {
-                        return;
-                    };
-                    /* Skip if the popover regained focus (user clicked back in) OR was already
-                     * hidden by the tray-icon toggle path. */
-                    if !popover.is_visible().unwrap_or(false) {
-                        return;
+                if let Some(popover) = app.get_webview_window("tray-popover") {
+                    if popover.is_visible().unwrap_or(false) {
+                        let _ = popover.hide();
                     }
-                    if popover.is_focused().unwrap_or(false) {
-                        return;
-                    }
-                    let _ = popover.hide();
-                });
+                }
             }
             tauri::RunEvent::WindowEvent {
                 label,
@@ -7672,14 +7647,18 @@ pub fn run() {
 
 #[cfg(test)]
 mod log_verbosity_tests {
-    use super::{app_log_verbose, log_verbosity_level, should_suppress_app_log_line, LOG_VERBOSITY_LEVEL};
+    use super::{
+        LOG_VERBOSITY_LEVEL, app_log_verbose, log_verbosity_level, should_suppress_app_log_line,
+    };
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn quiet_filter_is_opt_in_prefix_list() {
         LOG_VERBOSITY_LEVEL.store(0, Ordering::Relaxed);
         assert!(!should_suppress_app_log_line("SCAN ERROR — daw | x"));
-        assert!(!should_suppress_app_log_line("SCAN TCC DENIED — unified | x"));
+        assert!(!should_suppress_app_log_line(
+            "SCAN TCC DENIED — unified | x"
+        ));
         LOG_VERBOSITY_LEVEL.store(1, Ordering::Relaxed);
     }
 

@@ -80,11 +80,7 @@ pub fn get_vst_directories() -> Vec<String> {
         ]);
     }
 
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "linux",
-        target_os = "windows"
-    )))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         let home = dirs::home_dir().unwrap_or_default();
         dirs_list.extend([
@@ -219,7 +215,10 @@ fn json_pick_str(v: &Value, keys: &[&str]) -> Option<String> {
 fn read_vst3_moduleinfo(plugin_path: &Path) -> (Option<String>, Option<String>, Option<String>) {
     let candidates = [
         plugin_path.join("Contents").join("moduleinfo.json"),
-        plugin_path.join("Contents").join("Resources").join("moduleinfo.json"),
+        plugin_path
+            .join("Contents")
+            .join("Resources")
+            .join("moduleinfo.json"),
     ];
     for path in candidates {
         let Ok(s) = fs::read_to_string(&path) else {
@@ -243,7 +242,14 @@ fn read_vst3_moduleinfo(plugin_path: &Path) -> (Option<String>, Option<String>, 
         );
         let manufacturer_url = json_pick_str(
             root,
-            &["URL", "url", "Homepage", "homepage", "VendorURL", "vendorURL"],
+            &[
+                "URL",
+                "url",
+                "Homepage",
+                "homepage",
+                "VendorURL",
+                "vendorURL",
+            ],
         );
         if version.is_some() || manufacturer.is_some() || manufacturer_url.is_some() {
             return (version, manufacturer, manufacturer_url);
@@ -859,7 +865,7 @@ mod tests {
         let mut header = vec![0u8; 48];
         header[0..4].copy_from_slice(&0xCAFEBABEu32.to_be_bytes());
         header[4..8].copy_from_slice(&2u32.to_be_bytes()); // nfat_arch = 2
-                                                           // Arch 1: x86_64
+        // Arch 1: x86_64
         header[8..12].copy_from_slice(&0x01000007u32.to_be_bytes());
         // Arch 2: ARM64 (at offset 28)
         header[28..32].copy_from_slice(&0x0100000Cu32.to_be_bytes());

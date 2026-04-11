@@ -1,7 +1,7 @@
 //! Grid tests for `similarity::fingerprint_distance` — expected values from reference Python (same formula as Rust).
 #![allow(clippy::excessive_precision)]
 
-use app_lib::similarity::{fingerprint_distance, AudioFingerprint};
+use app_lib::similarity::{AudioFingerprint, fingerprint_distance};
 
 fn fp(path: &str, rms: f64) -> AudioFingerprint {
     AudioFingerprint {

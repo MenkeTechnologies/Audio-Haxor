@@ -169,7 +169,7 @@ pub fn resolve_audio_engine_binary() -> Result<PathBuf, String> {
     let sibling = dir.join(binary_name());
 
     // macOS release-bundle layout: nested helper .app at
-    // `<bundle>/Contents/MacOS/AudioHaxorEngineHelper.app/Contents/MacOS/audio-engine`
+    // `<bundle>/Contents/MacOS/AudioHaxorEngine.app/Contents/MacOS/audio-engine`
     // (sibling of the main `audio-haxor` binary). The audio-engine sidecar is wrapped in
     // its own minimal .app so [NSBundle mainBundle] resolves to the helper bundle (its
     // own bundle ID + Info.plist) instead of the parent AUDIO_HAXOR.app — required for
@@ -189,7 +189,7 @@ pub fn resolve_audio_engine_binary() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     {
         let helper = dir
-            .join("AudioHaxorEngineHelper.app")
+            .join("AudioHaxorEngine.app")
             .join("Contents")
             .join("MacOS")
             .join(binary_name());
@@ -264,7 +264,12 @@ fn child_dead(child: &mut Child) -> bool {
 }
 
 fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
-    let identity = std::fs::metadata(path).ok().map(|m| (m.modified().unwrap_or_else(|_| SystemTime::UNIX_EPOCH), m.len()));
+    let identity = std::fs::metadata(path).ok().map(|m| {
+        (
+            m.modified().unwrap_or_else(|_| SystemTime::UNIX_EPOCH),
+            m.len(),
+        )
+    });
     let data_dir = crate::history::get_data_dir();
     let engine_log = data_dir.join("engine.log");
     let app_log = data_dir.join("app.log");
@@ -274,11 +279,11 @@ fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
     let mut child = Command::new(path)
         .env("AUDIO_HAXOR_ENGINE_LOG", engine_log.as_os_str())
         .env("AUDIO_HAXOR_APP_LOG", app_log.as_os_str())
+        .env("AUDIO_HAXOR_PARENT_PID", format!("{}", std::process::id()))
         .env(
-            "AUDIO_HAXOR_PARENT_PID",
-            format!("{}", std::process::id()),
+            "AUDIO_HAXOR_PLUGIN_SCAN_TIMEOUT_SEC",
+            scan_timeout_sec.to_string(),
         )
-        .env("AUDIO_HAXOR_PLUGIN_SCAN_TIMEOUT_SEC", scan_timeout_sec.to_string())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -287,9 +292,18 @@ fn spawn_engine_child(path: &Path) -> Result<EngineChild, String> {
             log_ipc_failure(format!("failed to spawn {}: {e}", path.display()), None);
             format!("spawn {}: {e}", path.display())
         })?;
-    let stdin = child.stdin.take().ok_or_else(|| "audio-engine: no stdin".to_string())?;
-    let stdout = child.stdout.take().ok_or_else(|| "audio-engine: no stdout".to_string())?;
-    let stderr = child.stderr.take().ok_or_else(|| "audio-engine: no stderr".to_string())?;
+    let stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "audio-engine: no stdin".to_string())?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "audio-engine: no stdout".to_string())?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "audio-engine: no stderr".to_string())?;
 
     let stderr_tail = Arc::new(Mutex::new(String::new()));
     let tail_for_thread = Arc::clone(&stderr_tail);
@@ -330,7 +344,12 @@ fn ensure_engine_child(path: &Path) -> Result<(), String> {
     let mut guard = ENGINE_CHILD
         .lock()
         .map_err(|_| "audio-engine child mutex poisoned")?;
-    let disk_identity = std::fs::metadata(path).ok().map(|m| (m.modified().unwrap_or_else(|_| SystemTime::UNIX_EPOCH), m.len()));
+    let disk_identity = std::fs::metadata(path).ok().map(|m| {
+        (
+            m.modified().unwrap_or_else(|_| SystemTime::UNIX_EPOCH),
+            m.len(),
+        )
+    });
     let need_spawn = match guard.as_mut() {
         None => true,
         Some(eng) => {
@@ -363,7 +382,9 @@ pub fn restart_audio_engine_child() -> Result<(), String> {
     std::thread::spawn(|| {
         let reaped = clear_engine_slot_after_os_kill();
         if reaped {
-            crate::write_app_log("audio-engine: AudioEngine process restarted (user request)".to_string());
+            crate::write_app_log(
+                "audio-engine: AudioEngine process restarted (user request)".to_string(),
+            );
         } else {
             log_ipc_failure(
                 "ENGINE_CHILD mutex not acquired after OS kill (timeout); next IPC may respawn",
@@ -415,7 +436,9 @@ pub fn audio_engine_eof_watchdog_start(app: AppHandle) {
             if !EOF_WATCHDOG_ACTIVE.load(Ordering::SeqCst) {
                 break;
             }
-            let v = match spawn_audio_engine_request(&serde_json::json!({ "cmd": "playback_status" })) {
+            let v = match spawn_audio_engine_request(
+                &serde_json::json!({ "cmd": "playback_status" }),
+            ) {
                 Ok(v) => v,
                 Err(_) => {
                     prev_eof = false;
@@ -439,7 +462,9 @@ pub fn audio_engine_eof_watchdog_stop() {
 }
 
 /// Run one request against the audio-engine subprocess (stdin / stdout JSON lines).
-pub fn spawn_audio_engine_request(request: &serde_json::Value) -> Result<serde_json::Value, String> {
+pub fn spawn_audio_engine_request(
+    request: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
     spawn_audio_engine_request_at(request)
 }
 
@@ -499,7 +524,9 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
         let mut guard = ENGINE_CHILD
             .lock()
             .map_err(|_| "audio-engine child mutex poisoned".to_string())?;
-        let eng = guard.as_mut().ok_or_else(|| "audio-engine child missing".to_string())?;
+        let eng = guard
+            .as_mut()
+            .ok_or_else(|| "audio-engine child missing".to_string())?;
 
         if eng
             .stdin
@@ -510,7 +537,11 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
                     .write_all(b"\n")
                     .map_err(|e| format!("audio-engine stdin: {e}"))
             })
-            .and_then(|_| eng.stdin.flush().map_err(|e| format!("audio-engine stdin: {e}")))
+            .and_then(|_| {
+                eng.stdin
+                    .flush()
+                    .map_err(|e| format!("audio-engine stdin: {e}"))
+            })
             .is_err()
         {
             let stderr_tail = Arc::clone(&eng.stderr_tail);

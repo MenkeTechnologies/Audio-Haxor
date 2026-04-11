@@ -15,8 +15,8 @@
 use crate::history::DawProject;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
 use crate::unified_walker::IncrementalDirState;
-use rayon::prelude::*;
 use dashmap::DashSet;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
@@ -137,9 +137,8 @@ pub fn is_package_ext(path: &Path) -> bool {
 /// BOF bytes shared by Pro Tools `.ptx` (v10+) and `.ptf`/`.pts` session files.
 /// See UK National Archives PRONOM fmt/1727 / fmt/1951; LOC FDD fdd000639.
 const PRO_TOOLS_SESSION_MAGIC: &[u8] = &[
-    0x03,
-    b'0', b'0', b'1', b'0', b'1', b'1', b'1', b'1',
-    b'0', b'0', b'1', b'0', b'1', b'0', b'1', b'1',
+    0x03, b'0', b'0', b'1', b'0', b'1', b'1', b'1', b'1', b'0', b'0', b'1', b'0', b'1', b'0', b'1',
+    b'1',
 ];
 
 /// Returns true if `path` is a regular file whose first bytes match the Pro

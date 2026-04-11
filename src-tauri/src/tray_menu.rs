@@ -1,16 +1,16 @@
 //! System tray / menu bar icon: playback controls, dynamic title + tooltip, popup menu,
 //! and (non-Linux) a **WebView popover** styled like macOS Now Playing (no artwork).
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 use tauri::image::Image;
 use tauri::menu::MenuBuilder;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{
-    App, AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Rect,
-    Size, State, Wry,
+    App, AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Rect, Size, State,
+    Wry,
 };
 
 use crate::history;
@@ -26,11 +26,7 @@ const TRAY_POPOVER_H: u32 = 480;
 /// Set `AUDIO_HAXOR_TRAY_DEBUG=1` in the environment to print every successful `tray-popover-state` /
 /// `tray-popover-ui-theme` emit to stderr (state includes the ~500 ms host poll). Emit **failures** always log.
 fn emit_tray_popover_state(app: &AppHandle<Wry>, emit: &TrayPopoverEmit) {
-    let appearance_n = emit
-        .appearance
-        .as_ref()
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let appearance_n = emit.appearance.as_ref().map(|m| m.len()).unwrap_or(0);
     match app.emit_to("tray-popover", "tray-popover-state", emit) {
         Ok(()) => {
             if std::env::var_os("AUDIO_HAXOR_TRAY_DEBUG").is_some() {
@@ -59,9 +55,7 @@ pub fn emit_tray_popover_ui_theme(app: &AppHandle<Wry>, ui_theme: &str) {
     match app.emit_to("tray-popover", "tray-popover-ui-theme", payload) {
         Ok(()) => {
             if std::env::var_os("AUDIO_HAXOR_TRAY_DEBUG").is_some() {
-                eprintln!(
-                    "[tray-popover-host] emit tray-popover-ui-theme ok ui_theme={ui_theme}"
-                );
+                eprintln!("[tray-popover-host] emit tray-popover-ui-theme ok ui_theme={ui_theme}");
             }
         }
         Err(e) => {
@@ -136,6 +130,10 @@ pub struct TrayPopoverEmit {
     /// Main-window scheme snapshot (`--cyan`, `--bg-primary`, …) applied on the popover root.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub appearance: Option<HashMap<String, String>>,
+    /// Mirrors prefs `shuffleMode` — tray popover transport highlight.
+    pub shuffle_on: bool,
+    /// Mirrors prefs `audioLoop` — tray popover transport highlight.
+    pub loop_on: bool,
 }
 
 /// Per-tray state: icon + cached i18n for rebuilding the popup without hitting SQLite each tick.
@@ -212,9 +210,20 @@ fn build_tray_popup_menu(
         .text("tray_scan_all", t(strings, "tray.scan_all", "Scan All"))
         .text("tray_stop_all", t(strings, "tray.stop_all", "Stop All"))
         .separator()
-        .text("tray_prev", t(strings, "tray.previous_track", "Previous Track"))
-        .text("tray_play_pause", t(strings, "tray.play_pause", "Play / Pause"))
+        .text(
+            "toggle_shuffle",
+            t(strings, "menu.toggle_shuffle", "Toggle Shuffle"),
+        )
+        .text(
+            "tray_prev",
+            t(strings, "tray.previous_track", "Previous Track"),
+        )
+        .text(
+            "tray_play_pause",
+            t(strings, "tray.play_pause", "Play / Pause"),
+        )
         .text("tray_next", t(strings, "tray.next_track", "Next Track"))
+        .text("toggle_loop", t(strings, "menu.toggle_loop", "Toggle Loop"))
         .separator()
         .text("tray_quit", t(strings, "tray.quit", "Quit"))
         .build()
@@ -276,6 +285,8 @@ fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> 
         idle_hint: None,
         ui_theme: tray_popover_ui_theme_from_prefs(),
         appearance: None,
+        shuffle_on: false,
+        loop_on: false,
     });
     emit.ui_theme = tray_popover_ui_theme_from_prefs();
     emit_tray_popover_state(app, &emit);
@@ -370,6 +381,10 @@ pub struct TrayNowPlayingPayload {
     /// Optional: filesystem path for the playing item — popover reveal / copy.
     #[serde(default)]
     pub popover_reveal_path: Option<String>,
+    #[serde(default)]
+    pub shuffle_on: Option<bool>,
+    #[serde(default)]
+    pub loop_on: Option<bool>,
 }
 
 fn normalized_popover_reveal_path(payload: &TrayNowPlayingPayload) -> Option<String> {
@@ -388,7 +403,10 @@ fn tray_emit_ui_theme(payload: &TrayNowPlayingPayload) -> String {
     }
 }
 
-fn tray_playback_speed_merge(payload: &TrayNowPlayingPayload, last: Option<&TrayPopoverEmit>) -> f64 {
+fn tray_playback_speed_merge(
+    payload: &TrayNowPlayingPayload,
+    last: Option<&TrayPopoverEmit>,
+) -> f64 {
     let fallback = || last.map(|e| e.playback_speed).unwrap_or(1.0);
     match payload.playback_speed {
         Some(s) if s.is_finite() => s.clamp(0.25, 2.0),
@@ -401,6 +419,20 @@ fn tray_volume_pct_merge(payload: &TrayNowPlayingPayload, last: Option<&TrayPopo
     match payload.volume_pct {
         Some(v) if v.is_finite() => v.clamp(0.0, 100.0).round() as u8,
         _ => fallback(),
+    }
+}
+
+fn tray_shuffle_merge(payload: &TrayNowPlayingPayload, last: Option<&TrayPopoverEmit>) -> bool {
+    match payload.shuffle_on {
+        Some(s) => s,
+        None => last.map(|e| e.shuffle_on).unwrap_or(false),
+    }
+}
+
+fn tray_loop_merge(payload: &TrayNowPlayingPayload, last: Option<&TrayPopoverEmit>) -> bool {
+    match payload.loop_on {
+        Some(s) => s,
+        None => last.map(|e| e.loop_on).unwrap_or(false),
     }
 }
 
@@ -449,11 +481,12 @@ pub fn tray_popover_action(app: AppHandle<Wry>, action: String) -> Result<(), St
         if let Ok(frac) = rest.parse::<f64>() {
             if frac.is_finite() {
                 let frac = frac.clamp(0.0, 1.0);
-                let total_sec = app
-                    .try_state::<TrayState>()
-                    .and_then(|s| s.inner.lock().ok().and_then(|g| {
-                        g.last_popover_emit.as_ref().and_then(|e| e.total_sec)
-                    }));
+                let total_sec = app.try_state::<TrayState>().and_then(|s| {
+                    s.inner
+                        .lock()
+                        .ok()
+                        .and_then(|g| g.last_popover_emit.as_ref().and_then(|e| e.total_sec))
+                });
                 if let Some(dur) = total_sec {
                     if dur > 0.0 {
                         let position_sec = frac * dur;
@@ -533,6 +566,8 @@ pub fn update_tray_now_playing(
     let prev_reveal_path = last_emit.and_then(|e| e.reveal_path.clone());
     let playback_speed = tray_playback_speed_merge(&payload, last_emit);
     let volume_pct = tray_volume_pct_merge(&payload, last_emit);
+    let shuffle_on = tray_shuffle_merge(&payload, last_emit);
+    let loop_on = tray_loop_merge(&payload, last_emit);
     let emit = if payload.idle {
         TrayPopoverEmit {
             idle: true,
@@ -550,6 +585,8 @@ pub fn update_tray_now_playing(
                 .filter(|s| !s.trim().is_empty()),
             ui_theme: theme,
             appearance: appearance.clone(),
+            shuffle_on,
+            loop_on,
         }
     } else {
         TrayPopoverEmit {
@@ -565,6 +602,8 @@ pub fn update_tray_now_playing(
             idle_hint: None,
             ui_theme: theme,
             appearance: appearance.clone(),
+            shuffle_on,
+            loop_on,
         }
     };
     guard.last_popover_emit = Some(emit.clone());
@@ -617,7 +656,9 @@ pub fn update_tray_now_playing(
 }
 
 #[tauri::command]
-pub fn tray_popover_get_state(tray_state: State<'_, TrayState>) -> Result<Option<TrayPopoverEmit>, String> {
+pub fn tray_popover_get_state(
+    tray_state: State<'_, TrayState>,
+) -> Result<Option<TrayPopoverEmit>, String> {
     let guard = tray_state
         .inner
         .lock()
@@ -767,6 +808,8 @@ pub fn start_tray_host_poll(app: AppHandle<Wry>) {
                     idle_hint: None,
                     ui_theme: last.ui_theme.clone(),
                     appearance: last.appearance.clone(),
+                    shuffle_on: last.shuffle_on,
+                    loop_on: last.loop_on,
                 };
                 guard.last_popover_emit = Some(new_emit.clone());
 

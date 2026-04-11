@@ -1540,10 +1540,16 @@ pub fn build_midi_snapshot(midi_files: &[MidiFile], roots: &[String]) -> MidiSca
 }
 
 pub fn compute_midi_diff(old_scan: &MidiScanSnapshot, new_scan: &MidiScanSnapshot) -> MidiScanDiff {
-    let old_paths: std::collections::HashSet<&str> =
-        old_scan.midi_files.iter().map(|m| m.path.as_str()).collect();
-    let new_paths: std::collections::HashSet<&str> =
-        new_scan.midi_files.iter().map(|m| m.path.as_str()).collect();
+    let old_paths: std::collections::HashSet<&str> = old_scan
+        .midi_files
+        .iter()
+        .map(|m| m.path.as_str())
+        .collect();
+    let new_paths: std::collections::HashSet<&str> = new_scan
+        .midi_files
+        .iter()
+        .map(|m| m.path.as_str())
+        .collect();
     let added: Vec<MidiFile> = new_scan
         .midi_files
         .iter()

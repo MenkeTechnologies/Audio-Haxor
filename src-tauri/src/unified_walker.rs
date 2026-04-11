@@ -24,11 +24,11 @@
 //! Per-type progress callbacks stream batches as they're discovered.
 
 use crate::audio_extensions::AUDIO_EXTENSIONS;
-use crate::bulk_stat::{read_dir_bulk, BulkEntry};
+use crate::bulk_stat::{BulkEntry, read_dir_bulk};
 use crate::history::{AudioSample, DawProject, PdfFile, PresetFile};
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
-use rayon::prelude::*;
 use dashmap::DashSet;
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -389,10 +389,7 @@ pub fn walk_unified(
     for r in &union {
         if let Some(fs) = network_fs_type(r) {
             let p = r.display().to_string();
-            crate::write_app_log_verbose(format!(
-                "SCAN ROOT — unified | {} [NETWORK: {}]",
-                p, fs,
-            ));
+            crate::write_app_log_verbose(format!("SCAN ROOT — unified | {} [NETWORK: {}]", p, fs,));
         }
     }
 
@@ -422,8 +419,20 @@ pub fn walk_unified(
                     return;
                 }
                 walk_dir_parallel(
-                    root, 0, &visited, &tx, &audio_f2, &daw_f2, &preset_f2, &pdf_f2, batch_size,
-                    &stop2, &spec, &active, &tcc_denied, incremental.clone(),
+                    root,
+                    0,
+                    &visited,
+                    &tx,
+                    &audio_f2,
+                    &daw_f2,
+                    &preset_f2,
+                    &pdf_f2,
+                    batch_size,
+                    &stop2,
+                    &spec,
+                    &active,
+                    &tcc_denied,
+                    incremental.clone(),
                 );
             });
         });
@@ -452,7 +461,10 @@ pub fn walk_unified(
     }
 
     if !tcc_summary.is_empty() {
-        let paths: Vec<_> = tcc_summary.iter().map(|p| p.key().display().to_string()).collect();
+        let paths: Vec<_> = tcc_summary
+            .iter()
+            .map(|p| p.key().display().to_string())
+            .collect();
         crate::write_app_log(format!(
             "SCAN TCC SUMMARY — {} path(s) denied by macOS TCC: {} \
              (grant access in System Settings → Privacy & Security → Files and Folders)",
@@ -497,7 +509,8 @@ fn walk_dir_parallel(
             if let Err(ref e) = canon_result {
                 crate::write_app_log_verbose(format!(
                     "SCAN NETWORK CANONICALIZE FAIL — unified | {} | {} (using original path as dedup key)",
-                    dir.display(), e,
+                    dir.display(),
+                    e,
                 ));
             }
         }
@@ -508,7 +521,9 @@ fn walk_dir_parallel(
                 crate::write_app_log_verbose(format!(
                     "SCAN DEDUP SKIP — unified | orig={} | canon={} | key={}",
                     orig.display(),
-                    canon.as_ref().map(|p| p.display().to_string())
+                    canon
+                        .as_ref()
+                        .map(|p| p.display().to_string())
                         .unwrap_or_else(|| "<canonicalize failed>".into()),
                     key.display(),
                 ));
@@ -532,7 +547,9 @@ fn walk_dir_parallel(
         if let Some(fstype) = network_fs_type(dir) {
             crate::write_app_log_verbose(format!(
                 "SCAN NETWORK ENTER — unified | {} | fs={} | depth={}",
-                dir.display(), fstype, depth,
+                dir.display(),
+                fstype,
+                depth,
             ));
         }
     }
@@ -568,7 +585,8 @@ fn walk_dir_parallel(
                     crate::write_app_log(format!(
                         "SCAN TCC DENIED — unified | {} | {} \
                          (grant Full Disk Access or Files and Folders permission)",
-                        dir.display(), first_err,
+                        dir.display(),
+                        first_err,
                     ));
                 }
                 return;
@@ -584,7 +602,9 @@ fn walk_dir_parallel(
             const BASE_DELAY_MS: u64 = 50;
             crate::write_app_log_verbose(format!(
                 "SCAN NETWORK RETRY — unified | {} | first error: {} | up to {} retries",
-                dir.display(), first_err, MAX_RETRIES,
+                dir.display(),
+                first_err,
+                MAX_RETRIES,
             ));
             let mut last_err = first_err;
             let mut recovered = None;
@@ -595,7 +615,8 @@ fn walk_dir_parallel(
                     Ok(e) => {
                         crate::write_app_log_verbose(format!(
                             "SCAN NETWORK RECOVERED — unified | {} | succeeded on retry {}",
-                            dir.display(), attempt + 1,
+                            dir.display(),
+                            attempt + 1,
                         ));
                         recovered = Some(e);
                         break;
@@ -613,7 +634,10 @@ fn walk_dir_parallel(
                         .unwrap_or_default();
                     crate::write_app_log(format!(
                         "SCAN READDIR ERROR — unified | {}{} | {} retries exhausted | last: {}",
-                        dir.display(), fsinfo, MAX_RETRIES, last_err,
+                        dir.display(),
+                        fsinfo,
+                        MAX_RETRIES,
+                        last_err,
                     ));
                     return;
                 }
@@ -1081,7 +1105,11 @@ mod tests {
             None,
         );
 
-        assert_eq!(daw.len(), 2, "real file + symlink path both classify as DAW");
+        assert_eq!(
+            daw.len(),
+            2,
+            "real file + symlink path both classify as DAW"
+        );
         assert!(daw.iter().any(|d| d.path.ends_with("link.als")));
         assert!(daw.iter().any(|d| d.path.ends_with("real.als")));
     }

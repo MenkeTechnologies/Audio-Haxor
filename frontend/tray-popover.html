@@ -336,6 +336,11 @@
       transform: translateY(1px) scale(0.98);
     }
     .transport .play-btn { font-size: 11px; padding: 7px 12px; }
+    .transport button.active {
+      color: var(--cp-cyan-hot);
+      border-color: var(--cp-cyan-hot);
+      box-shadow: 0 0 10px var(--cp-accent-glow);
+    }
     .idle .progress-wrap { opacity: 0.35; pointer-events: none; }
     .idle .transport { opacity: 0.45; }
     .idle .divider { opacity: 0.35; margin: 8px 0 6px; }
@@ -462,9 +467,11 @@
       </div>
     </div>
     <div class="transport">
+      <button type="button" id="btnShuffle">&#128256;</button>
       <button type="button" id="btnPrev">&#x23ee;</button>
       <button type="button" class="play-btn" id="btnPlay">&#x23f8;</button>
       <button type="button" id="btnNext">&#x23ed;</button>
+      <button type="button" id="btnLoop">&#8634;</button>
     </div>
   </div>
   <div class="tray-ctx-menu" id="trayCtxMenu" aria-hidden="true"></div>

@@ -222,20 +222,8 @@ mod tests {
     #[test]
     fn test_classify_audio() {
         for ext in &[
-            "wav",
-            "mp3",
-            "flac",
-            "ogg",
-            "aif",
-            "aiff",
-            "m4a",
-            "wma",
-            "opus",
-            "aac",
-            "rex",
-            "rx2",
-            "sf2",
-            "sfz",
+            "wav", "mp3", "flac", "ogg", "aif", "aiff", "m4a", "wma", "opus", "aac", "rex", "rx2",
+            "sf2", "sfz",
         ] {
             let name = format!("test.{ext}");
             assert_eq!(
@@ -357,10 +345,7 @@ mod tests {
     #[test]
     fn test_scan_root_file_is_parent() {
         let p = Path::new("folder/track.wav");
-        assert_eq!(
-            scan_root_for_changed_path(p),
-            Some(PathBuf::from("folder"))
-        );
+        assert_eq!(scan_root_for_changed_path(p), Some(PathBuf::from("folder")));
     }
 
     #[test]

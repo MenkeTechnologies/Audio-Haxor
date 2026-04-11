@@ -40,7 +40,7 @@ fn kvr_parse_then_compare_matches_raw_compare() {
 
 #[test]
 fn fingerprint_distance_nonnegative_and_symmetric() {
-    use app_lib::similarity::{fingerprint_distance, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, fingerprint_distance};
     let mk = |path: &str, r: f64| AudioFingerprint {
         path: path.into(),
         rms: r,
@@ -63,7 +63,7 @@ fn fingerprint_distance_nonnegative_and_symmetric() {
 
 #[test]
 fn find_similar_orders_by_distance_and_excludes_self() {
-    use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, find_similar, fingerprint_distance};
     let mk = |path: &str, rms: f64| AudioFingerprint {
         path: path.into(),
         rms,

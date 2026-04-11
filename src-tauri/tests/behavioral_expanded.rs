@@ -5,8 +5,8 @@ use std::path::Path;
 
 use app_lib::daw_scanner::{daw_name_for_format, ext_matches, is_package_ext};
 use app_lib::history::{build_plugin_snapshot, compute_plugin_diff};
-use app_lib::scanner::{get_plugin_type, PluginInfo};
-use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
+use app_lib::scanner::{PluginInfo, get_plugin_type};
+use app_lib::similarity::{AudioFingerprint, find_similar, fingerprint_distance};
 use app_lib::xref::normalize_plugin_name;
 
 fn fp(path: &str, rms: f64, sc: f64) -> AudioFingerprint {

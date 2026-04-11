@@ -149,9 +149,11 @@
     const elTrackBar = document.getElementById('trackBar');
     const elElapsed = document.getElementById('elapsed');
     const elTotal = document.getElementById('total');
+    const btnShuffle = document.getElementById('btnShuffle');
     const btnPrev = document.getElementById('btnPrev');
     const btnPlay = document.getElementById('btnPlay');
     const btnNext = document.getElementById('btnNext');
+    const btnLoop = document.getElementById('btnLoop');
     const elTrayVol = document.getElementById('trayVol');
     const elTrayVolPct = document.getElementById('trayVolPct');
     const elTrayVolLabel = document.getElementById('trayVolLabel');
@@ -838,6 +840,10 @@
                 : appFmtResolved('menu.play');
             if (playT) btnPlay.setAttribute('title', playT);
         }
+        const shuf = p.shuffle_on === true;
+        const loopOn = p.loop_on === true;
+        if (btnShuffle) btnShuffle.classList.toggle('active', shuf);
+        if (btnLoop) btnLoop.classList.toggle('active', loopOn);
         applyTrayExtrasFromState(p.volume_pct, p.playback_speed);
         logTrayPopoverApplyState(p, idle, playing, themed);
         syncTrayPopoverTooltips();
@@ -947,17 +953,15 @@
         void invoke('tray_popover_action', { action }).catch(() => {});
     }
 
+    if (btnShuffle) btnShuffle.addEventListener('click', () => send('toggle_shuffle'));
     if (btnPrev) btnPrev.addEventListener('click', () => send('prev_track'));
     if (btnPlay) btnPlay.addEventListener('click', () => send('play_pause'));
     if (btnNext) btnNext.addEventListener('click', () => send('next_track'));
+    if (btnLoop) btnLoop.addEventListener('click', () => send('toggle_loop'));
 
-    /* Force focus on any click inside the popover. On macOS with `visibleOnAllWorkspaces: true`,
-     * Tauri uses an NSPanel with the `NonactivatingPanel` style mask — clicks transfer "active"
-     * status but NOT "key window" status, so keyboard events (including Escape) never reach
-     * the webview even though mouse events work. Calling `setFocus` explicitly from the click
-     * handler makes the popover become the key window, which:
-     *   1. Delivers Escape to our `document.keydown` listener below (hides the popover)
-     *   2. Makes `onFocusChanged(false)` fire when the user clicks outside (click-outside-dismiss) */
+    /* Force key window on click inside `#shell`. On macOS, `NonactivatingPanel`-style popovers
+     * can receive mouse without becoming key; `setFocus` makes `onFocusChanged(false)` fire when
+     * the user clicks outside (deferred blur dismiss in Rust + JS). */
     if (shell) {
         shell.addEventListener(
             'pointerdown',
@@ -1037,6 +1041,10 @@
         if (btnNext && nextT) btnNext.setAttribute('title', nextT);
         const playPauseT = appFmtResolved('tray.play_pause');
         if (btnPlay && playPauseT) btnPlay.setAttribute('title', playPauseT);
+        const shuffleTt = appFmtResolved('menu.toggle_shuffle', 'ui.tt.shuffle');
+        if (btnShuffle && shuffleTt) btnShuffle.setAttribute('title', shuffleTt);
+        const loopTt = appFmtResolved('menu.toggle_loop', 'ui.tt.toggle_loop_l');
+        if (btnLoop && loopTt) btnLoop.setAttribute('title', loopTt);
         populateTraySpeedSelect();
         if (elTrayVolLabel) {
             const vLabel = appFmtResolved('ui.ae.playback_volume_label');
@@ -1139,48 +1147,25 @@
 
     void initTrayIpc();
 
-    /* Click-outside-window dismiss: hide the popover when the Tauri webview loses focus.
-     *
-     * The old guard comment ("Do not hide on blur: focus moves to the tray before the tray Click
-     * event, which would fight Rust toggle") is defused via a deferred `isVisible()` check —
-     * if the user clicked the tray icon while the popover was visible, `toggle_tray_popover`
-     * already called `win.hide()` by the time our 150 ms timer fires, so `isVisible()` returns
-     * `false` and we do nothing. If the user clicked into another app entirely, the popover is
-     * still visible after the delay and we hide it. No race, no flicker.
-     *
-     * `onFocusChanged` only fires on focus TRANSITIONS, so a popover shown with `focus: false`
-     * that never received focus won't fire a spurious blur on first show — it stays visible
-     * until the user actually interacts with it, and only then does blur-on-outside-click kick
-     * in. That matches standard macOS popover behavior. */
+    /* Click-outside-window dismiss: hide when this webview loses focus. */
     (async function installClickOutsideDismiss() {
         const tw = getTrayWebviewWindow();
         if (!tw || typeof tw.onFocusChanged !== 'function') return;
-        let pendingHide = null;
         try {
             await tw.onFocusChanged((evt) => {
                 const focused = evt && evt.payload !== undefined ? evt.payload : evt;
-                if (focused === true) {
-                    if (pendingHide != null) {
-                        clearTimeout(pendingHide);
-                        pendingHide = null;
-                    }
-                    return;
-                }
-                if (pendingHide != null) clearTimeout(pendingHide);
-                pendingHide = setTimeout(async () => {
-                    pendingHide = null;
+                if (focused === true) return;
+                void (async () => {
                     try {
                         const vis = typeof tw.isVisible === 'function' ? await tw.isVisible() : true;
-                        if (vis && typeof tw.hide === 'function') {
-                            await tw.hide();
-                        }
+                        if (vis && typeof tw.hide === 'function') await tw.hide();
                     } catch (_) {
                         /* ignore */
                     }
-                }, 150);
+                })();
             });
         } catch (_) {
-            /* non-Tauri or older API: fall back to the document-level pointerdown handler */
+            /* non-Tauri or older API */
         }
     })();
 

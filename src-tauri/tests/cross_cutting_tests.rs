@@ -61,7 +61,7 @@ fn kvr_parse_version_large_numeric_segment() {
 
 #[test]
 fn find_similar_stable_ordering_when_two_candidates_equidistant() {
-    use app_lib::similarity::{find_similar, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, find_similar};
     let mk = |path: &str| AudioFingerprint {
         path: path.into(),
         rms: 0.5,
@@ -220,7 +220,7 @@ fn scanner_get_plugin_type_dot_uppercase_unknown() {
 
 #[test]
 fn find_similar_all_candidates_share_reference_path_returns_empty() {
-    use app_lib::similarity::{find_similar, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, find_similar};
     let fp = AudioFingerprint {
         path: "/same.wav".into(),
         rms: 0.5,

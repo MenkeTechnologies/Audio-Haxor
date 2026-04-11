@@ -8,8 +8,8 @@
 use crate::history::MidiFile;
 use crate::scanner_skip_dirs::SCANNER_SKIP_DIRS as SKIP_DIRS;
 use crate::unified_walker::IncrementalDirState;
-use rayon::prelude::*;
 use dashmap::DashSet;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};

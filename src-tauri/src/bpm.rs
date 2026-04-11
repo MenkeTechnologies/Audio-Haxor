@@ -739,9 +739,9 @@ mod tests {
         data.extend_from_slice(&1u16.to_be_bytes()); // channels = 1
         data.extend_from_slice(&1000u32.to_be_bytes()); // num sample frames
         data.extend_from_slice(&16u16.to_be_bytes()); // bits per sample
-                                                      // 80-bit extended for 44100 Hz:
-                                                      // exponent = 16383 + 15 = 16398 = 0x400E
-                                                      // mantissa high 32 bits = 44100 << 16 = 0xAC44_0000
+        // 80-bit extended for 44100 Hz:
+        // exponent = 16383 + 15 = 16398 = 0x400E
+        // mantissa high 32 bits = 44100 << 16 = 0xAC44_0000
         data.extend_from_slice(&[0x40, 0x0E, 0xAC, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 
         // SSND chunk: 8 bytes header (offset + blockSize) + PCM data
@@ -751,7 +751,7 @@ mod tests {
         data.extend_from_slice(&(ssnd_size as u32).to_be_bytes());
         data.extend_from_slice(&0u32.to_be_bytes()); // offset
         data.extend_from_slice(&0u32.to_be_bytes()); // blockSize
-                                                     // 1000 frames of silence (big-endian 16-bit zeros)
+        // 1000 frames of silence (big-endian 16-bit zeros)
         data.extend_from_slice(&vec![0u8; pcm_bytes]);
 
         // Fix FORM size

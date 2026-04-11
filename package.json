@@ -1,6 +1,6 @@
 {
   "name": "audio-haxor",
-  "version": "1.18.31",
+  "version": "1.18.34",
   "description": "Desktop app to scan and manage VST/VST3/AU/CLAP audio plugins, samples, DAW projects, presets, MIDI, PDFS with its own audio engine",
   "scripts": {
     "tauri": "tauri",
@@ -16,7 +16,7 @@
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "doc": "cargo doc --manifest-path src-tauri/Cargo.toml --no-deps --document-private-items",
     "doc:open": "cargo doc --manifest-path src-tauri/Cargo.toml --no-deps --document-private-items --open",
-    "doc:sync": "node scripts/sync-static-build-meta.mjs && pnpm run doc && command rm -rf docs/api && mkdir -p docs && cp -R src-tauri/target/doc docs/api",
+    "doc:sync": "node scripts/sync-static-build-meta.mjs && pnpm run doc && command rm -rf docs/api && mkdir -p docs && cp -R target/doc docs/api",
     "clean": "bash scripts/clean.sh",
     "bust": "bash scripts/bust.sh",
     "rebuild": "bash scripts/rebuild.sh",

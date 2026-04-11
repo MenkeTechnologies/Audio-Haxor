@@ -3,11 +3,11 @@
 
 use app_lib::db::{global, init_global};
 use app_lib::history::AudioSample;
-use app_lib::scanner::{get_plugin_info, PluginInfo};
+use app_lib::scanner::{PluginInfo, get_plugin_info};
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 /// Serialize stress tests in this binary so parallel `cargo test` does not contend on temp I/O.

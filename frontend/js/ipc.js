@@ -284,6 +284,7 @@ listen('menu-action', (event) => {
             break;
         // Playback
         case 'play_pause':
+        case 'tray_play_pause':
             if (typeof toggleAudioPlayback === 'function') toggleAudioPlayback();
             break;
         case 'toggle_loop':

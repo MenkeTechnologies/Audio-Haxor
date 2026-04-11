@@ -6,10 +6,10 @@ use std::cmp::Ordering;
 use std::path::Path;
 
 use app_lib::db::AudioQueryParams;
-use app_lib::history::{build_pdf_snapshot, compute_pdf_diff, PdfFile, PdfScanSnapshot};
+use app_lib::history::{PdfFile, PdfScanSnapshot, build_pdf_snapshot, compute_pdf_diff};
 use app_lib::kvr::{compare_versions, extract_version, parse_version};
 use app_lib::scanner::PluginInfo;
-use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
+use app_lib::similarity::{AudioFingerprint, find_similar, fingerprint_distance};
 use app_lib::xref::normalize_plugin_name;
 
 fn pdf_file(path: &str, size: u64) -> PdfFile {

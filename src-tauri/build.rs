@@ -24,7 +24,8 @@ fn main() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let repo_root = manifest_dir.parent().unwrap_or(manifest_dir);
 
-    let full = git_first_line(repo_root, &["rev-parse", "HEAD"]).unwrap_or_else(|| "unknown".to_string());
+    let full =
+        git_first_line(repo_root, &["rev-parse", "HEAD"]).unwrap_or_else(|| "unknown".to_string());
     let short = if full == "unknown" || full.len() < 7 {
         full.clone()
     } else {

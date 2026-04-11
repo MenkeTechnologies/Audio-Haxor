@@ -1,6 +1,6 @@
 //! `similarity::fingerprint_distance` symmetry and self-distance — fixed feature vectors, varying RMS only.
 
-use app_lib::similarity::{fingerprint_distance, AudioFingerprint};
+use app_lib::similarity::{AudioFingerprint, fingerprint_distance};
 
 fn fp(path: &str, rms: f64) -> AudioFingerprint {
     AudioFingerprint {

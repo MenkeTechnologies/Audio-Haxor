@@ -16,8 +16,19 @@ use std::sync::LazyLock;
 
 /// Extensions implemented in [`extract_plugins`] (plugin cross-reference).
 pub(crate) const XREF_SUPPORTED_EXTENSIONS: &[&str] = &[
-    ".als", ".rpp", ".rpp-bak", ".bwproject", ".song", ".dawproject", ".flp", ".logicx", ".cpr",
-    ".npr", ".ptx", ".ptf", ".reason",
+    ".als",
+    ".rpp",
+    ".rpp-bak",
+    ".bwproject",
+    ".song",
+    ".dawproject",
+    ".flp",
+    ".logicx",
+    ".cpr",
+    ".npr",
+    ".ptx",
+    ".ptf",
+    ".reason",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -891,8 +902,8 @@ fn parse_bitwig(path: &Path) -> Vec<PluginRef> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use flate2::write::GzEncoder;
     use flate2::Compression;
+    use flate2::write::GzEncoder;
     use std::io::Write;
 
     #[test]
@@ -1096,15 +1107,21 @@ mod tests {
 
         let result = extract_plugins(tmp.to_str().unwrap());
         assert_eq!(result.len(), 3);
-        assert!(result
-            .iter()
-            .any(|p| p.name == "Serum" && p.plugin_type == "VST2"));
-        assert!(result
-            .iter()
-            .any(|p| p.name == "Ozone 11" && p.plugin_type == "VST3"));
-        assert!(result
-            .iter()
-            .any(|p| p.name == "AUHighShelfFilter" && p.plugin_type == "AU"));
+        assert!(
+            result
+                .iter()
+                .any(|p| p.name == "Serum" && p.plugin_type == "VST2")
+        );
+        assert!(
+            result
+                .iter()
+                .any(|p| p.name == "Ozone 11" && p.plugin_type == "VST3")
+        );
+        assert!(
+            result
+                .iter()
+                .any(|p| p.name == "AUHighShelfFilter" && p.plugin_type == "AU")
+        );
 
         let _ = fs::remove_file(&tmp);
     }
@@ -2103,9 +2120,7 @@ mod tests {
             let _ = fs::remove_dir_all(&logic_path);
             fs::create_dir_all(&logic_path).unwrap();
             let mut pd = vec![0u8; 16];
-            pd.extend_from_slice(
-                b"/Library/Audio/Plug-Ins/Components/MatrixLogicAU.component",
-            );
+            pd.extend_from_slice(b"/Library/Audio/Plug-Ins/Components/MatrixLogicAU.component");
             fs::write(logic_path.join("ProjectData"), &pd).unwrap();
         }
         assert_eq!(extract_plugins(logic_path.to_str().unwrap()).len(), 1);

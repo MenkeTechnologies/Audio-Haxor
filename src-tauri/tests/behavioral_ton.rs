@@ -4,12 +4,12 @@ use std::cmp::Ordering;
 use std::path::Path;
 
 use app_lib::history::{
-    build_audio_snapshot, build_daw_snapshot, build_plugin_snapshot, build_preset_snapshot,
-    compute_audio_diff, compute_daw_diff, compute_plugin_diff, compute_preset_diff, gen_id,
-    AudioSample, DawProject, PresetFile,
+    AudioSample, DawProject, PresetFile, build_audio_snapshot, build_daw_snapshot,
+    build_plugin_snapshot, build_preset_snapshot, compute_audio_diff, compute_daw_diff,
+    compute_plugin_diff, compute_preset_diff, gen_id,
 };
 use app_lib::scanner::PluginInfo;
-use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
+use app_lib::similarity::{AudioFingerprint, find_similar, fingerprint_distance};
 use app_lib::xref::normalize_plugin_name;
 use app_lib::{ExportPayload, ExportPlugin};
 

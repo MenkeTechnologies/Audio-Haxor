@@ -1,6 +1,6 @@
 [package]
 name = "audio-haxor"
-version = "1.18.31"
+version = "1.18.34"
 description = "Desktop app to scan and manage VST/VST3/AU audio plugins, samples, and DAW projects"
 authors = ["MenkeTechnologies <MenkeTechnologies@gmail.com>"]
 edition = "2024"
@@ -42,6 +42,10 @@ image_crate = { version = "0.25", default-features = false, features = ["png"], 
 sha2 = "0.10"
 dashmap = "6"
 tauri-plugin-drag = "2.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = { version = "0.6", default-features = false, features = ["alloc"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSEvent", "block2"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

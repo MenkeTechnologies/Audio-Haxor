@@ -1,7 +1,7 @@
 //! App UI strings for i18n: seeded into SQLite (`app_i18n` table) from `i18n/app_i18n_en.json`
 //! (toasts, menus, tray, HTML `data-i18n*`, dialogs). Locales `cs`, `da`, `de`, `es`, `es-419`, `sv`, `fr`, `nl`, `pt`, `pt-BR`, `it`, `el`, `pl`, `ru`, `zh`, `ja`, `ko`, `fi`, `nb`, `tr`, `hu`, `ro`, `uk`, `vi`, `id`, `hi` add rows with the same keys.
 
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use std::collections::HashMap;
 
 static SEED_JSON_EN: &str = include_str!("../../i18n/app_i18n_en.json");
@@ -114,11 +114,11 @@ pub fn load_merged(conn: &Connection, locale: &str) -> Result<HashMap<String, St
 #[cfg(test)]
 mod tests {
     use super::{
-        load_merged, SEED_JSON_CS, SEED_JSON_DA, SEED_JSON_DE, SEED_JSON_EL, SEED_JSON_EN,
-        SEED_JSON_ES, SEED_JSON_ES_419, SEED_JSON_FI, SEED_JSON_FR, SEED_JSON_HU, SEED_JSON_IT,
-        SEED_JSON_JA, SEED_JSON_KO, SEED_JSON_NB, SEED_JSON_NL, SEED_JSON_PL, SEED_JSON_PT,
-        SEED_JSON_PT_BR, SEED_JSON_RO, SEED_JSON_RU, SEED_JSON_SV, SEED_JSON_TR, SEED_JSON_UK,
-        SEED_JSON_VI, SEED_JSON_ID, SEED_JSON_HI, SEED_JSON_ZH,
+        SEED_JSON_CS, SEED_JSON_DA, SEED_JSON_DE, SEED_JSON_EL, SEED_JSON_EN, SEED_JSON_ES,
+        SEED_JSON_ES_419, SEED_JSON_FI, SEED_JSON_FR, SEED_JSON_HI, SEED_JSON_HU, SEED_JSON_ID,
+        SEED_JSON_IT, SEED_JSON_JA, SEED_JSON_KO, SEED_JSON_NB, SEED_JSON_NL, SEED_JSON_PL,
+        SEED_JSON_PT, SEED_JSON_PT_BR, SEED_JSON_RO, SEED_JSON_RU, SEED_JSON_SV, SEED_JSON_TR,
+        SEED_JSON_UK, SEED_JSON_VI, SEED_JSON_ZH, load_merged,
     };
     use regex::Regex;
     use rusqlite::Connection;
@@ -1916,8 +1916,8 @@ mod tests {
     }
 
     #[test]
-    fn seed_json_appfmt_placeholders_preserved_de_el_es_es_419_fi_fr_it_nl_pl_pt_pt_br_ru_sv_zh_ja_ko_da_nb_tr_cs_hu_ro_uk_vi_id_hi(
-    ) {
+    fn seed_json_appfmt_placeholders_preserved_de_el_es_es_419_fi_fr_it_nl_pl_pt_pt_br_ru_sv_zh_ja_ko_da_nb_tr_cs_hu_ro_uk_vi_id_hi()
+     {
         let en: HashMap<String, String> = serde_json::from_str(SEED_JSON_EN).expect("en json");
         for (loc, json) in [
             ("de", SEED_JSON_DE),

@@ -1,4 +1,4 @@
-use app_lib::{format_size, ExportPayload, ExportPlugin};
+use app_lib::{ExportPayload, ExportPlugin, format_size};
 
 #[test]
 fn test_format_size() {

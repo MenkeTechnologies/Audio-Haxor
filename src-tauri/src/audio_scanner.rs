@@ -25,8 +25,8 @@ fn normalize_macos_path(p: std::path::PathBuf) -> std::path::PathBuf {
     }
     p
 }
-use rayon::prelude::*;
 use dashmap::DashSet;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
@@ -859,7 +859,7 @@ mod tests {
         header[28..32].copy_from_slice(&176400u32.to_le_bytes()); // byte rate
         header[32..34].copy_from_slice(&4u16.to_le_bytes()); // block align
         header[34..36].copy_from_slice(&16u16.to_le_bytes()); // bits per sample
-                                                              // data chunk
+        // data chunk
         header[36..40].copy_from_slice(b"data");
         header[40..44].copy_from_slice(&1000u32.to_le_bytes());
 
@@ -1109,9 +1109,9 @@ mod tests {
         data.extend_from_slice(&1u16.to_be_bytes()); // channels = 1
         data.extend_from_slice(&48000u32.to_be_bytes()); // num_frames = 48000
         data.extend_from_slice(&24u16.to_be_bytes()); // bits_per_sample = 24
-                                                      // 80-bit extended float for sample rate 48000
-                                                      // exponent = 16383 + 15 = 16398 = 0x400E
-                                                      // mantissa = 48000 << 16 = 0xBB80_0000 (top 32 bits), lower 32 bits = 0
+        // 80-bit extended float for sample rate 48000
+        // exponent = 16383 + 15 = 16398 = 0x400E
+        // mantissa = 48000 << 16 = 0xBB80_0000 (top 32 bits), lower 32 bits = 0
         data.extend_from_slice(&[0x40, 0x0E, 0xBB, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 
         fs::write(&aiff_path, &data).unwrap();

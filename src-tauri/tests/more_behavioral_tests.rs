@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 
 use app_lib::history::{
-    compute_audio_diff, compute_daw_diff, compute_preset_diff, AudioSample, AudioScanSnapshot,
-    DawProject, DawScanSnapshot, PresetFile, PresetScanSnapshot,
+    AudioSample, AudioScanSnapshot, DawProject, DawScanSnapshot, PresetFile, PresetScanSnapshot,
+    compute_audio_diff, compute_daw_diff, compute_preset_diff,
 };
 
 fn audio_sample(path: &str) -> AudioSample {
@@ -186,7 +186,7 @@ fn kvr_extract_download_url_accepts_get_href() {
 
 #[test]
 fn find_similar_skips_candidate_with_same_path_as_reference() {
-    use app_lib::similarity::{find_similar, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, find_similar};
     let fp = AudioFingerprint {
         path: "/same.wav".into(),
         rms: 0.5,

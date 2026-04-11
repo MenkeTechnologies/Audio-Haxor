@@ -2,8 +2,8 @@
 //! Mirrors the hygiene goal of `test/i18n-value-safety.test.js` at the Rust seed boundary.
 
 use seq_macro::seq;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 

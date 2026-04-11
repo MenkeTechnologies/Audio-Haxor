@@ -14,7 +14,7 @@ fn test_compute_fingerprint_short_invalid_wav_returns_none_or_some() {
 
 #[test]
 fn test_find_similar_empty_candidates() {
-    use app_lib::similarity::{find_similar, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, find_similar};
     let reference = AudioFingerprint {
         path: "/ref.wav".into(),
         rms: 0.1,

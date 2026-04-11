@@ -4,7 +4,7 @@
 use std::cmp::Ordering;
 use std::path::Path;
 
-use app_lib::history::{compute_plugin_diff, radix_string, ScanSnapshot};
+use app_lib::history::{ScanSnapshot, compute_plugin_diff, radix_string};
 use app_lib::scanner::PluginInfo;
 
 fn sample_plugin(path: &str, version: &str) -> PluginInfo {
@@ -111,7 +111,7 @@ fn kvr_extract_download_url_marks_platform_when_url_contains_windows_keyword() {
 
 #[test]
 fn find_similar_respects_max_results() {
-    use app_lib::similarity::{find_similar, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, find_similar};
 
     let mk = |path: &str, rms: f64| AudioFingerprint {
         path: path.into(),
@@ -132,7 +132,7 @@ fn find_similar_respects_max_results() {
 
 #[test]
 fn find_similar_empty_candidates_returns_empty() {
-    use app_lib::similarity::{find_similar, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, find_similar};
 
     let reference = AudioFingerprint {
         path: "/ref.wav".into(),

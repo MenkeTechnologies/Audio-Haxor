@@ -2894,6 +2894,7 @@ function toggleAudioLoop() {
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackLoop === 'function') {
         window.syncEnginePlaybackLoop(audioLooping);
     }
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
 function toggleRowLoop(filePath, event) {
@@ -3240,7 +3241,7 @@ function syncTrayNowPlayingFromPlayback() {
     const traySp = trayPlaybackSpeedForSync();
     const trayVol = trayVolumeForSync();
     if (idle) {
-        const idleSig = `idle|${uiTheme}|${trayAppSig}|sp:${traySp}|vol:${trayVol}`;
+        const idleSig = `idle|${uiTheme}|${trayAppSig}|sp:${traySp}|vol:${trayVol}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}`;
         if (_traySyncSig === idleSig) return;
         _traySyncSig = idleSig;
         console.info('[tray-main] update_tray_now_playing → Rust', {
@@ -3267,6 +3268,8 @@ function syncTrayNowPlayingFromPlayback() {
                 volume_pct: trayVol,
                 ui_theme: uiTheme,
                 appearance: trayAppearance,
+                shuffle_on: audioShuffling,
+                loop_on: audioLooping,
             },
         }).catch(() => {});
         return;
@@ -3320,7 +3323,7 @@ function syncTrayNowPlayingFromPlayback() {
     const sigPath = audioPlayerPath || resumePath || '';
     const { appearance: trayAppearancePlaying, sig: trayAppSigPlaying } = trayAppearanceForTraySync();
     /* Include title + subtitle: first ticks often have empty `#npName` / meta; dedupe must not block later updates. */
-    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|${trayAppSigPlaying}|sp:${trayPlaybackSpeedForSync()}|vol:${trayVolumeForSync()}`;
+    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|${trayAppSigPlaying}|sp:${trayPlaybackSpeedForSync()}|vol:${trayVolumeForSync()}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}`;
     if (sig === _traySyncSig) return;
     _traySyncSig = sig;
     console.info('[tray-main] update_tray_now_playing → Rust', {
@@ -3350,6 +3353,8 @@ function syncTrayNowPlayingFromPlayback() {
             volume_pct: trayVolumeForSync(),
             ui_theme: uiTheme,
             appearance: trayAppearancePlaying,
+            shuffle_on: audioShuffling,
+            loop_on: audioLooping,
         },
     }).catch(() => {});
 }
@@ -4904,6 +4909,7 @@ function toggleShuffle() {
     prefs.setItem('shuffleMode', audioShuffling ? 'on' : 'off');
     const btn = document.getElementById('npBtnShuffle');
     if (btn) btn.classList.toggle('active', audioShuffling);
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
 function toggleMute() {

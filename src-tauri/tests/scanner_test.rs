@@ -1,4 +1,4 @@
-use app_lib::scanner::{get_plugin_type, PluginInfo};
+use app_lib::scanner::{PluginInfo, get_plugin_type};
 
 #[test]
 fn test_get_plugin_type() {

@@ -1,6 +1,6 @@
 //! Integration smoke tests for `file_watcher::FileWatcherState` helpers.
 
-use app_lib::file_watcher::{get_watched_dirs, is_watching, stop_watching, FileWatcherState};
+use app_lib::file_watcher::{FileWatcherState, get_watched_dirs, is_watching, stop_watching};
 
 #[test]
 fn file_watcher_new_is_not_watching() {

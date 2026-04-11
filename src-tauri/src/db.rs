@@ -11,10 +11,10 @@ use crate::path_norm::{normalize_path_for_db, path_strings_json_normalized};
 use crate::scanner::PluginInfo;
 use regex::{Regex, RegexBuilder};
 use rusqlite::functions::{Context, FunctionFlags};
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -413,7 +413,10 @@ pub struct AudioQueryResult {
     #[serde(rename = "totalCount")]
     pub total_count: u64,
     /// True when `total_count` is a floor (`FTS_INVENTORY_MATCH_COUNT_CAP`) — exact count not computed.
-    #[serde(rename = "totalCountCapped", skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        rename = "totalCountCapped",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
     pub total_count_capped: bool,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
@@ -586,7 +589,10 @@ pub struct PluginQueryResult {
     pub plugins: Vec<PluginRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
-    #[serde(rename = "totalCountCapped", skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        rename = "totalCountCapped",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
     pub total_count_capped: bool,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
@@ -610,7 +616,10 @@ pub struct DawQueryResult {
     pub projects: Vec<DawRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
-    #[serde(rename = "totalCountCapped", skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        rename = "totalCountCapped",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
     pub total_count_capped: bool,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
@@ -633,7 +642,10 @@ pub struct PresetQueryResult {
     pub presets: Vec<PresetRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
-    #[serde(rename = "totalCountCapped", skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        rename = "totalCountCapped",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
     pub total_count_capped: bool,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
@@ -645,7 +657,10 @@ pub struct MidiQueryResult {
     pub midi_files: Vec<MidiFile>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
-    #[serde(rename = "totalCountCapped", skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        rename = "totalCountCapped",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
     pub total_count_capped: bool,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
@@ -667,7 +682,10 @@ pub struct PdfQueryResult {
     pub pdfs: Vec<PdfRow>,
     #[serde(rename = "totalCount")]
     pub total_count: u64,
-    #[serde(rename = "totalCountCapped", skip_serializing_if = "std::ops::Not::not")]
+    #[serde(
+        rename = "totalCountCapped",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
     pub total_count_capped: bool,
     #[serde(rename = "totalUnfiltered")]
     pub total_unfiltered: u64,
@@ -714,7 +732,11 @@ pub struct FilterStatsResult {
     #[serde(default, rename = "bpmAnalyzedCount")]
     pub bpm_analyzed_count: u64,
     /// Audio-only: key_name → count (top keys) for heatmap key card.
-    #[serde(default, skip_serializing_if = "HashMap::is_empty", rename = "keyCounts")]
+    #[serde(
+        default,
+        skip_serializing_if = "HashMap::is_empty",
+        rename = "keyCounts"
+    )]
     pub key_counts: HashMap<String, u64>,
     #[serde(default, rename = "keyAnalyzedCount")]
     pub key_analyzed_count: u64,
@@ -825,8 +847,7 @@ fn open_db_connection_with_pragmas(
     cache_kib: i32,
     mmap_cap: i64,
 ) -> Result<Connection, String> {
-    let conn =
-        Connection::open(db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    let conn = Connection::open(db_path).map_err(|e| format!("Failed to open database: {e}"))?;
     conn.busy_timeout(std::time::Duration::from_secs(30))
         .map_err(|e| format!("Failed to set busy_timeout: {e}"))?;
     init_sqlite_connection_pragmas(&conn, cache_kib, mmap_cap)?;
@@ -846,9 +867,12 @@ fn open_read_connection(
     let start = Arc::new(AtomicU64::new(now_epoch_ms()));
     let start_for_handler = Arc::clone(&start);
     let timeout_ms = SQLITE_QUERY_TIMEOUT_SECS * 1000;
-    conn.progress_handler(SQLITE_PROGRESS_HANDLER_OPS as i32, Some(move || {
-        now_epoch_ms().saturating_sub(start_for_handler.load(Ordering::Relaxed)) > timeout_ms
-    }))
+    conn.progress_handler(
+        SQLITE_PROGRESS_HANDLER_OPS as i32,
+        Some(move || {
+            now_epoch_ms().saturating_sub(start_for_handler.load(Ordering::Relaxed)) > timeout_ms
+        }),
+    )
     .map_err(|e| format!("Failed to set progress_handler: {e}"))?;
     Ok((conn, start))
 }
@@ -942,11 +966,9 @@ impl Database {
             }
         }
         let n: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM midi_library",
-                [],
-                |r| r.get::<_, i64>(0).map(|v| v as u64),
-            )
+            .query_row("SELECT COUNT(*) FROM midi_library", [], |r| {
+                r.get::<_, i64>(0).map(|v| v as u64)
+            })
             .unwrap_or(0);
         if let Ok(mut g) = self.midi_library_total_cache.lock() {
             *g = Some(n);
@@ -967,11 +989,9 @@ impl Database {
             }
         }
         let n: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM pdf_library",
-                [],
-                |r| r.get::<_, i64>(0).map(|v| v as u64),
-            )
+            .query_row("SELECT COUNT(*) FROM pdf_library", [], |r| {
+                r.get::<_, i64>(0).map(|v| v as u64)
+            })
             .unwrap_or(0);
         if let Ok(mut g) = self.pdf_library_total_cache.lock() {
             *g = Some(n);
@@ -992,11 +1012,9 @@ impl Database {
             }
         }
         let n: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM audio_library",
-                [],
-                |r| r.get::<_, i64>(0).map(|v| v as u64),
-            )
+            .query_row("SELECT COUNT(*) FROM audio_library", [], |r| {
+                r.get::<_, i64>(0).map(|v| v as u64)
+            })
             .unwrap_or(0);
         if let Ok(mut g) = self.audio_library_total_cache.lock() {
             *g = Some(n);
@@ -1042,11 +1060,9 @@ impl Database {
             }
         }
         let n: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM daw_library",
-                [],
-                |r| r.get::<_, i64>(0).map(|v| v as u64),
-            )
+            .query_row("SELECT COUNT(*) FROM daw_library", [], |r| {
+                r.get::<_, i64>(0).map(|v| v as u64)
+            })
             .unwrap_or(0);
         if let Ok(mut g) = self.daw_library_total_cache.lock() {
             *g = Some(n);
@@ -1067,11 +1083,9 @@ impl Database {
             }
         }
         let n: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM plugin_library",
-                [],
-                |r| r.get::<_, i64>(0).map(|v| v as u64),
-            )
+            .query_row("SELECT COUNT(*) FROM plugin_library", [], |r| {
+                r.get::<_, i64>(0).map(|v| v as u64)
+            })
             .unwrap_or(0);
         if let Ok(mut g) = self.plugin_library_total_cache.lock() {
             *g = Some(n);
@@ -2598,7 +2612,10 @@ DROP TABLE _pl_refresh_paths;"#;
     }
 
     /// Bounded FTS hit count for PDF library ([`Self::query_pdfs`] has no format filter).
-    fn pdf_fts_bounded_count_library(conn: &Connection, fts_match: &str) -> Result<(u64, bool), String> {
+    fn pdf_fts_bounded_count_library(
+        conn: &Connection,
+        fts_match: &str,
+    ) -> Result<(u64, bool), String> {
         let cap = FTS_INVENTORY_MATCH_COUNT_CAP + 1;
         let raw: i64 = conn
             .query_row(
@@ -2709,9 +2726,8 @@ DROP TABLE _pl_refresh_paths;"#;
         {
             cap_idx += 1;
         }
-        let sql = format!(
-            "SELECT COUNT(*) FROM (SELECT 1 {from_sql} WHERE {where_cl} LIMIT ?{cap_idx})"
-        );
+        let sql =
+            format!("SELECT COUNT(*) FROM (SELECT 1 {from_sql} WHERE {where_cl} LIMIT ?{cap_idx})");
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
         let mut bi = 1usize;
         if let Some(ref p) = regex_pat.as_ref().or(like_pat.as_ref()) {
@@ -2724,7 +2740,8 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
         }
-        stmt.raw_bind_parameter(bi, cap).map_err(|e| e.to_string())?;
+        stmt.raw_bind_parameter(bi, cap)
+            .map_err(|e| e.to_string())?;
         let mut rows = stmt.raw_query();
         let raw: i64 = rows
             .next()
@@ -3043,11 +3060,7 @@ DROP TABLE _pl_refresh_paths;"#;
                 bpm: row.get(11).ok(),
                 key: row.get(12).ok(),
                 lufs: row.get(13).ok(),
-                bpm_exhausted: row
-                    .get::<_, i64>(14)
-                    .ok()
-                    .map(|v| v != 0)
-                    .unwrap_or(false),
+                bpm_exhausted: row.get::<_, i64>(14).ok().map(|v| v != 0).unwrap_or(false),
             });
         }
 
@@ -5659,7 +5672,9 @@ DROP TABLE _pl_refresh_paths;"#;
             }
             let li = next_ph;
             let oi = next_ph + 1;
-            w.push_str(&format!(" ORDER BY bm25(midi_files_fts) LIMIT ?{li} OFFSET ?{oi}"));
+            w.push_str(&format!(
+                " ORDER BY bm25(midi_files_fts) LIMIT ?{li} OFFSET ?{oi}"
+            ));
             w
         } else {
             format!(
@@ -6684,10 +6699,14 @@ DROP TABLE _pl_refresh_paths;"#;
         let mut stmt_k = conn.prepare(&sql_key).map_err(|e| e.to_string())?;
         let mut bi_k = 1;
         if let Some(m) = fts_match {
-            stmt_k.raw_bind_parameter(bi_k, m).map_err(|e| e.to_string())?;
+            stmt_k
+                .raw_bind_parameter(bi_k, m)
+                .map_err(|e| e.to_string())?;
             bi_k += 1;
         } else if let Some(r) = regex_pat {
-            stmt_k.raw_bind_parameter(bi_k, r).map_err(|e| e.to_string())?;
+            stmt_k
+                .raw_bind_parameter(bi_k, r)
+                .map_err(|e| e.to_string())?;
             bi_k += 1;
         } else if let Some(pat) = like_pat {
             stmt_k
@@ -6697,7 +6716,9 @@ DROP TABLE _pl_refresh_paths;"#;
         }
         if let Some(f) = format_filter {
             if !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt_k.raw_bind_parameter(bi_k, f).map_err(|e| e.to_string())?;
+                stmt_k
+                    .raw_bind_parameter(bi_k, f)
+                    .map_err(|e| e.to_string())?;
             }
         }
         let mut rows_k = stmt_k.raw_query();
@@ -6718,10 +6739,14 @@ DROP TABLE _pl_refresh_paths;"#;
         let mut stmt_d = conn.prepare(&sql_dir).map_err(|e| e.to_string())?;
         let mut bi_d = 1;
         if let Some(m) = fts_match {
-            stmt_d.raw_bind_parameter(bi_d, m).map_err(|e| e.to_string())?;
+            stmt_d
+                .raw_bind_parameter(bi_d, m)
+                .map_err(|e| e.to_string())?;
             bi_d += 1;
         } else if let Some(r) = regex_pat {
-            stmt_d.raw_bind_parameter(bi_d, r).map_err(|e| e.to_string())?;
+            stmt_d
+                .raw_bind_parameter(bi_d, r)
+                .map_err(|e| e.to_string())?;
             bi_d += 1;
         } else if let Some(pat) = like_pat {
             stmt_d
@@ -6731,7 +6756,9 @@ DROP TABLE _pl_refresh_paths;"#;
         }
         if let Some(f) = format_filter {
             if !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt_d.raw_bind_parameter(bi_d, f).map_err(|e| e.to_string())?;
+                stmt_d
+                    .raw_bind_parameter(bi_d, f)
+                    .map_err(|e| e.to_string())?;
             }
         }
         let mut rows_d = stmt_d.raw_query();
@@ -6872,10 +6899,14 @@ DROP TABLE _pl_refresh_paths;"#;
         let mut stmt_b = conn.prepare(&sql_buckets).map_err(|e| e.to_string())?;
         let mut bi_b = 1;
         if let Some(ref m) = fts_match {
-            stmt_b.raw_bind_parameter(bi_b, m).map_err(|e| e.to_string())?;
+            stmt_b
+                .raw_bind_parameter(bi_b, m)
+                .map_err(|e| e.to_string())?;
             bi_b += 1;
         } else if let Some(ref r) = regex_pat {
-            stmt_b.raw_bind_parameter(bi_b, r).map_err(|e| e.to_string())?;
+            stmt_b
+                .raw_bind_parameter(bi_b, r)
+                .map_err(|e| e.to_string())?;
             bi_b += 1;
         } else if let Some(ref pat) = like_pat {
             stmt_b
@@ -6885,7 +6916,9 @@ DROP TABLE _pl_refresh_paths;"#;
         }
         if let Some(f) = format_filter {
             if !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt_b.raw_bind_parameter(bi_b, f).map_err(|e| e.to_string())?;
+                stmt_b
+                    .raw_bind_parameter(bi_b, f)
+                    .map_err(|e| e.to_string())?;
             }
         }
         let size_buckets: Vec<u64> = {
@@ -6898,20 +6931,15 @@ DROP TABLE _pl_refresh_paths;"#;
                 vec![0; 6]
             }
         };
-        let (
-            bpm_buckets,
-            bpm_analyzed_count,
-            key_counts,
-            key_analyzed_count,
-            top_folders,
-        ) = Self::audio_heatmap_aggregates(
-            &conn,
-            &where_cl,
-            &fts_match,
-            &regex_pat,
-            &like_pat,
-            format_filter,
-        )?;
+        let (bpm_buckets, bpm_analyzed_count, key_counts, key_analyzed_count, top_folders) =
+            Self::audio_heatmap_aggregates(
+                &conn,
+                &where_cl,
+                &fts_match,
+                &regex_pat,
+                &like_pat,
+                format_filter,
+            )?;
         Ok(FilterStatsResult {
             count,
             count_capped: false,
@@ -7801,15 +7829,14 @@ DROP TABLE _pl_refresh_paths;"#;
                     r.get::<_, i64>(0).map(|v| v as u64)
                 })
                 .unwrap_or(0);
-            let size_bytes = if let Some(b) =
-                dbstat_bytes_for_scan_group(&conn, scan_table, item_table)
-            {
-                b
-            } else if total_inv_rows > 0 {
-                db_size.saturating_mul(item_count) / total_inv_rows.max(1)
-            } else {
-                0
-            };
+            let size_bytes =
+                if let Some(b) = dbstat_bytes_for_scan_group(&conn, scan_table, item_table) {
+                    b
+                } else if total_inv_rows > 0 {
+                    db_size.saturating_mul(item_count) / total_inv_rows.max(1)
+                } else {
+                    0
+                };
             stats.push(CacheStat {
                 key: key.into(),
                 label: label.into(),
@@ -8381,7 +8408,10 @@ mod tests {
         let bpm = stats.iter().find(|s| s.key == "bpm").unwrap();
         let key = stats.iter().find(|s| s.key == "key").unwrap();
         let lufs = stats.iter().find(|s| s.key == "lufs").unwrap();
-        assert_eq!(bpm.total, 0, "BPM row must not use library row count as Items denominator");
+        assert_eq!(
+            bpm.total, 0,
+            "BPM row must not use library row count as Items denominator"
+        );
         assert_eq!(key.total, 0);
         assert_eq!(lufs.total, 0);
         assert_eq!(lufs.count, 1);
@@ -9248,12 +9278,8 @@ mod tests {
         db.save_scan("s1", "2024-01-01T00:00:00", 1, 100, &HashMap::new(), &[])
             .unwrap();
         db.insert_audio_batch("s1", &samples).unwrap();
-        let rows: Vec<AnalysisBatchRow> = vec![(
-            "/a.wav".into(),
-            None,
-            Some("D".into()),
-            Some(-12.0),
-        )];
+        let rows: Vec<AnalysisBatchRow> =
+            vec![("/a.wav".into(), None, Some("D".into()), Some(-12.0))];
         assert_eq!(db.batch_update_analysis(&rows).unwrap(), 1);
         let unanalyzed = db.unanalyzed_paths(100).unwrap();
         assert!(
@@ -9794,7 +9820,10 @@ mod tests {
         // never be queued for page-count extraction).
         let mut unindexed = db.unindexed_pdf_paths(100).unwrap();
         unindexed.sort();
-        assert_eq!(unindexed, vec!["/a/old.pdf".to_string(), "/b/new.pdf".to_string()]);
+        assert_eq!(
+            unindexed,
+            vec!["/a/old.pdf".to_string(), "/b/new.pdf".to_string()]
+        );
     }
 
     #[test]

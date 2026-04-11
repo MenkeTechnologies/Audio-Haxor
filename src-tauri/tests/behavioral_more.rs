@@ -231,7 +231,7 @@ fn extract_plugins_vst3_extension_returns_empty() {
 
 #[test]
 fn compute_daw_diff_swap_projects() {
-    use app_lib::history::{build_daw_snapshot, DawProject};
+    use app_lib::history::{DawProject, build_daw_snapshot};
     let a = DawProject {
         name: "a".into(),
         path: "/a.als".into(),

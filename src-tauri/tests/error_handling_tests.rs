@@ -2,7 +2,7 @@
 //! Tests failure scenarios, invalid inputs, and error recovery
 
 use app_lib::format_size;
-use app_lib::kvr::{compare_versions, URL_RE};
+use app_lib::kvr::{URL_RE, compare_versions};
 use app_lib::midi;
 use app_lib::scanner::{self, PluginInfo};
 use app_lib::similarity::{self, AudioFingerprint};
@@ -110,8 +110,8 @@ fn test_similarity_no_candidates() {
 #[test]
 #[ignore]
 fn test_parallel_scan_cancellation() {
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     let cancel_flag = Arc::new(AtomicBool::new(false));
     let cancel_flag_clone = cancel_flag.clone();
@@ -203,11 +203,23 @@ fn test_export_special_chars() {
 #[test]
 fn test_kvr_url_extraction_edge_cases() {
     let test_cases = vec![
-        ("Copyright © Copyright 2024, Some Plugin by PluginCo. Please download from https://www.example.com/plugins", Some("https://www.example.com/plugins")),
-        ("Copyright 2024, Plugin Co. Visit http://example.org", Some("http://example.org")),
+        (
+            "Copyright © Copyright 2024, Some Plugin by PluginCo. Please download from https://www.example.com/plugins",
+            Some("https://www.example.com/plugins"),
+        ),
+        (
+            "Copyright 2024, Plugin Co. Visit http://example.org",
+            Some("http://example.org"),
+        ),
         ("No URL in copyright", None),
-        ("Mixed: https://foo.com and http://bar.org", Some("https://foo.com")), // Should match first
-        ("Multiple URLs: https://a.com, https://b.com", Some("https://a.com")),
+        (
+            "Mixed: https://foo.com and http://bar.org",
+            Some("https://foo.com"),
+        ), // Should match first
+        (
+            "Multiple URLs: https://a.com, https://b.com",
+            Some("https://a.com"),
+        ),
     ];
 
     for (copyright, expected) in test_cases {

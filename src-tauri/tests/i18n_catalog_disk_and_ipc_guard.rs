@@ -13,7 +13,7 @@ use std::fs::{read_dir, read_to_string};
 use std::path::{Path, PathBuf};
 
 use regex::Regex;
-use serde_json::{from_str, Value};
+use serde_json::{Value, from_str};
 
 fn i18n_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../i18n")

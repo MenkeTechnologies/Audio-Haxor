@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use std::path::Path;
 
 use app_lib::audio_scanner::{format_size as audio_format_size, get_audio_metadata};

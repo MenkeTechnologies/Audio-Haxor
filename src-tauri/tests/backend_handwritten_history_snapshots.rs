@@ -7,9 +7,9 @@ use std::path::Path;
 
 use app_lib::daw_scanner::{daw_name_for_format, ext_matches, is_package_ext};
 use app_lib::history::{
-    build_audio_snapshot, build_daw_snapshot, build_preset_snapshot, compute_audio_diff,
-    compute_daw_diff, compute_plugin_diff, compute_preset_diff, AudioSample, AudioScanSnapshot,
-    DawProject, DawScanSnapshot, PresetFile, PresetScanSnapshot, ScanDiff, ScanSnapshot,
+    AudioSample, AudioScanSnapshot, DawProject, DawScanSnapshot, PresetFile, PresetScanSnapshot,
+    ScanDiff, ScanSnapshot, build_audio_snapshot, build_daw_snapshot, build_preset_snapshot,
+    compute_audio_diff, compute_daw_diff, compute_plugin_diff, compute_preset_diff,
 };
 use app_lib::scanner::PluginInfo;
 use app_lib::{ExportPayload, ExportPlugin};

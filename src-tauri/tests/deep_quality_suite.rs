@@ -3,7 +3,7 @@
 
 use std::cmp::Ordering;
 
-use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
+use app_lib::similarity::{AudioFingerprint, find_similar, fingerprint_distance};
 
 fn smf_single_track(tempo_micros: u32, include_note_on: bool) -> Vec<u8> {
     let t0 = ((tempo_micros >> 16) & 0xff) as u8;

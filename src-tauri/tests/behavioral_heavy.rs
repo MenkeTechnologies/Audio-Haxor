@@ -5,13 +5,13 @@ use std::path::Path;
 
 use app_lib::daw_scanner::{daw_name_for_format, ext_matches};
 use app_lib::history::{
-    build_audio_snapshot, build_daw_snapshot, build_plugin_snapshot, build_preset_snapshot,
-    compute_audio_diff, compute_daw_diff, compute_plugin_diff, compute_preset_diff, radix_string,
-    KvrCacheEntry,
+    KvrCacheEntry, build_audio_snapshot, build_daw_snapshot, build_plugin_snapshot,
+    build_preset_snapshot, compute_audio_diff, compute_daw_diff, compute_plugin_diff,
+    compute_preset_diff, radix_string,
 };
-use app_lib::scanner::{get_plugin_type, PluginInfo};
-use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
-use app_lib::xref::{extract_plugins, normalize_plugin_name, PluginRef};
+use app_lib::scanner::{PluginInfo, get_plugin_type};
+use app_lib::similarity::{AudioFingerprint, find_similar, fingerprint_distance};
+use app_lib::xref::{PluginRef, extract_plugins, normalize_plugin_name};
 use app_lib::{ExportPayload, ExportPlugin};
 
 fn plug(path: &str, ver: &str) -> PluginInfo {

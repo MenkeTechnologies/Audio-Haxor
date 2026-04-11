@@ -5,10 +5,10 @@ use std::cmp::Ordering;
 use std::path::Path;
 
 use app_lib::history::{
-    build_audio_snapshot, build_daw_snapshot, build_preset_snapshot, compute_audio_diff,
-    compute_daw_diff, compute_preset_diff, AudioSample, DawProject, PresetFile,
+    AudioSample, DawProject, PresetFile, build_audio_snapshot, build_daw_snapshot,
+    build_preset_snapshot, compute_audio_diff, compute_daw_diff, compute_preset_diff,
 };
-use app_lib::similarity::{find_similar, fingerprint_distance, AudioFingerprint};
+use app_lib::similarity::{AudioFingerprint, find_similar, fingerprint_distance};
 
 // ── KVR: `compare_versions` — explicit pairs (real semver-like strings) ──
 

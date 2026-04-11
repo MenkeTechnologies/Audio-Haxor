@@ -4,7 +4,7 @@
 use std::cmp::Ordering;
 use std::path::Path;
 
-use app_lib::history::{build_plugin_snapshot, compute_plugin_diff, ScanSnapshot};
+use app_lib::history::{ScanSnapshot, build_plugin_snapshot, compute_plugin_diff};
 use app_lib::scanner::PluginInfo;
 
 fn plugin(path: &str, name: &str, ver: &str) -> PluginInfo {
@@ -102,7 +102,7 @@ fn kvr_compare_independent_of_extra_build_metadata_segments() {
 
 #[test]
 fn find_similar_returns_all_distinct_candidates_when_max_large() {
-    use app_lib::similarity::{find_similar, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, find_similar};
     let mk = |path: &str, rms: f64| AudioFingerprint {
         path: path.into(),
         rms,
@@ -124,10 +124,10 @@ fn find_similar_returns_all_distinct_candidates_when_max_large() {
 
 #[test]
 fn bpm_decode_symphonia_nonexistent_returns_none() {
-    assert!(app_lib::bpm::decode_with_symphonia_pub(Path::new(
-        "/nonexistent/audio_haxor/missing.mp3"
-    ))
-    .is_none());
+    assert!(
+        app_lib::bpm::decode_with_symphonia_pub(Path::new("/nonexistent/audio_haxor/missing.mp3"))
+            .is_none()
+    );
 }
 
 #[test]
@@ -302,7 +302,7 @@ fn kvr_compare_unknown_equal_to_unknown() {
 
 #[test]
 fn fingerprint_distance_nonnegative_for_random_vectors() {
-    use app_lib::similarity::{fingerprint_distance, AudioFingerprint};
+    use app_lib::similarity::{AudioFingerprint, fingerprint_distance};
     let a = AudioFingerprint {
         path: "/a".into(),
         rms: 0.1,
