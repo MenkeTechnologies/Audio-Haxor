@@ -14,6 +14,7 @@
 # After this script:
 #   AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngineHelper.app/Contents/MacOS/audio-engine
 #   AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngineHelper.app/Contents/Info.plist
+#   AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngineHelper.app/Contents/Resources/icon.icns
 #
 # [NSBundle mainBundle] from the helper now resolves to AudioHaxorEngineHelper.app (its own
 # bundle ID, its own Info.plist, distinct from the parent), and audiocomponentd accepts the
@@ -68,8 +69,10 @@ HELPER_APP="$APP/Contents/MacOS/AudioHaxorEngineHelper.app"
 HELPER_CONTENTS="$HELPER_APP/Contents"
 HELPER_MACOS="$HELPER_CONTENTS/MacOS"
 HELPER_INFO="$HELPER_CONTENTS/Info.plist"
+HELPER_RESOURCES="$HELPER_CONTENTS/Resources"
 HELPER_BIN="$HELPER_MACOS/audio-engine"
 INFO_TEMPLATE="$REPO_ROOT/audio-engine/helper-app/Info.plist"
+HELPER_ICON_SRC="$REPO_ROOT/src-tauri/icons/icon.icns"
 ENTITLEMENTS="$REPO_ROOT/src-tauri/Entitlements.plist"
 MAIN_BIN="$APP/Contents/MacOS/audio-haxor"
 # Stale helper from previous postbundle runs that put it under Contents/Frameworks/.
@@ -77,6 +80,10 @@ LEGACY_HELPER_APP="$APP/Contents/Frameworks/AudioHaxorEngineHelper.app"
 
 if [ ! -f "$INFO_TEMPLATE" ]; then
   echo "postbundle-audio-engine-helper: missing template $INFO_TEMPLATE" >&2
+  exit 1
+fi
+if [ ! -f "$HELPER_ICON_SRC" ]; then
+  echo "postbundle-audio-engine-helper: missing helper icon $HELPER_ICON_SRC" >&2
   exit 1
 fi
 if [ ! -f "$ENTITLEMENTS" ]; then
@@ -100,13 +107,17 @@ elif [ -f "$ENGINE_BIN_OLD" ]; then
   command rm -rf "$HELPER_APP"
   mkdir -p "$HELPER_MACOS"
   mv "$ENGINE_BIN_OLD" "$HELPER_BIN"
-  cp "$INFO_TEMPLATE" "$HELPER_INFO"
 else
   echo "postbundle-audio-engine-helper: no audio-engine binary found at $ENGINE_BIN_OLD or $HELPER_BIN" >&2
   exit 1
 fi
 
 chmod +x "$HELPER_BIN"
+
+# Same icon as the main app — required for Dock / Cmd+Tab when LSUIElement helper is foregrounded (plugin editors).
+mkdir -p "$HELPER_RESOURCES"
+cp "$HELPER_ICON_SRC" "$HELPER_RESOURCES/icon.icns"
+cp "$INFO_TEMPLATE" "$HELPER_INFO"
 
 # Strip any quarantine xattrs that would invalidate codesign.
 xattr -cr "$HELPER_APP" 2>/dev/null || true

@@ -34,6 +34,10 @@
         juce::Process::makeForegroundProcess() (NSApplicationActivationPolicyRegular)
         when an AU plugin editor window opens.
 
+        CFBundleIconFile + Contents/Resources/icon.icns (copied from src-tauri/icons/
+        by postbundle) so the Dock / app switcher shows the same glyph as AUDIO_HAXOR
+        when the helper is foregrounded for plugin UI.
+
         See scripts/postbundle-audio-engine-helper.sh for the bundling pipeline and
         audio-engine/README.md "Helper .app architecture" for the full rationale.
     -->
@@ -41,6 +45,8 @@
     <string>en</string>
     <key>CFBundleExecutable</key>
     <string>audio-engine</string>
+    <key>CFBundleIconFile</key>
+    <string>icon</string>
     <key>CFBundleIdentifier</key>
     <string>com.menketechnologies.audio-haxor.audio-engine-helper</string>
     <key>CFBundleInfoDictionaryVersion</key>
