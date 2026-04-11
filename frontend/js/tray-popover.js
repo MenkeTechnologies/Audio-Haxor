@@ -1145,12 +1145,48 @@
             });
             if (th) applyTrayDocumentTheme(th);
         };
+        /* Lightweight shuffle/loop toggle sync: Rust emits this instead of a full
+         * `tray-popover-state` when the user clicks the shuffle/loop buttons in the popover, so
+         * that a stale cached `elapsed_sec` in `last_popover_emit` cannot get replayed into
+         * `applyState` and yank the progress thumb while the main window is minimized. Only the
+         * button highlight classes update here — progress interpolation is untouched. */
+        const onShuffleLoop = (e) => {
+            const raw = trayListenUnwrap(e);
+            if (!raw || typeof raw !== 'object') return;
+            if (typeof raw.shuffle_on === 'boolean' && btnShuffle) {
+                btnShuffle.classList.toggle('active', raw.shuffle_on);
+            }
+            if (typeof raw.loop_on === 'boolean' && btnLoop) {
+                btnLoop.classList.toggle('active', raw.loop_on);
+            }
+        };
+        /* Lightweight subtitle refresh: fires after main JS's `ensureAudioAnalysisForPath`
+         * completes and calls `tray_popover_push_subtitle`. Only the subtitle DOM updates —
+         * progress, transport, title, etc. are untouched, so interpolation keeps running and
+         * the thumb does not jump. Re-uses the same `renderTraySubtitle` path as `applyState`
+         * to get identical reveal-path toggle markup. */
+        const onSubtitle = (e) => {
+            const raw = trayListenUnwrap(e);
+            if (!raw || typeof raw !== 'object') return;
+            const sub = typeof raw.subtitle === 'string' ? raw.subtitle : '';
+            const newSig = `${sub}\0${_trayRevealPath}`;
+            if (_traySubtitleSig === newSig) return;
+            _traySubtitleSig = newSig;
+            if (elSub) {
+                renderTraySubtitle(sub, _trayRevealPath);
+                applyTrayPathPanelDom(_trayPathUserExpanded);
+            }
+            syncTrayPopoverTooltips();
+            scheduleResize();
+        };
         const scoped = { target: 'tray-popover' };
         try {
             const tw = getTrayWebviewWindow();
             if (tw && typeof tw.listen === 'function') {
                 await tw.listen('tray-popover-state', onState);
                 await tw.listen('tray-popover-ui-theme', onTheme);
+                await tw.listen('tray-popover-shuffle-loop', onShuffleLoop);
+                await tw.listen('tray-popover-subtitle', onSubtitle);
                 console.info('[tray-popover] IPC listeners registered (WebviewWindow.listen)', {
                     label: typeof tw.label === 'string' ? tw.label : '(unknown)',
                 });
@@ -1158,11 +1194,15 @@
                 try {
                     await listen('tray-popover-state', onState, scoped);
                     await listen('tray-popover-ui-theme', onTheme, scoped);
+                    await listen('tray-popover-shuffle-loop', onShuffleLoop, scoped);
+                    await listen('tray-popover-subtitle', onSubtitle, scoped);
                     console.info('[tray-popover] IPC listeners registered (event.listen + target)', scoped);
                 } catch (_) {
                     /* Older/global bundles may omit the `target` option. */
                     await listen('tray-popover-state', onState);
                     await listen('tray-popover-ui-theme', onTheme);
+                    await listen('tray-popover-shuffle-loop', onShuffleLoop);
+                    await listen('tray-popover-subtitle', onSubtitle);
                     console.info('[tray-popover] IPC listeners registered (event.listen, no target)');
                 }
             } else {

@@ -3609,7 +3609,7 @@ function seekAudio(event) {
     seekPlaybackToPercent(pct);
 }
 
-function setAudioVolume(value) {
+function setAudioVolume(value, opts) {
     const vol = parseInt(value, 10) / 100;
     const npSlider = document.getElementById('npVolume');
     if (npSlider) npSlider.value = String(value);
@@ -3624,13 +3624,23 @@ function setAudioVolume(value) {
     const aePct = document.getElementById('aeVolumePct');
     if (aePct) aePct.textContent = value + '%';
     prefs.setItem('audioVolume', value);
-    /* Debounced tray-popover sync MUST run in both playback modes. The engine-playback branch
-     * below `return`s early, and if this sync were only after the return, Rust's
-     * `TrayState.last_popover_emit.volume_pct` would never update from this `setAudioVolume` call.
-     * Rust's `start_tray_host_poll` thread then re-emits the stale cached volume every
-     * `TRAY_POLL_MS`, and once the tray popover's `_trayVolUserActive` 400 ms guard expires the
-     * slider snaps back to the old value. Schedule the sync unconditionally. */
-    if (typeof window !== 'undefined') {
+    /* Debounced tray-popover sync MUST run when the change originated in the MAIN window so
+     * Rust's `TrayState.last_popover_emit.volume_pct` catches up (otherwise `start_tray_host_poll`
+     * re-emits the stale cached value and the tray slider snaps back after `_trayVolUserActive`
+     * expires).
+     *
+     * BUT when the change originated in the TRAY popover (`ipc.js` menu-action handler for
+     * `volume:N`), Rust already updated `last_popover_emit.volume_pct` synchronously inside
+     * `tray_popover_action` BEFORE emitting the menu-action to main — so the sync here is
+     * redundant. Worse, while the main window is minimized on macOS, WebKit freezes
+     * `<audio>` element state updates to background windows, so `audioPlayer.currentTime` read
+     * inside `syncTrayNowPlayingFromPlayback` is stuck at the value it held when the window
+     * lost visibility. That stale `elapsed_sec` then gets pushed through `update_tray_now_playing`
+     * → `tray-popover-state`, and the popover's drift-rebase yanks the progress thumb backward
+     * to "the last point main was visible" on every tray volume drag. Skip the sync for
+     * tray-sourced changes. */
+    const fromTray = !!(opts && opts.fromTray);
+    if (!fromTray && typeof window !== 'undefined') {
         if (window._trayVolSyncTimer) clearTimeout(window._trayVolSyncTimer);
         window._trayVolSyncTimer = setTimeout(() => {
             window._trayVolSyncTimer = null;
@@ -3679,7 +3689,7 @@ function setAudioVolume(value) {
     }
 }
 
-function setPlaybackSpeed(value) {
+function setPlaybackSpeed(value, opts) {
     const v = parseFloat(value);
     const clamped = Number.isFinite(v) ? Math.max(0.25, Math.min(2, v)) : 1;
     prefs.setItem('audioSpeed', String(clamped));
@@ -3714,7 +3724,15 @@ function setPlaybackSpeed(value) {
     } else {
         audioPlayer.playbackRate = clamped;
     }
-    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
+    /* Tray-sourced speed changes: Rust already set `last_popover_emit.playback_speed` inside
+     * `tray_popover_action` before dispatching the menu-action to main, so syncing back here
+     * is redundant. Doing it anyway would push a stale `audioPlayer.currentTime` (frozen by
+     * WebKit while main is minimized on macOS) to the popover and snap the progress thumb. See
+     * the matching note in `setAudioVolume`. */
+    const fromTray = !!(opts && opts.fromTray);
+    if (!fromTray && typeof syncTrayNowPlayingFromPlayback === 'function') {
+        syncTrayNowPlayingFromPlayback();
+    }
 }
 
 // ── Metadata Panel ──
@@ -4142,6 +4160,55 @@ async function ensureAudioAnalysisForPath(filePath) {
         await persistAnalysisRowToDb(filePath);
     } catch (_) {
         /* ignore — individual helpers handle their own errors and write null to the caches */
+    }
+    /* Tray popover subtitle bakes BPM / Key / LUFS from `_bpmCache`/`_keyCache`/`_lufsCache` in
+     * `npTrayPopoverSubtitleMetaOnly`. Those caches are only populated now, so the initial tray
+     * push at `previewAudio` time had no analysis values. Push the refreshed subtitle directly
+     * to Rust via a dedicated lightweight command rather than `syncTrayNowPlayingFromPlayback`:
+     * the full sync path reads `audioPlayer.currentTime`, which is frozen by WebKit when the
+     * main window is minimized on macOS, and replaying that stale elapsed through a full state
+     * emit would snap the tray progress thumb backward (same root cause as the shuffle/loop
+     * bug). Only push for the currently playing track — background batch analysis of unrelated
+     * rows must not thrash the tray IPC. */
+    const resumePath =
+        typeof window !== 'undefined' && typeof window._enginePlaybackResumePath === 'string'
+            ? window._enginePlaybackResumePath
+            : '';
+    const curPath =
+        (typeof audioPlayerPath === 'string' && audioPlayerPath) || resumePath || '';
+    if (curPath && filePath === curPath) {
+        const inv =
+            typeof window !== 'undefined' &&
+            window.__TAURI__ &&
+            window.__TAURI__.core &&
+            typeof window.__TAURI__.core.invoke === 'function'
+                ? window.__TAURI__.core.invoke
+                : null;
+        if (inv) {
+            let subtitle = '';
+            try {
+                subtitle = npTrayPopoverSubtitleMetaOnly(filePath).trim();
+            } catch (_) {
+                subtitle = '';
+            }
+            /* Avoid repeating the track name when meta is just the basename (same rule as
+             * `syncTrayNowPlayingFromPlayback`). */
+            const track = typeof trayNowPlayingDisplayName === 'function' ? trayNowPlayingDisplayName() : '';
+            if (subtitle && track) {
+                if (subtitle === track) {
+                    subtitle = '';
+                } else if (!subtitle.includes('\u2022')) {
+                    const stem = (s) => {
+                        const t = s.trim();
+                        const i = t.lastIndexOf('.');
+                        if (i > 0 && i < t.length - 1) return t.slice(0, i).toLowerCase();
+                        return t.toLowerCase();
+                    };
+                    if (stem(subtitle) === stem(track)) subtitle = '';
+                }
+            }
+            void inv('tray_popover_push_subtitle', { subtitle }).catch(() => {});
+        }
     }
 }
 
@@ -4912,7 +4979,18 @@ function toggleShuffle() {
     if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
-/** After tray popover toggles shuffle/loop in Rust (main webview may have been suspended). */
+/** After tray popover toggles shuffle/loop in Rust (main webview may have been suspended).
+ *
+ * CRITICAL: do NOT call `syncTrayNowPlayingFromPlayback` here. Rust already owns the authoritative
+ * shuffle/loop state (it was set directly inside `tray_popover_toggle_shuffle`/`_loop` before
+ * this event fired), so the round-trip push is redundant. Worse, when the main window is
+ * minimized on macOS, WebKit freezes `<audio>` element state updates to background windows —
+ * `audioPlayer.currentTime` gets stuck at the value it held when the window lost visibility.
+ * Pushing that stale elapsed back through `update_tray_now_playing` then re-emits
+ * `tray-popover-state` to the popover with the stale value, and the popover's drift-rebase
+ * yanks the progress thumb backward to the "last point where main app was visible" on every
+ * shuffle/loop click. The tray popover gets its own lightweight `tray-popover-shuffle-loop`
+ * event for the button highlights, so nothing here needs to drive it. */
 function applyTrayPlaybackFlagsFromHost(shuffleOn, loopOn) {
     audioShuffling = !!shuffleOn;
     audioLooping = !!loopOn;
@@ -4929,7 +5007,6 @@ function applyTrayPlaybackFlagsFromHost(shuffleOn, loopOn) {
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackLoop === 'function') {
         window.syncEnginePlaybackLoop(audioLooping);
     }
-    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
 if (typeof window !== 'undefined') {

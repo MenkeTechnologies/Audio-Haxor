@@ -49,6 +49,53 @@ fn emit_tray_popover_state(app: &AppHandle<Wry>, emit: &TrayPopoverEmit) {
     }
 }
 
+/// Lightweight toggle-only emit for shuffle/loop. Does **not** touch `elapsed_sec`/`total_sec`/
+/// `playing`, so the tray popover's local rAF progress interpolation keeps running untouched.
+/// Re-emitting `tray-popover-state` on a toggle while the main window is minimized was replaying
+/// a stale `last_popover_emit.elapsed_sec` (frozen at the last main-window push before suspend),
+/// yanking the progress thumb on every shuffle/loop click.
+fn emit_tray_popover_shuffle_loop(app: &AppHandle<Wry>, shuffle_on: bool, loop_on: bool) {
+    let payload = serde_json::json!({
+        "shuffle_on": shuffle_on,
+        "loop_on": loop_on,
+    });
+    match app.emit_to("tray-popover", "tray-popover-shuffle-loop", payload) {
+        Ok(()) => {
+            if std::env::var_os("AUDIO_HAXOR_TRAY_DEBUG").is_some() {
+                eprintln!(
+                    "[tray-popover-host] emit tray-popover-shuffle-loop ok shuffle_on={shuffle_on} loop_on={loop_on}"
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!("[tray-popover-host] emit tray-popover-shuffle-loop FAILED: {e}");
+        }
+    }
+}
+
+/// Lightweight subtitle-only emit. Used after BPM/Key/LUFS analysis finishes — the main window
+/// already pushed a full `tray-popover-state` at `previewAudio` time, but the caches were empty
+/// then, so the subtitle had no analysis values. Re-running `syncTrayNowPlayingFromPlayback` just
+/// to refresh the subtitle bundles a fresh `elapsed_sec` read that is stale when the main window
+/// is minimized on macOS (WebKit freezes `<audio>` updates to background windows), yanking the
+/// tray progress thumb backward. This emit carries only the subtitle so interpolation is untouched.
+fn emit_tray_popover_subtitle(app: &AppHandle<Wry>, subtitle: &str) {
+    let payload = serde_json::json!({ "subtitle": subtitle });
+    match app.emit_to("tray-popover", "tray-popover-subtitle", payload) {
+        Ok(()) => {
+            if std::env::var_os("AUDIO_HAXOR_TRAY_DEBUG").is_some() {
+                eprintln!(
+                    "[tray-popover-host] emit tray-popover-subtitle ok subtitle_ch={}",
+                    subtitle.chars().count()
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!("[tray-popover-host] emit tray-popover-subtitle FAILED: {e}");
+        }
+    }
+}
+
 /// Light/dark from prefs (`prefs_set` key `theme`). Same debug env / failure logging as [`emit_tray_popover_state`].
 pub fn emit_tray_popover_ui_theme(app: &AppHandle<Wry>, ui_theme: &str) {
     let payload = serde_json::json!({ "ui_theme": ui_theme });
@@ -484,10 +531,14 @@ fn tray_popover_toggle_shuffle(app: &AppHandle<Wry>) -> Result<(), String> {
         None => None,
     };
 
+    /* Lightweight toggle-only emit — see [`emit_tray_popover_shuffle_loop`]. Replaces the old
+     * `emit_tray_popover_state` here which was replaying a stale `elapsed_sec` on every shuffle
+     * click while the main window was minimized, visibly yanking the tray progress thumb. */
     if let Some(ref e) = emit_opt {
-        emit_tray_popover_state(app, e);
+        emit_tray_popover_shuffle_loop(app, e.shuffle_on, e.loop_on);
         tray_popover_emit_shuffle_loop_sync(app, e.shuffle_on, e.loop_on);
     } else {
+        emit_tray_popover_shuffle_loop(app, next, loop_fallback);
         tray_popover_emit_shuffle_loop_sync(app, next, loop_fallback);
     }
     Ok(())
@@ -522,10 +573,13 @@ fn tray_popover_toggle_loop(app: &AppHandle<Wry>) -> Result<(), String> {
         None => None,
     };
 
+    /* Lightweight toggle-only emit — see [`emit_tray_popover_shuffle_loop`] and the matching
+     * note in `tray_popover_toggle_shuffle`. */
     if let Some(ref e) = emit_opt {
-        emit_tray_popover_state(app, e);
+        emit_tray_popover_shuffle_loop(app, e.shuffle_on, e.loop_on);
         tray_popover_emit_shuffle_loop_sync(app, e.shuffle_on, e.loop_on);
     } else {
+        emit_tray_popover_shuffle_loop(app, shuffle_fallback, next);
         tray_popover_emit_shuffle_loop_sync(app, shuffle_fallback, next);
     }
     Ok(())
@@ -763,6 +817,37 @@ pub fn tray_popover_get_state(
         .lock()
         .map_err(|_| "tray state mutex poisoned".to_string())?;
     Ok(guard.last_popover_emit.clone())
+}
+
+/// Lightweight push of a refreshed subtitle (BPM/Key/LUFS after background analysis) to the
+/// tray popover WITHOUT touching progress state. Called by main JS `ensureAudioAnalysisForPath`
+/// once the analysis caches populate. Only writes `last_popover_emit.subtitle` (so subsequent
+/// full emits carry the fresh value) and emits the lightweight event. See
+/// [`emit_tray_popover_subtitle`] for why a full state re-emit would clobber the tray thumb.
+#[tauri::command]
+pub fn tray_popover_push_subtitle(
+    app: AppHandle<Wry>,
+    tray_state: State<'_, TrayState>,
+    subtitle: String,
+) -> Result<(), String> {
+    {
+        let mut guard = tray_state
+            .inner
+            .lock()
+            .map_err(|_| "tray state mutex poisoned".to_string())?;
+        if let Some(ref mut emit) = guard.last_popover_emit {
+            if emit.subtitle == subtitle {
+                return Ok(());
+            }
+            emit.subtitle = subtitle.clone();
+        } else {
+            /* No cached emit means the main window has not pushed an initial `update_tray_now_playing`
+             * yet — there is nothing to decorate. Bail rather than creating a half-populated emit. */
+            return Ok(());
+        }
+    }
+    emit_tray_popover_subtitle(&app, &subtitle);
+    Ok(())
 }
 
 #[tauri::command]

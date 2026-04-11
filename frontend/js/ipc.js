@@ -151,27 +151,26 @@ listen('menu-action', (event) => {
         }
         return;
     }
-    /* Tray popover speed — `speed:<float>` matches `#npSpeed` option values. */
+    /* Tray popover speed — `speed:<float>` matches `#npSpeed` option values. Pass
+     * `{ fromTray: true }` so `setPlaybackSpeed` skips the tray-sync round-trip: Rust already
+     * cached the new speed inside `tray_popover_action`, and syncing back from a minimized
+     * main window pushes a stale `audioPlayer.currentTime` into `last_popover_emit` which
+     * then yanks the tray progress thumb backward. */
     if (typeof id === 'string' && id.startsWith('speed:')) {
         const sp = parseFloat(id.slice(6));
         if (Number.isFinite(sp) && typeof setPlaybackSpeed === 'function') {
-            setPlaybackSpeed(String(sp));
+            setPlaybackSpeed(String(sp), { fromTray: true });
         }
         return;
     }
-    /* Tray popover volume — `volume:<0..100>` matches `#npVolume`. Do NOT force an
-     * immediate `syncTrayNowPlayingFromPlayback` here. The tray `input` event fires at
-     * pointer-move rate (~120 Hz on macOS WebKit) and each forced full state push goes
-     * Rust → tray popover → `applyState` → 4× `syncWindowSize` → IPC roundtrip, which
-     * saturates the Tauri IPC thread and locks the app UI during a volume drag. The
-     * debounced 150 ms sync inside `setAudioVolume` plus the tray popover's local
-     * `_trayVolUserActive` guard is enough — host poll pushes that arrive mid-drag are
-     * ignored by the popover for 400 ms after the last local input, so no stale volume
-     * clobbers the slider. */
+    /* Tray popover volume — `volume:<0..100>` matches `#npVolume`. Same `fromTray` contract as
+     * the `speed:` branch above: Rust owns the authoritative `last_popover_emit.volume_pct`
+     * from `tray_popover_action` and main's sync-back would clobber the tray progress thumb
+     * with a stale elapsed when the main window is minimized. */
     if (typeof id === 'string' && id.startsWith('volume:')) {
         const v = parseInt(id.slice(7), 10);
         if (Number.isFinite(v) && typeof setAudioVolume === 'function') {
-            setAudioVolume(String(Math.max(0, Math.min(100, v))));
+            setAudioVolume(String(Math.max(0, Math.min(100, v))), { fromTray: true });
         }
         return;
     }

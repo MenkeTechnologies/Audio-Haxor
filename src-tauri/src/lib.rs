@@ -7518,6 +7518,7 @@ pub fn run() {
             tray_menu::tray_popover_action,
             tray_menu::tray_popover_resize,
             tray_menu::tray_popover_get_state,
+            tray_menu::tray_popover_push_subtitle,
             tray_menu::tray_popover_get_ui_theme,
             tray_menu::show_main_window,
             tray_menu::tray_popover_hide,

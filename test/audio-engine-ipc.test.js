@@ -15,6 +15,47 @@ const assert = require('node:assert/strict');
 
 const root = path.join(__dirname, '..');
 
+/**
+ * Every child spawned by `runEngineExchange`. The test runner registers a process-level
+ * cleanup handler (`exit` / `SIGINT` / `SIGTERM` / `uncaughtException`) that force-kills
+ * anything still in this set, so orphan `audio-engine` children never outlive the runner.
+ *
+ * Past bug: `runEngineExchange` only called `child.kill` on the timeout path; the happy path
+ * trusted the engine to self-exit on stdin EOF. When the engine was slow to honor EOF, crashed
+ * between `write` and `close`, or the node test runner itself was killed mid-run, children
+ * leaked and kept the CoreAudio output device open — leading to "spurious" audio-engine
+ * processes lingering long after the tests finished and colliding with `pnpm tauri dev`.
+ */
+const _liveChildren = new Set();
+let _cleanupHandlersInstalled = false;
+
+function installChildCleanupHandlers() {
+  if (_cleanupHandlersInstalled) return;
+  _cleanupHandlersInstalled = true;
+  const killAll = () => {
+    for (const c of _liveChildren) {
+      try {
+        c.kill('SIGKILL');
+      } catch (_) {
+        /* already gone */
+      }
+    }
+    _liveChildren.clear();
+  };
+  process.on('exit', killAll);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.on(sig, () => {
+      killAll();
+      /* Re-raise default disposition so the runner exits with the expected signal. */
+      process.exit(128 + (sig === 'SIGINT' ? 2 : sig === 'SIGTERM' ? 15 : 1));
+    });
+  }
+  process.on('uncaughtException', (err) => {
+    killAll();
+    throw err;
+  });
+}
+
 function readProjectVersionFromCMake() {
   const cmakePath = path.join(root, 'audio-engine', 'CMakeLists.txt');
   const text = fs.readFileSync(cmakePath, 'utf8');
@@ -56,7 +97,12 @@ function resolveAudioEngineBin() {
  * @returns {Promise<{ code: number | null, signal: NodeJS.Signals | null, outLines: string[], stderr: string }>}
  */
 function runEngineExchange(bin, requestLines, opts = {}) {
+  installChildCleanupHandlers();
   const timeoutMs = opts.timeoutMs ?? 45_000;
+  /* Maximum wait after sending `stdin.end()` for the engine to exit on its own. If it doesn't,
+   * SIGKILL it — we have the output we needed, there is no reason to keep a live CoreAudio
+   * handle open waiting for a clean shutdown. Measured engine shutdown is <200 ms on macOS. */
+  const postEofGraceMs = opts.postEofGraceMs ?? 1500;
   const expectedOut = opts.expectedOutputLines ?? requestLines.length;
   return new Promise((resolve, reject) => {
     /* Arm the C++ `ParentWatchdog` (see `audio-engine/src/ParentWatchdog.cpp`) so the spawned
@@ -68,22 +114,42 @@ function runEngineExchange(bin, requestLines, opts = {}) {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, AUDIO_HAXOR_PARENT_PID: String(process.pid) },
     });
+    _liveChildren.add(child);
     const outLines = [];
     const stderrChunks = [];
     let settled = false;
+    let postEofTimer = null;
 
+    /** Single exit point — guarantees SIGKILL + child-set cleanup on every path. Idempotent. */
+    const finish = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (postEofTimer) {
+        clearTimeout(postEofTimer);
+        postEofTimer = null;
+      }
+      try {
+        child.kill('SIGKILL');
+      } catch (_) {
+        /* already gone */
+      }
+      _liveChildren.delete(child);
+      fn(arg);
+    };
+
+    /* CRITICAL: register every child event listener BEFORE the stdin writes below. The original
+     * code registered `child.on('close', …)` after the stdin write loop, which was a race — a
+     * fast engine could exit before the listener was wired up and the test would hang until the
+     * outer timeout fired, leaking the child. */
     child.stderr.on('data', (c) => {
       stderrChunks.push(c.toString());
     });
 
     const rl = readline.createInterface({ input: child.stdout });
     const timer = setTimeout(() => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      child.kill('SIGKILL');
-      reject(
+      finish(
+        reject,
         new Error(
           `audio-engine: timeout after ${timeoutMs}ms (stderr tail: ${stderrChunks.join('').slice(-800)})`,
         ),
@@ -94,38 +160,51 @@ function runEngineExchange(bin, requestLines, opts = {}) {
       outLines.push(line);
       if (outLines.length >= expectedOut) {
         clearTimeout(timer);
-        child.stdin.end();
+        try {
+          child.stdin.end();
+        } catch (_) {
+          /* ignore — child already gone; `close` handler below finishes the promise */
+        }
+        /* Grace period for clean shutdown. If the engine doesn't close within the window,
+         * SIGKILL it via `finish` and resolve with whatever we collected — the output lines
+         * we cared about were already captured above. */
+        postEofTimer = setTimeout(() => {
+          finish(resolve, { code: null, signal: 'SIGKILL', outLines, stderr: stderrChunks.join('') });
+        }, postEofGraceMs);
       }
     });
 
     child.on('error', (err) => {
-      clearTimeout(timer);
-      if (!settled) {
-        settled = true;
-        reject(err);
-      }
+      finish(reject, err);
     });
 
-    for (const l of requestLines) {
-      child.stdin.write(`${l}\n`);
-    }
-
     child.on('close', (code, signal) => {
-      clearTimeout(timer);
       if (settled) {
+        /* `finish` already ran (timeout / error / grace-kill). The `SIGKILL` we sent just now
+         * caused this close event — drop it. */
+        _liveChildren.delete(child);
         return;
       }
-      settled = true;
       if (outLines.length !== expectedOut) {
-        reject(
+        finish(
+          reject,
           new Error(
             `expected ${expectedOut} stdout lines, got ${outLines.length}, code=${code}, signal=${signal}, stderr=${stderrChunks.join('')}`,
           ),
         );
         return;
       }
-      resolve({ code, signal, outLines, stderr: stderrChunks.join('') });
+      finish(resolve, { code, signal, outLines, stderr: stderrChunks.join('') });
     });
+
+    for (const l of requestLines) {
+      try {
+        child.stdin.write(`${l}\n`);
+      } catch (err) {
+        finish(reject, err);
+        return;
+      }
+    }
   });
 }
 
@@ -234,6 +313,20 @@ if (!bin) {
     });
 
     after(() => {
+      /* Belt-and-suspenders: every individual test's `runEngineExchange` already SIGKILLs its
+       * child via `finish()`, but a test that threw BEFORE awaiting (syntax error, assertion in
+       * setup, etc.) could leak a child. Walk `_liveChildren` and force-kill anything still
+       * alive so orphan engines can't pile up across reruns. The process-level `exit` handler
+       * is the last line of defense; this hook catches leaks between describes within a single
+       * process. */
+      for (const c of _liveChildren) {
+        try {
+          c.kill('SIGKILL');
+        } catch (_) {
+          /* already gone */
+        }
+      }
+      _liveChildren.clear();
       try {
         fs.unlinkSync(tmpEmptyFile);
       } catch {
