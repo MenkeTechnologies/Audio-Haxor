@@ -18,10 +18,10 @@ use crate::history;
 /// Max characters for the first row of the tray dropdown (macOS truncates visually; keep readable).
 const TRAY_MENU_NOW_PLAYING_MAX: usize = 96;
 
-const TRAY_POPOVER_W: u32 = 280;
+const TRAY_POPOVER_W: u32 = 340;
 /// Default height until JS measures `#shell` (`tray_popover_resize`); generous so first paint is not clipped
-/// (two-line title + three-line meta + progress + volume + speed + transport + padding).
-const TRAY_POPOVER_H: u32 = 400;
+/// (multi-line title + meta + directory path + progress + volume + speed + transport + padding).
+const TRAY_POPOVER_H: u32 = 480;
 
 /// Set `AUDIO_HAXOR_TRAY_DEBUG=1` in the environment to print every successful `tray-popover-state` /
 /// `tray-popover-ui-theme` emit to stderr (state includes the ~500 ms host poll). Emit **failures** always log.
@@ -397,8 +397,9 @@ pub fn tray_popover_resize(app: AppHandle<Wry>, width: f64, height: f64) -> Resu
     let Some(win) = app.get_webview_window("tray-popover") else {
         return Ok(());
     };
-    let w = width.clamp(240.0, 520.0);
-    let h = height.clamp(280.0, 800.0);
+    let w = width.clamp(240.0, 620.0);
+    /* Tall cap: meta + wrapped directory path; `tray-popover.js` measures `#shell` scroll height. */
+    let h = height.clamp(280.0, 1200.0);
     let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(w, h)));
     Ok(())
 }
