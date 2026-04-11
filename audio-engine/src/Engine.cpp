@@ -930,6 +930,15 @@ public:
             for (int c = 0; c < ch; ++c)
                 bufferToFill.buffer->clear(c, bufferToFill.startSample, n);
             phase.fetch_add((uint64_t) n);
+            if (scopePushBatch)
+            {
+                thread_local std::vector<float> silBuf;
+                if ((int) silBuf.size() < n)
+                    silBuf.assign((size_t) n, 0.0f);
+                else
+                    std::fill(silBuf.begin(), silBuf.begin() + n, 0.0f);
+                scopePushBatch(silBuf.data(), silBuf.data(), n);
+            }
             return;
         }
         uint64_t p = phase.load();
