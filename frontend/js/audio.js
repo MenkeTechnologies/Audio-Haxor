@@ -4912,6 +4912,30 @@ function toggleShuffle() {
     if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
+/** After tray popover toggles shuffle/loop in Rust (main webview may have been suspended). */
+function applyTrayPlaybackFlagsFromHost(shuffleOn, loopOn) {
+    audioShuffling = !!shuffleOn;
+    audioLooping = !!loopOn;
+    audioPlayer.loop = audioLooping;
+    if (typeof prefs !== 'undefined' && prefs.setItem) {
+        prefs.setItem('shuffleMode', audioShuffling ? 'on' : 'off');
+        prefs.setItem('audioLoop', audioLooping ? 'on' : 'off');
+    }
+    const shuffleBtn = document.getElementById('npBtnShuffle');
+    const loopBtn = document.getElementById('npBtnLoop');
+    if (shuffleBtn) shuffleBtn.classList.toggle('active', audioShuffling);
+    if (loopBtn) loopBtn.classList.toggle('active', audioLooping);
+    updateLoopBtnStates();
+    if (_enginePlaybackActive && typeof window.syncEnginePlaybackLoop === 'function') {
+        window.syncEnginePlaybackLoop(audioLooping);
+    }
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
+}
+
+if (typeof window !== 'undefined') {
+    window.applyTrayPlaybackFlagsFromHost = applyTrayPlaybackFlagsFromHost;
+}
+
 function toggleMute() {
     const btn = document.getElementById('npBtnMute');
     const slider = document.getElementById('npVolume');

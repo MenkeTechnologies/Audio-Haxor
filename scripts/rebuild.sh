@@ -7,7 +7,7 @@ cyber_status "OPERATION" "REBUILD // bust + clean + build"
 echo
 
 cyber_section "CACHE BUST"
-VER=$(node -e "const f=require('fs'),p='frontend/index.html';let h=f.readFileSync(p,'utf8');const v=Date.now()%100000;h=h.replace(/\?v=\d+/g,'?v='+v);f.writeFileSync(p,h);console.log(v)")
+VER=$(node -e "const fs=require('fs');const v=Date.now()%100000;for(const p of['frontend/index.html','frontend/tray-popover.html']){let h=fs.readFileSync(p,'utf8');h=h.replace(/\?v=\d+/g,'?v='+v);fs.writeFileSync(p,h);}console.log(v)")
 cyber_ok "assets busted to v${VER}"
 echo
 

@@ -132,6 +132,16 @@ listen('audio-engine-playback-eof', () => {
 // ── Menu bar event handler ──
 listen('menu-action', (event) => {
     const raw = event && event.payload !== undefined ? event.payload : event;
+    /* Tray popover: Rust applies prefs + engine when main webview is suspended; main receives
+     * absolute shuffle/loop flags (not a toggle) so we do not double-flip when it wakes. */
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.action === 'tray_sync_shuffle_loop') {
+        const sh = raw.shuffle_on === true;
+        const lp = raw.loop_on === true;
+        if (typeof window.applyTrayPlaybackFlagsFromHost === 'function') {
+            window.applyTrayPlaybackFlagsFromHost(sh, lp);
+        }
+        return;
+    }
     const id = typeof raw === 'string' ? raw : raw && typeof raw === 'object' && raw.action != null ? String(raw.action) : String(raw ?? '');
     /* Tray popover slider seek — encoded as `seek:<fraction>` (0..1) to avoid a second IPC command. */
     if (typeof id === 'string' && id.startsWith('seek:')) {

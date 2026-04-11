@@ -436,6 +436,101 @@ fn tray_loop_merge(payload: &TrayNowPlayingPayload, last: Option<&TrayPopoverEmi
     }
 }
 
+fn pref_bool_on_off(v: Option<&serde_json::Value>) -> bool {
+    match v {
+        Some(serde_json::Value::String(s)) => s == "on",
+        Some(serde_json::Value::Bool(b)) => *b,
+        _ => false,
+    }
+}
+
+fn tray_popover_emit_shuffle_loop_sync(app: &AppHandle<Wry>, shuffle_on: bool, loop_on: bool) {
+    let _ = app.emit_to(
+        "main",
+        "menu-action",
+        serde_json::json!({
+            "action": "tray_sync_shuffle_loop",
+            "shuffle_on": shuffle_on,
+            "loop_on": loop_on,
+        }),
+    );
+}
+
+/// Tray popover only — same problem as `seek:`: when the main webview is minimized / hidden /
+/// backgrounded, `listen('menu-action')` may not run until the window is shown, so `toggle_shuffle` /
+/// `toggle_loop` would not update prefs or engine. Apply prefs + tray cache + engine here, then
+/// tell the main window the **absolute** flag values (no toggle) when it wakes.
+fn tray_popover_toggle_shuffle(app: &AppHandle<Wry>) -> Result<(), String> {
+    let cur = pref_bool_on_off(history::get_preference("shuffleMode").as_ref());
+    let next = !cur;
+    history::set_preference(
+        "shuffleMode",
+        serde_json::Value::String(if next { "on".into() } else { "off".into() }),
+    );
+
+    let loop_fallback = pref_bool_on_off(history::get_preference("audioLoop").as_ref());
+
+    let emit_opt = match app.try_state::<TrayState>() {
+        Some(tray_state) => {
+            let mut guard = tray_state
+                .inner
+                .lock()
+                .map_err(|_| "tray state mutex poisoned".to_string())?;
+            if let Some(ref mut emit) = guard.last_popover_emit {
+                emit.shuffle_on = next;
+            }
+            guard.last_popover_emit.clone()
+        }
+        None => None,
+    };
+
+    if let Some(ref e) = emit_opt {
+        emit_tray_popover_state(app, e);
+        tray_popover_emit_shuffle_loop_sync(app, e.shuffle_on, e.loop_on);
+    } else {
+        tray_popover_emit_shuffle_loop_sync(app, next, loop_fallback);
+    }
+    Ok(())
+}
+
+fn tray_popover_toggle_loop(app: &AppHandle<Wry>) -> Result<(), String> {
+    let cur = pref_bool_on_off(history::get_preference("audioLoop").as_ref());
+    let next = !cur;
+    history::set_preference(
+        "audioLoop",
+        serde_json::Value::String(if next { "on".into() } else { "off".into() }),
+    );
+    thread::spawn(move || {
+        let _ = crate::audio_engine::spawn_audio_engine_request(
+            &serde_json::json!({ "cmd": "playback_set_loop", "loop": next }),
+        );
+    });
+
+    let shuffle_fallback = pref_bool_on_off(history::get_preference("shuffleMode").as_ref());
+
+    let emit_opt = match app.try_state::<TrayState>() {
+        Some(tray_state) => {
+            let mut guard = tray_state
+                .inner
+                .lock()
+                .map_err(|_| "tray state mutex poisoned".to_string())?;
+            if let Some(ref mut emit) = guard.last_popover_emit {
+                emit.loop_on = next;
+            }
+            guard.last_popover_emit.clone()
+        }
+        None => None,
+    };
+
+    if let Some(ref e) = emit_opt {
+        emit_tray_popover_state(app, e);
+        tray_popover_emit_shuffle_loop_sync(app, e.shuffle_on, e.loop_on);
+    } else {
+        tray_popover_emit_shuffle_loop_sync(app, shuffle_fallback, next);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn tray_popover_action(app: AppHandle<Wry>, action: String) -> Result<(), String> {
     /* For `volume:<N>` and `speed:<N>` actions, update `TrayState.last_popover_emit` synchronously
@@ -502,6 +597,10 @@ pub fn tray_popover_action(app: AppHandle<Wry>, action: String) -> Result<(), St
                 }
             }
         }
+    } else if action == "toggle_shuffle" {
+        return tray_popover_toggle_shuffle(&app);
+    } else if action == "toggle_loop" {
+        return tray_popover_toggle_loop(&app);
     }
     // Same delivery path as `on_menu_event` in lib.rs: only the **main** webview runs `ipc.js`
     // playback handlers — broadcast `emit` does not reliably hit the main window listener.

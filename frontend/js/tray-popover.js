@@ -162,6 +162,7 @@
     const trayCtx = document.getElementById('trayCtxMenu');
     const elProgressWrap = document.getElementById('trayProgressWrap');
     const elTrayExtras = document.getElementById('trayExtras');
+    const elTransport = shell && typeof shell.querySelector === 'function' ? shell.querySelector('.transport') : null;
 
     /** Filesystem path for the playing file — from host `reveal_path` (copy / reveal / click subtitle). */
     let _trayRevealPath = '';
@@ -714,6 +715,9 @@
     let _trayScrubCancelled = false;
     let _dragFrac = 0;
     let _rafId = null;
+    /** Last `applyState` progress tuple from host — when unchanged, ignore drift (shuffle/loop-only
+     * emits while main is hidden can carry a stale `elapsed_sec` vs local rAF interpolation). */
+    let _trayLastApplyProgressKey = null;
 
     function renderProgress(elapsed, total) {
         const tot = typeof total === 'number' && Number.isFinite(total) && total > 0 ? total : null;
@@ -790,6 +794,12 @@
         const elapsed = typeof p.elapsed_sec === 'number' && Number.isFinite(p.elapsed_sec) ? p.elapsed_sec : 0;
         const total = typeof p.total_sec === 'number' && Number.isFinite(p.total_sec) && p.total_sec > 0 ? p.total_sec : null;
         const playing = p.playing === true;
+        const durKey = total != null ? Math.round(total * 1000) : -1;
+        const elapsedMs = Math.round(Math.max(0, elapsed) * 1000);
+        const progressKey = `${idle ? 1 : 0}|${playing ? 1 : 0}|${durKey}|${elapsedMs}`;
+        const progressPayloadUnchanged =
+            _trayLastApplyProgressKey !== null && progressKey === _trayLastApplyProgressKey;
+        _trayLastApplyProgressKey = progressKey;
         /* Re-base the animation model ONLY on discontinuities: idle toggle, play/pause, total
          * change, or a large elapsed jump (user seek / track change). Routine 500 ms polls AND
          * sibling pushes from volume / speed updates (see `setAudioVolume` →
@@ -810,12 +820,17 @@
          * `playback_set_dsp` commands), so the polled `position_sec` comes back stale by several
          * hundred ms. Without this guard the stale position breaches the 0.75 s drift threshold
          * and re-base yanks the progress thumb backward — exactly the symptom the user reports.
-         * Track changes (`total` change), play/pause, and idle toggles still bypass the guard. */
+         * Track changes (`total` change), play/pause, and idle toggles still bypass the guard.
+         * When the main window is hidden, `elapsed_sec` in the tray payload can lag behind local
+         * interpolation (no fresh JS sync; HTML5 playback skips the engine poll). Shuffle/loop
+         * toggles re-emit tray state with that stale elapsed — drift looks like a discontinuity.
+         * If the progress tuple matches the previous `applyState`, treat the push as transport-only
+         * metadata and keep interpolating. */
         const discontinuity =
             idle !== _currentIdle ||
             playing !== _currentPlaying ||
             total !== _currentTotal ||
-            (!_trayVolUserActive && drift > 0.75);
+            (!progressPayloadUnchanged && !_trayVolUserActive && drift > 0.75);
         if (discontinuity) {
             _baseElapsed = elapsed;
             _baseTime = nowMs;
@@ -886,6 +901,21 @@
         return n.closest(TRAY_SCRUB_BLOCK_SEEK) != null;
     }
 
+    /** Narrower than move-blocking: release over `.times` / title must still commit seek; only
+     * transport + extras were falsely taking stray scrub commits from quick cross-drags. */
+    function trayScrubReleaseShouldCancelSeek(clientX, clientY) {
+        const n = document.elementFromPoint(clientX, clientY);
+        if (!n) return false;
+        return n.closest('#trayExtras, #trayVol, #traySpeed, .transport') != null;
+    }
+
+    /** `elementFromPoint` can mis-hit when the main app window is hidden / non-key; `e.target` is
+     * the real pointer-up target (e.g. shuffle) from the hit test. */
+    function trayScrubReleaseTargetBlocksSeek(target) {
+        if (!target || typeof target.closest !== 'function') return false;
+        return target.closest('#trayExtras, #trayVol, #traySpeed, .transport') != null;
+    }
+
     function removeTrayScrubWindowListeners() {
         window.removeEventListener('pointermove', trayScrubWindowMove, true);
         window.removeEventListener('pointerup', trayScrubWindowUp, true);
@@ -905,7 +935,14 @@
     function trayScrubWindowUp(e) {
         if (!_dragging || e.pointerId !== _trayScrubPointerId) return;
         removeTrayScrubWindowListeners();
-        const cancelled = _trayScrubCancelled;
+        /* If `pointermove` never ran before release (quick drag to transport), we would still seek
+         * at the scrub start fraction — looks like shuffle/loop moved the playback bar. */
+        let cancelled = _trayScrubCancelled;
+        if (!cancelled &&
+            (trayScrubReleaseTargetBlocksSeek(e.target) ||
+                trayScrubReleaseShouldCancelSeek(e.clientX, e.clientY))) {
+            cancelled = true;
+        }
         _dragging = false;
         _trayScrubPointerId = null;
         _trayScrubCancelled = false;
@@ -1000,6 +1037,16 @@
 
     if (elTrayExtras) {
         elTrayExtras.addEventListener(
+            'pointerdown',
+            (e) => {
+                if (e.button !== 0 && e.pointerType === 'mouse') return;
+                cancelTrackScrubWithoutSeek();
+            },
+            true
+        );
+    }
+    if (elTransport) {
+        elTransport.addEventListener(
             'pointerdown',
             (e) => {
                 if (e.button !== 0 && e.pointerType === 'mouse') return;
