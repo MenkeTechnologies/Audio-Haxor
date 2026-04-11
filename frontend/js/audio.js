@@ -1025,10 +1025,8 @@ function toggleMono() {
     _monoMode = !_monoMode;
     const btn = document.getElementById('npBtnMono');
     if (btn) btn.classList.toggle('active', _monoMode);
-    // Mono via pan automation isn't possible with StereoPanner alone,
-    // so we use a ChannelMerger approach. Simpler: just set pan to center
-    // and note the state. Full mono requires a splitter/merger which is
-    // heavy — for a preview player, center-pan is the practical equivalent.
+    const aeMono = document.getElementById('aePlaybackMono');
+    if (aeMono) aeMono.classList.toggle('active', _monoMode);
     prefs.setItem('audioMono', _monoMode ? 'on' : 'off');
     if (_monoMode) {
         setPan(0);
@@ -1037,9 +1035,18 @@ function toggleMono() {
             slider.value = 0;
             slider.disabled = true;
         }
+        const aePan = document.getElementById('aePanSlider');
+        if (aePan) aePan.disabled = true;
     } else {
         const slider = document.getElementById('npPanSlider');
         if (slider) slider.disabled = false;
+        const aePan = document.getElementById('aePanSlider');
+        if (aePan) aePan.disabled = false;
+    }
+    /* Always push `audioMono` to AudioEngine — `setPan` only syncs when `_enginePlaybackActive`, but the
+     * native stream can be live while that flag is false (reconnect paths), and mono must still apply. */
+    if (typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
+        window.syncEnginePlaybackDspFromPrefs();
     }
 }
 
@@ -1051,6 +1058,7 @@ function resetEq() {
     _gainNode.gain.value = 1;
     _panNode.pan.value = 0;
     _monoMode = false;
+    prefs.setItem('audioMono', 'off');
     // Update UI
     ['npEqLow', 'npEqMid', 'npEqHigh'].forEach(id => {
         const el = document.getElementById(id);
@@ -1065,27 +1073,98 @@ function resetEq() {
     }
     const mono = document.getElementById('npBtnMono');
     if (mono) mono.classList.remove('active');
+    const aeMono = document.getElementById('aePlaybackMono');
+    if (aeMono) aeMono.classList.remove('active');
+    const aePanEl = document.getElementById('aePanSlider');
+    if (aePanEl) aePanEl.disabled = false;
     document.getElementById('npEqLowVal').textContent = catalogFmt('ui.audio.eq_val_db');
     document.getElementById('npEqMidVal').textContent = catalogFmt('ui.audio.eq_val_db');
     document.getElementById('npEqHighVal').textContent = catalogFmt('ui.audio.eq_val_db');
     document.getElementById('npGainVal').textContent = catalogFmt('ui.audio.eq_gain_pct');
     document.getElementById('npPanVal').textContent = catalogFmt('ui.audio.pan_center');
+    if (_enginePlaybackActive && typeof window.syncEnginePlaybackDspFromPrefs === 'function') {
+        window.syncEnginePlaybackDspFromPrefs();
+    }
     showToast(toastFmt('toast.eq_reset'));
 }
 
-// A-B loop
+// A-B loop — use effective path/time/duration so AudioEngine + reverse-buffer paths work (HTML `<audio>` is often idle).
+function _abLoopPlaybackPath() {
+    if (audioPlayerPath) return audioPlayerPath;
+    if (
+        typeof window !== 'undefined' &&
+        typeof window._enginePlaybackResumePath === 'string' &&
+        window._enginePlaybackResumePath.length > 0
+    ) {
+        return window._enginePlaybackResumePath;
+    }
+    return null;
+}
+
+function _abLoopEffectiveDurationSec() {
+    if (_enginePlaybackActive && typeof enginePlaybackDurationSec === 'function') {
+        const d = enginePlaybackDurationSec();
+        if (Number.isFinite(d) && d > 0) return d;
+    }
+    if (audioReverseMode && _reversedBuf) {
+        const d = _reversedBuf.duration;
+        if (Number.isFinite(d) && d > 0) return d;
+    }
+    const ad = audioPlayer.duration;
+    if (Number.isFinite(ad) && ad > 0) return ad;
+    const p = _abLoopPlaybackPath();
+    if (p && typeof findByPath === 'function' && typeof allAudioSamples !== 'undefined') {
+        const s = findByPath(allAudioSamples, p);
+        if (s && typeof s.duration === 'number' && s.duration > 0) return s.duration;
+    }
+    return 0;
+}
+
+function _abLoopEffectiveCurrentTimeSec() {
+    if (_enginePlaybackActive && typeof window !== 'undefined' && typeof window._enginePlaybackPosSec === 'number') {
+        const basePos = window._enginePlaybackPosSec;
+        const anchor =
+            typeof window._enginePlaybackPosAnchorMs === 'number'
+                ? window._enginePlaybackPosAnchorMs
+                : performance.now();
+        const paused = window._enginePlaybackPaused === true;
+        let speed = 1;
+        if (typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
+            const raw = parseFloat(prefs.getItem('audioSpeed') || '1');
+            if (Number.isFinite(raw)) speed = Math.max(0.25, Math.min(2, raw));
+        }
+        const elapsedSinceAnchor = paused ? 0 : (performance.now() - anchor) / 1000;
+        let cur = basePos + elapsedSinceAnchor * speed;
+        const dur = _abLoopEffectiveDurationSec();
+        if (Number.isFinite(dur) && dur > 0 && cur > dur) cur = dur;
+        return Math.max(0, cur);
+    }
+    if (audioReverseMode && _reversedBuf && _bufPlaying && _playbackCtx) {
+        const dur = _reversedBuf.duration;
+        const elapsed = _playbackCtx.currentTime - _bufSegStartCtx;
+        const posInRev = _bufOffsetInRev + elapsed * _bufPlaybackRate;
+        return Math.max(0, dur - posInRev);
+    }
+    const ct = audioPlayer.currentTime;
+    return Number.isFinite(ct) ? ct : 0;
+}
+
 function setAbLoopStart() {
-    if (!audioPlayerPath || !audioPlayer.duration) return;
-    const t = audioPlayer.currentTime;
-    if (!_abLoop) _abLoop = {start: t, end: audioPlayer.duration};
+    const path = _abLoopPlaybackPath();
+    const dur = _abLoopEffectiveDurationSec();
+    if (!path || !Number.isFinite(dur) || dur <= 0) return;
+    const t = _abLoopEffectiveCurrentTimeSec();
+    if (!_abLoop) _abLoop = {start: t, end: dur};
     else _abLoop.start = Math.min(t, _abLoop.end - 0.05); // keep start < end
     updateAbLoopUI();
     showToast(toastFmt('toast.ab_point_a', {time: formatTime(_abLoop.start)}));
 }
 
 function setAbLoopEnd() {
-    if (!audioPlayerPath || !audioPlayer.duration) return;
-    const t = audioPlayer.currentTime;
+    const path = _abLoopPlaybackPath();
+    const dur = _abLoopEffectiveDurationSec();
+    if (!path || !Number.isFinite(dur) || dur <= 0) return;
+    const t = _abLoopEffectiveCurrentTimeSec();
     if (!_abLoop) _abLoop = {start: 0, end: t};
     else _abLoop.end = Math.max(t, _abLoop.start + 0.05); // keep end > start
     updateAbLoopUI();
@@ -1095,6 +1174,31 @@ function setAbLoopEnd() {
 function clearAbLoop() {
     _abLoop = null;
     updateAbLoopUI();
+}
+
+/**
+ * Keyboard / palette `toggleABLoop`: set A at playhead → set B at playhead → clear.
+ * (`_abLoop` lives in `audio.js` scope only; `shortcuts.js` used `typeof _abLoop`, which never saw the real loop.)
+ */
+function toggleAbLoopShortcut() {
+    const path = _abLoopPlaybackPath();
+    const dur = _abLoopEffectiveDurationSec();
+    if (!path || !Number.isFinite(dur) || dur <= 0) {
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+            showToast(toastFmt('toast.sample_loop_no_target'), 2500);
+        }
+        return;
+    }
+    if (!_abLoop) {
+        setAbLoopStart();
+        return;
+    }
+    const bIsStillEof = Math.abs(_abLoop.end - dur) < 0.05;
+    if (bIsStillEof) {
+        setAbLoopEnd();
+        return;
+    }
+    clearAbLoop();
 }
 
 function updateAbLoopUI() {
@@ -1126,7 +1230,7 @@ function updateAbLoopUI() {
         if (markerB) markerB.style.display = 'none';
         return;
     }
-    const dur = audioPlayer.duration || 1;
+    const dur = _abLoopEffectiveDurationSec() || 1;
     if (!markerA) {
         markerA = document.createElement('div');
         markerA.id = 'npAbMarkerA';
@@ -1399,6 +1503,7 @@ if (typeof window !== 'undefined') {
      * (otherwise `ui-idle.js` cancels both the rAF loop and the poll — playback runs
      * past the loop end forever until the app becomes active again). */
     window.isAbLoopActive = () => _abLoop != null;
+    window.toggleAbLoopShortcut = toggleAbLoopShortcut;
 }
 
 function loadRecentlyPlayed() {
@@ -1438,14 +1543,29 @@ function loadRecentlyPlayed() {
     _monoMode = prefs.getItem('audioMono') === 'on';
     const monoBtn = document.getElementById('npBtnMono');
     if (monoBtn) monoBtn.classList.toggle('active', _monoMode);
+    const aeMonoBtn = document.getElementById('aePlaybackMono');
+    if (aeMonoBtn) aeMonoBtn.classList.toggle('active', _monoMode);
 
+    const panSlider = document.getElementById('npPanSlider');
+    const aePanSlider = document.getElementById('aePanSlider');
     const savedPan = prefs.getItem('audioPan');
-    if (savedPan) {
-        const panSlider = document.getElementById('npPanSlider');
+    if (_monoMode) {
+        if (panSlider) {
+            panSlider.value = '0';
+            panSlider.disabled = true;
+        }
+        if (aePanSlider) aePanSlider.disabled = true;
+        setPan(0);
+    } else if (savedPan) {
         if (panSlider) {
             panSlider.value = savedPan;
+            panSlider.disabled = false;
         }
+        if (aePanSlider) aePanSlider.disabled = false;
         setPan(savedPan);
+    } else if (panSlider) {
+        panSlider.disabled = false;
+        if (aePanSlider) aePanSlider.disabled = false;
     }
 
     // Restore EQ bands + preamp gain
@@ -5397,33 +5517,35 @@ if (typeof window !== 'undefined') {
 function toggleMute() {
     const btn = document.getElementById('npBtnMute');
     const slider = document.getElementById('npVolume');
-    const pctEl = document.getElementById('npVolumePct');
     if (audioMuted) {
-        if (_enginePlaybackActive && typeof setAudioVolume === 'function') {
-            const pct =
-                typeof savedMuteVolumePct === 'number' && !Number.isNaN(savedMuteVolumePct)
-                    ? savedMuteVolumePct
-                    : Math.round(savedVolume * 100);
-            setAudioVolume(String(Math.max(0, Math.min(100, pct))));
-        } else {
-            audioPlayer.volume = savedVolume;
-            if (_gainNode) _gainNode.gain.value = savedVolume * parseFloat(document.getElementById('npGainSlider')?.value || '1');
-            if (slider) slider.value = Math.round(savedVolume * 100);
-            if (pctEl) pctEl.textContent = Math.round(savedVolume * 100) + '%';
+        const pct =
+            typeof savedMuteVolumePct === 'number' && !Number.isNaN(savedMuteVolumePct)
+                ? savedMuteVolumePct
+                : Math.round((savedVolume || 0) * 100);
+        const restored = Math.max(0, Math.min(100, pct));
+        if (typeof setAudioVolume === 'function') {
+            setAudioVolume(String(restored));
         }
         audioMuted = false;
         if (btn) btn.innerHTML = '&#128264;';
     } else {
-        if (_enginePlaybackActive && typeof prefs !== 'undefined' && typeof prefs.getItem === 'function' && typeof setAudioVolume === 'function') {
+        let prePct;
+        if (slider) {
+            const v = parseInt(String(slider.value), 10);
+            if (Number.isFinite(v)) prePct = Math.max(0, Math.min(100, v));
+        }
+        if (prePct === undefined && typeof prefs !== 'undefined' && prefs.getItem) {
             const raw = parseInt(prefs.getItem('audioVolume') || '100', 10);
-            savedMuteVolumePct = Number.isNaN(raw) ? 100 : Math.max(0, Math.min(100, raw));
+            prePct = Number.isNaN(raw) ? 100 : Math.max(0, Math.min(100, raw));
+        }
+        if (prePct === undefined && typeof audioPlayer !== 'undefined' && audioPlayer) {
+            prePct = Math.max(0, Math.min(100, Math.round(audioPlayer.volume * 100)));
+        }
+        if (prePct === undefined) prePct = 100;
+        savedMuteVolumePct = prePct;
+        savedVolume = prePct / 100;
+        if (typeof setAudioVolume === 'function') {
             setAudioVolume('0');
-        } else {
-            savedVolume = audioPlayer.volume;
-            audioPlayer.volume = 0;
-            if (_gainNode) _gainNode.gain.value = 0;
-            if (slider) slider.value = 0;
-            if (pctEl) pctEl.textContent = catalogFmt('ui.audio.volume_zero');
         }
         audioMuted = true;
         if (btn) btn.innerHTML = '&#128263;';

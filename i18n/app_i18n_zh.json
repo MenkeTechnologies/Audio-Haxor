@@ -1,4 +1,6 @@
 {
+  "confirm.btn_no": "否",
+  "confirm.btn_yes": "是",
   "confirm.clear_all_history_settings": "清除所有插件、音频、DAW、预设、PDF 和 MIDI 扫描历史记录？此操作无法撤消。",
   "confirm.clear_all_history_tab": "清除所有扫描历史记录吗？此操作无法撤消。",
   "confirm.clear_all_scan_databases": "清除所有扫描历史记录数据库？这将擦除每个选项卡的扫描文件列表。",
@@ -541,7 +543,7 @@
   "toast.no_notes_export": "没有要导出的注释或标签",
   "toast.no_play_history_export": "没有可导出的播放历史记录",
   "toast.no_plugins_export": "没有可导出的插件",
-  "toast.no_scan_dirs": "未配置扫描目录",
+  "toast.no_scan_dirs": "No directories to watch. Add paths under Folder watch directories, or leave that list empty and configure scan directories.",
   "toast.no_smart_playlists_export": "没有可导出的智能播放列表",
   "toast.no_xref_build_index": "无外部参照数据 - 首先构建插件索引",
   "toast.note_deleted": "注释已删除",
@@ -2405,5 +2407,16 @@
   "ui.xref.tt_search_project_data": "在项目数据中搜索",
   "ui.xref.tt_search_xml_content": "在 XML 内容中搜索",
   "ui.xref.tt_toggle_node": "单击以折叠或展开",
-  "ui.xref.xml_collapsed_n_children": "…{n} 个孩子"
+  "ui.xref.xml_collapsed_n_children": "…{n} 个孩子",
+  "ui.folder_watch_no_scan_dirs": "No directories to watch yet. Add paths under Folder watch directories, or leave that list empty and set scan directories above.",
+  "ui.folder_watch_paths_heading": "Folder watch directories",
+  "ui.sd.folder_watch_scan_paths_explainer": "Paths to watch (one per line). Leave empty to use plugin scan dirs plus all library scan dirs. If you add any path here, only this list is watched.",
+  "toast.folder_watch_dirs_saved": "Folder watch directories saved",
+  "ui.sd.folder_watch_directories": "Paths to watch (one per line). Leave empty to use plugin scan dirs plus all library scan dirs below. If you add any path here, only this list is watched.",
+  "ui.st.folder_watch_directories": "Folder Watch Directories",
+  "ui.ph.folder_watch_directories": "/path/to/watch&#10;/another/path",
+  "ui.tt.folder_watch_directories": "Folder watch paths, one per line (overrides combined scan dirs when non-empty)",
+  "ui.tt.save_folder_watch_directories": "Save folder watch directory list",
+  "ui.btn.app_data": "App data",
+  "ui.tt.go_to_app_data_directory": "Go to app data directory (preferences, database, logs)"
 }

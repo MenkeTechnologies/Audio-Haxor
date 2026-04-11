@@ -269,7 +269,11 @@ function normalizeKeyForMatch(k) {
 
 function shortcutShiftMatches(sc, e) {
     if (sc.shift === true) return e.shiftKey === true;
-    if (sc.shift === false) return e.shiftKey === false;
+    if (sc.shift === false) {
+        // `?` is Shift+/ on US QWERTY — shiftKey is always true; prefs with shift:false would never match.
+        if (normalizeKeyForMatch(sc.key) === '?') return true;
+        return e.shiftKey === false;
+    }
     return true;
 }
 
@@ -430,7 +434,7 @@ function executeShortcut(id) {
             input.select();
         }
     } else if (id === 'help') {
-        toggleHelpOverlay();
+        if (typeof toggleHelpOverlay === 'function') toggleHelpOverlay();
     } else if (id === 'playPause') {
         toggleAudioPlayback();
     } else if (id === 'nextTrack') {
@@ -486,7 +490,8 @@ function executeShortcut(id) {
     } else if (id === 'prevTab') {
         _cycleTab(-1);
     } else if (id === 'findSimilar') {
-        const path = _getSelectedPath();
+        const r = typeof getResolvedNavItemForActions === 'function' ? getResolvedNavItemForActions() : null;
+        const path = r?.path || (typeof _getSelectedPath === 'function' ? _getSelectedPath() : null);
         if (path && typeof findSimilarSamples === 'function') findSimilarSamples(path);
     } else if (id === 'togglePlayerExpand') {
         if (typeof togglePlayerExpanded === 'function') togglePlayerExpanded();
@@ -499,10 +504,8 @@ function executeShortcut(id) {
     } else if (id === 'deselectAll') {
         if (typeof deselectAll === 'function') deselectAll();
     } else if (id === 'toggleABLoop') {
-        if (typeof _abLoop !== 'undefined' && _abLoop) {
-            if (typeof clearAbLoop === 'function') clearAbLoop();
-        } else {
-            if (typeof setAbLoopStart === 'function') setAbLoopStart();
+        if (typeof window !== 'undefined' && typeof window.toggleAbLoopShortcut === 'function') {
+            window.toggleAbLoopShortcut();
         }
     } else if (id === 'toggleSampleLoopRegion') {
         // Prefer the expanded metadata row; fall back to the currently playing path
@@ -735,13 +738,44 @@ function _adjustVolume(delta) {
     if (typeof setAudioVolume === 'function') setAudioVolume(val);
 }
 
+/** Delete selected path on disk and purge SQLite inventory; refresh the active tab (keyboard `x` / Backspace). */
+async function deleteFile(filePath) {
+    if (!filePath || !window.vstUpdater?.deleteInventoryItem) {
+        throw new Error('deleteInventoryItem unavailable');
+    }
+    await window.vstUpdater.deleteInventoryItem(filePath);
+    if (typeof isFavorite === 'function' && typeof removeFavorite === 'function' && isFavorite(filePath)) {
+        removeFavorite(filePath);
+    }
+    const tab = document.querySelector('.tab-content.active')?.id;
+    if (tab === 'tabSamples' && typeof fetchAudioPage === 'function') {
+        audioCurrentOffset = 0;
+        await fetchAudioPage();
+    } else if (tab === 'tabDaw' && typeof fetchDawPage === 'function') {
+        _dawOffset = 0;
+        await fetchDawPage();
+    } else if (tab === 'tabPresets' && typeof fetchPresetPage === 'function') {
+        _presetOffset = 0;
+        await fetchPresetPage();
+    } else if (tab === 'tabMidi' && typeof fetchMidiPage === 'function') {
+        _midiOffset = 0;
+        if (typeof _midiRenderCount !== 'undefined') _midiRenderCount = 0;
+        await fetchMidiPage();
+    } else if (tab === 'tabPdf' && typeof fetchPdfPage === 'function') {
+        _pdfOffset = 0;
+        await fetchPdfPage();
+    } else if (tab === 'tabPlugins' && typeof fetchPluginPage === 'function') {
+        _pluginOffset = 0;
+        await fetchPluginPage();
+    } else if (tab === 'tabFavorites' && typeof renderFavorites === 'function') {
+        renderFavorites();
+    }
+}
+
 function _actionOnSelected(action) {
-    const items = getNavigableItems();
-    if (_navIndex < 0 || _navIndex >= items.length) return;
-    const item = items[_navIndex];
-    const path = item.getAttribute('data-audio-path') || item.dataset.dawPath || item.dataset.presetPath || item.dataset.path || '';
-    const name = item.querySelector('.col-name,.plugin-name')?.textContent?.trim() || '';
-    if (!path) return;
+    const r = typeof getResolvedNavItemForActions === 'function' ? getResolvedNavItemForActions() : null;
+    if (!r) return;
+    const {path, name} = r;
 
     if (action === 'reveal') {
         if (typeof openFolder === 'function') openFolder(path);
@@ -755,9 +789,20 @@ function _actionOnSelected(action) {
     } else if (action === 'note') {
         if (typeof showNoteEditor === 'function') showNoteEditor(path, name);
     } else if (action === 'delete') {
-        if (typeof deleteFile === 'function') {
-            if (confirm(appFmt('confirm.delete_shortcuts', {name: name || path}))) deleteFile(path);
-        }
+        if (typeof deleteFile !== 'function') return;
+        const msg = appFmt('confirm.delete_shortcuts', {name: name || path});
+        void (async () => {
+            const ok = typeof confirmAction === 'function'
+                ? await confirmAction(msg)
+                : confirm(msg);
+            if (!ok) return;
+            try {
+                await deleteFile(path);
+            } catch (err) {
+                const emsg = err && (err.message || err);
+                showToast(toastFmt('toast.export_failed', {err: emsg || 'Unknown error'}), 4000, 'error');
+            }
+        })();
     }
 }
 

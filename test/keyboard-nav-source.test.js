@@ -158,6 +158,34 @@ describe('frontend/js/keyboard-nav.js (vm-loaded)', () => {
     assert.strictEqual(K.getNavigableItems()[0], tr);
   });
 
+  it('getNavigableItems returns #midiTableBody rows on tabMidi', () => {
+    const tr = { dataset: { midiPath: '/m/x.mid' } };
+    const activeTab = {
+      id: 'tabMidi',
+      querySelectorAll(sel) {
+        if (sel === '#midiTableBody tr[data-midi-path]') return [tr];
+        return [];
+      },
+    };
+    const K = loadKeyboardNavSandbox(activeTab);
+    assert.strictEqual(K.getNavigableItems().length, 1);
+    assert.strictEqual(K.getNavigableItems()[0], tr);
+  });
+
+  it('getNavigableItems returns #pdfTableBody rows on tabPdf', () => {
+    const tr = { dataset: { pdfPath: '/d/a.pdf' } };
+    const activeTab = {
+      id: 'tabPdf',
+      querySelectorAll(sel) {
+        if (sel === '#pdfTableBody tr[data-pdf-path]') return [tr];
+        return [];
+      },
+    };
+    const K = loadKeyboardNavSandbox(activeTab);
+    assert.strictEqual(K.getNavigableItems().length, 1);
+    assert.strictEqual(K.getNavigableItems()[0], tr);
+  });
+
   it('_getSelectedPath reads dataset.path on plugin card', () => {
     const card = {
       dataset: { path: '/Plugins/X.vst3' },

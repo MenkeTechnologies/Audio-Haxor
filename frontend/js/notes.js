@@ -305,6 +305,12 @@ function refreshRowBadges(path) {
     // Preset table
     const presetRow = document.getElementById('presetTableBody')?.querySelector(`tr[data-preset-path="${escaped}"]`);
     if (presetRow) updateCell(presetRow.cells?.[1]);
+    // MIDI table
+    const midiRow = document.getElementById('midiTableBody')?.querySelector(`tr[data-midi-path="${escaped}"]`);
+    if (midiRow) updateCell(midiRow.querySelector('.col-name') || midiRow.cells?.[1]);
+    // PDF table
+    const pdfRow = document.getElementById('pdfTableBody')?.querySelector(`tr[data-pdf-path="${escaped}"]`);
+    if (pdfRow) updateCell(pdfRow.querySelector('.col-name') || pdfRow.cells?.[1]);
     // Plugin card
     const pluginCard = document.querySelector(`.plugin-card[data-path="${escaped}"]`);
     if (pluginCard) {

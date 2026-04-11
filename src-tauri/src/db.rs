@@ -2184,6 +2184,155 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(())
     }
 
+    /// After a file or bundle was removed on disk: delete matching rows from all inventory tables
+    /// and reconcile `*_library` materializations (same pattern as scan-based path refresh).
+    pub fn purge_inventory_path(&self, path: &str) -> Result<(), String> {
+        let mut conn = self.write_conn();
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+        // ── Audio ──
+        tx.execute(
+            "CREATE TEMP TABLE _al_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT OR REPLACE INTO _al_refresh_paths VALUES (?1)",
+            params![path],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM audio_samples_fts WHERE rowid IN (SELECT id FROM audio_samples WHERE path IN (SELECT path FROM _al_refresh_paths))",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM audio_samples WHERE path IN (SELECT path FROM _al_refresh_paths)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        Self::exec_sync_paths_refresh_tx(&tx, Self::SYNC_AUDIO_LIBRARY_PATHS_SQL)?;
+
+        // ── DAW ──
+        tx.execute(
+            "CREATE TEMP TABLE _dl_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT OR REPLACE INTO _dl_refresh_paths VALUES (?1)",
+            params![path],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM daw_projects_fts WHERE rowid IN (SELECT id FROM daw_projects WHERE path IN (SELECT path FROM _dl_refresh_paths))",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM daw_projects WHERE path IN (SELECT path FROM _dl_refresh_paths)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        Self::exec_sync_paths_refresh_tx(&tx, Self::SYNC_DAW_LIBRARY_PATHS_SQL)?;
+
+        // ── Presets ──
+        tx.execute(
+            "CREATE TEMP TABLE _preset_lib_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT OR REPLACE INTO _preset_lib_refresh_paths VALUES (?1)",
+            params![path],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM presets_fts WHERE rowid IN (SELECT id FROM presets WHERE path IN (SELECT path FROM _preset_lib_refresh_paths))",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM presets WHERE path IN (SELECT path FROM _preset_lib_refresh_paths)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        Self::exec_sync_paths_refresh_tx(&tx, Self::SYNC_PRESET_LIBRARY_PATHS_SQL)?;
+
+        // ── MIDI ──
+        tx.execute(
+            "CREATE TEMP TABLE _midi_lib_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT OR REPLACE INTO _midi_lib_refresh_paths VALUES (?1)",
+            params![path],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM midi_files_fts WHERE rowid IN (SELECT id FROM midi_files WHERE path IN (SELECT path FROM _midi_lib_refresh_paths))",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM midi_files WHERE path IN (SELECT path FROM _midi_lib_refresh_paths)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        Self::exec_sync_paths_refresh_tx(&tx, Self::SYNC_MIDI_LIBRARY_PATHS_SQL)?;
+
+        // ── PDFs ──
+        tx.execute(
+            "CREATE TEMP TABLE _pdf_lib_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT OR REPLACE INTO _pdf_lib_refresh_paths VALUES (?1)",
+            params![path],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM pdfs_fts WHERE rowid IN (SELECT id FROM pdfs WHERE path IN (SELECT path FROM _pdf_lib_refresh_paths))",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM pdfs WHERE path IN (SELECT path FROM _pdf_lib_refresh_paths)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        Self::exec_sync_paths_refresh_tx(&tx, Self::SYNC_PDF_LIBRARY_PATHS_SQL)?;
+
+        // ── Plugins (no FTS) ──
+        tx.execute(
+            "CREATE TEMP TABLE _pl_refresh_paths (path TEXT PRIMARY KEY)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT OR REPLACE INTO _pl_refresh_paths VALUES (?1)",
+            params![path],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM plugins WHERE path IN (SELECT path FROM _pl_refresh_paths)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        Self::exec_sync_paths_refresh_tx(&tx, Self::SYNC_PLUGIN_LIBRARY_PATHS_SQL)?;
+
+        tx.commit().map_err(|e| e.to_string())?;
+        self.invalidate_audio_library_total_cache();
+        self.invalidate_daw_library_total_cache();
+        self.invalidate_preset_inventory_total_cache();
+        self.invalidate_midi_library_total_cache();
+        self.invalidate_pdf_library_total_cache();
+        self.invalidate_plugin_library_total_cache();
+        Ok(())
+    }
+
     pub fn audio_scan_parent_finalize(
         &self,
         id: &str,

@@ -23,6 +23,8 @@ customDirs = ""
 audioScanDirs = ""
 dawScanDirs = ""
 presetScanDirs = ""
+# When non-empty (one path per line), Folder Watch monitors only these directories. When empty, it uses plugin scan dirs plus all library scan dirs (Audio, DAW, Preset, MIDI, PDF) combined.
+folderWatchDirs = ""
 includeAbletonBackups = "off"
 incrementalDirectoryScan = "on"
 

@@ -80,6 +80,40 @@ function getExportFormatOptions() {
 
 let _exportCtx = null; // { titleKey, titleVars, defaultName, exportFn }
 
+/** Max rows written for any export (aligned with fetch*ForExport limits in tab modules). */
+const EXPORT_ROW_CAP = 100000;
+if (typeof window !== 'undefined') window.EXPORT_ROW_CAP = EXPORT_ROW_CAP;
+
+function capExportList(arr) {
+    if (!Array.isArray(arr)) return arr;
+    return arr.length <= EXPORT_ROW_CAP ? arr : arr.slice(0, EXPORT_ROW_CAP);
+}
+
+function countXrefPluginRows(entries) {
+    let n = 0;
+    for (const [, plugins] of entries) n += plugins.length;
+    return n;
+}
+
+/** Partial xref map for JSON/TOML: same iteration order as full export, at most `maxRows` plugin rows. */
+function capXrefObjectFromEntries(entries, maxRows = EXPORT_ROW_CAP) {
+    const obj = {};
+    let n = 0;
+    outer: for (const [project, plugins] of entries) {
+        const acc = [];
+        for (const p of plugins) {
+            acc.push(p);
+            n++;
+            if (n >= maxRows) {
+                obj[project] = acc;
+                break outer;
+            }
+        }
+        if (acc.length) obj[project] = acc;
+    }
+    return obj;
+}
+
 function showExportModal(type, titleKey, itemCount, titleVars) {
     let existing = document.getElementById('exportModal');
     if (existing) existing.remove();
@@ -88,7 +122,11 @@ function showExportModal(type, titleKey, itemCount, titleVars) {
     const modalHeading = _exportFmt('ui.export.modal_title', {title});
     const formats = getExportFormatOptions();
     const closeT = _exportFmt('ui.export.close');
-    const itemsLine = _exportFmt('ui.export.items_count', {n: itemCount.toLocaleString()});
+    const rawCount = Math.max(0, Number(itemCount) || 0);
+    const displayN = rawCount > EXPORT_ROW_CAP
+        ? `${EXPORT_ROW_CAP.toLocaleString()}+`
+        : rawCount.toLocaleString();
+    const itemsLine = _exportFmt('ui.export.items_count', {n: displayN});
     const exporting = _exportFmt('ui.export.exporting');
     const btnExport = _exportFmt('ui.export.btn_export');
     const btnCancel = _exportFmt('ui.export.btn_cancel');
@@ -445,14 +483,16 @@ async function exportAudioSubset(itemsRaw) {
         showToast(toastFmt('toast.no_list_export'));
         return;
     }
+    const rawLen = samples.length;
+    const capped = capExportList(samples);
     _exportCtx = {
         titleKey: 'ui.export.title_audio_samples',
         defaultName: exportFileName('samples-selection'),
         exportFn: async (fmt, filePath) => {
-            await writeAudioExport(samples, fmt, filePath);
+            await writeAudioExport(capped, fmt, filePath);
         }
     };
-    showExportModal('audio', 'ui.export.title_audio_samples', samples.length);
+    showExportModal('audio', 'ui.export.title_audio_samples', rawLen);
 }
 
 async function exportDawSubset(itemsRaw) {
@@ -461,14 +501,16 @@ async function exportDawSubset(itemsRaw) {
         showToast(toastFmt('toast.no_list_export'));
         return;
     }
+    const rawLen = projects.length;
+    const capped = capExportList(projects);
     _exportCtx = {
         titleKey: 'ui.export.title_daw_projects',
         defaultName: exportFileName('daw-projects-selection'),
         exportFn: async (fmt, filePath) => {
-            await writeDawExport(projects, fmt, filePath);
+            await writeDawExport(capped, fmt, filePath);
         }
     };
-    showExportModal('daw', 'ui.export.title_daw_projects', projects.length);
+    showExportModal('daw', 'ui.export.title_daw_projects', rawLen);
 }
 
 async function exportPresetsSubset(itemsRaw) {
@@ -477,14 +519,16 @@ async function exportPresetsSubset(itemsRaw) {
         showToast(toastFmt('toast.no_list_export'));
         return;
     }
+    const rawLen = presets.length;
+    const capped = capExportList(presets);
     _exportCtx = {
         titleKey: 'ui.export.title_presets',
         defaultName: exportFileName('presets-selection'),
         exportFn: async (fmt, filePath) => {
-            await writePresetsExport(presets, fmt, filePath);
+            await writePresetsExport(capped, fmt, filePath);
         }
     };
-    showExportModal('presets', 'ui.export.title_presets', presets.length);
+    showExportModal('presets', 'ui.export.title_presets', rawLen);
 }
 
 async function exportMidiSubset(itemsRaw) {
@@ -493,14 +537,16 @@ async function exportMidiSubset(itemsRaw) {
         showToast(toastFmt('toast.no_list_export'));
         return;
     }
+    const rawLen = list.length;
+    const capped = capExportList(list);
     _exportCtx = {
         titleKey: 'ui.export.title_midi',
         defaultName: exportFileName('midi-selection'),
         exportFn: async (fmt, filePath) => {
-            await writeMidiExport(list, fmt, filePath);
+            await writeMidiExport(capped, fmt, filePath);
         }
     };
-    showExportModal('midi', 'ui.export.title_midi', list.length);
+    showExportModal('midi', 'ui.export.title_midi', rawLen);
 }
 
 async function exportPdfsSubset(itemsRaw) {
@@ -509,22 +555,32 @@ async function exportPdfsSubset(itemsRaw) {
         showToast(toastFmt('toast.no_list_export'));
         return;
     }
+    const rawLen = pdfs.length;
+    const capped = capExportList(pdfs);
     _exportCtx = {
         titleKey: 'ui.export.title_pdfs',
         defaultName: exportFileName('pdfs-selection'),
         exportFn: async (fmt, filePath) => {
-            await writePdfsExport(pdfs, fmt, filePath);
+            await writePdfsExport(capped, fmt, filePath);
         }
     };
-    showExportModal('pdfs', 'ui.export.title_pdfs', pdfs.length);
+    showExportModal('pdfs', 'ui.export.title_pdfs', rawLen);
 }
 
 // ── Per-tab export functions (open modal) ──
 
 async function exportPlugins() {
     let plugins = null;
-    if (typeof scanProgressCleanup === 'undefined' || !scanProgressCleanup) {
+    // `allPlugins` is paginated in DB mode (often ~AUDIO_PAGE_SIZE rows). Only reuse it when it
+    // holds the full current result set, or during an active scan when the stream buffer is authoritative.
+    if (typeof scanProgressCleanup !== 'undefined' && scanProgressCleanup) {
         plugins = typeof allPlugins !== 'undefined' && allPlugins.length > 0 ? allPlugins.slice() : null;
+    } else {
+        const total = typeof _pluginTotalCount !== 'undefined' ? _pluginTotalCount : 0;
+        const mem = typeof allPlugins !== 'undefined' ? allPlugins.length : 0;
+        if (mem > 0 && (total === 0 || mem >= total)) {
+            plugins = allPlugins.slice();
+        }
     }
     const countForModal = plugins && plugins.length > 0
         ? plugins.length
@@ -547,6 +603,7 @@ async function exportPlugins() {
             if (!pl || pl.length === 0) {
                 throw new Error('No plugins to export');
             }
+            pl = capExportList(pl);
             if (fmt === 'pdf') {
                 const headers = pdfHeaders(
                     'ui.export.col_name',
@@ -598,7 +655,7 @@ async function exportAudio() {
             if (!s || s.length === 0) {
                 throw new Error('No samples to export');
             }
-            await writeAudioExport(s, fmt, filePath);
+            await writeAudioExport(capExportList(s), fmt, filePath);
         }
     };
     showExportModal('audio', 'ui.export.title_audio_samples', countForModal);
@@ -631,7 +688,7 @@ async function exportDaw() {
             if (!pr || pr.length === 0) {
                 throw new Error('No DAW projects to export');
             }
-            await writeDawExport(pr, fmt, filePath);
+            await writeDawExport(capExportList(pr), fmt, filePath);
         }
     };
     showExportModal('daw', 'ui.export.title_daw_projects', countForModal);
@@ -664,7 +721,7 @@ async function exportPdfs() {
             if (!pdf || pdf.length === 0) {
                 throw new Error('No PDFs to export');
             }
-            await writePdfsExport(pdf, fmt, filePath);
+            await writePdfsExport(capExportList(pdf), fmt, filePath);
         }
     };
     showExportModal('pdfs', 'ui.export.title_pdfs', countForModal);
@@ -734,7 +791,7 @@ async function exportPresets() {
             if (!pr || pr.length === 0) {
                 throw new Error('No presets to export');
             }
-            await writePresetsExport(pr, fmt, filePath);
+            await writePresetsExport(capExportList(pr), fmt, filePath);
         }
     };
     showExportModal('presets', 'ui.export.title_presets', countForModal);
@@ -769,7 +826,7 @@ async function exportMidi() {
             if (!list || list.length === 0) {
                 throw new Error('No MIDI files to export');
             }
-            await writeMidiExport(list, fmt, filePath);
+            await writeMidiExport(capExportList(list), fmt, filePath);
         }
     };
     showExportModal('midi', 'ui.export.title_midi', countForModal);
@@ -784,9 +841,10 @@ function exportXref() {
         showToast(toastFmt('toast.no_xref_build_index'));
         return;
     }
+    const rowCount = countXrefPluginRows(entries);
     _exportCtx = {
         titleKey: 'ui.export.title_xref',
-        defaultName: exportFileName('xref', entries.length),
+        defaultName: exportFileName('xref', rowCount),
         exportFn: async (fmt, filePath) => {
             if (fmt === 'pdf') {
                 const headers = pdfHeaders(
@@ -796,9 +854,12 @@ function exportXref() {
                     'ui.export.col_manufacturer',
                 );
                 const rows = [];
-                for (const [project, plugins] of entries) {
+                outer: for (const [project, plugins] of entries) {
                     const pName = project.split('/').pop() || project;
-                    for (const p of plugins) rows.push([pName, p.name, p.pluginType || '', p.manufacturer || '']);
+                    for (const p of plugins) {
+                        rows.push([pName, p.name, p.pluginType || '', p.manufacturer || '']);
+                        if (rows.length >= EXPORT_ROW_CAP) break outer;
+                    }
                 }
                 await window.vstUpdater.exportPdf(_exportFmt('ui.export.title_xref'), headers, rows, filePath);
             } else if (fmt === 'csv' || fmt === 'tsv') {
@@ -814,29 +875,36 @@ function exportXref() {
                     'ui.export.col_manufacturer',
                 );
                 const lines = [hdr.map(esc).join(sep)];
-                for (const [project, plugins] of entries) for (const p of plugins) lines.push([project, p.name, p.pluginType || '', p.manufacturer || ''].map(esc).join(sep));
+                outer: for (const [project, plugins] of entries) {
+                    for (const p of plugins) {
+                        if (lines.length - 1 >= EXPORT_ROW_CAP) break outer;
+                        lines.push([project, p.name, p.pluginType || '', p.manufacturer || ''].map(esc).join(sep));
+                    }
+                }
                 await window.vstUpdater.writeTextFile(filePath, lines.join('\n'));
             } else if (fmt === 'toml') {
-                await window.vstUpdater.exportToml({xref: Object.fromEntries(entries)}, filePath);
+                await window.vstUpdater.exportToml({xref: capXrefObjectFromEntries(entries)}, filePath);
             } else {
-                await window.vstUpdater.writeTextFile(filePath, JSON.stringify(Object.fromEntries(entries), null, 2));
+                await window.vstUpdater.writeTextFile(filePath, JSON.stringify(capXrefObjectFromEntries(entries), null, 2));
             }
         }
     };
-    showExportModal('xref', 'ui.export.title_xref', entries.length);
+    showExportModal('xref', 'ui.export.title_xref', rowCount);
 }
 
 // ── Smart Playlists export/import ──
 
 function exportSmartPlaylists() {
-    const playlists = typeof prefs !== 'undefined' ? prefs.getObject('smartPlaylists', []) : [];
-    if (playlists.length === 0) {
+    const playlistsRaw = typeof prefs !== 'undefined' ? prefs.getObject('smartPlaylists', []) : [];
+    if (playlistsRaw.length === 0) {
         showToast(toastFmt('toast.no_smart_playlists_export'));
         return;
     }
+    const rawLen = playlistsRaw.length;
+    const playlists = capExportList(playlistsRaw.slice());
     _exportCtx = {
         titleKey: 'ui.export.title_smart_playlists',
-        defaultName: exportFileName('smart-playlists', playlists.length),
+        defaultName: exportFileName('smart-playlists', rawLen),
         exportFn: async (fmt, filePath) => {
             if (fmt === 'pdf') {
                 const headers = pdfHeaders(
@@ -857,7 +925,7 @@ function exportSmartPlaylists() {
             }
         }
     };
-    showExportModal('playlists', 'ui.export.title_smart_playlists', playlists.length);
+    showExportModal('playlists', 'ui.export.title_smart_playlists', rawLen);
 }
 
 // ── Import functions (unchanged — use native file dialog) ──
@@ -1011,12 +1079,14 @@ async function importPresets() {
 }
 
 function exportXrefPlugins() {
-    const plugins = window._xrefExportPlugins || [];
+    const pluginsRaw = window._xrefExportPlugins || [];
     const projectName = window._xrefExportProjectName || 'Project';
-    if (plugins.length === 0) {
+    if (pluginsRaw.length === 0) {
         showToast(toastFmt('toast.no_plugins_export'));
         return;
     }
+    const rawLen = pluginsRaw.length;
+    const plugins = capExportList(pluginsRaw.slice());
     _exportCtx = {
         titleKey: 'ui.export.plugins_in_project',
         titleVars: {name: projectName},
@@ -1044,5 +1114,5 @@ function exportXrefPlugins() {
             }
         }
     };
-    showExportModal('xref', 'ui.export.plugins_in_project', plugins.length, {name: projectName});
+    showExportModal('xref', 'ui.export.plugins_in_project', rawLen, {name: projectName});
 }

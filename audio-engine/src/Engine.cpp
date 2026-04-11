@@ -614,6 +614,8 @@ struct DspAtomics
     std::atomic<uint32_t> eqLowBits{std::bit_cast<uint32_t>(0.0f)};
     std::atomic<uint32_t> eqMidBits{std::bit_cast<uint32_t>(0.0f)};
     std::atomic<uint32_t> eqHighBits{std::bit_cast<uint32_t>(0.0f)};
+    /** 0 = stereo pan, non-zero = L/R summed to mono on both channels (after EQ + gain). */
+    std::atomic<uint32_t> monoBits{0};
 };
 
 static float loadF(const std::atomic<uint32_t>& a)
@@ -621,10 +623,17 @@ static float loadF(const std::atomic<uint32_t>& a)
     return std::bit_cast<float>(a.load());
 }
 
+static bool loadMonoOn(const std::atomic<uint32_t>& a)
+{
+    return a.load(std::memory_order_relaxed) != 0;
+}
+
+/** @param reversePath When true (reverse RAM playback), fold mono inside this stage — there is no insert chain.
+ *   When false (forward file decode), mono is applied once after insert FX so stereo plugins cannot undo it. */
 static void applyDspFrame(float& l, float& r, double sr, const DspAtomics& dsp, juce::dsp::IIR::Filter<float>& lowL,
                           juce::dsp::IIR::Filter<float>& lowR, juce::dsp::IIR::Filter<float>& midL,
                           juce::dsp::IIR::Filter<float>& midR, juce::dsp::IIR::Filter<float>& hiL,
-                          juce::dsp::IIR::Filter<float>& hiR)
+                          juce::dsp::IIR::Filter<float>& hiR, bool reversePath)
 {
     const float g = juce::jlimit(0.0f, 4.0f, loadF(dsp.gainBits));
     const float pan = juce::jlimit(-1.0f, 1.0f, loadF(dsp.panBits));
@@ -652,9 +661,25 @@ static void applyDspFrame(float& l, float& r, double sr, const DspAtomics& dsp, 
     dr = (double) hiR.processSample((float) dr);
     dl *= (double) g;
     dr *= (double) g;
-    const double ang = ((double) pan + 1.0) * juce::MathConstants<double>::halfPi / 2.0;
-    l = (float) (dl * std::cos(ang));
-    r = (float) (dr * std::sin(ang));
+    const bool mono = loadMonoOn(dsp.monoBits);
+    if (mono && reversePath)
+    {
+        const double m = 0.5 * (dl + dr);
+        l = (float) m;
+        r = (float) m;
+    }
+    else if (mono && !reversePath)
+    {
+        /* Forward path: keep stereo through EQ; `getNextAudioBlock` downmixes after inserts. */
+        l = (float) dl;
+        r = (float) dr;
+    }
+    else
+    {
+        const double ang = ((double) pan + 1.0) * juce::MathConstants<double>::halfPi / 2.0;
+        l = (float) (dl * std::cos(ang));
+        r = (float) (dr * std::sin(ang));
+    }
 }
 
 class InsertChainRunner;
@@ -1058,7 +1083,7 @@ public:
                 float l = reverseStereo.getSample(0, fi);
                 float r = reverseStereo.getSample(1, fi);
                 ++reverseFrame;
-                applyDspFrame(l, r, processRate, *dsp, lowL, lowR, midL, midR, hiL, hiR);
+                applyDspFrame(l, r, processRate, *dsp, lowL, lowR, midL, midR, hiL, hiR, true);
                 bufferToFill.buffer->setSample(0, bufferToFill.startSample + i, l);
                 bufferToFill.buffer->setSample(1, bufferToFill.startSample + i, r);
                 if (peak != nullptr)
@@ -1108,7 +1133,7 @@ public:
         {
             float l = bufferToFill.buffer->getSample(0, bufferToFill.startSample + i);
             float r = bufferToFill.buffer->getSample(1, bufferToFill.startSample + i);
-            applyDspFrame(l, r, processRate, *dsp, lowL, lowR, midL, midR, hiL, hiR);
+            applyDspFrame(l, r, processRate, *dsp, lowL, lowR, midL, midR, hiL, hiR, false);
             bufferToFill.buffer->setSample(0, bufferToFill.startSample + i, l);
             bufferToFill.buffer->setSample(1, bufferToFill.startSample + i, r);
             if (peak != nullptr)
@@ -1121,6 +1146,18 @@ public:
 
         if (insertChain != nullptr && insertChain->isActive())
             insertChain->process(*bufferToFill.buffer, bufferToFill.startSample, n);
+
+        if (dsp != nullptr && loadMonoOn(dsp->monoBits))
+        {
+            for (int i = 0; i < n; ++i)
+            {
+                const float ll = bufferToFill.buffer->getSample(0, bufferToFill.startSample + i);
+                const float rr = bufferToFill.buffer->getSample(1, bufferToFill.startSample + i);
+                const float m = 0.5f * (ll + rr);
+                bufferToFill.buffer->setSample(0, bufferToFill.startSample + i, m);
+                bufferToFill.buffer->setSample(1, bufferToFill.startSample + i, m);
+            }
+        }
 
         if (spectrumPushBatch)
         {
@@ -1283,6 +1320,8 @@ struct Engine::Impl
     std::deque<float> spectrumRing;
     static constexpr size_t kSpectrumRingMax = 32768;
     std::unique_ptr<juce::dsp::FFT> spectrumFft;
+    /** Last `juce::dsp::FFT` order passed to `spectrumFft` — recreate when `spectrum_fft_order` changes. */
+    int spectrumFftPreparedOrder = -1;
 
     /** One lock per callback block — avoids per-sample mutex traffic on the audio thread. */
     void pushSpectrumMonoBatch(const float* mono, int count)
@@ -1319,16 +1358,17 @@ struct Engine::Impl
             fileSource->spectrumPushBatch = {};
     }
 
-    /** Hann + real FFT → 1024 magnitudes (0–255) for WebView (np FFT strip, EQ canvas, visualizer). */
-    void appendPlaybackSpectrumJson(juce::DynamicObject* o)
+    /** Hann + real FFT → magnitudes (0–255) for WebView. Optional `spectrum: false` skips work (metadata only). */
+    void appendPlaybackSpectrumJson(juce::DynamicObject* o, int fftOrder, int fftBinsOut, bool wantComputeSpectrum)
     {
         if (o == nullptr)
             return;
-        constexpr int fftOrder = 11;
-        constexpr int fftSize = 1 << fftOrder;
-        constexpr int fftBinsOut = 1024;
+        fftOrder = juce::jlimit(8, 12, fftOrder);
+        const int fftSize = 1 << fftOrder;
+        const int maxBins = juce::jmax(64, fftSize / 2 - 1);
+        fftBinsOut = juce::jlimit(64, juce::jmin(1024, maxBins), fftBinsOut);
         const int srOut = outSampleRate > 0 ? outSampleRate : (int) deviceRate.load();
-        if (!outputRunning)
+        if (!wantComputeSpectrum || !outputRunning)
         {
             o->setProperty("spectrum", juce::var());
             o->setProperty("spectrum_fft_size", fftSize);
@@ -1356,8 +1396,13 @@ struct Engine::Impl
         std::vector<float> fftBuf((size_t) (fftSize * 2), 0.f);
         for (int i = 0; i < fftSize; ++i)
             fftBuf[(size_t) i] = snap[(size_t) i] * window[(size_t) i];
-        if (!spectrumFft)
+        if (spectrumFftPreparedOrder != fftOrder)
+        {
             spectrumFft = std::make_unique<juce::dsp::FFT>(fftOrder);
+            spectrumFftPreparedOrder = fftOrder;
+        }
+        if (!spectrumFft)
+            return;
         spectrumFft->performFrequencyOnlyForwardTransform(fftBuf.data(), true);
         float mx = 1.0e-9f;
         for (int i = 1; i <= fftBinsOut; ++i)
@@ -2528,8 +2573,27 @@ struct Engine::Impl
         return out;
     }
 
-    juce::var playbackStatusLocked()
+    juce::var playbackStatusLocked(const juce::var& req)
     {
+        bool wantSpectrum = true;
+        if (req.hasProperty("spectrum") && !req["spectrum"].isVoid())
+            wantSpectrum = (bool) req["spectrum"];
+
+        int fftOrder = 11;
+        if (req.hasProperty("spectrum_fft_order") && !req["spectrum_fft_order"].isVoid())
+            fftOrder = (int) req["spectrum_fft_order"];
+        fftOrder = juce::jlimit(8, 12, fftOrder);
+
+        int fftBinsOut = 1024;
+        if (req.hasProperty("spectrum_bins") && !req["spectrum_bins"].isVoid())
+            fftBinsOut = (int) req["spectrum_bins"];
+        fftBinsOut = juce::jlimit(64, 1024, fftBinsOut);
+        {
+            const int fs = 1 << fftOrder;
+            const int maxBins = juce::jmax(64, fs / 2 - 1);
+            fftBinsOut = juce::jmin(fftBinsOut, maxBins);
+        }
+
         juce::var out = okObj();
         auto* o = out.getDynamicObject();
         if (o == nullptr)
@@ -2537,7 +2601,7 @@ struct Engine::Impl
         if (sessionPath.isEmpty())
         {
             o->setProperty("loaded", false);
-            appendPlaybackSpectrumJson(o);
+            appendPlaybackSpectrumJson(o, fftOrder, fftBinsOut, wantSpectrum);
             return out;
         }
         o->setProperty("loaded", true);
@@ -2552,7 +2616,7 @@ struct Engine::Impl
             o->setProperty("peak", playbackPeak.load());
             o->setProperty("paused", false);
             o->setProperty("eof", false);
-            appendPlaybackSpectrumJson(o);
+            appendPlaybackSpectrumJson(o, fftOrder, fftBinsOut, wantSpectrum);
             return out;
         }
         /* Forward + resampler: timeline from reader samples (transport time drifts vs. ResamplingAudioSource). */
@@ -2568,7 +2632,7 @@ struct Engine::Impl
         o->setProperty("peak", playbackPeak.load());
         o->setProperty("paused", paused);
         o->setProperty("eof", transport.hasStreamFinished());
-        appendPlaybackSpectrumJson(o);
+        appendPlaybackSpectrumJson(o, fftOrder, fftBinsOut, wantSpectrum);
         return out;
     }
 
@@ -3026,11 +3090,13 @@ juce::var Engine::dispatch(const juce::var& req)
         const float eqL = req["eq_low_db"].isVoid() ? 0.0f : (float) req["eq_low_db"];
         const float eqM = req["eq_mid_db"].isVoid() ? 0.0f : (float) req["eq_mid_db"];
         const float eqH = req["eq_high_db"].isVoid() ? 0.0f : (float) req["eq_high_db"];
+        const bool mono = !req["mono"].isVoid() && (bool) req["mono"];
         impl->dsp.gainBits.store(std::bit_cast<uint32_t>(g));
         impl->dsp.panBits.store(std::bit_cast<uint32_t>(pan));
         impl->dsp.eqLowBits.store(std::bit_cast<uint32_t>(eqL));
         impl->dsp.eqMidBits.store(std::bit_cast<uint32_t>(eqM));
         impl->dsp.eqHighBits.store(std::bit_cast<uint32_t>(eqH));
+        impl->dsp.monoBits.store(mono ? 1u : 0u, std::memory_order_relaxed);
         return okObj();
     }
 
@@ -3072,7 +3138,7 @@ juce::var Engine::dispatch(const juce::var& req)
     }
 
     if (cmd == "playback_status")
-        return impl->playbackStatusLocked();
+        return impl->playbackStatusLocked(req);
 
     if (cmd == "set_output_tone")
     {

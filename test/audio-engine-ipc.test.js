@@ -678,7 +678,31 @@ if (!bin) {
 
     it('playback_set_dsp returns ok without loaded file', async () => {
       const { outLines } = await runEngineExchange(bin, [
-        jl({ cmd: 'playback_set_dsp', gain: 0.5, pan: -0.25, eq_low_db: 1, eq_mid_db: -2, eq_high_db: 0 }),
+        jl({
+          cmd: 'playback_set_dsp',
+          gain: 0.5,
+          pan: -0.25,
+          eq_low_db: 1,
+          eq_mid_db: -2,
+          eq_high_db: 0,
+          mono: false,
+        }),
+      ], { timeoutMs: 90_000 });
+      const j = JSON.parse(outLines[0]);
+      assert.equal(j.ok, true);
+    });
+
+    it('playback_set_dsp accepts mono true', async () => {
+      const { outLines } = await runEngineExchange(bin, [
+        jl({
+          cmd: 'playback_set_dsp',
+          gain: 1,
+          pan: 0,
+          eq_low_db: 0,
+          eq_mid_db: 0,
+          eq_high_db: 0,
+          mono: true,
+        }),
       ], { timeoutMs: 90_000 });
       const j = JSON.parse(outLines[0]);
       assert.equal(j.ok, true);

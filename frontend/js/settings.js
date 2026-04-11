@@ -987,8 +987,8 @@ function settingToggleFolderWatch() {
     const next = !current;
     prefs.setItem('folderWatch', next ? 'on' : 'off');
     if (next) {
-        startFolderWatch();
-        showToast(toastFmt('toast.folder_watch_on'));
+        /* One toast from `startFolderWatch` lists paths so “Watching 2” is explainable */
+        startFolderWatch({quiet: false});
     } else {
         window.vstUpdater.stopFileWatcher().catch(() => showToast(toastFmt('toast.failed_stop_watcher'), 4000, 'error'));
         showToast(toastFmt('toast.folder_watch_off'));
@@ -996,19 +996,61 @@ function settingToggleFolderWatch() {
     refreshSettingsUI();
 }
 
-function startFolderWatch() {
-    const dirs = [];
-    for (const key of ['audioScanDirs', 'dawScanDirs', 'presetScanDirs', 'midiScanDirs', 'pdfScanDirs']) {
-        const val = prefs.getItem(key);
-        if (val) dirs.push(...val.split('\n').map(d => d.trim()).filter(Boolean));
+/** Trim trailing slashes so `/a` and `/a/` dedupe; keeps POSIX `/` root as `/`. */
+function normalizeFolderWatchPath(p) {
+    if (p == null || typeof p !== 'string') return '';
+    let s = p.trim();
+    while (s.length > 1 && (s.endsWith('/') || s.endsWith('\\'))) {
+        s = s.slice(0, -1);
     }
-    const unique = [...new Set(dirs)];
+    return s;
+}
+
+/** Roots for the file watcher: explicit `folderWatchDirs` if any lines set; else plugin + library scan prefs. Uniqued after normalization. */
+function getFolderWatchScanDirsUnique() {
+    const raw = [];
+    const explicit = prefs.getItem('folderWatchDirs');
+    if (explicit && explicit.trim()) {
+        raw.push(...explicit.split('\n').map(d => d.trim()).filter(Boolean));
+    } else {
+        for (const key of ['customDirs', 'audioScanDirs', 'dawScanDirs', 'presetScanDirs', 'midiScanDirs', 'pdfScanDirs']) {
+            const val = prefs.getItem(key);
+            if (val) raw.push(...val.split('\n').map(d => d.trim()).filter(Boolean));
+        }
+    }
+    const seen = new Set();
+    const out = [];
+    for (const p of raw) {
+        const n = normalizeFolderWatchPath(p);
+        if (!n || seen.has(n)) continue;
+        seen.add(n);
+        out.push(n);
+    }
+    return out;
+}
+
+function showFolderWatchStartedToast(paths) {
+    const n = paths.length;
+    const head = toastFmt('toast.watching_n_dirs', {n});
+    const body = paths.join('\n');
+    const ms = Math.min(14_000, 3800 + n * 550);
+    showToast(`${head}\n${body}`, ms, '', 'toast-mono-paths');
+}
+
+/** @param {{quiet?: boolean}} [opts] — `quiet` skips success toast (e.g. app launch). */
+function startFolderWatch(opts = {}) {
+    const quiet = opts.quiet === true;
+    const unique = getFolderWatchScanDirsUnique();
     if (unique.length === 0) {
         showToast(toastFmt('toast.no_scan_dirs'), 3000, 'error');
+        if (prefs.getItem('folderWatch') === 'on') {
+            prefs.setItem('folderWatch', 'off');
+            if (typeof refreshSettingsUI === 'function') refreshSettingsUI();
+        }
         return;
     }
     window.vstUpdater.startFileWatcher(unique).then(() => {
-        showToast(toastFmt('toast.watching_n_dirs', {n: unique.length}));
+        if (!quiet) showFolderWatchStartedToast(unique);
     }).catch(e => showToast(toastFmt('toast.watch_failed', {err: e}), 4000, 'error'));
 }
 
@@ -1247,17 +1289,16 @@ async function settingToggleFileWatcher() {
     const next = !current;
     prefs.setItem('fileWatcher', next ? 'on' : 'off');
     if (next) {
-        // Collect all scan dirs
-        const dirs = [];
-        const audio = prefs.getItem('audioScanDirs');
-        const daw = prefs.getItem('dawScanDirs');
-        const preset = prefs.getItem('presetScanDirs');
-        if (audio) dirs.push(...audio.split('\n').filter(d => d.trim()));
-        if (daw) dirs.push(...daw.split('\n').filter(d => d.trim()));
-        if (preset) dirs.push(...preset.split('\n').filter(d => d.trim()));
+        const unique = getFolderWatchScanDirsUnique();
+        if (unique.length === 0) {
+            showToast(toastFmt('toast.no_scan_dirs'), 3000, 'error');
+            prefs.setItem('fileWatcher', 'off');
+            refreshSettingsUI();
+            return;
+        }
         try {
-            await window.vstUpdater.startFileWatcher(dirs);
-            showToast(toastFmt('toast.watching_n_dirs', {n: dirs.length}));
+            await window.vstUpdater.startFileWatcher(unique);
+            showFolderWatchStartedToast(unique);
         } catch (e) {
             showToast(toastFmt('toast.watcher_failed', {err: e}), 4000, 'error');
             prefs.setItem('fileWatcher', 'off');
@@ -1349,6 +1390,17 @@ function savePdfScanDirs() {
     prefs.setItem('pdfScanDirs', val);
     showSavedMsg('savedMsgPdfScanDirs');
     showToast(toastFmt('toast.pdf_scan_dirs_saved'));
+}
+
+function saveFolderWatchDirs() {
+    const el = document.getElementById('settingFolderWatchDirs');
+    const val = el ? el.value.trim() : '';
+    prefs.setItem('folderWatchDirs', val);
+    showSavedMsg('savedMsgFolderWatchDirs');
+    showToast(toastFmt('toast.folder_watch_dirs_saved'));
+    if (prefs.getItem('folderWatch') === 'on' && typeof startFolderWatch === 'function') {
+        startFolderWatch({quiet: true});
+    }
 }
 
 function openPrefsFile() {
@@ -1925,6 +1977,10 @@ function refreshSettingsUI() {
     const pdfScanDirs = prefs.getItem('pdfScanDirs') || '';
     const pdfScanDirsEl = document.getElementById('settingPdfScanDirs');
     if (pdfScanDirsEl) pdfScanDirsEl.value = pdfScanDirs;
+
+    const folderWatchDirs = prefs.getItem('folderWatchDirs') || '';
+    const folderWatchDirsEl = document.getElementById('settingFolderWatchDirs');
+    if (folderWatchDirsEl) folderWatchDirsEl.value = folderWatchDirs;
 
     const dawSort = getSettingValue('dawSort', 'name');
     const dawSortEl = document.getElementById('settingDawSort');

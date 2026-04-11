@@ -109,7 +109,7 @@ function toggleHelpOverlay() {
             <div class="help-row"><kbd>o</kbd> <span>${h('help.nav.reveal_finder')}</span></div>
             <div class="help-row"><kbd>y</kbd> <span>${h('help.nav.yank')}</span></div>
             <div class="help-row"><kbd>p</kbd> <span>${h('help.nav.play_preview')}</span></div>
-            <div class="help-row"><kbd>x</kbd> <span>${h('help.nav.toggle_fav')}</span></div>
+            <div class="help-row"><kbd>x</kbd> <span>${h('help.act.delete')}</span></div>
             <div class="help-row"><kbd>v</kbd> <span>${h('help.nav.toggle_select')}</span></div>
             <div class="help-row"><kbd>V</kbd> <span>${h('help.nav.select_all')}</span></div>
           </div>

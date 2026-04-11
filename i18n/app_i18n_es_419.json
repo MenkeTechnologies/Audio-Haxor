@@ -1,4 +1,6 @@
 {
+  "confirm.btn_no": "No",
+  "confirm.btn_yes": "Sí",
   "confirm.clear_all_history_settings": "¿Borrar todo el historial de escaneo de complementos, audio, DAW, ajustes preestablecidos, PDF y MIDI? Esto no se puede deshacer.",
   "confirm.clear_all_history_tab": "¿Borrar todo el historial de escaneo? Esto no se puede deshacer.",
   "confirm.clear_all_scan_databases": "¿Borrar todas las bases de datos del historial de análisis? Esto borra la lista de archivos escaneados de cada pestaña.",
@@ -541,7 +543,7 @@
   "toast.no_notes_export": "No hay notas ni etiquetas para exportar",
   "toast.no_play_history_export": "No hay historial de juego para exportar",
   "toast.no_plugins_export": "No hay complementos para exportar",
-  "toast.no_scan_dirs": "No hay directorios de escaneo configurados",
+  "toast.no_scan_dirs": "No directories to watch. Add paths under Folder watch directories, or leave that list empty and configure scan directories.",
   "toast.no_smart_playlists_export": "No hay listas de reproducción inteligentes para exportar",
   "toast.no_xref_build_index": "Sin datos de referencia externa: cree primero el índice del complemento",
   "toast.note_deleted": "Nota eliminada",
@@ -2405,5 +2407,16 @@
   "ui.xref.tt_search_project_data": "Buscar dentro de los datos del proyecto",
   "ui.xref.tt_search_xml_content": "Buscar dentro del contenido XML",
   "ui.xref.tt_toggle_node": "Haga clic para contraer o expandir",
-  "ui.xref.xml_collapsed_n_children": "…{n} niños"
+  "ui.xref.xml_collapsed_n_children": "…{n} niños",
+  "ui.folder_watch_no_scan_dirs": "No directories to watch yet. Add paths under Folder watch directories, or leave that list empty and set scan directories above.",
+  "ui.folder_watch_paths_heading": "Folder watch directories",
+  "ui.sd.folder_watch_scan_paths_explainer": "Paths to watch (one per line). Leave empty to use plugin scan dirs plus all library scan dirs. If you add any path here, only this list is watched.",
+  "toast.folder_watch_dirs_saved": "Folder watch directories saved",
+  "ui.sd.folder_watch_directories": "Paths to watch (one per line). Leave empty to use plugin scan dirs plus all library scan dirs below. If you add any path here, only this list is watched.",
+  "ui.st.folder_watch_directories": "Folder Watch Directories",
+  "ui.ph.folder_watch_directories": "/path/to/watch&#10;/another/path",
+  "ui.tt.folder_watch_directories": "Folder watch paths, one per line (overrides combined scan dirs when non-empty)",
+  "ui.tt.save_folder_watch_directories": "Save folder watch directory list",
+  "ui.btn.app_data": "App data",
+  "ui.tt.go_to_app_data_directory": "Go to app data directory (preferences, database, logs)"
 }

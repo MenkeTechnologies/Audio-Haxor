@@ -1006,6 +1006,9 @@ document.addEventListener('click', (e) => {
             case 'savePdfScanDirs':
                 savePdfScanDirs();
                 break;
+            case 'saveFolderWatchDirs':
+                if (typeof saveFolderWatchDirs === 'function') saveFolderWatchDirs();
+                break;
             case 'openPrefsFile':
                 showToast(toastFmt('toast.opening_preferences'));
                 openPrefsFile();
@@ -1056,7 +1059,7 @@ document.addEventListener('click', (e) => {
                 importRecentlyPlayed();
                 break;
             case 'toggleMono':
-                toggleMono();
+                if (typeof toggleMono === 'function') toggleMono();
                 break;
             case 'toggleEqSection':
                 toggleEqSection();
@@ -1268,7 +1271,7 @@ document.addEventListener('keydown', (e) => {
     // Cmd+F — handled by native menu accelerator (find)
 });
 
-function showToast(message, duration = 2500, type = '') {
+function showToast(message, duration = 2500, type = '', extraClass = '') {
     if (type === 'error' && window.vstUpdater?.appendLog) {
         window.vstUpdater.appendLog('TOAST_ERROR: ' + message);
     }
@@ -1278,7 +1281,7 @@ function showToast(message, duration = 2500, type = '') {
     const container = document.getElementById('toastContainer');
     if (!container) return;
     const el = document.createElement('div');
-    el.className = 'toast' + (type ? ` toast-${type}` : '');
+    el.className = 'toast' + (type ? ` toast-${type}` : '') + (extraClass ? ` ${extraClass}` : '');
     el.textContent = message;
     const fadeStart = (duration - 300) / 1000;
     el.style.animation = `toast-in 0.3s ease-out, toast-out 0.3s ease-in ${fadeStart}s forwards`;
@@ -1469,6 +1472,8 @@ window.vstUpdater = {
     // File browser
     listDirectory: (dirPath) => invoke('fs_list_dir', {dirPath}),
     deleteFile: (filePath) => invoke('delete_file', {filePath}),
+    /** Delete on disk + purge path from all inventory DB tables (keyboard `x` / Backspace). */
+    deleteInventoryItem: (filePath) => invoke('delete_inventory_item', {filePath}),
     renameFile: (oldPath, newPath) => invoke('rename_file', {oldPath, newPath}),
     getHomeDir: () => invoke('get_home_dir'),
     // Similarity

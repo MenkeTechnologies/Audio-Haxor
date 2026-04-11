@@ -616,6 +616,27 @@ document.addEventListener('click', (e) => {
                 if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
             });
         }
+    } else if (action.dataset.action === 'fileAppDataDir') {
+        const vu = window.vstUpdater;
+        if (!vu || typeof vu.getPrefsPath !== 'function') {
+            if (typeof showToast === 'function') showToast(String('getPrefsPath unavailable'), 4000, 'error');
+            return;
+        }
+        vu.getPrefsPath()
+            .then((p) => {
+                const norm = normalizePathSeparators(String(p || ''));
+                const dir = norm.replace(/\/[^/]+$/, '');
+                if (!dir) {
+                    if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                        showToast(toastFmt('toast.failed', {err: 'invalid preferences path'}), 4000, 'error');
+                    }
+                    return;
+                }
+                loadDirectory(dir);
+            })
+            .catch((e) => {
+                if (typeof showToast === 'function') showToast(String(e && e.message ? e.message : e), 4000, 'error');
+            });
     } else if (action.dataset.action === 'fileFav') {
         if (_fileBrowserPath) {
             if (isFavDir(_fileBrowserPath)) removeFavDir(_fileBrowserPath);

@@ -514,7 +514,7 @@ pub fn build_native_menu_bar<R: Runtime>(
         "help_overlay",
         t("menu.help_overlay", "Keyboard Shortcuts"),
         true,
-        Some("CmdOrCtrl+Shift+/"),
+        Option::<&str>::None,
     )?;
 
     let data_menu = Submenu::with_id_and_items(

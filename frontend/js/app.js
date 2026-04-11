@@ -145,7 +145,7 @@ async function handleFileWatcherChange(event) {
 
     // Start folder watcher if enabled
     if (prefs.getItem('folderWatch') === 'on' && typeof startFolderWatch === 'function') {
-        startFolderWatch();
+        startFolderWatch({quiet: true});
     }
 
     // Listen for file watcher change events — backend sends `roots_by_category`

@@ -776,8 +776,85 @@ function toggleRegex(btn) {
     if (action) applyFilter(action);
 }
 
-// ── Confirm dialog (Tauri-safe) ──
+// ── Confirm dialog (in-app modal matches theme; falls back to Tauri ask / window.confirm) ──
+
+/** @returns {string} */
+function _confirmBtnLabel(key, english) {
+    const s = catalogFmt(key);
+    return s === key ? english : s;
+}
+
+/**
+ * Themed confirm modal (same `.modal-overlay` / `.modal-content` as export & notes).
+ * @param {string} message
+ * @param {string} [title]
+ * @returns {Promise<boolean>}
+ */
+function showAppConfirmModal(message, title) {
+    return new Promise((resolve) => {
+        document.getElementById('appConfirmModal')?.remove();
+
+        const t = title || catalogFmt('confirm.dialog_title');
+        const yesL = _confirmBtnLabel('confirm.btn_yes', 'Yes');
+        const noL = _confirmBtnLabel('confirm.btn_no', 'No');
+        const msgHtml = escapeHtml(message);
+        const html = `<div class="modal-overlay" id="appConfirmModal" role="alertdialog" aria-modal="true" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmMsg">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2 id="appConfirmTitle">${escapeHtml(t)}</h2>
+        <button type="button" class="modal-close" data-app-confirm="cancel" title="${escapeHtml(noL)}" aria-label="${escapeHtml(noL)}">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p id="appConfirmMsg" class="app-confirm-message">${msgHtml}</p>
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-confirm="cancel">${escapeHtml(noL)}</button>
+          <button type="button" class="btn btn-primary" data-app-confirm="ok">${escapeHtml(yesL)}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        const modal = document.getElementById('appConfirmModal');
+        if (!modal) {
+            resolve(false);
+            return;
+        }
+
+        let settled = false;
+        const finish = (v) => {
+            if (settled) return;
+            settled = true;
+            document.removeEventListener('keydown', keyHandler, true);
+            modal.remove();
+            resolve(v);
+        };
+
+        const keyHandler = (e) => {
+            if (e.key !== 'Escape') return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            finish(false);
+        };
+        document.addEventListener('keydown', keyHandler, true);
+
+        modal.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-app-confirm]');
+            if (btn) {
+                finish(btn.dataset.appConfirm === 'ok');
+                return;
+            }
+            if (e.target === modal) finish(false);
+        });
+
+        const noBtn = modal.querySelector('[data-app-confirm="cancel"]');
+        requestAnimationFrame(() => (noBtn || modal.querySelector('button'))?.focus());
+    });
+}
+
 async function confirmAction(message, title) {
+    if (typeof document !== 'undefined' && document.body) {
+        return showAppConfirmModal(String(message ?? ''), title);
+    }
     const t = title || catalogFmt('confirm.dialog_title');
     const dialogApi = window.__TAURI_PLUGIN_DIALOG__;
     if (dialogApi && dialogApi.ask) {

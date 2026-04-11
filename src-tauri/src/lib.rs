@@ -5125,6 +5125,23 @@ async fn delete_file(file_path: String) -> Result<(), String> {
     .await
 }
 
+/// Delete a file or directory on disk, then remove matching rows from all inventory SQLite tables.
+#[tauri::command]
+async fn delete_inventory_item(file_path: String) -> Result<(), String> {
+    let path_for_db = file_path.clone();
+    match delete_file(file_path).await {
+        Ok(()) => {}
+        Err(e) => {
+            if !e.to_lowercase().contains("not found") {
+                return Err(e);
+            }
+        }
+    }
+    tokio::task::spawn_blocking(move || db::global().purge_inventory_path(&path_for_db))
+        .await
+        .map_err(|e| format!("delete_inventory_item task: {e}"))?
+}
+
 #[tauri::command]
 async fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
     blocking_res(move || {
@@ -7475,6 +7492,7 @@ pub fn run() {
             open_with_app,
             fs_list_dir,
             delete_file,
+            delete_inventory_item,
             rename_file,
             write_text_file,
             read_text_file,

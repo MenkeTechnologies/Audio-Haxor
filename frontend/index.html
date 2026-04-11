@@ -779,6 +779,41 @@
             line-height: 1.2;
         }
 
+        .settings-folder-watch-dirs-wrap {
+            margin-top: 6px;
+            max-width: 100%;
+        }
+
+        .settings-folder-watch-dirs-heading {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 4px;
+        }
+
+        .settings-folder-watch-dir-list {
+            margin: 0;
+            padding: 0 0 0 14px;
+            font-size: 10px;
+            font-family: var(--font-mono, ui-monospace, monospace);
+            color: var(--text);
+            line-height: 1.35;
+            word-break: break-all;
+        }
+
+        .settings-folder-watch-dir-list li {
+            margin: 2px 0;
+        }
+
+        .settings-folder-watch-dir-list .settings-folder-watch-empty {
+            list-style: none;
+            margin-left: -14px;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
         .settings-control {
             flex-shrink: 0;
         }
@@ -3309,6 +3344,20 @@
             padding: 20px;
             overflow-y: auto;
             flex: 1;
+        }
+
+        .app-confirm-message {
+            margin: 0;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+
+        .app-confirm-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
         }
 
         .modal-resize {
@@ -6782,7 +6831,8 @@
             box-shadow: 0 0 16px var(--cyan-glow);
         }
 
-        #tabAudioEngine #aePlaybackReverse.active {
+        #tabAudioEngine #aePlaybackReverse.active,
+        #tabAudioEngine #aePlaybackMono.active {
             border-color: var(--magenta);
             color: var(--magenta);
             box-shadow: 0 0 16px var(--magenta-glow);
@@ -7911,6 +7961,18 @@
             line-height: 1.35;
         }
 
+        /* Folder-watch toast: paths must stay literal (no uppercase), allow newlines */
+        .toast.toast-mono-paths {
+            text-transform: none;
+            letter-spacing: 0.35px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-weight: 500;
+            line-height: 1.45;
+            white-space: pre-line;
+            max-width: min(96vw, 520px);
+            word-break: break-all;
+        }
+
         @keyframes toast-in {
             from {
                 opacity: 0;
@@ -8863,6 +8925,9 @@
                 <button class="btn btn-secondary" data-action="fileQuickNav" data-dir="/" data-i18n="ui.btn.root"
                         data-i18n-title="ui.tt.go_to_root_filesystem" title="Go to root filesystem">/ Root
                 </button>
+                <button class="btn btn-secondary" data-action="fileAppDataDir"
+                        data-i18n-title="ui.tt.go_to_app_data_directory" title="Go to app data directory">&#128230; <span
+                        data-i18n="ui.btn.app_data">App data</span></button>
                 <button class="btn btn-secondary" data-action="fileFav" data-i18n-title="ui.tt.bookmark_current_directory"
                         id="btnFileFav" title="Bookmark current directory">&#9733;
                     <span data-i18n="ui.btn.9733_bookmark">Bookmark</span></button>
@@ -9537,6 +9602,7 @@
                         <button type="button" class="btn btn-secondary btn-settings-action" id="aeSkipBack5" data-i18n-title="ui.ae.transport_skip_back_tt"><span data-i18n="ui.ae.transport_skip_back_label">−5s</span></button>
                         <button type="button" class="btn btn-secondary btn-settings-action" id="aeSkipForward5" data-i18n-title="ui.ae.transport_skip_forward_tt"><span data-i18n="ui.ae.transport_skip_forward_label">+5s</span></button>
                         <button type="button" class="btn btn-secondary btn-settings-action" id="aePlaybackReverse" data-i18n="ui.ae.transport_reverse_label" data-i18n-title="ui.ae.transport_reverse_tt">Reverse</button>
+                        <button type="button" class="btn btn-secondary btn-settings-action" id="aePlaybackMono" data-i18n="ui.btn.m" data-i18n-title="ui.tt.mono">M</button>
                     </div>
                 </div>
                 <div class="settings-row">
@@ -10652,6 +10718,32 @@
                         </button>
                     </div>
                 </div>
+                <div class="settings-row settings-scan-dirs-row">
+                    <div class="settings-label">
+                        <span class="settings-title" data-i18n="ui.st.folder_watch_directories">Folder Watch Directories</span>
+                        <span class="settings-desc" data-i18n="ui.sd.folder_watch_directories">Paths to watch (one per line). Leave empty to use plugin scan dirs plus all library scan dirs below. If you add any path here, only this list is watched.</span>
+                    </div>
+                    <div class="settings-control">
+                        <textarea autocapitalize="off" autocomplete="off" autocorrect="off"
+                                  class="settings-textarea settings-textarea-scan-paths" data-i18n-placeholder="ui.ph.folder_watch_directories" data-i18n-title="ui.tt.folder_watch_directories"
+                                  id="settingFolderWatchDirs" placeholder="/path/to/watch&#10;/another/path"
+                                  rows="5"
+                                  spellcheck="false"
+                                  title="Folder watch paths, one per line"
+                                  wrap="off"></textarea>
+                        <button class="btn btn-secondary btn-settings-action" data-action="browseDir"
+                                data-i18n="ui.btn.browse" data-i18n-title="ui.tt.browse_for_folder_grants_macos_access"
+                                data-target="settingFolderWatchDirs"
+                                style="margin-top: 6px;" title="Browse for folder (grants macOS access)">
+                            Browse
+                        </button>
+                        <button class="btn btn-secondary btn-settings-action" data-action="saveFolderWatchDirs"
+                                data-i18n="ui.btn.save" data-i18n-title="ui.tt.save_folder_watch_directories"
+                                style="margin-top: 6px;" title="Save folder watch directories">Save
+                        </button>
+                        <span class="settings-saved-msg" id="savedMsgFolderWatchDirs"></span>
+                    </div>
+                </div>
                 <div class="settings-row">
                     <div class="settings-label">
                         <span class="settings-title" data-i18n="ui.st.incremental_directory_scan">Incremental Unified Scan</span>
@@ -11025,46 +11117,46 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=38325"></script>
-<script src="js/utils.js?v=38325"></script>
-<script src="js/ui-idle.js?v=38325"></script>
-<script src="js/ipc.js?v=38325"></script>
-<script src="js/tooltip-hover.js?v=38325"></script>
-<script src="js/drag-reorder.js?v=38325"></script>
-<script src="js/modal-drag.js?v=38325"></script>
-<script src="js/columns.js?v=38325"></script>
-<script src="js/notes.js?v=38325"></script>
-<script src="js/favorites.js?v=38325"></script>
-<script src="js/export.js?v=38325"></script>
-<script src="js/plugins.js?v=38325"></script>
-<script src="js/settings.js?v=38325"></script>
-<script src="js/history.js?v=38325"></script>
-<script src="js/kvr.js?v=38325"></script>
-<script src="js/audio.js?v=38325"></script>
-<script src="js/daw.js?v=38325"></script>
-<script src="js/disk-usage.js?v=38325"></script>
-<script src="js/presets.js?v=38325"></script>
-<script src="js/batch-select.js?v=38325"></script>
-<script src="js/native-file-drag.js?v=38325"></script>
-<script src="js/sort-persist.js?v=38325"></script>
-<script src="js/multi-filter.js?v=38325"></script>
-<script src="js/file-browser.js?v=38325"></script>
-<script src="js/duplicates.js?v=38325"></script>
-<script src="js/command-palette.js?v=38325"></script>
-<script src="js/xref.js?v=38325"></script>
-<script src="js/dep-graph.js?v=38325"></script>
-<script src="js/smart-playlists.js?v=38325"></script>
-<script src="js/heatmap-dashboard.js?v=38325"></script>
-<script src="js/midi.js?v=38325"></script>
-<script src="js/pdf.js?v=38325"></script>
-<script src="js/settings-search.js?v=38325"></script>
-<script src="js/visualizer.js?v=38325"></script>
-<script src="js/walker-status.js?v=38325"></script>
-<script src="js/audio-engine.js?v=38325"></script>
-<script src="js/context-menu.js?v=38325"></script>
-<script src="js/shortcuts.js?v=38325"></script>
-<script src="js/help-overlay.js?v=38325"></script>
-<script src="js/keyboard-nav.js?v=38325"></script>
-<script src="js/app.js?v=38325"></script>
+<script src="js/i18n-ui.js?v=36526"></script>
+<script src="js/utils.js?v=36526"></script>
+<script src="js/ui-idle.js?v=36526"></script>
+<script src="js/ipc.js?v=36526"></script>
+<script src="js/tooltip-hover.js?v=36526"></script>
+<script src="js/drag-reorder.js?v=36526"></script>
+<script src="js/modal-drag.js?v=36526"></script>
+<script src="js/columns.js?v=36526"></script>
+<script src="js/notes.js?v=36526"></script>
+<script src="js/favorites.js?v=36526"></script>
+<script src="js/export.js?v=36526"></script>
+<script src="js/plugins.js?v=36526"></script>
+<script src="js/settings.js?v=36526"></script>
+<script src="js/history.js?v=36526"></script>
+<script src="js/kvr.js?v=36526"></script>
+<script src="js/audio.js?v=36526"></script>
+<script src="js/daw.js?v=36526"></script>
+<script src="js/disk-usage.js?v=36526"></script>
+<script src="js/presets.js?v=36526"></script>
+<script src="js/batch-select.js?v=36526"></script>
+<script src="js/native-file-drag.js?v=36526"></script>
+<script src="js/sort-persist.js?v=36526"></script>
+<script src="js/multi-filter.js?v=36526"></script>
+<script src="js/file-browser.js?v=36526"></script>
+<script src="js/duplicates.js?v=36526"></script>
+<script src="js/command-palette.js?v=36526"></script>
+<script src="js/xref.js?v=36526"></script>
+<script src="js/dep-graph.js?v=36526"></script>
+<script src="js/smart-playlists.js?v=36526"></script>
+<script src="js/heatmap-dashboard.js?v=36526"></script>
+<script src="js/midi.js?v=36526"></script>
+<script src="js/pdf.js?v=36526"></script>
+<script src="js/settings-search.js?v=36526"></script>
+<script src="js/visualizer.js?v=36526"></script>
+<script src="js/walker-status.js?v=36526"></script>
+<script src="js/audio-engine.js?v=36526"></script>
+<script src="js/context-menu.js?v=36526"></script>
+<script src="js/shortcuts.js?v=36526"></script>
+<script src="js/help-overlay.js?v=36526"></script>
+<script src="js/keyboard-nav.js?v=36526"></script>
+<script src="js/app.js?v=36526"></script>
 </body>
 </html>

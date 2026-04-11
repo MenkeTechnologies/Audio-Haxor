@@ -892,15 +892,13 @@ function buildPaletteStaticItems() {
             action: () => togglePlayerExpanded()
         });
     }
-    if (typeof setAbLoopStart === 'function') {
+    if (typeof window !== 'undefined' && typeof window.toggleAbLoopShortcut === 'function') {
         items.push({
-            type: 'toggle', name: appFmt('menu.toggle_ab_loop'), icon: '&#128260;', ...paletteShortcutTip('toggleABLoop'), action: () => {
-                if (typeof _abLoop !== 'undefined' && _abLoop) {
-                    if (typeof clearAbLoop === 'function') clearAbLoop();
-                } else {
-                    setAbLoopStart();
-                }
-            }
+            type: 'toggle',
+            name: appFmt('menu.toggle_ab_loop'),
+            icon: '&#128260;',
+            ...paletteShortcutTip('toggleABLoop'),
+            action: () => window.toggleAbLoopShortcut(),
         });
     }
 

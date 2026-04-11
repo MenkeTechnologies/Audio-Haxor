@@ -1,4 +1,6 @@
 {
+  "confirm.btn_no": "Οχι",
+  "confirm.btn_yes": "Ναι",
   "confirm.clear_all_history_settings": "Να διαγραφεί όλο το ιστορικό σάρωσης προσθηκών, ήχου, DAW, προεπιλογών, PDF και MIDI; Αυτό δεν μπορεί να αναιρεθεί.",
   "confirm.clear_all_history_tab": "Διαγραφή όλου του ιστορικού σάρωσης; Αυτό δεν μπορεί να αναιρεθεί.",
   "confirm.clear_all_scan_databases": "Διαγραφή όλων των βάσεων δεδομένων ιστορικού σάρωσης; Αυτό διαγράφει τη λίστα σαρωμένων αρχείων κάθε καρτέλας.",
@@ -541,7 +543,7 @@
   "toast.no_notes_export": "Δεν υπάρχουν σημειώσεις ή ετικέτες για εξαγωγή",
   "toast.no_play_history_export": "Δεν υπάρχει ιστορικό αναπαραγωγής για εξαγωγή",
   "toast.no_plugins_export": "Δεν υπάρχουν πρόσθετα για εξαγωγή",
-  "toast.no_scan_dirs": "Δεν έχουν διαμορφωθεί κατάλογοι σάρωσης",
+  "toast.no_scan_dirs": "No directories to watch. Add paths under Folder watch directories, or leave that list empty and configure scan directories.",
   "toast.no_smart_playlists_export": "Δεν υπάρχουν έξυπνες λίστες αναπαραγωγής για εξαγωγή",
   "toast.no_xref_build_index": "Χωρίς δεδομένα xref — πρώτα δημιουργήστε ευρετήριο προσθήκης",
   "toast.note_deleted": "Η σημείωση διαγράφηκε",
@@ -2405,5 +2407,16 @@
   "ui.xref.tt_search_project_data": "Αναζήτηση στα δεδομένα του έργου",
   "ui.xref.tt_search_xml_content": "Αναζήτηση σε περιεχόμενο XML",
   "ui.xref.tt_toggle_node": "Κάντε κλικ για σύμπτυξη ή επέκταση",
-  "ui.xref.xml_collapsed_n_children": "…{n} παιδιά"
+  "ui.xref.xml_collapsed_n_children": "…{n} παιδιά",
+  "ui.folder_watch_no_scan_dirs": "No directories to watch yet. Add paths under Folder watch directories, or leave that list empty and set scan directories above.",
+  "ui.folder_watch_paths_heading": "Folder watch directories",
+  "ui.sd.folder_watch_scan_paths_explainer": "Paths to watch (one per line). Leave empty to use plugin scan dirs plus all library scan dirs. If you add any path here, only this list is watched.",
+  "toast.folder_watch_dirs_saved": "Folder watch directories saved",
+  "ui.sd.folder_watch_directories": "Paths to watch (one per line). Leave empty to use plugin scan dirs plus all library scan dirs below. If you add any path here, only this list is watched.",
+  "ui.st.folder_watch_directories": "Folder Watch Directories",
+  "ui.ph.folder_watch_directories": "/path/to/watch&#10;/another/path",
+  "ui.tt.folder_watch_directories": "Folder watch paths, one per line (overrides combined scan dirs when non-empty)",
+  "ui.tt.save_folder_watch_directories": "Save folder watch directory list",
+  "ui.btn.app_data": "App data",
+  "ui.tt.go_to_app_data_directory": "Go to app data directory (preferences, database, logs)"
 }

@@ -1,4 +1,6 @@
 {
+  "confirm.btn_no": "아니요",
+  "confirm.btn_yes": "예",
   "confirm.clear_all_history_settings": "모든 플러그인, 오디오, DAW, 사전 설정, PDF 및 MIDI 스캔 기록을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
   "confirm.clear_all_history_tab": "모든 검사 기록을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
   "confirm.clear_all_scan_databases": "모든 검사 기록 데이터베이스를 지우시겠습니까? 그러면 모든 탭의 스캔된 파일 목록이 지워집니다.",
@@ -541,7 +543,7 @@
   "toast.no_notes_export": "내보낼 메모나 태그가 없습니다.",
   "toast.no_play_history_export": "내보낼 플레이 기록이 없습니다.",
   "toast.no_plugins_export": "내보낼 플러그인이 없습니다.",
-  "toast.no_scan_dirs": "구성된 스캔 디렉터리가 없습니다.",
+  "toast.no_scan_dirs": "No directories to watch. Add paths under Folder watch directories, or leave that list empty and configure scan directories.",
   "toast.no_smart_playlists_export": "내보낼 스마트 재생목록이 없습니다.",
   "toast.no_xref_build_index": "외부 참조 데이터 없음 - 플러그인 색인을 먼저 빌드하세요.",
   "toast.note_deleted": "메모가 삭제되었습니다.",
@@ -2405,5 +2407,16 @@
   "ui.xref.tt_search_project_data": "프로젝트 데이터 내에서 검색",
   "ui.xref.tt_search_xml_content": "XML 콘텐츠 내에서 검색",
   "ui.xref.tt_toggle_node": "접거나 펼치려면 클릭하세요.",
-  "ui.xref.xml_collapsed_n_children": "…{n} 어린이"
+  "ui.xref.xml_collapsed_n_children": "…{n} 어린이",
+  "ui.folder_watch_no_scan_dirs": "No directories to watch yet. Add paths under Folder watch directories, or leave that list empty and set scan directories above.",
+  "ui.folder_watch_paths_heading": "Folder watch directories",
+  "ui.sd.folder_watch_scan_paths_explainer": "Paths to watch (one per line). Leave empty to use plugin scan dirs plus all library scan dirs. If you add any path here, only this list is watched.",
+  "toast.folder_watch_dirs_saved": "Folder watch directories saved",
+  "ui.sd.folder_watch_directories": "Paths to watch (one per line). Leave empty to use plugin scan dirs plus all library scan dirs below. If you add any path here, only this list is watched.",
+  "ui.st.folder_watch_directories": "Folder Watch Directories",
+  "ui.ph.folder_watch_directories": "/path/to/watch&#10;/another/path",
+  "ui.tt.folder_watch_directories": "Folder watch paths, one per line (overrides combined scan dirs when non-empty)",
+  "ui.tt.save_folder_watch_directories": "Save folder watch directory list",
+  "ui.btn.app_data": "App data",
+  "ui.tt.go_to_app_data_directory": "Go to app data directory (preferences, database, logs)"
 }

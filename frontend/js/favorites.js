@@ -95,6 +95,7 @@ function exportFavorites() {
         title: catalogFmt('ui.dialog.favorites'),
         defaultName: exportFileName('favorites', favs.length),
         exportFn: async (fmt, filePath) => {
+            const list = typeof capExportList === 'function' ? capExportList(favs.slice()) : favs;
             if (fmt === 'pdf') {
                 const headers = [
                     catalogFmt('ui.export.col_name'),
@@ -102,7 +103,7 @@ function exportFavorites() {
                     catalogFmt('ui.export.col_format'),
                     catalogFmt('ui.export.col_path'),
                 ];
-                const rows = favs.map(f => [f.name, f.type, f.format || f.daw || '', f.path]);
+                const rows = list.map(f => [f.name, f.type, f.format || f.daw || '', f.path]);
                 await window.vstUpdater.exportPdf(catalogFmt('ui.dialog.favorites'), headers, rows, filePath);
             } else if (fmt === 'csv' || fmt === 'tsv') {
                 const sep = fmt === 'tsv' ? '\t' : ',';
@@ -119,14 +120,14 @@ function exportFavorites() {
                         sep +
                         catalogFmt('ui.export.col_path'),
                 ];
-                for (const f of favs) lines.push([f.name, f.type, f.format || f.daw || '', f.path].map(esc).join(sep));
+                for (const f of list) lines.push([f.name, f.type, f.format || f.daw || '', f.path].map(esc).join(sep));
                 await window.__TAURI__.core.invoke('write_text_file', {filePath, contents: lines.join('\n')});
             } else if (fmt === 'toml') {
-                await window.vstUpdater.exportToml({favorites: favs}, filePath);
+                await window.vstUpdater.exportToml({favorites: list}, filePath);
             } else {
                 await window.__TAURI__.core.invoke('write_text_file', {
                     filePath,
-                    contents: JSON.stringify(favs, null, 2)
+                    contents: JSON.stringify(list, null, 2)
                 });
             }
         }
