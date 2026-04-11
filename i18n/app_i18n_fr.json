@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Désélectionner tout",
   "menu.toggle_eq_panel": "Basculer le panneau d'égalisation",
   "menu.toggle_expand_on_click": "Activer l'option Développer en cliquant sur",
+  "menu.toggle_favorite": "Changer de favori",
   "menu.toggle_folder_watch": "Basculer la surveillance des dossiers",
   "menu.toggle_fullscreen": "Basculer en plein écran",
   "menu.toggle_include_ableton_backups": "Toggle Inclure les sauvegardes Ableton",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Rechercher dans les données du projet",
   "ui.xref.tt_search_xml_content": "Rechercher dans le contenu XML",
   "ui.xref.tt_toggle_node": "Cliquez pour réduire ou agrandir",
-  "ui.xref.xml_collapsed_n_children": "…{n} enfants",
-  "menu.toggle_favorite": "Changer de favori"
+  "ui.xref.xml_collapsed_n_children": "…{n} enfants"
 }

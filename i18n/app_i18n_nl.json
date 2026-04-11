@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Deselecteer Alles",
   "menu.toggle_eq_panel": "Schakel EQ-paneel in",
   "menu.toggle_expand_on_click": "Schakel Uitbreiden in op Klik",
+  "menu.toggle_favorite": "Schakel favoriet in",
   "menu.toggle_folder_watch": "Schakel Mapbewaking in of uit",
   "menu.toggle_fullscreen": "Schakel Volledig scherm in",
   "menu.toggle_include_ableton_backups": "Schakel Ableton-back-ups opnemen",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Zoeken binnen projectgegevens",
   "ui.xref.tt_search_xml_content": "Zoeken binnen XML-inhoud",
   "ui.xref.tt_toggle_node": "Klik om samen te vouwen of uit te vouwen",
-  "ui.xref.xml_collapsed_n_children": "…{n} kinderen",
-  "menu.toggle_favorite": "Schakel favoriet in"
+  "ui.xref.xml_collapsed_n_children": "…{n} kinderen"
 }

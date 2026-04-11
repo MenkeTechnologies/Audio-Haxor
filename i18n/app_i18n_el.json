@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Καταργήστε την επιλογή όλων",
   "menu.toggle_eq_panel": "Εναλλαγή του πίνακα EQ",
   "menu.toggle_expand_on_click": "Ενεργοποιήστε το Expand on Click",
+  "menu.toggle_favorite": "Εναλλαγή αγαπημένου",
   "menu.toggle_folder_watch": "Εναλλαγή ρολόι φακέλου",
   "menu.toggle_fullscreen": "Εναλλαγή πλήρους οθόνης",
   "menu.toggle_include_ableton_backups": "Εναλλαγή Συμπερίληψης αντιγράφων ασφαλείας Ableton",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Αναζήτηση στα δεδομένα του έργου",
   "ui.xref.tt_search_xml_content": "Αναζήτηση σε περιεχόμενο XML",
   "ui.xref.tt_toggle_node": "Κάντε κλικ για σύμπτυξη ή επέκταση",
-  "ui.xref.xml_collapsed_n_children": "…{n} παιδιά",
-  "menu.toggle_favorite": "Εναλλαγή αγαπημένου"
+  "ui.xref.xml_collapsed_n_children": "…{n} παιδιά"
 }

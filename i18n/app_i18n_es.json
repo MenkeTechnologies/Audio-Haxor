@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Deseleccionar todo",
   "menu.toggle_eq_panel": "Alternar panel de ecualización",
   "menu.toggle_expand_on_click": "Alternar expandir al hacer clic",
+  "menu.toggle_favorite": "Alternar favorito",
   "menu.toggle_folder_watch": "Alternar observación de carpetas",
   "menu.toggle_fullscreen": "Alternar pantalla completa",
   "menu.toggle_include_ableton_backups": "Toggle Incluir copias de seguridad de Ableton",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Buscar dentro de los datos del proyecto",
   "ui.xref.tt_search_xml_content": "Buscar dentro del contenido XML",
   "ui.xref.tt_toggle_node": "Haga clic para contraer o expandir",
-  "ui.xref.xml_collapsed_n_children": "…{n} niños",
-  "menu.toggle_favorite": "Alternar favorito"
+  "ui.xref.xml_collapsed_n_children": "…{n} niños"
 }

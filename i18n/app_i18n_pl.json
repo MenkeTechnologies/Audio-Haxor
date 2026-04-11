@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Odznacz wszystko",
   "menu.toggle_eq_panel": "Przełącz panel EQ",
   "menu.toggle_expand_on_click": "Przełącz opcję Rozwiń po kliknięciu",
+  "menu.toggle_favorite": "Przełącz ulubione",
   "menu.toggle_folder_watch": "Przełącz opcję oglądania folderów",
   "menu.toggle_fullscreen": "Przełącz tryb pełnoekranowy",
   "menu.toggle_include_ableton_backups": "Przełącz opcję Dołącz kopie zapasowe Ableton",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Szukaj w danych projektu",
   "ui.xref.tt_search_xml_content": "Szukaj w treści XML",
   "ui.xref.tt_toggle_node": "Kliknij, aby zwinąć lub rozwinąć",
-  "ui.xref.xml_collapsed_n_children": "…{n} dzieci",
-  "menu.toggle_favorite": "Przełącz ulubione"
+  "ui.xref.xml_collapsed_n_children": "…{n} dzieci"
 }

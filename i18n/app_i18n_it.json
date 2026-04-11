@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Deseleziona tutto",
   "menu.toggle_eq_panel": "Attiva/disattiva il pannello EQ",
   "menu.toggle_expand_on_click": "Attiva/disattiva Espandi al clic",
+  "menu.toggle_favorite": "Attiva/disattiva preferito",
   "menu.toggle_folder_watch": "Attiva/Disattiva controllo cartella",
   "menu.toggle_fullscreen": "Attiva/disattiva schermo intero",
   "menu.toggle_include_ableton_backups": "Attiva/disattiva Includi backup Ableton",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Cerca all'interno dei dati del progetto",
   "ui.xref.tt_search_xml_content": "Cerca all'interno del contenuto XML",
   "ui.xref.tt_toggle_node": "Fare clic per comprimere o espandere",
-  "ui.xref.xml_collapsed_n_children": "…{n} bambini",
-  "menu.toggle_favorite": "Attiva/disattiva preferito"
+  "ui.xref.xml_collapsed_n_children": "…{n} bambini"
 }

@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Deselect All",
   "menu.toggle_eq_panel": "Toggle EQ Panel",
   "menu.toggle_expand_on_click": "Toggle Expand on Click",
+  "menu.toggle_favorite": "Chuyển đổi yêu thích",
   "menu.toggle_folder_watch": "Toggle Folder Watch",
   "menu.toggle_fullscreen": "Toggle Fullscreen",
   "menu.toggle_include_ableton_backups": "Toggle Include Ableton Backups",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Search within project data",
   "ui.xref.tt_search_xml_content": "Search within XML content",
   "ui.xref.tt_toggle_node": "Click to collapse or expand",
-  "ui.xref.xml_collapsed_n_children": "…{n} children",
-  "menu.toggle_favorite": "Chuyển đổi yêu thích"
+  "ui.xref.xml_collapsed_n_children": "…{n} children"
 }

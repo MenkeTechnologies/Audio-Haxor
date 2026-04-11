@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "모두 선택 취소",
   "menu.toggle_eq_panel": "EQ 패널 전환",
   "menu.toggle_expand_on_click": "클릭 시 확장 전환",
+  "menu.toggle_favorite": "즐겨찾기 전환",
   "menu.toggle_folder_watch": "폴더 감시 전환",
   "menu.toggle_fullscreen": "전체 화면 전환",
   "menu.toggle_include_ableton_backups": "Toggle Ableton 백업 포함",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "프로젝트 데이터 내에서 검색",
   "ui.xref.tt_search_xml_content": "XML 콘텐츠 내에서 검색",
   "ui.xref.tt_toggle_node": "접거나 펼치려면 클릭하세요.",
-  "ui.xref.xml_collapsed_n_children": "…{n} 어린이",
-  "menu.toggle_favorite": "즐겨찾기 전환"
+  "ui.xref.xml_collapsed_n_children": "…{n} 어린이"
 }

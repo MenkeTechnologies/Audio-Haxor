@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "取消全选",
   "menu.toggle_eq_panel": "切换均衡器面板",
   "menu.toggle_expand_on_click": "切换单击时展开",
+  "menu.toggle_favorite": "切换收藏夹",
   "menu.toggle_folder_watch": "切换文件夹监视",
   "menu.toggle_fullscreen": "切换全屏",
   "menu.toggle_include_ableton_backups": "Toggle 包括 Ableton 备份",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "在项目数据中搜索",
   "ui.xref.tt_search_xml_content": "在 XML 内容中搜索",
   "ui.xref.tt_toggle_node": "单击以折叠或展开",
-  "ui.xref.xml_collapsed_n_children": "…{n} 个孩子",
-  "menu.toggle_favorite": "切换收藏夹"
+  "ui.xref.xml_collapsed_n_children": "…{n} 个孩子"
 }

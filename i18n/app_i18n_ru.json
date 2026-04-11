@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Отменить выбор всех",
   "menu.toggle_eq_panel": "Переключить панель эквалайзера",
   "menu.toggle_expand_on_click": "Переключить Развернуть по клику",
+  "menu.toggle_favorite": "Переключить избранное",
   "menu.toggle_folder_watch": "Переключить просмотр папок",
   "menu.toggle_fullscreen": "Переключить полноэкранный режим",
   "menu.toggle_include_ableton_backups": "Toggle Включение резервных копий Ableton",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Поиск в данных проекта",
   "ui.xref.tt_search_xml_content": "Поиск в XML-контенте",
   "ui.xref.tt_toggle_node": "Нажмите, чтобы свернуть или развернуть",
-  "ui.xref.xml_collapsed_n_children": "…{n} детей",
-  "menu.toggle_favorite": "Переключить избранное"
+  "ui.xref.xml_collapsed_n_children": "…{n} детей"
 }

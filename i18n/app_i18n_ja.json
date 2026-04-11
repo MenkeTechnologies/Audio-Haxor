@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "すべての選択を解除",
   "menu.toggle_eq_panel": "EQパネルの切り替え",
   "menu.toggle_expand_on_click": "クリック時に展開を切り替え",
+  "menu.toggle_favorite": "お気に入りを切り替え",
   "menu.toggle_folder_watch": "フォルダー監視の切り替え",
   "menu.toggle_fullscreen": "全画面表示の切り替え",
   "menu.toggle_include_ableton_backups": "Toggle Ableton バックアップを含める",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "プロジェクトデータ内の検索",
   "ui.xref.tt_search_xml_content": "XML コンテンツ内の検索",
   "ui.xref.tt_toggle_node": "クリックして折りたたむか展開します",
-  "ui.xref.xml_collapsed_n_children": "…{n}人の子供たち",
-  "menu.toggle_favorite": "お気に入りを切り替え"
+  "ui.xref.xml_collapsed_n_children": "…{n}人の子供たち"
 }

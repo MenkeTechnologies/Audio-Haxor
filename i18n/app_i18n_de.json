@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Alle abwählen",
   "menu.toggle_eq_panel": "EQ-Panel umschalten",
   "menu.toggle_expand_on_click": "Schalten Sie „Erweitern bei Klicken“ um",
+  "menu.toggle_favorite": "Favorit umschalten",
   "menu.toggle_folder_watch": "Ordnerüberwachung umschalten",
   "menu.toggle_fullscreen": "Vollbild umschalten",
   "menu.toggle_include_ableton_backups": "Aktivieren Sie die Option „Ableton-Backups einbeziehen“.",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Suche innerhalb von Projektdaten",
   "ui.xref.tt_search_xml_content": "Suche innerhalb von XML-Inhalten",
   "ui.xref.tt_toggle_node": "Klicken Sie zum Reduzieren oder Erweitern",
-  "ui.xref.xml_collapsed_n_children": "…{n} Kinder",
-  "menu.toggle_favorite": "Favorit umschalten"
+  "ui.xref.xml_collapsed_n_children": "…{n} Kinder"
 }

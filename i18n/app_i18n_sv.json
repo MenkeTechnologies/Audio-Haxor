@@ -325,6 +325,7 @@
   "menu.toggle_deselect_all": "Avmarkera alla",
   "menu.toggle_eq_panel": "Växla EQ-panelen",
   "menu.toggle_expand_on_click": "Växla Expandera vid klick",
+  "menu.toggle_favorite": "Växla favorit",
   "menu.toggle_folder_watch": "Växla mappbevakning",
   "menu.toggle_fullscreen": "Växla helskärm",
   "menu.toggle_include_ableton_backups": "Växla Inkludera Ableton Backups",
@@ -2396,6 +2397,5 @@
   "ui.xref.tt_search_project_data": "Sök i projektdata",
   "ui.xref.tt_search_xml_content": "Sök i XML-innehåll",
   "ui.xref.tt_toggle_node": "Klicka för att komprimera eller expandera",
-  "ui.xref.xml_collapsed_n_children": "…{n} barn",
-  "menu.toggle_favorite": "Växla favorit"
+  "ui.xref.xml_collapsed_n_children": "…{n} barn"
 }
