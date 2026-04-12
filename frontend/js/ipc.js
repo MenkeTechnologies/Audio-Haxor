@@ -661,11 +661,13 @@ document.addEventListener('click', (e) => {
             case 'toggleVideoMaximize':
                 if (typeof toggleVideoMaximize === 'function') toggleVideoMaximize();
                 break;
-            case 'videoPlayPause':
-                if (typeof previewVideo === 'function' && typeof videoPlayerPath !== 'undefined' && videoPlayerPath) {
-                    previewVideo(videoPlayerPath);
-                }
+            case 'videoPlayPause': {
+                const vPath =
+                    (typeof window.getVideoTransportTargetPath === 'function' && window.getVideoTransportTargetPath()) ||
+                    '';
+                if (vPath && typeof previewVideo === 'function') void previewVideo(vPath);
                 break;
+            }
             case 'toggleVideoLoopRegion': {
                 if (typeof toggleVideoLoopRegionFn === 'function') toggleVideoLoopRegionFn();
                 break;
@@ -1596,6 +1598,7 @@ window.vstUpdater = {
     readCacheFile: (name) => invoke('read_cache_file', {name}),
     writeCacheFile: (name, data) => invoke('write_cache_file', {name, data}),
     upsertWaveformCacheEntry: (path, data) => invoke('upsert_waveform_cache_entry', {path, data}),
+    readWaveformCacheEntry: (path) => invoke('read_waveform_cache_entry', {path}),
     upsertSpectrogramCacheEntry: (path, data) => invoke('upsert_spectrogram_cache_entry', {path, data}),
     getWalkerStatus: () => invoke('get_walker_status'),
     appendLog: (msg) => invoke('append_log', {msg}).catch(e => {

@@ -1,6 +1,6 @@
 {
   "name": "audio-haxor",
-  "version": "1.18.37",
+  "version": "1.18.38",
   "description": "Desktop app to scan and manage VST/VST3/AU/CLAP audio plugins, samples, DAW projects, presets, MIDI, PDFS with its own audio engine",
   "scripts": {
     "tauri": "tauri",

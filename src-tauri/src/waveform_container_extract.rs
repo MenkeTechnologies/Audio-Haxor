@@ -10,7 +10,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use serde_json::Value;
 
@@ -60,13 +60,42 @@ fn temp_transcode_path(suffix: &str) -> PathBuf {
     ))
 }
 
+fn ffmpeg_preview_log_snippet(stderr: &[u8], code: Option<i32>) -> String {
+    let err = String::from_utf8_lossy(stderr).trim().to_string();
+    if err.is_empty() {
+        return format!("exit code {:?}", code);
+    }
+    let collapsed: String = err
+        .chars()
+        .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+        .collect();
+    let collapsed = collapsed.split_whitespace().collect::<Vec<_>>().join(" ");
+    const MAX: usize = 900;
+    if collapsed.len() > MAX {
+        format!("{}…", &collapsed[..MAX])
+    } else {
+        collapsed
+    }
+}
+
+fn log_ffmpeg_preview_failure(stage: &str, src: &Path, stderr: &[u8], code: Option<i32>) {
+    let detail = ffmpeg_preview_log_snippet(stderr, code);
+    crate::write_app_log(format!(
+        "WAVEFORM PREVIEW — ffmpeg {stage} extract failed | {} | {detail}",
+        src.display()
+    ));
+}
+
 /// Try `ffmpeg`: first audio stream → mono MP3 (≤ [`MAX_EXTRACT_SEC`]).
 fn try_ffmpeg_extract_mp3(src: &Path) -> Option<TempTranscoded> {
+    if !src.is_file() {
+        return None;
+    }
     let out = temp_transcode_path(".mp3");
     let out_s = out.to_string_lossy();
     let src_s = src.to_string_lossy();
     let t = MAX_EXTRACT_SEC.to_string();
-    let st = Command::new("ffmpeg")
+    let child_out = match Command::new("ffmpeg")
         .args([
             "-hide_banner",
             "-loglevel",
@@ -90,10 +119,24 @@ fn try_ffmpeg_extract_mp3(src: &Path) -> Option<TempTranscoded> {
             "5",
             out_s.as_ref(),
         ])
-        .status()
-        .ok()?;
-    if !st.success() {
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            let _ = fs::remove_file(&out);
+            crate::write_app_log(format!(
+                "WAVEFORM PREVIEW — ffmpeg mp3 could not run | {} | {e}",
+                src.display()
+            ));
+            return None;
+        }
+    };
+    if !child_out.status.success() {
         let _ = fs::remove_file(&out);
+        log_ffmpeg_preview_failure("mp3", src, &child_out.stderr, child_out.status.code());
         return None;
     }
     let len = fs::metadata(&out).ok()?.len();
@@ -106,11 +149,14 @@ fn try_ffmpeg_extract_mp3(src: &Path) -> Option<TempTranscoded> {
 
 /// `ffmpeg` without LAME: mono PCM in WAV (≤ [`MAX_EXTRACT_SEC`]).
 fn try_ffmpeg_extract_wav_pcm(src: &Path) -> Option<TempTranscoded> {
+    if !src.is_file() {
+        return None;
+    }
     let out = temp_transcode_path(".wav");
     let out_s = out.to_string_lossy();
     let src_s = src.to_string_lossy();
     let t = MAX_EXTRACT_SEC.to_string();
-    let st = Command::new("ffmpeg")
+    let child_out = match Command::new("ffmpeg")
         .args([
             "-hide_banner",
             "-loglevel",
@@ -132,10 +178,24 @@ fn try_ffmpeg_extract_wav_pcm(src: &Path) -> Option<TempTranscoded> {
             "wav",
             out_s.as_ref(),
         ])
-        .status()
-        .ok()?;
-    if !st.success() {
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            let _ = fs::remove_file(&out);
+            crate::write_app_log(format!(
+                "WAVEFORM PREVIEW — ffmpeg wav could not run | {} | {e}",
+                src.display()
+            ));
+            return None;
+        }
+    };
+    if !child_out.status.success() {
         let _ = fs::remove_file(&out);
+        log_ffmpeg_preview_failure("wav", src, &child_out.stderr, child_out.status.code());
         return None;
     }
     let len = fs::metadata(&out).ok()?.len();
@@ -279,6 +339,14 @@ pub(crate) fn rewrite_visual_preview_for_juce(req: &Value) -> (Value, Option<Tem
         return (req.clone(), None);
     }
 
+    // Missing path (unmounted volume, deleted/moved file): skip transcode; log once per request.
+    if !path.is_file() {
+        crate::write_app_log(format!(
+            "WAVEFORM PREVIEW — input not accessible (no such file, unmounted volume, or not a regular file) | {path_str}"
+        ));
+        return (req.clone(), None);
+    }
+
     if let Some(tmp) = try_ffmpeg_extract_wav_pcm(path) {
         let mut out = req.clone();
         if let Some(obj) = out.as_object_mut() {
@@ -312,6 +380,9 @@ pub(crate) fn rewrite_visual_preview_for_juce(req: &Value) -> (Value, Option<Tem
         return (out, Some(tmp));
     }
 
+    crate::write_app_log(format!(
+        "WAVEFORM PREVIEW — container audio extract failed after ffmpeg (wav, mp3) and symphonia | {path_str}"
+    ));
     (req.clone(), None)
 }
 

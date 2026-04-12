@@ -1864,7 +1864,14 @@ function _playbackRafLoop() {
         return;
     }
     updatePlaybackTime();
-    _renderNpFft();
+    /* When the engine spectrum RAF loop is active it already calls `_renderNpFft` — skip duplicate ~60 Hz work. */
+    const fftDelegated =
+        typeof engineSpectrumLive === 'function' &&
+        engineSpectrumLive() &&
+        _enginePlaybackFftRafId != null;
+    if (!fftDelegated) {
+        _renderNpFft();
+    }
     /* Web Audio path: parametric EQ spectrum only animates while playing — engine playback uses `ensureEnginePlaybackFftRaf` + `scheduleParametricEqFrame`. */
     if (
         !_enginePlaybackActive &&
@@ -3781,10 +3788,33 @@ function _cachePlaybackEls() {
     _npCursorEl = document.getElementById('npCursor');
 }
 
+/** Cached `#videoPlayerEl` when `videoPlayerPath === audioPlayerPath` — `updatePlaybackTime` / tray sync (~60 Hz). */
+let _playbackNpVideoPath = '';
+let _playbackNpVideoEl = null;
+
+function npVideoElementIfDrivingRow() {
+    if (typeof videoPlayerPath === 'undefined' || !videoPlayerPath || audioPlayerPath !== videoPlayerPath) {
+        _playbackNpVideoPath = '';
+        _playbackNpVideoEl = null;
+        return null;
+    }
+    if (_playbackNpVideoPath !== audioPlayerPath) {
+        _playbackNpVideoPath = audioPlayerPath;
+        _playbackNpVideoEl = document.getElementById('videoPlayerEl');
+    } else if (_playbackNpVideoEl && !_playbackNpVideoEl.isConnected) {
+        _playbackNpVideoEl = document.getElementById('videoPlayerEl');
+    }
+    return _playbackNpVideoEl;
+}
+
+let _npMetaWaveformBox = null;
+let _npMetaWaveformCachedPath = null;
+let _npAeTransportTabEl = null;
+
 /** `<video>` duration when the floating player is driving a video row (not in `allAudioSamples`). */
 function videoHostDurationFallbackSec() {
     if (typeof videoPlayerPath === 'undefined' || !videoPlayerPath || audioPlayerPath !== videoPlayerPath) return 0;
-    const vid = document.getElementById('videoPlayerEl');
+    const vid = npVideoElementIfDrivingRow();
     if (!vid || !Number.isFinite(vid.duration) || vid.duration <= 0) return 0;
     return vid.duration;
 }
@@ -4022,18 +4052,20 @@ function syncTrayNowPlayingFromPlayback() {
         !(audioReverseMode && _reversedBuf && _bufPlaying);
     const tooltipBase = catalogFmt('tray.tooltip');
     const uiTheme = traySyncUiTheme();
-    const { appearance: trayAppearance, sig: trayAppSig } = trayAppearanceForTraySync();
     const traySp = trayPlaybackSpeedForSync();
     const trayVol = trayVolumeForSync();
     if (idle) {
+        const { appearance: trayAppearance, sig: trayAppSig } = trayAppearanceForTraySync();
         const idleSig = `idle|${uiTheme}|${trayAppSig}|sp:${traySp}|vol:${trayVol}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}|fav:0`;
         if (_traySyncSig === idleSig) return;
         _traySyncSig = idleSig;
-        console.info('[tray-main] update_tray_now_playing → Rust', {
-            idle: true,
-            ui_theme: uiTheme,
-            colorscheme: trayAppearanceForLog(trayAppearance),
-        });
+        if (typeof window !== 'undefined' && window.__TRAY_SYNC_DEBUG__) {
+            console.info('[tray-main] update_tray_now_playing → Rust', {
+                idle: true,
+                ui_theme: uiTheme,
+                colorscheme: trayAppearanceForLog(trayAppearance),
+            });
+        }
         /* Tauri v2 requires struct command args to be wrapped in the Rust parameter name (`payload`),
          * not passed flat. Passing flat fails with "missing required key payload" and the tray stays
          * frozen at its last known state — this was the silent root cause of the broken tray updates. */
@@ -4071,7 +4103,7 @@ function syncTrayNowPlayingFromPlayback() {
         const posInRev = _bufOffsetInRev + elapsed * _bufPlaybackRate;
         cur = Math.max(0, dur - posInRev);
     } else if (typeof videoPlayerPath !== 'undefined' && videoPlayerPath && audioPlayerPath === videoPlayerPath) {
-        const vid = document.getElementById('videoPlayerEl');
+        const vid = npVideoElementIfDrivingRow();
         if (vid) {
             cur = vid.currentTime || 0;
             dur = Number.isFinite(vid.duration) && vid.duration > 0 ? vid.duration : audioPlayer.duration || 0;
@@ -4172,21 +4204,23 @@ function syncTrayNowPlayingFromPlayback() {
         _traySyncLastWaveformSent = false;
     }
     /* Include title + subtitle: first ticks often have empty `#npName` / meta; dedupe must not block later updates. */
-    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|${trayAppSigPlaying}|sp:${trayPlaybackSpeedForSync()}|vol:${trayVolumeForSync()}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}|fav:${trayFavOn ? 1 : 0}|lr:${trayLoopSigKey}`;
+    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|${trayAppSigPlaying}|sp:${traySp}|vol:${trayVol}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}|fav:${trayFavOn ? 1 : 0}|lr:${trayLoopSigKey}`;
     if (sig === _traySyncSig) return;
     _traySyncSig = sig;
-    console.info('[tray-main] update_tray_now_playing → Rust', {
-        idle: false,
-        ui_theme: uiTheme,
-        colorscheme: trayAppearanceForLog(trayAppearancePlaying),
-        path: sigPath,
-        popover_title: track,
-        popover_subtitle: popover_subtitle,
-        subtitle_len: popover_subtitle.length,
-        playing,
-        elapsed_sec: cur,
-        total_sec: Number.isFinite(dur) && dur > 0 ? dur : null,
-    });
+    if (typeof window !== 'undefined' && window.__TRAY_SYNC_DEBUG__) {
+        console.info('[tray-main] update_tray_now_playing → Rust', {
+            idle: false,
+            ui_theme: uiTheme,
+            colorscheme: trayAppearanceForLog(trayAppearancePlaying),
+            path: sigPath,
+            popover_title: track,
+            popover_subtitle: popover_subtitle,
+            subtitle_len: popover_subtitle.length,
+            playing,
+            elapsed_sec: cur,
+            total_sec: Number.isFinite(dur) && dur > 0 ? dur : null,
+        });
+    }
     void inv('update_tray_now_playing', {
         payload: {
             title_bar,
@@ -4198,8 +4232,8 @@ function syncTrayNowPlayingFromPlayback() {
             elapsed_sec: cur,
             total_sec: Number.isFinite(dur) && dur > 0 ? dur : null,
             popover_playing: playing,
-            playback_speed: trayPlaybackSpeedForSync(),
-            volume_pct: trayVolumeForSync(),
+            playback_speed: traySp,
+            volume_pct: trayVol,
             ui_theme: uiTheme,
             appearance: trayAppearancePlaying,
             shuffle_on: audioShuffling,
@@ -4244,7 +4278,7 @@ function updatePlaybackTime() {
         const posInRev = _bufOffsetInRev + elapsed * _bufPlaybackRate;
         cur = Math.max(0, dur - posInRev);
     } else if (typeof videoPlayerPath !== 'undefined' && videoPlayerPath && audioPlayerPath === videoPlayerPath) {
-        const vid = document.getElementById('videoPlayerEl');
+        const vid = npVideoElementIfDrivingRow();
         if (vid) {
             cur = vid.currentTime || 0;
             dur = Number.isFinite(vid.duration) && vid.duration > 0 ? vid.duration : audioPlayer.duration || 0;
@@ -4260,7 +4294,7 @@ function updatePlaybackTime() {
     if (!audioReverseMode && _abLoop && dur > 0 && cur >= _abLoop.end) {
         const vidLoop =
             typeof videoPlayerPath !== 'undefined' && videoPlayerPath === audioPlayerPath
-                ? document.getElementById('videoPlayerEl')
+                ? npVideoElementIfDrivingRow()
                 : null;
         if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
             void window.vstUpdater.audioEngineInvoke({cmd: 'playback_seek', position_sec: _abLoop.start});
@@ -4279,8 +4313,12 @@ function updatePlaybackTime() {
             _npCursorEl.style.display = '';
             _npCursorEl.style.left = pct + '%';
         }
-        // Playback cursor — metadata panel
-        const metaWaveform = document.getElementById('metaWaveformBox');
+        // Playback cursor — metadata panel (cache `#metaWaveformBox`; path switch refreshes)
+        if (_npMetaWaveformCachedPath !== audioPlayerPath) {
+            _npMetaWaveformCachedPath = audioPlayerPath;
+            _npMetaWaveformBox = audioPlayerPath ? document.getElementById('metaWaveformBox') : null;
+        }
+        const metaWaveform = _npMetaWaveformBox;
         if (metaWaveform && metaWaveform.dataset.path === audioPlayerPath) {
             const fill = metaWaveform.querySelector('.waveform-progress-fill');
             const cursor = metaWaveform.querySelector('.waveform-cursor');
@@ -4303,7 +4341,11 @@ function updatePlaybackTime() {
         }
     }
     if (typeof window.syncAeTransportFromPlayback === 'function') {
-        const aeTab = document.getElementById('tabAudioEngine');
+        let aeTab = _npAeTransportTabEl;
+        if (!aeTab || !aeTab.isConnected) {
+            aeTab = document.getElementById('tabAudioEngine');
+            _npAeTransportTabEl = aeTab;
+        }
         if (aeTab && aeTab.classList.contains('active')) {
             window.syncAeTransportFromPlayback();
         }
@@ -6097,6 +6139,40 @@ function _evictCache(cache) {
     }
 }
 
+const _wfSqliteHydrateInflight = new Map();
+
+function _isUsableWaveformPeaks(peaks) {
+    if (!Array.isArray(peaks) || peaks.length === 0) return false;
+    const first = peaks[0];
+    if (typeof first === 'number' && Number.isFinite(first)) return true;
+    if (first && typeof first === 'object' && Number.isFinite(first.min) && Number.isFinite(first.max)) return true;
+    return false;
+}
+
+/** Fills `_waveformCache[path]` from SQLite when startup skipped bulk `loadWaveformCache` (video + NP waveforms). */
+async function hydrateWaveformPeaksFromSqlite(filePath) {
+    if (!filePath || typeof _waveformCache === 'undefined') return;
+    if (_waveformCache[filePath]) return;
+    let inflight = _wfSqliteHydrateInflight.get(filePath);
+    if (inflight) return inflight;
+    inflight = (async () => {
+        try {
+            const vu = window.vstUpdater;
+            if (!vu || typeof vu.readWaveformCacheEntry !== 'function') return;
+            const raw = await vu.readWaveformCacheEntry(filePath);
+            if (!raw || !_isUsableWaveformPeaks(raw)) return;
+            _waveformCache[filePath] = raw;
+            _evictCache(_waveformCache);
+        } catch {
+            /* ignore */
+        } finally {
+            _wfSqliteHydrateInflight.delete(filePath);
+        }
+    })();
+    _wfSqliteHydrateInflight.set(filePath, inflight);
+    return inflight;
+}
+
 function _saveWaveformCache() {
     _evictCache(_waveformCache);
     _evictCache(_spectrogramCache);
@@ -6135,6 +6211,9 @@ async function drawWaveform(filePath, wfSeq) {
     const container = canvas.parentElement;
     const npNameEl = document.getElementById('npName');
     const isVideoNowPlaying = !!(npNameEl && npNameEl.dataset.videoSource === 'true');
+
+    await hydrateWaveformPeaksFromSqlite(filePath);
+    if (_npWaveformDrawStale(wfSeq) || filePath !== audioPlayerPath) return;
 
     if (_waveformCache[filePath]) {
         const { w: cw, h: ch } = await resolveWaveformBoxSize(container, 280, 24);
@@ -6316,6 +6395,9 @@ async function drawMetaPanelVisuals(filePath, metaSeq) {
     if (!wfCanvas || !sgCanvas) return;
     if (_metaPanelStale(metaSeq, filePath)) return;
 
+    await hydrateWaveformPeaksFromSqlite(filePath);
+    if (_metaPanelStale(metaSeq, filePath)) return;
+
     const wfCached = _waveformCache[filePath];
     const sgCached = _spectrogramCache[filePath];
 
@@ -6435,6 +6517,8 @@ async function drawMetaPanelVisuals(filePath, metaSeq) {
 async function drawMetaWaveform(filePath, metaSeq) {
     const canvas = document.getElementById('metaWaveformCanvas');
     if (!canvas) return;
+    if (_metaPanelStale(metaSeq, filePath)) return;
+    await hydrateWaveformPeaksFromSqlite(filePath);
     if (_metaPanelStale(metaSeq, filePath)) return;
     const container = canvas.parentElement;
     const { w: cw, h: ch } = await resolveWaveformBoxSize(container, 560, 56);
@@ -7558,6 +7642,7 @@ window.updateNoteBtn = updateNoteBtn;
 window._decodePeaksViaWorker = decodePeaksViaWorker;
 window._fetchWaveformPeaksFromAudioEngine = fetchWaveformPreviewFromEngine;
 window._storeWaveformPeaksInCache = storeWaveformPeaksInCache;
+window.hydrateWaveformPeaksFromSqlite = hydrateWaveformPeaksFromSqlite;
 
 /**
  * Compile/load `audio-decode-worker.js` after first paint — avoids paying V8 worker script

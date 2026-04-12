@@ -552,6 +552,12 @@ function openVideoFile(path) {
 let expandedVideoPath = null;
 let videoPlayerPath = null;
 let _videoRafId = null;
+/** DOM cache for `_videoRafLoop` (~60 Hz) — invalidate when `videoPlayerPath` changes. */
+let _videoRafDomPath = null;
+let _videoRafCachedVid = null;
+let _videoRafCachedWfBox = null;
+let _videoRafCachedTimeDisp = null;
+let _videoRafCachedFsSeek = null;
 let _videoEngineActive = false;
 let _videoFallbackAudio = false;
 let _videoWfDrawSeq = 0;
@@ -1113,9 +1119,30 @@ function _startVideoRaf() {
 
 function _videoRafLoop() {
     _videoRafId = null;
-    if (!videoPlayerPath) return;
+    if (!videoPlayerPath) {
+        _videoRafDomPath = null;
+        _videoRafCachedVid = null;
+        _videoRafCachedWfBox = null;
+        _videoRafCachedTimeDisp = null;
+        _videoRafCachedFsSeek = null;
+        return;
+    }
 
-    const vid = document.getElementById('videoPlayerEl');
+    if (_videoRafDomPath !== videoPlayerPath) {
+        _videoRafDomPath = videoPlayerPath;
+        _videoRafCachedVid = document.getElementById('videoPlayerEl');
+        _videoRafCachedWfBox = document.getElementById('videoWaveformBox');
+        _videoRafCachedTimeDisp = document.getElementById('videoTimeDisplay');
+        _videoRafCachedFsSeek = document.getElementById('videoFsSeek');
+    }
+    let vid = _videoRafCachedVid;
+    if (vid && !vid.isConnected) {
+        _videoRafCachedVid = document.getElementById('videoPlayerEl');
+        _videoRafCachedWfBox = document.getElementById('videoWaveformBox');
+        _videoRafCachedTimeDisp = document.getElementById('videoTimeDisplay');
+        _videoRafCachedFsSeek = document.getElementById('videoFsSeek');
+        vid = _videoRafCachedVid;
+    }
     let cur = 0;
     let dur = 0;
 
@@ -1170,7 +1197,7 @@ function _videoRafLoop() {
     }
 
     // Update progress bar
-    const wfBox = document.getElementById('videoWaveformBox');
+    const wfBox = _videoRafCachedWfBox;
     if (wfBox && dur > 0) {
         const pct = (cur / dur) * 100;
         const fill = wfBox.querySelector('.waveform-progress-fill');
@@ -1180,10 +1207,10 @@ function _videoRafLoop() {
         if (cursor) cursor.style.left = pct + '%';
         if (timeLabel) timeLabel.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
     }
-    const timeDisp = document.getElementById('videoTimeDisplay');
+    const timeDisp = _videoRafCachedTimeDisp;
     if (timeDisp) timeDisp.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
 
-    const fsSeek = document.getElementById('videoFsSeek');
+    const fsSeek = _videoRafCachedFsSeek;
     if (fsSeek && dur > 0 && !_videoFsSeekUserDrag) {
         fsSeek.value = String(Math.min(1000, Math.max(0, Math.round((cur / dur) * 1000))));
     }
@@ -1390,6 +1417,11 @@ async function drawVideoWaveform(filePath, seq) {
     const container = canvas.parentElement;
     const cwHint = _videoWaveformBoxWidthHint(container);
 
+    if (typeof window.hydrateWaveformPeaksFromSqlite === 'function') {
+        await window.hydrateWaveformPeaksFromSqlite(filePath);
+        if (seq !== _videoWfDrawSeq || expandedVideoPath !== filePath) return;
+    }
+
     const cachedPeaks = typeof _waveformCache !== 'undefined' ? _waveformCache[filePath] : null;
     if (cachedPeaks && Array.isArray(cachedPeaks) && cachedPeaks.length > 0 && typeof renderWaveformData === 'function') {
         let cw = cwHint;
@@ -1527,6 +1559,23 @@ async function fetchVideosForExport() {
         limit: n,
     });
     return result.videoFiles || [];
+}
+
+/**
+ * Path for video play/pause / shortcuts: `videoPlayerPath` when loaded, else the expanded row
+ * (`expandedVideoPath` / `#videoMetaRow`). `previewAudio` → `stopVideoPlayback()` clears
+ * `videoPlayerPath` but leaves the meta panel open — without this, transport is a no-op.
+ */
+function getVideoTransportTargetPath() {
+    if (typeof videoPlayerPath !== 'undefined' && videoPlayerPath) return videoPlayerPath;
+    if (expandedVideoPath) return expandedVideoPath;
+    const row = typeof document !== 'undefined' ? document.getElementById('videoMetaRow') : null;
+    const p = row && row.getAttribute('data-meta-path');
+    return p ? String(p) : '';
+}
+
+if (typeof window !== 'undefined') {
+    window.getVideoTransportTargetPath = getVideoTransportTargetPath;
 }
 
 if (typeof document !== 'undefined') {

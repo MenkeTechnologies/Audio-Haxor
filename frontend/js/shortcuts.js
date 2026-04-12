@@ -470,11 +470,9 @@ document.addEventListener('keydown', (e) => {
         if (normalizeKeyForMatch(sc.key) !== eventKey) continue;
         if (sc.mod !== mod) continue;
         if (!shortcutShiftMatches(sc, e)) continue;
-        if (
-            id === 'videoToggleFullscreen' &&
-            (typeof videoPlayerPath === 'undefined' || !videoPlayerPath)
-        ) {
-            continue;
+        if (id === 'videoToggleFullscreen') {
+            const vPath = typeof window.getVideoTransportTargetPath === 'function' ? window.getVideoTransportTargetPath() : '';
+            if (!vPath) continue;
         }
         e.preventDefault();
         executeShortcut(id);
@@ -497,17 +495,32 @@ function executeShortcut(id) {
     } else if (id === 'help') {
         if (typeof toggleHelpOverlay === 'function') toggleHelpOverlay();
     } else if (id === 'playPause') {
-        // If video player is active, toggle video transport instead
-        if (typeof videoPlayerPath !== 'undefined' && videoPlayerPath && typeof previewVideo === 'function') {
-            const activeTab = document.querySelector('.tab-content.active')?.id;
-            if (activeTab === 'tabVideos') {
-                previewVideo(videoPlayerPath);
-                return;
+        // Videos tab: toggle expanded/loaded video unless another file is actively playing (e.g. sample after
+        // `stopVideoPlayback` cleared `videoPlayerPath` — then Space must still control audio).
+        const activeTab = document.querySelector('.tab-content.active')?.id;
+        if (activeTab === 'tabVideos' && typeof previewVideo === 'function') {
+            const vp = typeof videoPlayerPath !== 'undefined' && videoPlayerPath ? videoPlayerPath : '';
+            let transportPath = vp;
+            if (!transportPath && typeof window.getVideoTransportTargetPath === 'function') {
+                transportPath = window.getVideoTransportTargetPath();
+            }
+            if (transportPath) {
+                const playingOtherTrack =
+                    typeof audioPlayerPath !== 'undefined' &&
+                    audioPlayerPath &&
+                    audioPlayerPath !== transportPath &&
+                    typeof isAudioPlaying === 'function' &&
+                    isAudioPlaying();
+                if (!playingOtherTrack) {
+                    void previewVideo(transportPath);
+                    return;
+                }
             }
         }
         toggleAudioPlayback();
     } else if (id === 'videoToggleFullscreen') {
-        if (typeof videoPlayerPath !== 'undefined' && videoPlayerPath && typeof toggleVideoMaximize === 'function') {
+        const vPath2 = typeof window.getVideoTransportTargetPath === 'function' ? window.getVideoTransportTargetPath() : '';
+        if (vPath2 && typeof toggleVideoMaximize === 'function') {
             toggleVideoMaximize();
         }
     } else if (id === 'nextTrack') {

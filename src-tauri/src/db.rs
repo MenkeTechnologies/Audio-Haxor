@@ -8451,6 +8451,23 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(())
     }
 
+    /// One path lookup — avoids bulk `read_cache("waveform-cache.json")` on startup (large DBs).
+    pub fn get_waveform_cache_row(&self, path: &str) -> Result<Option<serde_json::Value>, String> {
+        let conn = self.read_conn();
+        let k = normalize_path_for_db(path);
+        let mut stmt = conn
+            .prepare("SELECT data FROM waveform_cache WHERE path = ?1 LIMIT 1")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt.query(params![k]).map_err(|e| e.to_string())?;
+        if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let s: String = row.get(0).map_err(|e| e.to_string())?;
+            let val: serde_json::Value = serde_json::from_str(&s).map_err(|e| e.to_string())?;
+            Ok(Some(val))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn upsert_spectrogram_cache_row(&self, path: &str, data: &serde_json::Value) -> Result<(), String> {
         let conn = self.write_conn();
         let k = normalize_path_for_db(path);
@@ -12564,6 +12581,15 @@ mod tests {
 
         let result = db.read_cache("waveform-cache.json").unwrap();
         assert_eq!(result["/path/to/file.wav"], "base64waveformdata");
+    }
+
+    #[test]
+    fn test_get_waveform_cache_row_single() {
+        let db = test_db();
+        let peaks = serde_json::json!([{"min": -0.5, "max": 0.5}]);
+        db.upsert_waveform_cache_row("/videos/movie.mp4", &peaks).unwrap();
+        assert_eq!(db.get_waveform_cache_row("/videos/movie.mp4").unwrap(), Some(peaks));
+        assert!(db.get_waveform_cache_row("/nosuch.mp4").unwrap().is_none());
     }
 
     #[test]

@@ -3497,6 +3497,11 @@ async fn upsert_waveform_cache_entry(path: String, data: serde_json::Value) -> R
 }
 
 #[tauri::command]
+async fn read_waveform_cache_entry(path: String) -> Result<Option<serde_json::Value>, String> {
+    blocking_res(move || db::global().get_waveform_cache_row(&path)).await
+}
+
+#[tauri::command]
 async fn upsert_spectrogram_cache_entry(path: String, data: serde_json::Value) -> Result<(), String> {
     blocking_res(move || db::global().upsert_spectrogram_cache_row(&path, &data)).await
 }
@@ -8012,6 +8017,7 @@ pub fn run() {
             read_cache_file,
             write_cache_file,
             upsert_waveform_cache_entry,
+            read_waveform_cache_entry,
             upsert_spectrogram_cache_entry,
             audio_engine_invoke,
             audio_engine_restart,
