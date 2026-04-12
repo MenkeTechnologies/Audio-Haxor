@@ -3829,6 +3829,7 @@ function clearAudioPlaybackUI() {
 let _prevPlayingRow = null;
 let _prevVideoPlayingRow = null;
 let _prevFavPlayingRow = null;
+let _prevTagPlayingItems = [];
 
 function updatePlayBtnStates() {
     // Clear previous playing row
@@ -3862,9 +3863,18 @@ function updatePlayBtnStates() {
         const floop = _prevFavPlayingRow.querySelector('.btn-loop');
         if (floop) floop.classList.remove('active');
     }
+    for (const tEl of _prevTagPlayingItems) {
+        const tbtn = tEl.querySelector('.btn-play');
+        if (tbtn) {
+            tbtn.classList.remove('playing');
+            tbtn.innerHTML = '&#9654;';
+        }
+        tEl.classList.remove('row-playing');
+    }
     _prevPlayingRow = null;
     _prevVideoPlayingRow = null;
     _prevFavPlayingRow = null;
+    _prevTagPlayingItems = [];
     // Set current playing row(s)
     if (audioPlayerPath) {
         const playing = isAudioPlaying();
@@ -3911,6 +3921,17 @@ function updatePlayBtnStates() {
             if (floop) floop.classList.toggle('active', audioLooping);
             _prevFavPlayingRow = favRow;
         }
+        // Tags manager tab
+        const tagItems = document.querySelectorAll(`#tagsManager .tag-manager-item[data-path="${CSS.escape(audioPlayerPath)}"]`);
+        tagItems.forEach(tEl => {
+            tEl.classList.add('row-playing');
+            const tbtn = tEl.querySelector('.btn-play');
+            if (tbtn) {
+                tbtn.classList.toggle('playing', playing);
+                tbtn.innerHTML = playing ? '&#9646;&#9646;' : '&#9654;';
+            }
+            _prevTagPlayingItems.push(tEl);
+        });
     }
     // Lightweight history update — just toggle active/icon classes, skip full re-render
     const histItems = document.querySelectorAll('#npHistoryList .np-history-item');

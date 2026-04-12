@@ -544,6 +544,26 @@ function clearAllNotes() {
 let _tagsSearch = '';
 let _lastTagsMode = 'fuzzy';
 
+const _TAG_AUDIO_EXTS = new Set([
+    'wav', 'mp3', 'aiff', 'aif', 'flac', 'ogg', 'm4a', 'wma', 'aac', 'opus', 'rex', 'rx2', 'sf2', 'sfz',
+]);
+const _TAG_VIDEO_EXTS = new Set([
+    'mp4', 'm4v', 'mov', 'mkv', 'webm', 'avi', 'mpg', 'mpeg', 'wmv', 'flv', 'ogv', '3gp', 'mts', 'm2ts',
+]);
+
+function _tagItemType(path) {
+    const ext = (path || '').split('.').pop().toLowerCase();
+    if (_TAG_AUDIO_EXTS.has(ext)) return 'sample';
+    if (_TAG_VIDEO_EXTS.has(ext)) return 'video';
+    return 'file';
+}
+
+function _tagItemTab(type) {
+    if (type === 'sample') return 'samples';
+    if (type === 'video') return 'videos';
+    return null;
+}
+
 registerFilter('filterTags', {
     inputId: 'tagSearchInput',
     regexToggleId: 'regexTags',
@@ -599,10 +619,42 @@ function renderTagsManager() {
       </div>
       <div class="tag-manager-items">
         ${items.slice(0, 20).map(item => {
-            const name = item.path.split('/').pop().replace(/\.[^.]+$/, '');
-            return `<div class="tag-manager-item">
+            const fileName = item.path.split('/').pop() || '';
+            const name = fileName.replace(/\.[^.]+$/, '');
+            const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+            const itemType = _tagItemType(item.path);
+            const hp = escapeHtml(item.path);
+            const isPlaying =
+                (itemType === 'sample' || itemType === 'video') &&
+                typeof audioPlayerPath !== 'undefined' && audioPlayerPath &&
+                normalizeItemNotePathKey(audioPlayerPath) === normalizeItemNotePathKey(item.path) &&
+                (typeof isAudioPlaying === 'function' ? isAudioPlaying() : false);
+            const fmtClass = itemType === 'sample' && typeof getFormatClass === 'function'
+                ? getFormatClass(ext) : 'format-default';
+            const badge = ext
+                ? `<span class="format-badge ${fmtClass}">${escapeHtml(ext.toUpperCase())}</span>`
+                : '';
+            const typeIcon = itemType === 'sample' ? '&#127925;' : itemType === 'video' ? '&#127910;' : '&#128196;';
+            const playBtn = (itemType === 'sample' || itemType === 'video')
+                ? `<button class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-tag-action="${itemType === 'video' ? 'play-video' : 'play-audio'}" data-path="${hp}" title="Play">${isPlaying ? '&#9646;&#9646;' : '&#9654;'}</button>`
+                : '';
+            const goTab = _tagItemTab(itemType);
+            const goBtn = goTab
+                ? `<button class="btn-small btn-secondary" data-tag-action="go-to-tab" data-path="${hp}" data-tab="${goTab}" style="padding:2px 6px;font-size:9px;" title="Show in ${itemType === 'sample' ? 'Samples' : 'Videos'} tab">&#8599;</button>`
+                : '';
+            const noteSnippet = item.note
+                ? `<span class="tag-manager-item-note" title="${escapeHtml(item.note)}">${escapeHtml(item.note.length > 40 ? item.note.slice(0, 40) + '…' : item.note)}</span>`
+                : '';
+            return `<div class="tag-manager-item" data-path="${hp}" data-item-type="${itemType}">
+            <span class="tag-manager-item-icon">${typeIcon}</span>
             <span class="tag-manager-item-name" title="${escapeHtml(item.path)}">${escapeHtml(name)}</span>
-            <button class="btn-small" data-tag-action="remove-from" data-tag="${escapeHtml(tag)}" data-path="${escapeHtml(item.path)}" style="padding:2px 6px;font-size:9px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;" title="Remove this tag from item">&#10005;</button>
+            ${badge}
+            ${noteSnippet}
+            <span class="tag-manager-item-actions">
+              ${playBtn}
+              ${goBtn}
+              <button class="btn-small" data-tag-action="remove-from" data-tag="${escapeHtml(tag)}" data-path="${hp}" style="padding:2px 6px;font-size:9px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;" title="Remove this tag from item">&#10005;</button>
+            </span>
           </div>`;
         }).join('')}
         ${items.length > 20 ? `<div style="color:var(--text-muted);font-size:11px;padding:4px 8px;">...and ${items.length - 20} more</div>` : ''}
@@ -974,6 +1026,25 @@ document.addEventListener('click', (e) => {
             renderTagsManager();
             renderGlobalTagBar();
             showToast(toastFmt('toast.tag_removed_from_note', {tag}));
+        } else if (act === 'play-audio') {
+            const path = tagAction.dataset.path;
+            if (path && typeof previewAudio === 'function') previewAudio(path);
+        } else if (act === 'play-video') {
+            const path = tagAction.dataset.path;
+            if (path && typeof previewVideo === 'function') previewVideo(path);
+        } else if (act === 'go-to-tab') {
+            const path = tagAction.dataset.path;
+            const tab = tagAction.dataset.tab;
+            if (tab && typeof switchTab === 'function') {
+                switchTab(tab);
+                requestAnimationFrame(() => {
+                    const sel = tab === 'samples'
+                        ? `#audioTableBody tr[data-audio-path="${CSS.escape(path)}"]`
+                        : `#videoTableBody tr[data-video-path="${CSS.escape(path)}"]`;
+                    const row = document.querySelector(sel);
+                    if (row) row.scrollIntoView({behavior: 'smooth', block: 'center'});
+                });
+            }
         }
     }
 
