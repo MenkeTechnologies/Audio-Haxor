@@ -725,6 +725,11 @@ function syncAePlaybackControlsFromPrefs() {
     const sp = prefs.getItem('audioSpeed') || '1';
     const aeSp = document.getElementById('aePlaybackSpeed');
     if (aeSp) aeSp.value = sp;
+    const sm = prefs.getItem('audioSpeedMode') || 'resample';
+    const aeSm = document.getElementById('aeSpeedMode');
+    if (aeSm) aeSm.value = sm;
+    const npSm = document.getElementById('npSpeedMode');
+    if (npSm) npSm.value = sm;
     if (typeof setEqBand === 'function') {
         for (const band of ['low', 'mid', 'high']) {
             const cap = band.charAt(0).toUpperCase() + band.slice(1);
@@ -797,6 +802,10 @@ function bindAePlaybackControls() {
     const sp = document.getElementById('aePlaybackSpeed');
     if (sp && typeof sp.addEventListener === 'function' && typeof setPlaybackSpeed === 'function') {
         sp.addEventListener('change', () => setPlaybackSpeed(sp.value));
+    }
+    const aeMode = document.getElementById('aeSpeedMode');
+    if (aeMode && typeof aeMode.addEventListener === 'function' && typeof setSpeedMode === 'function') {
+        aeMode.addEventListener('change', () => setSpeedMode(aeMode.value));
     }
     const gain = document.getElementById('aeGainSlider');
     if (gain && typeof gain.addEventListener === 'function' && typeof setPreampGain === 'function') {
@@ -4167,6 +4176,15 @@ function syncEnginePlaybackSpeedFromPrefs() {
     void inv({cmd: 'playback_set_speed', speed: s});
 }
 
+/** Speed algorithm (resample / timestretch) → AudioEngine `playback_set_speed_mode`. */
+function syncEngineSpeedModeFromPrefs() {
+    const inv = getAeAudioEngineInvoke();
+    if (!inv) return;
+    const mode = (typeof prefs !== 'undefined' && typeof prefs.getItem === 'function'
+        ? prefs.getItem('audioSpeedMode') : null) || 'resample';
+    void inv({cmd: 'playback_set_speed_mode', mode});
+}
+
 /** Full-file loop → `playback_set_loop` (forward: `AudioFormatReaderSource`; reverse: RAM buffer wraps). */
 function syncEnginePlaybackLoop(loop) {
     const inv = getAeAudioEngineInvoke();
@@ -4279,6 +4297,7 @@ async function enginePlaybackStart(filePath) {
     }
     syncEnginePlaybackDspFromPrefs();
     syncEnginePlaybackSpeedFromPrefs();
+    syncEngineSpeedModeFromPrefs();
     syncEnginePlaybackLoopFromPrefs();
     startEnginePlaybackPoll();
     /* Next `playback_status` poll may be ~250 ms later; avoid stale `paused` from a prior session skewing `isAudioPlaying()`. */
@@ -4318,6 +4337,7 @@ if (typeof window !== 'undefined') {
     window.enginePlaybackRestartStream = enginePlaybackRestartStream;
     window.syncEnginePlaybackDspFromPrefs = syncEnginePlaybackDspFromPrefs;
     window.syncEnginePlaybackSpeedFromPrefs = syncEnginePlaybackSpeedFromPrefs;
+    window.syncEngineSpeedModeFromPrefs = syncEngineSpeedModeFromPrefs;
     window.syncEnginePlaybackLoop = syncEnginePlaybackLoop;
     window.syncEnginePlaybackLoopFromPrefs = syncEnginePlaybackLoopFromPrefs;
     window.engineApplyReversePrefPlayback = engineApplyReversePrefPlayback;

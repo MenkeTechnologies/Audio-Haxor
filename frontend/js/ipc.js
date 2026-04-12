@@ -1343,6 +1343,9 @@ document.addEventListener('change', (e) => {
     if (action === 'setPlaybackSpeed') {
         setPlaybackSpeed(e.target.value);
         showToast(toastFmt('toast.speed_value', {value: e.target.value}));
+    } else if (action === 'setSpeedMode') {
+        setSpeedMode(e.target.value);
+        showToast(toastFmt('toast.speed_mode', {value: e.target.value}));
     } else if (action === 'settingDefaultTypeFilter') {
         settingSaveSelect('defaultTypeFilter', e.target.value);
         showToast(toastFmt('toast.default_type_filter', {value: e.target.value}));

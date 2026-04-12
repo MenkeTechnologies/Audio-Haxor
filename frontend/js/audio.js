@@ -5016,6 +5016,25 @@ function setPlaybackSpeed(value, opts) {
     }
 }
 
+/**
+ * Set the speed algorithm mode: 'resample' (pitch follows rate) or 'timestretch' (pitch preserved).
+ * Persists to prefs, syncs all dropdowns, and forwards to AudioEngine if active.
+ */
+function setSpeedMode(value) {
+    const mode = value === 'timestretch' ? 'timestretch' : 'resample';
+    prefs.setItem('audioSpeedMode', mode);
+    const npSm = document.getElementById('npSpeedMode');
+    if (npSm) npSm.value = mode;
+    const aeSm = document.getElementById('aeSpeedMode');
+    if (aeSm) aeSm.value = mode;
+    if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
+        void window.vstUpdater.audioEngineInvoke({cmd: 'playback_set_speed_mode', mode});
+    }
+    if (typeof window.syncEngineSpeedModeFromPrefs === 'function') {
+        window.syncEngineSpeedModeFromPrefs();
+    }
+}
+
 // ── Metadata Panel ──
 /** Expand the metadata panel for a given file path (no toggle, always opens). */
 async function expandMetaForPath(filePath) {
