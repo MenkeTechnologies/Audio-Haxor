@@ -189,6 +189,8 @@ mod tests {
         "menu.toggle_mute",
         "menu.toggle_shuffle",
         "menu.toggle_theme",
+        "menu.video_audio_route_engine",
+        "menu.video_audio_route_html5",
         "menu.tools",
         "menu.view",
         "menu.window",

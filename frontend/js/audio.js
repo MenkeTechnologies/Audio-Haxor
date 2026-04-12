@@ -446,6 +446,8 @@ let savedMuteVolumePct = 100;
 // ── Web Audio processing chain ──
 let _playbackCtx = null;
 let _sourceNode = null;
+/** Lazily created `createMediaElementSource(#videoPlayerEl)` — MP4/MKV… use `<video>` audio, not AudioEngine. */
+let _videoMediaElementSource = null;
 let _eqLow = null;
 let _eqMid = null;
 let _eqHigh = null;
@@ -703,15 +705,49 @@ function disconnectMediaFromEq() {
         _sourceNode.disconnect();
     } catch (_) {
     }
+    try {
+        if (_videoMediaElementSource) {
+            _videoMediaElementSource.disconnect();
+        }
+    } catch (_) {
+    }
 }
 
 function connectMediaToEq() {
     ensureAudioGraph();
-    try {
-        _sourceNode.disconnect();
-    } catch (_) {
-    }
+    disconnectMediaFromEq();
     _sourceNode.connect(_eqLow);
+}
+
+/**
+ * Route container video (`<video>`) audio through the same EQ / NP FFT graph as `<audio>`.
+ * Without this, HTML5 video playback never touches `_analyser` — the spectrum stays flat.
+ */
+function connectVideoHtml5AudioThroughWebAudio(vid) {
+    if (!vid || vid.tagName !== 'VIDEO') return;
+    ensureAudioGraph();
+    if (!_videoMediaElementSource) {
+        try {
+            _videoMediaElementSource = _playbackCtx.createMediaElementSource(vid);
+        } catch (_) {
+            return;
+        }
+    }
+    disconnectMediaFromEq();
+    _videoMediaElementSource.connect(_eqLow);
+    if (_gainNode && typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
+        const v = parseInt(prefs.getItem('audioVolume') || '100', 10);
+        const vol = Math.max(0, Math.min(1, v / 100));
+        const pre = parseFloat(document.getElementById('npGainSlider')?.value || '1');
+        _gainNode.gain.value = vol * (Number.isFinite(pre) ? pre : 1);
+    }
+    if (
+        _playbackCtx.state === 'suspended' &&
+        typeof isAudioPlaying === 'function' &&
+        isAudioPlaying()
+    ) {
+        void _playbackCtx.resume();
+    }
 }
 
 /** AudioEngine playback: keep `<audio>` disconnected from Web Audio + muted so nothing doubles through the WebView. */
@@ -1196,7 +1232,7 @@ function _abLoopEffectiveCurrentTimeSec() {
         let speed = 1;
         if (typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
             const raw = parseFloat(prefs.getItem('audioSpeed') || '1');
-            if (Number.isFinite(raw)) speed = Math.max(0.25, Math.min(2, raw));
+            if (Number.isFinite(raw)) speed = Math.max(0.25, Math.min(4, raw));
         }
         const elapsedSinceAnchor = paused ? 0 : (performance.now() - anchor) / 1000;
         let cur = basePos + elapsedSinceAnchor * speed;
@@ -1472,7 +1508,7 @@ function _getCurrentPlaybackTimeSec() {
         let speed = 1;
         if (typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
             const raw = parseFloat(prefs.getItem('audioSpeed') || '1');
-            if (Number.isFinite(raw)) speed = Math.max(0.25, Math.min(2, raw));
+            if (Number.isFinite(raw)) speed = Math.max(0.25, Math.min(4, raw));
         }
         const elapsed = paused ? 0 : (performance.now() - anchor) / 1000;
         let cur = basePos + elapsed * speed;
@@ -1606,13 +1642,11 @@ function loadRecentlyPlayed() {
         }
     }
 
-    const savedSpeed = prefs.getItem('audioSpeed');
-    if (savedSpeed) {
-        const sel = document.getElementById('npSpeed');
-        if (sel) {
-            sel.value = savedSpeed;
-        }
-        setPlaybackSpeed(savedSpeed);
+    {
+        const rawSp = prefs.getItem('audioSpeed');
+        const parsed = rawSp != null && String(rawSp).trim() !== '' ? parseFloat(String(rawSp)) : NaN;
+        const sp = Number.isFinite(parsed) ? String(Math.max(0.25, Math.min(4, parsed))) : '1';
+        setPlaybackSpeed(sp);
     }
 
     audioReverseMode = prefs.getItem('audioReverse') === 'on';
@@ -1845,14 +1879,23 @@ function stopEnginePlaybackFftRaf() {
 }
 
 if (typeof window !== 'undefined') {
+    window.connectVideoHtml5AudioThroughWebAudio = connectVideoHtml5AudioThroughWebAudio;
     window.ensureEnginePlaybackFftRaf = ensureEnginePlaybackFftRaf;
     window.stopEnginePlaybackFftRaf = stopEnginePlaybackFftRaf;
     /** Kick the audio playback RAF loop if not already running (used by video player for NP bar/tray sync). */
     window.kickPlaybackRafLoop = function () {
-        if (!_playbackRafId && isAudioPlaying()) {
+        if (!_playbackRafId && shouldContinuePlaybackUiRaf()) {
             _playbackRafId = requestAnimationFrame(_playbackRafLoop);
         }
     };
+}
+
+/** NP / tray / waveform cursors need ~60 Hz updates while transport is loaded, even when paused. */
+function shouldContinuePlaybackUiRaf() {
+    if (typeof isAudioPlaying === 'function' && isAudioPlaying()) return true;
+    if (_enginePlaybackActive) return true;
+    if (typeof audioPlayerPath !== 'undefined' && audioPlayerPath) return true;
+    return false;
 }
 
 function _playbackRafLoop() {
@@ -1883,7 +1926,7 @@ function _playbackRafLoop() {
     ) {
         window.scheduleParametricEqFrame();
     }
-    if (isAudioPlaying()) {
+    if (shouldContinuePlaybackUiRaf()) {
         _playbackRafId = requestAnimationFrame(_playbackRafLoop);
     }
 }
@@ -2011,13 +2054,12 @@ function _renderNpFft() {
     if (!useEngineSpectrum && !_analyser) return;
     const canvas = _npFftCanvas || document.getElementById('npFftCanvas');
     if (!canvas) return;
-    const fftBox = canvas.getBoundingClientRect();
-    if (fftBox.width < 2 || fftBox.height < 2) return;
     const ctx = _npFftCtx || canvas.getContext('2d');
     if (!ctx) return;
     const w = canvas.width;
     const h = canvas.height;
-    if (w === 0 || h === 0) return;
+    /* Bitmap size follows `ResizeObserver` + DPR sizing — avoid `getBoundingClientRect` (~layout) every rAF. */
+    if (w < 2 || h < 2) return;
     if (typeof window.isGraphFrozen === 'function' && window.isGraphFrozen('np:fft')) return;
     let sampleRate = 44100;
     let fftSize = 2048;
@@ -2134,11 +2176,17 @@ audioPlayer.addEventListener('play', () => {
 });
 audioPlayer.addEventListener('pause', () => {
     if (audioReverseMode && _bufPlaying) return;
+    updatePlaybackTime();
+    if (shouldContinuePlaybackUiRaf()) {
+        if (!_playbackRafId) {
+            _playbackRafId = requestAnimationFrame(_playbackRafLoop);
+        }
+        return;
+    }
     if (_playbackRafId) {
         cancelAnimationFrame(_playbackRafId);
         _playbackRafId = null;
     }
-    updatePlaybackTime(); // final position
 });
 audioPlayer.addEventListener('seeked', updatePlaybackTime);
 /**
@@ -3024,7 +3072,7 @@ function initAudioTable() {
         <th data-action="sortAudio" data-key="lufs" class="col-lufs" style="width: 55px;" title="${tAttr('ui.audio.tt_sort_lufs')}">${t('ui.audio.th_lufs')} <span class="sort-arrow" id="sortArrowLufs"></span><span class="col-resize"></span></th>
         <th data-action="sortAudio" data-key="modified" class="col-date" style="width: 90px;" title="${tAttr('ui.audio.tt_sort_modified')}">${t('ui.audio.th_modified')} <span class="sort-arrow" id="sortArrowModified"></span><span class="col-resize"></span></th>
         <th data-action="sortAudio" data-key="directory" style="width: 22%;" title="${tAttr('ui.audio.tt_sort_path')}">${t('ui.audio.th_path')} <span class="sort-arrow" id="sortArrowDirectory"></span><span class="col-resize"></span></th>
-        <th class="col-actions" style="width: 130px;"></th>
+        <th class="col-actions" style="width: 152px;"></th>
       </tr>
     </thead>
     <tbody id="audioTableBody"></tbody>
@@ -3307,11 +3355,13 @@ function buildAudioRow(s) {
     <td class="col-date">${s.modified}</td>
     <td class="col-path" title="${hp}">${_lastAudioSearch ? highlightPathPrefixFromPath(s.path, s.directory, _lastAudioSearch, _lastAudioMode) : escapeHtml(s.directory)}</td>
     <td class="col-actions" data-action-stop>
-      <button class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-action="previewAudio" data-path="${hp}" title="${previewBtnT}">
+      <span class="table-row-actions">
+      <button type="button" class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-action="previewAudio" data-path="${hp}" title="${previewBtnT}">
         ${isPlaying && isAudioPlaying() ? '&#9646;&#9646;' : '&#9654;'}
       </button>
-      <button class="btn-small btn-loop${isPlaying && audioLooping ? ' active' : ''}" data-action="toggleRowLoop" data-path="${hp}" title="${loopBtnT}">&#8634;</button>
-      <button class="btn-small btn-folder" data-action="openAudioFolder" data-path="${hp}" title="${revealBtnT}">&#128193;</button>
+      <button type="button" class="btn-small btn-loop${isPlaying && audioLooping ? ' active' : ''}" data-action="toggleRowLoop" data-path="${hp}" title="${loopBtnT}">&#8634;</button>
+      <button type="button" class="btn-small btn-folder" data-action="openAudioFolder" data-path="${hp}" title="${revealBtnT}">&#128193;</button>
+      </span>
     </td>
     </tr>`;
 }
@@ -3464,8 +3514,8 @@ async function previewAudio(filePath, opts) {
         if (canEngine) {
             /* Mute / disconnect `<audio>` before AudioEngine audio starts so WebView path cannot overlap. */
             silenceWebViewAudioForEngine();
-            /* Stop any active video playback that is driving the engine. */
-            if (typeof stopVideoPlayback === 'function') stopVideoPlayback();
+            /* Stop any active video playback that is driving the engine — keep the frozen frame in the panel. */
+            if (typeof stopVideoPlayback === 'function') stopVideoPlayback({ keepVideoFrame: true });
             stopReverseBufferPlayback();
             _decodedBuf = null;
             _reversedBuf = null;
@@ -3499,7 +3549,9 @@ async function previewAudio(filePath, opts) {
             if (typeof window.syncEnginePlaybackLoop === 'function') {
                 window.syncEnginePlaybackLoop(audioLooping);
             }
+            if (typeof window.kickPlaybackRafLoop === 'function') window.kickPlaybackRafLoop();
         } else {
+            if (typeof stopVideoPlayback === 'function') stopVideoPlayback({ keepVideoFrame: true });
             if (_enginePlaybackActive && typeof window.enginePlaybackStop === 'function') {
                 void window.enginePlaybackStop();
                 setEnginePlaybackActive(false);
@@ -3647,6 +3699,15 @@ function toggleAudioLoop() {
     audioPlayer.loop = audioLooping;
     prefs.setItem('audioLoop', audioLooping ? 'on' : 'off');
     document.getElementById('npBtnLoop').classList.toggle('active', audioLooping);
+    if (
+        typeof videoPlayerPath !== 'undefined' &&
+        videoPlayerPath &&
+        typeof audioPlayerPath !== 'undefined' &&
+        audioPlayerPath === videoPlayerPath
+    ) {
+        const vid = document.getElementById('videoPlayerEl');
+        if (vid) vid.loop = audioLooping;
+    }
     updateLoopBtnStates();
     if (_enginePlaybackActive && typeof window.syncEnginePlaybackLoop === 'function') {
         window.syncEnginePlaybackLoop(audioLooping);
@@ -3670,12 +3731,45 @@ function toggleRowLoop(filePath, event) {
     toggleAudioLoop();
 }
 
+/**
+ * Videos tab row loop — same pref / engine / `<video>.loop` wiring as `toggleRowLoop`, transport is `previewVideo`.
+ */
+function toggleVideoRowLoop(filePath, event) {
+    if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+    if (typeof previewVideo !== 'function') return;
+    const v = typeof videoPlayerPath !== 'undefined' && videoPlayerPath === filePath;
+    const a = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === filePath;
+    if (!v || !a) {
+        audioLooping = true;
+        audioPlayer.loop = true;
+        prefs.setItem('audioLoop', 'on');
+        const loopBtn = document.getElementById('npBtnLoop');
+        if (loopBtn) loopBtn.classList.add('active');
+        void previewVideo(filePath, { minimizeFloatingPlayer: true });
+        updateLoopBtnStates();
+        updatePlayBtnStates();
+        return;
+    }
+    toggleAudioLoop();
+}
+
 function updateLoopBtnStates() {
     if (!audioPlayerPath) return;
     const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(audioPlayerPath)}"]`);
     if (row) {
         const btn = row.querySelector('.btn-loop');
         if (btn) btn.classList.toggle('active', audioLooping);
+    }
+    if (
+        typeof videoPlayerPath !== 'undefined' &&
+        videoPlayerPath &&
+        videoPlayerPath === audioPlayerPath
+    ) {
+        const vRow = document.querySelector(`#videoTableBody tr[data-video-path="${CSS.escape(audioPlayerPath)}"]`);
+        if (vRow) {
+            const vb = vRow.querySelector('.btn-loop');
+            if (vb) vb.classList.toggle('active', audioLooping);
+        }
     }
 }
 
@@ -3702,11 +3796,15 @@ function stopAudioPlayback() {
 
 function clearAudioPlaybackUI() {
     const np = document.getElementById('audioNowPlaying');
-    np.classList.remove('active');
-    np.classList.remove('expanded');
-    np.classList.remove('np-playing');
-    document.getElementById('npProgress').style.width = '0%';
-    document.getElementById('npTime').textContent = catalogFmt('ui.audio.player_time_zero');
+    if (np) {
+        np.classList.remove('active');
+        np.classList.remove('expanded');
+        np.classList.remove('np-playing');
+    }
+    const npProgress = document.getElementById('npProgress');
+    if (npProgress) npProgress.style.width = '0%';
+    const npTime = document.getElementById('npTime');
+    if (npTime) npTime.textContent = catalogFmt('ui.audio.player_time_zero');
     const npCursor = document.getElementById('npCursor');
     if (npCursor) npCursor.style.display = 'none';
     const pill = document.getElementById('audioRestorePill');
@@ -3716,10 +3814,12 @@ function clearAudioPlaybackUI() {
     updateFavBtn();
     updateNoteBtn();
     _traySyncSig = '';
+    _traySyncKeyNoApp = '';
     if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
 }
 
 let _prevPlayingRow = null;
+let _prevVideoPlayingRow = null;
 
 function updatePlayBtnStates() {
     // Clear previous playing row
@@ -3733,23 +3833,51 @@ function updatePlayBtnStates() {
         const loop = _prevPlayingRow.querySelector('.btn-loop');
         if (loop) loop.classList.remove('active');
     }
-    // Set current playing row
+    if (_prevVideoPlayingRow) {
+        const vbtn = _prevVideoPlayingRow.querySelector('.btn-play');
+        if (vbtn) {
+            vbtn.classList.remove('playing');
+            vbtn.innerHTML = '&#9654;';
+        }
+        _prevVideoPlayingRow.classList.remove('row-playing');
+        const vloop = _prevVideoPlayingRow.querySelector('.btn-loop');
+        if (vloop) vloop.classList.remove('active');
+    }
+    _prevPlayingRow = null;
+    _prevVideoPlayingRow = null;
+    // Set current playing row(s)
     if (audioPlayerPath) {
+        const playing = isAudioPlaying();
         const row = document.querySelector(`#audioTableBody tr[data-audio-path="${CSS.escape(audioPlayerPath)}"]`);
         if (row) {
+            row.classList.add('row-playing');
             const btn = row.querySelector('.btn-play');
-            const playing = isAudioPlaying();
             if (btn) {
                 btn.classList.toggle('playing', playing);
                 btn.innerHTML = playing ? '&#9646;&#9646;' : '&#9654;';
             }
-            row.classList.toggle('row-playing', playing);
             const loop = row.querySelector('.btn-loop');
-            if (loop) loop.classList.toggle('active', playing && audioLooping);
+            if (loop) loop.classList.toggle('active', audioLooping);
             _prevPlayingRow = row;
         }
-    } else {
-        _prevPlayingRow = null;
+        if (
+            typeof videoPlayerPath !== 'undefined' &&
+            videoPlayerPath &&
+            videoPlayerPath === audioPlayerPath
+        ) {
+            const vRow = document.querySelector(`#videoTableBody tr[data-video-path="${CSS.escape(audioPlayerPath)}"]`);
+            if (vRow) {
+                vRow.classList.add('row-playing');
+                const vbtn = vRow.querySelector('.btn-play');
+                if (vbtn) {
+                    vbtn.classList.toggle('playing', playing);
+                    vbtn.innerHTML = playing ? '&#9646;&#9646;' : '&#9654;';
+                }
+                const vloop = vRow.querySelector('.btn-loop');
+                if (vloop) vloop.classList.toggle('active', audioLooping);
+                _prevVideoPlayingRow = vRow;
+            }
+        }
     }
     // Lightweight history update — just toggle active/icon classes, skip full re-render
     const histItems = document.querySelectorAll('#npHistoryList .np-history-item');
@@ -3788,6 +3916,13 @@ function _cachePlaybackEls() {
     _npCursorEl = document.getElementById('npCursor');
 }
 
+/** Re-resolve now-playing transport nodes if a prior reference is detached (e.g. after modal/tab DOM churn). */
+function _ensureNpPlaybackDomRefs() {
+    if (!_npTimeEl || !_npTimeEl.isConnected || !_npProgressEl || !_npProgressEl.isConnected || !_npCursorEl || !_npCursorEl.isConnected) {
+        _cachePlaybackEls();
+    }
+}
+
 /** Cached `#videoPlayerEl` when `videoPlayerPath === audioPlayerPath` — `updatePlaybackTime` / tray sync (~60 Hz). */
 let _playbackNpVideoPath = '';
 let _playbackNpVideoEl = null;
@@ -3801,7 +3936,9 @@ function npVideoElementIfDrivingRow() {
     if (_playbackNpVideoPath !== audioPlayerPath) {
         _playbackNpVideoPath = audioPlayerPath;
         _playbackNpVideoEl = document.getElementById('videoPlayerEl');
-    } else if (_playbackNpVideoEl && !_playbackNpVideoEl.isConnected) {
+    } else if (!_playbackNpVideoEl || !_playbackNpVideoEl.isConnected) {
+        /* If the first lookup raced before `#videoPlayerEl` existed, `_playbackNpVideoEl` stays null forever
+         * unless we retry — shows up most often on the next video open (second playback). */
         _playbackNpVideoEl = document.getElementById('videoPlayerEl');
     }
     return _playbackNpVideoEl;
@@ -3809,14 +3946,26 @@ function npVideoElementIfDrivingRow() {
 
 let _npMetaWaveformBox = null;
 let _npMetaWaveformCachedPath = null;
+/** Cached `.querySelector` targets under `#metaWaveformBox` — updated when the box or path changes. */
+let _npMetaWfFill = null;
+let _npMetaWfCursor = null;
+let _npMetaWfTimeLabel = null;
 let _npAeTransportTabEl = null;
 
 /** `<video>` duration when the floating player is driving a video row (not in `allAudioSamples`). */
 function videoHostDurationFallbackSec() {
     if (typeof videoPlayerPath === 'undefined' || !videoPlayerPath || audioPlayerPath !== videoPlayerPath) return 0;
     const vid = npVideoElementIfDrivingRow();
-    if (!vid || !Number.isFinite(vid.duration) || vid.duration <= 0) return 0;
-    return vid.duration;
+    if (!vid) return 0;
+    const d = vid.duration;
+    if (Number.isFinite(d) && d > 0) return d;
+    try {
+        if (vid.seekable && vid.seekable.length > 0) {
+            const end = vid.seekable.end(vid.seekable.length - 1);
+            if (Number.isFinite(end) && end > 0) return end;
+        }
+    } catch (_) {}
+    return 0;
 }
 
 /** Effective duration (seconds) for engine-routed playback — poll + load may lag or return 0 for some files. */
@@ -3838,6 +3987,8 @@ function enginePlaybackDurationSec() {
 
 /** Dedupes `invoke('update_tray_now_playing')` — includes duration so tray updates when total length loads. */
 let _traySyncSig = '';
+/** Tray payload identity without CSS `appearance` — skips `getComputedStyle` on every ~60 Hz `updatePlaybackTime` tick when nothing user-visible changed. */
+let _traySyncKeyNoApp = '';
 
 /** Last path we pushed waveform peaks to the tray for — avoids re-sending ~1.6 KB of peaks on every poll tick. */
 let _traySyncLastWaveformPath = '';
@@ -3857,6 +4008,7 @@ function notifyWaveformCacheUpdatedForTray(filePath) {
     // Invalidate the debounce sig so syncTrayNowPlayingFromPlayback actually fires this call
     // (otherwise the unchanged time tuple would make it short-circuit).
     _traySyncSig = '';
+    _traySyncKeyNoApp = '';
     if (typeof syncTrayNowPlayingFromPlayback === 'function') {
         try { syncTrayNowPlayingFromPlayback(); } catch {}
     }
@@ -4009,14 +4161,14 @@ function traySyncUiTheme() {
         : 'dark';
 }
 
-/** Prefs `audioSpeed` for tray HUD — same clamp as `setPlaybackSpeed` (0.25..2). */
+/** Prefs `audioSpeed` for tray HUD — same clamp as `setPlaybackSpeed` (0.25..4). */
 function trayPlaybackSpeedForSync() {
     let v = 1;
     if (typeof prefs !== 'undefined' && prefs.getItem) {
         const raw = parseFloat(prefs.getItem('audioSpeed') || '1');
         if (Number.isFinite(raw)) v = raw;
     }
-    return Math.max(0.25, Math.min(2, v));
+    return Math.max(0.25, Math.min(4, v));
 }
 
 /** Prefs `audioVolume` for tray HUD — same range as `setAudioVolume` (0..100). */
@@ -4029,7 +4181,61 @@ function trayVolumeForSync() {
     return Math.max(0, Math.min(100, v));
 }
 
-function syncTrayNowPlayingFromPlayback() {
+/** Same string as `wf:` in `keyNoApp` — no array allocation (used to short-circuit ~60 Hz tray prep). */
+function trayWaveformKeyForSync(sigPath) {
+    if (!sigPath) return 'n';
+    const cached = _waveformCache && _waveformCache[sigPath];
+    const pathChanged = _traySyncLastWaveformPath !== sigPath;
+    if (Array.isArray(cached) && cached.length > 0 && (pathChanged || !_traySyncLastWaveformSent)) {
+        return 'p' + cached.length;
+    }
+    if (pathChanged && (!Array.isArray(cached) || cached.length === 0)) {
+        return 'e';
+    }
+    return 'n';
+}
+
+/** Build `waveform_peaks` payload + update `_traySyncLastWaveformPath` — only when an IPC emit will run. */
+function materializeTrayWaveformPeaksForSync(sigPath) {
+    let trayWaveformPeaks = null;
+    if (sigPath) {
+        const cached = _waveformCache && _waveformCache[sigPath];
+        const pathChanged = _traySyncLastWaveformPath !== sigPath;
+        if (Array.isArray(cached) && cached.length > 0 && (pathChanged || !_traySyncLastWaveformSent)) {
+            const n = cached.length;
+            const flat = new Array(n * 2);
+            if (typeof cached[0] === 'object' && cached[0] !== null && 'max' in cached[0]) {
+                for (let i = 0; i < n; i++) {
+                    flat[i * 2] = Number(cached[i].max) || 0;
+                    flat[i * 2 + 1] = Number(cached[i].min) || 0;
+                }
+            } else {
+                for (let i = 0; i < n; i++) {
+                    const v = Number(cached[i]) || 0;
+                    flat[i * 2] = v;
+                    flat[i * 2 + 1] = -v;
+                }
+            }
+            trayWaveformPeaks = flat;
+            _traySyncLastWaveformPath = sigPath;
+            _traySyncLastWaveformSent = true;
+        } else if (pathChanged && (!Array.isArray(cached) || cached.length === 0)) {
+            trayWaveformPeaks = [];
+            _traySyncLastWaveformPath = sigPath;
+            _traySyncLastWaveformSent = false;
+        }
+    } else if (_traySyncLastWaveformPath) {
+        _traySyncLastWaveformPath = '';
+        _traySyncLastWaveformSent = false;
+    }
+    return trayWaveformPeaks;
+}
+
+/**
+ * @param {{ cur: number, dur: number } | undefined} [playbackTimeHint] — when `updatePlaybackTime` passes this, skip
+ * re-deriving position/duration (avoids duplicating transport math at ~60 Hz).
+ */
+function syncTrayNowPlayingFromPlayback(playbackTimeHint) {
     const inv =
         typeof window !== 'undefined' &&
         window.__TAURI__ &&
@@ -4059,6 +4265,7 @@ function syncTrayNowPlayingFromPlayback() {
         const idleSig = `idle|${uiTheme}|${trayAppSig}|sp:${traySp}|vol:${trayVol}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}|fav:0`;
         if (_traySyncSig === idleSig) return;
         _traySyncSig = idleSig;
+        _traySyncKeyNoApp = '';
         if (typeof window !== 'undefined' && window.__TRAY_SYNC_DEBUG__) {
             console.info('[tray-main] update_tray_now_playing → Rust', {
                 idle: true,
@@ -4094,8 +4301,15 @@ function syncTrayNowPlayingFromPlayback() {
     }
     let cur;
     let dur;
-    if (_enginePlaybackActive && typeof window !== 'undefined' && typeof window._enginePlaybackPosSec === 'number') {
-        cur = window._enginePlaybackPosSec;
+    const ptHint = playbackTimeHint && typeof playbackTimeHint === 'object' ? playbackTimeHint : null;
+    if (ptHint && typeof ptHint.cur === 'number' && Number.isFinite(ptHint.cur)) {
+        cur = ptHint.cur;
+        dur = typeof ptHint.dur === 'number' ? ptHint.dur : NaN;
+    } else if (_enginePlaybackActive && typeof window !== 'undefined') {
+        cur =
+            typeof window._enginePlaybackPosSec === 'number' && Number.isFinite(window._enginePlaybackPosSec)
+                ? window._enginePlaybackPosSec
+                : 0;
         dur = enginePlaybackDurationSec();
     } else if (audioReverseMode && _reversedBuf && _bufPlaying) {
         dur = _reversedBuf.duration;
@@ -4106,10 +4320,16 @@ function syncTrayNowPlayingFromPlayback() {
         const vid = npVideoElementIfDrivingRow();
         if (vid) {
             cur = vid.currentTime || 0;
-            dur = Number.isFinite(vid.duration) && vid.duration > 0 ? vid.duration : audioPlayer.duration || 0;
         } else {
-            cur = audioPlayer.currentTime;
-            dur = audioPlayer.duration;
+            cur = typeof audioPlayer !== 'undefined' && audioPlayer ? audioPlayer.currentTime || 0 : 0;
+        }
+        dur = typeof enginePlaybackDurationSec === 'function' ? enginePlaybackDurationSec() : 0;
+        if ((!Number.isFinite(dur) || dur <= 0) && vid && Number.isFinite(vid.duration) && vid.duration > 0) {
+            dur = vid.duration;
+        }
+        if ((!Number.isFinite(dur) || dur <= 0) && typeof audioPlayer !== 'undefined' && audioPlayer) {
+            const ad = audioPlayer.duration;
+            if (Number.isFinite(ad) && ad > 0) dur = ad;
         }
         const pathForMeta = audioPlayerPath || resumePath || null;
         if ((!Number.isFinite(dur) || dur <= 0) && pathForMeta && typeof findByPath === 'function' && typeof allAudioSamples !== 'undefined') {
@@ -4154,7 +4374,6 @@ function syncTrayNowPlayingFromPlayback() {
     const durKey = Number.isFinite(dur) && dur > 0 ? Math.floor(dur) : -1;
     const sigPath = audioPlayerPath || resumePath || '';
     const trayFavOn = !!(sigPath && typeof isFavorite === 'function' && isFavorite(sigPath));
-    const { appearance: trayAppearancePlaying, sig: trayAppSigPlaying } = trayAppearanceForTraySync();
     /* Per-sample loop region for the currently playing path — draws braces on the tray progress bar. */
     const trayLoopRegionRaw = sigPath && typeof getSampleLoopRegion === 'function'
         ? getSampleLoopRegion(sigPath)
@@ -4164,49 +4383,21 @@ function syncTrayNowPlayingFromPlayback() {
     const trayLoopStartSec = trayLoopRegionEnabled ? trayLoopRegionRaw.startFrac * trayLoopDurSec : 0;
     const trayLoopEndSec = trayLoopRegionEnabled ? trayLoopRegionRaw.endFrac * trayLoopDurSec : 0;
     const trayLoopSigKey = `${trayLoopRegionEnabled ? 1 : 0}:${Math.round(trayLoopStartSec * 1000)}:${Math.round(trayLoopEndSec * 1000)}`;
-    /* Tray waveform peaks — send once per track (or whenever peaks become freshly cached after
-     * the worker decode finishes). Rust caches them in `TrayPopoverEmit.waveform_peaks` so the
-     * tray popover paints the same mini-waveform on open / host poll ticks without re-sending.
-     * Format: flat `[max0, min0, max1, min1, …]` in `[-1, 1]`. */
-    let trayWaveformPeaks = null;
-    if (sigPath) {
-        const cached = _waveformCache && _waveformCache[sigPath];
-        const pathChanged = _traySyncLastWaveformPath !== sigPath;
-        if (Array.isArray(cached) && cached.length > 0 && (pathChanged || !_traySyncLastWaveformSent)) {
-            const n = cached.length;
-            const flat = new Array(n * 2);
-            if (typeof cached[0] === 'object' && cached[0] !== null && 'max' in cached[0]) {
-                for (let i = 0; i < n; i++) {
-                    flat[i * 2] = Number(cached[i].max) || 0;
-                    flat[i * 2 + 1] = Number(cached[i].min) || 0;
-                }
-            } else {
-                /* Legacy single-value format — mirror for the min/max pair so the tray renderer
-                 * draws a symmetric bar without a code fork. */
-                for (let i = 0; i < n; i++) {
-                    const v = Number(cached[i]) || 0;
-                    flat[i * 2] = v;
-                    flat[i * 2 + 1] = -v;
-                }
-            }
-            trayWaveformPeaks = flat;
-            _traySyncLastWaveformPath = sigPath;
-            _traySyncLastWaveformSent = true;
-        } else if (pathChanged && (!Array.isArray(cached) || cached.length === 0)) {
-            /* Path switched but peaks not yet available — send an empty array to clear the tray's
-             * cached waveform so it doesn't keep showing the previous track's bars. */
-            trayWaveformPeaks = [];
-            _traySyncLastWaveformPath = sigPath;
-            _traySyncLastWaveformSent = false;
-        }
-    } else if (_traySyncLastWaveformPath) {
-        _traySyncLastWaveformPath = '';
-        _traySyncLastWaveformSent = false;
-    }
+    const wfKey = trayWaveformKeyForSync(sigPath);
+    const keyNoApp = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|sp:${traySp}|vol:${trayVol}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}|fav:${trayFavOn ? 1 : 0}|lr:${trayLoopSigKey}|wf:${wfKey}`;
+    if (keyNoApp === _traySyncKeyNoApp) return;
+    const { appearance: trayAppearancePlaying, sig: trayAppSigPlaying } = trayAppearanceForTraySync();
     /* Include title + subtitle: first ticks often have empty `#npName` / meta; dedupe must not block later updates. */
-    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|${trayAppSigPlaying}|sp:${traySp}|vol:${trayVol}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}|fav:${trayFavOn ? 1 : 0}|lr:${trayLoopSigKey}`;
-    if (sig === _traySyncSig) return;
+    /* `wfKey` must be part of `sig`, not only `keyNoApp`, or peaks can load while time/title are unchanged and
+     * this branch skips IPC forever (regressed after waveform flatten moved past `keyNoApp` dedupe). */
+    const sig = `${sigPath}|${track}|${popover_subtitle}|${Math.floor(cur)}|${durKey}|${playing ? 1 : 0}|${uiTheme}|${trayAppSigPlaying}|sp:${traySp}|vol:${trayVol}|sh:${audioShuffling ? 1 : 0}|lp:${audioLooping ? 1 : 0}|fav:${trayFavOn ? 1 : 0}|lr:${trayLoopSigKey}|wf:${wfKey}`;
+    if (sig === _traySyncSig) {
+        _traySyncKeyNoApp = keyNoApp;
+        return;
+    }
+    const trayWaveformPeaks = materializeTrayWaveformPeaksForSync(sigPath);
     _traySyncSig = sig;
+    _traySyncKeyNoApp = keyNoApp;
     if (typeof window !== 'undefined' && window.__TRAY_SYNC_DEBUG__) {
         console.info('[tray-main] update_tray_now_playing → Rust', {
             idle: false,
@@ -4250,14 +4441,17 @@ function syncTrayNowPlayingFromPlayback() {
 function updatePlaybackTime() {
     let cur;
     let dur;
-    if (_enginePlaybackActive && typeof window !== 'undefined' && typeof window._enginePlaybackPosSec === 'number') {
+    if (_enginePlaybackActive && typeof window !== 'undefined') {
         /* Interpolate between the 30 Hz engine `playback_status` polls so the playhead /
          * waveform cursor animates at the full rAF rate (~60 Hz). Without interpolation the
          * cursor visibly steps in poll-interval chunks because every rAF tick reads the same
          * stale `_enginePlaybackPosSec` until the next poll writes a new one. `_enginePlaybackPosAnchorMs`
          * is set in `runEnginePlaybackStatusTick` whenever the position is refreshed.
          * Stop advancing on pause; honor current `audioSpeed` pref for non-1x playback. */
-        const basePos = window._enginePlaybackPosSec;
+        const basePos =
+            typeof window._enginePlaybackPosSec === 'number' && Number.isFinite(window._enginePlaybackPosSec)
+                ? window._enginePlaybackPosSec
+                : 0;
         const anchor = typeof window._enginePlaybackPosAnchorMs === 'number'
             ? window._enginePlaybackPosAnchorMs
             : performance.now();
@@ -4265,7 +4459,7 @@ function updatePlaybackTime() {
         let speed = 1;
         if (typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
             const raw = parseFloat(prefs.getItem('audioSpeed') || '1');
-            if (Number.isFinite(raw)) speed = Math.max(0.25, Math.min(2, raw));
+            if (Number.isFinite(raw)) speed = Math.max(0.25, Math.min(4, raw));
         }
         const elapsedSinceAnchor = paused ? 0 : (performance.now() - anchor) / 1000;
         cur = basePos + elapsedSinceAnchor * speed;
@@ -4281,10 +4475,18 @@ function updatePlaybackTime() {
         const vid = npVideoElementIfDrivingRow();
         if (vid) {
             cur = vid.currentTime || 0;
-            dur = Number.isFinite(vid.duration) && vid.duration > 0 ? vid.duration : audioPlayer.duration || 0;
         } else {
-            cur = audioPlayer.currentTime;
-            dur = audioPlayer.duration;
+            cur = typeof audioPlayer !== 'undefined' && audioPlayer ? audioPlayer.currentTime || 0 : 0;
+        }
+        /* Video rows are not in `allAudioSamples`; `audioPlayer` is usually idle here. Prefer engine /
+         * `<video>` fallbacks so the NP waveform cursor is not stuck hidden at 0:00 / 0:00. */
+        dur = typeof enginePlaybackDurationSec === 'function' ? enginePlaybackDurationSec() : 0;
+        if ((!Number.isFinite(dur) || dur <= 0) && vid && Number.isFinite(vid.duration) && vid.duration > 0) {
+            dur = vid.duration;
+        }
+        if ((!Number.isFinite(dur) || dur <= 0) && typeof audioPlayer !== 'undefined' && audioPlayer) {
+            const ad = audioPlayer.duration;
+            if (Number.isFinite(ad) && ad > 0) dur = ad;
         }
     } else {
         cur = audioPlayer.currentTime;
@@ -4304,28 +4506,73 @@ function updatePlaybackTime() {
             else audioPlayer.currentTime = _abLoop.start;
         }
     }
-    if (!_npTimeEl) _cachePlaybackEls();
+    _ensureNpPlaybackDomRefs();
     if (_npTimeEl) _npTimeEl.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
-    if (dur > 0) {
+    const durOk = Number.isFinite(dur) && dur > 0;
+    if (durOk) {
         const pct = (cur / dur) * 100;
         if (_npProgressEl) _npProgressEl.style.width = pct + '%';
         if (_npCursorEl) {
             _npCursorEl.style.display = '';
             _npCursorEl.style.left = pct + '%';
         }
-        // Playback cursor — metadata panel (cache `#metaWaveformBox`; path switch refreshes)
-        if (_npMetaWaveformCachedPath !== audioPlayerPath) {
+        // Playback cursor — metadata panel (cache `#metaWaveformBox`; path switch or DOM detach refreshes)
+        if (
+            _npMetaWaveformCachedPath !== audioPlayerPath ||
+            (_npMetaWaveformBox && !_npMetaWaveformBox.isConnected)
+        ) {
             _npMetaWaveformCachedPath = audioPlayerPath;
             _npMetaWaveformBox = audioPlayerPath ? document.getElementById('metaWaveformBox') : null;
+            _npMetaWfFill = null;
+            _npMetaWfCursor = null;
+            _npMetaWfTimeLabel = null;
         }
         const metaWaveform = _npMetaWaveformBox;
-        if (metaWaveform && metaWaveform.dataset.path === audioPlayerPath) {
-            const fill = metaWaveform.querySelector('.waveform-progress-fill');
-            const cursor = metaWaveform.querySelector('.waveform-cursor');
-            const timeLabel = metaWaveform.querySelector('.waveform-time-label');
-            if (fill) fill.style.width = pct + '%';
-            if (cursor) cursor.style.left = pct + '%';
-            if (timeLabel) timeLabel.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+        if (metaWaveform && metaWaveform.isConnected && metaWaveform.dataset.path === audioPlayerPath) {
+            if (
+                !_npMetaWfFill ||
+                !_npMetaWfFill.isConnected ||
+                !_npMetaWfCursor ||
+                !_npMetaWfCursor.isConnected ||
+                !_npMetaWfTimeLabel ||
+                !_npMetaWfTimeLabel.isConnected
+            ) {
+                _npMetaWfFill = metaWaveform.querySelector('.waveform-progress-fill');
+                _npMetaWfCursor = metaWaveform.querySelector('.waveform-cursor');
+                _npMetaWfTimeLabel = metaWaveform.querySelector('.waveform-time-label');
+            }
+            if (_npMetaWfFill) _npMetaWfFill.style.width = pct + '%';
+            if (_npMetaWfCursor) {
+                _npMetaWfCursor.style.display = '';
+                _npMetaWfCursor.style.left = pct + '%';
+            }
+            if (_npMetaWfTimeLabel) _npMetaWfTimeLabel.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+        } else if (metaWaveform && metaWaveform.isConnected) {
+            const hideMetaC = metaWaveform.querySelector('.waveform-cursor');
+            if (hideMetaC) hideMetaC.style.display = 'none';
+        }
+        // Expanded video row — same `cur` / `dur` / `pct` as NP (engine + `<video>` stay aligned)
+        const vidWfBox = document.getElementById('videoWaveformBox');
+        if (
+            vidWfBox &&
+            vidWfBox.isConnected &&
+            typeof videoPlayerPath !== 'undefined' &&
+            videoPlayerPath &&
+            audioPlayerPath === videoPlayerPath &&
+            vidWfBox.dataset.path === audioPlayerPath
+        ) {
+            const vFill = vidWfBox.querySelector('.waveform-progress-fill');
+            const vCursor = vidWfBox.querySelector('.waveform-cursor');
+            const vLab = vidWfBox.querySelector('.waveform-time-label');
+            if (vFill) vFill.style.width = pct + '%';
+            if (vCursor) {
+                vCursor.style.display = '';
+                vCursor.style.left = pct + '%';
+            }
+            if (vLab) vLab.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+        } else if (vidWfBox && vidWfBox.isConnected) {
+            const hideVC = vidWfBox.querySelector('.waveform-cursor');
+            if (hideVC) hideVC.style.display = 'none';
         }
         // Playback cursor — file browser waveform (cached lookup, not every frame)
         if (!window._fbCursorPath || window._fbCursorPath !== audioPlayerPath) {
@@ -4339,6 +4586,21 @@ function updatePlaybackTime() {
             window._fbCursorEl.style.display = '';
             window._fbCursorEl.style.left = pct + '%';
         }
+    } else {
+        if (_npCursorEl) _npCursorEl.style.display = 'none';
+        const metaHideBox =
+            (_npMetaWaveformBox && _npMetaWaveformBox.isConnected && _npMetaWaveformBox) ||
+            document.getElementById('metaWaveformBox');
+        if (metaHideBox) {
+            const mhc = metaHideBox.querySelector('.waveform-cursor');
+            if (mhc) mhc.style.display = 'none';
+        }
+        const vidHideBox = document.getElementById('videoWaveformBox');
+        if (vidHideBox) {
+            const vhc = vidHideBox.querySelector('.waveform-cursor');
+            if (vhc) vhc.style.display = 'none';
+        }
+        if (window._fbCursorEl) window._fbCursorEl.style.display = 'none';
     }
     if (typeof window.syncAeTransportFromPlayback === 'function') {
         let aeTab = _npAeTransportTabEl;
@@ -4350,7 +4612,7 @@ function updatePlaybackTime() {
             window.syncAeTransportFromPlayback();
         }
     }
-    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
+    if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback({ cur, dur });
 }
 
 /** Seek current playback to a normalized position [0, 1]. Used by now-playing and metadata waveforms. */
@@ -4662,7 +4924,7 @@ function setAudioVolume(value, opts) {
     if (_gainNode) {
         _gainNode.gain.value = vol * parseFloat(document.getElementById('npGainSlider')?.value || '1');
     }
-    /* HTML5 video fallback: loudness comes from `<video>`, not `audioPlayer`. */
+    /* No-engine video fallback only: loudness comes from `<video>`, not `audioPlayer`. Engine video is muted here. */
     if (typeof videoPlayerPath !== 'undefined' && videoPlayerPath && audioPlayerPath === videoPlayerPath) {
         const vid = document.getElementById('videoPlayerEl');
         if (vid) {
@@ -4672,9 +4934,39 @@ function setAudioVolume(value, opts) {
     }
 }
 
+/**
+ * Align `#videoPlayerEl` with `prefs('audioSpeed')` or an explicit clamped rate. AudioEngine video uses
+ * `playback_set_speed` for PCM; the muted `<video>` stays at 1× unless this runs — picture lags audio.
+ * @param {number} [clampedSpeed] — 0.25…4; omit to read prefs.
+ */
+function syncVideoPlayerElPlaybackRate(clampedSpeed) {
+    if (typeof videoPlayerPath === 'undefined' || !videoPlayerPath) return;
+    if (typeof audioPlayerPath === 'undefined' || audioPlayerPath !== videoPlayerPath) return;
+    const vid = document.getElementById('videoPlayerEl');
+    if (!vid) return;
+    let s = clampedSpeed;
+    if (!Number.isFinite(s)) {
+        if (typeof prefs === 'undefined' || typeof prefs.getItem !== 'function') return;
+        const raw = parseFloat(prefs.getItem('audioSpeed') || '1');
+        s = Number.isFinite(raw) ? Math.max(0.25, Math.min(4, raw)) : 1;
+    } else {
+        s = Math.max(0.25, Math.min(4, s));
+    }
+    try {
+        /* WebKit often resets `playbackRate` after `load()` / `loadedmetadata`; `defaultPlaybackRate`
+         * survives some of those transitions better than assigning `playbackRate` alone. */
+        vid.defaultPlaybackRate = s;
+        vid.playbackRate = s;
+    } catch (_) {}
+}
+
+if (typeof window !== 'undefined') {
+    window.syncVideoPlayerElPlaybackRate = syncVideoPlayerElPlaybackRate;
+}
+
 function setPlaybackSpeed(value, opts) {
     const v = parseFloat(value);
-    const clamped = Number.isFinite(v) ? Math.max(0.25, Math.min(2, v)) : 1;
+    const clamped = Number.isFinite(v) ? Math.max(0.25, Math.min(4, v)) : 1;
     prefs.setItem('audioSpeed', String(clamped));
     const npS = document.getElementById('npSpeed');
     if (npS) {
@@ -4698,6 +4990,11 @@ function setPlaybackSpeed(value, opts) {
     if (aeSp) aeSp.value = String(clamped);
     if (_enginePlaybackActive && typeof window !== 'undefined' && window.vstUpdater && typeof window.vstUpdater.audioEngineInvoke === 'function') {
         void window.vstUpdater.audioEngineInvoke({cmd: 'playback_set_speed', speed: clamped});
+        syncVideoPlayerElPlaybackRate(clamped);
+        const fromTray = !!(opts && opts.fromTray);
+        if (!fromTray && typeof syncTrayNowPlayingFromPlayback === 'function') {
+            syncTrayNowPlayingFromPlayback();
+        }
         return;
     }
     if (audioReverseMode && _bufSrc && _bufPlaying) {
@@ -4707,6 +5004,7 @@ function setPlaybackSpeed(value, opts) {
     } else {
         audioPlayer.playbackRate = clamped;
     }
+    syncVideoPlayerElPlaybackRate(clamped);
     /* Tray-sourced speed changes: Rust already set `last_popover_emit.playback_speed` inside
      * `tray_popover_action` before dispatching the menu-action to main, so syncing back here
      * is redundant. Doing it anyway would push a stale `audioPlayer.currentTime` (frozen by
@@ -4856,18 +5154,11 @@ async function expandMetaForPath(filePath) {
             scheduleMetaDraw();
         }
 
-        // Sync cursor if already playing this track
-        if (audioPlayerPath === filePath && audioPlayer.duration > 0) {
-            const pct = (audioPlayer.currentTime / audioPlayer.duration) * 100;
-            const box = document.getElementById('metaWaveformBox');
-            if (box) {
-                const fill = box.querySelector('.waveform-progress-fill');
-                const cursor = box.querySelector('.waveform-cursor');
-                const timeLabel = box.querySelector('.waveform-time-label');
-                if (fill) fill.style.width = pct + '%';
-                if (cursor) cursor.style.left = pct + '%';
-                if (timeLabel) timeLabel.textContent = `${formatTime(audioPlayer.currentTime)} / ${formatTime(audioPlayer.duration)}`;
-            }
+        // Sync playhead if this row is already the loaded transport (engine, `<audio>`, or video NP path)
+        if (audioPlayerPath === filePath) {
+            requestAnimationFrame(() => {
+                if (typeof updatePlaybackTime === 'function') updatePlaybackTime();
+            });
         }
 
         // Estimate BPM and detect key async (all playable formats)
@@ -4928,27 +5219,10 @@ async function toggleMetadata(filePath, event) {
     await expandMetaForPath(filePath);
 }
 
-// BPM cache — persisted to prefs
+// BPM / key / LUFS — in-memory maps; `dbGetAnalysis` + meta pipelines fill per path. Debounced
+// `writeCacheFile('…-cache.json')` snapshots to SQLite — no startup bulk read (large libraries hung the UI).
 let _bpmCache = {};
 let _bpmCacheDirty = false;
-
-async function loadBpmKeyCache() {
-    try {
-        _bpmCache = await window.vstUpdater.readCacheFile('bpm-cache.json');
-    } catch {
-        _bpmCache = {};
-    }
-    try {
-        _keyCache = await window.vstUpdater.readCacheFile('key-cache.json');
-    } catch {
-        _keyCache = {};
-    }
-    try {
-        _lufsCache = await window.vstUpdater.readCacheFile('lufs-cache.json');
-    } catch {
-        _lufsCache = {};
-    }
-}
 
 let _keyCacheDirty = false;
 let _lufsCacheDirty = false;
@@ -5521,11 +5795,67 @@ function openAudioFolder(filePath) {
 }
 
 /**
- * Samples table row order (`#audioTableBody`), for autoplay next/prev through the visible library list
- * (current sort, filter, and loaded page — same order the user sees).
+ * Videos table row order (`#videoTableBody`), same semantics as sample rows for autoplay/prev-next.
+ * @returns {Array<{ path: string, name: string, format: string, size: string }>}
+ */
+function getVideoTablePlaybackListItems() {
+    const tbody = document.getElementById('videoTableBody');
+    if (!tbody) return [];
+    const rows = tbody.querySelectorAll('tr[data-video-path]');
+    const items = [];
+    for (const tr of rows) {
+        const path = tr.getAttribute('data-video-path');
+        if (!path) continue;
+        const rec =
+            typeof findByPath === 'function' && typeof allVideos !== 'undefined'
+                ? findByPath(allVideos, path)
+                : null;
+        if (rec) {
+            items.push({
+                path: rec.path,
+                name: rec.name,
+                format: rec.format || '',
+                size: rec.sizeFormatted || '',
+            });
+        } else {
+            const fmtEl = tr.querySelector('.col-format');
+            const fmt = fmtEl ? fmtEl.textContent.trim() : '';
+            const nameCell = tr.querySelector('.col-name');
+            const nameRaw = nameCell ? nameCell.textContent.trim().replace(/\s+/g, ' ') : '';
+            const name = nameRaw || path.split('/').pop().replace(/\.[^.]+$/, '');
+            const sizeCell = tr.querySelector('.col-size');
+            const size = sizeCell ? sizeCell.textContent.trim() : '';
+            items.push({ path, name, format: fmt, size });
+        }
+    }
+    return items;
+}
+
+/** True when EOF / prev-next should walk `#videoTableBody` instead of `#audioTableBody`. */
+function shouldUseVideoTableForLibraryPlaybackList() {
+    if (typeof document === 'undefined') return false;
+    const activeTab = document.querySelector('.tab-content.active')?.id;
+    if (activeTab === 'tabVideos') return true;
+    const cur = typeof audioPlayerPath !== 'undefined' && audioPlayerPath ? String(audioPlayerPath) : '';
+    if (!cur) return false;
+    try {
+        return !!document.querySelector(`#videoTableBody tr[data-video-path="${CSS.escape(cur)}"]`);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Samples or Videos table row order (visible library list — sort, filter, loaded page).
+ * Uses `#videoTableBody` when the Videos tab is active or the current track is a row there
+ * (so autoplay still works after switching tabs while a video plays).
  * @returns {Array<{ path: string, name: string, format: string, size: string }>}
  */
 function getTablePlaybackListItems() {
+    if (shouldUseVideoTableForLibraryPlaybackList()) {
+        const vItems = getVideoTablePlaybackListItems();
+        if (vItems.length > 0) return vItems;
+    }
     const tbody = document.getElementById('audioTableBody');
     if (!tbody) return [];
     const rows = tbody.querySelectorAll('tr[data-audio-path]');
@@ -5865,16 +6195,19 @@ function tagCurrentTrack() {
 }
 
 function collapsePlayer() {
-    document.getElementById('audioNowPlaying').classList.remove('expanded');
+    const np = document.getElementById('audioNowPlaying');
+    if (np) np.classList.remove('expanded');
     prefs.setItem('playerExpanded', 'off');
 }
 
 function hidePlayer() {
     const np = document.getElementById('audioNowPlaying');
-    prefs.setItem('playerExpanded', np.classList.contains('expanded') ? 'on' : 'off');
+    if (np) {
+        prefs.setItem('playerExpanded', np.classList.contains('expanded') ? 'on' : 'off');
+        np.classList.remove('active');
+    }
     prefs.setItem('playerPaneHidden', 'on');
     // Hide player but keep audio playing
-    np.classList.remove('active');
     const pill = document.getElementById('audioRestorePill');
     if (pill && audioPlayerPath && isAudioPlaying()) {
         pill.classList.add('active');
@@ -5886,6 +6219,7 @@ function showPlayer() {
     if (pill) pill.classList.remove('active');
     prefs.setItem('playerPaneHidden', 'off');
     const np = document.getElementById('audioNowPlaying');
+    if (!np) return;
     np.classList.add('active');
     if (prefs.getItem('playerExpanded') === 'on') np.classList.add('expanded');
     // Restore saved size
@@ -6119,19 +6453,6 @@ let _spectrogramCache = {};
 const _WF_CACHE_MAX = 500;
 let _wfCacheDirtyTimer = null;
 
-async function loadWaveformCache() {
-    try {
-        _waveformCache = await window.vstUpdater.readCacheFile('waveform-cache.json');
-    } catch {
-        _waveformCache = {};
-    }
-    try {
-        _spectrogramCache = await window.vstUpdater.readCacheFile('spectrogram-cache.json');
-    } catch {
-        _spectrogramCache = {};
-    }
-}
-
 function _evictCache(cache) {
     const keys = Object.keys(cache);
     if (keys.length > _WF_CACHE_MAX) {
@@ -6149,7 +6470,7 @@ function _isUsableWaveformPeaks(peaks) {
     return false;
 }
 
-/** Fills `_waveformCache[path]` from SQLite when startup skipped bulk `loadWaveformCache` (video + NP waveforms). */
+/** Fills `_waveformCache[path]` from SQLite on demand (`read_waveform_cache_entry`); no full-table load at startup. */
 async function hydrateWaveformPeaksFromSqlite(filePath) {
     if (!filePath || typeof _waveformCache === 'undefined') return;
     if (_waveformCache[filePath]) return;

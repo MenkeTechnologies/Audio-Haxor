@@ -877,13 +877,13 @@ if (!bin) {
       assert.equal(j.speed, 0.25);
     });
 
-    it('playback_set_speed clamps above maximum to 2', async () => {
+    it('playback_set_speed clamps above maximum to 4', async () => {
       const { outLines } = await runEngineExchange(bin, [jl({ cmd: 'playback_set_speed', speed: 9 })], {
         timeoutMs: 90_000,
       });
       const j = JSON.parse(outLines[0]);
       assert.equal(j.ok, true);
-      assert.equal(j.speed, 2);
+      assert.equal(j.speed, 4);
     });
 
     it('playback_set_reverse true echoes reverse', async () => {

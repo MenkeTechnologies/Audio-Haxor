@@ -1,4 +1,19 @@
 // ── Column Resize ──
+/** Play + loop + reveal need real width; prefs / drag used to persist ~40px and hide the last two buttons. */
+const MIN_COL_ACTIONS_WIDTH_PX = 152;
+
+/** One observer per table — `initColumnResize` can run again without stacking callbacks. */
+const _columnResizeObservers = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+function clampActionsHeaderWidth(table) {
+    const actTh = table.querySelector('thead th.col-actions');
+    if (!actTh) return;
+    const target = `${MIN_COL_ACTIONS_WIDTH_PX}px`;
+    if (actTh.style.width === target) return;
+    const w = actTh.offsetWidth;
+    if (w < MIN_COL_ACTIONS_WIDTH_PX) actTh.style.width = target;
+}
+
 function initColumnResize(table) {
     if (!table) return;
     const tableId = table.id;
@@ -19,6 +34,25 @@ function initColumnResize(table) {
                     th.style.width = th.offsetWidth + 'px';
                 });
             }
+            clampActionsHeaderWidth(table);
+        }
+
+        /* First init often runs while the tab is hidden (`offsetWidth === 0`); clamp when the table gains size. */
+        if (typeof ResizeObserver === 'function') {
+            if (_columnResizeObservers) {
+                const prev = _columnResizeObservers.get(table);
+                if (prev) prev.disconnect();
+                const ro = new ResizeObserver(() => {
+                    if (table.offsetWidth > 0) clampActionsHeaderWidth(table);
+                });
+                ro.observe(table);
+                _columnResizeObservers.set(table, ro);
+            } else {
+                const ro = new ResizeObserver(() => {
+                    if (table.offsetWidth > 0) clampActionsHeaderWidth(table);
+                });
+                ro.observe(table);
+            }
         }
 
         // Always register resize handlers regardless of visibility
@@ -35,6 +69,10 @@ function initColumnResize(table) {
                 const startWidth = th.offsetWidth;
                 const nextStartWidth = nextTh.offsetWidth;
                 const minWidth = 40;
+                const nextMin =
+                    nextTh.classList && nextTh.classList.contains('col-actions')
+                        ? MIN_COL_ACTIONS_WIDTH_PX
+                        : minWidth;
 
                 handle.classList.add('resizing');
                 document.body.classList.add('col-resizing');
@@ -42,8 +80,8 @@ function initColumnResize(table) {
                 function onMouseMove(e) {
                     const delta = e.clientX - startX;
                     const newWidth = Math.max(minWidth, startWidth + delta);
-                    const newNextWidth = Math.max(minWidth, nextStartWidth - delta);
-                    if (newWidth >= minWidth && newNextWidth >= minWidth) {
+                    const newNextWidth = Math.max(nextMin, nextStartWidth - delta);
+                    if (newWidth >= minWidth && newNextWidth >= nextMin) {
                         th.style.width = newWidth + 'px';
                         nextTh.style.width = newNextWidth + 'px';
                     }
@@ -64,8 +102,8 @@ function initColumnResize(table) {
     });
 }
 
-// Column layout version — bump when columns change to discard stale saved widths
-const COL_LAYOUT_VERSION = 3;
+// Column layout version — bump when columns change to discard stale saved widths (v4: min actions col width)
+const COL_LAYOUT_VERSION = 4;
 
 function saveColumnWidths(tableId) {
     const table = document.getElementById(tableId);

@@ -35,7 +35,7 @@ The app’s **Audio Engine** settings populate **output/input buffer** dropdowns
 | `playback_pause` | `paused` (bool) | Pause / resume transport. |
 | `playback_seek` | `position_sec` | Seek (seconds on the forward timeline). |
 | `playback_set_dsp` | `gain`, `pan`, `eq_low_db`, `eq_mid_db`, `eq_high_db` | Update DSP parameters. |
-| `playback_set_speed` | `speed` (float, clamped 0.25–2.0) | **`ResamplingAudioSource`** on the forward file path (tape-style: pitch follows speed). **Reverse** playback ignores resampling (response may include a **note**). |
+| `playback_set_speed` | `speed` (float, clamped 0.25–4.0) | **`ResamplingAudioSource`** on the forward file path (tape-style: pitch follows speed). **Reverse** playback ignores resampling (response may include a **note**). |
 | `playback_set_reverse` | `reverse` (bool) | When `true`, full-decode-to-RAM reverse path for the next playback. |
 | `playback_set_loop` | `loop` (bool) | Full-file loop: **forward** uses `AudioFormatReaderSource::setLooping`; **reverse** (RAM decode) wraps `reverseFrame` to 0 when the reversed pass reaches the start of the file. |
 | `playback_status` | — | Position, duration, peak, pause, EOF, reverse, sample rates. When output is running, also **`spectrum`**: 1024 **uint8** magnitudes (0–255) for FFT bins 1…1024 of a Hann-windowed real FFT (order 11 → size 2048), normalized per frame to the max bin; **`spectrum_fft_size`**, **`spectrum_bins`** (1024), **`spectrum_sr_hz`**. The tap is **mono (L+R)/2** taken **after** DSP and **VST/AU inserts** on the forward path (reverse playback has no inserts). Samples are queued in **one** `spectrumRingMutex` acquisition per device callback block (not per sample). |

@@ -109,6 +109,37 @@ function copyToClipboard(text) {
     });
 }
 
+/** Settings → Playback `videoAudioRoute` — engine vs WebView `<video>` (see `video.js`). */
+function ctxMenuVideoAudioRouteItems() {
+    const rt =
+        typeof prefs !== 'undefined' && typeof prefs.getItem === 'function' && prefs.getItem('videoAudioRoute') === 'html5'
+            ? 'html5'
+            : 'engine';
+    const act = typeof catalogFmt === 'function' ? catalogFmt('ui.palette.autoplay_source_active') : 'Active';
+    const engBase = typeof appFmt === 'function' ? appFmt('menu.video_audio_route_engine') : 'Audio Engine';
+    const h5Base = typeof appFmt === 'function' ? appFmt('menu.video_audio_route_html5') : 'WebView (HTML5)';
+    return [
+        {
+            icon: '&#127898;',
+            label: rt === 'engine' ? `${engBase} · ${act}` : engBase,
+            ..._noEcho,
+            ...shortcutTip('videoAudioRouteEngine'),
+            action: () => {
+                if (typeof settingSetVideoAudioRoute === 'function') settingSetVideoAudioRoute('engine');
+            },
+        },
+        {
+            icon: '&#128187;',
+            label: rt === 'html5' ? `${h5Base} · ${act}` : h5Base,
+            ..._noEcho,
+            ...shortcutTip('videoAudioRouteHtml5'),
+            action: () => {
+                if (typeof settingSetVideoAudioRoute === 'function') settingSetVideoAudioRoute('html5');
+            },
+        },
+    ];
+}
+
 /**
  * When no specific surface matched, still offer copy / navigation so every app chrome
  * surface gets a context menu (dock overlay, empty tab panels, chrome between cards, etc.).
@@ -173,6 +204,98 @@ function buildFallbackShellContextMenu(e) {
     });
     items.push({icon: '&#9881;', label: appFmt('menu.tab_settings'), ...shortcutTip('openPrefs'), action: () => switchTab('settings')});
     return items;
+}
+
+/**
+ * Videos tab row menu (right-click).
+ * @param {HTMLElement} videoRow `#videoTableBody tr[data-video-path]`
+ */
+function getVideoTableRowContextMenuItems(videoRow) {
+    const path = videoRow.dataset.videoPath;
+    const name = videoRow.querySelector('.col-name')?.getAttribute('title')?.trim() ||
+        videoRow.querySelector('.col-name')?.textContent?.trim() || '';
+    const isPlaying =
+        typeof audioPlayerPath !== 'undefined' &&
+        audioPlayerPath === path &&
+        typeof videoPlayerPath !== 'undefined' &&
+        videoPlayerPath === path &&
+        typeof isAudioPlaying === 'function' &&
+        isAudioPlaying();
+    return [
+        {
+            icon: isPlaying ? '&#9646;&#9646;' : '&#9654;',
+            label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'),
+            ..._noEcho,
+            ...shortcutTip('playPause'),
+            action: () => {
+                if (typeof previewVideo === 'function') void previewVideo(path, { minimizeFloatingPlayer: true });
+            },
+        },
+        {
+            icon: '&#8634;',
+            label: appFmt('menu.loop'),
+            ..._noEcho,
+            ...shortcutTip('toggleLoop'),
+            action: () => {
+                if (typeof toggleVideoRowLoop === 'function') toggleVideoRowLoop(path, new MouseEvent('click'));
+            },
+        },
+        '---',
+        ...ctxMenuVideoAudioRouteItems(),
+        '---',
+        {
+            icon: '&#128193;',
+            label: appFmt('menu.reveal_in_finder'),
+            ..._noEcho,
+            ...shortcutTip('revealFile'),
+            action: () => openVideoFile(path),
+        },
+        {
+            icon: '&#9889;',
+            label: appFmt('menu.open_with_default_app'),
+            ..._noEcho,
+            action: () =>
+                window.vstUpdater.openFileDefault(path).catch(err =>
+                    showToast(toastFmt('toast.failed_open_file', { err: err.message || err }), 4000, 'error'),
+                ),
+        },
+        {
+            icon: '&#128194;',
+            label: appFmt('menu.show_file_browser'),
+            ..._noEcho,
+            action: () => {
+                switchTab('files');
+                setTimeout(() => loadDirectory(path.replace(/\/[^/]+$/, '')), 200);
+            },
+        },
+        '---',
+        { icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name) },
+        {
+            icon: '&#128203;',
+            label: appFmt('menu.copy_path'),
+            ..._noEcho,
+            ...shortcutTip('copyPath'),
+            action: () => copyToClipboard(path),
+        },
+        '---',
+        ...[(() => {
+            const f = typeof isFavorite === 'function' && isFavorite(path);
+            return {
+                icon: f ? '&#9734;' : '&#9733;',
+                label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'),
+                ..._noEcho,
+                ...shortcutTip('toggleFavorite'),
+                action: () =>
+                    f
+                        ? removeFavorite(path)
+                        : addFavorite('video', path, name, {
+                              format: videoRow.querySelector('.col-format')?.textContent?.trim() || '',
+                          }),
+            };
+        })()],
+        { icon: '&#128221;', label: appFmt('menu.add_note'), action: () => showNoteEditor(path, name) },
+        ...quickTagItems(path, name),
+    ];
 }
 
 // ── Right-click handlers ──
@@ -578,6 +701,8 @@ document.addEventListener('contextmenu', (e) => {
                         }
                     };
                 })()],
+                '---',
+                ...ctxMenuVideoAudioRouteItems(),
             ];
             showContextMenu(e, items);
             return;
@@ -803,47 +928,7 @@ document.addEventListener('contextmenu', (e) => {
         // ── Video rows ──
         const videoRow = e.target.closest('#videoTableBody tr[data-video-path]');
         if (videoRow) {
-            const path = videoRow.dataset.videoPath;
-            const name = videoRow.querySelector('.col-name')?.getAttribute('title')?.trim() ||
-                videoRow.querySelector('.col-name')?.textContent?.trim() || '';
-            const items = [
-                {
-                    icon: '&#128193;',
-                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
-                    action: () => openVideoFile(path)
-                },
-                {
-                    icon: '&#9889;',
-                    label: appFmt('menu.open_with_default_app'), ..._noEcho,
-                    action: () => window.vstUpdater.openFileDefault(path).catch(err => showToast(toastFmt('toast.failed_open_file', {err: err.message || err}), 4000, 'error'))
-                },
-                {
-                    icon: '&#128194;', label: appFmt('menu.show_file_browser'), ..._noEcho, action: () => {
-                        switchTab('files');
-                        setTimeout(() => loadDirectory(path.replace(/\/[^/]+$/, '')), 200);
-                    }
-                },
-                '---',
-                {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => copyToClipboard(name)},
-                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => copyToClipboard(path)},
-                '---',
-                ...[(() => {
-                    const f = typeof isFavorite === 'function' && isFavorite(path);
-                    return {
-                        icon: f ? '&#9734;' : '&#9733;',
-                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
-                        action: () =>
-                            f
-                                ? removeFavorite(path)
-                                : addFavorite('video', path, name, {
-                                    format: videoRow.querySelector('.col-format')?.textContent?.trim() || '',
-                                })
-                    };
-                })()],
-                {icon: '&#128221;', label: appFmt('menu.add_note'), action: () => showNoteEditor(path, name)},
-                ...quickTagItems(path, name),
-            ];
-            showContextMenu(e, items);
+            showContextMenu(e, getVideoTableRowContextMenuItems(videoRow));
             return;
         }
 
@@ -2121,6 +2206,8 @@ document.addEventListener('contextmenu', (e) => {
                         showToast(ap ? toastFmt('toast.autoplay_next_disabled') : toastFmt('toast.autoplay_next_enabled'));
                     }
                 });
+                items.push('---');
+                items.push(...ctxMenuVideoAudioRouteItems());
             }
             showContextMenu(e, items);
             return;

@@ -4067,7 +4067,24 @@ async function runEnginePlaybackStatusTick() {
             }
             if (st.loaded === true) {
                 window._enginePlaybackPosSec = typeof st.position_sec === 'number' ? st.position_sec : 0;
-                window._enginePlaybackDurSec = typeof st.duration_sec === 'number' ? st.duration_sec : 0;
+                /* `playback_load` often has duration before the first few `playback_status` polls; some
+                 * sessions report `duration_sec: 0` while the decoder is still settling. Overwriting a
+                 * positive `_enginePlaybackDurSec` with 0 hides the NP / tray waveform cursor until
+                 * a later poll — and if every poll keeps sending 0, the cursor never returns (common
+                 * on the second open of the same file). */
+                const incomingDur =
+                    typeof st.duration_sec === 'number' && !Number.isNaN(st.duration_sec) ? st.duration_sec : null;
+                const prevDur =
+                    typeof window._enginePlaybackDurSec === 'number' && window._enginePlaybackDurSec > 0
+                        ? window._enginePlaybackDurSec
+                        : 0;
+                if (incomingDur != null) {
+                    if (incomingDur > 0) {
+                        window._enginePlaybackDurSec = incomingDur;
+                    } else if (!prevDur) {
+                        window._enginePlaybackDurSec = 0;
+                    }
+                }
                 window._enginePlaybackPaused = st.paused === true;
                 /* Anchor the local interpolation model so `updatePlaybackTime()` can compute
                  * `posSec + (now - anchor) * speed` between polls at rAF rate. Without this the
@@ -4140,13 +4157,13 @@ function syncEnginePlaybackDspFromPrefs() {
     });
 }
 
-/** Now-playing speed (0.25–2×) → AudioEngine `playback_set_speed` (`ResamplingAudioSource`; pitch follows speed like `<audio>.playbackRate`). */
+/** Now-playing speed (0.25–4×) → AudioEngine `playback_set_speed` (`ResamplingAudioSource`; pitch follows speed like `<audio>.playbackRate`). */
 function syncEnginePlaybackSpeedFromPrefs() {
     const inv = getAeAudioEngineInvoke();
     if (!inv) return;
     const sel = document.getElementById('npSpeed');
     const v = parseFloat(sel && typeof sel.value === 'string' ? sel.value : '1');
-    const s = Number.isFinite(v) ? Math.max(0.25, Math.min(2, v)) : 1;
+    const s = Number.isFinite(v) ? Math.max(0.25, Math.min(4, v)) : 1;
     void inv({cmd: 'playback_set_speed', speed: s});
 }
 
@@ -4262,6 +4279,7 @@ async function enginePlaybackStart(filePath) {
     }
     syncEnginePlaybackDspFromPrefs();
     syncEnginePlaybackSpeedFromPrefs();
+    syncEnginePlaybackLoopFromPrefs();
     startEnginePlaybackPoll();
     /* Next `playback_status` poll may be ~250 ms later; avoid stale `paused` from a prior session skewing `isAudioPlaying()`. */
     window._enginePlaybackPaused = false;

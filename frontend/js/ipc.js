@@ -388,6 +388,12 @@ listen('menu-action', (event) => {
         case 'toggle_mute':
             if (typeof toggleMute === 'function') toggleMute();
             break;
+        case 'video_audio_route_engine':
+            if (typeof settingSetVideoAudioRoute === 'function') settingSetVideoAudioRoute('engine');
+            break;
+        case 'video_audio_route_html5':
+            if (typeof settingSetVideoAudioRoute === 'function') settingSetVideoAudioRoute('html5');
+            break;
         // Tools
         case 'find_duplicates':
             if (typeof showDuplicateReport === 'function') showDuplicateReport();
@@ -588,6 +594,12 @@ document.addEventListener('click', (e) => {
                 break;
             case 'toggleRowLoop':
                 toggleRowLoop(el.dataset.path, e);
+                break;
+            case 'previewVideo':
+                if (typeof previewVideo === 'function') void previewVideo(el.dataset.path, { minimizeFloatingPlayer: true });
+                break;
+            case 'toggleVideoRowLoop':
+                if (typeof toggleVideoRowLoop === 'function') toggleVideoRowLoop(el.dataset.path, e);
                 break;
             case 'scanDawProjects':
                 scanDawProjects();
@@ -1377,6 +1389,8 @@ document.addEventListener('change', (e) => {
         if (typeof settingSetAutoplayNextSource === 'function') settingSetAutoplayNextSource(e.target.value);
     } else if (action === 'settingTrayTransportSource') {
         if (typeof settingSetTrayTransportSource === 'function') settingSetTrayTransportSource(e.target.value);
+    } else if (action === 'settingVideoAudioRoute') {
+        if (typeof settingSetVideoAudioRoute === 'function') settingSetVideoAudioRoute(e.target.value);
     }
 });
 

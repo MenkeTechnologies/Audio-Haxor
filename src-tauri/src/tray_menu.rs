@@ -182,7 +182,7 @@ pub struct TrayPopoverEmit {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_sec: Option<f64>,
     pub playing: bool,
-    /// Clamped 0.25..=2.0 — mirrors prefs `audioSpeed` / main `#npSpeed`.
+    /// Clamped 0.25..=4.0 — mirrors prefs `audioSpeed` / main `#npSpeed`.
     pub playback_speed: f64,
     /// 0..=100 — mirrors prefs `audioVolume` / main `#npVolume`.
     pub volume_pct: u8,
@@ -470,7 +470,7 @@ pub struct TrayNowPlayingPayload {
     pub popover_playing: Option<bool>,
     #[serde(default)]
     pub popover_idle_label: Option<String>,
-    /// Optional: main prefs `audioSpeed` (0.25..=2). When omitted, last popover value is kept.
+    /// Optional: main prefs `audioSpeed` (0.25..=4). When omitted, last popover value is kept.
     #[serde(default)]
     pub playback_speed: Option<f64>,
     /// Optional: main prefs `audioVolume` (0..=100). When omitted, last popover value is kept.
@@ -526,7 +526,7 @@ fn tray_playback_speed_merge(
 ) -> f64 {
     let fallback = || last.map(|e| e.playback_speed).unwrap_or(1.0);
     match payload.playback_speed {
-        Some(s) if s.is_finite() => s.clamp(0.25, 2.0),
+        Some(s) if s.is_finite() => s.clamp(0.25, 4.0),
         _ => fallback(),
     }
 }
@@ -806,7 +806,7 @@ pub fn tray_popover_action(app: AppHandle<Wry>, action: String) -> Result<(), St
                 if let Some(tray_state) = app.try_state::<TrayState>() {
                     if let Ok(mut guard) = tray_state.inner.lock() {
                         if let Some(emit) = guard.last_popover_emit.as_mut() {
-                            emit.playback_speed = s.clamp(0.25, 2.0);
+                            emit.playback_speed = s.clamp(0.25, 4.0);
                         }
                     }
                 }

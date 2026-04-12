@@ -1166,6 +1166,20 @@ function settingSetTrayTransportSource(val) {
     if (typeof refreshSettingsUI === 'function') refreshSettingsUI();
 }
 
+/** `videoAudioRoute`: `engine` (default) or `html5` — see `videoPlaybackUsesEngineAudio` in `video.js`. */
+function settingSetVideoAudioRoute(val) {
+    const v = val === 'html5' ? 'html5' : 'engine';
+    prefs.setItem('videoAudioRoute', v);
+    const routeLabel =
+        typeof appFmt === 'function'
+            ? appFmt(v === 'html5' ? 'ui.opt.video_audio_route_html5' : 'ui.opt.video_audio_route_engine')
+            : v;
+    if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+        showToast(toastFmt('toast.video_audio_route', {route: routeLabel}));
+    }
+    if (typeof refreshSettingsUI === 'function') refreshSettingsUI();
+}
+
 function settingToggleExpandOnClick() {
     const current = prefs.getItem('expandOnClick');
     const next = current === 'off' ? 'on' : 'off';
@@ -1739,6 +1753,10 @@ function refreshSettingsUI() {
     const trayTransportSrc = prefs.getItem('trayTransportSource') === 'player' ? 'player' : 'samples';
     const settingTrayTransportSrc = document.getElementById('settingTrayTransportSource');
     if (settingTrayTransportSrc) settingTrayTransportSrc.value = trayTransportSrc;
+
+    const videoAudioRt = prefs.getItem('videoAudioRoute') === 'html5' ? 'html5' : 'engine';
+    const settingVideoAudioRt = document.getElementById('settingVideoAudioRoute');
+    if (settingVideoAudioRt) settingVideoAudioRt.value = videoAudioRt;
 
     // Include Ableton backups
     const includeBackups = prefs.getItem('includeAbletonBackups') === 'on';

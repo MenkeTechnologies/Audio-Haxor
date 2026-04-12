@@ -594,7 +594,7 @@ const SECTION_MAP: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
     ("logging", &[("logVerbosity", "verbosity")]),
-    ("player", &[("playerDock", "dock")]),
+    ("player", &[("playerDock", "dock"), ("audioSpeed", "audioSpeed")]),
     (
         "audioEngine",
         &[

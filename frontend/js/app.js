@@ -120,9 +120,8 @@ async function handleFileWatcherChange(event) {
     initSortPersistence();
     initSettingsSectionDrag();
     loadRecentlyPlayed();
-    // BPM/Key/LUFS and waveform/spectrogram caches are now in SQLite —
-    // skip eager bulk load (was causing startup hang on large DBs).
-    // Data is fetched per-file on demand or via paginated queries.
+    // BPM/key/LUFS and waveform/spectrogram: SQLite-backed; UI hydrates per path (`dbGetAnalysis`,
+    // `hydrateWaveformPeaksFromSqlite`, etc.) — no bulk `read_cache_file` at startup (large DBs froze the shell).
     renderGlobalTagBar();
     // Xref cache is in SQLite — load lazily when xref tab is used
     if (typeof loadXrefCache === 'function') loadXrefCache().catch(e => {

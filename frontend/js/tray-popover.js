@@ -196,6 +196,7 @@
         { value: '1.25', i18n: 'ui.opt.1_25x' },
         { value: '1.5', i18n: 'ui.opt.1_5x' },
         { value: '2', i18n: 'ui.opt.2x' },
+        { value: '4', i18n: 'ui.opt.4x' },
     ];
 
     let _trayApplyingHostControls = false;
@@ -303,7 +304,7 @@
         let pSpeed = p.playback_speed ?? p.playbackSpeed;
         if (typeof pSpeed === 'string') pSpeed = parseFloat(pSpeed);
         if (typeof pSpeed !== 'number' || !Number.isFinite(pSpeed)) pSpeed = 1;
-        p.playback_speed = Math.max(0.25, Math.min(2, pSpeed));
+        p.playback_speed = Math.max(0.25, Math.min(4, pSpeed));
         let rp = p.reveal_path ?? p.revealPath;
         if (rp == null || typeof rp !== 'string') {
             p.reveal_path = '';

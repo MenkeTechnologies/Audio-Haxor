@@ -180,7 +180,13 @@ function buildVideoRow(v) {
     const rowTt = typeof escapeHtml === 'function'
         ? escapeHtml(_videoFmt('ui.tt.video_row_double_click_open'))
         : _videoFmt('ui.tt.video_row_double_click_open');
-    return `<tr data-video-path="${hp}" data-video-name="${escapeHtml((v.name || '').toLowerCase())}" data-action="toggleVideoMeta" data-path="${hp}" data-video-size="${Number(v.size) || 0}" style="cursor: pointer;" title="${rowTt}">
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : (s) => s;
+    const previewBtnT = esc(_videoFmt('ui.audio.row_btn_preview'));
+    const loopBtnT = esc(_videoFmt('ui.audio.row_btn_loop'));
+    const revealBtnT = esc(_videoFmt('menu.reveal_in_finder'));
+    const isPlaying = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === v.path;
+    const rowClass = isPlaying ? ' class="row-playing"' : '';
+    return `<tr${rowClass} data-video-path="${hp}" data-video-name="${escapeHtml((v.name || '').toLowerCase())}" data-action="toggleVideoMeta" data-path="${hp}" data-video-size="${Number(v.size) || 0}" style="cursor: pointer;" title="${rowTt}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
     <td class="col-name" title="${escapeHtml(v.name)}">${_lastVideoSearch ? highlightMatch(v.name, _lastVideoSearch, _lastVideoMode) : escapeHtml(v.name)}${typeof rowBadges === 'function' ? rowBadges(v.path) : ''}</td>
     <td class="col-path" title="${hp}">${_lastVideoSearch ? highlightMatch(v.directory, _lastVideoSearch, _lastVideoMode) : escapeHtml(v.directory)}</td>
@@ -188,7 +194,13 @@ function buildVideoRow(v) {
     <td class="col-size">${v.sizeFormatted}</td>
     <td class="col-date">${v.modified}</td>
     <td class="col-actions" data-action-stop>
-      <button class="btn-small btn-folder" data-action="openVideoFile" data-path="${hp}" title="${hp}">&#128193;</button>
+      <span class="table-row-actions">
+      <button type="button" class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-action="previewVideo" data-path="${hp}" title="${previewBtnT}">
+        ${isPlaying && typeof isAudioPlaying === 'function' && isAudioPlaying() ? '&#9646;&#9646;' : '&#9654;'}
+      </button>
+      <button type="button" class="btn-small btn-loop${isPlaying && typeof audioLooping !== 'undefined' && audioLooping ? ' active' : ''}" data-action="toggleVideoRowLoop" data-path="${hp}" title="${loopBtnT}">&#8634;</button>
+      <button type="button" class="btn-small btn-folder" data-action="openVideoFile" data-path="${hp}" title="${revealBtnT}">&#128193;</button>
+      </span>
     </td>
   </tr>`;
 }
@@ -244,12 +256,12 @@ function buildVideoTableHtml() {
     return `<table class="audio-table" id="videoTable">
     <thead><tr>
       <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="${sel}"></th>
-      <th data-action="sortVideo" data-key="name" style="width: 26%;">${tc('ui.export.col_name')} <span class="sort-arrow" id="videoSortArrowName">&#9660;</span><span class="col-resize"></span></th>
-      <th data-action="sortVideo" data-key="directory" style="width: 36%;">${tc('ui.export.col_path')} <span class="sort-arrow" id="videoSortArrowDirectory"></span><span class="col-resize"></span></th>
+      <th data-action="sortVideo" data-key="name" style="width: 24%;">${tc('ui.export.col_name')} <span class="sort-arrow" id="videoSortArrowName">&#9660;</span><span class="col-resize"></span></th>
+      <th data-action="sortVideo" data-key="directory" style="width: 32%;">${tc('ui.export.col_path')} <span class="sort-arrow" id="videoSortArrowDirectory"></span><span class="col-resize"></span></th>
       <th data-action="sortVideo" data-key="format" style="width: 70px;">${tc('ui.export.col_format')} <span class="sort-arrow" id="videoSortArrowFormat"></span><span class="col-resize"></span></th>
       <th data-action="sortVideo" data-key="size" class="col-size" style="width: 90px;">${tc('ui.export.col_size')} <span class="sort-arrow" id="videoSortArrowSize"></span><span class="col-resize"></span></th>
       <th data-action="sortVideo" data-key="modified" class="col-date" style="width: 100px;">${tc('ui.export.col_modified')} <span class="sort-arrow" id="videoSortArrowModified"></span><span class="col-resize"></span></th>
-      <th class="col-actions" style="width: 50px;"></th>
+      <th class="col-actions" style="width: 152px;"></th>
     </tr></thead>
     <tbody id="videoTableBody"></tbody>
   </table>`;
@@ -563,41 +575,21 @@ let _videoFallbackAudio = false;
 let _videoWfDrawSeq = 0;
 /** True while user drags `#videoFsSeek` — RAF must not overwrite the thumb. */
 let _videoFsSeekUserDrag = false;
+/** Last value written to `#videoFsSeek` (0…1000) — skip redundant DOM writes each rAF tick. */
+let _videoFsSeekLastWritten = null;
 /** Bumps on each new `previewVideo` load and on `stopVideoPlayback` — stale `loadeddata` handlers must not hide the spinner for the wrong file. */
 let _videoPlayerLoadUiSeq = 0;
 /** Skip `<video>` frame-sampled waveform fallback above this — many seeks stress demux on huge files. Host `waveform_preview` still runs (ffmpeg/Symphonia extract ≤300s, then JUCE). */
 const VIDEO_VISUAL_WAVEFORM_MAX_FILE_BYTES = 96 * 1024 * 1024;
 let _lastVideoVisualSeekMs = 0;
 
-/** Match `video_scanner::VIDEO_EXTENSIONS` basename suffixes (no dot). */
-const _VIDEO_CONTAINER_PLAYBACK_EXT = new Set([
-    'mp4',
-    'm4v',
-    'mov',
-    'mkv',
-    'webm',
-    'avi',
-    'mpg',
-    'mpeg',
-    'wmv',
-    'flv',
-    'ogv',
-    '3gp',
-    'mts',
-    'm2ts',
-]);
-
 /**
- * Use `<video>` element audio for these files. JUCE `start_output_stream` memory-loads the whole
- * container for SMB stability — multi‑GB MP4 can hang with `<video>` muted until then; bounded
- * `waveform_preview` transcode can finish first, so it looked like “no audio until waveform”.
+ * Pref `videoAudioRoute`: `engine` — AudioEngine decode + inserts (default); `html5` — WebView `<video>`
+ * audio (lower RAM on huge containers, no VST/AU chain).
  */
-function _playbackUsesHtml5VideoAudio(filePath) {
-    if (!filePath || typeof filePath !== 'string') return false;
-    const base = filePath.split(/[/\\]/).pop() || '';
-    const dot = base.lastIndexOf('.');
-    if (dot < 0 || dot >= base.length - 1) return false;
-    return _VIDEO_CONTAINER_PLAYBACK_EXT.has(base.slice(dot + 1).toLowerCase());
+function videoPlaybackUsesEngineAudio() {
+    if (typeof prefs === 'undefined' || typeof prefs.getItem !== 'function') return true;
+    return prefs.getItem('videoAudioRoute') !== 'html5';
 }
 
 function _videoFileSrc(path) {
@@ -741,19 +733,33 @@ function closeVideoMetaRow() {
     expandedVideoPath = null;
 }
 
-function stopVideoPlayback() {
+/**
+ * Pause video, stop engine / RAF, and clear `videoPlayerPath`. By default clears `<video src>` (black frame).
+ * @param {{ keepVideoFrame?: boolean }} [opts] — When true, leave `src` intact so the last decoded frame
+ *   stays visible while another track (e.g. library MP3 via AudioEngine) takes the output device.
+ */
+function stopVideoPlayback(opts) {
+    const keepVideoFrame = opts && opts.keepVideoFrame === true;
     _videoPlayerLoadUiSeq++;
     _videoExitFullscreenIfActive();
     if (_videoRafId) {
         cancelAnimationFrame(_videoRafId);
         _videoRafId = null;
     }
+    _videoFsSeekLastWritten = null;
     const vid = document.getElementById('videoPlayerEl');
     if (vid) {
-        vid.pause();
-        vid.removeAttribute('src');
-        vid.load();
+        try {
+            vid.pause();
+        } catch (_) {}
+        if (!keepVideoFrame) {
+            vid.removeAttribute('src');
+            try {
+                vid.load();
+            } catch (_) {}
+        }
     }
+    if (typeof connectMediaToEq === 'function') connectMediaToEq();
     _hideVideoPlayerLoading();
     if (_videoEngineActive) {
         _videoEngineActive = false;
@@ -851,6 +857,9 @@ function _showVideoInNowPlaying(filePath, opts) {
     if (typeof applyMetaLoopRegionUI === 'function') applyMetaLoopRegionUI(filePath);
     if (typeof syncAbLoopFromSampleRegion === 'function') syncAbLoopFromSampleRegion(filePath);
     if (typeof refreshNpLoopRegionUI === 'function') refreshNpLoopRegionUI();
+    /* Must run after `audioPlayerPath` is set above — `syncVideoPlayerElPlaybackRate` requires
+     * `audioPlayerPath === videoPlayerPath` (HTML5 container audio uses `<video>`, not `#audioPlayer`). */
+    if (typeof window.syncVideoPlayerElPlaybackRate === 'function') window.syncVideoPlayerElPlaybackRate();
 }
 
 function toggleVideoLoopRegionFn() {
@@ -955,8 +964,8 @@ function expandVideoMetaForPath(filePath) {
         <span style="font-size:11px;font-family:'Orbitron',sans-serif;color:var(--text-muted);" id="videoTimeDisplay">0:00 / 0:00</span>
       </div>
       <div class="video-meta-info">
-        <div class="meta-item"><span class="meta-label">FILE</span><span class="meta-value">${typeof escapeHtml === 'function' ? escapeHtml(fileName) : fileName}</span></div>
-        <div class="meta-item"><span class="meta-label">PATH</span><span class="meta-value" style="font-size:10px;">${hp}</span></div>
+        <div class="meta-item"><span class="meta-label">FILE</span><span class="meta-value video-meta-path-line">${typeof escapeHtml === 'function' ? escapeHtml(fileName) : fileName}</span></div>
+        <div class="meta-item"><span class="meta-label">PATH</span><span class="meta-value video-meta-path-line video-meta-path">${hp}</span></div>
       </div>
     </div></td>`;
 
@@ -1001,6 +1010,7 @@ async function previewVideo(filePath, opts) {
         }
         _updateVideoPlayBtn();
         if (typeof updateNowPlayingBtn === 'function') updateNowPlayingBtn();
+        if (typeof updatePlayBtnStates === 'function') updatePlayBtnStates();
         const playingNow = _videoEngineActive
             ? window._enginePlaybackPaused !== true
             : !!(vid && !vid.paused && !vid.ended);
@@ -1016,8 +1026,11 @@ async function previewVideo(filePath, opts) {
     }
 
     _lastVideoVisualSeekMs = 0;
-    // Set before any `await` so deferred `drawVideoWaveform` does not skip the visual
-    // fallback while `enginePlaybackStop` is still running.
+    const vid = document.getElementById('videoPlayerEl');
+    if (!vid) return;
+
+    // `videoPlayerPath` only after we know `<video>` exists — otherwise we strand state and may have
+    // already called `enginePlaybackStop` while nothing can play video.
     videoPlayerPath = filePath;
 
     // Stop any current audio playback first
@@ -1030,9 +1043,6 @@ async function previewVideo(filePath, opts) {
         audioPlayer.pause();
     }
 
-    const vid = document.getElementById('videoPlayerEl');
-    if (!vid) return;
-
     _videoPlayerLoadUiSeq++;
     const videoLoadUiSeq = _videoPlayerLoadUiSeq;
     _wireVideoPlayerLoadingListeners(vid, filePath, videoLoadUiSeq);
@@ -1043,27 +1053,46 @@ async function previewVideo(filePath, opts) {
         typeof window.vstUpdater.audioEngineInvoke === 'function' &&
         typeof window.enginePlaybackStart === 'function';
 
+    const useEngineForVideoAudio = canEngine && videoPlaybackUsesEngineAudio();
+
     _videoFallbackAudio = false;
     _videoEngineActive = false;
 
-    const html5ContainerAudio = _playbackUsesHtml5VideoAudio(filePath);
-
-    // Set video source (muted — audio via engine)
+    // Engine path: picture-only on `<video>`. HTML5 path: `<video>` carries sound (no inserts).
     vid.src = _videoFileSrc(filePath);
-    vid.muted = !html5ContainerAudio;
+    vid.muted = useEngineForVideoAudio;
     vid.preload = 'auto';
+    vid.loop =
+        typeof prefs !== 'undefined' &&
+        typeof prefs.getItem === 'function' &&
+        prefs.getItem('audioLoop') === 'on';
     const loopPathForMeta = filePath;
     vid.addEventListener(
         'loadedmetadata',
         () => {
             if (videoPlayerPath !== loopPathForMeta) return;
             if (typeof syncAbLoopFromSampleRegion === 'function') syncAbLoopFromSampleRegion(loopPathForMeta);
+            if (typeof window.syncVideoPlayerElPlaybackRate === 'function') window.syncVideoPlayerElPlaybackRate();
+            /* `loadedmetadata` can run before `enginePlaybackStart` resolves — do not gate on `_videoEngineActive`. */
+            if (
+                typeof window._enginePlaybackDurSec === 'number' &&
+                window._enginePlaybackDurSec <= 0 &&
+                Number.isFinite(vid.duration) &&
+                vid.duration > 0
+            ) {
+                window._enginePlaybackDurSec = vid.duration;
+            }
+            if (typeof updatePlaybackTime === 'function') updatePlaybackTime();
         },
         { once: true },
     );
 
-    if (canEngine && !html5ContainerAudio) {
-        void vid.play().catch(() => {});
+    if (useEngineForVideoAudio) {
+        /* Do not `play()` until the engine clock exists. Starting decode ahead of JUCE output forces
+         * `_videoRafLoop` to seek `<video>` backward every ~380ms — visible stutter for the first seconds. */
+        try {
+            vid.pause();
+        } catch (_) {}
         _startVideoRaf();
         _updateVideoPlayBtn();
         _showVideoInNowPlaying(filePath, o);
@@ -1075,9 +1104,27 @@ async function previewVideo(filePath, opts) {
                 _videoEngineActive = true;
                 _videoFallbackAudio = false;
                 vid.muted = true;
+                if (
+                    (typeof window._enginePlaybackDurSec !== 'number' || window._enginePlaybackDurSec <= 0) &&
+                    Number.isFinite(vid.duration) &&
+                    vid.duration > 0
+                ) {
+                    window._enginePlaybackDurSec = vid.duration;
+                }
+                if (typeof window.kickPlaybackRafLoop === 'function') window.kickPlaybackRafLoop();
+                try {
+                    const t =
+                        typeof window._enginePlaybackPosSec === 'number' && Number.isFinite(window._enginePlaybackPosSec)
+                            ? Math.max(0, window._enginePlaybackPosSec)
+                            : 0;
+                    vid.currentTime = t;
+                    _lastVideoVisualSeekMs = performance.now();
+                } catch (_) {}
                 void vid.play().catch(() => {});
+                if (typeof window.syncVideoPlayerElPlaybackRate === 'function') window.syncVideoPlayerElPlaybackRate();
                 _updateVideoPlayBtn();
                 if (typeof updateNowPlayingBtn === 'function') updateNowPlayingBtn();
+                if (typeof updatePlayBtnStates === 'function') updatePlayBtnStates();
                 if (typeof syncAbLoopFromSampleRegion === 'function') syncAbLoopFromSampleRegion(filePath);
             } catch {
                 if (videoPlayerPath !== filePath) return;
@@ -1086,19 +1133,28 @@ async function previewVideo(filePath, opts) {
                 _videoEngineActive = false;
                 _videoFallbackAudio = true;
                 vid.muted = false;
+                if (typeof window.kickPlaybackRafLoop === 'function') window.kickPlaybackRafLoop();
                 try {
                     await vid.play();
                 } catch (e) {
                     if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
                 }
+                if (
+                    !vid.paused &&
+                    typeof window.connectVideoHtml5AudioThroughWebAudio === 'function'
+                ) {
+                    window.connectVideoHtml5AudioThroughWebAudio(vid);
+                }
+                if (typeof window.syncVideoPlayerElPlaybackRate === 'function') window.syncVideoPlayerElPlaybackRate();
                 _updateVideoPlayBtn();
                 if (typeof updateNowPlayingBtn === 'function') updateNowPlayingBtn();
+                if (typeof updatePlayBtnStates === 'function') updatePlayBtnStates();
             }
         })();
         return;
     }
 
-    // Video containers (and no-engine): `<video>` carries audio — avoids JUCE full-file RAM load on MP4/MKV/…
+    // Pref `html5` or no AudioEngine IPC: `<video>` carries audio (inserts unavailable — Web Audio tap only).
     _videoFallbackAudio = true;
     _videoEngineActive = false;
     vid.muted = false;
@@ -1106,6 +1162,9 @@ async function previewVideo(filePath, opts) {
         await vid.play();
     } catch (e) {
         if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
+    }
+    if (!vid.paused && typeof window.connectVideoHtml5AudioThroughWebAudio === 'function') {
+        window.connectVideoHtml5AudioThroughWebAudio(vid);
     }
     _startVideoRaf();
     _updateVideoPlayBtn();
@@ -1134,6 +1193,7 @@ function _videoRafLoop() {
         _videoRafCachedWfBox = document.getElementById('videoWaveformBox');
         _videoRafCachedTimeDisp = document.getElementById('videoTimeDisplay');
         _videoRafCachedFsSeek = document.getElementById('videoFsSeek');
+        _videoFsSeekLastWritten = null;
     }
     let vid = _videoRafCachedVid;
     if (vid && !vid.isConnected) {
@@ -1141,21 +1201,25 @@ function _videoRafLoop() {
         _videoRafCachedWfBox = document.getElementById('videoWaveformBox');
         _videoRafCachedTimeDisp = document.getElementById('videoTimeDisplay');
         _videoRafCachedFsSeek = document.getElementById('videoFsSeek');
+        _videoFsSeekLastWritten = null;
         vid = _videoRafCachedVid;
     }
     let cur = 0;
     let dur = 0;
 
-    if (_videoEngineActive && typeof window._enginePlaybackPosSec === 'number') {
+    if (_videoEngineActive && typeof window !== 'undefined') {
         // Interpolate engine position at rAF rate (honor playback speed)
-        const basePos = window._enginePlaybackPosSec;
+        const basePos =
+            typeof window._enginePlaybackPosSec === 'number' && Number.isFinite(window._enginePlaybackPosSec)
+                ? window._enginePlaybackPosSec
+                : 0;
         const anchor = typeof window._enginePlaybackPosAnchorMs === 'number'
             ? window._enginePlaybackPosAnchorMs : performance.now();
         const paused = window._enginePlaybackPaused === true;
         let speed = 1;
         if (typeof prefs !== 'undefined' && typeof prefs.getItem === 'function') {
             const raw = parseFloat(prefs.getItem('audioSpeed') || '1');
-            if (Number.isFinite(raw)) speed = Math.max(0.25, Math.min(2, raw));
+            if (Number.isFinite(raw)) speed = Math.max(0.25, Math.min(4, raw));
         }
         const elapsed = paused ? 0 : (performance.now() - anchor) / 1000;
         cur = basePos + elapsed * speed;
@@ -1178,10 +1242,16 @@ function _videoRafLoop() {
         }
 
         // Sync <video> to engine clock — throttle seeks: constant currentTime writes on big files freeze WebKit.
+        // Above 1×, the same wall-clock thresholds fire far too often (decoder vs poll interpolation drift),
+        // which reads as stutter; scale by √speed for speeds > 1 only (leave slow-mo paths unchanged).
         if (vid) {
             const skew = Math.abs(vid.currentTime - cur);
             const now = performance.now();
-            if (skew > 0.48 || (skew > 0.2 && now - _lastVideoVisualSeekMs >= 380)) {
+            const spdRel = speed > 1 ? Math.sqrt(speed) : 1;
+            const hardSkew = 0.48 * spdRel;
+            const softSkew = 0.2 * spdRel;
+            const minSeekMs = Math.round(380 * spdRel);
+            if (skew > hardSkew || (skew > softSkew && now - _lastVideoVisualSeekMs >= minSeekMs)) {
                 vid.currentTime = cur;
                 _lastVideoVisualSeekMs = now;
             }
@@ -1196,23 +1266,18 @@ function _videoRafLoop() {
         }
     }
 
-    // Update progress bar
-    const wfBox = _videoRafCachedWfBox;
-    if (wfBox && dur > 0) {
-        const pct = (cur / dur) * 100;
-        const fill = wfBox.querySelector('.waveform-progress-fill');
-        const cursor = wfBox.querySelector('.waveform-cursor');
-        const timeLabel = wfBox.querySelector('.waveform-time-label');
-        if (fill) fill.style.width = pct + '%';
-        if (cursor) cursor.style.left = pct + '%';
-        if (timeLabel) timeLabel.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
-    }
+    /* Expanded-row waveform cursor + fill: `updatePlaybackTime` (audio.js) — keeps playhead correct when paused
+     * and matches NP / engine / `<video>` transport in one place. */
     const timeDisp = _videoRafCachedTimeDisp;
     if (timeDisp) timeDisp.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
 
     const fsSeek = _videoRafCachedFsSeek;
     if (fsSeek && dur > 0 && !_videoFsSeekUserDrag) {
-        fsSeek.value = String(Math.min(1000, Math.max(0, Math.round((cur / dur) * 1000))));
+        const v = Math.min(1000, Math.max(0, Math.round((cur / dur) * 1000)));
+        if (_videoFsSeekLastWritten !== v) {
+            _videoFsSeekLastWritten = v;
+            fsSeek.value = String(v);
+        }
     }
 
     // Check if playback ended
@@ -1227,11 +1292,13 @@ function _videoRafLoop() {
         return;
     }
 
-    // Continue loop if still playing
+    // Continue while playing, attaching engine-backed video, or **paused** with a loaded path (time / fs seek / tray helpers).
     const playing = _videoEngineActive
         ? (window._enginePlaybackPaused !== true)
-        : (vid && !vid.paused && !vid.ended);
-    if (playing) {
+        : _videoFallbackAudio
+            ? !!(vid && !vid.paused && !vid.ended)
+            : !!videoPlayerPath;
+    if (playing || videoPlayerPath) {
         _videoRafId = requestAnimationFrame(_videoRafLoop);
     }
 }
@@ -1264,7 +1331,11 @@ function seekVideoToPercent(pct) {
         vid.currentTime = p * vid.duration;
     }
     const fsSeek = document.getElementById('videoFsSeek');
-    if (fsSeek) fsSeek.value = String(Math.min(1000, Math.max(0, Math.round(p * 1000))));
+    if (fsSeek) {
+        const v = Math.min(1000, Math.max(0, Math.round(p * 1000)));
+        _videoFsSeekLastWritten = v;
+        fsSeek.value = String(v);
+    }
     // Restart RAF if paused so UI updates
     if (!_videoRafId) _videoRafId = requestAnimationFrame(_videoRafLoop);
 }
@@ -1502,6 +1573,7 @@ async function drawVideoWaveform(filePath, seq) {
         } else if (typeof _waveformCache !== 'undefined') {
             _waveformCache[filePath] = peaks;
             if (typeof _evictCache === 'function') _evictCache(_waveformCache);
+            if (typeof notifyWaveformCacheUpdatedForTray === 'function') notifyWaveformCacheUpdatedForTray(filePath);
         }
     }
 
@@ -1562,14 +1634,18 @@ async function fetchVideosForExport() {
 }
 
 /**
- * Path for video play/pause / shortcuts: `videoPlayerPath` when loaded, else the expanded row
- * (`expandedVideoPath` / `#videoMetaRow`). `previewAudio` → `stopVideoPlayback()` clears
- * `videoPlayerPath` but leaves the meta panel open — without this, transport is a no-op.
+ * Path for video play/pause / shortcuts: `videoPlayerPath` when loaded; else expanded row only while
+ * the Videos tab is active (hidden `#tabVideos` still holds `expandedVideoPath` / `#videoMetaRow` in DOM).
+ * `previewAudio` → `stopVideoPlayback({ keepVideoFrame: true })` clears `videoPlayerPath` but keeps the
+ * last video frame; full `stopVideoPlayback()` clears `src` (e.g. meta row close).
  */
 function getVideoTransportTargetPath() {
     if (typeof videoPlayerPath !== 'undefined' && videoPlayerPath) return videoPlayerPath;
+    const onVideosTab =
+        typeof document !== 'undefined' && document.querySelector('.tab-content.active')?.id === 'tabVideos';
+    if (!onVideosTab) return '';
     if (expandedVideoPath) return expandedVideoPath;
-    const row = typeof document !== 'undefined' ? document.getElementById('videoMetaRow') : null;
+    const row = document.getElementById('videoMetaRow');
     const p = row && row.getAttribute('data-meta-path');
     return p ? String(p) : '';
 }

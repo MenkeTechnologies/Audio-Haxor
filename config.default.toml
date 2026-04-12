@@ -60,6 +60,8 @@ verbosity = "normal"
 dock = "dock-br"
 # Frontend prefs key `autoplayNextSource`: "samples" (visible table rows) or "player" (recently played list). EOF autoplay cycles that list only.
 autoplayNextSource = "samples"
+# Now-playing / AudioEngine / `<video>` playback rate (0.25–4). Persisted as flat key `audioSpeed`; mirrors `#npSpeed` / tray HUD.
+audioSpeed = "1"
 
 [audioEngine]
 # Playback spectrum: JUCE FFT order 8–15 (256…32768 samples) or "off". Bands: 64…Nyquist or "max" — see Audio Engine tab selects (`#aePlaybackSpectrumFftOrder`, `#aePlaybackSpectrumBands`).

@@ -5475,6 +5475,42 @@
             white-space: nowrap;
         }
 
+        /* Three row buttons (play / loop / reveal) need more than 130px inner width; default `td` uses
+         * overflow:hidden + max-width:0 which clips the last controls in narrow layouts (video tab). */
+        .audio-table th.col-actions {
+            min-width: 152px;
+        }
+
+        .audio-table td.col-actions {
+            overflow: visible;
+            max-width: none;
+            min-width: 152px;
+            text-overflow: clip;
+            vertical-align: middle;
+        }
+
+        /* Match plugin-row density: keep play / loop / reveal grouped so fixed table layout cannot hide controls. */
+        .audio-table td.col-actions .table-row-actions {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            flex-wrap: nowrap;
+        }
+
+        .audio-table td.col-actions .table-row-actions .btn-small {
+            flex-shrink: 0;
+        }
+
+        /* Video index: fewer columns than Samples — fixed layout can starve the last column in WebKit release. */
+        #videoTable th.col-actions,
+        #videoTable td.col-actions {
+            width: 152px;
+            min-width: 152px;
+            max-width: none;
+            box-sizing: border-box;
+        }
+
         .format-badge {
             display: inline-block;
             padding: 2px 8px;
@@ -5690,9 +5726,9 @@
         }
 
         .btn-play.playing {
-            color: var(--accent);
-            border-color: var(--accent);
-            box-shadow: 0 0 8px var(--accent-glow);
+            color: var(--red);
+            border-color: var(--red);
+            box-shadow: 0 0 10px rgba(255, 7, 58, 0.35);
             animation: badge-flash 1s ease-in-out infinite;
         }
 
@@ -8129,8 +8165,9 @@
             word-break: break-all;
         }
 
-        .audio-table .row-playing td {
-            background: rgba(57, 255, 20, 0.04);
+        .audio-table tr.row-playing td {
+            background: rgba(5, 217, 232, 0.06);
+            box-shadow: inset 3px 0 0 var(--cyan);
         }
 
         .audio-table .row-expanded td {
@@ -8418,9 +8455,54 @@
         }
 
         .video-meta-info {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 6px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: stretch;
+            min-width: 0;
+        }
+
+        /* Full-width rows: value grows to the right on one line; scroll horizontally if longer than panel. */
+        .video-meta-info .meta-item {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            align-items: baseline;
+            gap: 10px 14px;
+            min-width: 0;
+        }
+
+        .video-meta-info .meta-label {
+            flex: 0 0 auto;
+        }
+
+        .video-meta-info .meta-value.video-meta-path-line {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .video-meta-info .meta-value.video-meta-path {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 520px) {
+            .video-meta-info .meta-item {
+                flex-wrap: wrap;
+            }
+
+            .video-meta-info .meta-value.video-meta-path-line {
+                flex: 1 1 100%;
+                white-space: normal;
+                overflow-x: visible;
+                overflow-wrap: anywhere;
+            }
         }
 
         /* Toast notifications */
@@ -8833,6 +8915,7 @@
                         <option data-i18n="ui.opt.1_25x" value="1.25">1.25x</option>
                         <option data-i18n="ui.opt.1_5x" value="1.5">1.5x</option>
                         <option data-i18n="ui.opt.2x" value="2">2x</option>
+                        <option data-i18n="ui.opt.4x" value="4">4x</option>
                     </select>
                     <button class="btn-small btn-loop" data-action="toggleReversePlayback" data-i18n="ui.btn.rev"
                             data-i18n-title="ui.tt.reverse_playback" id="npBtnReverse"
@@ -8964,7 +9047,7 @@
                         </div>
                         <div class="np-eq-band np-eq-band-speed-h">
                             <label data-i18n="ui.np.label_speed">Speed</label>
-                            <input class="np-eq-speed-h" data-action="setPlaybackSpeed" data-i18n-title="ui.tt.playback_speed" id="npEqSpeedSlider" max="2" min="0.25"
+                            <input class="np-eq-speed-h" data-action="setPlaybackSpeed" data-i18n-title="ui.tt.playback_speed" id="npEqSpeedSlider" max="4" min="0.25"
                                    step="0.25" title="Playback speed" type="range" value="1">
                             <span class="eq-val" id="npEqSpeedVal">1×</span>
                         </div>
@@ -10242,6 +10325,7 @@
                                 <option data-i18n="ui.opt.1_25x" value="1.25">1.25x</option>
                                 <option data-i18n="ui.opt.1_5x" value="1.5">1.5x</option>
                                 <option data-i18n="ui.opt.2x" value="2">2x</option>
+                                <option data-i18n="ui.opt.4x" value="4">4x</option>
                             </select>
                         </label>
                     </div>
@@ -11404,6 +11488,21 @@
                 </div>
                 <div class="settings-row">
                     <div class="settings-label">
+                        <span class="settings-title" data-i18n="ui.st.video_audio_route">Video audio output</span>
+                        <span class="settings-desc"
+                              data-i18n="ui.sd.video_audio_route">AudioEngine: same path as samples (EQ, inserts, spectrum). WebView: decode in the browser (less RAM on huge files; plugins do not apply).</span>
+                    </div>
+                    <div class="settings-control">
+                        <select class="settings-select" data-action="settingVideoAudioRoute" data-i18n-title="ui.tt.video_audio_route"
+                                id="settingVideoAudioRoute"
+                                title="Where video file audio is decoded and output">
+                            <option value="engine" data-i18n="ui.opt.video_audio_route_engine">Audio engine (plugins / DSP)</option>
+                            <option value="html5" data-i18n="ui.opt.video_audio_route_html5">WebView / HTML5 only</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-label">
                         <span class="settings-title" data-i18n="ui.st.include_ableton_backup_amp_crash_sets">Include Ableton Backup &amp; Crash Sets</span>
                         <span class="settings-desc"
                               data-i18n="ui.sd.include_als_files_from_ableton_s_backup_and_crash_">Include .als files from Ableton's Backup and Crash directories in DAW scan results</span>
@@ -12029,48 +12128,48 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=25696"></script>
-<script src="js/utils.js?v=25696"></script>
-<script src="js/ui-idle.js?v=25696"></script>
-<script src="js/ipc.js?v=25696"></script>
-<script src="js/tooltip-hover.js?v=25696"></script>
-<script src="js/drag-reorder.js?v=25696"></script>
-<script src="js/modal-drag.js?v=25696"></script>
-<script src="js/columns.js?v=25696"></script>
-<script src="js/notes.js?v=25696"></script>
-<script src="js/favorites.js?v=25696"></script>
-<script src="js/export.js?v=25696"></script>
-<script src="js/plugins.js?v=25696"></script>
-<script src="js/settings.js?v=25696"></script>
-<script src="js/history.js?v=25696"></script>
-<script src="js/kvr.js?v=25696"></script>
-<script src="js/graph-freeze.js?v=25696"></script>
-<script src="js/audio.js?v=25696"></script>
-<script src="js/daw.js?v=25696"></script>
-<script src="js/disk-usage.js?v=25696"></script>
-<script src="js/presets.js?v=25696"></script>
-<script src="js/batch-select.js?v=25696"></script>
-<script src="js/native-file-drag.js?v=25696"></script>
-<script src="js/sort-persist.js?v=25696"></script>
-<script src="js/multi-filter.js?v=25696"></script>
-<script src="js/file-browser.js?v=25696"></script>
-<script src="js/duplicates.js?v=25696"></script>
-<script src="js/command-palette.js?v=25696"></script>
-<script src="js/xref.js?v=25696"></script>
-<script src="js/dep-graph.js?v=25696"></script>
-<script src="js/smart-playlists.js?v=25696"></script>
-<script src="js/heatmap-dashboard.js?v=25696"></script>
-<script src="js/midi.js?v=25696"></script>
-<script src="js/pdf.js?v=25696"></script>
-<script src="js/video.js?v=25696"></script>
-<script src="js/settings-search.js?v=25696"></script>
-<script src="js/visualizer.js?v=25696"></script>
-<script src="js/walker-status.js?v=25696"></script>
-<script src="js/audio-engine.js?v=25696"></script>
-<script src="js/context-menu.js?v=25696"></script>
-<script src="js/shortcuts.js?v=25696"></script>
-<script src="js/help-overlay.js?v=25696"></script>
-<script src="js/keyboard-nav.js?v=25696"></script>
-<script src="js/app.js?v=25696"></script>
+<script src="js/i18n-ui.js?v=81179"></script>
+<script src="js/utils.js?v=81179"></script>
+<script src="js/ui-idle.js?v=81179"></script>
+<script src="js/ipc.js?v=81179"></script>
+<script src="js/tooltip-hover.js?v=81179"></script>
+<script src="js/drag-reorder.js?v=81179"></script>
+<script src="js/modal-drag.js?v=81179"></script>
+<script src="js/columns.js?v=81179"></script>
+<script src="js/notes.js?v=81179"></script>
+<script src="js/favorites.js?v=81179"></script>
+<script src="js/export.js?v=81179"></script>
+<script src="js/plugins.js?v=81179"></script>
+<script src="js/settings.js?v=81179"></script>
+<script src="js/history.js?v=81179"></script>
+<script src="js/kvr.js?v=81179"></script>
+<script src="js/graph-freeze.js?v=81179"></script>
+<script src="js/audio.js?v=81179"></script>
+<script src="js/daw.js?v=81179"></script>
+<script src="js/disk-usage.js?v=81179"></script>
+<script src="js/presets.js?v=81179"></script>
+<script src="js/batch-select.js?v=81179"></script>
+<script src="js/native-file-drag.js?v=81179"></script>
+<script src="js/sort-persist.js?v=81179"></script>
+<script src="js/multi-filter.js?v=81179"></script>
+<script src="js/file-browser.js?v=81179"></script>
+<script src="js/duplicates.js?v=81179"></script>
+<script src="js/command-palette.js?v=81179"></script>
+<script src="js/xref.js?v=81179"></script>
+<script src="js/dep-graph.js?v=81179"></script>
+<script src="js/smart-playlists.js?v=81179"></script>
+<script src="js/heatmap-dashboard.js?v=81179"></script>
+<script src="js/midi.js?v=81179"></script>
+<script src="js/pdf.js?v=81179"></script>
+<script src="js/video.js?v=81179"></script>
+<script src="js/settings-search.js?v=81179"></script>
+<script src="js/visualizer.js?v=81179"></script>
+<script src="js/walker-status.js?v=81179"></script>
+<script src="js/audio-engine.js?v=81179"></script>
+<script src="js/context-menu.js?v=81179"></script>
+<script src="js/shortcuts.js?v=81179"></script>
+<script src="js/help-overlay.js?v=81179"></script>
+<script src="js/keyboard-nav.js?v=81179"></script>
+<script src="js/app.js?v=81179"></script>
 </body>
 </html>

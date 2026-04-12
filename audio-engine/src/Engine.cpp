@@ -1150,7 +1150,7 @@ public:
             if (playbackSpeed != nullptr)
             {
                 const double r = (double) playbackSpeed->load();
-                speedResampler->setResamplingRatio(juce::jlimit(0.25, 2.0, r));
+                speedResampler->setResamplingRatio(juce::jlimit(0.25, 4.0, r));
             }
             speedResampler->getNextAudioBlock(bufferToFill);
         }
@@ -1361,7 +1361,7 @@ struct Engine::Impl
     ToneAudioSource toneSource;
     std::unique_ptr<DspStereoFileSource> fileSource;
     std::atomic<float> playbackPeak{0.0f};
-    /** 0.25–2.0, tape-style playback (`juce::ResamplingAudioSource`); ignored in reverse mode. */
+    /** 0.25–4.0, tape-style playback (`juce::ResamplingAudioSource`); ignored in reverse mode. */
     std::atomic<float> playbackSpeed{1.0f};
     DspAtomics dsp;
 
@@ -2600,7 +2600,7 @@ struct Engine::Impl
                 fileSource->readerSource = std::make_unique<juce::AudioFormatReaderSource>(raw, true);
                 fileSource->speedResampler =
                     std::make_unique<juce::ResamplingAudioSource>(fileSource->readerSource.get(), false, 2);
-                fileSource->speedResampler->setResamplingRatio((double) juce::jlimit(0.25f, 2.0f, playbackSpeed.load()));
+                fileSource->speedResampler->setResamplingRatio((double) juce::jlimit(0.25f, 4.0f, playbackSpeed.load()));
                 fileSource->playbackSpeed = &playbackSpeed;
             }
 
@@ -2768,7 +2768,7 @@ struct Engine::Impl
         o->setProperty("sample_rate_hz", (int) deviceRate.load());
         o->setProperty("src_rate_hz", (int) sessionSrcRate);
         o->setProperty("reverse", reverseWanted);
-        o->setProperty("speed", (double) juce::jlimit(0.25f, 2.0f, playbackSpeed.load()));
+        o->setProperty("speed", (double) juce::jlimit(0.25f, 4.0f, playbackSpeed.load()));
         if (!playbackMode)
         {
             o->setProperty("position_sec", 0.0);
@@ -3264,7 +3264,7 @@ juce::var Engine::dispatch(const juce::var& req)
     if (cmd == "playback_set_speed")
     {
         float s = req["speed"].isVoid() ? 1.0f : (float) req["speed"];
-        s = juce::jlimit(0.25f, 2.0f, s);
+        s = juce::jlimit(0.25f, 4.0f, s);
         impl->playbackSpeed.store(s);
         juce::var out = okObj();
         if (auto* o = out.getDynamicObject())

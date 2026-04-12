@@ -1111,6 +1111,40 @@ function buildPaletteDynamicItems() {
             action: () => settingSetAutoplayNextSource('samples')
         });
     }
+    if (typeof settingSetVideoAudioRoute === 'function' && typeof prefs !== 'undefined') {
+        const rt = prefs.getItem('videoAudioRoute') === 'html5' ? 'html5' : 'engine';
+        const active = catalogFmt('ui.palette.autoplay_source_active');
+        items.push({
+            type: 'action',
+            name: catalogFmt('menu.palette_video_audio_engine'),
+            detail: rt === 'engine' ? active : '',
+            fields: [
+                catalogFmt('menu.palette_video_audio_engine'),
+                catalogFmt('menu.palette_video_audio_html5'),
+                catalogFmt('ui.st.video_audio_route'),
+                catalogFmt('ui.opt.video_audio_route_engine'),
+                catalogFmt('ui.opt.video_audio_route_html5'),
+            ],
+            icon: '&#127898;',
+            ...paletteShortcutTip('videoAudioRouteEngine'),
+            action: () => settingSetVideoAudioRoute('engine'),
+        });
+        items.push({
+            type: 'action',
+            name: catalogFmt('menu.palette_video_audio_html5'),
+            detail: rt === 'html5' ? active : '',
+            fields: [
+                catalogFmt('menu.palette_video_audio_html5'),
+                catalogFmt('menu.palette_video_audio_engine'),
+                catalogFmt('ui.st.video_audio_route'),
+                catalogFmt('ui.opt.video_audio_route_engine'),
+                catalogFmt('ui.opt.video_audio_route_html5'),
+            ],
+            icon: '&#128187;',
+            ...paletteShortcutTip('videoAudioRouteHtml5'),
+            action: () => settingSetVideoAudioRoute('html5'),
+        });
+    }
     if (typeof getFavDirs === 'function') {
         for (const d of getFavDirs()) {
             items.push({

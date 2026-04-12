@@ -416,6 +416,27 @@ pub fn build_native_menu_bar<R: Runtime>(
         true,
         Some("CmdOrCtrl+Shift+Alt+E"),
     )?;
+    let video_audio_route_sep = PredefinedMenuItem::separator(handle)?;
+    let video_audio_route_engine = MenuItem::with_id(
+        handle,
+        "video_audio_route_engine",
+        t(
+            "menu.video_audio_route_engine",
+            "Video Audio: Audio Engine (plugins)",
+        ),
+        true,
+        Some("CmdOrCtrl+Shift+7"),
+    )?;
+    let video_audio_route_html5 = MenuItem::with_id(
+        handle,
+        "video_audio_route_html5",
+        t(
+            "menu.video_audio_route_html5",
+            "Video Audio: WebView (HTML5)",
+        ),
+        true,
+        Some("CmdOrCtrl+Shift+8"),
+    )?;
 
     let next_track = MenuItem::with_id(
         handle,
@@ -463,6 +484,9 @@ pub fn build_native_menu_bar<R: Runtime>(
             &toggle_mute,
             &playback_sep,
             &expand_player,
+            &video_audio_route_sep,
+            &video_audio_route_engine,
+            &video_audio_route_html5,
         ],
     )?;
 

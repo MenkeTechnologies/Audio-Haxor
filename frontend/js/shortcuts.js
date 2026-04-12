@@ -93,6 +93,8 @@ const SHORTCUT_LABEL_KEYS = {
     toggleAutoplayNext: 'ui.shortcut.toggle_autoplay_next',
     autoplaySourcePlayer: 'ui.shortcut.autoplay_source_player',
     autoplaySourceSamples: 'ui.shortcut.autoplay_source_samples',
+    videoAudioRouteEngine: 'ui.shortcut.video_audio_route_engine',
+    videoAudioRouteHtml5: 'ui.shortcut.video_audio_route_html5',
     clearAnalysisCache: 'ui.shortcut.clear_analysis_cache',
     cycleLogVerbosity: 'ui.shortcut.cycle_log_verbosity',
     increasePruneKeep: 'ui.shortcut.increase_prune_keep',
@@ -207,6 +209,8 @@ const DEFAULT_SHORTCUT_DEFS = {
     toggleAutoplayNext: {key: 'n', mod: true, shift: true},
     autoplaySourcePlayer: {key: '[', mod: true, shift: true},
     autoplaySourceSamples: {key: ']', mod: true, shift: true},
+    videoAudioRouteEngine: {key: '7', mod: true, shift: true},
+    videoAudioRouteHtml5: {key: '8', mod: true, shift: true},
     clearAnalysisCache: {key: '9', mod: true, shift: true},
     cycleLogVerbosity: {key: '?', mod: true, shift: true},
     increasePruneKeep: {key: '+', mod: true, shift: true},
@@ -505,13 +509,14 @@ function executeShortcut(id) {
                 transportPath = window.getVideoTransportTargetPath();
             }
             if (transportPath) {
-                const playingOtherTrack =
+                /* Another file is the loaded NP track (e.g. sample after `stopVideoPlayback`) — Space must
+                 * drive `toggleAudioPlayback` for that track whether it is playing or paused, not
+                 * `previewVideo` (which would start the expanded video instead of resuming the sample). */
+                const otherTrackBlocksVideoSpace =
                     typeof audioPlayerPath !== 'undefined' &&
                     audioPlayerPath &&
-                    audioPlayerPath !== transportPath &&
-                    typeof isAudioPlaying === 'function' &&
-                    isAudioPlaying();
-                if (!playingOtherTrack) {
+                    audioPlayerPath !== transportPath;
+                if (!otherTrackBlocksVideoSpace) {
                     void previewVideo(transportPath);
                     return;
                 }
@@ -757,6 +762,10 @@ function executeShortcut(id) {
         if (typeof settingSetAutoplayNextSource === 'function') settingSetAutoplayNextSource('player');
     } else if (id === 'autoplaySourceSamples') {
         if (typeof settingSetAutoplayNextSource === 'function') settingSetAutoplayNextSource('samples');
+    } else if (id === 'videoAudioRouteEngine') {
+        if (typeof settingSetVideoAudioRoute === 'function') settingSetVideoAudioRoute('engine');
+    } else if (id === 'videoAudioRouteHtml5') {
+        if (typeof settingSetVideoAudioRoute === 'function') settingSetVideoAudioRoute('html5');
     } else if (id === 'clearAnalysisCache') {
         if (typeof settingClearAnalysisCache === 'function') void settingClearAnalysisCache();
     } else if (id === 'cycleLogVerbosity') {
