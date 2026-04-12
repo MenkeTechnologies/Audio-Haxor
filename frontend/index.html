@@ -8917,6 +8917,11 @@
                         <option data-i18n="ui.opt.2x" value="2">2x</option>
                         <option data-i18n="ui.opt.4x" value="4">4x</option>
                     </select>
+                    <select class="speed-select" data-action="setSpeedMode" data-i18n-title="ui.tt.speed_mode" id="npSpeedMode"
+                            title="Speed algorithm">
+                        <option data-i18n="ui.opt.resample" value="resample">Resample</option>
+                        <option data-i18n="ui.opt.timestretch" value="timestretch">Time Stretch</option>
+                    </select>
                     <button class="btn-small btn-loop" data-action="toggleReversePlayback" data-i18n="ui.btn.rev"
                             data-i18n-title="ui.tt.reverse_playback" id="npBtnReverse"
                             style="padding:3px 6px;font-size:10px;min-width:28px;"
@@ -10326,6 +10331,13 @@
                                 <option data-i18n="ui.opt.1_5x" value="1.5">1.5x</option>
                                 <option data-i18n="ui.opt.2x" value="2">2x</option>
                                 <option data-i18n="ui.opt.4x" value="4">4x</option>
+                            </select>
+                        </label>
+                        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-muted);" data-i18n-title="ui.tt.speed_mode">
+                            <span data-i18n="ui.np.label_speed_mode">Mode</span>
+                            <select id="aeSpeedMode" class="ae-input settings-select" data-i18n-title="ui.tt.speed_mode" style="min-width:110px;padding:6px 8px;font-size:13px;">
+                                <option data-i18n="ui.opt.resample" value="resample">Resample</option>
+                                <option data-i18n="ui.opt.timestretch" value="timestretch">Time Stretch</option>
                             </select>
                         </label>
                     </div>

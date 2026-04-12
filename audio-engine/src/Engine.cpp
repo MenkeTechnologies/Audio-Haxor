@@ -979,6 +979,115 @@ private:
     double sr = 44100.0;
 };
 
+/** Speed algorithm selection — stored as `std::atomic<int>`. */
+enum class SpeedMode : int { Resample = 0, TimeStretch = 1 };
+
+/**
+ * Basic OLA (Overlap-Add) time stretcher.
+ *
+ * Changes playback speed without altering pitch. Uses Hann-windowed
+ * overlap-add with 75 % overlap (synthesis hop = window / 4). The analysis
+ * hop is `synthHop * speed`, so input is consumed proportionally to the
+ * requested speed while the output timeline advances at a fixed rate.
+ */
+struct OlaTimeStretch
+{
+    static constexpr int WINDOW = 2048;
+    static constexpr int SYNTH_HOP = WINDOW / 4; // 512 — 75 % overlap
+    float hann[WINDOW]{};
+    juce::AudioBuffer<float> inBuf;
+    int inFilled = 0;
+    juce::AudioBuffer<float> outRing;
+    static constexpr int OUT_RING_SIZE = 32768;
+    int outWritePos = 0;
+    int outReadPos = 0;
+    int outAvail = 0;
+
+    void prepare()
+    {
+        // Hann window normalised so that 4× overlap sums to 1.0
+        constexpr float kNorm = 1.0f / 1.5f;
+        for (int i = 0; i < WINDOW; ++i)
+            hann[i] = kNorm * 0.5f * (1.0f - std::cos(2.0f * juce::MathConstants<float>::pi * i / (WINDOW - 1)));
+        inBuf.setSize(2, WINDOW);
+        inBuf.clear();
+        outRing.setSize(2, OUT_RING_SIZE);
+        outRing.clear();
+        reset();
+    }
+
+    void reset()
+    {
+        inBuf.clear();
+        outRing.clear();
+        inFilled = 0;
+        outWritePos = 0;
+        outReadPos = 0;
+        outAvail = 0;
+    }
+
+    /** Fill `bufferToFill` with pitch-preserved time-stretched audio from `src`. */
+    void process(juce::AudioSource* src, float speed, const juce::AudioSourceChannelInfo& bufferToFill)
+    {
+        if (src == nullptr || bufferToFill.buffer == nullptr)
+            return;
+        const int numSamples = bufferToFill.numSamples;
+        const int analysisHop = juce::jmax(1, (int)(SYNTH_HOP * (double) juce::jlimit(0.25f, 4.0f, speed)));
+        float* outL = bufferToFill.buffer->getWritePointer(0, bufferToFill.startSample);
+        float* outR = bufferToFill.buffer->getWritePointer(1, bufferToFill.startSample);
+        int written = 0;
+        while (written < numSamples)
+        {
+            // Serve from output ring
+            const int canServe = juce::jmin(numSamples - written, outAvail);
+            for (int i = 0; i < canServe; ++i)
+            {
+                const int idx = (outReadPos + i) % OUT_RING_SIZE;
+                outL[written + i] = outRing.getSample(0, idx);
+                outR[written + i] = outRing.getSample(1, idx);
+                outRing.setSample(0, idx, 0.0f);
+                outRing.setSample(1, idx, 0.0f);
+            }
+            outReadPos = (outReadPos + canServe) % OUT_RING_SIZE;
+            outAvail -= canServe;
+            written += canServe;
+            if (written >= numSamples)
+                break;
+
+            // Need more output — run one OLA frame.
+            // 1. Ensure we have a full window of input.
+            if (inFilled < WINDOW)
+            {
+                const int need = WINDOW - inFilled;
+                juce::AudioSourceChannelInfo readInfo(&inBuf, inFilled, need);
+                src->getNextAudioBlock(readInfo);
+                inFilled += need;
+            }
+            // 2. Window the input and overlap-add into outRing.
+            for (int i = 0; i < WINDOW; ++i)
+            {
+                const float w = hann[i];
+                const int oi = (outWritePos + i) % OUT_RING_SIZE;
+                outRing.addSample(0, oi, inBuf.getSample(0, i) * w);
+                outRing.addSample(1, oi, inBuf.getSample(1, i) * w);
+            }
+            outWritePos = (outWritePos + SYNTH_HOP) % OUT_RING_SIZE;
+            outAvail += SYNTH_HOP;
+            // 3. Shift input by analysisHop; keep the tail for the next window.
+            const int keep = juce::jmax(0, inFilled - analysisHop);
+            if (keep > 0)
+            {
+                for (int ch = 0; ch < 2; ++ch)
+                {
+                    float* ptr = inBuf.getWritePointer(ch);
+                    std::memmove(ptr, ptr + analysisHop, (size_t) keep * sizeof(float));
+                }
+            }
+            inFilled = keep;
+        }
+    }
+};
+
 class DspStereoFileSource final : public juce::PositionableAudioSource
 {
 public:
@@ -986,6 +1095,10 @@ public:
     /** Forward playback only: wraps `readerSource` for tape-style speed (pitch follows rate). */
     std::unique_ptr<juce::ResamplingAudioSource> speedResampler;
     std::atomic<float>* playbackSpeed = nullptr;
+    /** Pointer to the global speed-mode atomic (0 = Resample, 1 = TimeStretch). */
+    std::atomic<int>* speedMode = nullptr;
+    /** OLA time-stretcher state (used when mode == TimeStretch). */
+    OlaTimeStretch ola;
     /** When non-null, reverse path wraps when `load()` is true (same flag as forward `playback_set_loop`). */
     std::atomic<bool>* playbackLoop = nullptr;
     juce::AudioBuffer<float> reverseStereo;
@@ -1019,6 +1132,7 @@ public:
             speedResampler->prepareToPlay(samplesPerBlockExpected, sampleRate);
         if (insertChain != nullptr)
             insertChain->prepare(sampleRate, samplesPerBlockExpected);
+        ola.prepare();
     }
 
     void releaseResources() override
@@ -1046,6 +1160,7 @@ public:
             readerSource->setNextReadPosition(newPosition);
             if (speedResampler != nullptr)
                 speedResampler->flushBuffers();
+            ola.reset();
         }
     }
 
@@ -1145,7 +1260,13 @@ public:
             return;
         }
 
-        if (speedResampler != nullptr)
+        const bool timeStretch = speedMode != nullptr && speedMode->load() == (int) SpeedMode::TimeStretch;
+        if (timeStretch)
+        {
+            const float sp = playbackSpeed != nullptr ? playbackSpeed->load() : 1.0f;
+            ola.process(readerSource.get(), sp, bufferToFill);
+        }
+        else if (speedResampler != nullptr)
         {
             if (playbackSpeed != nullptr)
             {
@@ -1363,6 +1484,8 @@ struct Engine::Impl
     std::atomic<float> playbackPeak{0.0f};
     /** 0.25–4.0, tape-style playback (`juce::ResamplingAudioSource`); ignored in reverse mode. */
     std::atomic<float> playbackSpeed{1.0f};
+    /** 0 = Resample (pitch follows rate), 1 = TimeStretch (preserve pitch). */
+    std::atomic<int> speedMode{0};
     DspAtomics dsp;
 
     std::mutex spectrumRingMutex;
@@ -2602,6 +2725,7 @@ struct Engine::Impl
                     std::make_unique<juce::ResamplingAudioSource>(fileSource->readerSource.get(), false, 2);
                 fileSource->speedResampler->setResamplingRatio((double) juce::jlimit(0.25f, 4.0f, playbackSpeed.load()));
                 fileSource->playbackSpeed = &playbackSpeed;
+                fileSource->speedMode = &speedMode;
             }
 
             fileSource->playbackLoop = &playbackLoopWanted;
@@ -2769,6 +2893,9 @@ struct Engine::Impl
         o->setProperty("src_rate_hz", (int) sessionSrcRate);
         o->setProperty("reverse", reverseWanted);
         o->setProperty("speed", (double) juce::jlimit(0.25f, 4.0f, playbackSpeed.load()));
+        o->setProperty("speed_mode", speedMode.load() == (int) SpeedMode::TimeStretch
+                                         ? juce::String("timestretch")
+                                         : juce::String("resample"));
         if (!playbackMode)
         {
             o->setProperty("position_sec", 0.0);
@@ -3273,6 +3400,17 @@ juce::var Engine::dispatch(const juce::var& req)
             if (impl->reverseWanted)
                 o->setProperty("note", "speed stored; reverse path plays at 1× (resampler skipped)");
         }
+        return out;
+    }
+
+    if (cmd == "playback_set_speed_mode")
+    {
+        const juce::String mode = req["mode"].isVoid() ? "resample" : req["mode"].toString();
+        const int m = mode == "timestretch" ? (int) SpeedMode::TimeStretch : (int) SpeedMode::Resample;
+        impl->speedMode.store(m);
+        juce::var out = okObj();
+        if (auto* o = out.getDynamicObject())
+            o->setProperty("speed_mode", mode == "timestretch" ? juce::String("timestretch") : juce::String("resample"));
         return out;
     }
 
