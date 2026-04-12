@@ -1713,6 +1713,12 @@ struct Engine::Impl
     juce::String sessionPath;
     double sessionDurationSec = 0.0;
     uint32_t sessionSrcRate = 44100;
+    /// Monotonic counter incremented by `playbackLoad`.  `playbackStopLocked` only clears
+    /// `sessionPath` when a matching `startOutputStreamLocked` has consumed the load, so a
+    /// stale `playback_stop` arriving between a newer `playback_load` / `start_output_stream`
+    /// pair cannot clear the session mid-transition.
+    uint64_t loadGen = 0;
+    uint64_t consumedGen = 0;
     std::atomic<uint32_t> deviceRate{0};
     bool reverseWanted = false;
     /** Forward: `AudioFormatReaderSource::setLooping`. Reverse: `DspStereoFileSource` wraps RAM buffer. */
@@ -2559,6 +2565,7 @@ struct Engine::Impl
         std::unique_ptr<juce::AudioFormatReader> reader(formatManager.createReaderFor(f));
         if (reader == nullptr)
             return errObj("unsupported or unreadable file");
+        ++loadGen;
         sessionPath = path;
         sessionSrcRate = (uint32_t) reader->sampleRate;
         sessionDurationSec = (double) reader->lengthInSamples / juce::jmax(1.0, reader->sampleRate);
@@ -2582,8 +2589,11 @@ struct Engine::Impl
         transport.releaseResources();
         fileSource.reset();
         playbackMode = false;
-        sessionPath.clear();
-        sessionDurationSec = 0.0;
+        if (loadGen == consumedGen)
+        {
+            sessionPath.clear();
+            sessionDurationSec = 0.0;
+        }
         if (outputRunning)
         {
             toneSource.toneOn.store(false);
@@ -2611,6 +2621,9 @@ struct Engine::Impl
 
         if (startPlayback && sessionPath.isEmpty())
             return errObj("playback_load required before start_playback");
+
+        if (startPlayback)
+            consumedGen = loadGen;
 
         juce::String devName = resolveOutputDeviceName(outputManager, deviceId);
         if (devName.isEmpty() && !deviceId.isEmpty())

@@ -3561,7 +3561,7 @@ async function previewAudio(filePath, opts) {
         } else {
             if (typeof stopVideoPlayback === 'function') stopVideoPlayback({ keepVideoFrame: true });
             if (_enginePlaybackActive && typeof window.enginePlaybackStop === 'function') {
-                window._pendingEngineStop = window.enginePlaybackStop();
+                void window.enginePlaybackStop();
                 setEnginePlaybackActive(false);
             }
             if (typeof window !== 'undefined') {
@@ -3783,7 +3783,7 @@ function updateLoopBtnStates() {
 
 function stopAudioPlayback() {
     if (_enginePlaybackActive && typeof window !== 'undefined' && typeof window.enginePlaybackStop === 'function') {
-        window._pendingEngineStop = window.enginePlaybackStop();
+        void window.enginePlaybackStop();
         setEnginePlaybackActive(false);
     }
     stopReverseBufferPlayback();

@@ -4253,13 +4253,6 @@ async function enginePlaybackStart(filePath) {
     if (typeof window !== 'undefined' && typeof window.resetEnginePlaybackEofFlag === 'function') {
         window.resetEnginePlaybackEofFlag();
     }
-    /* Drain any fire-and-forget `enginePlaybackStop()` so its `playback_stop` IPC does not land
-     * between our `playback_load` and `start_output_stream` and clear `sessionPath` in the C++
-     * engine — that race produces "playback_load required before start_playback". */
-    if (typeof window !== 'undefined' && window._pendingEngineStop) {
-        try { await window._pendingEngineStop; } catch {}
-        window._pendingEngineStop = null;
-    }
     const inv = getAeAudioEngineInvoke();
     if (!inv) throw new Error('audio engine IPC unavailable');
     let r = await inv({cmd: 'playback_load', path: filePath});

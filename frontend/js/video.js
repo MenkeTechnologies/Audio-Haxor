@@ -764,7 +764,7 @@ function stopVideoPlayback(opts) {
     if (_videoEngineActive) {
         _videoEngineActive = false;
         if (typeof window.enginePlaybackStop === 'function') {
-            window._pendingEngineStop = window.enginePlaybackStop();
+            void window.enginePlaybackStop();
         }
         if (typeof window.setEnginePlaybackActive === 'function') {
             window.setEnginePlaybackActive(false);
