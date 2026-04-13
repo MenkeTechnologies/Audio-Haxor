@@ -1115,8 +1115,12 @@ public:
     juce::dsp::IIR::Filter<float> lowL, lowR, midL, midR, hiL, hiR;
     double processRate = 44100.0;
     InsertChainRunner* insertChain = nullptr;
-    /// Remaining samples of linear fade-in after a seek to mask discontinuities.
-    static constexpr int kSeekFadeSamples = 128;
+    /** After a seek the counter is set to `kSeekMuteSamples + kSeekFadeSamples`.
+     *  While > kSeekFadeSamples → output is zeroed (buffer refill window).
+     *  While 1..kSeekFadeSamples → linear fade-in from 0 → 1. */
+    static constexpr int kSeekMuteSamples = 1024;   // ~21 ms @ 48 kHz — silent while buffer refills
+    static constexpr int kSeekFadeSamples = 512;     // ~10 ms @ 48 kHz — smooth ramp-in
+    static constexpr int kSeekTotalSamples = kSeekMuteSamples + kSeekFadeSamples;
     std::atomic<int> seekFadeRemaining{0};
 
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override
@@ -1172,7 +1176,7 @@ public:
                 speedResampler->flushBuffers();
             ola.reset();
             lowL.reset(); lowR.reset(); midL.reset(); midR.reset(); hiL.reset(); hiR.reset();
-            seekFadeRemaining.store(kSeekFadeSamples);
+            seekFadeRemaining.store(kSeekTotalSamples);
         }
         else if (readerSource != nullptr)
         {
@@ -1181,7 +1185,7 @@ public:
                 speedResampler->flushBuffers();
             ola.reset();
             lowL.reset(); lowR.reset(); midL.reset(); midR.reset(); hiL.reset(); hiR.reset();
-            seekFadeRemaining.store(kSeekFadeSamples);
+            seekFadeRemaining.store(kSeekTotalSamples);
         }
     }
 
@@ -1333,22 +1337,30 @@ public:
         if (insertChain != nullptr && insertChain->isActive())
             insertChain->process(*bufferToFill.buffer, bufferToFill.startSample, n);
 
-        /* Apply a short linear fade-in after a seek to mask the discontinuity from
-         * stale buffer data / IIR filter reset.  The fade counter is set atomically
-         * by `setNextReadPosition` and consumed here on the audio thread. */
+        /* Two-phase seek smoothing: after a seek the counter starts at kSeekTotalSamples.
+         *   Phase 1 (counter > kSeekFadeSamples): hard mute — zero output while
+         *           BufferingAudioSource refills from the new position.
+         *   Phase 2 (counter 1..kSeekFadeSamples): linear fade-in 0 → 1.
+         * Counter is set atomically by `setNextReadPosition`, consumed here on the
+         * audio thread.  Relaxed ordering is fine — worst case is one extra silent block. */
         {
-            int fadeRem = seekFadeRemaining.load();
+            int fadeRem = seekFadeRemaining.load(std::memory_order_relaxed);
             if (fadeRem > 0)
             {
-                const int fadeSamples = juce::jmin(fadeRem, n);
-                for (int i = 0; i < fadeSamples; ++i)
+                const int toConsume = juce::jmin(fadeRem, n);
+                for (int i = 0; i < toConsume; ++i)
                 {
-                    const float gain = (float)(kSeekFadeSamples - fadeRem + i + 1) / (float) kSeekFadeSamples;
+                    const int phase = fadeRem - i;          // counts down per sample
+                    float gain;
+                    if (phase > kSeekFadeSamples)
+                        gain = 0.0f;                        // mute window
+                    else
+                        gain = 1.0f - (float) phase / (float) kSeekFadeSamples;  // 0→1 ramp
                     const int idx = bufferToFill.startSample + i;
                     bufferToFill.buffer->setSample(0, idx, bufferToFill.buffer->getSample(0, idx) * gain);
                     bufferToFill.buffer->setSample(1, idx, bufferToFill.buffer->getSample(1, idx) * gain);
                 }
-                seekFadeRemaining.store(fadeRem - fadeSamples);
+                seekFadeRemaining.store(fadeRem - toConsume, std::memory_order_relaxed);
             }
         }
 
