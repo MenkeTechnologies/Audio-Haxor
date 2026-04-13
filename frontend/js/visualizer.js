@@ -353,6 +353,7 @@ document.addEventListener('click', (e) => {
     }
     _resizeCanvases();
     _refreshVizTileCache();
+    startVisualizer(); // restart loop if it died from a draw exception
 });
 
 // ── Fullscreen ──
@@ -456,6 +457,11 @@ function _vizLoop(timestamp) {
         return;
     }
     if (typeof window.isUiIdleHeavyCpu === 'function' && window.isUiIdleHeavyCpu()) {
+        /* Slow-poll instead of bare return so the loop self-recovers when idle
+         * was a transient glitch (stale Tauri window-state poll, brief occlusion).
+         * The `ui-idle-heavy-cpu` event listener also restarts, but a missed
+         * false→true→false transition would otherwise kill the loop permanently. */
+        _vizScheduleNext(500);
         return;
     }
 
@@ -483,90 +489,94 @@ function _vizLoop(timestamp) {
     }
     _vizLastFrame = ts;
 
-    const modes =
-        _vizMode === 'all'
-            ? ['fft', 'oscilloscope', 'spectrogram', 'stereo', 'levels', 'bands']
-            : [_vizMode];
+    try {
+        const modes =
+            _vizMode === 'all'
+                ? ['fft', 'oscilloscope', 'spectrogram', 'stereo', 'levels', 'bands']
+                : [_vizMode];
 
-    const needByte = modes.some(
-        (m) => (m === 'fft' || m === 'spectrogram' || m === 'bands') && !_vizTileFrozen(m)
-    );
-    const needOscFloat = modes.includes('oscilloscope') && !_vizTileFrozen('oscilloscope');
+        const needByte = modes.some(
+            (m) => (m === 'fft' || m === 'spectrogram' || m === 'bands') && !_vizTileFrozen(m)
+        );
+        const needOscFloat = modes.includes('oscilloscope') && !_vizTileFrozen('oscilloscope');
 
-    const nSc = _vizEngineScopeLen();
-    const sl = typeof window !== 'undefined' ? window._engineScopeL : null;
-    const engineScopeStereo = nSc >= 32 && sl && window._engineScopeR && _vizEngineSpectrumOk();
-    const minB = _vizEngineSpectrumMinBins();
-    const specU8Ok =
-        typeof window !== 'undefined' && window._engineSpectrumU8 && window._engineSpectrumU8.length >= minB;
-    const engineSpecStereo = !!specU8Ok && _vizEngineSpectrumOk();
+        const nSc = _vizEngineScopeLen();
+        const sl = typeof window !== 'undefined' ? window._engineScopeL : null;
+        const engineScopeStereo = nSc >= 32 && sl && window._engineScopeR && _vizEngineSpectrumOk();
+        const minB = _vizEngineSpectrumMinBins();
+        const specU8Ok =
+            typeof window !== 'undefined' && window._engineSpectrumU8 && window._engineSpectrumU8.length >= minB;
+        const engineSpecStereo = !!specU8Ok && _vizEngineSpectrumOk();
 
-    const stereoNeedsWebFloat =
-        modes.includes('stereo') && !_vizTileFrozen('stereo') && !engineScopeStereo && !engineSpecStereo;
+        const stereoNeedsWebFloat =
+            modes.includes('stereo') && !_vizTileFrozen('stereo') && !engineScopeStereo && !engineSpecStereo;
 
-    const levelsNeedsSharedFloat =
-        modes.includes('levels') &&
-        !_vizTileFrozen('levels') &&
-        !_vizLevelsUsesEngineScopeLive() &&
-        !_vizEngineSpectrumBufferForTile('levels');
-
-    // Ensure pre-allocated buffers match analyser
-    if (!_vizFreqData || _vizFreqData.length !== vizAnalyser.frequencyBinCount) {
-        _vizFreqData = new Uint8Array(vizAnalyser.frequencyBinCount);
-        _vizTimeData = new Float32Array(vizAnalyser.fftSize);
-    }
-    // Smoothing only affects frequency data, not time domain — set for FFT/bands (real Web Audio analyser only)
-    if (vizAnalyser !== _vizEngineShim && typeof vizAnalyser.smoothingTimeConstant === 'number') {
-        vizAnalyser.smoothingTimeConstant = _vizParams.fftSmoothing;
-    }
-
-    if (_vizMode === 'all') {
-        if (needByte) {
-            vizAnalyser.getByteFrequencyData(_vizFreqData);
-        }
-        const fftSz = vizAnalyser.fftSize;
-        if (needOscFloat) {
-            if (!_vizTimeData || _vizTimeData.length !== fftSz) _vizTimeData = new Float32Array(fftSz);
-            vizAnalyser.getFloatTimeDomainData(_vizTimeData);
-            if (!_vizOscFrozenCopy || _vizOscFrozenCopy.length !== fftSz) _vizOscFrozenCopy = new Float32Array(fftSz);
-            _vizOscFrozenCopy.set(_vizTimeData);
-        } else if (modes.includes('oscilloscope') && _vizTileFrozen('oscilloscope') && _vizOscFrozenCopy) {
-            if (_vizOscFrozenCopy.length === fftSz) {
-                if (!_vizTimeData || _vizTimeData.length !== fftSz) _vizTimeData = new Float32Array(fftSz);
-                _vizTimeData.set(_vizOscFrozenCopy);
-            }
-        }
-        if (levelsNeedsSharedFloat) {
-            if (!_vizLevelsTimeData || _vizLevelsTimeData.length !== fftSz) _vizLevelsTimeData = new Float32Array(fftSz);
-            vizAnalyser.getFloatTimeDomainData(_vizLevelsTimeData);
-        }
-        _drawTile('fft', vizAnalyser);
-        _drawTile('oscilloscope', vizAnalyser);
-        _drawTile('spectrogram', vizAnalyser);
-        _drawTile('stereo', vizAnalyser);
-        _drawTile('levels', vizAnalyser);
-        _drawTile('bands', vizAnalyser);
-    } else {
-        const m = _vizMode;
-        if ((m === 'fft' || m === 'spectrogram' || m === 'bands') && !_vizTileFrozen(m)) {
-            vizAnalyser.getByteFrequencyData(_vizFreqData);
-        }
-        if (m === 'oscilloscope' && !_vizTileFrozen(m)) {
-            const fftSz = vizAnalyser.fftSize;
-            if (!_vizTimeData || _vizTimeData.length !== fftSz) _vizTimeData = new Float32Array(fftSz);
-            vizAnalyser.getFloatTimeDomainData(_vizTimeData);
-        }
-        if (
-            m === 'levels' &&
-            !_vizTileFrozen(m) &&
+        const levelsNeedsSharedFloat =
+            modes.includes('levels') &&
+            !_vizTileFrozen('levels') &&
             !_vizLevelsUsesEngineScopeLive() &&
-            !_vizEngineSpectrumBufferForTile('levels')
-        ) {
-            const fftSz = vizAnalyser.fftSize;
-            if (!_vizLevelsTimeData || _vizLevelsTimeData.length !== fftSz) _vizLevelsTimeData = new Float32Array(fftSz);
-            vizAnalyser.getFloatTimeDomainData(_vizLevelsTimeData);
+            !_vizEngineSpectrumBufferForTile('levels');
+
+        // Ensure pre-allocated buffers match analyser
+        if (!_vizFreqData || _vizFreqData.length !== vizAnalyser.frequencyBinCount) {
+            _vizFreqData = new Uint8Array(vizAnalyser.frequencyBinCount);
+            _vizTimeData = new Float32Array(vizAnalyser.fftSize);
         }
-        _drawTile(_vizMode, vizAnalyser);
+        // Smoothing only affects frequency data, not time domain — set for FFT/bands (real Web Audio analyser only)
+        if (vizAnalyser !== _vizEngineShim && typeof vizAnalyser.smoothingTimeConstant === 'number') {
+            vizAnalyser.smoothingTimeConstant = _vizParams.fftSmoothing;
+        }
+
+        if (_vizMode === 'all') {
+            if (needByte) {
+                vizAnalyser.getByteFrequencyData(_vizFreqData);
+            }
+            const fftSz = vizAnalyser.fftSize;
+            if (needOscFloat) {
+                if (!_vizTimeData || _vizTimeData.length !== fftSz) _vizTimeData = new Float32Array(fftSz);
+                vizAnalyser.getFloatTimeDomainData(_vizTimeData);
+                if (!_vizOscFrozenCopy || _vizOscFrozenCopy.length !== fftSz) _vizOscFrozenCopy = new Float32Array(fftSz);
+                _vizOscFrozenCopy.set(_vizTimeData);
+            } else if (modes.includes('oscilloscope') && _vizTileFrozen('oscilloscope') && _vizOscFrozenCopy) {
+                if (_vizOscFrozenCopy.length === fftSz) {
+                    if (!_vizTimeData || _vizTimeData.length !== fftSz) _vizTimeData = new Float32Array(fftSz);
+                    _vizTimeData.set(_vizOscFrozenCopy);
+                }
+            }
+            if (levelsNeedsSharedFloat) {
+                if (!_vizLevelsTimeData || _vizLevelsTimeData.length !== fftSz) _vizLevelsTimeData = new Float32Array(fftSz);
+                vizAnalyser.getFloatTimeDomainData(_vizLevelsTimeData);
+            }
+            _drawTile('fft', vizAnalyser);
+            _drawTile('oscilloscope', vizAnalyser);
+            _drawTile('spectrogram', vizAnalyser);
+            _drawTile('stereo', vizAnalyser);
+            _drawTile('levels', vizAnalyser);
+            _drawTile('bands', vizAnalyser);
+        } else {
+            const m = _vizMode;
+            if ((m === 'fft' || m === 'spectrogram' || m === 'bands') && !_vizTileFrozen(m)) {
+                vizAnalyser.getByteFrequencyData(_vizFreqData);
+            }
+            if (m === 'oscilloscope' && !_vizTileFrozen(m)) {
+                const fftSz = vizAnalyser.fftSize;
+                if (!_vizTimeData || _vizTimeData.length !== fftSz) _vizTimeData = new Float32Array(fftSz);
+                vizAnalyser.getFloatTimeDomainData(_vizTimeData);
+            }
+            if (
+                m === 'levels' &&
+                !_vizTileFrozen(m) &&
+                !_vizLevelsUsesEngineScopeLive() &&
+                !_vizEngineSpectrumBufferForTile('levels')
+            ) {
+                const fftSz = vizAnalyser.fftSize;
+                if (!_vizLevelsTimeData || _vizLevelsTimeData.length !== fftSz) _vizLevelsTimeData = new Float32Array(fftSz);
+                vizAnalyser.getFloatTimeDomainData(_vizLevelsTimeData);
+            }
+            _drawTile(_vizMode, vizAnalyser);
+        }
+    } catch (_) {
+        /* Draw error — absorb so the rAF loop self-recovers on the next frame. */
     }
     _vizScheduleNext(0);
 }
@@ -582,25 +592,29 @@ function _drawTile(mode, analyser) {
     if (!canvas || canvas.width === 0 || !ctx) return;
     const w = canvas.width, h = canvas.height;
 
-    switch (mode) {
-        case 'fft':
-            _drawFFT(ctx, w, h, analyser);
-            break;
-        case 'oscilloscope':
-            _drawOscilloscope(ctx, w, h, analyser);
-            break;
-        case 'spectrogram':
-            _drawSpectrogram(ctx, w, h, analyser);
-            break;
-        case 'stereo':
-            _drawStereo(ctx, w, h, analyser);
-            break;
-        case 'levels':
-            _drawLevels(ctx, w, h, analyser);
-            break;
-        case 'bands':
-            _drawBands(ctx, w, h, analyser);
-            break;
+    try {
+        switch (mode) {
+            case 'fft':
+                _drawFFT(ctx, w, h, analyser);
+                break;
+            case 'oscilloscope':
+                _drawOscilloscope(ctx, w, h, analyser);
+                break;
+            case 'spectrogram':
+                _drawSpectrogram(ctx, w, h, analyser);
+                break;
+            case 'stereo':
+                _drawStereo(ctx, w, h, analyser);
+                break;
+            case 'levels':
+                _drawLevels(ctx, w, h, analyser);
+                break;
+            case 'bands':
+                _drawBands(ctx, w, h, analyser);
+                break;
+        }
+    } catch (err) {
+        console.warn(`[viz] draw error in "${mode}":`, err);
     }
 }
 
@@ -1488,12 +1502,9 @@ document.addEventListener('contextmenu', (e) => {
         '---',
         {
             icon: graphAnimOn ? '&#10003;' : '&#9634;',
-            label:
-                mode === 'fft'
-                    ? appFmt('menu.viz_fft_animate')
-                    : graphAnimOn
-                      ? appFmt('menu.viz_graph_freeze')
-                      : appFmt('menu.viz_graph_unfreeze'),
+            label: graphAnimOn
+                ? appFmt('menu.viz_graph_freeze')
+                : appFmt('menu.viz_graph_unfreeze'),
             action: () => {
                 if (gf && typeof window.toggleGraphFrozen === 'function') window.toggleGraphFrozen(gf);
             },
@@ -1606,11 +1617,17 @@ window.addEventListener('resize', typeof debounce === 'function' ? debounce(_res
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
     document.addEventListener('ui-idle-heavy-cpu', (e) => {
         const idle = e.detail && e.detail.idle;
-        if (idle) {
-            if (typeof stopVisualizer === 'function') stopVisualizer();
-        } else {
+        if (!idle) {
+            /* Idle ended — force immediate full-speed restart (cancel any pending 500 ms slow-poll
+             * so `startVisualizer`'s guard sees both IDs null and re-enters the loop). */
             const t = document.getElementById('tabVisualizer');
-            if (t && t.classList.contains('active') && typeof startVisualizer === 'function') startVisualizer();
+            if (t && t.classList.contains('active') && typeof startVisualizer === 'function') {
+                stopVisualizer();
+                startVisualizer();
+            }
         }
+        /* idle === true: _vizLoop self-throttles to 500 ms; no need to kill the loop here.
+         * Leaving the slow poll alive lets the loop self-recover if the idle state was
+         * transient and the event system missed the false→true→false cycle. */
     });
 }

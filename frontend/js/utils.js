@@ -899,7 +899,6 @@ function triggerStartAllBackgroundJobs() {
     }
     if (typeof triggerBackgroundBpmKeyLufsAnalysis === 'function') void triggerBackgroundBpmKeyLufsAnalysis();
     if (typeof triggerStartBackgroundContentDupScan === 'function') void triggerStartBackgroundContentDupScan();
-    if (typeof scanPdfs === 'function') scanPdfs();
     if (typeof buildPdfPagesCache === 'function') buildPdfPagesCache();
     if (typeof triggerStartFingerprintCacheBuild === 'function') void triggerStartFingerprintCacheBuild();
     if (typeof checkUpdates === 'function') void checkUpdates();

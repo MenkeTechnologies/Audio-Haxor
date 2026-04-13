@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/v2/crates/tauri-utils/schema.json",
   "productName": "AUDIO_HAXOR",
-  "version": "1.18.39",
+  "version": "1.19.0",
   "identifier": "com.menketechnologies.audio-haxor",
   "build": {
     "frontendDist": "../frontend",

@@ -1442,9 +1442,20 @@ document.addEventListener('contextmenu', (e) => {
                 const G = typeof window.GRAPH_FREEZE_ID !== 'undefined' ? window.GRAPH_FREEZE_ID : null;
                 const gf = G && G.NP_FFT ? G.NP_FFT : 'np:fft';
                 const animOn = !(typeof window.isGraphFrozen === 'function' && window.isGraphFrozen(gf));
+                const fftCanvas = document.getElementById('npFftCanvas');
+                items.push({
+                    icon: '&#128247;',
+                    label: appFmt('menu.export_snapshot_png'),
+                    action: () => {
+                        if (fftCanvas && typeof exportCanvasSnapshotPng === 'function') {
+                            void exportCanvasSnapshotPng(fftCanvas, 'FFT Spectrum');
+                        }
+                    },
+                    disabled: !fftCanvas,
+                });
                 items.push({
                     icon: animOn ? '&#10003;' : '&#9634;',
-                    label: appFmt('menu.viz_fft_animate'),
+                    label: animOn ? appFmt('menu.viz_graph_freeze') : appFmt('menu.viz_graph_unfreeze'),
                     action: () => {
                         if (typeof window.toggleGraphFrozen === 'function') window.toggleGraphFrozen(gf);
                     },
@@ -1456,9 +1467,20 @@ document.addEventListener('contextmenu', (e) => {
                 const G = typeof window.GRAPH_FREEZE_ID !== 'undefined' ? window.GRAPH_FREEZE_ID : null;
                 const gf = G && G.NP_EQ ? G.NP_EQ : 'np:eq';
                 const animOn = !(typeof window.isGraphFrozen === 'function' && window.isGraphFrozen(gf));
+                const eqCanvas = document.getElementById('npEqCanvas');
+                items.push({
+                    icon: '&#128247;',
+                    label: appFmt('menu.export_snapshot_png'),
+                    action: () => {
+                        if (eqCanvas && typeof exportCanvasSnapshotPng === 'function') {
+                            void exportCanvasSnapshotPng(eqCanvas, 'Parametric EQ');
+                        }
+                    },
+                    disabled: !eqCanvas,
+                });
                 items.push({
                     icon: animOn ? '&#10003;' : '&#9634;',
-                    label: appFmt('menu.viz_fft_animate'),
+                    label: animOn ? appFmt('menu.viz_graph_freeze') : appFmt('menu.viz_graph_unfreeze'),
                     action: () => {
                         if (typeof window.toggleGraphFrozen === 'function') window.toggleGraphFrozen(gf);
                     },
