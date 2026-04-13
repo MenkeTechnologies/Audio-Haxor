@@ -1098,6 +1098,9 @@ public:
     /** Forward playback only: wraps `readerSource` (or `bufferedReader`) for tape-style speed (pitch follows rate). */
     std::unique_ptr<juce::ResamplingAudioSource> speedResampler;
     std::atomic<float>* playbackSpeed = nullptr;
+    /** Source-to-device sample rate ratio for stream-from-disk paths (1.0 when rates match or not streaming).
+     *  Folded into `speedResampler` ratio so the transport needs no internal resampler. */
+    double rateCorrection = 1.0;
     /** Pointer to the global speed-mode atomic (0 = Resample, 1 = TimeStretch). */
     std::atomic<int>* speedMode = nullptr;
     /** OLA time-stretcher state (used when mode == TimeStretch). */
@@ -1299,7 +1302,7 @@ public:
             if (playbackSpeed != nullptr)
             {
                 const double r = (double) playbackSpeed->load();
-                speedResampler->setResamplingRatio(juce::jlimit(0.25, 4.0, r));
+                speedResampler->setResamplingRatio(juce::jlimit(0.1, 8.0, r * rateCorrection));
             }
             speedResampler->getNextAudioBlock(bufferToFill);
         }
@@ -2789,9 +2792,18 @@ struct Engine::Impl
                     readAheadThread.startThread(juce::Thread::Priority::normal);
                 fileSource->bufferedReader = std::make_unique<juce::BufferingAudioSource>(
                     fileSource->readerSource.get(), readAheadThread, false, kReadAheadSamples, 2);
+                /* Fold source→device rate correction into our speedResampler so the
+                 * transport has no internal ResamplingAudioSource.  That resampler keeps
+                 * a history buffer that survives seeks and interpolates stale samples
+                 * with the muted post-seek data, leaking clicks through our mute window. */
+                const double devRate = dev->getCurrentSampleRate();
+                fileSource->rateCorrection = (devRate > 0 && sessionSrcRate > 0)
+                    ? (double) sessionSrcRate / devRate
+                    : 1.0;
                 fileSource->speedResampler =
                     std::make_unique<juce::ResamplingAudioSource>(fileSource->bufferedReader.get(), false, 2);
-                fileSource->speedResampler->setResamplingRatio((double) juce::jlimit(0.25f, 4.0f, playbackSpeed.load()));
+                const double initSpeed = (double) juce::jlimit(0.25f, 4.0f, playbackSpeed.load());
+                fileSource->speedResampler->setResamplingRatio(initSpeed * fileSource->rateCorrection);
                 fileSource->playbackSpeed = &playbackSpeed;
                 fileSource->speedMode = &speedMode;
             }
@@ -2829,10 +2841,13 @@ struct Engine::Impl
             }
 
             fileSource->playbackLoop = &playbackLoopWanted;
-            /* Read-ahead buffering (when needed) is now inside `DspStereoFileSource` wrapping
-             * only the raw reader.  Transport-level read-ahead is disabled for all paths so
-             * DSP (EQ, inserts, spectrum) always runs on the audio thread with correct state. */
-            transport.setSource(fileSource.get(), 0, nullptr, (double) sessionSrcRate);
+            /* For stream-from-disk, pass source rate = 0 so the transport creates NO
+             * internal ResamplingAudioSource — rate correction is folded into our own
+             * speedResampler which we properly flush on seek.  For RAM-preloaded audio,
+             * the transport's resampler is harmless (seeks are instant, no stale-buffer
+             * click) and provides correct rate correction automatically. */
+            const double transportSrcRate = streamFromDisk ? 0.0 : (double) sessionSrcRate;
+            transport.setSource(fileSource.get(), 0, nullptr, transportSrcRate);
             fileSource->insertChain = insertRunner.get();
             if (!reverseWanted)
                 fileSource->setLooping(playbackLoopWanted.load());
