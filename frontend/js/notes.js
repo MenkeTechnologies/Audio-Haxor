@@ -574,6 +574,110 @@ function _itemTypeToTab(type) {
     return null;
 }
 
+// ── Tag expanded meta panel (waveform + spectrogram for sample items) ──
+let _tagExpandedPath = null;
+let _tagMetaDrawSeq = 0;
+
+function closeTagMeta() {
+    const panel = document.getElementById('tagMetaPanel');
+    if (panel) panel.remove();
+    const prev = document.querySelector('.tag-manager-item.tag-expanded');
+    if (prev) prev.classList.remove('tag-expanded');
+    _tagExpandedPath = null;
+}
+
+async function expandTagMeta(filePath) {
+    if (typeof closeMetaRow === 'function') closeMetaRow();
+    if (typeof closeFavMeta === 'function') closeFavMeta();
+    closeTagMeta();
+
+    const container = document.getElementById('tagsManager');
+    if (!container) return;
+    const item = container.querySelector(`.tag-manager-item[data-path="${CSS.escape(filePath)}"]`);
+    if (!item) return;
+
+    _tagExpandedPath = filePath;
+    item.classList.add('tag-expanded');
+
+    const panel = document.createElement('div');
+    panel.id = 'tagMetaPanel';
+    panel.className = 'tag-meta-panel';
+    panel.innerHTML = `<div class="audio-meta-panel" style="justify-items:center;"><div class="spinner" style="width:18px;height:18px;"></div></div>`;
+    item.after(panel);
+    item.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+
+    try {
+        const meta = await window.vstUpdater.getAudioMetadata(filePath);
+        if (_tagExpandedPath !== filePath) return;
+
+        let items = '';
+        if (typeof metaItem === 'function') {
+            const _fmt = typeof _audioFmt === 'function' ? _audioFmt : (k) => k;
+            items += metaItem(_fmt('ui.audio.meta_label_file_name'), meta.fileName, true);
+            items += metaItem(_fmt('ui.audio.meta_label_format'), meta.format);
+            items += metaItem(_fmt('ui.audio.meta_label_size'), typeof formatAudioSize === 'function' ? formatAudioSize(meta.sizeBytes) : meta.sizeBytes);
+            if (meta.sampleRate) items += metaItem(_fmt('ui.audio.meta_label_sample_rate'), meta.sampleRate.toLocaleString() + ' Hz');
+            if (meta.bitsPerSample) items += metaItem(_fmt('ui.audio.meta_label_bit_depth'), meta.bitsPerSample + '-bit');
+            if (meta.channels) {
+                const chVal = meta.channels === 1 ? 'Mono' : meta.channels === 2 ? 'Stereo' : meta.channels + ' ch';
+                items += metaItem(_fmt('ui.audio.meta_label_channels'), chVal);
+            }
+            if (meta.duration) items += metaItem(_fmt('ui.audio.meta_label_duration'), typeof formatTime === 'function' ? formatTime(meta.duration) : meta.duration);
+        }
+
+        const waveformHtml = `<div class="meta-waveform" id="metaWaveformBox" data-path="${escapeHtml(filePath)}" title="Click to seek">
+      <canvas id="metaWaveformCanvas"></canvas>
+      <div class="waveform-progress-fill"></div>
+      <div class="waveform-loop-region" style="display:none;"></div>
+      <div class="waveform-loop-brace waveform-loop-brace-start" data-loop-brace="start" style="display:none;left:25%;" title="Drag to set loop start"></div>
+      <div class="waveform-loop-brace waveform-loop-brace-end" data-loop-brace="end" style="display:none;left:75%;" title="Drag to set loop end"></div>
+      <button type="button" class="waveform-loop-toggle" data-action="toggleMetaLoopRegion" title="Toggle loop region">L</button>
+      <div class="waveform-cursor" style="left:0;"></div>
+      <div class="waveform-time-label">${meta.duration && typeof formatTime === 'function' ? formatTime(meta.duration) : ''}</div>
+    </div>
+    <div class="meta-waveform" style="height:80px;cursor:default;" title="Spectrogram">
+      <canvas id="metaSpectrogramCanvas" width="800" height="80" style="position:absolute;top:0;left:0;width:100%;height:100;"></canvas>
+      <span style="position:absolute;top:2px;left:4px;font-size:8px;color:var(--text-dim);pointer-events:none;">Spectrogram</span>
+    </div>`;
+
+        panel.innerHTML = `<div class="audio-meta-panel"><span class="meta-close-btn" data-tag-action="closeTagMeta" title="Close">&#10005;</span>${waveformHtml}${items}</div>`;
+
+        if (typeof applyMetaLoopRegionUI === 'function') applyMetaLoopRegionUI(filePath);
+        if (typeof expandedMetaPath !== 'undefined') expandedMetaPath = filePath;
+
+        _tagMetaDrawSeq++;
+        const seq = _tagMetaDrawSeq;
+        if (typeof _metaPanelDrawSeq !== 'undefined') _metaPanelDrawSeq = seq;
+
+        const doDraw = () => {
+            if (typeof scheduleIdleVisualWork === 'function') {
+                scheduleIdleVisualWork(() => {
+                    if (_tagExpandedPath !== filePath) return;
+                    if (typeof drawMetaPanelVisuals === 'function') {
+                        void drawMetaPanelVisuals(filePath, seq);
+                    }
+                }, {delayMs: 0});
+            } else if (typeof drawMetaPanelVisuals === 'function') {
+                void drawMetaPanelVisuals(filePath, seq);
+            }
+        };
+
+        if (filePath === audioPlayerPath) {
+            requestAnimationFrame(doDraw);
+        } else {
+            doDraw();
+        }
+
+        if (typeof audioPlayerPath !== 'undefined' && audioPlayerPath === filePath) {
+            requestAnimationFrame(() => {
+                if (typeof updatePlaybackTime === 'function') updatePlaybackTime();
+            });
+        }
+    } catch (err) {
+        panel.innerHTML = `<div class="audio-meta-panel"><span style="color:var(--red);">Failed to load metadata</span></div>`;
+    }
+}
+
 /**
  * Switch to the appropriate tab and scroll to the row/card for `path`.
  * If the item isn't in the table yet, add it on the fly.

@@ -263,8 +263,9 @@ function renderFavorites() {
         const playBtn = f.type === 'sample'
             ? `<button class="btn-small btn-play${isPlaying ? ' playing' : ''}" data-action="previewAudio" data-path="${hp}" title="Play">${isPlaying ? '&#9646;&#9646;' : '&#9654;'}</button>`
             : '';
+        const loopActive = isPlaying && typeof audioLooping !== 'undefined' && audioLooping;
         const loopBtn = f.type === 'sample'
-            ? `<button class="btn-small btn-loop" data-action="toggleRowLoop" data-path="${hp}" title="Loop">&#8634;</button>`
+            ? `<button class="btn-small btn-loop${loopActive ? ' active' : ''}" data-action="toggleRowLoop" data-path="${hp}" title="Loop">&#8634;</button>`
             : '';
         const goTab = typeof _itemTypeToTab === 'function' ? _itemTypeToTab(f.type) : null;
         const goBtn = goTab
@@ -339,8 +340,12 @@ function loadMoreFavs() {
         const playBtn = f.type === 'sample'
             ? `<button class="btn-small btn-play" data-action="previewAudio" data-path="${hp}" title="Play">&#9654;</button>`
             : '';
+        const loopActiveMore = f.type === 'sample' &&
+            typeof audioPlayerPath !== 'undefined' &&
+            normalizeFavoritePathKey(audioPlayerPath) === normalizeFavoritePathKey(f.path) &&
+            typeof audioLooping !== 'undefined' && audioLooping;
         const loopBtn = f.type === 'sample'
-            ? `<button class="btn-small btn-loop" data-action="toggleRowLoop" data-path="${hp}" title="Loop">&#8634;</button>`
+            ? `<button class="btn-small btn-loop${loopActiveMore ? ' active' : ''}" data-action="toggleRowLoop" data-path="${hp}" title="Loop">&#8634;</button>`
             : '';
         return `<div class="fav-item" data-path="${hp}" data-type="${f.type}" data-name="${escapeHtml(f.name)}">
       <span class="fav-star">&#9733;</span>

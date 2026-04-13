@@ -4879,10 +4879,11 @@
         }
 
         .tag-manager-item-name {
-            flex: 1;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            min-width: 0;
+            flex-shrink: 1;
         }
 
         a.tag-manager-item-name {
@@ -4911,12 +4912,25 @@
             align-items: center;
             gap: 4px;
             flex-shrink: 0;
+            margin-left: auto;
         }
 
         .tag-manager-item .format-badge {
             font-size: 9px;
             padding: 1px 5px;
             flex-shrink: 0;
+        }
+
+        .tag-manager-item.tag-expanded {
+            background: rgba(5, 217, 232, 0.08);
+        }
+
+        .tag-meta-panel {
+            margin-bottom: 2px;
+            border: 1px solid var(--border);
+            border-top: none;
+            background: var(--bg-secondary);
+            animation: meta-slide 0.15s ease-out;
         }
 
         .tag-stats {
@@ -8727,13 +8741,14 @@
         }
 
         .fav-name {
-            flex: 1;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             font-size: 13px;
             font-weight: 600;
             color: var(--text);
+            min-width: 0;
+            flex-shrink: 1;
         }
 
         a.fav-name {
@@ -8763,6 +8778,7 @@
             display: flex;
             gap: 4px;
             flex-shrink: 0;
+            margin-left: auto;
         }
 
         .ctx-menu-sep {
@@ -12209,48 +12225,48 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=18484"></script>
-<script src="js/utils.js?v=18484"></script>
-<script src="js/ui-idle.js?v=18484"></script>
-<script src="js/ipc.js?v=18484"></script>
-<script src="js/tooltip-hover.js?v=18484"></script>
-<script src="js/drag-reorder.js?v=18484"></script>
-<script src="js/modal-drag.js?v=18484"></script>
-<script src="js/columns.js?v=18484"></script>
-<script src="js/notes.js?v=18484"></script>
-<script src="js/favorites.js?v=18484"></script>
-<script src="js/export.js?v=18484"></script>
-<script src="js/plugins.js?v=18484"></script>
-<script src="js/settings.js?v=18484"></script>
-<script src="js/history.js?v=18484"></script>
-<script src="js/kvr.js?v=18484"></script>
-<script src="js/graph-freeze.js?v=18484"></script>
-<script src="js/audio.js?v=18484"></script>
-<script src="js/daw.js?v=18484"></script>
-<script src="js/disk-usage.js?v=18484"></script>
-<script src="js/presets.js?v=18484"></script>
-<script src="js/batch-select.js?v=18484"></script>
-<script src="js/native-file-drag.js?v=18484"></script>
-<script src="js/sort-persist.js?v=18484"></script>
-<script src="js/multi-filter.js?v=18484"></script>
-<script src="js/file-browser.js?v=18484"></script>
-<script src="js/duplicates.js?v=18484"></script>
-<script src="js/command-palette.js?v=18484"></script>
-<script src="js/xref.js?v=18484"></script>
-<script src="js/dep-graph.js?v=18484"></script>
-<script src="js/smart-playlists.js?v=18484"></script>
-<script src="js/heatmap-dashboard.js?v=18484"></script>
-<script src="js/midi.js?v=18484"></script>
-<script src="js/pdf.js?v=18484"></script>
-<script src="js/video.js?v=18484"></script>
-<script src="js/settings-search.js?v=18484"></script>
-<script src="js/visualizer.js?v=18484"></script>
-<script src="js/walker-status.js?v=18484"></script>
-<script src="js/audio-engine.js?v=18484"></script>
-<script src="js/context-menu.js?v=18484"></script>
-<script src="js/shortcuts.js?v=18484"></script>
-<script src="js/help-overlay.js?v=18484"></script>
-<script src="js/keyboard-nav.js?v=18484"></script>
-<script src="js/app.js?v=18484"></script>
+<script src="js/i18n-ui.js?v=4016"></script>
+<script src="js/utils.js?v=4016"></script>
+<script src="js/ui-idle.js?v=4016"></script>
+<script src="js/ipc.js?v=4016"></script>
+<script src="js/tooltip-hover.js?v=4016"></script>
+<script src="js/drag-reorder.js?v=4016"></script>
+<script src="js/modal-drag.js?v=4016"></script>
+<script src="js/columns.js?v=4016"></script>
+<script src="js/notes.js?v=4016"></script>
+<script src="js/favorites.js?v=4016"></script>
+<script src="js/export.js?v=4016"></script>
+<script src="js/plugins.js?v=4016"></script>
+<script src="js/settings.js?v=4016"></script>
+<script src="js/history.js?v=4016"></script>
+<script src="js/kvr.js?v=4016"></script>
+<script src="js/graph-freeze.js?v=4016"></script>
+<script src="js/audio.js?v=4016"></script>
+<script src="js/daw.js?v=4016"></script>
+<script src="js/disk-usage.js?v=4016"></script>
+<script src="js/presets.js?v=4016"></script>
+<script src="js/batch-select.js?v=4016"></script>
+<script src="js/native-file-drag.js?v=4016"></script>
+<script src="js/sort-persist.js?v=4016"></script>
+<script src="js/multi-filter.js?v=4016"></script>
+<script src="js/file-browser.js?v=4016"></script>
+<script src="js/duplicates.js?v=4016"></script>
+<script src="js/command-palette.js?v=4016"></script>
+<script src="js/xref.js?v=4016"></script>
+<script src="js/dep-graph.js?v=4016"></script>
+<script src="js/smart-playlists.js?v=4016"></script>
+<script src="js/heatmap-dashboard.js?v=4016"></script>
+<script src="js/midi.js?v=4016"></script>
+<script src="js/pdf.js?v=4016"></script>
+<script src="js/video.js?v=4016"></script>
+<script src="js/settings-search.js?v=4016"></script>
+<script src="js/visualizer.js?v=4016"></script>
+<script src="js/walker-status.js?v=4016"></script>
+<script src="js/audio-engine.js?v=4016"></script>
+<script src="js/context-menu.js?v=4016"></script>
+<script src="js/shortcuts.js?v=4016"></script>
+<script src="js/help-overlay.js?v=4016"></script>
+<script src="js/keyboard-nav.js?v=4016"></script>
+<script src="js/app.js?v=4016"></script>
 </body>
 </html>

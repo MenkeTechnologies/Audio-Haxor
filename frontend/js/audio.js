@@ -3788,6 +3788,16 @@ function updateLoopBtnStates() {
             if (vb) vb.classList.toggle('active', audioLooping);
         }
     }
+    // Favorites loop buttons
+    const favList = document.getElementById('favList');
+    if (favList) {
+        favList.querySelectorAll(`.fav-item[data-type="sample"] .btn-loop`).forEach(btn => {
+            const fav = btn.closest('.fav-item');
+            const isThis = fav && fav.dataset.path &&
+                fav.dataset.path.replace(/\\/g, '/') === audioPlayerPath.replace(/\\/g, '/');
+            btn.classList.toggle('active', isThis && audioLooping);
+        });
+    }
 }
 
 function stopAudioPlayback() {
