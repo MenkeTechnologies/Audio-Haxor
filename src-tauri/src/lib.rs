@@ -76,6 +76,94 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 
+/// Lower the current thread's CPU and I/O priority. Cross-platform.
+/// Called by background worker threads so audio playback gets priority.
+fn set_thread_low_priority() {
+    // ── Unix (macOS + Linux): CPU priority via nice ──
+    #[cfg(unix)]
+    unsafe {
+        libc::setpriority(libc::PRIO_PROCESS, 0, 10);
+    }
+
+    // ── Windows: CPU priority via SetThreadPriority ──
+    #[cfg(windows)]
+    {
+        unsafe extern "system" {
+            fn GetCurrentThread() -> *mut std::ffi::c_void;
+            fn SetThreadPriority(hThread: *mut std::ffi::c_void, nPriority: i32) -> i32;
+        }
+        const THREAD_PRIORITY_BELOW_NORMAL: i32 = -1;
+        const THREAD_MODE_BACKGROUND_BEGIN: i32 = 0x00010000;
+        unsafe {
+            let h = GetCurrentThread();
+            // THREAD_MODE_BACKGROUND_BEGIN lowers both CPU and I/O priority on Windows
+            if SetThreadPriority(h, THREAD_MODE_BACKGROUND_BEGIN) == 0 {
+                // Fallback to just lowering CPU priority if background mode fails
+                SetThreadPriority(h, THREAD_PRIORITY_BELOW_NORMAL);
+            }
+        }
+    }
+
+    // ── macOS: I/O priority via setiopolicy_np ──
+    #[cfg(target_os = "macos")]
+    {
+        unsafe extern "C" {
+            fn setiopolicy_np(iotype: i32, scope: i32, policy: i32) -> i32;
+        }
+        const IOPOL_TYPE_DISK: i32 = 0;
+        const IOPOL_SCOPE_THREAD: i32 = 2;
+        const IOPOL_THROTTLE: i32 = 3;
+        unsafe { setiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_THREAD, IOPOL_THROTTLE) };
+    }
+
+    // ── Linux: I/O priority via ioprio_set syscall ──
+    #[cfg(target_os = "linux")]
+    {
+        // ioprio_set syscall number varies by arch
+        #[cfg(target_arch = "x86_64")]
+        const SYS_IOPRIO_SET: libc::c_long = 251;
+        #[cfg(target_arch = "x86")]
+        const SYS_IOPRIO_SET: libc::c_long = 289;
+        #[cfg(target_arch = "aarch64")]
+        const SYS_IOPRIO_SET: libc::c_long = 30;
+        #[cfg(target_arch = "arm")]
+        const SYS_IOPRIO_SET: libc::c_long = 314;
+
+        const IOPRIO_WHO_THREAD: libc::c_int = 1;
+        const IOPRIO_CLASS_IDLE: libc::c_int = 3;
+        let ioprio = (IOPRIO_CLASS_IDLE << 13) | 0;
+        unsafe {
+            libc::syscall(SYS_IOPRIO_SET, IOPRIO_WHO_THREAD, 0, ioprio);
+        }
+    }
+}
+
+/// Build a Rayon thread pool with lowered OS priority.
+/// Background jobs use this so audio playback (normal priority) gets CPU and I/O time.
+pub fn build_low_priority_thread_pool(num_threads: usize) -> rayon::ThreadPool {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .spawn_handler(|thread| {
+            let mut builder = std::thread::Builder::new();
+            if let Some(name) = thread.name() {
+                builder = builder.name(name.to_string());
+            }
+            builder.spawn(move || {
+                set_thread_low_priority();
+                thread.run();
+            })?;
+            Ok(())
+        })
+        .build()
+        .unwrap_or_else(|e| {
+            append_log(format!("Low-priority thread pool failed ({e}), retrying with 2 threads"));
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(2)
+                .build()
+                .expect("fallback 2-thread pool")
+        })
+}
+
 /// Domain string for SQLite `directory_scan_state` — shared by unified and standalone walkers.
 pub const DIRECTORY_SCAN_INCREMENTAL_DOMAIN: &str = "unified";
 
@@ -90,6 +178,88 @@ static CONTENT_DUP_SCAN_CANCEL: AtomicBool = AtomicBool::new(false);
 
 /// Set by `stop_fingerprint_cache`; checked between fingerprint cache chunks (~500 files).
 static FINGERPRINT_BUILD_CANCEL: AtomicBool = AtomicBool::new(false);
+
+/// Set while audio is actively playing. Background jobs check this and yield/pause
+/// to avoid SMB contention (network shares can't prioritize I/O like local disks).
+static PLAYBACK_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Background job throttle level during playback (0=off, 1=light, 2=medium, 3=full pause).
+static BG_THROTTLE_LEVEL: AtomicU8 = AtomicU8::new(3); // Default: full pause (safest for SMB/WiFi)
+
+/// Count of background workers currently doing I/O. Used to wait for drain.
+static BG_WORKERS_ACTIVE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Call from audio engine when playback starts.
+pub fn set_playback_active(active: bool) {
+    PLAYBACK_ACTIVE.store(active, Ordering::SeqCst);
+}
+
+/// Wait for all background workers to finish their current I/O and pause.
+/// Returns number of milliseconds waited.
+pub fn wait_for_bg_workers_drain(max_wait_ms: u64) -> u64 {
+    let start = std::time::Instant::now();
+    let deadline = std::time::Duration::from_millis(max_wait_ms);
+    while BG_WORKERS_ACTIVE.load(Ordering::Relaxed) > 0 {
+        if start.elapsed() >= deadline {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    start.elapsed().as_millis() as u64
+}
+
+/// Set background job throttle level (0=off, 1=light, 2=medium, 3=full pause).
+pub fn set_bg_throttle_level(level: u8) {
+    BG_THROTTLE_LEVEL.store(level.min(3), Ordering::SeqCst);
+}
+
+/// Get current throttle level.
+pub fn get_bg_throttle_level() -> u8 {
+    BG_THROTTLE_LEVEL.load(Ordering::Relaxed)
+}
+
+/// Background jobs call this to yield if playback is active.
+/// Returns true if playback is active (caller should pause/yield).
+#[inline]
+pub fn should_yield_for_playback() -> bool {
+    PLAYBACK_ACTIVE.load(Ordering::Relaxed)
+}
+
+/// RAII guard for tracking active background I/O.
+pub struct BgIoGuard;
+impl BgIoGuard {
+    pub fn new() -> Self {
+        BG_WORKERS_ACTIVE.fetch_add(1, Ordering::Relaxed);
+        Self
+    }
+}
+impl Drop for BgIoGuard {
+    fn drop(&mut self) {
+        BG_WORKERS_ACTIVE.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+/// Background jobs call this to throttle based on user preference.
+/// - Level 0 (off): no delay, local SSD users
+/// - Level 1 (light): 50ms yield, fast wired NAS
+/// - Level 2 (medium): 200ms yield, slower NAS or WiFi
+/// - Level 3 (full pause): complete stop until playback loaded, SMB over WiFi
+pub fn yield_if_playback_active() {
+    if !PLAYBACK_ACTIVE.load(Ordering::Relaxed) {
+        return;
+    }
+    match BG_THROTTLE_LEVEL.load(Ordering::Relaxed) {
+        0 => {} // Off — no throttling
+        1 => std::thread::sleep(std::time::Duration::from_millis(50)),
+        2 => std::thread::sleep(std::time::Duration::from_millis(200)),
+        _ => {
+            // Full pause — wait until playback is no longer loading
+            while PLAYBACK_ACTIVE.load(Ordering::Relaxed) {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        }
+    }
+}
 
 #[inline]
 pub fn log_verbosity_level() -> u8 {
@@ -530,19 +700,8 @@ async fn scan_plugins(
         let stop_flag2 = stop_flag.clone();
         let plugin_dirs = Arc::clone(&app_handle.state::<WalkerStatus>().plugin_dirs);
 
-        // Dedicated thread pool so plugin scanning doesn't starve other scanners
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_cpus::get().max(4))
-            .build()
-            .unwrap_or_else(|e| {
-                let msg = format!("Thread pool creation failed ({e}), retrying with 2 threads");
-                eprintln!("{msg}");
-                append_log(msg);
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(2)
-                    .build()
-                    .expect("fallback 2-thread pool")
-            });
+        // Dedicated low-priority thread pool so plugin scanning doesn't starve audio playback
+        let pool = build_low_priority_thread_pool(num_cpus::get().max(4));
         std::thread::spawn(move || {
             pool.install(|| {
                 unique_paths.par_iter().for_each(|p| {
@@ -2945,23 +3104,15 @@ async fn batch_analyze(paths: Vec<String>) -> Result<serde_json::Value, String> 
                     .and_then(|s| s.parse::<usize>().ok())
                     .or_else(|| v.as_u64().map(|n| n as usize))
             })
-            .unwrap_or(4)
-            .clamp(1, 16);
+            .unwrap_or(2)  // Reduced from 4 to leave CPU headroom for audio playback
+            .clamp(1, 8);
         let num_threads = std::cmp::min(paths.len(), max_batch_threads).max(1);
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .build()
-            .unwrap_or_else(|e| {
-                append_log(format!("batch_analyze thread pool failed ({e}), retrying with 2 threads"));
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(2)
-                    .build()
-                    .expect("fallback 2-thread pool")
-            });
+        let pool = build_low_priority_thread_pool(num_threads);
         let results: Vec<db::AnalysisBatchRow> = pool.install(|| {
             paths
                 .par_iter()
                 .map(|path| {
+                    yield_if_playback_active();
                     let bpm_val = bpm::estimate_bpm(path);
                     let key_val = key_detect::detect_key(path);
                     let lufs_val = lufs::measure_lufs(path);
@@ -3068,7 +3219,10 @@ async fn build_fingerprint_cache(
             }
             let new_fps: Vec<similarity::AudioFingerprint> = chunk
                 .par_iter()
-                .filter_map(|p| similarity::compute_fingerprint(p))
+                .filter_map(|p| {
+                    yield_if_playback_active();
+                    similarity::compute_fingerprint(p)
+                })
                 .collect();
             for mut fp in new_fps {
                 let k = normalize_path_for_db(&fp.path);
@@ -3247,8 +3401,8 @@ async fn find_content_duplicates(app: AppHandle) -> Result<serde_json::Value, St
                     .and_then(|s| s.parse::<usize>().ok())
                     .or_else(|| v.as_u64().map(|n| n as usize))
             })
-            .unwrap_or(8)
-            .clamp(1, 32);
+            .unwrap_or(2)  // Reduced from 8 to leave headroom for audio playback
+            .clamp(1, 8);
         let r = content_hash::find_byte_duplicate_groups(
             entries,
             progress,
@@ -3680,9 +3834,10 @@ async fn upsert_spectrogram_cache_entry(path: String, data: serde_json::Value) -
 #[tauri::command]
 async fn audio_engine_invoke(request: serde_json::Value) -> Result<serde_json::Value, String> {
     let payload = audio_engine::normalize_ipc_request_payload(&request);
-    // Use dedicated IPC thread to avoid blocking on spawn_blocking pool (which background
-    // jobs can saturate, causing playback hangs).
-    let v = audio_engine::async_audio_engine_request(payload.clone()).await?;
+    // Use dedicated IPC threads to bypass tokio::spawn_blocking pool entirely.
+    // Background jobs (BPM, fingerprint, etc.) saturate that pool; this ensures
+    // audio playback commands are never queued behind CPU-intensive work.
+    let v = audio_engine::async_dedicated_audio_engine_request(payload.clone()).await?;
     if v.get("ok") == Some(&serde_json::Value::Bool(false)) {
         let cmd = payload.get("cmd").and_then(|c| c.as_str()).unwrap_or("?");
         let err = v.get("error").and_then(|e| e.as_str()).unwrap_or("?");
@@ -3694,6 +3849,34 @@ async fn audio_engine_invoke(request: serde_json::Value) -> Result<serde_json::V
 #[tauri::command]
 fn audio_engine_restart() -> Result<(), String> {
     audio_engine::restart_audio_engine_child()
+}
+
+#[tauri::command]
+fn set_playback_active_flag(active: bool) {
+    set_playback_active(active);
+}
+
+/// Set flag and wait for background workers to drain (up to max_wait_ms).
+/// Returns ms waited.
+#[tauri::command]
+#[allow(non_snake_case)]
+fn set_playback_active_and_wait(active: bool, maxWaitMs: u64) -> u64 {
+    set_playback_active(active);
+    if active {
+        wait_for_bg_workers_drain(maxWaitMs)
+    } else {
+        0
+    }
+}
+
+#[tauri::command]
+fn set_bg_job_throttle(level: u8) {
+    set_bg_throttle_level(level);
+}
+
+#[tauri::command]
+fn get_bg_job_throttle() -> u8 {
+    get_bg_throttle_level()
 }
 
 #[tauri::command]
@@ -8039,16 +8222,27 @@ pub fn run() {
                 .get("threadMultiplier")
                 .and_then(|v| v.as_u64().map(|n| n as usize))
         })
-        .unwrap_or(8)
-        .clamp(1, 16);
+        .unwrap_or(2)  // Reduced from 8x to leave headroom for audio playback
+        .clamp(1, 4);
     let pool_size = num_cpus::get() * multiplier;
     append_log(format!(
-        "THREAD POOL — {}x multiplier | {} threads | 8MB stack",
+        "THREAD POOL — {}x multiplier | {} threads | 8MB stack | nice +10",
         multiplier, pool_size,
     ));
     rayon::ThreadPoolBuilder::new()
         .num_threads(pool_size)
         .stack_size(8 * 1024 * 1024)
+        .spawn_handler(|thread| {
+            let mut builder = std::thread::Builder::new();
+            if let Some(name) = thread.name() {
+                builder = builder.name(name.to_string());
+            }
+            builder.stack_size(8 * 1024 * 1024).spawn(move || {
+                set_thread_low_priority();
+                thread.run();
+            })?;
+            Ok(())
+        })
         .panic_handler(|panic_info| {
             let msg = format!("Rayon thread panicked: {:?}", panic_info);
             eprintln!("{msg}");
@@ -8191,6 +8385,10 @@ pub fn run() {
             audio_engine_restart,
             audio_engine_eof_watchdog_start,
             audio_engine_eof_watchdog_stop,
+            set_playback_active_flag,
+            set_playback_active_and_wait,
+            set_bg_job_throttle,
+            get_bg_job_throttle,
             get_audio_engine_process_stats,
             append_log,
             read_log,

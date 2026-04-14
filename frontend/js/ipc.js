@@ -1324,6 +1324,7 @@ document.addEventListener('input', (e) => {
     else if (action === 'settingThreadMultiplier') settingUpdateThreadMultiplier(e.target.value);
     else if (action === 'settingBatchAnalysisThreads') settingUpdateBatchAnalysisThreads(e.target.value);
     else if (action === 'settingContentDupHashThreads') settingUpdateContentDupHashThreads(e.target.value);
+    else if (action === 'settingBgJobThrottle') settingUpdateBgJobThrottle(e.target.value);
     else if (action === 'settingSqliteReadPoolExtra') settingUpdateSqliteReadPoolExtra(e.target.value);
     else if (action === 'settingPruneOldScansKeep') settingUpdatePruneOldScansKeep(e.target.value);
     else if (action === 'settingChannelBuffer') settingUpdateChannelBuffer(e.target.value);
@@ -1746,6 +1747,14 @@ window.vstUpdater = {
     audioEngineRestart: () => invoke('audio_engine_restart'),
     audioEngineEofWatchdogStart: () => invoke('audio_engine_eof_watchdog_start'),
     audioEngineEofWatchdogStop: () => invoke('audio_engine_eof_watchdog_stop'),
+    /** Tell background jobs to yield for audio playback (SMB shares can't prioritize I/O). */
+    setPlaybackActiveFlag: (active) => invoke('set_playback_active_flag', {active}),
+    /** Set flag and wait for bg workers to drain. Returns ms waited. */
+    setPlaybackActiveAndWait: (active, maxWaitMs) => invoke('set_playback_active_and_wait', {active, maxWaitMs}),
+    /** Set background job throttle level (0=off, 1=light, 2=medium, 3=full pause). */
+    setBgJobThrottle: (level) => invoke('set_bg_job_throttle', {level}),
+    /** Get current background job throttle level. */
+    getBgJobThrottle: () => invoke('get_bg_job_throttle'),
     batchAnalyze: (paths) => invoke('batch_analyze', {paths}),
     dbQueryPlugins: (params) => invoke('db_query_plugins', params || {}),
     dbQueryDaw: (params) => invoke('db_query_daw', params || {}),

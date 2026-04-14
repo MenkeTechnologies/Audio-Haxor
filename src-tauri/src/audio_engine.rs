@@ -16,11 +16,94 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, LazyLock, Mutex, mpsc};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
 
 use tauri::{AppHandle, Emitter};
+
+// ── Dedicated Audio Engine IPC Threads ──
+// Background jobs use tokio::spawn_blocking which shares a thread pool. When saturated,
+// audio IPC commands queue behind CPU-intensive work causing playback lag.
+// These dedicated threads ensure audio commands never wait on background jobs.
+
+type IpcRequest = (
+    serde_json::Value,
+    std::sync::mpsc::SyncSender<Result<serde_json::Value, String>>,
+);
+
+/// Dedicated thread for main engine IPC (playback, transport).
+static MAIN_IPC_TX: LazyLock<std::sync::mpsc::SyncSender<IpcRequest>> = LazyLock::new(|| {
+    let (tx, rx) = std::sync::mpsc::sync_channel::<IpcRequest>(256);
+    thread::Builder::new()
+        .name("ae-main-ipc".to_string())
+        .spawn(move || {
+            for (req, resp_tx) in rx {
+                let r = do_main_engine_request(&req);
+                let _ = resp_tx.send(r);
+            }
+        })
+        .expect("ae-main-ipc thread");
+    tx
+});
+
+/// Dedicated thread for preview engine IPC (waveform, spectrogram).
+static PREVIEW_IPC_TX: LazyLock<std::sync::mpsc::SyncSender<IpcRequest>> = LazyLock::new(|| {
+    let (tx, rx) = std::sync::mpsc::sync_channel::<IpcRequest>(128);
+    thread::Builder::new()
+        .name("ae-preview-ipc".to_string())
+        .spawn(move || {
+            for (req, resp_tx) in rx {
+                let r = spawn_preview_engine_request_at(&req);
+                let _ = resp_tx.send(r);
+            }
+        })
+        .expect("ae-preview-ipc thread");
+    tx
+});
+
+/// Route request to dedicated IPC thread and wait for response.
+/// Does NOT use tokio::spawn_blocking — completely bypasses that pool.
+pub fn dedicated_audio_engine_request(
+    request: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let cmd = request.get("cmd").and_then(|c| c.as_str()).unwrap_or("");
+    let is_preview = cmd == "waveform_preview" || cmd == "spectrogram_preview";
+    
+    let (resp_tx, resp_rx) = std::sync::mpsc::sync_channel(1);
+    
+    // Use blocking send — the dedicated thread drains quickly (audio engine responds fast).
+    // Queue depth of 256/128 means this only blocks if 256+ requests are in flight,
+    // which would indicate a stuck audio engine (and blocking is correct behavior then).
+    if is_preview {
+        PREVIEW_IPC_TX
+            .send((request.clone(), resp_tx))
+            .map_err(|_| "preview IPC thread dead")?;
+    } else {
+        MAIN_IPC_TX
+            .send((request.clone(), resp_tx))
+            .map_err(|_| "main IPC thread dead")?;
+    }
+    
+    resp_rx.recv().map_err(|_| "IPC response channel closed")?
+}
+
+/// Async wrapper that spawns the blocking wait on a short-lived thread.
+/// This ensures the tokio runtime is never blocked.
+pub async fn async_dedicated_audio_engine_request(
+    request: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    
+    // Spawn a very short-lived thread just to wait on the response.
+    // This thread does almost no work - just recv() on a channel.
+    thread::spawn(move || {
+        let result = dedicated_audio_engine_request(&request);
+        let _ = tx.send(result);
+    });
+    
+    rx.await.map_err(|_| "async IPC response dropped")?
+}
 
 /// Placeholder struct kept for serde stability / future prefs sync.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -90,80 +173,6 @@ static EOF_WATCHDOG_ACTIVE: AtomicBool = AtomicBool::new(false);
 /// does not run this thread.
 const EOF_WATCHDOG_POLL_MS: u64 = 1000;
 
-// ── Dedicated Audio Engine IPC Thread ──
-// Background jobs (BPM analysis, fingerprinting, etc.) can exhaust tokio's spawn_blocking pool,
-// causing audio playback commands to queue behind CPU-heavy work. This dedicated thread ensures
-// audio engine IPC is never blocked by background job thread pool saturation.
-//
-// Uses tokio::sync::oneshot for the response channel so `.await` is truly async (no spawn_blocking).
-
-type IpcRequest = (
-    serde_json::Value,
-    tokio::sync::oneshot::Sender<Result<serde_json::Value, String>>,
-);
-
-/// Main engine IPC thread (playback, transport, devices).
-static IPC_THREAD_TX: LazyLock<mpsc::SyncSender<IpcRequest>> = LazyLock::new(|| {
-    let (tx, rx) = mpsc::sync_channel::<IpcRequest>(64);
-    thread::Builder::new()
-        .name("audio-engine-ipc".to_string())
-        .spawn(move || {
-            for (request, response_tx) in rx {
-                let result = spawn_main_engine_request(&request);
-                let _ = response_tx.send(result);
-            }
-        })
-        .expect("audio-engine IPC thread spawn");
-    tx
-});
-
-/// Preview engine IPC thread (waveform_preview, spectrogram_preview).
-/// Separate from main so visual decodes don't queue behind playback commands.
-static PREVIEW_IPC_THREAD_TX: LazyLock<mpsc::SyncSender<IpcRequest>> = LazyLock::new(|| {
-    let (tx, rx) = mpsc::sync_channel::<IpcRequest>(32);
-    thread::Builder::new()
-        .name("audio-engine-preview-ipc".to_string())
-        .spawn(move || {
-            for (request, response_tx) in rx {
-                let result = spawn_preview_engine_request_at(&request);
-                let _ = response_tx.send(result);
-            }
-        })
-        .expect("audio-engine preview IPC thread spawn");
-    tx
-});
-
-/// Send request to dedicated audio engine IPC thread, bypassing tokio spawn_blocking pool.
-/// Routes waveform_preview/spectrogram_preview to preview thread, everything else to main.
-/// Returns a future that completes when the audio engine responds — fully async, no spawn_blocking.
-///
-/// Uses `try_send` to avoid blocking if the queue is full — returns error immediately instead
-/// of cascading backpressure that freezes the entire app.
-pub async fn async_audio_engine_request(
-    request: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    let cmd = request.get("cmd").and_then(|c| c.as_str()).unwrap_or("");
-    let is_preview = cmd == "waveform_preview" || cmd == "spectrogram_preview";
-
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    if is_preview {
-        PREVIEW_IPC_THREAD_TX
-            .try_send((request, tx))
-            .map_err(|e| match e {
-                mpsc::TrySendError::Full(_) => "audio-engine preview queue full (busy)".to_string(),
-                mpsc::TrySendError::Disconnected(_) => "audio-engine preview IPC thread closed".to_string(),
-            })?;
-    } else {
-        IPC_THREAD_TX
-            .try_send((request, tx))
-            .map_err(|e| match e {
-                mpsc::TrySendError::Full(_) => "audio-engine queue full (busy)".to_string(),
-                mpsc::TrySendError::Disconnected(_) => "audio-engine IPC thread closed".to_string(),
-            })?;
-    }
-    rx.await
-        .map_err(|_| "audio-engine IPC response channel closed".to_string())?
-}
 
 #[inline]
 fn record_engine_pid(child: &Child) {
@@ -613,7 +622,8 @@ pub fn audio_engine_eof_watchdog_start(app: AppHandle) {
             if !EOF_WATCHDOG_ACTIVE.load(Ordering::SeqCst) {
                 break;
             }
-            let v = match spawn_audio_engine_request(
+            // Use dedicated IPC thread to avoid mutex contention with playback commands
+            let v = match dedicated_audio_engine_request(
                 &serde_json::json!({ "cmd": "playback_status" }),
             ) {
                 Ok(v) => v,
@@ -780,6 +790,98 @@ fn spawn_preview_engine_request_at(request: &serde_json::Value) -> Result<serde_
     Err("audio-engine preview request failed after retry".to_string())
 }
 
+/// Direct main engine request — no routing, used by dedicated IPC thread.
+fn do_main_engine_request(request: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let (effective_request, _transcoded_temp) =
+        crate::waveform_container_extract::rewrite_visual_preview_for_juce(request);
+    let payload = serde_json::to_string(&effective_request).map_err(|e| e.to_string())?;
+
+    for attempt in 0..2 {
+        let path = resolve_audio_engine_binary().map_err(|e| {
+            log_ipc_failure(format!("failed to resolve audio-engine binary: {e}"), None);
+            e
+        })?;
+        ensure_engine_child(&path)?;
+        let mut guard = ENGINE_CHILD
+            .lock()
+            .map_err(|_| "audio-engine child mutex poisoned".to_string())?;
+        let eng = guard
+            .as_mut()
+            .ok_or_else(|| "audio-engine child missing".to_string())?;
+
+        if eng
+            .stdin
+            .write_all(payload.as_bytes())
+            .map_err(|e| e.to_string())
+            .and_then(|_| {
+                eng.stdin
+                    .write_all(b"\n")
+                    .map_err(|e| format!("audio-engine stdin: {e}"))
+            })
+            .and_then(|_| {
+                eng.stdin
+                    .flush()
+                    .map_err(|e| format!("audio-engine stdin: {e}"))
+            })
+            .is_err()
+        {
+            let stderr_tail = Arc::clone(&eng.stderr_tail);
+            clear_engine_pid();
+            *guard = None;
+            if attempt == 1 {
+                log_ipc_failure("stdin write failed", Some(&stderr_tail));
+                return Err("audio-engine stdin write failed".to_string());
+            }
+            continue;
+        }
+
+        match read_engine_json_line(&mut eng.stdout) {
+            Ok(json_line) => {
+                let v: serde_json::Value = match serde_json::from_str(&json_line) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let stderr_tail = Arc::clone(&eng.stderr_tail);
+                        log_ipc_failure(
+                            format!("invalid JSON on stdout: {e}; line={json_line:?}"),
+                            Some(&stderr_tail),
+                        );
+                        return Err(format!("audio-engine JSON: {e}: {json_line}"));
+                    }
+                };
+                if attempt == 0 {
+                    if let Some(err) = v.get("error").and_then(|e| e.as_str()) {
+                        if err.to_ascii_lowercase().contains("unknown cmd") {
+                            clear_engine_pid();
+                            *guard = None;
+                            continue;
+                        }
+                    }
+                }
+                return Ok(v);
+            }
+            Err(e) => {
+                let stderr_tail = Arc::clone(&eng.stderr_tail);
+                let is_eof = e == "audio-engine closed stdout";
+                clear_engine_pid();
+                *guard = None;
+                if attempt == 1 {
+                    if is_eof {
+                        log_ipc_failure(
+                            "AudioEngine closed stdout (process exited or crashed)",
+                            Some(&stderr_tail),
+                        );
+                    } else {
+                        log_ipc_failure(format!("stdout read: {e}"), Some(&stderr_tail));
+                    }
+                    return Err(e);
+                }
+            }
+        }
+    }
+    log_ipc_failure("main engine request failed after retry", None);
+    Err("audio-engine request failed after retry".to_string())
+}
+
 fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_json::Value, String> {
     let (effective_request, _transcoded_temp) =
         crate::waveform_container_extract::rewrite_visual_preview_for_juce(request);
@@ -790,14 +892,7 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
     if cmd == "waveform_preview" || cmd == "spectrogram_preview" {
         return spawn_preview_engine_request_at(&effective_request);
     }
-    spawn_main_engine_request(&effective_request)
-}
 
-/// Main engine request — no routing, directly talks to ENGINE_CHILD.
-/// Used by the dedicated IPC thread which has already routed by command type.
-fn spawn_main_engine_request(request: &serde_json::Value) -> Result<serde_json::Value, String> {
-    let (effective_request, _transcoded_temp) =
-        crate::waveform_container_extract::rewrite_visual_preview_for_juce(request);
     let payload = serde_json::to_string(&effective_request).map_err(|e| e.to_string())?;
 
     for attempt in 0..2 {

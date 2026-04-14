@@ -300,9 +300,19 @@ let _wfQueue = [];
 let _wfActive = 0;
 // Reduced from 4 to 2 to avoid saturating IPC during heavy background jobs
 const _wfMaxConcurrent = 2;
+// Pause waveform loading during audio playback (SMB contention)
+let _wfPausedForPlayback = false;
+
+function setWaveformPausedForPlayback(paused) {
+    _wfPausedForPlayback = paused;
+    if (!paused) _processWfQueue(); // Resume queue processing
+}
+window.setWaveformPausedForPlayback = setWaveformPausedForPlayback;
 
 function _processWfQueue() {
+    if (_wfPausedForPlayback) return; // Pause during playback load
     while (_wfActive < _wfMaxConcurrent && _wfQueue.length > 0) {
+        if (_wfPausedForPlayback) return; // Check again before each item
         const {canvas, path} = _wfQueue.shift();
         _wfActive++;
         drawMiniWaveform(canvas, path).finally(() => {

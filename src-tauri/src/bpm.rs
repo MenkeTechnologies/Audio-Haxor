@@ -44,6 +44,7 @@ pub fn decode_with_symphonia_pub(path: &Path) -> Option<(Vec<f32>, u32)> {
 
 /// Read WAV file and return mono f32 samples + sample rate.
 fn read_wav_pcm(path: &Path) -> Option<(Vec<f32>, u32)> {
+    let _guard = crate::BgIoGuard::new();
     let data = fs::read(path).ok()?;
     if data.len() < 44 || &data[0..4] != b"RIFF" || &data[8..12] != b"WAVE" {
         return None;
@@ -80,6 +81,7 @@ fn read_wav_pcm(path: &Path) -> Option<(Vec<f32>, u32)> {
 
 /// Read AIFF file and return mono f32 samples + sample rate.
 fn read_aiff_pcm(path: &Path) -> Option<(Vec<f32>, u32)> {
+    let _guard = crate::BgIoGuard::new();
     let data = fs::read(path).ok()?;
     if data.len() < 12 || &data[0..4] != b"FORM" || &data[8..12] != b"AIFF" {
         return None;

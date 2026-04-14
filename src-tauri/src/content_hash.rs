@@ -21,11 +21,18 @@ const HASH_CHUNK: usize = 256;
 
 /// Hex-encoded SHA-256 of file bytes, or `None` if unreadable.
 pub fn hash_file_sha256(path: &Path) -> Option<String> {
+    let _guard = crate::BgIoGuard::new();
     let file = File::open(path).ok()?;
     let mut reader = BufReader::with_capacity(READ_CHUNK, file);
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; READ_CHUNK];
     loop {
+        // Check yield between chunks so we can pause mid-hash for large files
+        if crate::should_yield_for_playback() {
+            drop(_guard);
+            crate::yield_if_playback_active();
+            return hash_file_sha256(path); // Restart after pause
+        }
         let n = reader.read(&mut buf).ok()?;
         if n == 0 {
             break;
@@ -114,16 +121,7 @@ pub fn find_byte_duplicate_groups(
     let mut last_emitted_done: usize = 0;
 
     let threads = hash_threads.max(1);
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .unwrap_or_else(|e| {
-            crate::append_log(format!("Content hash thread pool failed ({e}), retrying with 2 threads"));
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(2)
-                .build()
-                .expect("fallback 2-thread pool")
-        });
+    let pool = crate::build_low_priority_thread_pool(threads);
 
     for chunk in to_hash.chunks(HASH_CHUNK) {
         if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
@@ -134,6 +132,8 @@ pub fn find_byte_duplicate_groups(
             chunk
                 .par_iter()
                 .filter_map(|(path, kind, sz)| {
+                    // Yield to audio playback — SMB shares can't prioritize I/O
+                    crate::yield_if_playback_active();
                     let p = Path::new(path);
                     let h = match hash_file_sha256(p) {
                         Some(x) => x,
