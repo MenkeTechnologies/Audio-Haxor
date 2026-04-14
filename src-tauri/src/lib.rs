@@ -3512,6 +3512,49 @@ async fn favorites_set_all(favs: Vec<serde_json::Value>) -> Result<(), String> {
     blocking_res(move || db::global().favorites_set_all(&favs)).await
 }
 
+// ── Player History (SQLite-backed) ──
+
+#[tauri::command]
+async fn player_history_list() -> Result<Vec<serde_json::Value>, String> {
+    blocking_res(|| db::global().player_history_list()).await
+}
+
+#[tauri::command]
+async fn player_history_add(
+    path: String,
+    name: String,
+    format: String,
+    size: String,
+    skip_reorder: bool,
+) -> Result<(), String> {
+    blocking_res(move || db::global().player_history_add(&path, &name, &format, &size, skip_reorder)).await
+}
+
+#[tauri::command]
+async fn player_history_remove(path: String) -> Result<bool, String> {
+    blocking_res(move || db::global().player_history_remove(&path)).await
+}
+
+#[tauri::command]
+async fn player_history_clear() -> Result<(), String> {
+    blocking_res(|| db::global().player_history_clear()).await
+}
+
+#[tauri::command]
+async fn player_history_reorder(paths: Vec<String>) -> Result<(), String> {
+    blocking_res(move || db::global().player_history_reorder(&paths)).await
+}
+
+#[tauri::command]
+async fn player_history_import(items: Vec<serde_json::Value>) -> Result<usize, String> {
+    blocking_res(move || db::global().player_history_import(&items)).await
+}
+
+#[tauri::command]
+async fn player_history_set_all(items: Vec<serde_json::Value>) -> Result<(), String> {
+    blocking_res(move || db::global().player_history_set_all(&items)).await
+}
+
 // ── Notes (SQLite-backed) ──
 
 #[tauri::command]
@@ -3637,12 +3680,9 @@ async fn upsert_spectrogram_cache_entry(path: String, data: serde_json::Value) -
 #[tauri::command]
 async fn audio_engine_invoke(request: serde_json::Value) -> Result<serde_json::Value, String> {
     let payload = audio_engine::normalize_ipc_request_payload(&request);
-    let v = tokio::task::spawn_blocking({
-        let payload = payload.clone();
-        move || audio_engine::spawn_audio_engine_request(&payload)
-    })
-    .await
-    .map_err(|e| format!("audio-engine spawn_blocking: {e}"))??;
+    // Use dedicated IPC thread to avoid blocking on spawn_blocking pool (which background
+    // jobs can saturate, causing playback hangs).
+    let v = audio_engine::async_audio_engine_request(payload.clone()).await?;
     if v.get("ok") == Some(&serde_json::Value::Bool(false)) {
         let cmd = payload.get("cmd").and_then(|c| c.as_str()).unwrap_or("?");
         let err = v.get("error").and_then(|e| e.as_str()).unwrap_or("?");
@@ -8185,6 +8225,13 @@ pub fn run() {
             favorites_clear,
             favorites_is,
             favorites_set_all,
+            player_history_list,
+            player_history_add,
+            player_history_remove,
+            player_history_clear,
+            player_history_reorder,
+            player_history_import,
+            player_history_set_all,
             note_get,
             note_set,
             notes_get_all,

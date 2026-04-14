@@ -1628,8 +1628,37 @@ if (typeof window !== 'undefined') {
     window.toggleAbLoopShortcut = toggleAbLoopShortcut;
 }
 
-function loadRecentlyPlayed() {
-    recentlyPlayed = prefs.getObject('recentlyPlayed', []);
+async function loadRecentlyPlayed() {
+    // Load from SQLite; migrate from prefs on first run
+    const vu = window.vstUpdater;
+    if (vu && typeof vu.playerHistoryList === 'function') {
+        try {
+            const dbList = await vu.playerHistoryList();
+            if (dbList && dbList.length > 0) {
+                recentlyPlayed = dbList;
+                // Clear legacy prefs if migration already done
+                if (prefs.getItem('recentlyPlayed')) prefs.removeItem('recentlyPlayed');
+            } else {
+                // One-time migration from prefs to SQLite
+                const legacy = prefs.getObject('recentlyPlayed', []);
+                if (legacy.length > 0 && typeof vu.playerHistoryImport === 'function') {
+                    const imported = await vu.playerHistoryImport(legacy);
+                    if (imported > 0) {
+                        recentlyPlayed = await vu.playerHistoryList();
+                        prefs.removeItem('recentlyPlayed');
+                    } else {
+                        recentlyPlayed = legacy;
+                    }
+                } else {
+                    recentlyPlayed = legacy;
+                }
+            }
+        } catch {
+            recentlyPlayed = prefs.getObject('recentlyPlayed', []);
+        }
+    } else {
+        recentlyPlayed = prefs.getObject('recentlyPlayed', []);
+    }
     loadSampleLoopRegions();
     // Restore playback settings
     audioLooping = prefs.getItem('audioLoop') === 'on';
@@ -1716,12 +1745,20 @@ function loadRecentlyPlayed() {
 }
 
 function saveRecentlyPlayed() {
-    prefs.setItem('recentlyPlayed', recentlyPlayed);
+    // Persist current in-memory list to SQLite.
+    // Called after drag-reorder or bulk updates.
+    const vu = window.vstUpdater;
+    if (vu && typeof vu.playerHistorySetAll === 'function') {
+        vu.playerHistorySetAll(recentlyPlayed).catch(() => {});
+    }
 }
 
-function clearRecentlyPlayed() {
+async function clearRecentlyPlayed() {
     recentlyPlayed = [];
-    saveRecentlyPlayed();
+    const vu = window.vstUpdater;
+    if (vu && typeof vu.playerHistoryClear === 'function') {
+        try { await vu.playerHistoryClear(); } catch { /* ignore */ }
+    }
     renderRecentlyPlayed();
     showToast(toastFmt('toast.play_history_cleared'));
 }
@@ -6126,6 +6163,7 @@ function addToRecentlyPlayed(filePath, sample, opts) {
         format: sample ? sample.format : filePath.split('.').pop().toUpperCase(),
         size: sample ? sample.sizeFormatted : '',
     };
+    // Update in-memory array for immediate UI
     if (skipReorder) {
         const idx = recentlyPlayed.findIndex(r => r.path === filePath);
         if (idx >= 0) {
@@ -6139,7 +6177,11 @@ function addToRecentlyPlayed(filePath, sample, opts) {
         recentlyPlayed.unshift(entry);
         if (recentlyPlayed.length > MAX_RECENT) recentlyPlayed.length = MAX_RECENT;
     }
-    saveRecentlyPlayed();
+    // Persist to SQLite (fire-and-forget)
+    const vu = window.vstUpdater;
+    if (vu && typeof vu.playerHistoryAdd === 'function') {
+        vu.playerHistoryAdd(entry.path, entry.name, entry.format, entry.size, skipReorder).catch(() => {});
+    }
     renderRecentlyPlayed();
 }
 

@@ -892,16 +892,34 @@ function hideGlobalProgress() {
 /**
  * Command palette + native Tools menu — status-bar bg jobs plus KVR plugin update check
  * (`checkUpdates` / `stopUpdates`). KVR URL resolve uses `stopKvrResolve`.
+ *
+ * Jobs are staggered to avoid IPC/SQLite contention that causes UI lag.
  */
-function triggerStartAllBackgroundJobs() {
+async function triggerStartAllBackgroundJobs() {
     if (typeof showToast === 'function' && typeof toastFmt === 'function') {
         showToast(toastFmt('toast.start_all_background_jobs'));
     }
-    if (typeof triggerBackgroundBpmKeyLufsAnalysis === 'function') void triggerBackgroundBpmKeyLufsAnalysis();
-    if (typeof triggerStartBackgroundContentDupScan === 'function') void triggerStartBackgroundContentDupScan();
-    if (typeof buildPdfPagesCache === 'function') buildPdfPagesCache();
-    if (typeof triggerStartFingerprintCacheBuild === 'function') void triggerStartFingerprintCacheBuild();
-    if (typeof checkUpdates === 'function') void checkUpdates();
+    // Stagger job starts to prevent IPC flood — each job's initial DB query
+    // can block the Tauri IPC channel and cause UI jank if fired simultaneously.
+    if (typeof triggerBackgroundBpmKeyLufsAnalysis === 'function') {
+        triggerBackgroundBpmKeyLufsAnalysis();
+        await new Promise(r => setTimeout(r, 50));
+    }
+    if (typeof triggerStartBackgroundContentDupScan === 'function') {
+        triggerStartBackgroundContentDupScan();
+        await new Promise(r => setTimeout(r, 50));
+    }
+    if (typeof buildPdfPagesCache === 'function') {
+        buildPdfPagesCache();
+        await new Promise(r => setTimeout(r, 50));
+    }
+    if (typeof triggerStartFingerprintCacheBuild === 'function') {
+        triggerStartFingerprintCacheBuild();
+        await new Promise(r => setTimeout(r, 50));
+    }
+    if (typeof checkUpdates === 'function') {
+        checkUpdates();
+    }
 }
 
 function triggerStopAllBackgroundJobs() {

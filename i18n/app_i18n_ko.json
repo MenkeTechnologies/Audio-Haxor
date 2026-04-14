@@ -942,7 +942,7 @@
   "ui.audio.meta_label_size": "크기",
   "ui.audio.meta_load_failed": "메타데이터를 로드하지 못했습니다.",
   "ui.audio.meta_lufs_value": "{n}LUFS",
-  "ui.audio.meta_na": "—",
+  "ui.audio.meta_na": "N/A",
   "ui.audio.meta_sample_rate_hz": "{rate} Hz",
   "ui.audio.meta_spectrogram_badge": "스펙트로그램",
   "ui.audio.meta_spectrogram_box_tt": "스펙트로그램 — 시간 경과에 따른 주파수 성분(FFT)",

@@ -1695,6 +1695,14 @@ window.vstUpdater = {
     favoritesClear: () => invoke('favorites_clear'),
     favoritesIs: (path) => invoke('favorites_is', {path}),
     favoritesSetAll: (favs) => invoke('favorites_set_all', {favs}),
+    // Player History (SQLite-backed)
+    playerHistoryList: () => invoke('player_history_list'),
+    playerHistoryAdd: (path, name, format, size, skipReorder) => invoke('player_history_add', {path, name, format, size, skipReorder: skipReorder || false}),
+    playerHistoryRemove: (path) => invoke('player_history_remove', {path}),
+    playerHistoryClear: () => invoke('player_history_clear'),
+    playerHistoryReorder: (paths) => invoke('player_history_reorder', {paths}),
+    playerHistoryImport: (items) => invoke('player_history_import', {items}),
+    playerHistorySetAll: (items) => invoke('player_history_set_all', {items}),
     // Notes (SQLite-backed)
     noteGet: (path) => invoke('note_get', {path}),
     noteSet: (path, note, tags) => invoke('note_set', {path, note, tags}),

@@ -942,7 +942,7 @@
   "ui.audio.meta_label_size": "Méret",
   "ui.audio.meta_load_failed": "Nem sikerült betölteni a metaadatokat",
   "ui.audio.meta_lufs_value": "{n} LUFS",
-  "ui.audio.meta_na": "—",
+  "ui.audio.meta_na": "N/A",
   "ui.audio.meta_sample_rate_hz": "{rate} Hz",
   "ui.audio.meta_spectrogram_badge": "SPEKTROGRAM",
   "ui.audio.meta_spectrogram_box_tt": "Spektrogram – frekvenciatartalom időben (FFT)",

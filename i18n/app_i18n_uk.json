@@ -942,7 +942,7 @@
   "ui.audio.meta_label_size": "Розмір",
   "ui.audio.meta_load_failed": "Не вдалося завантажити метадані",
   "ui.audio.meta_lufs_value": "{n} LUFS",
-  "ui.audio.meta_na": "—",
+  "ui.audio.meta_na": "N/A",
   "ui.audio.meta_sample_rate_hz": "{rate} Гц",
   "ui.audio.meta_spectrogram_badge": "СПЕКТРОГРАМА",
   "ui.audio.meta_spectrogram_box_tt": "Спектрограма — вміст частоти в часі (ШПФ)",

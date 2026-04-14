@@ -298,7 +298,8 @@ function renderFileList() {
 // ── Lazy waveform rendering for file browser audio rows ──
 let _wfQueue = [];
 let _wfActive = 0;
-const _wfMaxConcurrent = 4;
+// Reduced from 4 to 2 to avoid saturating IPC during heavy background jobs
+const _wfMaxConcurrent = 2;
 
 function _processWfQueue() {
     while (_wfActive < _wfMaxConcurrent && _wfQueue.length > 0) {

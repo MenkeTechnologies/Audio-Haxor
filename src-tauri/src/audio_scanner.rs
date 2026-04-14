@@ -501,7 +501,17 @@ fn probe_with_symphonia(path: &Path, meta: &mut AudioMetadata) {
             meta.sample_rate = Some(sr);
         }
         if let Some(ch) = params.channels {
-            meta.channels = Some(ch.count() as u16);
+            let count = ch.count() as u16;
+            // Symphonia can misparse the channel bitmask from certain MP3 encoders,
+            // reporting e.g. 5 channels for stereo files. Root cause is upstream;
+            // clamp to format max as workaround until symphonia fixes parsing.
+            let ext = path.extension().and_then(|e| e.to_str());
+            let max_ch = match ext {
+                Some("mp3") => 2,  // MPEG-1 Layer III: stereo max
+                Some("wma") => 8,  // WMA Pro: 7.1 max
+                _ => 8,            // AAC/Opus/Vorbis support more, but 7.1 is practical max
+            };
+            meta.channels = Some(count.min(max_ch));
         }
         if let Some(bps) = params.bits_per_sample {
             meta.bits_per_sample = Some(bps as u16);

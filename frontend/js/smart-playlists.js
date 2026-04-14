@@ -202,7 +202,11 @@ function loadSmartPlaylistIntoPlayer(id) {
     const existingPaths = new Set(newItems.map(i => i.path));
     const kept = recentlyPlayed.filter(r => !existingPaths.has(r.path));
     recentlyPlayed = [...newItems, ...kept].slice(0, typeof MAX_RECENT !== 'undefined' ? MAX_RECENT : 50);
-    if (typeof saveRecentlyPlayed === 'function') saveRecentlyPlayed();
+    // Persist to SQLite (replace entire list)
+    const vu = window.vstUpdater;
+    if (vu && typeof vu.playerHistorySetAll === 'function') {
+        vu.playerHistorySetAll(recentlyPlayed).catch(() => {});
+    }
     if (typeof renderRecentlyPlayed === 'function') renderRecentlyPlayed();
     renderSmartPlaylists();
 

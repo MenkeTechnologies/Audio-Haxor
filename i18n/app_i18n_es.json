@@ -942,7 +942,7 @@
   "ui.audio.meta_label_size": "Tamaño",
   "ui.audio.meta_load_failed": "No se pudieron cargar los metadatos",
   "ui.audio.meta_lufs_value": "{n} LUFS",
-  "ui.audio.meta_na": "—",
+  "ui.audio.meta_na": "N/A",
   "ui.audio.meta_sample_rate_hz": "{rate} Hz",
   "ui.audio.meta_spectrogram_badge": "ESPECTROGRAMA",
   "ui.audio.meta_spectrogram_box_tt": "Espectrograma: contenido de frecuencia a lo largo del tiempo (FFT)",

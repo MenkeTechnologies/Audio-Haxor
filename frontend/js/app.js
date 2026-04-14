@@ -119,7 +119,7 @@ async function handleFileWatcherChange(event) {
     initMultiFilters();
     initSortPersistence();
     initSettingsSectionDrag();
-    loadRecentlyPlayed();
+    await loadRecentlyPlayed();
     // BPM/key/LUFS and waveform/spectrogram: SQLite-backed; UI hydrates per path (`dbGetAnalysis`,
     // `hydrateWaveformPeaksFromSqlite`, etc.) — no bulk `read_cache_file` at startup (large DBs froze the shell).
     renderGlobalTagBar();

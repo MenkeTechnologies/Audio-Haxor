@@ -942,7 +942,7 @@
   "ui.audio.meta_label_size": "Kích cỡ",
   "ui.audio.meta_load_failed": "Không tải được siêu dữ liệu",
   "ui.audio.meta_lufs_value": "{n} LUFS",
-  "ui.audio.meta_na": "—",
+  "ui.audio.meta_na": "N/A",
   "ui.audio.meta_sample_rate_hz": "{rate} Hz",
   "ui.audio.meta_spectrogram_badge": "PHỔ PHỔ",
   "ui.audio.meta_spectrogram_box_tt": "Quang phổ - nội dung tần số theo thời gian (FFT)",

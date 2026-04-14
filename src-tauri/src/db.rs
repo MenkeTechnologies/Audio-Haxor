@@ -2365,6 +2365,43 @@ DROP TABLE _pl_refresh_paths;"#;
                 .map_err(|e| format!("Migration v21 schema_version failed: {e}"))?;
         }
 
+        if current < 22 {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS player_history (
+                    id         INTEGER PRIMARY KEY,
+                    path       TEXT NOT NULL UNIQUE,
+                    name       TEXT NOT NULL,
+                    format     TEXT NOT NULL DEFAULT '',
+                    size       TEXT NOT NULL DEFAULT '',
+                    sort_order INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_player_history_sort ON player_history(sort_order);",
+            )
+            .map_err(|e| format!("Migration v22 (player_history) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (22)", [])
+                .map_err(|e| format!("Migration v22 schema_version failed: {e}"))?;
+        }
+
+        // v23: Add missing indexes for user data tables (favorites, player_history)
+        // to handle thousands of items efficiently.
+        if current < 23 {
+            conn.execute_batch(
+                "-- player_history: explicit path index (UNIQUE creates internal, but explicit is clearer)
+                 CREATE INDEX IF NOT EXISTS idx_player_history_path ON player_history(path);
+                 CREATE INDEX IF NOT EXISTS idx_player_history_name ON player_history(name COLLATE NOCASE);
+
+                 -- favorites: add name and type indexes for search/filter
+                 CREATE INDEX IF NOT EXISTS idx_favorites_name ON favorites(name COLLATE NOCASE);
+                 CREATE INDEX IF NOT EXISTS idx_favorites_type ON favorites(type);
+
+                 -- item_tags: add path index for fast tag lookups by item
+                 CREATE INDEX IF NOT EXISTS idx_item_tags_path ON item_tags(path);",
+            )
+            .map_err(|e| format!("Migration v23 (user data indexes) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (23)", [])
+                .map_err(|e| format!("Migration v23 schema_version failed: {e}"))?;
+        }
+
         if conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_i18n'",
@@ -2471,6 +2508,165 @@ DROP TABLE _pl_refresh_paths;"#;
                 continue;
             }
             stmt.execute(params![fav_type, path, name, format, daw, added_at, i as i64])
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    // ── Player History ──
+
+    pub fn player_history_list(&self) -> Result<Vec<serde_json::Value>, String> {
+        let conn = self.read_conn();
+        let mut stmt = conn
+            .prepare("SELECT path, name, format, size FROM player_history ORDER BY sort_order ASC")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(serde_json::json!({
+                    "path": row.get::<_, String>(0)?,
+                    "name": row.get::<_, String>(1)?,
+                    "format": row.get::<_, String>(2)?,
+                    "size": row.get::<_, String>(3)?,
+                }))
+            })
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r.map_err(|e| e.to_string())?);
+        }
+        Ok(out)
+    }
+
+    /// Add or update an entry in player history. If `skip_reorder` is false, moves entry to top.
+    pub fn player_history_add(
+        &self,
+        path: &str,
+        name: &str,
+        format: &str,
+        size: &str,
+        skip_reorder: bool,
+    ) -> Result<(), String> {
+        let conn = self.write_conn();
+        if skip_reorder {
+            // Update in place or append at end
+            let exists: bool = conn
+                .query_row(
+                    "SELECT 1 FROM player_history WHERE path = ?1",
+                    params![path],
+                    |_| Ok(true),
+                )
+                .unwrap_or(false);
+            if exists {
+                conn.execute(
+                    "UPDATE player_history SET name = ?2, format = ?3, size = ?4 WHERE path = ?1",
+                    params![path, name, format, size],
+                )
+                .map_err(|e| e.to_string())?;
+            } else {
+                let max_order: i64 = conn
+                    .query_row("SELECT COALESCE(MAX(sort_order), 0) FROM player_history", [], |r| r.get(0))
+                    .unwrap_or(0);
+                conn.execute(
+                    "INSERT INTO player_history (path, name, format, size, sort_order) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![path, name, format, size, max_order + 1],
+                )
+                .map_err(|e| e.to_string())?;
+                // Enforce max 50 entries
+                conn.execute(
+                    "DELETE FROM player_history WHERE id IN (SELECT id FROM player_history ORDER BY sort_order DESC LIMIT -1 OFFSET 50)",
+                    [],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        } else {
+            // Move to top (lowest sort_order)
+            conn.execute("DELETE FROM player_history WHERE path = ?1", params![path])
+                .map_err(|e| e.to_string())?;
+            let min_order: i64 = conn
+                .query_row("SELECT COALESCE(MIN(sort_order), 0) FROM player_history", [], |r| r.get(0))
+                .unwrap_or(0);
+            conn.execute(
+                "INSERT INTO player_history (path, name, format, size, sort_order) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![path, name, format, size, min_order - 1],
+            )
+            .map_err(|e| e.to_string())?;
+            // Enforce max 50 entries
+            conn.execute(
+                "DELETE FROM player_history WHERE id IN (SELECT id FROM player_history ORDER BY sort_order DESC LIMIT -1 OFFSET 50)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    pub fn player_history_remove(&self, path: &str) -> Result<bool, String> {
+        let conn = self.write_conn();
+        let n = conn
+            .execute("DELETE FROM player_history WHERE path = ?1", params![path])
+            .map_err(|e| e.to_string())?;
+        Ok(n > 0)
+    }
+
+    pub fn player_history_clear(&self) -> Result<(), String> {
+        let conn = self.write_conn();
+        conn.execute("DELETE FROM player_history", [])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Bulk reorder: receives paths in desired order, updates sort_order accordingly.
+    pub fn player_history_reorder(&self, paths: &[String]) -> Result<(), String> {
+        let conn = self.write_conn();
+        let mut stmt = conn
+            .prepare("UPDATE player_history SET sort_order = ?2 WHERE path = ?1")
+            .map_err(|e| e.to_string())?;
+        for (i, path) in paths.iter().enumerate() {
+            stmt.execute(params![path, i as i64])
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    /// Import from prefs JSON array (one-time migration).
+    pub fn player_history_import(&self, items: &[serde_json::Value]) -> Result<usize, String> {
+        let conn = self.write_conn();
+        let mut stmt = conn
+            .prepare("INSERT OR IGNORE INTO player_history (path, name, format, size, sort_order) VALUES (?1, ?2, ?3, ?4, ?5)")
+            .map_err(|e| e.to_string())?;
+        let mut count = 0usize;
+        for (i, item) in items.iter().enumerate() {
+            let path = item.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let format = item.get("format").and_then(|v| v.as_str()).unwrap_or("");
+            let size = item.get("size").and_then(|v| v.as_str()).unwrap_or("");
+            if path.is_empty() {
+                continue;
+            }
+            if stmt.execute(params![path, name, format, size, i as i64]).is_ok() {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    /// Replace entire player history (for smart playlists).
+    pub fn player_history_set_all(&self, items: &[serde_json::Value]) -> Result<(), String> {
+        let conn = self.write_conn();
+        conn.execute("DELETE FROM player_history", [])
+            .map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("INSERT INTO player_history (path, name, format, size, sort_order) VALUES (?1, ?2, ?3, ?4, ?5)")
+            .map_err(|e| e.to_string())?;
+        for (i, item) in items.iter().enumerate() {
+            let path = item.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let format = item.get("format").and_then(|v| v.as_str()).unwrap_or("");
+            let size = item.get("size").and_then(|v| v.as_str()).unwrap_or("");
+            if path.is_empty() {
+                continue;
+            }
+            stmt.execute(params![path, name, format, size, i as i64])
                 .map_err(|e| e.to_string())?;
         }
         Ok(())

@@ -942,7 +942,7 @@
   "ui.audio.meta_label_size": "Μέγεθος",
   "ui.audio.meta_load_failed": "Αποτυχία φόρτωσης μεταδεδομένων",
   "ui.audio.meta_lufs_value": "{n} LUFS",
-  "ui.audio.meta_na": "—",
+  "ui.audio.meta_na": "N/A",
   "ui.audio.meta_sample_rate_hz": "{rate} Hz",
   "ui.audio.meta_spectrogram_badge": "ΦΑΣΜΑΤΟΓΡΑΜΜΑ",
   "ui.audio.meta_spectrogram_box_tt": "Φασματογράφημα — περιεχόμενο συχνότητας με την πάροδο του χρόνου (FFT)",
