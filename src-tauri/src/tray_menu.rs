@@ -714,7 +714,7 @@ pub(crate) fn tray_popover_toggle_loop(app: &AppHandle<Wry>) -> Result<(), Strin
         serde_json::Value::String(if next { "on".into() } else { "off".into() }),
     );
     thread::spawn(move || {
-        let _ = crate::audio_engine::spawn_audio_engine_request(
+        let _ = crate::audio_engine::dedicated_audio_engine_request(
             &serde_json::json!({ "cmd": "playback_set_loop", "loop": next }),
         );
     });
@@ -802,7 +802,7 @@ pub fn tray_popover_action(app: AppHandle<Wry>, action: String) -> Result<(), St
                     if dur > 0.0 {
                         let position_sec = frac * dur;
                         std::thread::spawn(move || {
-                            let _ = crate::audio_engine::spawn_audio_engine_request(
+                            let _ = crate::audio_engine::dedicated_audio_engine_request(
                                 &serde_json::json!({
                                     "cmd": "playback_seek",
                                     "position_sec": position_sec,
@@ -1165,7 +1165,7 @@ pub fn start_tray_host_poll(app: AppHandle<Wry>) {
                     }
                 }
             }
-            let v = match crate::audio_engine::spawn_audio_engine_request(
+            let v = match crate::audio_engine::dedicated_audio_engine_request(
                 &serde_json::json!({ "cmd": "playback_status" }),
             ) {
                 Ok(v) => v,

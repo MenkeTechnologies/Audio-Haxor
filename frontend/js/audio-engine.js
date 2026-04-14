@@ -4262,6 +4262,18 @@ async function enginePlaybackStart(filePath, opts) {
     if (typeof window !== 'undefined' && typeof window.resetEnginePlaybackEofFlag === 'function') {
         window.resetEnginePlaybackEofFlag();
     }
+    // Signal background jobs to PAUSE and wait for in-flight I/O to complete.
+    // SMB shares have no I/O priority; bg jobs must fully stop before audio loads.
+    if (typeof window.vstUpdater?.setPlaybackActiveAndWait === 'function') {
+        await window.vstUpdater.setPlaybackActiveAndWait(true, 3000);
+    } else if (typeof window.vstUpdater?.setPlaybackActiveFlag === 'function') {
+        await window.vstUpdater.setPlaybackActiveFlag(true);
+        await new Promise(r => setTimeout(r, 500)); // Fallback delay
+    }
+    // Pause waveform loading during playback load (competes for SMB bandwidth)
+    if (typeof window.setWaveformPausedForPlayback === 'function') {
+        window.setWaveformPausedForPlayback(true);
+    }
     const inv = getAeAudioEngineInvoke();
     if (!inv) throw new Error('audio engine IPC unavailable');
     let r = await inv({cmd: 'playback_load', path: filePath});
@@ -4300,6 +4312,14 @@ async function enginePlaybackStart(filePath, opts) {
     }
     r = await inv(payload);
     throwIfAeNotOk(r, 'start_output_stream failed');
+    // Audio is now playing — allow background jobs to resume (they'll still be throttled by nice/iopol)
+    if (typeof window.vstUpdater?.setPlaybackActiveFlag === 'function') {
+        window.vstUpdater.setPlaybackActiveFlag(false).catch(() => {});
+    }
+    // Resume waveform loading
+    if (typeof window.setWaveformPausedForPlayback === 'function') {
+        window.setWaveformPausedForPlayback(false);
+    }
     if (typeof window !== 'undefined') {
         window._aeOutputStreamRunning = true;
     }

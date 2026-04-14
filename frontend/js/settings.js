@@ -1322,6 +1322,21 @@ function settingUpdateSqliteReadPoolExtra(val) {
     showToast(toastFmt('toast.sqlite_read_pool_extra_set', {val: display}));
 }
 
+function settingUpdateBgJobThrottle(val) {
+    const n = Math.min(3, Math.max(0, parseInt(String(val), 10) || 3));
+    const selectEl = document.getElementById('settingBgJobThrottle');
+    if (selectEl) selectEl.value = String(n);
+    prefs.setItem('bgJobThrottle', String(n));
+    // Apply immediately to Rust
+    if (typeof window.vstUpdater?.setBgJobThrottle === 'function') {
+        window.vstUpdater.setBgJobThrottle(n).catch(() => {});
+    }
+    const labels = ['Off', 'Light', 'Medium', 'Full Pause'];
+    if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+        showToast(toastFmt('toast.bg_job_throttle_set', {val: labels[n] || 'Full Pause'}));
+    }
+}
+
 function settingUpdateChannelBuffer(val) {
     document.getElementById('settingChannelBufferValue').textContent = val;
     prefs.setItem('channelBuffer', val);
@@ -1825,6 +1840,20 @@ function refreshSettingsUI() {
     if (dupHashEl) {
         dupHashEl.value = String(dupHashNum);
         if (dupHashValEl) dupHashValEl.textContent = String(dupHashNum);
+    }
+
+    // Background job throttle (0=off, 1=light, 2=medium, 3=full pause)
+    const bgThrottleRaw = getSettingValue('bgJobThrottle', '3');
+    let bgThrottleNum = parseInt(String(bgThrottleRaw), 10);
+    if (Number.isNaN(bgThrottleNum)) bgThrottleNum = 3;
+    bgThrottleNum = Math.min(3, Math.max(0, bgThrottleNum));
+    const bgThrottleEl = document.getElementById('settingBgJobThrottle');
+    if (bgThrottleEl) {
+        bgThrottleEl.value = String(bgThrottleNum);
+    }
+    // Apply to Rust on startup
+    if (typeof window.vstUpdater?.setBgJobThrottle === 'function') {
+        window.vstUpdater.setBgJobThrottle(bgThrottleNum).catch(() => {});
     }
 
     // SQLite read pool (0 = auto)

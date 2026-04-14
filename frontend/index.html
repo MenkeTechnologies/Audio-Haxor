@@ -11035,6 +11035,24 @@
                 <div class="settings-row">
                     <div class="settings-label">
                         <span class="settings-title"
+                              data-i18n="ui.st.bg_job_throttle">Background job throttle</span>
+                        <span class="settings-desc"
+                              data-i18n="ui.sd.bg_job_throttle">How much to slow background jobs during audio playback. Full Pause is best for network shares (SMB/NFS over WiFi). Off is fine for local SSD.</span>
+                    </div>
+                    <div class="settings-control">
+                        <select class="settings-select" data-action="settingBgJobThrottle"
+                                data-i18n-title="ui.tt.bg_job_throttle"
+                                id="settingBgJobThrottle" title="Background job throttle during playback">
+                            <option data-i18n="ui.opt.throttle_off" value="0">Off (Local SSD)</option>
+                            <option data-i18n="ui.opt.throttle_light" value="1">Light (Wired NAS)</option>
+                            <option data-i18n="ui.opt.throttle_medium" value="2">Medium (WiFi NAS)</option>
+                            <option data-i18n="ui.opt.throttle_full" value="3" selected>Full Pause (Slow Network)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title"
                               data-i18n="ui.st.sqlite_read_pool_extra">SQLite read pool</span>
                         <span class="settings-desc"
                               data-i18n="ui.sd.sqlite_read_pool_extra">Extra read-only DB connections for parallel queries (WAL). 0 = automatic. Uses more RAM when higher. Restart required.</span>
@@ -12225,48 +12243,48 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=17127"></script>
-<script src="js/utils.js?v=17127"></script>
-<script src="js/ui-idle.js?v=17127"></script>
-<script src="js/ipc.js?v=17127"></script>
-<script src="js/tooltip-hover.js?v=17127"></script>
-<script src="js/drag-reorder.js?v=17127"></script>
-<script src="js/modal-drag.js?v=17127"></script>
-<script src="js/columns.js?v=17127"></script>
-<script src="js/notes.js?v=17127"></script>
-<script src="js/favorites.js?v=17127"></script>
-<script src="js/export.js?v=17127"></script>
-<script src="js/plugins.js?v=17127"></script>
-<script src="js/settings.js?v=17127"></script>
-<script src="js/history.js?v=17127"></script>
-<script src="js/kvr.js?v=17127"></script>
-<script src="js/graph-freeze.js?v=17127"></script>
-<script src="js/audio.js?v=17127"></script>
-<script src="js/daw.js?v=17127"></script>
-<script src="js/disk-usage.js?v=17127"></script>
-<script src="js/presets.js?v=17127"></script>
-<script src="js/batch-select.js?v=17127"></script>
-<script src="js/native-file-drag.js?v=17127"></script>
-<script src="js/sort-persist.js?v=17127"></script>
-<script src="js/multi-filter.js?v=17127"></script>
-<script src="js/file-browser.js?v=17127"></script>
-<script src="js/duplicates.js?v=17127"></script>
-<script src="js/command-palette.js?v=17127"></script>
-<script src="js/xref.js?v=17127"></script>
-<script src="js/dep-graph.js?v=17127"></script>
-<script src="js/smart-playlists.js?v=17127"></script>
-<script src="js/heatmap-dashboard.js?v=17127"></script>
-<script src="js/midi.js?v=17127"></script>
-<script src="js/pdf.js?v=17127"></script>
-<script src="js/video.js?v=17127"></script>
-<script src="js/settings-search.js?v=17127"></script>
-<script src="js/visualizer.js?v=17127"></script>
-<script src="js/walker-status.js?v=17127"></script>
-<script src="js/audio-engine.js?v=17127"></script>
-<script src="js/context-menu.js?v=17127"></script>
-<script src="js/shortcuts.js?v=17127"></script>
-<script src="js/help-overlay.js?v=17127"></script>
-<script src="js/keyboard-nav.js?v=17127"></script>
-<script src="js/app.js?v=17127"></script>
+<script src="js/i18n-ui.js?v=99686"></script>
+<script src="js/utils.js?v=99686"></script>
+<script src="js/ui-idle.js?v=99686"></script>
+<script src="js/ipc.js?v=99686"></script>
+<script src="js/tooltip-hover.js?v=99686"></script>
+<script src="js/drag-reorder.js?v=99686"></script>
+<script src="js/modal-drag.js?v=99686"></script>
+<script src="js/columns.js?v=99686"></script>
+<script src="js/notes.js?v=99686"></script>
+<script src="js/favorites.js?v=99686"></script>
+<script src="js/export.js?v=99686"></script>
+<script src="js/plugins.js?v=99686"></script>
+<script src="js/settings.js?v=99686"></script>
+<script src="js/history.js?v=99686"></script>
+<script src="js/kvr.js?v=99686"></script>
+<script src="js/graph-freeze.js?v=99686"></script>
+<script src="js/audio.js?v=99686"></script>
+<script src="js/daw.js?v=99686"></script>
+<script src="js/disk-usage.js?v=99686"></script>
+<script src="js/presets.js?v=99686"></script>
+<script src="js/batch-select.js?v=99686"></script>
+<script src="js/native-file-drag.js?v=99686"></script>
+<script src="js/sort-persist.js?v=99686"></script>
+<script src="js/multi-filter.js?v=99686"></script>
+<script src="js/file-browser.js?v=99686"></script>
+<script src="js/duplicates.js?v=99686"></script>
+<script src="js/command-palette.js?v=99686"></script>
+<script src="js/xref.js?v=99686"></script>
+<script src="js/dep-graph.js?v=99686"></script>
+<script src="js/smart-playlists.js?v=99686"></script>
+<script src="js/heatmap-dashboard.js?v=99686"></script>
+<script src="js/midi.js?v=99686"></script>
+<script src="js/pdf.js?v=99686"></script>
+<script src="js/video.js?v=99686"></script>
+<script src="js/settings-search.js?v=99686"></script>
+<script src="js/visualizer.js?v=99686"></script>
+<script src="js/walker-status.js?v=99686"></script>
+<script src="js/audio-engine.js?v=99686"></script>
+<script src="js/context-menu.js?v=99686"></script>
+<script src="js/shortcuts.js?v=99686"></script>
+<script src="js/help-overlay.js?v=99686"></script>
+<script src="js/keyboard-nav.js?v=99686"></script>
+<script src="js/app.js?v=99686"></script>
 </body>
 </html>

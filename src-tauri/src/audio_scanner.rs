@@ -107,16 +107,7 @@ pub fn walk_for_audio(
     let user_stop_w = Arc::clone(&user_stop);
     let found2 = found.clone();
     let incremental = incremental.clone();
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(num_cpus::get().max(4))
-        .build()
-        .unwrap_or_else(|e| {
-            crate::append_log(format!("Audio scanner thread pool failed ({e}), retrying with 2 threads"));
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(2)
-                .build()
-                .expect("fallback 2-thread pool")
-        });
+    let pool = crate::build_low_priority_thread_pool(num_cpus::get().max(4));
     std::thread::spawn(move || {
         pool.install(|| {
             roots_owned.par_iter().for_each(|root| {
@@ -265,6 +256,7 @@ fn walk_dir_parallel(
         if user_stop.load(Ordering::Relaxed) {
             return;
         }
+        crate::yield_if_playback_active();
         let ext = path
             .extension()
             .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
