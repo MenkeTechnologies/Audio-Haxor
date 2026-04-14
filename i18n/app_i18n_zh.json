@@ -942,7 +942,7 @@
   "ui.audio.meta_label_size": "尺寸",
   "ui.audio.meta_load_failed": "无法加载元数据",
   "ui.audio.meta_lufs_value": "{n} LUFS",
-  "ui.audio.meta_na": "N/A",
+  "ui.audio.meta_na": "不适用",
   "ui.audio.meta_sample_rate_hz": "{rate} Hz",
   "ui.audio.meta_spectrogram_badge": "频谱图",
   "ui.audio.meta_spectrogram_box_tt": "频谱图 — 随时间变化的频率内容 (FFT)",

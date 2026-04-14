@@ -122,7 +122,7 @@ async function handleFileWatcherChange(event) {
     await loadRecentlyPlayed();
     // BPM/key/LUFS and waveform/spectrogram: SQLite-backed; UI hydrates per path (`dbGetAnalysis`,
     // `hydrateWaveformPeaksFromSqlite`, etc.) — no bulk `read_cache_file` at startup (large DBs froze the shell).
-    renderGlobalTagBar();
+    await renderGlobalTagBar();
     // Xref cache is in SQLite — load lazily when xref tab is used
     if (typeof loadXrefCache === 'function') loadXrefCache().catch(e => {
         if (typeof showToast === 'function') showToast(String(e), 4000, 'error');
@@ -318,7 +318,7 @@ async function handleFileWatcherChange(event) {
 function renderWelcomeDashboard() {
     const el = document.getElementById('welcomeDashboard');
     if (!el) return;
-    const favCount = getFavorites().length;
+    const favCount = _badgeCtx.favPaths.size;
     const noteCount = Object.keys(getNotes()).length;
     const tagCount = getAllTags().length;
     const recentCount = recentlyPlayed.length;

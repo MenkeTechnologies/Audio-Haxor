@@ -16,32 +16,40 @@ async function getFavorites() {
 
 async function addFavorite(type, path, name, extra) {
     const key = normalizeFavoritePathKey(path);
-    const added = await window.vstUpdater.favoritesAdd(
-        type, key, name,
-        (extra && extra.format) || null,
-        (extra && extra.daw) || null,
-        new Date().toISOString(),
-    );
-    if (!added) {
-        showToast(toastFmt('toast.already_in_favorites', {name}));
-        return;
+    try {
+        const added = await window.vstUpdater.favoritesAdd(
+            type, key, name,
+            (extra && extra.format) || null,
+            (extra && extra.daw) || null,
+            new Date().toISOString(),
+        );
+        if (!added) {
+            showToast(toastFmt('toast.already_in_favorites', {name}));
+            return;
+        }
+        await prepareBadgeContext();
+        if (typeof window.updateFavBtn === 'function') window.updateFavBtn();
+        showToast(toastFmt('toast.added_to_favorites', {name}));
+        if (typeof refreshRowBadges === 'function') refreshRowBadges(key);
+        _favDirty = true;
+    } catch (e) {
+        showToast(toastFmt('toast.failed', {err: e.message || e}), 4000, 'error');
     }
-    _badgeCtx.favPaths.add(key);
-    if (typeof window.updateFavBtn === 'function') window.updateFavBtn();
-    showToast(toastFmt('toast.added_to_favorites', {name}));
-    if (typeof refreshRowBadges === 'function') refreshRowBadges(key);
-    _favDirty = true;
 }
 
 async function removeFavorite(path) {
     const key = normalizeFavoritePathKey(path);
-    await window.vstUpdater.favoritesRemove(key);
-    _badgeCtx.favPaths.delete(key);
-    if (typeof window.updateFavBtn === 'function') window.updateFavBtn();
-    showToast(toastFmt('toast.removed_from_favorites'));
-    if (typeof refreshRowBadges === 'function') refreshRowBadges(key);
-    _favDirty = true;
-    renderFavorites();
+    try {
+        await window.vstUpdater.favoritesRemove(key);
+        await prepareBadgeContext();
+        if (typeof window.updateFavBtn === 'function') window.updateFavBtn();
+        showToast(toastFmt('toast.removed_from_favorites'));
+        if (typeof refreshRowBadges === 'function') refreshRowBadges(key);
+        _favDirty = true;
+        renderFavorites();
+    } catch (e) {
+        showToast(toastFmt('toast.failed', {err: e.message || e}), 4000, 'error');
+    }
 }
 
 function isFavorite(path) {
@@ -146,8 +154,9 @@ async function importFavorites() {
                 item.format || null, item.daw || null,
                 item.addedAt || new Date().toISOString(),
             );
-            if (ok) { added++; _badgeCtx.favPaths.add(k); }
+            if (ok) added++;
         }
+        await prepareBadgeContext();
         renderFavorites();
         showToast(toastFmt('toast.imported_favorites', {added, dup: imported.length - added}));
     } catch (e) {
@@ -157,11 +166,15 @@ async function importFavorites() {
 
 async function clearFavorites() {
     if (!confirm(appFmt('confirm.remove_all_favorites'))) return;
-    await window.vstUpdater.favoritesClear();
-    _badgeCtx.favPaths.clear();
-    if (typeof window.updateFavBtn === 'function') window.updateFavBtn();
-    showToast(toastFmt('toast.all_favorites_cleared'));
-    renderFavorites();
+    try {
+        await window.vstUpdater.favoritesClear();
+        await prepareBadgeContext();
+        if (typeof window.updateFavBtn === 'function') window.updateFavBtn();
+        showToast(toastFmt('toast.all_favorites_cleared'));
+        renderFavorites();
+    } catch (e) {
+        showToast(toastFmt('toast.failed', {err: e.message || e}), 4000, 'error');
+    }
 }
 
 let _favSearch = '';

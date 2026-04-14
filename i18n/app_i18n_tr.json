@@ -942,7 +942,7 @@
   "ui.audio.meta_label_size": "Boyut",
   "ui.audio.meta_load_failed": "Meta veriler yüklenemedi",
   "ui.audio.meta_lufs_value": "{n} LUFS",
-  "ui.audio.meta_na": "N/A",
+  "ui.audio.meta_na": "Yok",
   "ui.audio.meta_sample_rate_hz": "{rate} Hz",
   "ui.audio.meta_spectrogram_badge": "SPEKTROGRAM",
   "ui.audio.meta_spectrogram_box_tt": "Spektrogram - zaman içindeki frekans içeriği (FFT)",
