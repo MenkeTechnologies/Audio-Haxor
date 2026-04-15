@@ -163,13 +163,13 @@ fn generate_swoosh_arrangements() -> Vec<TrackArrangement> {
     arrangements
 }
 
-/// Generate scattered one-shot hits on beat grid.
+/// Generate scattered one-shot hits on 1/16th grid.
 /// 
 /// Creates random hit patterns over 32-bar sections that repeat throughout the track.
-/// Multiple SCATTER tracks with different samples fire at random beat positions.
+/// Multiple SCATTER tracks with different samples fire at random 1/16th positions.
 /// Density controls how many hits per 32 bars (0.0 = none, 1.0 = ~1 hit per bar average).
 /// 
-/// NOTE: Ableton XML requires integer beat values (bars * 4), so we use 1/4 bar (1 beat) grid.
+/// Ableton supports fractional beat values (e.g., 480.5, 95.75) for 1/16th grid precision.
 fn generate_scatter_hits(density: f32) -> Vec<TrackArrangement> {
     if density <= 0.0 {
         return vec![];
@@ -177,10 +177,10 @@ fn generate_scatter_hits(density: f32) -> Vec<TrackArrangement> {
     
     let mut rng = rand::rng();
     
-    // Work on beat grid (4 beats per bar) - Ableton requires integer beat values
-    const BEATS_PER_BAR: u32 = 4;
+    // Work on 1/16th grid (16 sixteenths per bar)
+    const SIXTEENTHS_PER_BAR: u32 = 16;
     const PATTERN_BARS: u32 = 32;
-    const BEATS_PER_PATTERN: u32 = PATTERN_BARS * BEATS_PER_BAR; // 128 beats
+    const SIXTEENTHS_PER_PATTERN: u32 = PATTERN_BARS * SIXTEENTHS_PER_BAR; // 512 sixteenths
     
     // Song sections where scatter hits play (breakdown + drops mainly)
     let sections: Vec<(u32, u32)> = vec![
@@ -197,30 +197,30 @@ fn generate_scatter_hits(density: f32) -> Vec<TrackArrangement> {
         // Hits per 32 bars based on density (density 1.0 = ~32 hits, density 0.5 = ~16 hits)
         let target_hits = ((density * 32.0) as u32).max(2);
         
-        // Generate a 32-bar pattern of random beat positions (0-127)
-        let mut pattern_beats: Vec<u32> = Vec::new();
+        // Generate a 32-bar pattern of random 1/16th positions (0-511)
+        let mut pattern_sixteenths: Vec<u32> = Vec::new();
         
         // Each track has different density - track 1 most dense, track 4 least
         let track_density = target_hits / track_num;
         
-        // Pick random beat positions, avoiding consecutive hits
+        // Pick random 1/16th positions, avoiding hits too close together
         let mut attempts = 0;
-        while pattern_beats.len() < track_density as usize && attempts < 1000 {
-            let beat: u32 = rng.random_range(0..BEATS_PER_PATTERN);
+        while pattern_sixteenths.len() < track_density as usize && attempts < 1000 {
+            let sixteenth: u32 = rng.random_range(0..SIXTEENTHS_PER_PATTERN);
             
-            // Avoid hits within 2 beats of each other for this track
-            let too_close = pattern_beats.iter().any(|&b| {
-                let diff = if beat > b { beat - b } else { b - beat };
-                diff < 2
+            // Avoid hits within 4 sixteenths (1 beat) of each other for this track
+            let too_close = pattern_sixteenths.iter().any(|&s| {
+                let diff = if sixteenth > s { sixteenth - s } else { s - sixteenth };
+                diff < 4
             });
             
             if !too_close {
-                pattern_beats.push(beat);
+                pattern_sixteenths.push(sixteenth);
             }
             attempts += 1;
         }
         
-        pattern_beats.sort();
+        pattern_sixteenths.sort();
         
         // Convert pattern to actual clip positions for each section
         let mut sections_out: Vec<(f64, f64)> = Vec::new();
@@ -231,23 +231,24 @@ fn generate_scatter_hits(density: f32) -> Vec<TrackArrangement> {
             // Repeat the 32-bar pattern across the section
             let mut bar_offset = 0u32;
             while bar_offset < section_bars {
-                for &beat in &pattern_beats {
-                    // Convert beat to bar position
-                    let beat_bar = beat / BEATS_PER_BAR;
-                    let beat_within_bar = beat % BEATS_PER_BAR;
+                for &sixteenth in &pattern_sixteenths {
+                    // Convert sixteenth to bar position
+                    let sixteenth_bar = sixteenth / SIXTEENTHS_PER_BAR;
+                    let sixteenth_within_bar = sixteenth % SIXTEENTHS_PER_BAR;
                     
-                    if beat_bar >= PATTERN_BARS.min(section_bars - bar_offset) {
+                    if sixteenth_bar >= PATTERN_BARS.min(section_bars - bar_offset) {
                         continue;
                     }
                     
-                    let abs_bar = section_start + bar_offset + beat_bar;
+                    let abs_bar = section_start + bar_offset + sixteenth_bar;
                     
                     if abs_bar >= *section_end {
                         continue;
                     }
                     
-                    // Position as bar + fraction (0.25 per beat)
-                    let abs_pos: f64 = abs_bar as f64 + (beat_within_bar as f64 * 0.25);
+                    // Position as bar + fraction (0.0625 per 1/16th = 1/16 of a bar)
+                    // This produces values like 65.0625, 65.125, 65.1875, etc.
+                    let abs_pos: f64 = abs_bar as f64 + (sixteenth_within_bar as f64 * 0.0625);
                     
                     // One-shot = start and end at same position (single hit)
                     sections_out.push((abs_pos, abs_pos));
@@ -966,8 +967,19 @@ fn get_arrangement(chaos: f32) -> Vec<TrackArrangement> {
     base
 }
 
-fn get_arrangement_with_params(chaos: f32, glitch_intensity: f32, density: f32) -> Vec<TrackArrangement> {
+fn get_arrangement_with_params(chaos: f32, glitch_intensity: f32, section_glitch: &SectionGlitch, density: f32, variation: f32, parallelism: f32) -> Vec<TrackArrangement> {
     let mut arrangements = get_arrangement(chaos);
+    
+    // Apply parallelism - limit how many tracks of same type play at once
+    // Variation controls the switch interval (low = stable, high = frequent switching)
+    if parallelism < 1.0 {
+        arrangements = apply_parallelism(arrangements, parallelism, variation);
+    }
+    
+    // Apply variation - elements drop in/out more frequently
+    if variation > 0.0 {
+        arrangements = apply_variation(arrangements, variation);
+    }
     
     // Add scattered one-shot hits on 1/16 grid (density-controlled)
     if density > 0.0 {
@@ -975,8 +987,231 @@ fn get_arrangement_with_params(chaos: f32, glitch_intensity: f32, density: f32) 
     }
     
     // Apply glitch edits (beat-level micro-edits, stutters, dropouts)
-    if glitch_intensity > 0.0 {
-        arrangements = apply_glitch_edits(arrangements, glitch_intensity);
+    // Now uses per-section intensity from section_glitch config
+    arrangements = apply_glitch_edits(arrangements, glitch_intensity, section_glitch);
+    
+    arrangements
+}
+
+/// Apply parallelism - limit how many tracks of the same type play simultaneously
+/// parallelism 0.0 = one track at a time, 1.0 = all tracks play together
+/// variation controls switch interval: 0.0 = every 16 bars, 1.0 = every 4 bars
+fn apply_parallelism(arrangements: Vec<TrackArrangement>, parallelism: f32, variation: f32) -> Vec<TrackArrangement> {
+    use std::collections::HashMap;
+    let mut rng = rand::rng();
+    
+    // Group tracks by their base type (strip trailing numbers)
+    let get_base_type = |name: &str| -> String {
+        let trimmed = name.trim_end_matches(|c: char| c.is_ascii_digit() || c == ' ');
+        trimmed.trim().to_string()
+    };
+    
+    // One-shot/FX tracks that shouldn't have parallelism applied
+    let exempt = ["FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP", 
+                  "BOOM KICK", "SNARE ROLL", "GLITCH", "REVERSE", "SWEEP", "SCATTER"];
+    
+    // Group arrangements by base type
+    let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
+    for (idx, arr) in arrangements.iter().enumerate() {
+        if exempt.iter().any(|e| arr.name.starts_with(e)) {
+            continue;
+        }
+        let base = get_base_type(&arr.name);
+        groups.entry(base).or_default().push(idx);
+    }
+    
+    // Switch interval based on variation: low variation = long intervals, high = short
+    // Range: 16 bars (variation=0) down to 4 bars (variation=1)
+    let switch_bars = (16.0 - variation * 12.0).max(4.0) as u32;
+    
+    let mut result = arrangements;
+    
+    // For each group with multiple tracks, thin out based on parallelism
+    for (_base_type, indices) in groups.iter() {
+        let group_size = indices.len();
+        if group_size <= 1 {
+            continue; // Single track, nothing to thin
+        }
+        
+        // How many can play at once: at least 1, at most all
+        let max_concurrent = ((group_size as f32 * parallelism).ceil() as usize).max(1).min(group_size);
+        
+        if max_concurrent >= group_size {
+            continue; // All can play, no thinning needed
+        }
+        
+        // Find the overall time range across all tracks in group
+        let mut min_start = f64::MAX;
+        let mut max_end = 0.0f64;
+        for &idx in indices {
+            for &(start, end) in &result[idx].sections {
+                min_start = min_start.min(start);
+                max_end = max_end.max(end);
+            }
+        }
+        
+        if min_start >= max_end {
+            continue;
+        }
+        
+        // Divide into time slots and randomly assign which tracks are active
+        let total_bars = (max_end - min_start) as u32;
+        let num_slots = (total_bars / switch_bars).max(1);
+        
+        // For each track, determine which slots it's active
+        let mut track_active_slots: Vec<Vec<bool>> = vec![vec![false; num_slots as usize]; group_size];
+        
+        for slot in 0..num_slots as usize {
+            // Randomly pick which tracks are active this slot
+            let mut candidates: Vec<usize> = (0..group_size).collect();
+            
+            // Shuffle and take max_concurrent
+            for i in (1..candidates.len()).rev() {
+                let j = rng.random_range(0..=i as u32) as usize;
+                candidates.swap(i, j);
+            }
+            
+            for &track_idx in candidates.iter().take(max_concurrent) {
+                track_active_slots[track_idx][slot] = true;
+            }
+        }
+        
+        // Apply the active slots to each track's sections
+        for (group_idx, &arr_idx) in indices.iter().enumerate() {
+            let arr = &mut result[arr_idx];
+            let mut new_sections: Vec<(f64, f64)> = Vec::new();
+            
+            for &(start, end) in &arr.sections {
+                // Split this section by slots and keep only active portions
+                let mut current = start;
+                while current < end {
+                    let slot_idx = ((current - min_start) / switch_bars as f64) as usize;
+                    let slot_idx = slot_idx.min(num_slots as usize - 1);
+                    
+                    let slot_start = min_start + (slot_idx as f64 * switch_bars as f64);
+                    let slot_end = (slot_start + switch_bars as f64).min(max_end);
+                    
+                    let section_start = current.max(start);
+                    let section_end = slot_end.min(end);
+                    
+                    if track_active_slots[group_idx][slot_idx] && section_start < section_end {
+                        // Merge with previous if contiguous
+                        if let Some(last) = new_sections.last_mut() {
+                            if (last.1 - section_start).abs() < 0.001 {
+                                last.1 = section_end;
+                            } else {
+                                new_sections.push((section_start, section_end));
+                            }
+                        } else {
+                            new_sections.push((section_start, section_end));
+                        }
+                    }
+                    
+                    current = slot_end;
+                }
+            }
+            
+            arr.sections = new_sections;
+        }
+    }
+    
+    result
+}
+
+/// Apply variation to arrangements - elements drop in/out within sections
+/// variation 0.0 = elements play full sections, 1.0 = constant movement
+fn apply_variation(mut arrangements: Vec<TrackArrangement>, variation: f32) -> Vec<TrackArrangement> {
+    let mut rng = rand::rng();
+    
+    // Tracks that should NOT have variation applied (core rhythm, fills, one-shots)
+    let protected = ["KICK", "FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP", 
+                     "BOOM KICK", "SNARE ROLL", "GLITCH", "REVERSE", "SWEEP", "SCATTER"];
+    
+    // Tracks that can have moderate variation (drums keep groove)
+    let light_variation = ["CLAP", "SNARE", "BASS", "SUB"];
+    
+    // Snap to 4-bar boundaries for musical phrasing
+    let snap_4bar = |v: f64| -> f64 { (v / 4.0).round() * 4.0 };
+    
+    for arr in arrangements.iter_mut() {
+        // Skip protected tracks
+        if protected.iter().any(|p| arr.name.starts_with(p)) {
+            continue;
+        }
+        
+        let is_light = light_variation.iter().any(|p| arr.name.starts_with(p));
+        let effective_variation = if is_light { variation * 0.3 } else { variation };
+        
+        let mut new_sections: Vec<(f64, f64)> = Vec::new();
+        
+        for &(start, end) in &arr.sections {
+            let section_len = end - start;
+            
+            // Skip short sections
+            if section_len < 8.0 {
+                new_sections.push((start, end));
+                continue;
+            }
+            
+            // Probability of breaking up this section increases with variation
+            if !rng.random_bool(effective_variation as f64 * 0.7) {
+                new_sections.push((start, end));
+                continue;
+            }
+            
+            // Break section into 4 or 8 bar chunks with gaps
+            let chunk_size = if rng.random_bool(0.5) { 4.0 } else { 8.0 };
+            let mut pos = start;
+            
+            while pos < end {
+                let chunk_end = (pos + chunk_size).min(end);
+                
+                // Randomly decide to play or skip this chunk
+                // Higher variation = more skips
+                let play_prob = 1.0 - (effective_variation as f64 * 0.5);
+                
+                if rng.random_bool(play_prob) {
+                    // Play this chunk, maybe with shortened duration
+                    let actual_end = if rng.random_bool(effective_variation as f64 * 0.3) {
+                        // Cut chunk short by 1-2 bars
+                        let cut = if rng.random_bool(0.5) { 1.0 } else { 2.0 };
+                        (chunk_end - cut).max(pos + 2.0)
+                    } else {
+                        chunk_end
+                    };
+                    
+                    if actual_end > pos {
+                        new_sections.push((snap_4bar(pos).max(start), snap_4bar(actual_end).min(end)));
+                    }
+                }
+                // else: skip this chunk (gap)
+                
+                pos = chunk_end;
+            }
+        }
+        
+        // Filter out invalid/duplicate sections and sort
+        let mut filtered: Vec<(f64, f64)> = new_sections
+            .into_iter()
+            .filter(|(s, e)| e > s && *e - *s >= 2.0)
+            .collect();
+        filtered.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        
+        // Merge overlapping sections
+        let mut merged: Vec<(f64, f64)> = Vec::new();
+        for (s, e) in filtered {
+            if let Some(last) = merged.last_mut() {
+                if s <= last.1 {
+                    last.1 = last.1.max(e);
+                    continue;
+                }
+            }
+            merged.push((s, e));
+        }
+        
+        if !merged.is_empty() {
+            arr.sections = merged;
+        }
     }
     
     arrangements
@@ -1106,8 +1341,18 @@ fn apply_chaos_to_arrangements(mut arrangements: Vec<TrackArrangement>, chaos: f
 /// 
 /// IMPORTANT: All positions must be multiples of 0.25 bars (1 beat) to produce valid ALS XML.
 /// Ableton expects integer beat values for CurrentStart/CurrentEnd.
-fn apply_glitch_edits(mut arrangements: Vec<TrackArrangement>, glitch_intensity: f32) -> Vec<TrackArrangement> {
-    if glitch_intensity < 0.05 {
+fn apply_glitch_edits(mut arrangements: Vec<TrackArrangement>, glitch_intensity: f32, section_glitch: &SectionGlitch) -> Vec<TrackArrangement> {
+    // Check if any glitch is enabled at all
+    let has_any_glitch = glitch_intensity > 0.05 
+        || section_glitch.intro.map_or(false, |v| v > 0.05)
+        || section_glitch.build.map_or(false, |v| v > 0.05)
+        || section_glitch.breakdown.map_or(false, |v| v > 0.05)
+        || section_glitch.drop1.map_or(false, |v| v > 0.05)
+        || section_glitch.drop2.map_or(false, |v| v > 0.05)
+        || section_glitch.fadedown.map_or(false, |v| v > 0.05)
+        || section_glitch.outro.map_or(false, |v| v > 0.05);
+    
+    if !has_any_glitch {
         return arrangements;
     }
     
@@ -1125,9 +1370,6 @@ fn apply_glitch_edits(mut arrangements: Vec<TrackArrangement>, glitch_intensity:
     // Tracks that should NOT be glitched (one-shots, FX)
     let protected = ["FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP", "BOOM KICK", 
                      "SNARE ROLL", "GLITCH", "REVERSE", "SWEEP", "ATMOS", "VOX"];
-    
-    // Scale probabilities based on intensity - at 1.0, we want LOTS of glitches
-    let gi = glitch_intensity as f64;
     
     for arr in arrangements.iter_mut() {
         // Skip protected tracks
@@ -1158,6 +1400,17 @@ fn apply_glitch_edits(mut arrangements: Vec<TrackArrangement>, glitch_intensity:
             while current < end_snapped {
                 let bar_end = snap((current + 1.0).min(end_snapped));
                 let bar_num = current as u32;
+                
+                // Get section-aware glitch intensity for this bar
+                // Bar numbers in arrangement are 1-based (INTRO starts at bar 1)
+                let gi = section_glitch.intensity_at_bar(bar_num, glitch_intensity) as f64;
+                
+                // Skip this bar if no glitch intensity
+                if gi < 0.05 {
+                    new_sections.push((current, bar_end));
+                    current = bar_end;
+                    continue;
+                }
                 
                 // === KICK GLITCHES ===
                 if is_kick {
@@ -1547,10 +1800,76 @@ std::thread_local! {
 }
 
 // Persistent blacklist across generations - samples used in previous generations
-// This ensures variety when generating multiple projects in a session
+// Persistent blacklist - stored in SQLite, cached in memory for fast lookups
+// This ensures variety when generating multiple projects in a session AND across app restarts
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+
 static GENERATION_BLACKLIST: std::sync::LazyLock<Mutex<HashSet<String>>> = 
     std::sync::LazyLock::new(|| Mutex::new(HashSet::new()));
+static BLACKLIST_LOADED: AtomicBool = AtomicBool::new(false);
+
+// Directory whitelist - only use samples from these directories (if any are set)
+static DIRECTORY_WHITELIST: std::sync::LazyLock<Mutex<HashSet<String>>> = 
+    std::sync::LazyLock::new(|| Mutex::new(HashSet::new()));
+static WHITELIST_LOADED: AtomicBool = AtomicBool::new(false);
+
+/// Load blacklist from DB into memory cache (call once at startup or on first use)
+fn ensure_blacklist_loaded() {
+    if BLACKLIST_LOADED.swap(true, Ordering::SeqCst) {
+        return; // Already loaded
+    }
+    if let Ok(entries) = crate::db::global().blacklist_list() {
+        if let Ok(mut blacklist) = GENERATION_BLACKLIST.lock() {
+            for entry in entries {
+                blacklist.insert(entry);
+            }
+        }
+        write_app_log(format!("[techno_generator] Loaded {} blacklist entries from DB", 
+            GENERATION_BLACKLIST.lock().map(|b| b.len()).unwrap_or(0)));
+    }
+}
+
+/// Load whitelist from DB into memory cache
+fn ensure_whitelist_loaded() {
+    if WHITELIST_LOADED.swap(true, Ordering::SeqCst) {
+        return; // Already loaded
+    }
+    if let Ok(entries) = crate::db::global().whitelist_list() {
+        if let Ok(mut whitelist) = DIRECTORY_WHITELIST.lock() {
+            for entry in entries {
+                whitelist.insert(entry);
+            }
+        }
+        write_app_log(format!("[techno_generator] Loaded {} whitelist entries from DB", 
+            DIRECTORY_WHITELIST.lock().map(|w| w.len()).unwrap_or(0)));
+    }
+}
+
+/// Check if a sample path is allowed by the whitelist (empty whitelist = all allowed)
+fn is_path_whitelisted(path: &str) -> bool {
+    ensure_whitelist_loaded();
+    if let Ok(whitelist) = DIRECTORY_WHITELIST.lock() {
+        if whitelist.is_empty() {
+            return true; // No whitelist = all allowed
+        }
+        // Check if path starts with any whitelisted directory
+        for dir in whitelist.iter() {
+            if path.starts_with(dir) {
+                return true;
+            }
+        }
+        // Log first rejection for debugging
+        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !LOGGED.swap(true, Ordering::Relaxed) {
+            let dirs: Vec<_> = whitelist.iter().take(3).cloned().collect();
+            write_app_log(format!("[whitelist] Rejected path: {} (whitelist dirs: {:?})", path, dirs));
+        }
+        false
+    } else {
+        true // On lock error, allow all
+    }
+}
 
 fn set_hardness(h: f32) {
     CURRENT_HARDNESS.with(|c| c.set(h));
@@ -1566,39 +1885,193 @@ fn clear_used_samples() {
 
 fn mark_sample_used(path: &str) {
     USED_SAMPLES.with(|s| s.borrow_mut().insert(path.to_string()));
-    // Also add to persistent blacklist
+    // Also add to persistent blacklist using key-stripped path
+    // This prevents selecting the same sample in different keys
+    let key_agnostic_path = crate::sample_analysis::strip_key_from_path(path);
+    
+    // Also extract and blacklist the filename (key-stripped)
+    let filename = std::path::Path::new(path)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("");
+    let key_agnostic_filename = crate::sample_analysis::strip_key_from_path(filename);
+    
+    // Add both to in-memory cache
     if let Ok(mut blacklist) = GENERATION_BLACKLIST.lock() {
-        blacklist.insert(path.to_string());
+        blacklist.insert(key_agnostic_path.clone());
+        if !key_agnostic_filename.is_empty() {
+            blacklist.insert(key_agnostic_filename.clone());
+        }
+    }
+    // Persist both to DB
+    let _ = crate::db::global().blacklist_add(&key_agnostic_path);
+    if !key_agnostic_filename.is_empty() {
+        let _ = crate::db::global().blacklist_add(&key_agnostic_filename);
     }
 }
 
 fn is_sample_used(path: &str) -> bool {
-    // Check both current generation and persistent blacklist
+    // Check current generation with exact path
     let in_current = USED_SAMPLES.with(|s| s.borrow().contains(path));
     if in_current {
         return true;
     }
-    // Check persistent blacklist
+    // Ensure blacklist is loaded from DB
+    ensure_blacklist_loaded();
+    
+    // Check persistent blacklist with key-stripped path AND filename
+    let key_agnostic_path = crate::sample_analysis::strip_key_from_path(path);
+    let filename = std::path::Path::new(path)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("");
+    let key_agnostic_filename = crate::sample_analysis::strip_key_from_path(filename);
+    
     if let Ok(blacklist) = GENERATION_BLACKLIST.lock() {
-        return blacklist.contains(path);
+        // Match if either full path or just filename is blacklisted
+        if blacklist.contains(&key_agnostic_path) {
+            return true;
+        }
+        if !key_agnostic_filename.is_empty() && blacklist.contains(&key_agnostic_filename) {
+            return true;
+        }
     }
     false
 }
 
 /// Clear the persistent blacklist (call when user wants fresh samples)
 pub fn clear_sample_blacklist() {
+    // Clear in-memory cache
     if let Ok(mut blacklist) = GENERATION_BLACKLIST.lock() {
         let count = blacklist.len();
         blacklist.clear();
         write_app_log(format!("[techno_generator] Cleared sample blacklist ({} samples)", count));
     }
+    // Clear from DB
+    let _ = crate::db::global().blacklist_clear();
 }
 
 /// Get the number of samples in the blacklist
 pub fn get_blacklist_count() -> usize {
+    ensure_blacklist_loaded();
     GENERATION_BLACKLIST.lock().map(|b| b.len()).unwrap_or(0)
 }
 
+/// Get all blacklisted sample paths (key-stripped)
+pub fn get_blacklist_entries() -> Vec<String> {
+    ensure_blacklist_loaded();
+    let mut entries: Vec<String> = GENERATION_BLACKLIST
+        .lock()
+        .map(|b| b.iter().cloned().collect())
+        .unwrap_or_default();
+    entries.sort();
+    entries
+}
+
+/// Add a path or filename to the blacklist (key-stripped automatically)
+/// If it looks like a full path, also blacklists the filename separately
+pub fn add_to_blacklist(path: &str) {
+    let key_agnostic = crate::sample_analysis::strip_key_from_path(path);
+    
+    // Add to in-memory cache
+    if let Ok(mut blacklist) = GENERATION_BLACKLIST.lock() {
+        blacklist.insert(key_agnostic.clone());
+    }
+    // Persist to DB
+    let _ = crate::db::global().blacklist_add(&key_agnostic);
+    
+    // If it looks like a path (contains separator), also blacklist just the filename
+    if path.contains('/') || path.contains('\\') {
+        let filename = std::path::Path::new(path)
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("");
+        if !filename.is_empty() {
+            let key_agnostic_filename = crate::sample_analysis::strip_key_from_path(filename);
+            if let Ok(mut blacklist) = GENERATION_BLACKLIST.lock() {
+                blacklist.insert(key_agnostic_filename.clone());
+            }
+            let _ = crate::db::global().blacklist_add(&key_agnostic_filename);
+        }
+    }
+}
+
+/// Remove a specific entry from the blacklist
+pub fn remove_from_blacklist(entry: &str) -> bool {
+    // Remove from in-memory cache
+    let removed = if let Ok(mut blacklist) = GENERATION_BLACKLIST.lock() {
+        blacklist.remove(entry)
+    } else {
+        false
+    };
+    // Remove from DB
+    let _ = crate::db::global().blacklist_remove(entry);
+    removed
+}
+
+// ── Directory Whitelist CRUD ──
+
+/// Get the number of directories in the whitelist
+pub fn get_whitelist_count() -> usize {
+    ensure_whitelist_loaded();
+    DIRECTORY_WHITELIST.lock().map(|w| w.len()).unwrap_or(0)
+}
+
+/// Get all whitelisted directories
+pub fn get_whitelist_entries() -> Vec<String> {
+    ensure_whitelist_loaded();
+    let mut entries: Vec<String> = DIRECTORY_WHITELIST
+        .lock()
+        .map(|w| w.iter().cloned().collect())
+        .unwrap_or_default();
+    entries.sort();
+    entries
+}
+
+/// Add a directory to the whitelist
+pub fn add_to_whitelist(path: &str) {
+    // Normalize path (remove trailing slash)
+    let normalized = path.trim_end_matches('/').trim_end_matches('\\');
+    if normalized.is_empty() {
+        return;
+    }
+    
+    // Add to in-memory cache
+    if let Ok(mut whitelist) = DIRECTORY_WHITELIST.lock() {
+        whitelist.insert(normalized.to_string());
+    }
+    // Persist to DB
+    let _ = crate::db::global().whitelist_add(normalized);
+    write_app_log(format!("[techno_generator] Added to whitelist: {}", normalized));
+}
+
+/// Remove a directory from the whitelist
+pub fn remove_from_whitelist(path: &str) -> bool {
+    // Remove from in-memory cache
+    let removed = if let Ok(mut whitelist) = DIRECTORY_WHITELIST.lock() {
+        whitelist.remove(path)
+    } else {
+        false
+    };
+    // Remove from DB
+    let _ = crate::db::global().whitelist_remove(path);
+    if removed {
+        write_app_log(format!("[techno_generator] Removed from whitelist: {}", path));
+    }
+    removed
+}
+
+/// Clear the directory whitelist (allows all directories)
+pub fn clear_whitelist() {
+    // Clear in-memory cache
+    if let Ok(mut whitelist) = DIRECTORY_WHITELIST.lock() {
+        let count = whitelist.len();
+        whitelist.clear();
+        write_app_log(format!("[techno_generator] Cleared directory whitelist ({} directories)", count));
+    }
+    // Clear from DB
+    let _ = crate::db::global().whitelist_clear();
+}
 
 fn query_samples_with_key(
     label: &str,
@@ -1813,9 +2286,13 @@ fn query_samples_internal(
         b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
     });
     
-    // Filter out already-used samples and take count
+    // Filter out already-used samples and non-whitelisted paths, then take count
     let mut results: Vec<SampleInfo> = Vec::with_capacity(count);
     for (sample, _score) in scored {
+        // Skip if not in whitelisted directories (if whitelist is set)
+        if !is_path_whitelisted(&sample.path) {
+            continue;
+        }
         if !is_sample_used(&sample.path) {
             mark_sample_used(&sample.path);
             results.push(sample);
@@ -2029,8 +2506,14 @@ fn load_song_samples(song_num: u32, target_key: Option<&str>, atonal: bool, hard
     let glitch_inc = &["glitch", "glitches/", "glitch_fx", "glitch fx", "stutter_fx", "stutter fx", "stutters/", "glitch_loop", "glitch loop"];
     let glitches = query_n_keyed!("GLITCH", glitch_inc, false, track_counts.glitch, key_for(type_atonal.glitch));
 
-    // Scatter hits - short one-shots for random placement (perc stabs, hits, blips, zaps)
-    let scatter_inc = &["perc shot", "perc_shot", "blip", "zap", "stab", "click", "tick", "one shot", "one_shot", "fx shot", "fx_shot"];
+    // Scatter hits - short one-shots for random placement (any one-shots: perc, fx, melodic stabs)
+    let scatter_inc = &[
+        "one shot", "one_shot", "oneshot", "one-shot", "shots/",
+        "stab", "stabs/", "hit", "hits/", "blip", "zap", "pluck",
+        "perc shot", "perc_shot", "fx shot", "fx_shot", "fx hit", "fx_hit",
+        "click", "tick", "snap", "pop", "chirp", "ping", "spike",
+        "impact", "transient", "accent", "chop", "cut"
+    ];
     let scatters = query_n_keyed!("SCATTER", scatter_inc, false, track_counts.scatter, key_for(type_atonal.scatter));
 
     // === VOCALS ===
@@ -2115,6 +2598,41 @@ impl Default for TrackCounts {
     }
 }
 
+/// Per-section glitch intensity configuration.
+/// Each value is 0.0-1.0, with None meaning "use global glitch_intensity".
+#[derive(Debug, Clone, Default)]
+pub struct SectionGlitch {
+    pub intro: Option<f32>,
+    pub build: Option<f32>,
+    pub breakdown: Option<f32>,
+    pub drop1: Option<f32>,
+    pub drop2: Option<f32>,
+    pub fadedown: Option<f32>,
+    pub outro: Option<f32>,
+}
+
+impl SectionGlitch {
+    /// Get glitch intensity for a given bar number, falling back to global intensity.
+    pub fn intensity_at_bar(&self, bar: u32, global: f32) -> f32 {
+        let section_val = if bar < BUILD1_START {
+            self.intro
+        } else if bar < BREAKDOWN_START {
+            self.build
+        } else if bar < DROP1_START {
+            self.breakdown
+        } else if bar < DROP2_START {
+            self.drop1
+        } else if bar < FADEDOWN_START {
+            self.drop2
+        } else if bar < OUTRO_START {
+            self.fadedown
+        } else {
+            self.outro
+        };
+        section_val.unwrap_or(global)
+    }
+}
+
 /// Per-type atonal flags - when true, skip key filtering for that sample type
 #[derive(Debug, Clone, Default)]
 pub struct TypeAtonal {
@@ -2163,7 +2681,10 @@ pub fn generate(
     hardness: f32,
     chaos: f32,
     glitch_intensity: f32,
+    section_glitch: SectionGlitch,
     density: f32,
+    variation: f32,
+    parallelism: f32,
     atonal: bool,
     track_counts: TrackCounts,
     type_atonal: TypeAtonal,
@@ -2172,8 +2693,8 @@ pub fn generate(
 ) -> Result<GenerationResult, String> {
     let gen_start = std::time::Instant::now();
     write_app_log(format!(
-        "[techno_generator] generate: INPUT PARAMS: output={:?}, bpm={}, num_songs={}, root_note={:?}, mode={:?}, genre={:?}, hardness={}, chaos={}, glitch_intensity={}, density={}, atonal={}, tracks={:?}, type_atonal={:?}",
-        output_path, bpm, num_songs, root_note, mode, genre, hardness, chaos, glitch_intensity, density, atonal, track_counts, type_atonal
+        "[techno_generator] generate: INPUT PARAMS: output={:?}, bpm={}, num_songs={}, root_note={:?}, mode={:?}, genre={:?}, hardness={}, chaos={}, glitch_intensity={}, density={}, variation={}, parallelism={}, atonal={}, tracks={:?}, type_atonal={:?}",
+        output_path, bpm, num_songs, root_note, mode, genre, hardness, chaos, glitch_intensity, density, variation, parallelism, atonal, track_counts, type_atonal
     ));
 
     let cancelled = || cancel.map_or(false, |c| c.load(std::sync::atomic::Ordering::Relaxed));
@@ -2262,8 +2783,8 @@ pub fn generate(
     let melodics_group = create_group_track("MELODICS", MELODICS_COLOR, melodics_group_id, &ids)?;
     let fx_group = create_group_track("FX", FX_COLOR, fx_group_id, &ids)?;
 
-    // Get arrangement structure with chaos, glitch, and density applied
-    let arrangements = get_arrangement_with_params(chaos, glitch_intensity, density);
+    // Get arrangement structure with chaos, glitch, density, variation, and parallelism applied
+    let arrangements = get_arrangement_with_params(chaos, glitch_intensity, &section_glitch, density, variation, parallelism);
     
     // Default full-song arrangement for extra loop tracks (play throughout most of the song)
     let full_arrangement: Vec<(f64, f64)> = vec![

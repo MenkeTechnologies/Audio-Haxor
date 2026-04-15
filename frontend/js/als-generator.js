@@ -19,17 +19,12 @@
   };
 
   // ---------------------------------------------------------------------------
-  // Wizard step navigation
+  // Section visibility (no longer wizard panels - all visible)
   // ---------------------------------------------------------------------------
 
   function showStep(step) {
-    document.querySelectorAll('.als-wizard-panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.als-step-btn').forEach(b => b.classList.remove('active'));
-    const panel = document.getElementById('alsStep' + step);
-    if (panel) panel.classList.add('active');
-    const btn = document.querySelector(`.als-step-btn[data-step="${step}"]`);
-    if (btn) btn.classList.add('active');
-
+    // Legacy function - all sections now visible at once
+    // Just trigger previews/summary load if needed
     if (step === 3) loadPreviews();
     if (step === 4) updateSummary();
   }
@@ -124,6 +119,8 @@
       chaos: (parseInt(el('alsChaos')?.value || '30', 10)) / 100,
       glitch_intensity: (parseInt(el('alsGlitchIntensity')?.value || '0', 10)) / 100,
       density: (parseInt(el('alsDensity')?.value || '0', 10)) / 100,
+      variation: (parseInt(el('alsVariation')?.value || '0', 10)) / 100,
+      parallelism: (parseInt(el('alsParallelism')?.value || '40', 10)) / 100,
       bpm: parseInt(el('alsBpm')?.value || '130', 10),
       root_note: el('alsAtonal')?.checked ? null : (el('alsRootNote')?.value || 'A'),
       mode: el('alsAtonal')?.checked ? null : (el('alsMode')?.value || 'Aeolian'),
@@ -203,7 +200,25 @@
         scatter: !chk('alsTonalScatter'),
         vox: !chk('alsTonalVox'),
       },
+      // Per-section glitch overrides (null means use global)
+      section_glitch: {
+        intro: getSectionGlitch('alsGlitchIntro'),
+        build: getSectionGlitch('alsGlitchBuild'),
+        breakdown: getSectionGlitch('alsGlitchBreakdown'),
+        drop1: getSectionGlitch('alsGlitchDrop1'),
+        drop2: getSectionGlitch('alsGlitchDrop2'),
+        fadedown: getSectionGlitch('alsGlitchFadedown'),
+        outro: getSectionGlitch('alsGlitchOutro'),
+      },
     };
+  }
+
+  // Get section glitch value - returns null if slider is at -1 (use global)
+  function getSectionGlitch(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const val = parseInt(el.value, 10);
+    return val < 0 ? null : val / 100;
   }
 
   // ---------------------------------------------------------------------------
@@ -545,6 +560,8 @@
     { id: 'alsChaos', type: 'value' },
     { id: 'alsGlitchIntensity', type: 'value' },
     { id: 'alsDensity', type: 'value' },
+    { id: 'alsVariation', type: 'value' },
+    { id: 'alsParallelism', type: 'value' },
     { id: 'alsBpm', type: 'value' },
     { id: 'alsRootNote', type: 'value' },
     { id: 'alsMode', type: 'value' },
@@ -610,6 +627,14 @@
     { id: 'alsTonalGlitch', type: 'checked' },
     { id: 'alsTonalScatter', type: 'checked' },
     { id: 'alsTonalVox', type: 'checked' },
+    // Per-section glitch overrides
+    { id: 'alsGlitchIntro', type: 'value' },
+    { id: 'alsGlitchBuild', type: 'value' },
+    { id: 'alsGlitchBreakdown', type: 'value' },
+    { id: 'alsGlitchDrop1', type: 'value' },
+    { id: 'alsGlitchDrop2', type: 'value' },
+    { id: 'alsGlitchFadedown', type: 'value' },
+    { id: 'alsGlitchOutro', type: 'value' },
   ];
 
   function saveAlsPrefs() {
@@ -650,6 +675,22 @@
       const dv = document.getElementById('alsDensityValue');
       const d = document.getElementById('alsDensity');
       if (dv && d) dv.textContent = (parseInt(d.value, 10) / 100).toFixed(2);
+      const vv = document.getElementById('alsVariationValue');
+      const v = document.getElementById('alsVariation');
+      if (vv && v) vv.textContent = (parseInt(v.value, 10) / 100).toFixed(2);
+      const pv = document.getElementById('alsParallelismValue');
+      const p = document.getElementById('alsParallelism');
+      if (pv && p) pv.textContent = (parseInt(p.value, 10) / 100).toFixed(2);
+      // Update section glitch labels
+      const sectionIds = ['alsGlitchIntro', 'alsGlitchBuild', 'alsGlitchBreakdown', 'alsGlitchDrop1', 'alsGlitchDrop2', 'alsGlitchFadedown', 'alsGlitchOutro'];
+      for (const id of sectionIds) {
+        const slider = document.getElementById(id);
+        const label = document.getElementById(id + 'Value');
+        if (slider && label) {
+          const v = parseInt(slider.value, 10);
+          label.textContent = v < 0 ? '—' : (v / 100).toFixed(2);
+        }
+      }
     } catch (_) {}
   }
 
@@ -666,9 +707,13 @@
       if (el) el.max = ALS_SLIDER_MAX;
     }
     restoreAlsPrefs();
-    showStep(1);
+    updateTrackCountLabels();
+    updateEstimatedTracks();
+    loadPreviews();
+    updateSummary();
     checkAnalysisStatus();
     updateBlacklistCount();
+    updateWhitelistCount();
   }
 
   // ---------------------------------------------------------------------------
@@ -716,6 +761,436 @@
       console.error('Failed to clear blacklist:', e);
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Blacklist Modal CRUD
+  // ---------------------------------------------------------------------------
+
+  let _blacklistEntries = [];
+
+  async function openBlacklistModal() {
+    const modal = document.getElementById('blacklistModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    await refreshBlacklistModal();
+  }
+
+  function closeBlacklistModal() {
+    const modal = document.getElementById('blacklistModal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async function refreshBlacklistModal() {
+    const entriesEl = document.getElementById('blacklistEntries');
+    const totalEl = document.getElementById('blacklistTotalCount');
+    const filterEl = document.getElementById('blacklistFilterCount');
+    const searchEl = document.getElementById('blacklistSearchInput');
+    
+    if (!entriesEl || typeof window.vstUpdater?.getAlsBlacklistEntries !== 'function') return;
+    
+    try {
+      _blacklistEntries = await window.vstUpdater.getAlsBlacklistEntries();
+      renderBlacklistEntries(searchEl?.value || '');
+      if (totalEl) totalEl.textContent = `${_blacklistEntries.length} entries`;
+    } catch (e) {
+      entriesEl.innerHTML = `<p style="color:var(--red);">Error: ${e}</p>`;
+    }
+  }
+
+  function renderBlacklistEntries(filter = '') {
+    const entriesEl = document.getElementById('blacklistEntries');
+    const filterEl = document.getElementById('blacklistFilterCount');
+    if (!entriesEl) return;
+
+    // Use fzf matching if available, otherwise fallback to substring
+    let filtered;
+    if (filter && typeof fzfMatch === 'function') {
+      filtered = _blacklistEntries
+        .map(entry => {
+          const match = fzfMatch(filter, entry);
+          return match ? { entry, score: match.score, indices: match.indices } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score);
+    } else if (filter) {
+      const filterLower = filter.toLowerCase();
+      filtered = _blacklistEntries
+        .filter(e => e.toLowerCase().includes(filterLower))
+        .map(entry => ({ entry, indices: [] }));
+    } else {
+      filtered = _blacklistEntries.map(entry => ({ entry, indices: [] }));
+    }
+
+    if (filterEl) {
+      filterEl.textContent = filter ? `${filtered.length} / ${_blacklistEntries.length}` : '';
+    }
+
+    if (filtered.length === 0) {
+      entriesEl.innerHTML = `<p style="color:var(--text-dim);">${_blacklistEntries.length === 0 ? 'Blacklist is empty' : 'No matches'}</p>`;
+      return;
+    }
+
+    entriesEl.innerHTML = '';
+    for (const { entry, indices } of filtered) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);';
+      
+      const textSpan = document.createElement('span');
+      textSpan.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      textSpan.title = entry;
+      textSpan.appendChild(highlightFzfMatch(entry, indices));
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'blacklist-remove-btn';
+      removeBtn.dataset.entry = entry;
+      removeBtn.style.cssText = 'background:transparent;border:1px solid var(--red);color:var(--red);padding:2px 6px;font-size:10px;cursor:pointer;';
+      removeBtn.textContent = '×';
+      
+      row.appendChild(textSpan);
+      row.appendChild(removeBtn);
+      entriesEl.appendChild(row);
+    }
+  }
+
+  // Highlight matched characters in fzf style
+  function highlightFzfMatch(text, indices) {
+    if (!indices || !indices.length) return document.createTextNode(text);
+    const frag = document.createDocumentFragment();
+    const idxSet = new Set(indices);
+    let run = '';
+    let inMatch = false;
+    for (let i = 0; i < text.length; i++) {
+      const m = idxSet.has(i);
+      if (m !== inMatch) {
+        if (run) {
+          if (inMatch) {
+            const sp = document.createElement('span');
+            sp.style.cssText = 'color:var(--cyan);font-weight:bold;';
+            sp.textContent = run;
+            frag.appendChild(sp);
+          } else {
+            frag.appendChild(document.createTextNode(run));
+          }
+        }
+        run = '';
+        inMatch = m;
+      }
+      run += text[i];
+    }
+    if (run) {
+      if (inMatch) {
+        const sp = document.createElement('span');
+        sp.style.cssText = 'color:var(--cyan);font-weight:bold;';
+        sp.textContent = run;
+        frag.appendChild(sp);
+      } else {
+        frag.appendChild(document.createTextNode(run));
+      }
+    }
+    return frag;
+  }
+
+  async function addToBlacklist(path) {
+    if (!path?.trim() || typeof window.vstUpdater?.addToAlsBlacklist !== 'function') return;
+    try {
+      await window.vstUpdater.addToAlsBlacklist(path.trim());
+      await refreshBlacklistModal();
+      await updateBlacklistCount();
+    } catch (e) {
+      console.error('Failed to add to blacklist:', e);
+    }
+  }
+
+  async function removeFromBlacklist(entry) {
+    if (!entry || typeof window.vstUpdater?.removeFromAlsBlacklist !== 'function') return;
+    try {
+      await window.vstUpdater.removeFromAlsBlacklist(entry);
+      await refreshBlacklistModal();
+      await updateBlacklistCount();
+    } catch (e) {
+      console.error('Failed to remove from blacklist:', e);
+    }
+  }
+
+  // Blacklist modal event handlers
+  document.addEventListener('click', (e) => {
+    // Open modal
+    if (e.target.id === 'alsViewBlacklist') {
+      e.preventDefault();
+      openBlacklistModal();
+      return;
+    }
+    // Close modal
+    if (e.target.id === 'blacklistModalClose' || (e.target.id === 'blacklistModal' && e.target === e.currentTarget)) {
+      closeBlacklistModal();
+      return;
+    }
+    // Add entry
+    if (e.target.id === 'blacklistAddBtn') {
+      const input = document.getElementById('blacklistAddInput');
+      if (input?.value) {
+        addToBlacklist(input.value);
+        input.value = '';
+      }
+      return;
+    }
+    // Remove entry
+    if (e.target.classList.contains('blacklist-remove-btn')) {
+      const entry = e.target.dataset.entry;
+      if (entry) removeFromBlacklist(entry);
+      return;
+    }
+    // Clear all from modal
+    if (e.target.id === 'blacklistClearAllBtn') {
+      clearBlacklist().then(() => refreshBlacklistModal());
+      return;
+    }
+  });
+
+  // Close modal on overlay click
+  document.addEventListener('click', (e) => {
+    if (e.target.id === 'blacklistModal') {
+      closeBlacklistModal();
+    }
+  });
+
+  // Search input
+  document.addEventListener('input', (e) => {
+    if (e.target.id === 'blacklistSearchInput') {
+      renderBlacklistEntries(e.target.value);
+    }
+  });
+
+  // Add on Enter key
+  document.addEventListener('keydown', (e) => {
+    if (e.target.id === 'blacklistAddInput' && e.key === 'Enter') {
+      e.preventDefault();
+      const input = e.target;
+      if (input.value) {
+        addToBlacklist(input.value);
+        input.value = '';
+      }
+    }
+    if (e.target.id === 'whitelistAddInput' && e.key === 'Enter') {
+      e.preventDefault();
+      const input = e.target;
+      if (input.value) {
+        addToWhitelist(input.value);
+        input.value = '';
+      }
+    }
+    // Close modals on Escape
+    if (e.key === 'Escape') {
+      const blacklistModal = document.getElementById('blacklistModal');
+      if (blacklistModal && blacklistModal.style.display !== 'none') {
+        closeBlacklistModal();
+      }
+      const whitelistModal = document.getElementById('whitelistModal');
+      if (whitelistModal && whitelistModal.style.display !== 'none') {
+        closeWhitelistModal();
+      }
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Directory Whitelist Modal CRUD
+  // ---------------------------------------------------------------------------
+
+  let _whitelistEntries = [];
+
+  async function updateWhitelistCount() {
+    const countEl = document.getElementById('alsWhitelistCount');
+    if (!countEl || typeof window.vstUpdater?.getAlsWhitelistCount !== 'function') return;
+    try {
+      const count = await window.vstUpdater.getAlsWhitelistCount();
+      countEl.textContent = count;
+    } catch (e) {
+      console.error('Failed to get whitelist count:', e);
+    }
+  }
+
+  async function openWhitelistModal() {
+    const modal = document.getElementById('whitelistModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    await refreshWhitelistModal();
+  }
+
+  function closeWhitelistModal() {
+    const modal = document.getElementById('whitelistModal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async function refreshWhitelistModal() {
+    const entriesEl = document.getElementById('whitelistEntries');
+    const totalEl = document.getElementById('whitelistTotalCount');
+    const searchEl = document.getElementById('whitelistSearchInput');
+    
+    if (!entriesEl || typeof window.vstUpdater?.getAlsWhitelistEntries !== 'function') return;
+    
+    try {
+      _whitelistEntries = await window.vstUpdater.getAlsWhitelistEntries();
+      renderWhitelistEntries(searchEl?.value || '');
+      if (totalEl) {
+        totalEl.textContent = _whitelistEntries.length === 0 
+          ? '0 directories (all allowed)' 
+          : `${_whitelistEntries.length} directories`;
+      }
+    } catch (e) {
+      entriesEl.innerHTML = `<p style="color:var(--red);">Error: ${e}</p>`;
+    }
+  }
+
+  function renderWhitelistEntries(filter = '') {
+    const entriesEl = document.getElementById('whitelistEntries');
+    const filterEl = document.getElementById('whitelistFilterCount');
+    if (!entriesEl) return;
+
+    // Use fzf matching if available
+    let filtered;
+    if (filter && typeof fzfMatch === 'function') {
+      filtered = _whitelistEntries
+        .map(entry => {
+          const match = fzfMatch(filter, entry);
+          return match ? { entry, score: match.score, indices: match.indices } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score);
+    } else if (filter) {
+      const filterLower = filter.toLowerCase();
+      filtered = _whitelistEntries
+        .filter(e => e.toLowerCase().includes(filterLower))
+        .map(entry => ({ entry, indices: [] }));
+    } else {
+      filtered = _whitelistEntries.map(entry => ({ entry, indices: [] }));
+    }
+
+    if (filterEl) {
+      filterEl.textContent = filter ? `${filtered.length} / ${_whitelistEntries.length}` : '';
+    }
+
+    if (filtered.length === 0) {
+      entriesEl.innerHTML = `<p style="color:var(--text-dim);">${_whitelistEntries.length === 0 ? 'No directories set (all samples allowed)' : 'No matches'}</p>`;
+      return;
+    }
+
+    entriesEl.innerHTML = '';
+    for (const { entry, indices } of filtered) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);';
+      
+      const textSpan = document.createElement('span');
+      textSpan.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      textSpan.title = entry;
+      textSpan.appendChild(highlightFzfMatch(entry, indices));
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'whitelist-remove-btn';
+      removeBtn.dataset.entry = entry;
+      removeBtn.style.cssText = 'background:transparent;border:1px solid var(--red);color:var(--red);padding:2px 6px;font-size:10px;cursor:pointer;';
+      removeBtn.textContent = '×';
+      
+      row.appendChild(textSpan);
+      row.appendChild(removeBtn);
+      entriesEl.appendChild(row);
+    }
+  }
+
+  async function addToWhitelist(path) {
+    if (!path?.trim() || typeof window.vstUpdater?.addToAlsWhitelist !== 'function') return;
+    try {
+      await window.vstUpdater.addToAlsWhitelist(path.trim());
+      await refreshWhitelistModal();
+      await updateWhitelistCount();
+    } catch (e) {
+      console.error('Failed to add to whitelist:', e);
+    }
+  }
+
+  async function removeFromWhitelist(entry) {
+    if (!entry || typeof window.vstUpdater?.removeFromAlsWhitelist !== 'function') return;
+    try {
+      await window.vstUpdater.removeFromAlsWhitelist(entry);
+      await refreshWhitelistModal();
+      await updateWhitelistCount();
+    } catch (e) {
+      console.error('Failed to remove from whitelist:', e);
+    }
+  }
+
+  async function clearWhitelist() {
+    if (typeof window.vstUpdater?.clearAlsWhitelist !== 'function') return;
+    try {
+      await window.vstUpdater.clearAlsWhitelist();
+      await updateWhitelistCount();
+    } catch (e) {
+      console.error('Failed to clear whitelist:', e);
+    }
+  }
+
+  // Whitelist modal event handlers
+  document.addEventListener('click', (e) => {
+    // Open modal
+    if (e.target.id === 'alsViewWhitelist') {
+      e.preventDefault();
+      openWhitelistModal();
+      return;
+    }
+    // Close modal
+    if (e.target.id === 'whitelistModalClose') {
+      closeWhitelistModal();
+      return;
+    }
+    // Add entry
+    if (e.target.id === 'whitelistAddBtn') {
+      const input = document.getElementById('whitelistAddInput');
+      if (input?.value) {
+        addToWhitelist(input.value);
+        input.value = '';
+      }
+      return;
+    }
+    // Browse for folder
+    if (e.target.id === 'whitelistBrowseBtn') {
+      if (typeof window.__TAURI__?.dialog?.open === 'function') {
+        window.__TAURI__.dialog.open({ directory: true, title: 'Choose sample source directory' }).then(path => {
+          if (path) addToWhitelist(path);
+        });
+      }
+      return;
+    }
+    // Remove entry
+    if (e.target.classList.contains('whitelist-remove-btn')) {
+      const entry = e.target.dataset.entry;
+      if (entry) removeFromWhitelist(entry);
+      return;
+    }
+    // Clear all from modal
+    if (e.target.id === 'whitelistClearAllBtn') {
+      clearWhitelist().then(() => refreshWhitelistModal());
+      return;
+    }
+    // Clear whitelist from main UI
+    if (e.target.id === 'alsClearWhitelist') {
+      e.preventDefault();
+      clearWhitelist();
+      return;
+    }
+  });
+
+  // Close whitelist modal on overlay click
+  document.addEventListener('click', (e) => {
+    if (e.target.id === 'whitelistModal') {
+      closeWhitelistModal();
+    }
+  });
+
+  // Whitelist search input
+  document.addEventListener('input', (e) => {
+    if (e.target.id === 'whitelistSearchInput') {
+      renderWhitelistEntries(e.target.value);
+    }
+  });
 
   document.addEventListener('click', (e) => {
     // Handle clear blacklist button
@@ -782,17 +1257,51 @@
       const val = document.getElementById('alsDensityValue');
       if (val) val.textContent = (parseInt(e.target.value, 10) / 100).toFixed(2);
     }
+    if (id === 'alsVariation') {
+      const val = document.getElementById('alsVariationValue');
+      if (val) val.textContent = (parseInt(e.target.value, 10) / 100).toFixed(2);
+    }
+    if (id === 'alsParallelism') {
+      const val = document.getElementById('alsParallelismValue');
+      if (val) val.textContent = (parseInt(e.target.value, 10) / 100).toFixed(2);
+    }
+    // Section glitch sliders
+    if (id?.startsWith('alsGlitch') && id !== 'alsGlitchIntensity') {
+      const val = document.getElementById(id + 'Value');
+      if (val) {
+        const v = parseInt(e.target.value, 10);
+        val.textContent = v < 0 ? '—' : (v / 100).toFixed(2);
+      }
+    }
     if (id === 'alsGenre') onGenreChange();
     if (id?.startsWith('alsCount')) {
       updateTrackCountLabels();
       updateEstimatedTracks();
     }
-    if (id?.startsWith('als')) saveAlsPrefs();
+    if (id?.startsWith('als')) {
+      saveAlsPrefs();
+      updateSummary();
+    }
   });
 
   document.addEventListener('change', (e) => {
     if (e.target.id === 'alsGenre') onGenreChange();
-    if (e.target.id?.startsWith('als')) saveAlsPrefs();
+    if (e.target.id?.startsWith('als')) {
+      saveAlsPrefs();
+      updateSummary();
+    }
+  });
+
+  // Double-click section glitch sliders to reset to "use global" (-1)
+  document.addEventListener('dblclick', (e) => {
+    const id = e.target.id;
+    if (id?.startsWith('alsGlitch') && id !== 'alsGlitchIntensity') {
+      e.target.value = -1;
+      const val = document.getElementById(id + 'Value');
+      if (val) val.textContent = '—';
+      saveAlsPrefs();
+      updateSummary();
+    }
   });
 
   // Expose load function for tab switch

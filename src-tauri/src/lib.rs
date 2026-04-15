@@ -3498,6 +3498,17 @@ async fn generate_als_project(
             scatter: ta.scatter,
             vox: ta.vox,
         };
+        // Map frontend section_glitch config to generator SectionGlitch
+        let sg = &config.section_glitch;
+        let section_glitch = techno_generator::SectionGlitch {
+            intro: sg.intro,
+            build: sg.build,
+            breakdown: sg.breakdown,
+            drop1: sg.drop1,
+            drop2: sg.drop2,
+            fadedown: sg.fadedown,
+            outro: sg.outro,
+        };
         let result = techno_generator::generate(
             &output_path,
             config.bpm as f64,
@@ -3508,7 +3519,10 @@ async fn generate_als_project(
             config.hardness,
             config.chaos,
             config.glitch_intensity,
+            section_glitch,
             config.density,
+            config.variation,
+            config.parallelism,
             config.atonal,
             track_counts,
             type_atonal,
@@ -3570,6 +3584,59 @@ async fn clear_als_sample_blacklist() -> Result<serde_json::Value, String> {
 #[tauri::command]
 async fn get_als_blacklist_count() -> Result<usize, String> {
     Ok(techno_generator::get_blacklist_count())
+}
+
+/// Get all blacklisted sample entries (key-stripped paths).
+#[tauri::command]
+async fn get_als_blacklist_entries() -> Result<Vec<String>, String> {
+    Ok(techno_generator::get_blacklist_entries())
+}
+
+/// Add a sample path to the blacklist.
+#[tauri::command]
+async fn add_to_als_blacklist(path: String) -> Result<(), String> {
+    techno_generator::add_to_blacklist(&path);
+    Ok(())
+}
+
+/// Remove an entry from the blacklist.
+#[tauri::command]
+async fn remove_from_als_blacklist(entry: String) -> Result<bool, String> {
+    Ok(techno_generator::remove_from_blacklist(&entry))
+}
+
+// ── Directory Whitelist Commands ──
+
+/// Get all whitelisted directories.
+#[tauri::command]
+async fn get_als_whitelist_entries() -> Result<Vec<String>, String> {
+    Ok(techno_generator::get_whitelist_entries())
+}
+
+/// Get the number of directories in the whitelist.
+#[tauri::command]
+async fn get_als_whitelist_count() -> Result<usize, String> {
+    Ok(techno_generator::get_whitelist_count())
+}
+
+/// Add a directory to the whitelist.
+#[tauri::command]
+async fn add_to_als_whitelist(path: String) -> Result<(), String> {
+    techno_generator::add_to_whitelist(&path);
+    Ok(())
+}
+
+/// Remove a directory from the whitelist.
+#[tauri::command]
+async fn remove_from_als_whitelist(path: String) -> Result<bool, String> {
+    Ok(techno_generator::remove_from_whitelist(&path))
+}
+
+/// Clear the directory whitelist.
+#[tauri::command]
+async fn clear_als_whitelist() -> Result<usize, String> {
+    techno_generator::clear_whitelist();
+    Ok(techno_generator::get_whitelist_count())
 }
 
 /// Query available samples for a category (for preview in wizard).
@@ -8989,6 +9056,14 @@ pub fn run() {
             cancel_als_generation,
             clear_als_sample_blacklist,
             get_als_blacklist_count,
+            get_als_blacklist_entries,
+            add_to_als_blacklist,
+            remove_from_als_blacklist,
+            get_als_whitelist_entries,
+            get_als_whitelist_count,
+            add_to_als_whitelist,
+            remove_from_als_whitelist,
+            clear_als_whitelist,
             als_query_samples,
         ])
         .setup(|app| {

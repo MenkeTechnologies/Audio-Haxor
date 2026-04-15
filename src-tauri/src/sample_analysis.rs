@@ -241,6 +241,67 @@ pub fn extract_key(name: &str) -> Option<String> {
     None
 }
 
+/// Regex to strip minor key indicators, capturing surrounding delimiters
+static STRIP_MINOR_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)([_\s\-\[(/])[A-G][#b]?(?:m(?:in(?:or)?)?|[_\-\s]min(?:or)?)(?:\d+)?([_\s\-\])/.,])"
+    ).unwrap()
+});
+
+/// Regex to strip major key indicators, capturing surrounding delimiters
+static STRIP_MAJOR_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)([_\s\-\[(/])[A-G][#b]?(?:maj(?:or)?(?:\d+)?|[_\-\s]maj(?:or)?|M(?:aj)?(?:\d+)?)([_\s\-\])/.,])"
+    ).unwrap()
+});
+
+/// Regex to strip bare note at end of filename before extension: Loop-121-C.wav → Loop-121-.wav
+static STRIP_BARE_NOTE_END_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"([_\s\-\[(/])[A-G][#b]?(\.[^.]+$)"
+    ).unwrap()
+});
+
+/// Regex to strip bare note followed by variant: _C-02 → _-02
+static STRIP_BARE_NOTE_VARIANT_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"([_\s\[(/])[A-G][#b]?(\-\d)"
+    ).unwrap()
+});
+
+/// Regex to strip bare note names between delimiters: _A_, [C#], -F#-
+static STRIP_BARE_NOTE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"([_\s\-\[(/])[A-G][#b]?([_\s\-\])/.,])"
+    ).unwrap()
+});
+
+/// Strip key indicators from a sample path to create a key-agnostic identifier.
+/// This allows blacklisting samples regardless of their key variant.
+///
+/// Examples:
+///   `/samples/Lead_Am_120.wav` → `/samples/Lead__120.wav`
+///   `/samples/Bass_C#_Hard.wav` → `/samples/Bass__Hard.wav`
+///   `/samples/Pad - F# Minor - Soft.wav` → `/samples/Pad -  - Soft.wav`
+///   `/samples/AtmosLoop_C-02.wav` → `/samples/AtmosLoop_-02.wav`
+///   `/samples/Loop-121-C.wav` → `/samples/Loop-121-.wav`
+pub fn strip_key_from_path(path: &str) -> String {
+    // Normalize sharp/flat words first: "G Sharp" → "G#"
+    let normalized = normalize_sharp_flat_words(path);
+    
+    // Strip keys in order of specificity
+    let result = STRIP_MINOR_RE.replace_all(&normalized, "$1$2");
+    let result = STRIP_MAJOR_RE.replace_all(&result, "$1$2");
+    // Handle note at end before extension: Loop-121-C.wav
+    let result = STRIP_BARE_NOTE_END_RE.replace_all(&result, "$1$2");
+    // Handle note followed by variant number: _C-02
+    let result = STRIP_BARE_NOTE_VARIANT_RE.replace_all(&result, "$1$2");
+    // Handle note between delimiters: _A_
+    let result = STRIP_BARE_NOTE_RE.replace_all(&result, "$1$2");
+    
+    result.into_owned()
+}
+
 // ---------------------------------------------------------------------------
 // Category matching
 // ---------------------------------------------------------------------------

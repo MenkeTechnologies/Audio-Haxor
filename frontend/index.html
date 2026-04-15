@@ -2650,15 +2650,17 @@
             background-image: linear-gradient(180deg, rgba(8, 145, 178, 0.06) 0%, transparent 96px);
         }
 
-        /* ALS Generator wizard */
+        /* ALS Generator - multi-column layout */
         #tabAlsGenerator .settings-container {
-            columns: 1 !important;
-            max-width: 1100px;
-            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            max-width: none;
             padding: 16px 24px 40px;
         }
         #tabAlsGenerator .settings-section {
             max-width: none;
+            break-inside: avoid;
         }
         #tabAlsGenerator .settings-heading {
             font-size: 18px;
@@ -2679,28 +2681,28 @@
             min-height: 32px;
         }
         #tabAlsGenerator .settings-range {
-            min-width: 200px;
+            min-width: 120px;
+            flex: 1;
         }
-        .als-wizard-panel { display: none; }
-        .als-wizard-panel.active { display: block; }
-        #alsWizardSteps {
-            gap: 12px;
-            padding: 16px 0;
+        #tabAlsGenerator .settings-row {
+            flex-wrap: nowrap;
         }
-        .als-step-btn {
-            font-size: 14px;
-            padding: 10px 24px;
-            border: 1px solid var(--border);
-            background: var(--bg-secondary);
-            color: var(--text-dim);
-            cursor: pointer;
-            border-radius: 6px;
+        #tabAlsGenerator .settings-label {
+            flex: 0 0 auto;
+            min-width: 100px;
+            max-width: 140px;
         }
-        .als-step-btn.active {
-            background: var(--cyan);
-            color: var(--bg-primary);
-            border-color: var(--cyan);
-            font-weight: 600;
+        #tabAlsGenerator .settings-control {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        #tabAlsGenerator .settings-range-wrap {
+            width: 100%;
+        }
+        /* Section glitch grid - ensure minimum widths */
+        #tabAlsGenerator .section-glitch-slider {
+            min-width: 80px;
+            flex: 1;
         }
 
         /* History view */
@@ -8936,7 +8938,7 @@
 <body>
 <div class="splash-screen" id="splashScreen">
     <div class="splash-title" data-i18n="ui.splash.title">AUDIO HAXOR</div>
-    <div class="splash-sub" data-i18n="ui.splash.subtitle">Audio Plugin Manager</div>
+    <div class="splash-sub" data-i18n="ui.splash.subtitle">Audio Asset Manager</div>
     <div class="splash-bar-wrap">
         <div class="splash-bar"></div>
     </div>
@@ -12265,236 +12267,254 @@
 
     <div class="tab-content" id="tabAlsGenerator">
         <div class="settings-container">
-            <!-- Wizard step indicator -->
-            <div id="alsWizardSteps" style="display:flex;gap:8px;padding:12px 0;border-bottom:1px solid var(--border);margin-bottom:16px;">
-                <button class="btn als-step-btn active" data-action="alsWizardStep" data-step="1">1. Basics</button>
-                <button class="btn als-step-btn" data-action="alsWizardStep" data-step="2">2. Sound</button>
-                <button class="btn als-step-btn" data-action="alsWizardStep" data-step="3">3. Preview</button>
-                <button class="btn als-step-btn" data-action="alsWizardStep" data-step="4">4. Generate</button>
-            </div>
+            <!-- Section 1: Project Basics -->
+            <div class="settings-section" data-section="als-basics">
+                <h2 class="settings-heading">&#9776; Project Basics</h2>
 
-            <!-- Step 1: Basics -->
-            <div class="als-wizard-panel active" id="alsStep1">
-                <div class="settings-section">
-                    <h3 class="settings-heading">Project Basics</h3>
-
-                    <div class="settings-row">
-                        <div class="settings-label"><span class="settings-title">Genre</span></div>
-                        <div class="settings-control">
-                            <select class="settings-select" id="alsGenre">
-                                <option value="techno">Techno (120-140 BPM)</option>
-                                <option value="schranz">Schranz (145-165 BPM)</option>
-                                <option value="trance">Trance (130-160 BPM)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="settings-row">
-                        <div class="settings-label">
-                            <span class="settings-title">Hardness</span>
-                            <span class="settings-desc">Regular → Hard</span>
-                        </div>
-                        <div class="settings-control">
-                            <div class="settings-range-wrap">
-                                <input class="settings-range" type="range" min="0" max="100" step="1" id="alsHardness" value="30">
-                                <span class="settings-range-value" id="alsHardnessValue">0.30</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-row">
-                        <div class="settings-label">
-                            <span class="settings-title">Chaos</span>
-                            <span class="settings-desc">Predictable → Random</span>
-                        </div>
-                        <div class="settings-control">
-                            <div class="settings-range-wrap">
-                                <input class="settings-range" type="range" min="0" max="100" step="1" id="alsChaos" value="30">
-                                <span class="settings-range-value" id="alsChaosValue">0.30</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-row">
-                        <div class="settings-label">
-                            <span class="settings-title">Glitch</span>
-                            <span class="settings-desc">Clean → Micro-edits/stutters</span>
-                        </div>
-                        <div class="settings-control">
-                            <div class="settings-range-wrap">
-                                <input class="settings-range" type="range" min="0" max="100" step="1" id="alsGlitchIntensity" value="0">
-                                <span class="settings-range-value" id="alsGlitchIntensityValue">0.00</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-row">
-                        <div class="settings-label">
-                            <span class="settings-title">Density</span>
-                            <span class="settings-desc">Sparse → Dense scattered hits</span>
-                        </div>
-                        <div class="settings-control">
-                            <div class="settings-range-wrap">
-                                <input class="settings-range" type="range" min="0" max="100" step="1" id="alsDensity" value="30">
-                                <span class="settings-range-value" id="alsDensityValue">0.30</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-row">
-                        <div class="settings-label"><span class="settings-title">BPM</span></div>
-                        <div class="settings-control">
-                            <input type="number" class="settings-input" id="alsBpm" min="80" max="180" value="132" style="width:80px;">
-                        </div>
-                    </div>
-
-                    <div class="settings-row">
-                        <div class="settings-label"><span class="settings-title">Root Note</span></div>
-                        <div class="settings-control">
-                            <select class="settings-select" id="alsRootNote" style="width:80px;">
-                                <option value="C">C</option><option value="C#">C#</option>
-                                <option value="D">D</option><option value="D#">D#</option>
-                                <option value="E">E</option><option value="F">F</option>
-                                <option value="F#">F#</option><option value="G">G</option>
-                                <option value="G#">G#</option><option value="A" selected>A</option>
-                                <option value="A#">A#</option><option value="B">B</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="settings-row">
-                        <div class="settings-label"><span class="settings-title">Mode</span></div>
-                        <div class="settings-control">
-                            <select class="settings-select" id="alsMode">
-                                <option value="Ionian">Ionian (Major)</option>
-                                <option value="Dorian">Dorian</option>
-                                <option value="Phrygian">Phrygian</option>
-                                <option value="Lydian">Lydian</option>
-                                <option value="Mixolydian">Mixolydian</option>
-                                <option value="Aeolian" selected>Aeolian (Minor)</option>
-                                <option value="Locrian">Locrian</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="settings-row">
-                        <div class="settings-label"><span class="settings-title">Songs per project</span></div>
-                        <div class="settings-control">
-                            <input type="number" class="settings-input" id="alsNumSongs" min="1" max="10" value="1" style="width:60px;">
-                        </div>
-                    </div>
-
-                </div>
-
-                <div style="text-align:right;padding-top:12px;">
-                    <button class="btn btn-primary" data-action="alsWizardStep" data-step="2">Next</button>
-                </div>
-            </div>
-
-            <!-- Step 2: Sound Design -->
-            <div class="als-wizard-panel" id="alsStep2">
-                <div class="settings-section">
-                    <h3 class="settings-heading">Track Counts</h3>
-                    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Set the number of tracks for each sample type. Check the box to skip key matching (atonal).</div>
-
-                    <!-- Header row -->
-                    <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:11px;color:var(--text-dim);margin-bottom:4px;">
-                        <span>Type</span><span>Count</span><span></span><span style="text-align:center;">Tonal <a href="#" id="alsTonalSelectAll" style="color:var(--cyan);margin-left:2px;" title="Select all">+</a><a href="#" id="alsTonalDeselectAll" style="color:var(--cyan);margin-left:2px;" title="Deselect all">-</a></span>
-                    </div>
-
-                    <!-- DRUMS -->
-                    <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:8px;">Drums</div>
-                    <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
-                        <span>Kick</span><input type="range" min="0" max="50" value="1" id="alsCountKick" class="als-type-slider"><span id="alsCountKickLabel">1</span><input type="checkbox" id="alsTonalKick" title="Tonal" style="justify-self:center;">
-                        <span>Clap</span><input type="range" min="0" max="50" value="1" id="alsCountClap" class="als-type-slider"><span id="alsCountClapLabel">1</span><input type="checkbox" id="alsTonalClap" title="Tonal" style="justify-self:center;">
-                        <span>Snare</span><input type="range" min="0" max="50" value="1" id="alsCountSnare" class="als-type-slider"><span id="alsCountSnareLabel">1</span><input type="checkbox" id="alsTonalSnare" title="Tonal" style="justify-self:center;">
-                        <span>Hat</span><input type="range" min="0" max="50" value="2" id="alsCountHat" class="als-type-slider"><span id="alsCountHatLabel">2</span><input type="checkbox" id="alsTonalHat" title="Tonal" style="justify-self:center;">
-                        <span>Perc</span><input type="range" min="0" max="50" value="2" id="alsCountPerc" class="als-type-slider"><span id="alsCountPercLabel">2</span><input type="checkbox" id="alsTonalPerc" title="Tonal" style="justify-self:center;">
-                        <span>Ride</span><input type="range" min="0" max="50" value="1" id="alsCountRide" class="als-type-slider"><span id="alsCountRideLabel">1</span><input type="checkbox" id="alsTonalRide" title="Tonal" style="justify-self:center;">
-                        <span>Fill</span><input type="range" min="0" max="50" value="4" id="alsCountFill" class="als-type-slider"><span id="alsCountFillLabel">4</span><input type="checkbox" id="alsTonalFill" title="Tonal" style="justify-self:center;">
-                    </div>
-
-                    <!-- BASS -->
-                    <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Bass</div>
-                    <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
-                        <span>High Bass</span><input type="range" min="0" max="50" value="1" id="alsCountBass" class="als-type-slider"><span id="alsCountBassLabel">1</span><input type="checkbox" id="alsTonalBass" checked title="Tonal" style="justify-self:center;">
-                        <span>Sub</span><input type="range" min="0" max="50" value="1" id="alsCountSub" class="als-type-slider"><span id="alsCountSubLabel">1</span><input type="checkbox" id="alsTonalSub" checked title="Tonal" style="justify-self:center;">
-                    </div>
-
-                    <!-- BASS FX -->
-                    <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Bass FX</div>
-                    <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
-                        <span>Sub Drop</span><input type="range" min="0" max="50" value="2" id="alsCountSubDrop" class="als-type-slider"><span id="alsCountSubDropLabel">2</span><input type="checkbox" id="alsTonalSubDrop" checked title="Tonal" style="justify-self:center;">
-                        <span>Boom Kick</span><input type="range" min="0" max="50" value="2" id="alsCountBoomKick" class="als-type-slider"><span id="alsCountBoomKickLabel">2</span><input type="checkbox" id="alsTonalBoomKick" title="Tonal" style="justify-self:center;">
-                    </div>
-
-                    <!-- MELODICS -->
-                    <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Melodics</div>
-                    <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
-                        <span>Lead</span><input type="range" min="0" max="50" value="1" id="alsCountLead" class="als-type-slider"><span id="alsCountLeadLabel">1</span><input type="checkbox" id="alsTonalLead" title="Tonal" style="justify-self:center;">
-                        <span>Synth</span><input type="range" min="0" max="50" value="3" id="alsCountSynth" class="als-type-slider"><span id="alsCountSynthLabel">3</span><input type="checkbox" id="alsTonalSynth" title="Tonal" style="justify-self:center;">
-                        <span>Pad</span><input type="range" min="0" max="50" value="2" id="alsCountPad" class="als-type-slider"><span id="alsCountPadLabel">2</span><input type="checkbox" id="alsTonalPad" title="Tonal" style="justify-self:center;">
-                        <span>Arp</span><input type="range" min="0" max="50" value="2" id="alsCountArp" class="als-type-slider"><span id="alsCountArpLabel">2</span><input type="checkbox" id="alsTonalArp" title="Tonal" style="justify-self:center;">
-                        <span>Atmos</span><input type="range" min="0" max="50" value="2" id="alsCountAtmos" class="als-type-slider"><span id="alsCountAtmosLabel">2</span><input type="checkbox" id="alsTonalAtmos" title="Tonal" style="justify-self:center;">
-                    </div>
-
-                    <!-- FX -->
-                    <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">FX</div>
-                    <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
-                        <span>Riser</span><input type="range" min="0" max="50" value="3" id="alsCountRiser" class="als-type-slider"><span id="alsCountRiserLabel">3</span><input type="checkbox" id="alsTonalRiser" checked title="Tonal" style="justify-self:center;">
-                        <span>Downlifter</span><input type="range" min="0" max="50" value="1" id="alsCountDownlifter" class="als-type-slider"><span id="alsCountDownlifterLabel">1</span><input type="checkbox" id="alsTonalDownlifter" checked title="Tonal" style="justify-self:center;">
-                        <span>Crash</span><input type="range" min="0" max="50" value="2" id="alsCountCrash" class="als-type-slider"><span id="alsCountCrashLabel">2</span><input type="checkbox" id="alsTonalCrash" title="Tonal" style="justify-self:center;">
-                        <span>Impact</span><input type="range" min="0" max="50" value="2" id="alsCountImpact" class="als-type-slider"><span id="alsCountImpactLabel">2</span><input type="checkbox" id="alsTonalImpact" title="Tonal" style="justify-self:center;">
-                        <span>Hit</span><input type="range" min="0" max="50" value="2" id="alsCountHit" class="als-type-slider"><span id="alsCountHitLabel">2</span><input type="checkbox" id="alsTonalHit" title="Tonal" style="justify-self:center;">
-                        <span>Sweep Up</span><input type="range" min="0" max="50" value="4" id="alsCountSweepUp" class="als-type-slider"><span id="alsCountSweepUpLabel">4</span><input type="checkbox" id="alsTonalSweepUp" checked title="Tonal" style="justify-self:center;">
-                        <span>Sweep Down</span><input type="range" min="0" max="50" value="4" id="alsCountSweepDown" class="als-type-slider"><span id="alsCountSweepDownLabel">4</span><input type="checkbox" id="alsTonalSweepDown" checked title="Tonal" style="justify-self:center;">
-                        <span>Snare Roll</span><input type="range" min="0" max="50" value="1" id="alsCountSnareRoll" class="als-type-slider"><span id="alsCountSnareRollLabel">1</span><input type="checkbox" id="alsTonalSnareRoll" title="Tonal" style="justify-self:center;">
-                        <span>Reverse</span><input type="range" min="0" max="50" value="2" id="alsCountReverse" class="als-type-slider"><span id="alsCountReverseLabel">2</span><input type="checkbox" id="alsTonalReverse" title="Tonal" style="justify-self:center;">
-                        <span>Glitch</span><input type="range" min="0" max="50" value="2" id="alsCountGlitch" class="als-type-slider"><span id="alsCountGlitchLabel">2</span><input type="checkbox" id="alsTonalGlitch" title="Tonal" style="justify-self:center;">
-                        <span>Scatter</span><input type="range" min="0" max="50" value="4" id="alsCountScatter" class="als-type-slider"><span id="alsCountScatterLabel">4</span><input type="checkbox" id="alsTonalScatter" title="Tonal" style="justify-self:center;">
-                    </div>
-
-                    <!-- VOCALS -->
-                    <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Vocals</div>
-                    <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
-                        <span>Vox</span><input type="range" min="0" max="50" value="1" id="alsCountVox" class="als-type-slider"><span id="alsCountVoxLabel">1</span><input type="checkbox" id="alsTonalVox" title="Tonal" style="justify-self:center;">
-                    </div>
-
-                    <div style="padding:12px 0 0;color:var(--text-dim);font-size:12px;">
-                        Total (incl. groups): <strong id="alsEstimatedTracks">40</strong> tracks
-                    </div>
-                    <div style="padding:8px 0 0;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);">
-                        <span>Blacklist: <strong id="alsBlacklistCount">0</strong> samples</span>
-                        <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" id="alsClearBlacklist" title="Allow previously used samples again">Clear</button>
+                <div class="settings-row">
+                    <div class="settings-label"><span class="settings-title">Genre</span></div>
+                    <div class="settings-control">
+                        <select class="settings-select" id="alsGenre">
+                            <option value="techno">Techno (120-140 BPM)</option>
+                            <option value="schranz">Schranz (145-165 BPM)</option>
+                            <option value="trance">Trance (130-160 BPM)</option>
+                        </select>
                     </div>
                 </div>
 
-                <div style="display:flex;justify-content:space-between;padding-top:12px;">
-                    <button class="btn btn-secondary" data-action="alsWizardStep" data-step="1">Back</button>
-                    <button class="btn btn-primary" data-action="alsWizardStep" data-step="3">Next</button>
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title">Hardness</span>
+                        <span class="settings-desc">Regular → Hard</span>
+                    </div>
+                    <div class="settings-control">
+                        <div class="settings-range-wrap">
+                            <input class="settings-range" type="range" min="0" max="100" step="1" id="alsHardness" value="30">
+                            <span class="settings-range-value" id="alsHardnessValue">0.30</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title">Chaos</span>
+                        <span class="settings-desc">Predictable → Random</span>
+                    </div>
+                    <div class="settings-control">
+                        <div class="settings-range-wrap">
+                            <input class="settings-range" type="range" min="0" max="100" step="1" id="alsChaos" value="30">
+                            <span class="settings-range-value" id="alsChaosValue">0.30</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title">Glitch</span>
+                        <span class="settings-desc">Clean → Micro-edits/stutters (global default)</span>
+                    </div>
+                    <div class="settings-control">
+                        <div class="settings-range-wrap">
+                            <input class="settings-range" type="range" min="0" max="100" step="1" id="alsGlitchIntensity" value="0">
+                            <span class="settings-range-value" id="alsGlitchIntensityValue">0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Per-section glitch control -->
+                <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+                    <div class="settings-label" style="margin-bottom:8px;">
+                        <span class="settings-title">Section Glitch Override</span>
+                        <span class="settings-desc">Per-section intensity (blank = use global)</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:70px minmax(80px,1fr) 36px;gap:4px 8px;align-items:center;font-size:12px;">
+                        <span>Intro</span><input type="range" min="-1" max="100" step="1" id="alsGlitchIntro" value="-1" class="section-glitch-slider"><span id="alsGlitchIntroValue">—</span>
+                        <span>Build</span><input type="range" min="-1" max="100" step="1" id="alsGlitchBuild" value="-1" class="section-glitch-slider"><span id="alsGlitchBuildValue">—</span>
+                        <span>Breakdown</span><input type="range" min="-1" max="100" step="1" id="alsGlitchBreakdown" value="-1" class="section-glitch-slider"><span id="alsGlitchBreakdownValue">—</span>
+                        <span>Drop 1</span><input type="range" min="-1" max="100" step="1" id="alsGlitchDrop1" value="-1" class="section-glitch-slider"><span id="alsGlitchDrop1Value">—</span>
+                        <span>Drop 2</span><input type="range" min="-1" max="100" step="1" id="alsGlitchDrop2" value="-1" class="section-glitch-slider"><span id="alsGlitchDrop2Value">—</span>
+                        <span>Fadedown</span><input type="range" min="-1" max="100" step="1" id="alsGlitchFadedown" value="-1" class="section-glitch-slider"><span id="alsGlitchFadedownValue">—</span>
+                        <span>Outro</span><input type="range" min="-1" max="100" step="1" id="alsGlitchOutro" value="-1" class="section-glitch-slider"><span id="alsGlitchOutroValue">—</span>
+                    </div>
+                    <div style="margin-top:4px;font-size:11px;color:var(--text-dim);">Double-click slider to reset to global</div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title">Density</span>
+                        <span class="settings-desc">Sparse → Dense scattered hits</span>
+                    </div>
+                    <div class="settings-control">
+                        <div class="settings-range-wrap">
+                            <input class="settings-range" type="range" min="0" max="100" step="1" id="alsDensity" value="30">
+                            <span class="settings-range-value" id="alsDensityValue">0.30</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title">Variation</span>
+                        <span class="settings-desc">Static → Dynamic (switch interval)</span>
+                    </div>
+                    <div class="settings-control">
+                        <div class="settings-range-wrap">
+                            <input class="settings-range" type="range" min="0" max="100" step="1" id="alsVariation" value="0">
+                            <span class="settings-range-value" id="alsVariationValue">0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title">Parallelism</span>
+                        <span class="settings-desc">Solo → All (concurrent tracks)</span>
+                    </div>
+                    <div class="settings-control">
+                        <div class="settings-range-wrap">
+                            <input class="settings-range" type="range" min="0" max="100" step="1" id="alsParallelism" value="40">
+                            <span class="settings-range-value" id="alsParallelismValue">0.40</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label"><span class="settings-title">BPM</span></div>
+                    <div class="settings-control">
+                        <input type="number" class="settings-input" id="alsBpm" min="80" max="180" value="132" style="width:80px;">
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label"><span class="settings-title">Root Note</span></div>
+                    <div class="settings-control">
+                        <select class="settings-select" id="alsRootNote" style="width:80px;">
+                            <option value="C">C</option><option value="C#">C#</option>
+                            <option value="D">D</option><option value="D#">D#</option>
+                            <option value="E">E</option><option value="F">F</option>
+                            <option value="F#">F#</option><option value="G">G</option>
+                            <option value="G#">G#</option><option value="A" selected>A</option>
+                            <option value="A#">A#</option><option value="B">B</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label"><span class="settings-title">Mode</span></div>
+                    <div class="settings-control">
+                        <select class="settings-select" id="alsMode">
+                            <option value="Ionian">Ionian (Major)</option>
+                            <option value="Dorian">Dorian</option>
+                            <option value="Phrygian">Phrygian</option>
+                            <option value="Lydian">Lydian</option>
+                            <option value="Mixolydian">Mixolydian</option>
+                            <option value="Aeolian" selected>Aeolian (Minor)</option>
+                            <option value="Locrian">Locrian</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-label"><span class="settings-title">Songs per project</span></div>
+                    <div class="settings-control">
+                        <input type="number" class="settings-input" id="alsNumSongs" min="1" max="10" value="1" style="width:60px;">
+                    </div>
                 </div>
             </div>
 
-            <!-- Step 3: Preview -->
-            <div class="als-wizard-panel" id="alsStep3">
-                <div class="settings-section">
-                    <h3 class="settings-heading">Preview Key Samples</h3>
-                    <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">
-                        Preview and approve the main samples. Click shuffle to pick a different sample.
-                    </p>
-                    <div id="alsPreviewList"></div>
+            <!-- Section 2: Track Counts -->
+            <div class="settings-section" data-section="als-tracks">
+                <h2 class="settings-heading">&#9776; Track Counts</h2>
+                <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Set the number of tracks for each sample type. Check the box to skip key matching (atonal).</div>
+
+                <!-- Header row -->
+                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:11px;color:var(--text-dim);margin-bottom:4px;">
+                    <span>Type</span><span>Count</span><span></span><span style="text-align:center;">Tonal <a href="#" id="alsTonalSelectAll" style="color:var(--cyan);margin-left:2px;" title="Select all">+</a><a href="#" id="alsTonalDeselectAll" style="color:var(--cyan);margin-left:2px;" title="Deselect all">-</a></span>
                 </div>
 
-                <div style="display:flex;justify-content:space-between;padding-top:12px;">
-                    <button class="btn btn-secondary" data-action="alsWizardStep" data-step="2">Back</button>
-                    <button class="btn btn-primary" data-action="alsWizardStep" data-step="4">Next</button>
+                <!-- DRUMS -->
+                <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:8px;">Drums</div>
+                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                    <span>Kick</span><input type="range" min="0" max="50" value="1" id="alsCountKick" class="als-type-slider"><span id="alsCountKickLabel">1</span><input type="checkbox" id="alsTonalKick" title="Tonal" style="justify-self:center;">
+                    <span>Clap</span><input type="range" min="0" max="50" value="1" id="alsCountClap" class="als-type-slider"><span id="alsCountClapLabel">1</span><input type="checkbox" id="alsTonalClap" title="Tonal" style="justify-self:center;">
+                    <span>Snare</span><input type="range" min="0" max="50" value="1" id="alsCountSnare" class="als-type-slider"><span id="alsCountSnareLabel">1</span><input type="checkbox" id="alsTonalSnare" title="Tonal" style="justify-self:center;">
+                    <span>Hat</span><input type="range" min="0" max="50" value="2" id="alsCountHat" class="als-type-slider"><span id="alsCountHatLabel">2</span><input type="checkbox" id="alsTonalHat" title="Tonal" style="justify-self:center;">
+                    <span>Perc</span><input type="range" min="0" max="50" value="2" id="alsCountPerc" class="als-type-slider"><span id="alsCountPercLabel">2</span><input type="checkbox" id="alsTonalPerc" title="Tonal" style="justify-self:center;">
+                    <span>Ride</span><input type="range" min="0" max="50" value="1" id="alsCountRide" class="als-type-slider"><span id="alsCountRideLabel">1</span><input type="checkbox" id="alsTonalRide" title="Tonal" style="justify-self:center;">
+                    <span>Fill</span><input type="range" min="0" max="50" value="4" id="alsCountFill" class="als-type-slider"><span id="alsCountFillLabel">4</span><input type="checkbox" id="alsTonalFill" title="Tonal" style="justify-self:center;">
+                </div>
+
+                <!-- BASS -->
+                <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Bass</div>
+                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                    <span>High Bass</span><input type="range" min="0" max="50" value="1" id="alsCountBass" class="als-type-slider"><span id="alsCountBassLabel">1</span><input type="checkbox" id="alsTonalBass" checked title="Tonal" style="justify-self:center;">
+                    <span>Sub</span><input type="range" min="0" max="50" value="1" id="alsCountSub" class="als-type-slider"><span id="alsCountSubLabel">1</span><input type="checkbox" id="alsTonalSub" checked title="Tonal" style="justify-self:center;">
+                </div>
+
+                <!-- BASS FX -->
+                <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Bass FX</div>
+                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                    <span>Sub Drop</span><input type="range" min="0" max="50" value="2" id="alsCountSubDrop" class="als-type-slider"><span id="alsCountSubDropLabel">2</span><input type="checkbox" id="alsTonalSubDrop" checked title="Tonal" style="justify-self:center;">
+                    <span>Boom Kick</span><input type="range" min="0" max="50" value="2" id="alsCountBoomKick" class="als-type-slider"><span id="alsCountBoomKickLabel">2</span><input type="checkbox" id="alsTonalBoomKick" title="Tonal" style="justify-self:center;">
+                </div>
+
+                <!-- MELODICS -->
+                <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Melodics</div>
+                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                    <span>Lead</span><input type="range" min="0" max="50" value="1" id="alsCountLead" class="als-type-slider"><span id="alsCountLeadLabel">1</span><input type="checkbox" id="alsTonalLead" title="Tonal" style="justify-self:center;">
+                    <span>Synth</span><input type="range" min="0" max="50" value="3" id="alsCountSynth" class="als-type-slider"><span id="alsCountSynthLabel">3</span><input type="checkbox" id="alsTonalSynth" title="Tonal" style="justify-self:center;">
+                    <span>Pad</span><input type="range" min="0" max="50" value="2" id="alsCountPad" class="als-type-slider"><span id="alsCountPadLabel">2</span><input type="checkbox" id="alsTonalPad" title="Tonal" style="justify-self:center;">
+                    <span>Arp</span><input type="range" min="0" max="50" value="2" id="alsCountArp" class="als-type-slider"><span id="alsCountArpLabel">2</span><input type="checkbox" id="alsTonalArp" title="Tonal" style="justify-self:center;">
+                    <span>Atmos</span><input type="range" min="0" max="50" value="2" id="alsCountAtmos" class="als-type-slider"><span id="alsCountAtmosLabel">2</span><input type="checkbox" id="alsTonalAtmos" title="Tonal" style="justify-self:center;">
+                </div>
+
+                <!-- FX -->
+                <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">FX</div>
+                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                    <span>Riser</span><input type="range" min="0" max="50" value="3" id="alsCountRiser" class="als-type-slider"><span id="alsCountRiserLabel">3</span><input type="checkbox" id="alsTonalRiser" checked title="Tonal" style="justify-self:center;">
+                    <span>Downlifter</span><input type="range" min="0" max="50" value="1" id="alsCountDownlifter" class="als-type-slider"><span id="alsCountDownlifterLabel">1</span><input type="checkbox" id="alsTonalDownlifter" checked title="Tonal" style="justify-self:center;">
+                    <span>Crash</span><input type="range" min="0" max="50" value="2" id="alsCountCrash" class="als-type-slider"><span id="alsCountCrashLabel">2</span><input type="checkbox" id="alsTonalCrash" title="Tonal" style="justify-self:center;">
+                    <span>Impact</span><input type="range" min="0" max="50" value="2" id="alsCountImpact" class="als-type-slider"><span id="alsCountImpactLabel">2</span><input type="checkbox" id="alsTonalImpact" title="Tonal" style="justify-self:center;">
+                    <span>Hit</span><input type="range" min="0" max="50" value="2" id="alsCountHit" class="als-type-slider"><span id="alsCountHitLabel">2</span><input type="checkbox" id="alsTonalHit" title="Tonal" style="justify-self:center;">
+                    <span>Sweep Up</span><input type="range" min="0" max="50" value="4" id="alsCountSweepUp" class="als-type-slider"><span id="alsCountSweepUpLabel">4</span><input type="checkbox" id="alsTonalSweepUp" checked title="Tonal" style="justify-self:center;">
+                    <span>Sweep Down</span><input type="range" min="0" max="50" value="4" id="alsCountSweepDown" class="als-type-slider"><span id="alsCountSweepDownLabel">4</span><input type="checkbox" id="alsTonalSweepDown" checked title="Tonal" style="justify-self:center;">
+                    <span>Snare Roll</span><input type="range" min="0" max="50" value="1" id="alsCountSnareRoll" class="als-type-slider"><span id="alsCountSnareRollLabel">1</span><input type="checkbox" id="alsTonalSnareRoll" title="Tonal" style="justify-self:center;">
+                    <span>Reverse</span><input type="range" min="0" max="50" value="2" id="alsCountReverse" class="als-type-slider"><span id="alsCountReverseLabel">2</span><input type="checkbox" id="alsTonalReverse" title="Tonal" style="justify-self:center;">
+                    <span>Glitch</span><input type="range" min="0" max="50" value="2" id="alsCountGlitch" class="als-type-slider"><span id="alsCountGlitchLabel">2</span><input type="checkbox" id="alsTonalGlitch" title="Tonal" style="justify-self:center;">
+                    <span>Scatter</span><input type="range" min="0" max="50" value="4" id="alsCountScatter" class="als-type-slider"><span id="alsCountScatterLabel">4</span><input type="checkbox" id="alsTonalScatter" title="Tonal" style="justify-self:center;">
+                </div>
+
+                <!-- VOCALS -->
+                <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Vocals</div>
+                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                    <span>Vox</span><input type="range" min="0" max="50" value="1" id="alsCountVox" class="als-type-slider"><span id="alsCountVoxLabel">1</span><input type="checkbox" id="alsTonalVox" title="Tonal" style="justify-self:center;">
+                </div>
+
+                <div style="padding:12px 0 0;color:var(--text-dim);font-size:12px;">
+                    Total (incl. groups): <strong id="alsEstimatedTracks">40</strong> tracks
+                </div>
+                <div style="padding:8px 0 0;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);flex-wrap:wrap;">
+                    <span>Blacklist: <strong id="alsBlacklistCount">0</strong> samples</span>
+                    <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" id="alsViewBlacklist" title="View and manage blacklisted samples">View</button>
+                    <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" id="alsClearBlacklist" title="Allow previously used samples again">Clear All</button>
+                    <span style="margin-left:12px;">Source Dirs: <strong id="alsWhitelistCount">0</strong></span>
+                    <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" id="alsViewWhitelist" title="Only use samples from these directories">View</button>
+                    <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" id="alsClearWhitelist" title="Use samples from all directories">Clear All</button>
                 </div>
             </div>
 
-            <!-- Step 4: Generate -->
-            <div class="als-wizard-panel" id="alsStep4">
-                <div class="settings-section">
-                    <h3 class="settings-heading">Generate</h3>
+            <!-- Section 3: Preview -->
+            <div class="settings-section" data-section="als-preview">
+                <h2 class="settings-heading">&#9776; Preview Key Samples</h2>
+                <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">
+                    Preview and approve the main samples. Click shuffle to pick a different sample.
+                </p>
+                <div id="alsPreviewList"></div>
+            </div>
+
+            <!-- Section 4: Generate -->
+            <div class="settings-section" data-section="als-generate">
+                <h2 class="settings-heading">&#9776; Generate</h2>
 
                     <div id="alsSummary" style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;font-size:13px;"></div>
 
@@ -12533,25 +12553,21 @@
                     </div>
 
                     <div id="alsResult" style="display:none;margin-top:12px;padding:12px;background:var(--bg-card);border:1px solid var(--cyan);border-radius:6px;"></div>
-                </div>
 
-                <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;">
-                    <button class="btn btn-secondary" data-action="alsWizardStep" data-step="3">Back</button>
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span id="alsOutputFilename" style="font-size:12px;color:var(--cyan);display:none;"></span>
-                        <button class="btn btn-primary" data-action="alsGenerate" id="alsGenerateBtn">Generate ALS</button>
-                        <button class="btn btn-stop" data-action="alsCancelGenerate" id="alsCancelBtn" style="display:none;">Cancel</button>
-                    </div>
+                <div style="display:flex;align-items:center;gap:8px;padding-top:12px;">
+                    <span id="alsOutputFilename" style="font-size:12px;color:var(--cyan);display:none;"></span>
+                    <button class="btn btn-primary" data-action="alsGenerate" id="alsGenerateBtn">Generate ALS</button>
+                    <button class="btn btn-stop" data-action="alsCancelGenerate" id="alsCancelBtn" style="display:none;">Cancel</button>
                 </div>
             </div>
 
             <!-- Sample Analysis Status -->
-            <div style="padding:12px 0;border-top:1px solid var(--border);margin-top:16px;">
+            <div class="settings-section" data-section="als-analysis">
+                <h2 class="settings-heading">&#9776; Sample Analysis</h2>
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:12px;color:var(--text-dim);">Sample Analysis:</span>
                     <span id="alsAnalysisStatus" style="font-size:12px;color:var(--text-dim);">checking...</span>
-                    <button class="btn btn-secondary" data-action="alsStartAnalysis" id="alsAnalysisBtn" style="font-size:11px;padding:2px 8px;">Run Analysis</button>
-                    <button class="btn btn-stop" data-action="alsStopAnalysis" id="alsStopAnalysisBtn" style="font-size:11px;padding:2px 8px;display:none;">Stop</button>
+                    <button class="btn btn-secondary" data-action="alsStartAnalysis" id="alsAnalysisBtn" style="font-size:11px;padding:4px 12px;">Run Analysis</button>
+                    <button class="btn btn-stop" data-action="alsStopAnalysis" id="alsStopAnalysisBtn" style="font-size:11px;padding:4px 12px;display:none;">Stop</button>
                 </div>
             </div>
         </div>
@@ -12598,49 +12614,107 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=23641"></script>
-<script src="js/utils.js?v=23641"></script>
-<script src="js/ui-idle.js?v=23641"></script>
-<script src="js/ipc.js?v=23641"></script>
-<script src="js/tooltip-hover.js?v=23641"></script>
-<script src="js/drag-reorder.js?v=23641"></script>
-<script src="js/modal-drag.js?v=23641"></script>
-<script src="js/columns.js?v=23641"></script>
-<script src="js/notes.js?v=23641"></script>
-<script src="js/favorites.js?v=23641"></script>
-<script src="js/export.js?v=23641"></script>
-<script src="js/plugins.js?v=23641"></script>
-<script src="js/settings.js?v=23641"></script>
-<script src="js/history.js?v=23641"></script>
-<script src="js/kvr.js?v=23641"></script>
-<script src="js/graph-freeze.js?v=23641"></script>
-<script src="js/audio.js?v=23641"></script>
-<script src="js/daw.js?v=23641"></script>
-<script src="js/disk-usage.js?v=23641"></script>
-<script src="js/presets.js?v=23641"></script>
-<script src="js/batch-select.js?v=23641"></script>
-<script src="js/native-file-drag.js?v=23641"></script>
-<script src="js/sort-persist.js?v=23641"></script>
-<script src="js/multi-filter.js?v=23641"></script>
-<script src="js/file-browser.js?v=23641"></script>
-<script src="js/duplicates.js?v=23641"></script>
-<script src="js/command-palette.js?v=23641"></script>
-<script src="js/xref.js?v=23641"></script>
-<script src="js/dep-graph.js?v=23641"></script>
-<script src="js/smart-playlists.js?v=23641"></script>
-<script src="js/heatmap-dashboard.js?v=23641"></script>
-<script src="js/midi.js?v=23641"></script>
-<script src="js/pdf.js?v=23641"></script>
-<script src="js/video.js?v=23641"></script>
-<script src="js/settings-search.js?v=23641"></script>
-<script src="js/visualizer.js?v=23641"></script>
-<script src="js/walker-status.js?v=23641"></script>
-<script src="js/audio-engine.js?v=23641"></script>
-<script src="js/als-generator.js?v=23641"></script>
-<script src="js/context-menu.js?v=23641"></script>
-<script src="js/shortcuts.js?v=23641"></script>
-<script src="js/help-overlay.js?v=23641"></script>
-<script src="js/keyboard-nav.js?v=23641"></script>
-<script src="js/app.js?v=23641"></script>
+<script src="js/i18n-ui.js?v=17853"></script>
+<script src="js/utils.js?v=17853"></script>
+<script src="js/ui-idle.js?v=17853"></script>
+<script src="js/ipc.js?v=17853"></script>
+<script src="js/tooltip-hover.js?v=17853"></script>
+<script src="js/drag-reorder.js?v=17853"></script>
+<script src="js/modal-drag.js?v=17853"></script>
+<script src="js/columns.js?v=17853"></script>
+<script src="js/notes.js?v=17853"></script>
+<script src="js/favorites.js?v=17853"></script>
+<script src="js/export.js?v=17853"></script>
+<script src="js/plugins.js?v=17853"></script>
+<script src="js/settings.js?v=17853"></script>
+<script src="js/history.js?v=17853"></script>
+<script src="js/kvr.js?v=17853"></script>
+<script src="js/graph-freeze.js?v=17853"></script>
+<script src="js/audio.js?v=17853"></script>
+<script src="js/daw.js?v=17853"></script>
+<script src="js/disk-usage.js?v=17853"></script>
+<script src="js/presets.js?v=17853"></script>
+<script src="js/batch-select.js?v=17853"></script>
+<script src="js/native-file-drag.js?v=17853"></script>
+<script src="js/sort-persist.js?v=17853"></script>
+<script src="js/multi-filter.js?v=17853"></script>
+<script src="js/file-browser.js?v=17853"></script>
+<script src="js/duplicates.js?v=17853"></script>
+<script src="js/command-palette.js?v=17853"></script>
+<script src="js/xref.js?v=17853"></script>
+<script src="js/dep-graph.js?v=17853"></script>
+<script src="js/smart-playlists.js?v=17853"></script>
+<script src="js/heatmap-dashboard.js?v=17853"></script>
+<script src="js/midi.js?v=17853"></script>
+<script src="js/pdf.js?v=17853"></script>
+<script src="js/video.js?v=17853"></script>
+<!-- Blacklist Modal -->
+<div id="blacklistModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="max-width:600px;">
+        <div class="modal-header">
+            <h2>Sample Blacklist</h2>
+            <button class="modal-close" id="blacklistModalClose">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;gap:12px;max-height:60vh;overflow:hidden;">
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="blacklistAddInput" placeholder="Add sample path to blacklist..." style="flex:1;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);font-size:12px;">
+                <button class="btn btn-primary" id="blacklistAddBtn" style="padding:8px 12px;">Add</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="blacklistSearchInput" placeholder="Search blacklist..." style="flex:1;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);font-size:12px;">
+                <span id="blacklistFilterCount" style="font-size:11px;color:var(--text-dim);min-width:60px;"></span>
+            </div>
+            <div id="blacklistEntries" style="flex:1;overflow-y:auto;background:var(--bg-secondary);border:1px solid var(--border);padding:8px;font-family:monospace;font-size:11px;min-height:200px;max-height:400px;">
+                <p style="color:var(--text-dim);">Loading...</p>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span id="blacklistTotalCount" style="font-size:11px;color:var(--text-dim);">0 entries</span>
+                <button class="btn btn-secondary" id="blacklistClearAllBtn" style="font-size:11px;">Clear All</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Whitelist Modal -->
+<div id="whitelistModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content" style="max-width:600px;">
+        <div class="modal-header">
+            <h2>Source Directories</h2>
+            <button class="modal-close" id="whitelistModalClose">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;gap:12px;max-height:60vh;overflow:hidden;">
+            <div style="font-size:12px;color:var(--text-dim);padding-bottom:8px;border-bottom:1px solid var(--border);">
+                Only samples from these directories will be used for generation. Leave empty to use all directories.
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="whitelistAddInput" placeholder="Add directory path..." style="flex:1;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);font-size:12px;">
+                <button class="btn btn-primary" id="whitelistAddBtn" style="padding:8px 12px;">Add</button>
+                <button class="btn btn-secondary" id="whitelistBrowseBtn" style="padding:8px 12px;" title="Browse for folder">📁</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="whitelistSearchInput" placeholder="Search directories..." style="flex:1;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);font-size:12px;">
+                <span id="whitelistFilterCount" style="font-size:11px;color:var(--text-dim);min-width:60px;"></span>
+            </div>
+            <div id="whitelistEntries" style="flex:1;overflow-y:auto;background:var(--bg-secondary);border:1px solid var(--border);padding:8px;font-family:monospace;font-size:11px;min-height:200px;max-height:400px;">
+                <p style="color:var(--text-dim);">Loading...</p>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span id="whitelistTotalCount" style="font-size:11px;color:var(--text-dim);">0 directories (all allowed)</span>
+                <button class="btn btn-secondary" id="whitelistClearAllBtn" style="font-size:11px;">Clear All</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/settings-search.js?v=17853"></script>
+<script src="js/visualizer.js?v=17853"></script>
+<script src="js/walker-status.js?v=17853"></script>
+<script src="js/audio-engine.js?v=17853"></script>
+<script src="js/als-generator.js?v=17853"></script>
+<script src="js/context-menu.js?v=17853"></script>
+<script src="js/shortcuts.js?v=17853"></script>
+<script src="js/help-overlay.js?v=17853"></script>
+<script src="js/keyboard-nav.js?v=17853"></script>
+<script src="js/app.js?v=17853"></script>
 </body>
 </html>

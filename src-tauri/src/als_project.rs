@@ -84,9 +84,18 @@ pub struct ProjectConfig {
     /// 0.0 = clean, 1.0 = heavily glitched (micro-edits, stutters, beat dropouts)
     #[serde(default)]
     pub glitch_intensity: f32,
+    /// Per-section glitch intensity overrides (0.0-1.0 each, None uses global glitch_intensity)
+    #[serde(default)]
+    pub section_glitch: SectionGlitchConfig,
     /// 0.0 = none, 1.0 = dense scattered one-shot hits on 1/16 grid
     #[serde(default)]
     pub density: f32,
+    /// 0.0 = static (elements play full sections), 1.0 = dynamic (elements constantly in/out)
+    #[serde(default)]
+    pub variation: f32,
+    /// 0.0 = one track at a time per group, 1.0 = all tracks play together
+    #[serde(default = "default_parallelism")]
+    pub parallelism: f32,
     pub bpm: u32,
     /// e.g. "A" — root note
     pub root_note: Option<String>,
@@ -95,6 +104,9 @@ pub struct ProjectConfig {
     pub atonal: bool,
     pub keywords: Vec<String>,
     pub element_keywords: std::collections::HashMap<String, String>,
+    /// Optional base path to filter samples - only use samples under this directory
+    #[serde(default)]
+    pub sample_source_path: Option<String>,
     /// Legacy category-based track counts (kept for backwards compat)
     pub tracks: TrackConfig,
     pub output_path: String,
@@ -147,6 +159,34 @@ fn default_2() -> u32 { 2 }
 fn default_3() -> u32 { 3 }
 fn default_4() -> u32 { 4 }
 fn default_chaos() -> f32 { 0.3 }
+fn default_parallelism() -> f32 { 0.4 }
+
+/// Per-section glitch intensity configuration.
+/// Each value is 0.0-1.0, with None meaning "use global glitch_intensity".
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SectionGlitchConfig {
+    /// Intro (bars 1-32)
+    #[serde(default)]
+    pub intro: Option<f32>,
+    /// Build (bars 33-64)
+    #[serde(default)]
+    pub build: Option<f32>,
+    /// Breakdown (bars 65-96)
+    #[serde(default)]
+    pub breakdown: Option<f32>,
+    /// Drop 1 (bars 97-128)
+    #[serde(default)]
+    pub drop1: Option<f32>,
+    /// Drop 2 (bars 129-160)
+    #[serde(default)]
+    pub drop2: Option<f32>,
+    /// Fadedown (bars 161-192)
+    #[serde(default)]
+    pub fadedown: Option<f32>,
+    /// Outro (bars 193-224)
+    #[serde(default)]
+    pub outro: Option<f32>,
+}
 
 impl Default for TrackCountsConfig {
     fn default() -> Self {

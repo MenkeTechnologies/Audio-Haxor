@@ -2453,6 +2453,50 @@ DROP TABLE _pl_refresh_paths;"#;
                 .map_err(|e| format!("Migration v24 schema_version failed: {e}"))?;
         }
 
+        // Migration v25: sample_blacklist table for persistent ALS generation blacklist
+        let has_v25 = conn
+            .query_row(
+                "SELECT 1 FROM schema_version WHERE version = 25",
+                [],
+                |_| Ok(()),
+            )
+            .is_ok();
+        if !has_v25 {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS sample_blacklist (
+                    entry TEXT PRIMARY KEY NOT NULL,
+                    added_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_blacklist_added ON sample_blacklist(added_at);
+                ",
+            )
+            .map_err(|e| format!("Migration v25 (sample_blacklist) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (25)", [])
+                .map_err(|e| format!("Migration v25 schema_version failed: {e}"))?;
+        }
+
+        // Migration v26: directory_whitelist table for ALS generation source filtering
+        let has_v26 = conn
+            .query_row(
+                "SELECT 1 FROM schema_version WHERE version = 26",
+                [],
+                |_| Ok(()),
+            )
+            .is_ok();
+        if !has_v26 {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS directory_whitelist (
+                    path TEXT PRIMARY KEY NOT NULL,
+                    added_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_whitelist_added ON directory_whitelist(added_at);
+                ",
+            )
+            .map_err(|e| format!("Migration v26 (directory_whitelist) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (26)", [])
+                .map_err(|e| format!("Migration v26 schema_version failed: {e}"))?;
+        }
+
         if conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_i18n'",
@@ -2465,6 +2509,127 @@ DROP TABLE _pl_refresh_paths;"#;
         }
 
         Ok(())
+    }
+
+    // ── Sample Blacklist ──
+
+    pub fn blacklist_list(&self) -> Result<Vec<String>, String> {
+        let conn = self.read_conn();
+        let mut stmt = conn
+            .prepare("SELECT entry FROM sample_blacklist ORDER BY entry ASC")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r.map_err(|e| e.to_string())?);
+        }
+        Ok(out)
+    }
+
+    pub fn blacklist_count(&self) -> Result<usize, String> {
+        let conn = self.read_conn();
+        conn.query_row("SELECT COUNT(*) FROM sample_blacklist", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map(|n| n as usize)
+        .map_err(|e| e.to_string())
+    }
+
+    pub fn blacklist_contains(&self, entry: &str) -> Result<bool, String> {
+        let conn = self.read_conn();
+        conn.query_row(
+            "SELECT 1 FROM sample_blacklist WHERE entry = ?1",
+            [entry],
+            |_| Ok(()),
+        )
+        .map(|_| true)
+        .or_else(|e| {
+            if matches!(e, rusqlite::Error::QueryReturnedNoRows) {
+                Ok(false)
+            } else {
+                Err(e.to_string())
+            }
+        })
+    }
+
+    pub fn blacklist_add(&self, entry: &str) -> Result<(), String> {
+        let conn = self.write_conn();
+        conn.execute(
+            "INSERT OR IGNORE INTO sample_blacklist (entry) VALUES (?1)",
+            [entry],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn blacklist_remove(&self, entry: &str) -> Result<bool, String> {
+        let conn = self.write_conn();
+        let changes = conn
+            .execute("DELETE FROM sample_blacklist WHERE entry = ?1", [entry])
+            .map_err(|e| e.to_string())?;
+        Ok(changes > 0)
+    }
+
+    pub fn blacklist_clear(&self) -> Result<usize, String> {
+        let conn = self.write_conn();
+        let changes = conn
+            .execute("DELETE FROM sample_blacklist", [])
+            .map_err(|e| e.to_string())?;
+        Ok(changes)
+    }
+
+    // ── Directory Whitelist ──
+
+    pub fn whitelist_list(&self) -> Result<Vec<String>, String> {
+        let conn = self.read_conn();
+        let mut stmt = conn
+            .prepare("SELECT path FROM directory_whitelist ORDER BY path ASC")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r.map_err(|e| e.to_string())?);
+        }
+        Ok(out)
+    }
+
+    pub fn whitelist_count(&self) -> Result<usize, String> {
+        let conn = self.read_conn();
+        conn.query_row("SELECT COUNT(*) FROM directory_whitelist", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map(|n| n as usize)
+        .map_err(|e| e.to_string())
+    }
+
+    pub fn whitelist_add(&self, path: &str) -> Result<(), String> {
+        let conn = self.write_conn();
+        conn.execute(
+            "INSERT OR IGNORE INTO directory_whitelist (path) VALUES (?1)",
+            [path],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn whitelist_remove(&self, path: &str) -> Result<bool, String> {
+        let conn = self.write_conn();
+        let changes = conn
+            .execute("DELETE FROM directory_whitelist WHERE path = ?1", [path])
+            .map_err(|e| e.to_string())?;
+        Ok(changes > 0)
+    }
+
+    pub fn whitelist_clear(&self) -> Result<usize, String> {
+        let conn = self.write_conn();
+        let changes = conn
+            .execute("DELETE FROM directory_whitelist", [])
+            .map_err(|e| e.to_string())?;
+        Ok(changes)
     }
 
     // ── Favorites ──
