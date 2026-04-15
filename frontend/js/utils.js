@@ -1305,7 +1305,7 @@ function _ensureTabButtonCache() {
 const _tabPanels = {};
 const _tabPanelIds = [
     'plugins', 'history', 'samples', 'daw', 'presets', 'favorites',
-    'notes', 'tags', 'files', 'midi', 'pdf', 'videos', 'visualizer', 'walkers', 'audioEngine', 'settings',
+    'notes', 'tags', 'files', 'midi', 'pdf', 'videos', 'visualizer', 'walkers', 'audioEngine', 'alsGenerator', 'settings',
 ];
 
 function _ensureTabCache() {
