@@ -54,11 +54,38 @@ fn main() {
         println!("cargo:rerun-if-changed={}", git_head.display());
     }
 
-    // Skip tauri_build when TAURI_SKIP_BUILD=1 — it embeds a Windows GUI manifest that causes
-    // STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139) when running `cargo test` in a console context.
-    // CI sets this for test runs; normal builds and `pnpm tauri build/dev` leave it unset.
+    // Windows MSVC + CI: use the official Tauri workaround for STATUS_ENTRYPOINT_NOT_FOUND.
+    // The default tauri_build embeds a GUI subsystem manifest that crashes console test binaries.
+    // Solution: skip the app manifest, then manually embed a console-compatible one.
     // See: https://github.com/orgs/tauri-apps/discussions/11179
-    if std::env::var("TAURI_SKIP_BUILD").is_err() {
+    //      https://github.com/tauri-apps/tauri/pull/4383#issuecomment-1212221864
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    let is_ci_test = std::env::var("TAURI_CI_TEST").is_ok();
+
+    if is_ci_test && target_os == "windows" && target_env == "msvc" {
+        tauri_build::try_build(
+            tauri_build::Attributes::new()
+                .windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest()),
+        )
+        .expect("tauri_build failed");
+        embed_windows_manifest_for_tests();
+    } else {
         tauri_build::build();
     }
+}
+
+fn embed_windows_manifest_for_tests() {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest = manifest_dir.join("windows-test-manifest.xml");
+    if !manifest.exists() {
+        return;
+    }
+    println!("cargo:rerun-if-changed={}", manifest.display());
+    println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+    println!(
+        "cargo:rustc-link-arg=/MANIFESTINPUT:{}",
+        manifest.to_str().unwrap()
+    );
+    println!("cargo:rustc-link-arg=/WX");
 }

@@ -41,6 +41,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
+          # Windows: include crt-static in cache key to prevent mixing static/dynamic CRT artifacts.
+          # Without this, restored deps built without +crt-static cause STATUS_ENTRYPOINT_NOT_FOUND.
+          prefix-key: ${{ matrix.os == 'windows-latest' && 'v1-crt-static' || 'v1' }}
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
@@ -85,138 +88,20 @@ jobs:
         if: matrix.os != 'ubuntu-latest'
         run: node scripts/run-audio-engine-tests.mjs
 
-      # Windows: plain `cargo test` hits STATUS_ENTRYPOINT_NOT_FOUND — MSVC/JUCE copies beside test
-      # exes shadow the correct CRT. Pattern-matching CRT names still misses arbitrary JUCE DLLs.
-      # Build once (`--no-run`), delete every `*.dll` under `target/debug` except a small allowlist
-      # (WebView2Loader — required beside the harness), remove stray audio-engine copies, then run
-      # each harness (no second Cargo invoke — avoids tauri-build recopying sidecars).
+      # Windows: use official Tauri workaround for STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139).
+      # TAURI_CI_TEST triggers build.rs to use WindowsAttributes::new_without_app_manifest()
+      # and embed a console-compatible manifest instead of the GUI subsystem one.
+      # See: https://github.com/orgs/tauri-apps/discussions/11179
       - name: Run Rust tests (library + integration)
         if: matrix.os != 'windows-latest'
-        env:
-          TAURI_SKIP_BUILD: 1
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Run Rust tests (library + integration, Windows)
         if: matrix.os == 'windows-latest'
-        shell: pwsh
         env:
-          # RUSTFLAGS (+crt-static): job-level `test.env` so rust-cache and this step agree.
           RUST_BACKTRACE: 1
-          TAURI_SKIP_BUILD: 1
-        run: |
-          $logFile = Join-Path $env:RUNNER_TEMP 'cargo-test-no-run.txt'
-          & cargo test --manifest-path src-tauri/Cargo.toml --no-run --color never *> $logFile
-          $cargoExit = $LASTEXITCODE
-          Get-Content -LiteralPath $logFile | ForEach-Object { $_ }
-          if ($cargoExit -ne 0) { exit $cargoExit }
-
-          $exeRelPaths = [System.Collections.Generic.List[string]]::new()
-          foreach ($line in (Get-Content -LiteralPath $logFile)) {
-            if ($line -match 'Executable\s+(.+)\s+\((target[\\/]debug[\\/]deps[\\/][^\)]+\.exe)\)') {
-              $exeRelPaths.Add($matches[2])
-            }
-          }
-          if ($exeRelPaths.Count -lt 1) {
-            throw "no test exe paths parsed from cargo test --no-run (expected target\debug\deps\*.exe on Windows)"
-          }
-
-          function Remove-WindowsTestSidecars([string]$rootDir) {
-            $keepDlls = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-            @('WebView2Loader.dll') | ForEach-Object { [void]$keepDlls.Add($_) }
-
-            if (-not (Test-Path -LiteralPath $rootDir)) { return }
-            foreach ($f in (Get-ChildItem -Path $rootDir -Recurse -File -ErrorAction SilentlyContinue)) {
-              $name = $f.Name
-              if ($name -ieq 'audio-engine.exe' -or $name -ieq 'audio-engine.pdb') {
-                Remove-Item -Force -LiteralPath $f.FullName -ErrorAction SilentlyContinue
-                continue
-              }
-              if ($f.Extension -ieq '.dll' -and -not $keepDlls.Contains($name)) {
-                Remove-Item -Force -LiteralPath $f.FullName -ErrorAction SilentlyContinue
-              }
-            }
-          }
-
-          $td = Join-Path $env:GITHUB_WORKSPACE 'target/debug'
-          Remove-WindowsTestSidecars $td
-
-          $depsDll = Join-Path $td 'deps'
-          # TAURI_SKIP_BUILD=1 skips tauri_build::build(), so WebView2Loader.dll is never copied to
-          # target/debug. Find it in the cargo registry (webview2-com-sys crate) and copy manually.
-          $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE '.cargo' }
-          $wv2Pattern = Join-Path $cargoHome 'registry/cache/index.crates.io-*'
-          $wv2Crate = Get-ChildItem -Path $wv2Pattern -Filter 'webview2-com-sys-*.crate' -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if ($wv2Crate) {
-            $extractDir = Join-Path $env:RUNNER_TEMP 'webview2-extract'
-            New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
-            # .crate files are gzipped tarballs
-            tar -xzf $wv2Crate.FullName -C $extractDir 2>$null
-            $wv2Dll = Get-ChildItem -Path $extractDir -Filter 'WebView2Loader.dll' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($wv2Dll) {
-              Copy-Item -Force -LiteralPath $wv2Dll.FullName -Destination $td
-              Write-Host "Copied WebView2Loader.dll from cargo registry to $td"
-            } else {
-              Write-Host "WARNING: WebView2Loader.dll not found in webview2-com-sys crate"
-            }
-          } else {
-            Write-Host "WARNING: webview2-com-sys crate not found in cargo registry"
-          }
-
-          # Harness exes sit in `deps/`; Windows resolves static imports from the exe directory before PATH.
-          # `WebView2Loader.dll` is normally next to the main app in `target/debug` only — copy every
-          # surviving root `target/debug/*.dll` (post-strip: allowlist is tiny) beside test binaries.
-          if (Test-Path -LiteralPath $depsDll) {
-            foreach ($dll in (Get-ChildItem -LiteralPath $td -Filter *.dll -File -ErrorAction SilentlyContinue)) {
-              Copy-Item -Force -LiteralPath $dll.FullName -Destination $depsDll
-            }
-            $names = @(Get-ChildItem -LiteralPath $depsDll -Filter *.dll -File -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Sort-Object -Unique)
-            Write-Host "target/debug/deps *.dll after sidecar strip + root copy ($($names.Count)):" ($names -join ', ')
-          }
-
-          Push-Location $env:GITHUB_WORKSPACE
-          try {
-            # STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139): run with cwd away from repo root (node_modules).
-            # Still prepend `target/debug` on PATH for any DLL loads that walk the search path after the
-            # exe directory (and for `WebView2Loader` transitive loads).
-            $harnessWd = Join-Path $env:RUNNER_TEMP 'rust-test-harness-wd'
-            New-Item -ItemType Directory -Path $harnessWd -Force | Out-Null
-            $savedPath = $env:PATH
-            $env:PATH = "$td;C:\Windows\System32;C:\Windows"
-            $i = 0
-            foreach ($rel in $exeRelPaths) {
-              $full = Join-Path $env:GITHUB_WORKSPACE ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
-              if (-not (Test-Path -LiteralPath $full)) { throw "missing test exe: $full" }
-              $outLog = Join-Path $env:RUNNER_TEMP ("rust-harness-{0}.stdout.log" -f $i)
-              $errLog = Join-Path $env:RUNNER_TEMP ("rust-harness-{0}.stderr.log" -f $i)
-              Remove-Item -Force -LiteralPath $outLog,$errLog -ErrorAction SilentlyContinue
-              # Start-Process + redirect: plain & $exe in GHA sometimes yielded exit 1 with no captured libtest output.
-              $sp = @{
-                FilePath               = $full
-                WorkingDirectory       = $harnessWd
-                Wait                   = $true
-                PassThru               = $true
-                NoNewWindow            = $true
-                RedirectStandardOutput = $outLog
-                RedirectStandardError  = $errLog
-              }
-              # First harness only: no --quiet so failures show STATUS_ENTRYPOINT_NOT_FOUND vs panics.
-              if ($i -ne 0) { $sp['ArgumentList'] = @('--quiet') }
-              Write-Host "Running harness $i : $rel (exit will follow)"
-              $p = Start-Process @sp
-              Write-Host "Harness $i exit code: $($p.ExitCode)"
-              $showLogs = ($p.ExitCode -ne 0) -or ($i -eq 0)
-              if ($showLogs) {
-                if (Test-Path -LiteralPath $outLog) { Get-Content -LiteralPath $outLog | ForEach-Object { Write-Host $_ } }
-                if (Test-Path -LiteralPath $errLog) { Get-Content -LiteralPath $errLog | ForEach-Object { Write-Host $_ } }
-              }
-              if ($p.ExitCode -ne 0) { exit $p.ExitCode }
-              $i++
-            }
-          } finally {
-            $env:PATH = $savedPath
-            Pop-Location
-          }
-          exit 0
+          TAURI_CI_TEST: 1
+        run: cargo test --manifest-path src-tauri/Cargo.toml
 
   build:
     needs: test
@@ -237,6 +122,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
+          prefix-key: v1
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
