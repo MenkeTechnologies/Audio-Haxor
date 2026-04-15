@@ -1676,6 +1676,15 @@ window.vstUpdater = {
     onPdfMetadataProgress: (callback) => listen('pdf-metadata-progress', (event) => callback(event.payload)),
     readAlsXml: (filePath) => invoke('read_als_xml', {filePath}),
     readProjectFile: (filePath) => invoke('read_project_file', {filePath}),
+    // ALS Generator
+    generateAlsProject: (config) => invoke('generate_als_project', {config}),
+    alsQuerySamples: (category, config, limit) => invoke('als_query_samples', {category, config, limit: limit || 3}),
+    sampleAnalysisSeed: () => invoke('sample_analysis_seed'),
+    sampleAnalysisStart: () => invoke('sample_analysis_start'),
+    sampleAnalysisStop: () => invoke('sample_analysis_stop'),
+    sampleAnalysisStats: () => invoke('sample_analysis_stats'),
+    onSampleAnalysisProgress: (callback) => listen('sample-analysis-progress', (event) => callback(event.payload)),
+    onAlsGenerationProgress: (callback) => listen('als-generation-progress', (event) => callback(event.payload)),
     // Preferences (file-backed)
     getProcessStats: () => invoke('get_process_stats'),
     /** Subprocess `audio-engine`: same RSS/VIRT/CPU/thread/FD probes as the main header (`get_process_stats`). */

@@ -1370,6 +1370,7 @@ function switchTab(tab) {
                 if (expectedTab === 'midi' && typeof loadMidiFiles === 'function' && typeof _midiLoaded !== 'undefined' && !_midiLoaded) loadMidiFiles();
                 if (expectedTab === 'pdf' && typeof loadPdfPagesForVisible === 'function') void loadPdfPagesForVisible();
                 if (expectedTab === 'videos' && typeof loadVideoFiles === 'function' && typeof _videoLoaded !== 'undefined' && !_videoLoaded) void loadVideoFiles();
+                if (expectedTab === 'alsGenerator' && typeof loadAlsGenerator === 'function') loadAlsGenerator();
                 if (expectedTab === 'settings') {
                     refreshSettingsUI();
                     if (typeof renderCacheStats === 'function') renderCacheStats();
