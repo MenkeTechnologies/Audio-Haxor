@@ -17,6 +17,7 @@
 //! - [`history`] — Scan history persistence, diffing, and preferences
 //! - [`content_hash`] — SHA-256 file hashing for byte-identical duplicate detection
 
+pub mod als_generator;
 pub mod app_i18n;
 pub mod audio_engine;
 pub mod audio_extensions;
