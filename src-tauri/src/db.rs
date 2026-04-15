@@ -9527,13 +9527,17 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(count)
     }
 
-    /// Get sample IDs + names + directories that have not been analyzed yet.
+    /// Get sample IDs + names + directories + paths + existing key that have not been analyzed yet.
     /// Only returns WAV samples from the canonical audio_library.
-    pub fn unanalyzed_sample_ids(&self, limit: u64) -> Result<Vec<(i64, String, String)>, String> {
+    /// Returns: (id, name, directory, path, key_name)
+    pub fn unanalyzed_sample_ids(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<(i64, String, String, String, Option<String>)>, String> {
         let conn = self.read_conn();
         let mut stmt = conn
             .prepare(&format!(
-                "SELECT s.id, s.name, s.directory
+                "SELECT s.id, s.name, s.directory, s.path, s.key_name
                  FROM audio_samples s
                  LEFT JOIN sample_analysis a ON s.id = a.sample_id
                  WHERE a.sample_id IS NULL
@@ -9544,7 +9548,7 @@ DROP TABLE _pl_refresh_paths;"#;
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map(rusqlite::params![limit as i64], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
             })
             .map_err(|e| e.to_string())?;
         rows.collect::<Result<Vec<_>, _>>()

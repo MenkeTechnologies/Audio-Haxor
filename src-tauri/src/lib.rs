@@ -3195,8 +3195,12 @@ async fn sample_analysis_seed() -> Result<serde_json::Value, String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Start the background sample analysis job. Parses filenames + directory paths
-/// for BPM, key, category, and manufacturer. No audio decoding.
+/// Start the background sample analysis job.
+///
+/// Pass 1 (fast): filename parsing for BPM, category, manufacturer, is_loop.
+/// Pass 2 (per-sample): for key-sensitive categories, use audio_samples.key_name
+///   if already detected, otherwise run key_detect::detect_key() and write back
+///   to both audio_samples.key_name and sample_analysis.parsed_key.
 #[tauri::command]
 async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let state = app.state::<SampleAnalysisState>();
@@ -3228,6 +3232,7 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
         let batch_size: u64 = 1000;
         let mut total_analyzed: u64 = 0;
         let mut total_failed: u64 = 0;
+        let mut keys_detected: u64 = 0;
         let start = std::time::Instant::now();
 
         loop {
@@ -3235,6 +3240,7 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                 break;
             }
 
+            // Now returns (id, name, directory, path, key_name)
             let samples = match db::global().unanalyzed_sample_ids(batch_size) {
                 Ok(s) => s,
                 Err(e) => {
@@ -3260,17 +3266,42 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                 bool,
             )> = Vec::with_capacity(samples.len());
 
-            for (sample_id, name, directory) in &samples {
+            for (sample_id, name, directory, path, existing_key) in &samples {
                 if stop_flag.load(Ordering::Relaxed) {
                     break;
                 }
                 yield_if_playback_active();
 
                 let analysis = sample_analysis::analyze_sample(name, directory);
+
+                // Determine the key to store:
+                // 1. Use existing audio_samples.key_name if already detected
+                // 2. For key-sensitive categories, run audio key detection
+                // 3. Never rely on filename-parsed key alone
+                let resolved_key = if existing_key.is_some() {
+                    existing_key.clone()
+                } else if analysis.category.as_ref().map_or(false, |c| c.is_key_sensitive) {
+                    // Run audio key detection for key-sensitive categories
+                    let detected = key_detect::detect_key(path);
+                    if detected.is_some() {
+                        keys_detected += 1;
+                        // Write back to audio_samples.key_name for future use
+                        let _ = db::global().batch_update_analysis(&[(
+                            path.clone(),
+                            None, // don't overwrite BPM
+                            detected.clone(),
+                            None, // don't overwrite LUFS
+                        )]);
+                    }
+                    detected
+                } else {
+                    None // non-key-sensitive category, key doesn't matter
+                };
+
                 batch_rows.push((
                     *sample_id,
                     analysis.parsed_bpm,
-                    analysis.parsed_key,
+                    resolved_key,
                     analysis.category.as_ref().map(|c| c.name.clone()),
                     analysis.manufacturer.as_ref().map(|m| m.manufacturer_pattern.clone()),
                     analysis.category.as_ref().map(|c| c.confidence).unwrap_or(0.0),
@@ -3297,6 +3328,7 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                     "analyzed": total_analyzed + already,
                     "total": total + already,
                     "failed": total_failed,
+                    "keys_detected": keys_detected,
                     "elapsed_ms": start.elapsed().as_millis() as u64,
                 }),
             );
@@ -3309,6 +3341,7 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                 "analyzed": total_analyzed + already,
                 "total": total + already,
                 "failed": total_failed,
+                "keys_detected": keys_detected,
                 "elapsed_ms": start.elapsed().as_millis() as u64,
             }),
         );
