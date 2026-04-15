@@ -178,7 +178,7 @@ pub fn extract_key(name: &str) -> Option<String> {
                 let match_start = caps.get(0)?.start();
                 let bytes = name.as_bytes();
                 if match_start > 0 {
-                    let prev = bytes[match_start] as char; // delimiter char
+                    let _prev = bytes[match_start] as char; // delimiter char
                     // Look one more back for a digit
                     if match_start > 1 && bytes[match_start - 1].is_ascii_digit() {
                         // Could be "Vol3_A_" — check if next after note is also digit

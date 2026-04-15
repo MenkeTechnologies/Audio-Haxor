@@ -18,6 +18,7 @@
 //! - [`content_hash`] — SHA-256 file hashing for byte-identical duplicate detection
 
 pub mod als_generator;
+pub mod als_project;
 pub mod app_i18n;
 pub mod audio_engine;
 pub mod audio_extensions;
@@ -3345,6 +3346,157 @@ async fn sample_analysis_stats() -> Result<serde_json::Value, String> {
             "unanalyzed": unanalyzed,
             "total": analyzed + unanalyzed,
         }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Generate an ALS project from wizard configuration.
+/// Queries sample_analysis for ranked samples, builds arrangement, writes .als file.
+#[tauri::command]
+async fn generate_als_project(
+    app: tauri::AppHandle,
+    config: als_project::ProjectConfig,
+) -> Result<serde_json::Value, String> {
+    let _ = app.emit(
+        "als-generation-progress",
+        serde_json::json!({ "phase": "started", "message": "Building arrangement..." }),
+    );
+
+    let result = tokio::task::spawn_blocking(move || {
+        // Generate project name
+        let project_name = config
+            .project_name
+            .clone()
+            .unwrap_or_else(|| als_project::generate_project_name(&config));
+
+        // Build arrangement
+        let arrangement = als_project::build_arrangement(&config);
+
+        // Select samples for each track
+        let mut track_samples: Vec<(als_project::TrackArrangement, Vec<als_project::SelectedSample>)> =
+            Vec::new();
+        let mut warnings: Vec<String> = Vec::new();
+
+        for track in &arrangement {
+            let samples = als_project::query_samples(
+                &track.category,
+                &config,
+                track.require_loop,
+                3, // get top 3 candidates, use first
+            )
+            .unwrap_or_default();
+
+            if samples.is_empty() {
+                // Try again without loop requirement
+                let fallback = als_project::query_samples(
+                    &track.category,
+                    &config,
+                    false,
+                    3,
+                )
+                .unwrap_or_default();
+
+                if fallback.is_empty() {
+                    warnings.push(format!("No samples found for track '{}'", track.name));
+                }
+                track_samples.push((track.clone(), fallback));
+            } else {
+                track_samples.push((track.clone(), samples));
+            }
+        }
+
+        // Build the ALS file using existing als_generator infrastructure
+        let output_dir = std::path::Path::new(&config.output_path);
+        let filename = format!("{}.als", project_name);
+        let output_path = output_dir.join(&filename);
+
+        // Use generate_als with the tracks we've built
+        let mut als_tracks: Vec<als_generator::TrackInfo> = Vec::new();
+
+        for (arrangement_track, samples) in &track_samples {
+            if samples.is_empty() {
+                continue;
+            }
+            let sample = &samples[0]; // use top-ranked sample
+
+            let mut clips = Vec::new();
+            for &(start_bar, end_bar) in &arrangement_track.sections {
+                let start_beat = (start_bar - 1.0) * 4.0;
+                let duration_beats = (end_bar - start_bar) * 4.0;
+                clips.push(als_generator::ClipPlacement {
+                    sample: als_generator::SampleInfo {
+                        path: sample.path.clone(),
+                        name: sample.name.clone(),
+                        duration_secs: sample.duration,
+                        sample_rate: 44100,
+                    },
+                    start_beat,
+                    duration_beats,
+                });
+            }
+
+            als_tracks.push(als_generator::TrackInfo {
+                name: arrangement_track.name.clone(),
+                color: arrangement_track.color as u8,
+                clips,
+            });
+        }
+
+        als_generator::generate_als(
+            &output_path,
+            &als_tracks,
+            config.bpm as f64,
+        )?;
+
+        // Collect stats
+        let total_tracks = als_tracks.len();
+        let total_clips: usize = als_tracks.iter().map(|t| t.clips.len()).sum();
+        let total_samples: usize = track_samples.iter().filter(|(_, s)| !s.is_empty()).count();
+        let sections = als_project::SectionBounds::for_genre(config.genre);
+
+        Ok(serde_json::json!({
+            "path": output_path.to_string_lossy(),
+            "projectName": project_name,
+            "tracks": total_tracks,
+            "clips": total_clips,
+            "samples": total_samples,
+            "bars": sections.total_bars,
+            "bpm": config.bpm,
+            "genre": format!("{:?}", config.genre),
+            "warnings": warnings,
+        }))
+    })
+    .await
+    .map_err(|e| format!("Generation task failed: {}", e))?;
+
+    match &result {
+        Ok(json) => {
+            let _ = app.emit(
+                "als-generation-progress",
+                serde_json::json!({ "phase": "completed", "result": json }),
+            );
+        }
+        Err(e) => {
+            let _ = app.emit(
+                "als-generation-progress",
+                serde_json::json!({ "phase": "error", "message": e }),
+            );
+        }
+    }
+
+    result
+}
+
+/// Query available samples for a category (for preview in wizard).
+#[tauri::command]
+async fn als_query_samples(
+    category: String,
+    config: als_project::ProjectConfig,
+    limit: u32,
+) -> Result<Vec<als_project::SelectedSample>, String> {
+    tokio::task::spawn_blocking(move || {
+        als_project::query_samples(&category, &config, true, limit)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -8749,6 +8901,8 @@ pub fn run() {
             sample_analysis_start,
             sample_analysis_stop,
             sample_analysis_stats,
+            generate_als_project,
+            als_query_samples,
         ])
         .setup(|app| {
             // Restore window size/position

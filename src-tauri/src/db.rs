@@ -9621,6 +9621,32 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(count)
     }
 
+    /// Execute a pre-built query for ALS sample selection.
+    /// Returns `SelectedSample` rows matching the query.
+    pub fn query_samples_for_als(
+        &self,
+        query: &str,
+    ) -> Result<Vec<crate::als_project::SelectedSample>, String> {
+        let conn = self.read_conn();
+        let mut stmt = conn.prepare(query).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(crate::als_project::SelectedSample {
+                    sample_id: row.get(0)?,
+                    path: row.get(1)?,
+                    name: row.get(2)?,
+                    duration: row.get(3)?,
+                    size: row.get(4)?,
+                    parsed_bpm: row.get::<_, Option<i64>>(5)?.map(|v| v as u32),
+                    parsed_key: row.get(6)?,
+                    category: row.get(7)?,
+                    is_loop: row.get::<_, i64>(8).unwrap_or(0) != 0,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        Ok(rows.filter_map(|r| r.ok()).collect())
+    }
+
     /// Clear a specific cache table.
     pub fn clear_cache_table(&self, table: &str) -> Result<(), String> {
         let conn = self.read_conn();
