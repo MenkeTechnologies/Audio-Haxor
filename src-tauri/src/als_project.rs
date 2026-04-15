@@ -153,55 +153,62 @@ pub struct SelectedSample {
 
 /// Query the sample_analysis tables for samples matching the given criteria.
 /// Returns ranked results using multi-factor scoring.
+/// Query samples with a fallback chain:
+/// 1. Try sample_analysis tables (fast indexed queries)
+/// 2. Fallback to direct audio_samples query (works before analysis job runs)
+///
+/// Key enforcement:
+/// - Atonal ON → skip key matching
+/// - Atonal OFF + key-sensitive category → REQUIRE key match (hard WHERE filter)
+/// - Non-key-sensitive category → ignore key
+///
+/// Fallback for key: strict key match → compatible keys → any key (with warning)
 pub fn query_samples(
     category: &str,
     config: &ProjectConfig,
     require_loop: bool,
     limit: u32,
 ) -> Result<Vec<SelectedSample>, String> {
-    // Build target key list
-    let target_keys: Vec<String> = if config.atonal {
-        vec![]
-    } else if let (Some(root), Some(mode)) = (&config.root_note, &config.mode) {
-        get_compatible_keys(root, mode)
-    } else {
-        vec![]
-    };
+    // Try analyzed path first
+    let results = query_samples_analyzed(category, config, require_loop, limit);
+    if let Ok(ref r) = results {
+        if !r.is_empty() {
+            return results;
+        }
+    }
+
+    // Fallback: direct query against audio_samples (before analysis runs)
+    query_samples_direct(category, config, require_loop, limit)
+}
+
+/// Query via sample_analysis tables (requires analysis job to have run).
+fn query_samples_analyzed(
+    category: &str,
+    config: &ProjectConfig,
+    require_loop: bool,
+    limit: u32,
+) -> Result<Vec<SelectedSample>, String> {
+    let target_keys = build_target_keys(config);
+    let key_sensitive = is_key_sensitive(category);
 
     let bpm_lo = config.bpm.saturating_sub(5);
     let bpm_hi = config.bpm + 5;
-
-    let key_sensitive = matches!(
-        category,
-        "sub_bass" | "mid_bass" | "lead" | "pad" | "arp" | "pluck" | "stab" | "acid" | "atmos" | "vocal" | "vocal_phrase"
-    );
 
     let genre_score_direction = match config.genre {
         Genre::Techno | Genre::Schranz => "ASC",
         Genre::Trance => "DESC",
     };
-
     let hardness_direction = if config.hardness >= 0.5 { "DESC" } else { "ASC" };
 
-    // Build key filter / order clause
-    let key_where = if key_sensitive && !target_keys.is_empty() && config.genre == Genre::Trance {
+    // Key filter: hard WHERE when not atonal AND key-sensitive
+    let key_where = if key_sensitive && !target_keys.is_empty() {
         let key_list: String = target_keys
             .iter()
             .map(|k| format!("'{}'", k.replace('\'', "''")))
             .collect::<Vec<_>>()
             .join(", ");
-        format!("AND (a.parsed_key IN ({}) OR a.parsed_key IS NULL)", key_list)
-    } else {
-        String::new()
-    };
-
-    let key_order = if key_sensitive && !target_keys.is_empty() && config.genre != Genre::Trance {
-        let key_list: String = target_keys
-            .iter()
-            .map(|k| format!("'{}'", k.replace('\'', "''")))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("CASE WHEN a.parsed_key IN ({}) THEN 0 ELSE 1 END, ", key_list)
+        // Strict: only samples WITH a detected key that matches
+        format!("AND a.parsed_key IN ({})", key_list)
     } else {
         String::new()
     };
@@ -229,21 +236,208 @@ pub fn query_samples(
          ORDER BY
            COALESCE(m.genre_score, 0) {genre_score_direction},
            COALESCE(m.hardness_score, 0) {hardness_direction},
-           {key_order}
            a.category_confidence DESC,
            RANDOM()
          LIMIT {limit}",
         category = category.replace('\'', "''"),
-        loop_clause = loop_clause,
-        bpm_clause = bpm_clause,
-        key_where = key_where,
-        genre_score_direction = genre_score_direction,
-        hardness_direction = hardness_direction,
-        key_order = key_order,
-        limit = limit,
     );
 
-    db::global().query_samples_for_als(&query)
+    let results = db::global().query_samples_for_als(&query)?;
+
+    // If strict key match returned nothing and we had key constraints, retry without key
+    if results.is_empty() && !key_where.is_empty() {
+        let relaxed_query = format!(
+            "SELECT s.id, s.path, s.name, COALESCE(s.duration, 0.0), COALESCE(s.size, 0),
+                    a.parsed_bpm, a.parsed_key, c.name AS cat_name, a.is_loop
+             FROM audio_samples s
+             JOIN sample_analysis a ON s.id = a.sample_id
+             LEFT JOIN sample_categories c ON a.category_id = c.id
+             LEFT JOIN sample_pack_manufacturers m ON a.manufacturer_id = m.id
+             WHERE s.format = 'WAV'
+               AND s.id IN (SELECT sample_id FROM audio_library)
+               AND a.category_id = (SELECT id FROM sample_categories WHERE name = '{category}')
+               {loop_clause}
+               {bpm_clause}
+             ORDER BY
+               COALESCE(m.genre_score, 0) {genre_score_direction},
+               COALESCE(m.hardness_score, 0) {hardness_direction},
+               a.category_confidence DESC,
+               RANDOM()
+             LIMIT {limit}",
+            category = category.replace('\'', "''"),
+        );
+        return db::global().query_samples_for_als(&relaxed_query);
+    }
+
+    Ok(results)
+}
+
+/// Fallback: direct query against audio_samples when sample_analysis hasn't been populated.
+/// Uses audio_samples.key_name (from audio key detection) and filename pattern matching.
+fn query_samples_direct(
+    category: &str,
+    config: &ProjectConfig,
+    require_loop: bool,
+    limit: u32,
+) -> Result<Vec<SelectedSample>, String> {
+    let target_keys = build_target_keys(config);
+    let key_sensitive = is_key_sensitive(category);
+
+    let bpm_lo = config.bpm.saturating_sub(5);
+    let bpm_hi = config.bpm + 5;
+
+    // Category → filename patterns for direct matching
+    let name_pattern = category_to_like_pattern(category);
+
+    // Genre keyword patterns for scoring
+    let genre_keywords: &[&str] = match config.genre {
+        Genre::Techno => &["techno", "tech", "warehouse", "berlin", "underground", "minimal", "industrial"],
+        Genre::Schranz => &["schranz", "hardtechno", "hard techno", "industrial", "distorted", "aggressive", "rave"],
+        Genre::Trance => &["trance", "uplifting", "progressive", "euphoric", "psy", "melodic", "epic"],
+    };
+
+    // Key filter using audio_samples.key_name
+    let key_where = if key_sensitive && !target_keys.is_empty() {
+        let key_list: String = target_keys
+            .iter()
+            .map(|k| format!("'{}'", k.replace('\'', "''")))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("AND s.key_name IN ({})", key_list)
+    } else {
+        String::new()
+    };
+
+    let loop_clause = if require_loop {
+        "AND LOWER(s.name) LIKE '%loop%'"
+    } else {
+        ""
+    };
+
+    let bpm_clause = if require_loop {
+        format!("AND (s.bpm IS NULL OR s.bpm BETWEEN {} AND {})", bpm_lo, bpm_hi)
+    } else {
+        String::new()
+    };
+
+    // Genre scoring in ORDER BY (cloned because used in fallback query too)
+    let genre_score: String = genre_keywords
+        .iter()
+        .map(|kw| format!("(CASE WHEN LOWER(s.path) LIKE '%{}%' THEN 1 ELSE 0 END)", kw))
+        .collect::<Vec<_>>()
+        .join(" + ");
+
+    let query = format!(
+        "SELECT s.id, s.path, s.name, COALESCE(s.duration, 0.0), COALESCE(s.size, 0),
+                CAST(s.bpm AS INTEGER), s.key_name, NULL AS cat_name,
+                CASE WHEN LOWER(s.name) LIKE '%loop%' THEN 1 ELSE 0 END AS is_loop
+         FROM audio_samples s
+         WHERE s.format = 'WAV'
+           AND s.id IN (SELECT sample_id FROM audio_library)
+           AND ({name_pattern})
+           {loop_clause}
+           {bpm_clause}
+           {key_where}
+         ORDER BY
+           ({genre_score}) DESC,
+           RANDOM()
+         LIMIT {limit}",
+        name_pattern = name_pattern,
+        genre_score = if genre_score.is_empty() { "0" } else { &genre_score },
+    );
+
+    let results = db::global().query_samples_for_als(&query)?;
+
+    // If strict key match returned nothing, retry without key filter
+    if results.is_empty() && !key_where.is_empty() {
+        let relaxed = format!(
+            "SELECT s.id, s.path, s.name, COALESCE(s.duration, 0.0), COALESCE(s.size, 0),
+                    CAST(s.bpm AS INTEGER), s.key_name, NULL AS cat_name,
+                    CASE WHEN LOWER(s.name) LIKE '%loop%' THEN 1 ELSE 0 END AS is_loop
+             FROM audio_samples s
+             WHERE s.format = 'WAV'
+               AND s.id IN (SELECT sample_id FROM audio_library)
+               AND ({name_pattern})
+               {loop_clause}
+               {bpm_clause}
+             ORDER BY
+               ({genre_score}) DESC,
+               RANDOM()
+             LIMIT {limit}",
+            name_pattern = name_pattern,
+            genre_score = if genre_score.is_empty() { "0" } else { &genre_score },
+        );
+        return db::global().query_samples_for_als(&relaxed);
+    }
+
+    Ok(results)
+}
+
+// ---------------------------------------------------------------------------
+// Query helpers
+// ---------------------------------------------------------------------------
+
+fn build_target_keys(config: &ProjectConfig) -> Vec<String> {
+    if config.atonal {
+        vec![]
+    } else if let (Some(root), Some(mode)) = (&config.root_note, &config.mode) {
+        get_compatible_keys(root, mode)
+    } else {
+        vec![]
+    }
+}
+
+fn is_key_sensitive(category: &str) -> bool {
+    matches!(
+        category,
+        "sub_bass" | "mid_bass" | "lead" | "pad" | "arp" | "pluck" | "stab" | "acid"
+            | "atmos" | "vocal" | "vocal_phrase" | "schranz_drive"
+    )
+}
+
+/// Convert a category name to SQL LIKE patterns for direct filename matching.
+fn category_to_like_pattern(category: &str) -> String {
+    let patterns: &[&str] = match category {
+        "kick" => &["kick", "kik", "bd"],
+        "clap" => &["clap", "snare", "snr"],
+        "closed_hat" => &["closed hat", "closed_hat", "chh"],
+        "open_hat" => &["open hat", "open_hat", "ohh"],
+        "ride" => &["ride"],
+        "perc" => &["perc", "shaker", "tambourine", "conga", "bongo"],
+        "sub_bass" => &["sub", "808"],
+        "mid_bass" => &["bass"],
+        "lead" => &["lead", "synth lead"],
+        "pad" => &["pad", "string", "chord"],
+        "arp" => &["arp", "sequence"],
+        "pluck" => &["pluck", "pizz"],
+        "stab" => &["stab", "brass"],
+        "acid" => &["acid", "303"],
+        "atmos" => &["atmos", "ambient", "drone", "soundscape"],
+        "noise" => &["noise", "texture", "static"],
+        "fx_riser" => &["riser", "rise", "sweep up", "uplifter", "build"],
+        "fx_downer" => &["downer", "downlifter", "sweep down", "fall"],
+        "fx_crash" => &["crash", "cymbal"],
+        "fx_impact" => &["impact", "boom", "hit"],
+        "fx_fill" => &["fill", "roll", "snare roll"],
+        "fx_reverse" => &["reverse", "rev"],
+        "fx_sub_drop" => &["sub drop", "bass drop"],
+        "fx_misc" => &["fx", "sfx", "effect"],
+        "vocal" => &["vox", "vocal", "voice"],
+        "vocal_chop" => &["vocal chop", "vox chop"],
+        "schranz_drive" => &["drive", "rumble"],
+        "schranz_kick" => &["schranz kick", "hard techno kick"],
+        _ => &["fx"],
+    };
+    patterns
+        .iter()
+        .flat_map(|p| {
+            vec![
+                format!("LOWER(s.name) LIKE '%{}%'", p),
+                format!("LOWER(s.directory) LIKE '%{}%'", p),
+            ]
+        })
+        .collect::<Vec<_>>()
+        .join(" OR ")
 }
 
 // ---------------------------------------------------------------------------
