@@ -1461,6 +1461,7 @@ const BG_JOB_BADGE_KIND_TO_LABEL_KEY = {
     pdfMeta: 'ui.stats.bg_job_type_pdf_meta',
     pdfScan: 'ui.stats.bg_job_type_pdf_scan',
     fingerprint: 'ui.stats.bg_job_type_fingerprint',
+    sampleAnalysis: 'ui.stats.bg_job_type_sample_analysis',
 };
 
 /**

@@ -254,11 +254,15 @@
   // Sample Analysis
   // ---------------------------------------------------------------------------
 
-  // Status bar badge — follows the same pattern as BPM/LUFS analysis badge
-  function showBadge(text) {
+  // Status bar badge — same pattern as BPM/LUFS analysis badge
+  function showBadge(detailKey, vars) {
     window.__statusBarSampleAnalysisJob = true;
     const badge = document.getElementById('bgSampleAnalysisBadge');
-    if (badge) badge.textContent = text;
+    if (badge) {
+      badge.textContent = typeof formatBgJobBadgeLine === 'function'
+        ? formatBgJobBadgeLine('sampleAnalysis', detailKey, vars)
+        : detailKey;
+    }
     if (typeof syncAppStatusBarVisibility === 'function') syncAppStatusBarVisibility();
   }
 
@@ -276,9 +280,8 @@
 
     if (phase === 'analyzing') {
       const pct = payload.total > 0 ? Math.round((payload.analyzed / payload.total) * 100) : 0;
-      const text = `Analyzing: ${payload.analyzed} / ${payload.total} (${pct}%)`;
-      if (status) status.textContent = text;
-      showBadge(`ALS Analysis ${pct}%`);
+      if (status) status.textContent = `${payload.analyzed} / ${payload.total} (${pct}%)`;
+      showBadge('ui.stats.sample_analysis_progress', { n: payload.analyzed });
     } else if (phase === 'completed' || phase === 'stopped') {
       if (status) status.textContent = `${payload.analyzed} / ${payload.total} — ${phase}`;
       if (startBtn) startBtn.style.display = '';
@@ -289,7 +292,7 @@
       hideBadge();
     } else if (phase === 'started') {
       if (status) status.textContent = 'Starting...';
-      showBadge('ALS Analysis starting...');
+      showBadge('ui.stats.sample_analysis_working');
     }
   }
 
@@ -317,7 +320,7 @@
 
     if (startBtn) startBtn.style.display = 'none';
     if (stopBtn) stopBtn.style.display = '';
-    showBadge('ALS Analysis starting...');
+    showBadge('ui.stats.sample_analysis_working');
 
     if (!_analysisListenerAttached && typeof window.ipc.onSampleAnalysisProgress === 'function') {
       _analysisListenerAttached = true;
