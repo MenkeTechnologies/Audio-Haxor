@@ -27,6 +27,9 @@ src-tauri/rust_out
 # Generated docs
 docs/api/
 
+# ALS templates (large binary files)
+docs/templates/
+
 # i18n catalog audit HTML (`pnpm i18n:audit`)
 reports/
 
