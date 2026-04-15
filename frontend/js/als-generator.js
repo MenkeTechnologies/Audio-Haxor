@@ -299,11 +299,14 @@
     const startBtn = document.getElementById('alsAnalysisBtn');
     if (!status || typeof window.ipc?.sampleAnalysisStats !== 'function') return;
     try {
+      console.log('[ALS] Checking analysis stats...');
       const stats = await window.ipc.sampleAnalysisStats();
+      console.log('[ALS] Stats:', stats);
       status.textContent = `${stats.analyzed} analyzed / ${stats.total} total`;
       if (startBtn && stats.unanalyzed > 0) startBtn.style.display = '';
       if (startBtn && stats.unanalyzed === 0) startBtn.style.display = 'none';
     } catch (e) {
+      console.error('[ALS] Stats check failed:', e);
       status.textContent = 'unavailable';
     }
   }
@@ -325,8 +328,11 @@
     }
 
     try {
-      await window.ipc.sampleAnalysisStart();
+      console.log('[ALS] Starting sample analysis...');
+      const result = await window.ipc.sampleAnalysisStart();
+      console.log('[ALS] Analysis started:', result);
     } catch (e) {
+      console.error('[ALS] Analysis start failed:', e);
       updateAnalysisUI('error', { message: String(e) });
       if (startBtn) startBtn.style.display = '';
       if (stopBtn) stopBtn.style.display = 'none';
