@@ -1479,7 +1479,7 @@ function formatBgJobBadgeLine(kind, detailCatalogKey, vars) {
     return `${job}: ${detail}`;
 }
 
-const STATUS_BG_JOB_BADGE_IDS = ['bgAnalysisBadge', 'bgContentDupBadge', 'bgPdfMetaBadge', 'bgPdfScanBadge', 'bgFingerprintBadge'];
+const STATUS_BG_JOB_BADGE_IDS = ['bgAnalysisBadge', 'bgContentDupBadge', 'bgPdfMetaBadge', 'bgPdfScanBadge', 'bgFingerprintBadge', 'bgSampleAnalysisBadge'];
 
 /** Show/hide each `.status-bg-job-row` from job flags + badge text (spinners live in the row). */
 function syncStatusBgJobRows() {
@@ -1495,6 +1495,7 @@ function syncStatusBgJobRows() {
             else if (id === 'bgContentDupBadge') jobFlag = !!window.__statusBarContentDupJob;
             else if (id === 'bgPdfScanBadge') jobFlag = !!window.__statusBarPdfScanJob;
             else if (id === 'bgFingerprintBadge') jobFlag = !!window.__statusBarFingerprintJob;
+            else if (id === 'bgSampleAnalysisBadge') jobFlag = !!window.__statusBarSampleAnalysisJob;
         }
         const hasText = !!(badge.textContent && String(badge.textContent).trim());
         row.style.display = jobFlag || hasText ? 'flex' : 'none';

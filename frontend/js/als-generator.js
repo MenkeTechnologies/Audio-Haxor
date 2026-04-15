@@ -254,20 +254,19 @@
   // Sample Analysis
   // ---------------------------------------------------------------------------
 
-  // Status bar badge elements
-  function getBadgeRow() { return document.getElementById('bgSampleAnalysisBadgeRow'); }
-  function getBadge() { return document.getElementById('bgSampleAnalysisBadge'); }
-
+  // Status bar badge — follows the same pattern as BPM/LUFS analysis badge
   function showBadge(text) {
-    const row = getBadgeRow();
-    const badge = getBadge();
-    if (row) row.style.display = '';
+    window.__statusBarSampleAnalysisJob = true;
+    const badge = document.getElementById('bgSampleAnalysisBadge');
     if (badge) badge.textContent = text;
+    if (typeof syncAppStatusBarVisibility === 'function') syncAppStatusBarVisibility();
   }
 
   function hideBadge() {
-    const row = getBadgeRow();
-    if (row) row.style.display = 'none';
+    window.__statusBarSampleAnalysisJob = false;
+    const badge = document.getElementById('bgSampleAnalysisBadge');
+    if (badge) badge.textContent = '';
+    if (typeof syncAppStatusBarVisibility === 'function') syncAppStatusBarVisibility();
   }
 
   function updateAnalysisUI(phase, payload) {
