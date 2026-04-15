@@ -78,6 +78,15 @@ pub struct ProjectConfig {
     pub genre: Genre,
     /// 0.0 = regular, 1.0 = hard
     pub hardness: f32,
+    /// 0.0 = predictable, 1.0 = chaotic (controls randomized gaps and call-and-response)
+    #[serde(default = "default_chaos")]
+    pub chaos: f32,
+    /// 0.0 = clean, 1.0 = heavily glitched (micro-edits, stutters, beat dropouts)
+    #[serde(default)]
+    pub glitch_intensity: f32,
+    /// 0.0 = none, 1.0 = dense scattered one-shot hits on 1/16 grid
+    #[serde(default)]
+    pub density: f32,
     pub bpm: u32,
     /// e.g. "A" — root note
     pub root_note: Option<String>,
@@ -86,11 +95,102 @@ pub struct ProjectConfig {
     pub atonal: bool,
     pub keywords: Vec<String>,
     pub element_keywords: std::collections::HashMap<String, String>,
+    /// Legacy category-based track counts (kept for backwards compat)
     pub tracks: TrackConfig,
     pub output_path: String,
     pub project_name: Option<String>,
     /// Number of songs to generate in one ALS file (1-10)
     pub num_songs: u32,
+    /// Per-type atonal toggles (overrides global atonal for specific types)
+    #[serde(default)]
+    pub type_atonal: TypeAtonalConfig,
+    /// Per-type track counts (new - takes precedence over category-based tracks)
+    #[serde(default)]
+    pub track_counts: TrackCountsConfig,
+}
+
+/// Per-type track counts from frontend
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackCountsConfig {
+    #[serde(default = "default_1")] pub kick: u32,
+    #[serde(default = "default_1")] pub clap: u32,
+    #[serde(default = "default_1")] pub snare: u32,
+    #[serde(default = "default_2")] pub hat: u32,
+    #[serde(default = "default_2")] pub perc: u32,
+    #[serde(default = "default_1")] pub ride: u32,
+    #[serde(default = "default_4")] pub fill: u32,
+    #[serde(default = "default_1")] pub bass: u32,
+    #[serde(default = "default_1")] pub sub: u32,
+    #[serde(default = "default_1")] pub lead: u32,
+    #[serde(default = "default_3")] pub synth: u32,
+    #[serde(default = "default_2")] pub pad: u32,
+    #[serde(default = "default_2")] pub arp: u32,
+    #[serde(default = "default_3")] pub riser: u32,
+    #[serde(default = "default_1")] pub downlifter: u32,
+    #[serde(default = "default_2")] pub crash: u32,
+    #[serde(default = "default_2")] pub impact: u32,
+    #[serde(default = "default_2")] pub hit: u32,
+    #[serde(default = "default_4")] pub sweep_up: u32,
+    #[serde(default = "default_4")] pub sweep_down: u32,
+    #[serde(default = "default_1")] pub snare_roll: u32,
+    #[serde(default = "default_2")] pub reverse: u32,
+    #[serde(default = "default_2")] pub sub_drop: u32,
+    #[serde(default = "default_2")] pub boom_kick: u32,
+    #[serde(default = "default_2")] pub atmos: u32,
+    #[serde(default = "default_2")] pub glitch: u32,
+    #[serde(default = "default_4")] pub scatter: u32,
+    #[serde(default = "default_1")] pub vox: u32,
+}
+
+fn default_1() -> u32 { 1 }
+fn default_2() -> u32 { 2 }
+fn default_3() -> u32 { 3 }
+fn default_4() -> u32 { 4 }
+fn default_chaos() -> f32 { 0.3 }
+
+impl Default for TrackCountsConfig {
+    fn default() -> Self {
+        Self {
+            kick: 1, clap: 1, snare: 1, hat: 2, perc: 2, ride: 1, fill: 4,
+            bass: 1, sub: 1,
+            lead: 1, synth: 3, pad: 2, arp: 2,
+            riser: 3, downlifter: 1, crash: 2, impact: 2, hit: 2, sweep_up: 4, sweep_down: 4, snare_roll: 1, reverse: 2, sub_drop: 2, boom_kick: 2, atmos: 2, glitch: 2, scatter: 4,
+            vox: 1,
+        }
+    }
+}
+
+/// Per-type atonal configuration from frontend
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TypeAtonalConfig {
+    #[serde(default)] pub kick: bool,
+    #[serde(default)] pub clap: bool,
+    #[serde(default)] pub snare: bool,
+    #[serde(default)] pub hat: bool,
+    #[serde(default)] pub perc: bool,
+    #[serde(default)] pub ride: bool,
+    #[serde(default)] pub fill: bool,
+    #[serde(default)] pub bass: bool,
+    #[serde(default)] pub sub: bool,
+    #[serde(default)] pub lead: bool,
+    #[serde(default)] pub synth: bool,
+    #[serde(default)] pub pad: bool,
+    #[serde(default)] pub arp: bool,
+    #[serde(default)] pub riser: bool,
+    #[serde(default)] pub downlifter: bool,
+    #[serde(default)] pub crash: bool,
+    #[serde(default)] pub impact: bool,
+    #[serde(default)] pub hit: bool,
+    #[serde(default)] pub sweep_up: bool,
+    #[serde(default)] pub sweep_down: bool,
+    #[serde(default)] pub snare_roll: bool,
+    #[serde(default)] pub reverse: bool,
+    #[serde(default)] pub sub_drop: bool,
+    #[serde(default)] pub boom_kick: bool,
+    #[serde(default)] pub atmos: bool,
+    #[serde(default)] pub glitch: bool,
+    #[serde(default)] pub scatter: bool,
+    #[serde(default)] pub vox: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -244,31 +344,8 @@ fn query_samples_analyzed(
 
     let results = db::global().query_samples_for_als(&query)?;
 
-    // If strict key match returned nothing and we had key constraints, retry without key
-    if results.is_empty() && !key_where.is_empty() {
-        let relaxed_query = format!(
-            "SELECT s.id, s.path, s.name, COALESCE(s.duration, 0.0), COALESCE(s.size, 0),
-                    a.parsed_bpm, a.parsed_key, c.name AS cat_name, a.is_loop
-             FROM audio_samples s
-             JOIN sample_analysis a ON s.id = a.sample_id
-             LEFT JOIN sample_categories c ON a.category_id = c.id
-             LEFT JOIN sample_pack_manufacturers m ON a.manufacturer_id = m.id
-             WHERE s.format = 'WAV'
-               AND s.id IN (SELECT sample_id FROM audio_library)
-               AND a.category_id = (SELECT id FROM sample_categories WHERE name = '{category}')
-               {loop_clause}
-               {bpm_clause}
-             ORDER BY
-               COALESCE(m.genre_score, 0) {genre_score_direction},
-               COALESCE(m.hardness_score, 0) {hardness_direction},
-               a.category_confidence DESC,
-               RANDOM()
-             LIMIT {limit}",
-            category = category.replace('\'', "''"),
-        );
-        return db::global().query_samples_for_als(&relaxed_query);
-    }
-
+    // If strict key match returned nothing for a key-sensitive category,
+    // return empty rather than wrong-key samples that clash harmonically.
     Ok(results)
 }
 
@@ -348,28 +425,8 @@ fn query_samples_direct(
 
     let results = db::global().query_samples_for_als(&query)?;
 
-    // If strict key match returned nothing, retry without key filter
-    if results.is_empty() && !key_where.is_empty() {
-        let relaxed = format!(
-            "SELECT s.id, s.path, s.name, COALESCE(s.duration, 0.0), COALESCE(s.size, 0),
-                    CAST(s.bpm AS INTEGER), s.key_name, NULL AS cat_name,
-                    CASE WHEN LOWER(s.name) LIKE '%loop%' THEN 1 ELSE 0 END AS is_loop
-             FROM audio_samples s
-             WHERE s.format = 'WAV'
-               AND s.id IN (SELECT sample_id FROM audio_library)
-               AND ({name_pattern})
-               {loop_clause}
-               {bpm_clause}
-             ORDER BY
-               ({genre_score}) DESC,
-               RANDOM()
-             LIMIT {limit}",
-            name_pattern = name_pattern,
-            genre_score = if genre_score.is_empty() { "0" } else { &genre_score },
-        );
-        return db::global().query_samples_for_als(&relaxed);
-    }
-
+    // If strict key match returned nothing for a key-sensitive category,
+    // return empty rather than wrong-key samples that clash harmonically.
     Ok(results)
 }
 
@@ -949,46 +1006,91 @@ pub fn generate_project_name(config: &ProjectConfig) -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
-    // Use a deterministic-but-varied selection based on current time
+    // Use a deterministic-but-varied selection based on current time (millis for uniqueness)
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_secs();
+        .as_millis();
     let mut hasher = DefaultHasher::new();
     now.hash(&mut hasher);
     let seed = hasher.finish() as usize;
 
     let genre_words: &[&str] = match config.genre {
-        Genre::Techno => &["Industrial", "Warehouse", "Underground", "Dark", "Driving", "Hypnotic", "Pulse", "Nocturnal"],
-        Genre::Schranz => &["Relentless", "Pounding", "Crushing", "Raw", "Abrasive", "Grain", "Distortion", "Assault"],
-        Genre::Trance => &["Euphoria", "Aurora", "Celestial", "Ascend", "Ethereal", "Eclipse", "Horizon", "Nebula"],
+        Genre::Techno => &[
+            "Industrial", "Warehouse", "Underground", "Dark", "Driving", "Hypnotic", "Pulse", "Nocturnal",
+            "Bunker", "Concrete", "Steel", "Machine", "Circuit", "Reactor", "Turbine", "Generator",
+            "Voltage", "Current", "Analog", "Digital", "Binary", "Cipher", "Protocol", "Sector",
+            "Terminal", "Module", "Sequence", "Pattern", "Loop", "Grid", "Mesh", "Core",
+        ],
+        Genre::Schranz => &[
+            "Relentless", "Pounding", "Crushing", "Raw", "Abrasive", "Grain", "Distortion", "Assault",
+            "Havoc", "Fracture", "Shatter", "Grind", "Pummel", "Smash", "Wreck", "Demolish",
+            "Savage", "Brutal", "Fierce", "Vicious", "Ruthless", "Merciless", "Punish", "Torment",
+            "Rampage", "Onslaught", "Barrage", "Storm", "Blitz", "Chaos", "Mayhem", "Carnage",
+        ],
+        Genre::Trance => &[
+            "Euphoria", "Aurora", "Celestial", "Ascend", "Ethereal", "Eclipse", "Horizon", "Nebula",
+            "Cosmos", "Galaxy", "Stellar", "Astral", "Lunar", "Solar", "Radiant", "Luminous",
+            "Serenity", "Tranquil", "Bliss", "Nirvana", "Paradise", "Utopia", "Elysium", "Zenith",
+            "Cascade", "Crystal", "Prism", "Shimmer", "Glow", "Aura", "Spirit", "Essence",
+        ],
     };
 
     let mood_words: &[&str] = if config.hardness >= 0.5 {
-        &["Acid", "Rave", "Peak", "Intense", "Raw", "Fury", "Void"]
+        &[
+            "Acid", "Rave", "Peak", "Intense", "Raw", "Fury", "Void",
+            "Frenzy", "Surge", "Blast", "Burn", "Ignite", "Explode", "Detonate",
+            "Warp", "Twist", "Distort", "Corrupt", "Infect", "Mutate", "Override",
+            "Annihilate", "Obliterate", "Decimate", "Eradicate", "Purge", "Cleanse", "Reset",
+        ]
     } else {
-        &["Deep", "Smooth", "Flow", "Drift", "Wave", "Dream", "Signal"]
+        &[
+            "Deep", "Smooth", "Flow", "Drift", "Wave", "Dream", "Signal",
+            "Glide", "Float", "Hover", "Suspend", "Linger", "Breathe", "Exhale",
+            "Ripple", "Tide", "Current", "Stream", "River", "Ocean", "Abyss",
+            "Whisper", "Echo", "Murmur", "Hum", "Pulse", "Throb", "Heartbeat",
+        ]
     };
 
     let key_words: &[&str] = if config.atonal {
-        &["Abstract", "System", "Code", "Matrix", "Grid"]
+        &[
+            "Abstract", "System", "Code", "Matrix", "Grid",
+            "Algorithm", "Function", "Vector", "Scalar", "Tensor", "Quantum", "Entropy",
+            "Fractal", "Recursion", "Iteration", "Parallel", "Serial", "Async", "Sync",
+            "Node", "Edge", "Graph", "Tree", "Stack", "Queue", "Buffer",
+        ]
     } else {
-        &["Shadow", "Descent", "Abyss", "Night", "Rise", "Dawn", "Horizon"]
+        &[
+            "Shadow", "Descent", "Abyss", "Night", "Rise", "Dawn", "Horizon",
+            "Twilight", "Dusk", "Midnight", "Daybreak", "Sunrise", "Sunset", "Equinox",
+            "Solstice", "Crescent", "Waning", "Waxing", "Zenith", "Nadir", "Apex",
+            "Depth", "Height", "Summit", "Peak", "Valley", "Chasm", "Ravine",
+        ]
     };
 
     let g = genre_words[seed % genre_words.len()];
     let m = mood_words[(seed / 7) % mood_words.len()];
     let k = key_words[(seed / 13) % key_words.len()];
+    let g2 = genre_words[(seed / 17) % genre_words.len()];
+    let m2 = mood_words[(seed / 23) % mood_words.len()];
 
     let patterns = [
         format!("{} {}", g, k),
         format!("{} {}", m, g),
         format!("{} {}", k, config.bpm),
         format!("{} {} {}", g, m, k),
+        format!("{} {}", g, m),
+        format!("{} {}", k, g),
+        format!("{} {}", m, k),
+        format!("{} {} {}", m, g, k),
+        format!("{} {} {}", k, m, g),
+        format!("{} {}", g, g2),
+        format!("{} {}", m, m2),
+        format!("{} {} {}", g, k, m2),
     ];
 
     let name = &patterns[seed % patterns.len()];
-    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M");
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
     format!("{} - {}", name, timestamp)
 }
 
@@ -1053,6 +1155,8 @@ mod tests {
             keywords: vec![],
             element_keywords: Default::default(),
             tracks: TrackConfig::default(),
+            track_counts: TrackCountsConfig::default(),
+            type_atonal: TypeAtonalConfig::default(),
             output_path: "/tmp/test.als".into(),
             project_name: None,
             num_songs: 1,
@@ -1085,6 +1189,8 @@ mod tests {
                 fx: ElementConfig { count: 8, character: 0.8 },
                 vocals: ElementConfig { count: 0, character: 0.0 },
             },
+            track_counts: TrackCountsConfig::default(),
+            type_atonal: TypeAtonalConfig::default(),
             output_path: "/tmp/test.als".into(),
             project_name: None,
             num_songs: 1,
@@ -1106,6 +1212,8 @@ mod tests {
             keywords: vec![],
             element_keywords: Default::default(),
             tracks: TrackConfig::default(),
+            track_counts: TrackCountsConfig::default(),
+            type_atonal: TypeAtonalConfig::default(),
             output_path: "/tmp/test.als".into(),
             project_name: None,
             num_songs: 1,

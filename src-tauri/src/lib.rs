@@ -44,9 +44,11 @@ pub mod pdf_meta;
 pub mod pdf_scanner;
 pub mod preset_scanner;
 pub mod sample_analysis;
+pub mod sample_filters;
 pub mod scanner;
 pub mod scanner_skip_dirs;
 pub mod similarity;
+pub mod techno_generator;
 pub mod tray_menu;
 mod tray_popover_escape_macos;
 pub mod unified_walker;
@@ -181,6 +183,9 @@ static CONTENT_DUP_SCAN_CANCEL: AtomicBool = AtomicBool::new(false);
 
 /// Set by `stop_fingerprint_cache`; checked between fingerprint cache chunks (~500 files).
 static FINGERPRINT_BUILD_CANCEL: AtomicBool = AtomicBool::new(false);
+
+/// Set by `cancel_als_generation`; checked by techno_generator between sample queries.
+static ALS_GENERATION_CANCEL: AtomicBool = AtomicBool::new(false);
 
 /// Set while audio is actively playing. Background jobs check this and yield/pause
 /// to avoid SMB contention (network shares can't prioritize I/O like local disks).
@@ -3396,108 +3401,131 @@ async fn generate_als_project(
         serde_json::json!({ "phase": "started", "message": "Building arrangement..." }),
     );
 
+    ALS_GENERATION_CANCEL.store(false, Ordering::SeqCst);
+    let app_handle = app.clone();
+
     let result = tokio::task::spawn_blocking(move || {
-        // Generate project name
         let project_name = config
             .project_name
             .clone()
             .unwrap_or_else(|| als_project::generate_project_name(&config));
 
-        // Build arrangement
-        let arrangement = als_project::build_arrangement(&config);
+        let expanded = if config.output_path.starts_with("~/") {
+            dirs::home_dir()
+                .unwrap_or_default()
+                .join(&config.output_path[2..])
+        } else {
+            std::path::PathBuf::from(&config.output_path)
+        };
+        let output_path = expanded.join(format!("{}.als", project_name));
+        let num_songs = config.num_songs.max(1);
 
-        // Select samples for each track
-        let mut track_samples: Vec<(als_project::TrackArrangement, Vec<als_project::SelectedSample>)> =
-            Vec::new();
-        let mut warnings: Vec<String> = Vec::new();
+        let ah = app_handle.clone();
+        // Emit output filename at start
+        let _ = ah.emit(
+            "als-generation-progress",
+            serde_json::json!({ "phase": "progress", "message": format!("Building {}.als", project_name) }),
+        );
+        let progress_cb = move |msg: &str| {
+            let _ = ah.emit(
+                "als-generation-progress",
+                serde_json::json!({ "phase": "progress", "message": msg }),
+            );
+        };
 
-        for track in &arrangement {
-            let samples = als_project::query_samples(
-                &track.category,
-                &config,
-                track.require_loop,
-                3, // get top 3 candidates, use first
-            )
-            .unwrap_or_default();
-
-            if samples.is_empty() {
-                // Try again without loop requirement
-                let fallback = als_project::query_samples(
-                    &track.category,
-                    &config,
-                    false,
-                    3,
-                )
-                .unwrap_or_default();
-
-                if fallback.is_empty() {
-                    warnings.push(format!("No samples found for track '{}'", track.name));
-                }
-                track_samples.push((track.clone(), fallback));
-            } else {
-                track_samples.push((track.clone(), samples));
-            }
-        }
-
-        // Build the ALS file using existing als_generator infrastructure
-        let output_dir = std::path::Path::new(&config.output_path);
-        let filename = format!("{}.als", project_name);
-        let output_path = output_dir.join(&filename);
-
-        // Use generate_als with the tracks we've built
-        let mut als_tracks: Vec<als_generator::TrackInfo> = Vec::new();
-
-        for (arrangement_track, samples) in &track_samples {
-            if samples.is_empty() {
-                continue;
-            }
-            let sample = &samples[0]; // use top-ranked sample
-
-            let mut clips = Vec::new();
-            for &(start_bar, end_bar) in &arrangement_track.sections {
-                let start_beat = (start_bar - 1.0) * 4.0;
-                let duration_beats = (end_bar - start_bar) * 4.0;
-                clips.push(als_generator::ClipPlacement {
-                    sample: als_generator::SampleInfo {
-                        path: sample.path.clone(),
-                        name: sample.name.clone(),
-                        duration_secs: sample.duration,
-                        sample_rate: 44100,
-                    },
-                    start_beat,
-                    duration_beats,
-                });
-            }
-
-            als_tracks.push(als_generator::TrackInfo {
-                name: arrangement_track.name.clone(),
-                color: arrangement_track.color as u8,
-                clips,
-            });
-        }
-
-        als_generator::generate_als(
+        let genre_str = format!("{:?}", config.genre).to_lowercase();
+        // Use per-type track counts directly from frontend
+        let tc = &config.track_counts;
+        let track_counts = techno_generator::TrackCounts {
+            kick: tc.kick,
+            clap: tc.clap,
+            snare: tc.snare,
+            hat: tc.hat,
+            perc: tc.perc,
+            ride: tc.ride,
+            fill: tc.fill,
+            bass: tc.bass,
+            sub: tc.sub,
+            lead: tc.lead,
+            synth: tc.synth,
+            pad: tc.pad,
+            arp: tc.arp,
+            riser: tc.riser,
+            downlifter: tc.downlifter,
+            crash: tc.crash,
+            impact: tc.impact,
+            hit: tc.hit,
+            sweep_up: tc.sweep_up,
+            sweep_down: tc.sweep_down,
+            snare_roll: tc.snare_roll,
+            reverse: tc.reverse,
+            sub_drop: tc.sub_drop,
+            boom_kick: tc.boom_kick,
+            atmos: tc.atmos,
+            glitch: tc.glitch,
+            scatter: tc.scatter,
+            vox: tc.vox,
+        };
+        // Map frontend per-type atonal config to generator TypeAtonal
+        let ta = &config.type_atonal;
+        let type_atonal = techno_generator::TypeAtonal {
+            kick: ta.kick,
+            clap: ta.clap,
+            snare: ta.snare,
+            hat: ta.hat,
+            perc: ta.perc,
+            ride: ta.ride,
+            fill: ta.fill,
+            bass: ta.bass,
+            sub: ta.sub,
+            lead: ta.lead,
+            synth: ta.synth,
+            pad: ta.pad,
+            arp: ta.arp,
+            riser: ta.riser,
+            downlifter: ta.downlifter,
+            crash: ta.crash,
+            impact: ta.impact,
+            hit: ta.hit,
+            sweep_up: ta.sweep_up,
+            sweep_down: ta.sweep_down,
+            snare_roll: ta.snare_roll,
+            reverse: ta.reverse,
+            sub_drop: ta.sub_drop,
+            boom_kick: ta.boom_kick,
+            atmos: ta.atmos,
+            glitch: ta.glitch,
+            scatter: ta.scatter,
+            vox: ta.vox,
+        };
+        let result = techno_generator::generate(
             &output_path,
-            &als_tracks,
             config.bpm as f64,
+            num_songs,
+            config.root_note.as_deref(),
+            config.mode.as_deref(),
+            Some(genre_str.as_str()),
+            config.hardness,
+            config.chaos,
+            config.glitch_intensity,
+            config.density,
+            config.atonal,
+            track_counts,
+            type_atonal,
+            Some(&ALS_GENERATION_CANCEL),
+            Some(&progress_cb),
         )?;
-
-        // Collect stats
-        let total_tracks = als_tracks.len();
-        let total_clips: usize = als_tracks.iter().map(|t| t.clips.len()).sum();
-        let total_samples: usize = track_samples.iter().filter(|(_, s)| !s.is_empty()).count();
-        let sections = als_project::SectionBounds::for_genre(config.genre);
 
         Ok(serde_json::json!({
             "path": output_path.to_string_lossy(),
             "projectName": project_name,
-            "tracks": total_tracks,
-            "clips": total_clips,
-            "samples": total_samples,
-            "bars": sections.total_bars,
+            "tracks": result.tracks,
+            "clips": result.clips,
+            "bars": result.bars,
             "bpm": config.bpm,
             "genre": format!("{:?}", config.genre),
-            "warnings": warnings,
+            "warnings": result.warnings,
+            "keys": result.keys,
         }))
     })
     .await
@@ -3519,6 +3547,29 @@ async fn generate_als_project(
     }
 
     result
+}
+
+/// Cancel a running ALS generation job.
+#[tauri::command]
+async fn cancel_als_generation() -> Result<(), String> {
+    ALS_GENERATION_CANCEL.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+/// Clear the sample blacklist so previously used samples can be reused.
+#[tauri::command]
+async fn clear_als_sample_blacklist() -> Result<serde_json::Value, String> {
+    let count_before = techno_generator::get_blacklist_count();
+    techno_generator::clear_sample_blacklist();
+    Ok(serde_json::json!({
+        "cleared": count_before
+    }))
+}
+
+/// Get the number of samples in the blacklist.
+#[tauri::command]
+async fn get_als_blacklist_count() -> Result<usize, String> {
+    Ok(techno_generator::get_blacklist_count())
 }
 
 /// Query available samples for a category (for preview in wizard).
@@ -8935,6 +8986,9 @@ pub fn run() {
             sample_analysis_stop,
             sample_analysis_stats,
             generate_als_project,
+            cancel_als_generation,
+            clear_als_sample_blacklist,
+            get_als_blacklist_count,
             als_query_samples,
         ])
         .setup(|app| {

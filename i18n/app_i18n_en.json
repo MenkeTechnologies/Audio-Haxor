@@ -2196,7 +2196,7 @@
   "ui.stats.bg_job_type_pdf_meta": "PDF metadata",
   "ui.stats.bg_job_type_pdf_scan": "PDF scan",
   "ui.stats.bg_job_type_sample_analysis": "Sample-cat",
-  "ui.stats.sample_analysis_progress": "{n} categorized",
+  "ui.stats.sample_analysis_progress": "{n} / {total} categorized",
   "ui.stats.sample_analysis_working": "Categorizing…",
   "ui.stats.bpm_bg_progress": "{n} analyzed",
   "ui.stats.bpm_bg_working": "Analyzing…",

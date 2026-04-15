@@ -959,7 +959,7 @@ impl Database {
     /// Round-robin read pool only (never the primary `write` handle — see [`Database`] docs).
     /// Resets the per-slot query-timeout deadline so the progress handler measures from *now*.
     #[inline]
-    fn read_conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+    pub(crate) fn read_conn(&self) -> std::sync::MutexGuard<'_, Connection> {
         let n = self.read.len();
         if n == 0 {
             panic!("Database read pool is empty — Database::open() must add at least one reader");

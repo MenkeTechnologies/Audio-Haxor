@@ -40,7 +40,14 @@ static BPM_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// Only returns values in the 80–180 range (covers downtempo through hardstyle).
 /// When multiple candidates exist, prefers explicit markers (`132bpm`) over
 /// bare delimited numbers.
+///
+/// For delimiter-bounded numbers (e.g., `_140_`), requires context to avoid
+/// false positives from variant numbers (e.g., `Clap_140.wav` is variant 140, not 140 BPM).
+/// Context includes: "loop" in filename, key indicator after number, or "bpm" nearby.
 pub fn extract_bpm(name: &str) -> Option<u32> {
+    let name_lower = name.to_ascii_lowercase();
+    let has_loop_context = name_lower.contains("loop");
+    
     let mut best: Option<(u32, u8)> = None; // (bpm, priority) — lower priority wins
 
     for caps in BPM_RE.captures_iter(name) {
@@ -50,6 +57,23 @@ pub fn extract_bpm(name: &str) -> Option<u32> {
         } else if let Some(m) = caps.get(2) {
             (m.as_str(), 1) // bracket "[140]"
         } else if let Some(m) = caps.get(3) {
+            // Delimiter-bounded numbers need context to avoid false positives
+            // like "Clap_140.wav" where 140 is a variant number
+            let match_end = caps.get(0).map(|m| m.end()).unwrap_or(0);
+            let after_match = &name[match_end..];
+            
+            // Check for context that indicates this is actually BPM:
+            // 1. Filename contains "loop"
+            // 2. Number is followed by a key indicator (A-G, with optional # or b)
+            // 3. Number is at start and followed by key (e.g., "120_C_HousyBass")
+            let has_key_after = after_match.chars().next()
+                .map(|c| c.is_ascii_alphabetic() && "ABCDEFG".contains(c.to_ascii_uppercase()))
+                .unwrap_or(false);
+            
+            if !has_loop_context && !has_key_after {
+                continue; // Skip this match - likely a variant number
+            }
+            
             (m.as_str(), 2) // delimiter "_138_"
         } else {
             continue;
@@ -87,10 +111,10 @@ const FLAT_NOTES: &[(&str, &str)] = &[
     ("Bb", "A#"),
 ];
 
-/// Regex for explicit minor key patterns: Am, Amin, A_min, A-min, A Minor
+/// Regex for explicit minor key patterns: Am, Amin, A_min, A-min, A Minor, Am7, Amin7
 static MINOR_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?i)(?:^|[_\s\-\[(/])([A-G][#b]?)(?:m(?:in(?:or)?)?|[_\-\s]min(?:or)?)(?:[_\s\-\])/.,]|$)",
+        r"(?i)(?:^|[_\s\-\[(/])([A-G][#b]?)(?:m(?:in(?:or)?)?|[_\-\s]min(?:or)?)(?:\d+)?(?:[_\s\-\])/.,]|$)",
     )
     .unwrap()
 });
@@ -141,6 +165,22 @@ fn normalize_note(raw: &str) -> Option<&'static str> {
     None
 }
 
+/// Static regexes for sharp/flat word normalization - compiled once
+static SHARP_WORD_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)([A-G])[ _\-]?sharp").unwrap()
+});
+static FLAT_WORD_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)([A-G])[ _\-]?flat").unwrap()
+});
+
+/// Normalize "G Sharp" → "G#", "B Flat" → "Bb", etc. before regex matching.
+/// This allows standard regexes to handle word-form accidentals.
+fn normalize_sharp_flat_words(name: &str) -> String {
+    let result = SHARP_WORD_RE.replace_all(name, "${1}#");
+    let result = FLAT_WORD_RE.replace_all(&result, "${1}b");
+    result.into_owned()
+}
+
 /// Extract musical key from a sample filename.
 ///
 /// Priority:
@@ -148,25 +188,30 @@ fn normalize_note(raw: &str) -> Option<&'static str> {
 /// 2. Explicit major: `Amaj`, `A_maj`, `A Major`, `AM`
 /// 3. Bare note (defaults to minor): `_A_`, `- F# -`, `[C]`
 ///
+/// Also handles word forms: "G Sharp Minor" → "G# Minor", "B Flat" → "Bb" → "A#"
+///
 /// Bare notes like `_F_` or `C#` default to **minor** because most
 /// electronic music (techno/trance/schranz) is in minor keys.
 pub fn extract_key(name: &str) -> Option<String> {
+    // Preprocess: convert "G Sharp" → "G#", "B Flat" → "Bb"
+    let normalized_name = normalize_sharp_flat_words(name);
+    
     // 1. Try explicit minor
-    if let Some(caps) = MINOR_RE.captures(name) {
+    if let Some(caps) = MINOR_RE.captures(&normalized_name) {
         if let Some(note) = normalize_note(caps.get(1)?.as_str()) {
             return Some(format!("{} Minor", note));
         }
     }
 
     // 2. Try explicit major
-    if let Some(caps) = MAJOR_RE.captures(name) {
+    if let Some(caps) = MAJOR_RE.captures(&normalized_name) {
         if let Some(note) = normalize_note(caps.get(1)?.as_str()) {
             return Some(format!("{} Major", note));
         }
     }
 
     // 3. Bare note → minor
-    if let Some(caps) = BARE_NOTE_RE.captures(name) {
+    if let Some(caps) = BARE_NOTE_RE.captures(&normalized_name) {
         let raw = caps.get(1)?.as_str();
         if let Some(note) = normalize_note(raw) {
             // Reject false positives: single-char notes that are likely version/variant markers
@@ -674,6 +719,59 @@ mod tests {
         assert_eq!(extract_key("Pad_Bbm_120.wav"), Some("A# Minor".into())); // Bb → A#
         assert_eq!(extract_key("Bass_Ebmin.wav"), Some("D# Minor".into()));   // Eb → D#
     }
+    
+    #[test]
+    fn key_sharp_flat_words() {
+        // "G Sharp" == "G#" (NOT folded to F#!)
+        assert_eq!(extract_key("DPTE2 Bass Loop - 001 - G Sharp - 140 BPM.wav"), Some("G# Minor".into()));
+        assert_eq!(extract_key("DPTE2 Pluck Loop - 016 - G Sharp Minor - 140 BPM.wav"), Some("G# Minor".into()));
+        assert_eq!(extract_key("Propht - C Sharp Minor.wav"), Some("C# Minor".into()));
+        assert_eq!(extract_key("DPTE2 Vocal Stab - 006 - C Sharp.wav"), Some("C# Minor".into()));
+        // "B Flat" == "Bb" == "A#"
+        assert_eq!(extract_key("Synth_B Flat Minor_120.wav"), Some("A# Minor".into()));
+        assert_eq!(extract_key("Lead - E Flat - 128 BPM.wav"), Some("D# Minor".into()));
+        // All sharp word forms → sharp notation (stays as sharp)
+        assert_eq!(extract_key("Loop_A Sharp_140.wav"), Some("A# Minor".into()));
+        assert_eq!(extract_key("Loop_C Sharp_140.wav"), Some("C# Minor".into()));
+        assert_eq!(extract_key("Loop_D Sharp_140.wav"), Some("D# Minor".into()));
+        assert_eq!(extract_key("Loop_F Sharp_140.wav"), Some("F# Minor".into()));
+        assert_eq!(extract_key("Loop_G Sharp_140.wav"), Some("G# Minor".into()));
+    }
+    
+    #[test]
+    fn key_all_flats_fold_to_sharps() {
+        // All flats must fold to their enharmonic sharp equivalent
+        // Db → C#
+        assert_eq!(extract_key("Loop_Dbm_140.wav"), Some("C# Minor".into()));
+        assert_eq!(extract_key("Loop_D Flat_140.wav"), Some("C# Minor".into()));
+        assert_eq!(extract_key("Loop - D Flat Minor.wav"), Some("C# Minor".into()));
+        // Eb → D#
+        assert_eq!(extract_key("Loop_Ebm_140.wav"), Some("D# Minor".into()));
+        assert_eq!(extract_key("Loop_E Flat_140.wav"), Some("D# Minor".into()));
+        assert_eq!(extract_key("Loop - E Flat Minor.wav"), Some("D# Minor".into()));
+        // Gb → F#
+        assert_eq!(extract_key("Loop_Gbm_140.wav"), Some("F# Minor".into()));
+        assert_eq!(extract_key("Loop_G Flat_140.wav"), Some("F# Minor".into()));
+        assert_eq!(extract_key("Loop - G Flat Minor.wav"), Some("F# Minor".into()));
+        // Ab → G#
+        assert_eq!(extract_key("Loop_Abm_140.wav"), Some("G# Minor".into()));
+        assert_eq!(extract_key("Loop_A Flat_140.wav"), Some("G# Minor".into()));
+        assert_eq!(extract_key("Loop - A Flat Minor.wav"), Some("G# Minor".into()));
+        // Bb → A#
+        assert_eq!(extract_key("Loop_Bbm_140.wav"), Some("A# Minor".into()));
+        assert_eq!(extract_key("Loop_B Flat_140.wav"), Some("A# Minor".into()));
+        assert_eq!(extract_key("Loop - B Flat Minor.wav"), Some("A# Minor".into()));
+    }
+    
+    #[test]
+    fn key_sharps_stay_as_sharps() {
+        // Sharps must NOT be folded - G# stays G#, not folded to Ab or anything else
+        assert_eq!(extract_key("Loop_C#m_140.wav"), Some("C# Minor".into()));
+        assert_eq!(extract_key("Loop_D#m_140.wav"), Some("D# Minor".into()));
+        assert_eq!(extract_key("Loop_F#m_140.wav"), Some("F# Minor".into()));
+        assert_eq!(extract_key("Loop_G#m_140.wav"), Some("G# Minor".into()));
+        assert_eq!(extract_key("Loop_A#m_140.wav"), Some("A# Minor".into()));
+    }
 
     #[test]
     fn key_no_match() {
@@ -872,6 +970,256 @@ mod tests {
         );
         assert_eq!(a.parsed_bpm, Some(125));
         assert_eq!(a.parsed_key, Some("D# Minor".into()));
+        assert!(a.is_loop);
+    }
+
+    // =========================================================================
+    // Splice sample packs - comprehensive BPM and key detection tests
+    // =========================================================================
+
+    #[test]
+    fn splice_bpm_prefix_format() {
+        // Format: PREFIX_PACKCODE_BPM_type_name_KEY.wav
+        assert_eq!(extract_bpm("PLX_ACT_140_fx_loop_distract_C.wav"), Some(140));
+        assert_eq!(extract_bpm("PLX_ACT_140_fx_loop_top_Eb.wav"), Some(140));
+        assert_eq!(extract_bpm("PLX_ACT_140_fx_loop_wow_Amin.wav"), Some(140));
+        assert_eq!(extract_bpm("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"), Some(127));
+        assert_eq!(extract_bpm("FF_LFT2_127_drum_loop_exit_percussion.wav"), Some(127));
+        assert_eq!(extract_bpm("PLX_NFP_126_atmosphere_reflect_Bmin.wav"), Some(126));
+        assert_eq!(extract_bpm("PLX_NFP_128_atmosphere_desert_Bbmin.wav"), Some(128));
+        assert_eq!(extract_bpm("PLX_NFP_136_atmosphere_darkstar_Bmin.wav"), Some(136));
+        assert_eq!(extract_bpm("PLX_NFP_130_atmosphere_oceans_Cmin.wav"), Some(130));
+    }
+
+    #[test]
+    fn splice_key_suffix_format() {
+        // Bare note at end defaults to minor
+        assert_eq!(extract_key("PLX_ACT_140_fx_loop_distract_C.wav"), Some("C Minor".into()));
+        assert_eq!(extract_key("PLX_ACT_140_fx_loop_top_Eb.wav"), Some("D# Minor".into()));
+        assert_eq!(extract_key("PLX_ACT_140_fx_loop_mod_G.wav"), Some("G Minor".into()));
+        assert_eq!(extract_key("PLX_ACT_140_fx_loop_dog_F.wav"), Some("F Minor".into()));
+        assert_eq!(extract_key("PLX_ACT_140_fx_loop_moves_E.wav"), Some("E Minor".into()));
+        assert_eq!(extract_key("PLX_ACT_140_fx_loop_cold_D.wav"), Some("D Minor".into()));
+        
+        // Explicit minor suffix
+        assert_eq!(extract_key("PLX_ACT_140_fx_loop_wow_Amin.wav"), Some("A Minor".into()));
+        assert_eq!(extract_key("PLX_NFP_126_atmosphere_reflect_Bmin.wav"), Some("B Minor".into()));
+        assert_eq!(extract_key("PLX_NFP_128_atmosphere_desert_Bbmin.wav"), Some("A# Minor".into()));
+        assert_eq!(extract_key("PLX_NFP_128_atmosphere_forgot_C#min.wav"), Some("C# Minor".into()));
+        assert_eq!(extract_key("PLX_NFP_130_atmosphere_oceans_Cmin.wav"), Some("C Minor".into()));
+        assert_eq!(extract_key("PLX_NFP_136_atmosphere_rediscover_Gmin.wav"), Some("G Minor".into()));
+        
+        // 7th chord notation (should still extract root as minor)
+        assert_eq!(extract_key("PLX_NFP_130_atmosphere_primal_Emin7.wav"), Some("E Minor".into()));
+        assert_eq!(extract_key("PLX_NFP_136_atmosphere_follow_Emin7.wav"), Some("E Minor".into()));
+        
+        // Explicit major
+        assert_eq!(extract_key("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"), Some("D Major".into()));
+    }
+
+    #[test]
+    fn splice_oneshot_no_bpm() {
+        // One-shots typically don't have BPM in filename
+        assert_eq!(extract_bpm("PLX_ACT_kick_mid_short.wav"), None);
+        assert_eq!(extract_bpm("PLX_ACT_kick_low_heavy.wav"), None);
+        assert_eq!(extract_bpm("PLX_ACT_kick_low_techno.wav"), None);
+    }
+
+    #[test]
+    fn splice_path_detection() {
+        // Loop detection from path
+        let a = analyze_sample(
+            "PLX_ACT_140_fx_loop_distract_C.wav",
+            "/Samples/Splice/sounds/packs/Acid Trance/PLX_-_Acid_Trance/loops/fx_loops/",
+        );
+        assert_eq!(a.parsed_bpm, Some(140));
+        assert_eq!(a.parsed_key, Some("C Minor".into()));
+        assert!(a.is_loop);
+
+        // One-shot detection from path
+        let a = analyze_sample(
+            "PLX_ACT_kick_mid_short.wav",
+            "/Samples/Splice/sounds/packs/Acid Trance/PLX_-_Acid_Trance/one-shots/drum_one-shots/kick/",
+        );
+        assert!(!a.is_loop);
+    }
+
+    #[test]
+    fn splice_various_packs() {
+        // Left Field Techno 2
+        assert_eq!(extract_bpm("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"), Some(127));
+        assert_eq!(extract_key("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"), Some("D Major".into()));
+
+        // Nightfall - Future Progressive & Trance  
+        assert_eq!(extract_bpm("PLX_NFP_126_atmosphere_reflect_Bmin.wav"), Some(126));
+        assert_eq!(extract_key("PLX_NFP_126_atmosphere_reflect_Bmin.wav"), Some("B Minor".into()));
+        
+        assert_eq!(extract_bpm("PLX_NFP_136_atmosphere_touched_Gmin.wav"), Some(136));
+        assert_eq!(extract_key("PLX_NFP_136_atmosphere_touched_Gmin.wav"), Some("G Minor".into()));
+    }
+
+    #[test]
+    fn bpm_edge_cases() {
+        // BPM at start of filename
+        assert_eq!(extract_bpm("120_C_HousyBass_SP_01.wav"), Some(120));
+        
+        // BPM with underscore delimiters
+        assert_eq!(extract_bpm("Loop_128_Am.wav"), Some(128));
+        assert_eq!(extract_bpm("Bass_140_Fm.wav"), Some(140));
+        
+        // BPM in middle of complex filename
+        assert_eq!(extract_bpm("SYNTH_LOOPS_125BPM"), Some(125));
+        
+        // Should NOT match version numbers, sample rates, etc.
+        assert_eq!(extract_bpm("Sample_v2_44100hz.wav"), None);
+        assert_eq!(extract_bpm("Track_01_Final.wav"), None);
+        assert_eq!(extract_bpm("Kick_808_03.wav"), None); // 808 is out of range but 03 shouldn't match
+    }
+
+    #[test]
+    fn key_edge_cases() {
+        // Key at end after underscore
+        assert_eq!(extract_key("Bass_Loop_01_Am.wav"), Some("A Minor".into()));
+        assert_eq!(extract_key("Synth_Pad_F#m.wav"), Some("F# Minor".into()));
+        
+        // Key with flat notation (should convert to sharp)
+        assert_eq!(extract_key("Lead_Bbmin.wav"), Some("A# Minor".into()));
+        assert_eq!(extract_key("Pad_Ebm.wav"), Some("D# Minor".into()));
+        assert_eq!(extract_key("Bass_Abmin.wav"), Some("G# Minor".into()));
+        
+        // Key should NOT match inside words
+        assert_eq!(extract_key("Crash_Big_01.wav"), None); // "C" inside "Crash"
+        assert_eq!(extract_key("Fade_Out.wav"), None);     // "F" and "A" inside words
+        assert_eq!(extract_key("Drum_Loop.wav"), None);    // "D" inside "Drum"
+    }
+
+    #[test]
+    fn combined_bpm_and_key() {
+        // Both BPM and key in same filename
+        let a = analyze_sample("Lead_128_Am.wav", "/Samples/Leads/");
+        assert_eq!(a.parsed_bpm, Some(128));
+        assert_eq!(a.parsed_key, Some("A Minor".into()));
+
+        let a = analyze_sample("PLX_NFP_130_atmosphere_oceans_Cmin.wav", "/loops/");
+        assert_eq!(a.parsed_bpm, Some(130));
+        assert_eq!(a.parsed_key, Some("C Minor".into()));
+
+        let a = analyze_sample("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav", "/loops/");
+        assert_eq!(a.parsed_bpm, Some(127));
+        assert_eq!(a.parsed_key, Some("D Major".into()));
+    }
+
+    // =========================================================================
+    // ZTEKNO sample packs - BPM and key detection tests
+    // =========================================================================
+
+    #[test]
+    fn ztekno_bpm_key_format() {
+        // Format: PREFIX_BPM_KEY_Type_Loop_N.wav
+        // DRIVING TECHNO pack
+        assert_eq!(extract_bpm("ZDT_132_A#_Bass_Loop_1.wav"), Some(132));
+        assert_eq!(extract_key("ZDT_132_A#_Bass_Loop_1.wav"), Some("A# Minor".into()));
+        
+        assert_eq!(extract_bpm("ZDT_132_C#_Bass_Loop_2.wav"), Some(132));
+        assert_eq!(extract_key("ZDT_132_C#_Bass_Loop_2.wav"), Some("C# Minor".into()));
+        
+        assert_eq!(extract_bpm("ZDT_132_D#_Bass_Loop_3.wav"), Some(132));
+        assert_eq!(extract_key("ZDT_132_D#_Bass_Loop_3.wav"), Some("D# Minor".into()));
+        
+        assert_eq!(extract_bpm("ZDT_132_F#_Bass_Loop_1.wav"), Some(132));
+        assert_eq!(extract_key("ZDT_132_F#_Bass_Loop_1.wav"), Some("F# Minor".into()));
+        
+        assert_eq!(extract_bpm("ZDT_132_G#_Bass_Loop_2.wav"), Some(132));
+        assert_eq!(extract_key("ZDT_132_G#_Bass_Loop_2.wav"), Some("G# Minor".into()));
+        
+        // Natural notes
+        assert_eq!(extract_bpm("ZDT_132_A_Bass_Loop_1.wav"), Some(132));
+        assert_eq!(extract_key("ZDT_132_A_Bass_Loop_1.wav"), Some("A Minor".into()));
+        
+        assert_eq!(extract_bpm("ZDT_132_E_Bass_Loop_3.wav"), Some(132));
+        assert_eq!(extract_key("ZDT_132_E_Bass_Loop_3.wav"), Some("E Minor".into()));
+    }
+
+    #[test]
+    fn ztekno_techno_freaks_format() {
+        // TECHNO FREAKS pack - Format: PREFIX_Kit_N_BPM_Bpm_KEY_Type_Loop.wav
+        assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_A_Bass_Loop.wav"), Some(126));
+        assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_A_Bass_Loop.wav"), Some("A Minor".into()));
+        
+        assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_F#_Melodic_Synth_Loop.wav"), Some(126));
+        assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_F#_Melodic_Synth_Loop.wav"), Some("F# Minor".into()));
+        
+        assert_eq!(extract_bpm("ZTTF_Kit_2_126_Bpm_C_Bass_Loop.wav"), Some(126));
+        assert_eq!(extract_key("ZTTF_Kit_2_126_Bpm_C_Bass_Loop.wav"), Some("C Minor".into()));
+        
+        assert_eq!(extract_bpm("ZTTF_Kit_4_126_Bpm_D#_Bass_Loop.wav"), Some(126));
+        assert_eq!(extract_key("ZTTF_Kit_4_126_Bpm_D#_Bass_Loop.wav"), Some("D# Minor".into()));
+        
+        assert_eq!(extract_bpm("ZTTF_Kit_5_126_Bpm_F_Acid_Loop.wav"), Some(126));
+        assert_eq!(extract_key("ZTTF_Kit_5_126_Bpm_F_Acid_Loop.wav"), Some("F Minor".into()));
+    }
+
+    #[test]
+    fn ztekno_no_key_samples() {
+        // Samples without key info - BPM only
+        assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_Kick_Loop.wav"), Some(126));
+        assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_Kick_Loop.wav"), None);
+        
+        assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_Top_Loop.wav"), Some(126));
+        assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_Top_Loop.wav"), None);
+        
+        assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_Fx.wav"), Some(126));
+        assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_Fx.wav"), None);
+        
+        assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_Vox.wav"), Some(126));
+        assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_Vox.wav"), None);
+    }
+
+    #[test]
+    fn ztekno_oneshot_samples() {
+        // One-shot samples - no BPM expected (numbers are variant IDs, not BPM)
+        assert_eq!(extract_bpm("ZAT_Clap_1.wav"), None);
+        assert_eq!(extract_bpm("ZAT_Clap_22.wav"), None);
+        assert_eq!(extract_bpm("ZAT_Clap_140.wav"), None);  // 140 is variant, not BPM
+        assert_eq!(extract_bpm("ZAT_Kick_128.wav"), None);  // 128 is variant, not BPM
+        assert_eq!(extract_key("ZAT_Clap_1.wav"), None);
+        
+        // "Kick 23 G.wav" - 23 is variant, G is key
+        assert_eq!(extract_bpm("Kick 23 G.wav"), None);     // 23 is variant, not BPM
+        assert_eq!(extract_key("Kick 23 G.wav"), Some("G Minor".into()));
+        
+        // "FL_RNB_Clap.wav" - no BPM, no key (RNB is not a note)
+        assert_eq!(extract_bpm("FL_RNB_Clap.wav"), None);
+        assert_eq!(extract_key("FL_RNB_Clap.wav"), None);
+    }
+
+    #[test]
+    fn ztekno_sc_suffix() {
+        // Sidechain versions (_SC suffix)
+        assert_eq!(extract_bpm("ZDT_132_A#_Bass_Loop_1_SC.wav"), Some(132));
+        assert_eq!(extract_key("ZDT_132_A#_Bass_Loop_1_SC.wav"), Some("A# Minor".into()));
+        
+        assert_eq!(extract_bpm("ZDT_132_C_Bass_Loop_3_SC.wav"), Some(132));
+        assert_eq!(extract_key("ZDT_132_C_Bass_Loop_3_SC.wav"), Some("C Minor".into()));
+    }
+
+    #[test]
+    fn ztekno_full_analysis() {
+        // Full pipeline test
+        let a = analyze_sample(
+            "ZDT_132_A#_Bass_Loop_1.wav",
+            "/Samples/ztekno/ZTEKNO - DRIVING TECHNO/ZDT_BASS_LOOPS/",
+        );
+        assert_eq!(a.parsed_bpm, Some(132));
+        assert_eq!(a.parsed_key, Some("A# Minor".into()));
+        assert!(a.is_loop);
+        
+        let a = analyze_sample(
+            "ZTTF_Kit_1_126_Bpm_F#_Melodic_Synth_Loop.wav",
+            "/Samples/ztekno/ZTEKNO - TECHNO FREAKS/ZTTF_LIVE_KITS/",
+        );
+        assert_eq!(a.parsed_bpm, Some(126));
+        assert_eq!(a.parsed_key, Some("F# Minor".into()));
         assert!(a.is_loop);
     }
 }

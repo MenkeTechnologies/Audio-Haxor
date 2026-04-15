@@ -1022,6 +1022,12 @@ document.addEventListener('click', (e) => {
                     window.vstUpdater.openAudioFolder(el.dataset.path).catch(() => showToast(toastFmt('toast.failed_reveal_file'), 4000, 'error'));
                 }
                 break;
+            case 'alsOpenProject':
+                if (el.dataset.path) {
+                    showToast('Opening in Ableton...');
+                    window.vstUpdater.openDawProject(el.dataset.path).catch(e => showToast('Failed to open: ' + e, 4000, 'error'));
+                }
+                break;
             case 'deleteDataFile':
                 if (el.dataset.name && confirm(appFmt('confirm.delete_data_file', {name: el.dataset.name}))) {
                     window.vstUpdater.deleteDataFile(el.dataset.name).then(() => {
@@ -1678,6 +1684,9 @@ window.vstUpdater = {
     readProjectFile: (filePath) => invoke('read_project_file', {filePath}),
     // ALS Generator
     generateAlsProject: (config) => invoke('generate_als_project', {config}),
+    cancelAlsGeneration: () => invoke('cancel_als_generation'),
+    clearAlsSampleBlacklist: () => invoke('clear_als_sample_blacklist'),
+    getAlsBlacklistCount: () => invoke('get_als_blacklist_count'),
     alsQuerySamples: (category, config, limit) => invoke('als_query_samples', {category, config, limit: limit || 3}),
     sampleAnalysisSeed: () => invoke('sample_analysis_seed'),
     sampleAnalysisStart: () => invoke('sample_analysis_start'),

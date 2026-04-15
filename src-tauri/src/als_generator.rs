@@ -12,6 +12,15 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::process::Command;
 
+/// Escape a string for safe XML attribute interpolation.
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 /// Embedded empty project template (gzipped) from Ableton Live 12.3.7
 /// This is a valid minimal project that Ableton will open without errors.
 const EMPTY_PROJECT_TEMPLATE: &[u8] = include_bytes!("empty_project_template.als.gz");
@@ -122,6 +131,8 @@ pub struct SampleInfo {
     pub name: String,
     pub duration_secs: f64,
     pub sample_rate: u32,
+    pub file_size: u64,
+    pub bpm: Option<f64>,
 }
 
 /// An audio clip placement in the arrangement
@@ -138,6 +149,24 @@ pub struct TrackInfo {
     pub name: String,
     pub color: u8,
     pub clips: Vec<ClipPlacement>,
+}
+
+impl SampleInfo {
+    fn loop_bars(&self, project_bpm: f64) -> u32 {
+        let bpm = self.bpm.unwrap_or(project_bpm);
+        let duration = if self.duration_secs <= 0.0 || self.duration_secs > 300.0 {
+            (4.0 * 60.0 * 4.0) / project_bpm
+        } else {
+            self.duration_secs
+        };
+        if bpm <= 0.0 { return 4; }
+        let bars = (duration * bpm) / (60.0 * 4.0);
+        if bars <= 1.5 { 1 }
+        else if bars <= 3.0 { 2 }
+        else if bars <= 6.0 { 4 }
+        else if bars <= 12.0 { 8 }
+        else { 16 }
+    }
 }
 
 /// Techno arrangement section
@@ -920,7 +949,7 @@ fn generate_audio_track(track: &TrackInfo, ids: &mut IdAllocator) -> String {
 			</AudioTrack>
 "#,
         track_id = track_id,
-        name = track.name,
+        name = xml_escape(&track.name),
         color = track.color,
         clips_xml = clips_xml,
         clip_slots = clip_slots,
@@ -1099,8 +1128,8 @@ fn generate_audio_clip(clip: &ClipPlacement, ids: &mut IdAllocator) -> String {
         start_beat = clip.start_beat,
         end_beat = clip.start_beat + clip.duration_beats,
         duration_beats = clip.duration_beats,
-        name = sample.name,
-        path = sample.path,
+        name = xml_escape(&sample.name),
+        path = xml_escape(&sample.path),
         default_duration = default_duration,
         sample_rate = sample.sample_rate,
         duration_secs = sample.duration_secs,
@@ -1633,6 +1662,8 @@ pub fn generate_techno_als(
                 .unwrap_or_else(|| "Kick".to_string()),
             duration_secs: 0.5,
             sample_rate: 44100,
+            file_size: std::fs::metadata(kick_path).map(|m| m.len()).unwrap_or(0),
+            bpm: Some(bpm),
         },
         clap: SampleInfo {
             path: clap_path.to_string(),
@@ -1642,6 +1673,8 @@ pub fn generate_techno_als(
                 .unwrap_or_else(|| "Clap".to_string()),
             duration_secs: 0.3,
             sample_rate: 44100,
+            file_size: std::fs::metadata(clap_path).map(|m| m.len()).unwrap_or(0),
+            bpm: Some(bpm),
         },
         hat: SampleInfo {
             path: hat_path.to_string(),
@@ -1651,6 +1684,8 @@ pub fn generate_techno_als(
                 .unwrap_or_else(|| "Hat".to_string()),
             duration_secs: 0.1,
             sample_rate: 44100,
+            file_size: std::fs::metadata(hat_path).map(|m| m.len()).unwrap_or(0),
+            bpm: Some(bpm),
         },
     };
 
@@ -1672,6 +1707,8 @@ mod tests {
             name: "Kick 808".to_string(),
             duration_secs: 0.2,
             sample_rate: 96000,
+            file_size: 50000,
+            bpm: None,
         };
 
         let clap = SampleInfo {
@@ -1679,6 +1716,8 @@ mod tests {
             name: "Snare 808".to_string(),
             duration_secs: 0.3,
             sample_rate: 96000,
+            file_size: 60000,
+            bpm: None,
         };
 
         let hat = SampleInfo {
@@ -1686,6 +1725,8 @@ mod tests {
             name: "Hihat Closed".to_string(),
             duration_secs: 0.15,
             sample_rate: 44100,
+            file_size: 30000,
+            bpm: None,
         };
 
         let config = TechnoConfig {
@@ -1729,6 +1770,303 @@ pub fn generate_empty_als(output_path: &Path) -> Result<(), String> {
     encoder
         .finish()
         .map_err(|e| format!("Failed to finish compression: {}", e))?;
+
+    Ok(())
+}
+
+/// Generate an ALS file using the embedded template (same approach as generate_true_techno).
+/// This is guaranteed to produce valid ALS files that Ableton can open.
+pub fn generate_als_from_template(
+    output_path: &Path,
+    tracks: &[TrackInfo],
+    bpm: f64,
+) -> Result<(), String> {
+    use regex::Regex;
+    use std::collections::HashSet;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    struct Ids {
+        next_id: AtomicU32,
+        used: std::sync::Mutex<HashSet<u32>>,
+    }
+    impl Ids {
+        fn new(start: u32) -> Self {
+            Self { next_id: AtomicU32::new(start), used: std::sync::Mutex::new(HashSet::new()) }
+        }
+        fn alloc(&self) -> u32 {
+            loop {
+                let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+                let mut used = self.used.lock().unwrap();
+                if !used.contains(&id) {
+                    used.insert(id);
+                    return id;
+                }
+            }
+        }
+        fn reserve(&self, id: u32) {
+            self.used.lock().unwrap().insert(id);
+        }
+        fn max_id(&self) -> u32 {
+            self.next_id.load(Ordering::SeqCst)
+        }
+    }
+
+    // Step 1: Generate empty ALS from embedded template
+    generate_empty_als(output_path)?;
+
+    // Step 2: Decompress and parse
+    let file = File::open(output_path).map_err(|e| format!("Failed to open template: {}", e))?;
+    let mut decoder = GzDecoder::new(file);
+    let mut xml = String::new();
+    decoder.read_to_string(&mut xml).map_err(|e| format!("Failed to decompress: {}", e))?;
+
+    let ids = Ids::new(1_000_000);
+
+    // Reserve all existing IDs from template
+    let id_re = Regex::new(r#"Id="(\d+)""#).unwrap();
+    for cap in id_re.captures_iter(&xml) {
+        if let Ok(id) = cap[1].parse::<u32>() {
+            ids.reserve(id);
+        }
+    }
+
+    // Step 3: Extract the audio track template from the valid ALS
+    let track_start = xml.find("<AudioTrack").ok_or("No AudioTrack in template")?;
+    let track_end = xml.find("</AudioTrack>").ok_or("No AudioTrack end in template")? + "</AudioTrack>".len();
+    let audio_track_template = xml[track_start..track_end].to_string();
+
+    // Step 4: Create tracks by cloning the template
+    let mut all_tracks_xml = Vec::new();
+    for track in tracks {
+        let mut t = audio_track_template.clone();
+
+        // Replace all IDs with fresh unique ones
+        let mut replacements: Vec<(String, String)> = Vec::new();
+        for cap in id_re.captures_iter(&t) {
+            let old = format!(r#"Id="{}""#, &cap[1]);
+            let new = format!(r#"Id="{}""#, ids.alloc());
+            replacements.push((old, new));
+        }
+        for (old, new) in replacements {
+            t = t.replacen(&old, &new, 1);
+        }
+
+        // Set name
+        let name_re = Regex::new(r#"<EffectiveName Value="[^"]*" />"#).unwrap();
+        t = name_re.replace(&t, format!(r#"<EffectiveName Value="{}" />"#, xml_escape(&track.name))).to_string();
+        let username_re = Regex::new(r#"(<EffectiveName Value="[^"]*" />\s*<UserName Value=")[^"]*(" />)"#).unwrap();
+        t = username_re.replace(&t, format!(r#"${{1}}{}${{2}}"#, xml_escape(&track.name))).to_string();
+
+        // Set color
+        let color_re = Regex::new(r#"<Color Value="\d+" />"#).unwrap();
+        t = color_re.replace_all(&t, format!(r#"<Color Value="{}" />"#, track.color)).to_string();
+
+        // Create clips
+        let mut clips_xml = Vec::new();
+        for clip in &track.clips {
+            let clip_id = ids.alloc();
+            let sample = &clip.sample;
+            let start_beat = clip.start_beat;
+            let end_beat = clip.start_beat + clip.duration_beats;
+            let loop_bars = sample.loop_bars(bpm);
+            let loop_beats = (loop_bars as f64) * 4.0;
+            let loop_beats = if clip.duration_beats < loop_beats { clip.duration_beats } else { loop_beats };
+            let warp_sec = (loop_beats * 60.0) / bpm;
+
+            clips_xml.push(format!(
+                r#"<AudioClip Id="{clip_id}" Time="{start_beat}">
+											<LomId Value="0" />
+											<LomIdView Value="0" />
+											<CurrentStart Value="{start_beat}" />
+											<CurrentEnd Value="{end_beat}" />
+											<Loop>
+												<LoopStart Value="0" />
+												<LoopEnd Value="{loop_beats}" />
+												<StartRelative Value="0" />
+												<LoopOn Value="true" />
+												<OutMarker Value="{loop_beats}" />
+												<HiddenLoopStart Value="0" />
+												<HiddenLoopEnd Value="{loop_beats}" />
+											</Loop>
+											<Name Value="{name}" />
+											<Annotation Value="" />
+											<Color Value="{color}" />
+											<LaunchMode Value="0" />
+											<LaunchQuantisation Value="0" />
+											<TimeSignature>
+												<TimeSignatures>
+													<RemoteableTimeSignature Id="0">
+														<Numerator Value="4" />
+														<Denominator Value="4" />
+														<Time Value="0" />
+													</RemoteableTimeSignature>
+												</TimeSignatures>
+											</TimeSignature>
+											<Envelopes>
+												<Envelopes />
+											</Envelopes>
+											<ScrollerTimePreserver>
+												<LeftTime Value="0" />
+												<RightTime Value="{end_beat}" />
+											</ScrollerTimePreserver>
+											<TimeSelection>
+												<AnchorTime Value="0" />
+												<OtherTime Value="0" />
+											</TimeSelection>
+											<Legato Value="false" />
+											<Ram Value="false" />
+											<GrooveSettings>
+												<GrooveId Value="-1" />
+											</GrooveSettings>
+											<Disabled Value="false" />
+											<VelocityAmount Value="0" />
+											<FollowAction>
+												<FollowTime Value="4" />
+												<IsLinked Value="true" />
+												<LoopIterations Value="1" />
+												<FollowActionA Value="4" />
+												<FollowActionB Value="0" />
+												<FollowChanceA Value="100" />
+												<FollowChanceB Value="0" />
+												<JumpIndexA Value="1" />
+												<JumpIndexB Value="1" />
+												<FollowActionEnabled Value="false" />
+											</FollowAction>
+											<Grid>
+												<FixedNumerator Value="1" />
+												<FixedDenominator Value="16" />
+												<GridIntervalPixel Value="20" />
+												<Ntoles Value="2" />
+												<SnapToGrid Value="true" />
+												<Fixed Value="false" />
+											</Grid>
+											<FreezeStart Value="0" />
+											<FreezeEnd Value="0" />
+											<IsWarped Value="true" />
+											<TakeId Value="1" />
+											<SampleRef>
+												<FileRef>
+													<RelativePathType Value="0" />
+													<RelativePath Value="" />
+													<Path Value="{path}" />
+													<Type Value="2" />
+													<LivePackName Value="" />
+													<LivePackId Value="" />
+													<OriginalFileSize Value="{file_size}" />
+													<OriginalCrc Value="0" />
+												</FileRef>
+												<LastModDate Value="0" />
+												<SourceContext>
+													<SourceContext Id="0">
+														<OriginalFileRef>
+															<FileRef Id="0">
+																<RelativePathType Value="0" />
+																<RelativePath Value="" />
+																<Path Value="{path}" />
+																<Type Value="2" />
+																<LivePackName Value="" />
+																<LivePackId Value="" />
+																<OriginalFileSize Value="{file_size}" />
+																<OriginalCrc Value="0" />
+															</FileRef>
+														</OriginalFileRef>
+														<BrowserContentPath Value="" />
+														<LocalFiltersJson Value="" />
+													</SourceContext>
+												</SourceContext>
+												<SampleUsageHint Value="0" />
+												<DefaultDuration Value="{loop_beats}" />
+												<DefaultSampleRate Value="44100" />
+											</SampleRef>
+											<Onsets>
+												<UserOnsets />
+												<HasUserOnsets Value="false" />
+											</Onsets>
+											<WarpMode Value="0" />
+											<GranularityTones Value="30" />
+											<GranularityTexture Value="65" />
+											<FluctuationTexture Value="25" />
+											<TransientResolution Value="6" />
+											<TransientLoopMode Value="2" />
+											<TransientEnvelope Value="100" />
+											<ComplexProFormants Value="100" />
+											<ComplexProEnvelope Value="128" />
+											<Sync Value="true" />
+											<HiQ Value="true" />
+											<Fade Value="true" />
+											<Fades>
+												<FadeInLength Value="0" />
+												<FadeOutLength Value="0" />
+												<ClipFadesAreInitialized Value="true" />
+												<CrossfadeLength Value="0" />
+												<FadeInCurveSkew Value="0" />
+												<FadeInCurveSlope Value="0" />
+												<FadeOutCurveSkew Value="0" />
+												<FadeOutCurveSlope Value="0" />
+												<IsDefaultFadeIn Value="true" />
+												<IsDefaultFadeOut Value="true" />
+											</Fades>
+											<PitchCoarse Value="0" />
+											<PitchFine Value="0" />
+											<SampleVolume Value="1" />
+											<MarkerDensity Value="2" />
+											<AutoWarpTolerance Value="4" />
+											<WarpMarkers>
+												<WarpMarker Id="0" SecTime="0" BeatTime="0" />
+												<WarpMarker Id="1" SecTime="{warp_sec}" BeatTime="{loop_beats}" />
+											</WarpMarkers>
+											<SavedWarpMarkersForStretched />
+											<MarkersGenerated Value="true" />
+											<IsSongTempoLeader Value="false" />
+										</AudioClip>"#,
+                clip_id = clip_id,
+                start_beat = start_beat,
+                end_beat = end_beat,
+                loop_beats = loop_beats,
+                name = xml_escape(&sample.name),
+                color = track.color,
+                path = xml_escape(&sample.path),
+                file_size = sample.file_size,
+                warp_sec = warp_sec,
+            ));
+        }
+
+        // Inject clips into track
+        let clips_joined = clips_xml.join("\n");
+        t = t.replacen(
+            "<Events />",
+            &format!("<Events>\n{}\n\t\t\t\t\t\t\t\t\t\t\t\t\t</Events>", clips_joined),
+            1,
+        );
+
+        all_tracks_xml.push(t);
+    }
+
+    // Step 5: Replace the template's audio track with our tracks
+    let before_track = &xml[..track_start];
+    let after_track = &xml[track_end..];
+    let joined = all_tracks_xml.join("\n\t\t\t");
+    let mut xml = format!("{}{}{}", before_track, joined, after_track);
+
+    // Update NextPointeeId
+    let next_id = ids.max_id() + 1000;
+    let next_id_re = Regex::new(r#"<NextPointeeId Value="\d+" />"#).unwrap();
+    xml = next_id_re.replace(&xml, format!(r#"<NextPointeeId Value="{}" />"#, next_id)).to_string();
+
+    // Set tempo
+    let tempo_re = Regex::new(r#"<Tempo>\s*<LomId Value="0" />\s*<Manual Value="[^"]+" />"#).unwrap();
+    xml = tempo_re.replace(&xml, format!(r#"<Tempo>
+							<LomId Value="0" />
+							<Manual Value="{}" />"#, bpm)).to_string();
+
+    let tempo_event_re = Regex::new(r#"<FloatEvent Id="\d+" Time="-63072000" Value="[^"]+" />"#).unwrap();
+    xml = tempo_event_re.replace(&xml, format!(r#"<FloatEvent Id="0" Time="-63072000" Value="{}" />"#, bpm)).to_string();
+
+    // Step 6: Write compressed output
+    let output_file = File::create(output_path).map_err(|e| format!("Failed to create file: {}", e))?;
+    let mut encoder = GzEncoder::new(output_file, Compression::default());
+    encoder.write_all(xml.as_bytes()).map_err(|e| format!("Failed to write: {}", e))?;
+    encoder.finish().map_err(|e| format!("Failed to compress: {}", e))?;
 
     Ok(())
 }
