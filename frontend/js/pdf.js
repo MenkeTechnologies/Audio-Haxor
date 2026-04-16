@@ -80,14 +80,8 @@ async function fetchPdfPage() {
             limit: PDF_PAGE_SIZE,
         });
         if (seq !== _pdfQuerySeq) return;
-        let pdfs = result.pdfs || [];
-        if (search && pdfs.length > 1) {
-            const scored = pdfs.map(p => ({p, score: searchScore(search, [p.name], _lastPdfMode)}));
-            scored.sort((a, b) => b.score - a.score);
-            pdfs = scored.map(x => x.p);
-        }
         // Page-at-a-time: filteredPdfs only holds the LATEST page, DOM accumulates.
-        filteredPdfs = pdfs;
+        filteredPdfs = result.pdfs || [];
         _pdfTotalCount = result.totalCount || 0;
         _pdfTotalCountCapped = result.totalCountCapped === true;
         _pdfTotalUnfiltered = result.totalUnfiltered || 0;
@@ -383,12 +377,7 @@ async function fetchPdfsForExport() {
         offset: 0,
         limit: n,
     });
-    let pdfs = result.pdfs || [];
-    if (search && pdfs.length > 1 && typeof searchScore === 'function') {
-        const scored = pdfs.map((p) => ({p, score: searchScore(search, [p.name], _lastPdfMode)}));
-        scored.sort((a, b) => b.score - a.score);
-        pdfs = scored.map((x) => x.p);
-    }
+    const pdfs = result.pdfs || [];
     if (pdfSortKey === 'pages') {
         const dir = pdfSortAsc ? 1 : -1;
         pdfs.sort((a, b) => {

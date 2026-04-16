@@ -356,17 +356,22 @@
             align-items: center;
             justify-content: center;
             font-size: 18px;
-            box-shadow: 0 0 15px var(--accent-glow), inset 0 0 15px rgba(255, 42, 109, 0.2);
+            /* Outer glow uses `filter: drop-shadow` — release WebKit clips `box-shadow`
+               on gradient-background elements whose shadow is animated, so the pulse
+               was invisible in bundled builds. Inner glow stays on `box-shadow` (inset
+               shadows render normally). */
+            box-shadow: inset 0 0 15px rgba(255, 42, 109, 0.2);
+            filter: drop-shadow(0 0 8px var(--accent-glow));
             border: 1px solid var(--accent);
             animation: icon-pulse 3s ease-in-out infinite;
         }
 
         @keyframes icon-pulse {
             0%, 100% {
-                box-shadow: 0 0 15px var(--accent-glow), inset 0 0 15px rgba(255, 42, 109, 0.2);
+                filter: drop-shadow(0 0 8px var(--accent-glow));
             }
             50% {
-                box-shadow: 0 0 25px var(--accent-glow), 0 0 40px rgba(255, 42, 109, 0.15), inset 0 0 15px rgba(255, 42, 109, 0.2);
+                filter: drop-shadow(0 0 14px var(--accent-glow));
             }
         }
 
@@ -551,6 +556,14 @@
             box-shadow: 0 0 8px var(--cyan-dim);
         }
 
+        /* Compact button sizing — `.btn` default padding 8px/18px + 12px font renders oversized
+           in release WebKit for header-placed buttons (Dashboard in stats-bar). Keep class-based
+           (inline style worked in dev but rendered full-size in release). */
+        .btn.btn-compact {
+            padding: 4px 10px;
+            font-size: 10px;
+        }
+
         .btn-secondary:hover {
             background: rgba(5, 217, 232, 0.08);
             box-shadow: 0 0 15px var(--cyan-glow);
@@ -581,12 +594,15 @@
         /* Settings page — CSS columns for masonry packing (no dead space between
        sections of different heights).  Animation/box-shadow/transition on
        .settings-row are neutralised below so WebKit release doesn't flicker.
-       Audio Engine uses `.audio-engine-tab` > `.ae-main-stack` multicol only — exclude it from settings multicol (WebKit kept applying column layout even with `columns: initial` on the grid container). */
+       Audio Engine uses `.audio-engine-tab` > `.ae-main-stack` multicol only; ALS
+       Generator uses `.als-generator-tab` with its own CSS grid — both are excluded
+       from settings multicol because WebKit release kept applying column layout
+       even with `columns: initial` on the grid container. */
         .settings-container {
             padding: 6px 6px 40px;
         }
 
-        .settings-container:not(.audio-engine-tab) {
+        .settings-container:not(.audio-engine-tab):not(.als-generator-tab) {
             columns: 1;
             column-gap: 3px;
             column-fill: balance;
@@ -637,19 +653,19 @@
         }
 
         @media (min-width: 900px) {
-            .settings-container:not(.audio-engine-tab) {
+            .settings-container:not(.audio-engine-tab):not(.als-generator-tab) {
                 columns: 2;
             }
         }
 
         @media (min-width: 1500px) {
-            .settings-container:not(.audio-engine-tab) {
+            .settings-container:not(.audio-engine-tab):not(.als-generator-tab) {
                 columns: 3;
             }
         }
 
         @media (min-width: 2100px) {
-            .settings-container:not(.audio-engine-tab) {
+            .settings-container:not(.audio-engine-tab):not(.als-generator-tab) {
                 columns: 4;
             }
         }
@@ -1250,6 +1266,8 @@
         }
 
         .stat-dot {
+            display: inline-block;
+            flex: 0 0 8px;
             width: 8px;
             height: 8px;
             border-radius: 0;
@@ -1270,6 +1288,31 @@
         .stat-dot.purple {
             background: var(--cyan);
             box-shadow: 0 0 6px var(--cyan-glow);
+        }
+
+        /* Remaining stat-dot colors — MUST be class-based, not inline style, because release
+           WebKit was dropping the diamond render for dots whose `background`/`box-shadow` were
+           set via inline `style="..."` (only `.stat-dot.green`/`.stat-dot.orange`/`.stat-dot.purple`
+           worked). Adding yellow/cyan/magenta/red/green-glow classes so every stat uses the same
+           proven path. */
+        .stat-dot.yellow {
+            background: var(--yellow);
+            box-shadow: 0 0 6px var(--yellow-glow);
+        }
+
+        .stat-dot.cyan {
+            background: var(--cyan);
+            box-shadow: 0 0 6px var(--cyan-glow);
+        }
+
+        .stat-dot.magenta {
+            background: var(--magenta);
+            box-shadow: 0 0 6px var(--magenta-glow);
+        }
+
+        .stat-dot.red {
+            background: var(--red);
+            box-shadow: 0 0 6px var(--red);
         }
 
         .stat-dot.muted {
@@ -2703,6 +2746,34 @@
         #tabAlsGenerator .section-glitch-slider {
             min-width: 80px;
             flex: 1;
+        }
+        /* Inner grids — MUST be stylesheet rules (not inline `style="display:grid"`), because
+           release WebKit ignores inline `display: grid` on children of a `.settings-container`
+           whose parent rule chain includes `columns:` (even when excluded with `:not()`).
+           Stylesheet rules apply consistently; moving these out of inline style fixed the
+           broken row flow in `Section Glitch Override` and `Track Counts`. */
+        #tabAlsGenerator .als-glitch-grid {
+            display: grid;
+            grid-template-columns: 70px minmax(80px, 1fr) 36px;
+            gap: 4px 8px;
+            align-items: center;
+            font-size: 12px;
+        }
+        #tabAlsGenerator .als-type-grid {
+            display: grid;
+            grid-template-columns: 100px 1fr 30px 40px;
+            gap: 4px 8px;
+            align-items: center;
+            font-size: 12px;
+        }
+        #tabAlsGenerator .als-type-grid-head {
+            display: grid;
+            grid-template-columns: 100px 1fr 30px 40px;
+            gap: 4px 8px;
+            align-items: center;
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-bottom: 4px;
         }
 
         /* History view */
@@ -9354,40 +9425,38 @@
                 <span data-i18n="ui.stats.bar_updates_available">Updates Available</span>
             </div>
             <div class="stat" data-stat-key="samples">
-                <span class="stat-dot"
-                      style="background: var(--yellow); box-shadow: 0 0 6px var(--yellow-glow);"></span>
+                <span class="stat-dot yellow"></span>
                 <span class="stat-value" id="sampleCount">0</span>
                 <span data-i18n="ui.stats.bar_samples_found">Samples Found</span>
             </div>
             <div class="stat" data-stat-key="midi">
-                <span class="stat-dot" style="background: var(--cyan); box-shadow: 0 0 6px var(--cyan-glow);"></span>
+                <span class="stat-dot cyan"></span>
                 <span class="stat-value" id="midiScanCount">0</span>
                 <span data-i18n="ui.stats.bar_midi_found">MIDI Found</span>
             </div>
             <div class="stat" data-stat-key="daw">
-                <span class="stat-dot"
-                      style="background: var(--magenta); box-shadow: 0 0 6px var(--magenta-glow);"></span>
+                <span class="stat-dot magenta"></span>
                 <span class="stat-value" id="dawProjectCount">0</span>
                 <span data-i18n="ui.stats.bar_daw_projects">DAW Projects</span>
             </div>
             <div class="stat" data-stat-key="presets">
-                <span class="stat-dot" style="background: var(--orange); box-shadow: 0 0 6px var(--orange-bg);"></span>
+                <span class="stat-dot orange"></span>
                 <span class="stat-value" id="presetCountHeader">0</span>
                 <span data-i18n="ui.stats.bar_presets">Presets</span>
             </div>
             <div class="stat" data-stat-key="pdfs">
-                <span class="stat-dot" style="background: var(--green); box-shadow: 0 0 6px var(--green-glow);"></span>
+                <span class="stat-dot green"></span>
                 <span class="stat-value" id="pdfCountHeader">0</span>
                 <span data-i18n="ui.stats.bar_pdfs">PDFs</span>
             </div>
             <div class="stat" data-stat-key="videos">
-                <span class="stat-dot" style="background: var(--red); box-shadow: 0 0 6px var(--red);"></span>
+                <span class="stat-dot red"></span>
                 <span class="stat-value" id="videoCountHeader">0</span>
                 <span data-i18n="ui.stats.bar_videos">Videos</span>
             </div>
             <div class="stat" id="dashBtnGroup" data-stat-key="dashboard">
-                <button class="btn btn-secondary" data-action="showHeatmapDash" data-i18n-title="ui.tt.audio_heatmap_dashboard_d"
-                        style="padding:4px 10px;font-size:10px;" title="Audio heatmap dashboard (D)">
+                <button class="btn btn-secondary btn-compact" data-action="showHeatmapDash" data-i18n-title="ui.tt.audio_heatmap_dashboard_d"
+                        title="Audio heatmap dashboard (D)">
                     &#128202; <span data-i18n="ui.btn.128202_dashboard">Dashboard</span></button>
             </div>
         </div>
@@ -12266,7 +12335,7 @@
     </div>
 
     <div class="tab-content" id="tabAlsGenerator">
-        <div class="settings-container">
+        <div class="settings-container als-generator-tab">
             <!-- Section 1: Project Basics -->
             <div class="settings-section" data-section="als-basics">
                 <h2 class="settings-heading">&#9776; Project Basics</h2>
@@ -12327,7 +12396,7 @@
                         <span class="settings-title">Section Glitch Override</span>
                         <span class="settings-desc">Per-section intensity (blank = use global)</span>
                     </div>
-                    <div style="display:grid;grid-template-columns:70px minmax(80px,1fr) 36px;gap:4px 8px;align-items:center;font-size:12px;">
+                    <div class="als-glitch-grid">
                         <span>Intro</span><input type="range" min="-1" max="100" step="1" id="alsGlitchIntro" value="-1" class="section-glitch-slider"><span id="alsGlitchIntroValue">—</span>
                         <span>Build</span><input type="range" min="-1" max="100" step="1" id="alsGlitchBuild" value="-1" class="section-glitch-slider"><span id="alsGlitchBuildValue">—</span>
                         <span>Breakdown</span><input type="range" min="-1" max="100" step="1" id="alsGlitchBreakdown" value="-1" class="section-glitch-slider"><span id="alsGlitchBreakdownValue">—</span>
@@ -12428,13 +12497,13 @@
                 <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Set the number of tracks for each sample type. Check the box to skip key matching (atonal).</div>
 
                 <!-- Header row -->
-                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:11px;color:var(--text-dim);margin-bottom:4px;">
+                <div class="als-type-grid-head">
                     <span>Type</span><span>Count</span><span></span><span style="text-align:center;">Tonal <a href="#" id="alsTonalSelectAll" style="color:var(--cyan);margin-left:2px;" title="Select all">+</a><a href="#" id="alsTonalDeselectAll" style="color:var(--cyan);margin-left:2px;" title="Deselect all">-</a></span>
                 </div>
 
                 <!-- DRUMS -->
                 <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:8px;">Drums</div>
-                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                <div class="als-type-grid">
                     <span>Kick</span><input type="range" min="0" max="50" value="1" id="alsCountKick" class="als-type-slider"><span id="alsCountKickLabel">1</span><input type="checkbox" id="alsTonalKick" title="Tonal" style="justify-self:center;">
                     <span>Clap</span><input type="range" min="0" max="50" value="1" id="alsCountClap" class="als-type-slider"><span id="alsCountClapLabel">1</span><input type="checkbox" id="alsTonalClap" title="Tonal" style="justify-self:center;">
                     <span>Snare</span><input type="range" min="0" max="50" value="1" id="alsCountSnare" class="als-type-slider"><span id="alsCountSnareLabel">1</span><input type="checkbox" id="alsTonalSnare" title="Tonal" style="justify-self:center;">
@@ -12446,21 +12515,21 @@
 
                 <!-- BASS -->
                 <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Bass</div>
-                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                <div class="als-type-grid">
                     <span>High Bass</span><input type="range" min="0" max="50" value="1" id="alsCountBass" class="als-type-slider"><span id="alsCountBassLabel">1</span><input type="checkbox" id="alsTonalBass" checked title="Tonal" style="justify-self:center;">
                     <span>Sub</span><input type="range" min="0" max="50" value="1" id="alsCountSub" class="als-type-slider"><span id="alsCountSubLabel">1</span><input type="checkbox" id="alsTonalSub" checked title="Tonal" style="justify-self:center;">
                 </div>
 
                 <!-- BASS FX -->
                 <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Bass FX</div>
-                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                <div class="als-type-grid">
                     <span>Sub Drop</span><input type="range" min="0" max="50" value="2" id="alsCountSubDrop" class="als-type-slider"><span id="alsCountSubDropLabel">2</span><input type="checkbox" id="alsTonalSubDrop" checked title="Tonal" style="justify-self:center;">
                     <span>Boom Kick</span><input type="range" min="0" max="50" value="2" id="alsCountBoomKick" class="als-type-slider"><span id="alsCountBoomKickLabel">2</span><input type="checkbox" id="alsTonalBoomKick" title="Tonal" style="justify-self:center;">
                 </div>
 
                 <!-- MELODICS -->
                 <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Melodics</div>
-                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                <div class="als-type-grid">
                     <span>Lead</span><input type="range" min="0" max="50" value="1" id="alsCountLead" class="als-type-slider"><span id="alsCountLeadLabel">1</span><input type="checkbox" id="alsTonalLead" title="Tonal" style="justify-self:center;">
                     <span>Synth</span><input type="range" min="0" max="50" value="3" id="alsCountSynth" class="als-type-slider"><span id="alsCountSynthLabel">3</span><input type="checkbox" id="alsTonalSynth" title="Tonal" style="justify-self:center;">
                     <span>Pad</span><input type="range" min="0" max="50" value="2" id="alsCountPad" class="als-type-slider"><span id="alsCountPadLabel">2</span><input type="checkbox" id="alsTonalPad" title="Tonal" style="justify-self:center;">
@@ -12470,7 +12539,7 @@
 
                 <!-- FX -->
                 <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">FX</div>
-                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                <div class="als-type-grid">
                     <span>Riser</span><input type="range" min="0" max="50" value="3" id="alsCountRiser" class="als-type-slider"><span id="alsCountRiserLabel">3</span><input type="checkbox" id="alsTonalRiser" checked title="Tonal" style="justify-self:center;">
                     <span>Downlifter</span><input type="range" min="0" max="50" value="1" id="alsCountDownlifter" class="als-type-slider"><span id="alsCountDownlifterLabel">1</span><input type="checkbox" id="alsTonalDownlifter" checked title="Tonal" style="justify-self:center;">
                     <span>Crash</span><input type="range" min="0" max="50" value="2" id="alsCountCrash" class="als-type-slider"><span id="alsCountCrashLabel">2</span><input type="checkbox" id="alsTonalCrash" title="Tonal" style="justify-self:center;">
@@ -12486,7 +12555,7 @@
 
                 <!-- VOCALS -->
                 <div style="font-weight:600;color:var(--cyan);padding:8px 0 4px;border-bottom:1px solid var(--border);margin:12px 0 8px;">Vocals</div>
-                <div style="display:grid;grid-template-columns:100px 1fr 30px 40px;gap:4px 8px;align-items:center;font-size:12px;">
+                <div class="als-type-grid">
                     <span>Vox</span><input type="range" min="0" max="50" value="1" id="alsCountVox" class="als-type-slider"><span id="alsCountVoxLabel">1</span><input type="checkbox" id="alsTonalVox" title="Tonal" style="justify-self:center;">
                 </div>
 
@@ -12614,40 +12683,40 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=17853"></script>
-<script src="js/utils.js?v=17853"></script>
-<script src="js/ui-idle.js?v=17853"></script>
-<script src="js/ipc.js?v=17853"></script>
-<script src="js/tooltip-hover.js?v=17853"></script>
-<script src="js/drag-reorder.js?v=17853"></script>
-<script src="js/modal-drag.js?v=17853"></script>
-<script src="js/columns.js?v=17853"></script>
-<script src="js/notes.js?v=17853"></script>
-<script src="js/favorites.js?v=17853"></script>
-<script src="js/export.js?v=17853"></script>
-<script src="js/plugins.js?v=17853"></script>
-<script src="js/settings.js?v=17853"></script>
-<script src="js/history.js?v=17853"></script>
-<script src="js/kvr.js?v=17853"></script>
-<script src="js/graph-freeze.js?v=17853"></script>
-<script src="js/audio.js?v=17853"></script>
-<script src="js/daw.js?v=17853"></script>
-<script src="js/disk-usage.js?v=17853"></script>
-<script src="js/presets.js?v=17853"></script>
-<script src="js/batch-select.js?v=17853"></script>
-<script src="js/native-file-drag.js?v=17853"></script>
-<script src="js/sort-persist.js?v=17853"></script>
-<script src="js/multi-filter.js?v=17853"></script>
-<script src="js/file-browser.js?v=17853"></script>
-<script src="js/duplicates.js?v=17853"></script>
-<script src="js/command-palette.js?v=17853"></script>
-<script src="js/xref.js?v=17853"></script>
-<script src="js/dep-graph.js?v=17853"></script>
-<script src="js/smart-playlists.js?v=17853"></script>
-<script src="js/heatmap-dashboard.js?v=17853"></script>
-<script src="js/midi.js?v=17853"></script>
-<script src="js/pdf.js?v=17853"></script>
-<script src="js/video.js?v=17853"></script>
+<script src="js/i18n-ui.js?v=40625"></script>
+<script src="js/utils.js?v=40625"></script>
+<script src="js/ui-idle.js?v=40625"></script>
+<script src="js/ipc.js?v=40625"></script>
+<script src="js/tooltip-hover.js?v=40625"></script>
+<script src="js/drag-reorder.js?v=40625"></script>
+<script src="js/modal-drag.js?v=40625"></script>
+<script src="js/columns.js?v=40625"></script>
+<script src="js/notes.js?v=40625"></script>
+<script src="js/favorites.js?v=40625"></script>
+<script src="js/export.js?v=40625"></script>
+<script src="js/plugins.js?v=40625"></script>
+<script src="js/settings.js?v=40625"></script>
+<script src="js/history.js?v=40625"></script>
+<script src="js/kvr.js?v=40625"></script>
+<script src="js/graph-freeze.js?v=40625"></script>
+<script src="js/audio.js?v=40625"></script>
+<script src="js/daw.js?v=40625"></script>
+<script src="js/disk-usage.js?v=40625"></script>
+<script src="js/presets.js?v=40625"></script>
+<script src="js/batch-select.js?v=40625"></script>
+<script src="js/native-file-drag.js?v=40625"></script>
+<script src="js/sort-persist.js?v=40625"></script>
+<script src="js/multi-filter.js?v=40625"></script>
+<script src="js/file-browser.js?v=40625"></script>
+<script src="js/duplicates.js?v=40625"></script>
+<script src="js/command-palette.js?v=40625"></script>
+<script src="js/xref.js?v=40625"></script>
+<script src="js/dep-graph.js?v=40625"></script>
+<script src="js/smart-playlists.js?v=40625"></script>
+<script src="js/heatmap-dashboard.js?v=40625"></script>
+<script src="js/midi.js?v=40625"></script>
+<script src="js/pdf.js?v=40625"></script>
+<script src="js/video.js?v=40625"></script>
 <!-- Blacklist Modal -->
 <div id="blacklistModal" class="modal-overlay" style="display:none;">
     <div class="modal-content" style="max-width:600px;">
@@ -12706,15 +12775,15 @@
     </div>
 </div>
 
-<script src="js/settings-search.js?v=17853"></script>
-<script src="js/visualizer.js?v=17853"></script>
-<script src="js/walker-status.js?v=17853"></script>
-<script src="js/audio-engine.js?v=17853"></script>
-<script src="js/als-generator.js?v=17853"></script>
-<script src="js/context-menu.js?v=17853"></script>
-<script src="js/shortcuts.js?v=17853"></script>
-<script src="js/help-overlay.js?v=17853"></script>
-<script src="js/keyboard-nav.js?v=17853"></script>
-<script src="js/app.js?v=17853"></script>
+<script src="js/settings-search.js?v=40625"></script>
+<script src="js/visualizer.js?v=40625"></script>
+<script src="js/walker-status.js?v=40625"></script>
+<script src="js/audio-engine.js?v=40625"></script>
+<script src="js/als-generator.js?v=40625"></script>
+<script src="js/context-menu.js?v=40625"></script>
+<script src="js/shortcuts.js?v=40625"></script>
+<script src="js/help-overlay.js?v=40625"></script>
+<script src="js/keyboard-nav.js?v=40625"></script>
+<script src="js/app.js?v=40625"></script>
 </body>
 </html>

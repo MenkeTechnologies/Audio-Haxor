@@ -3211,13 +3211,7 @@ async function fetchAudioSamplesForExport() {
         offset: 0,
         limit: n,
     });
-    let samples = result.samples || [];
-    if (search && samples.length > 1 && typeof searchScore === 'function') {
-        const scored = samples.map((s) => ({s, score: searchScore(search, [s.name], _lastAudioMode)}));
-        scored.sort((a, b) => b.score - a.score);
-        samples = scored.map((x) => x.s);
-    }
-    return samples;
+    return result.samples || [];
 }
 
 async function fetchAudioPage() {
@@ -3245,12 +3239,6 @@ async function fetchAudioPage() {
         audioTotalCount = result.totalCount || 0;
         audioTotalCountCapped = result.totalCountCapped === true;
         audioTotalUnfiltered = result.totalUnfiltered || 0;
-        // Re-sort by fzf relevance score
-        if (search && filteredAudioSamples.length > 1) {
-            const scored = filteredAudioSamples.map(s => ({s, score: searchScore(search, [s.name], _lastAudioMode)}));
-            scored.sort((a, b) => b.score - a.score);
-            filteredAudioSamples = scored.map(x => x.s);
-        }
         // Let the browser process pending input/paint before `innerHTML` + row work (can take tens of ms).
         if (typeof yieldToBrowser === 'function') await yieldToBrowser();
         if (seq !== _audioQuerySeq) return;

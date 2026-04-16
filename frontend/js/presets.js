@@ -82,15 +82,8 @@ async function fetchPresetPage() {
             limit: PRESET_PAGE_SIZE,
         });
         if (seq !== _presetQuerySeq) return;
-        let presets = result.presets || [];
-        // Re-sort by fzf relevance score
-        if (search && presets.length > 1) {
-            const scored = presets.map(p => ({p, score: searchScore(search, [p.name], _lastPresetMode)}));
-            scored.sort((a, b) => b.score - a.score);
-            presets = scored.map(x => x.p);
-        }
         // Page-at-a-time: filteredPresets only holds the LATEST page, DOM accumulates.
-        filteredPresets = presets;
+        filteredPresets = result.presets || [];
         _presetTotalCount = result.totalCount || 0;
         _presetTotalCountCapped = result.totalCountCapped === true;
         _presetTotalUnfiltered = result.totalUnfiltered || 0;
@@ -371,13 +364,7 @@ async function fetchPresetsForExport() {
         offset: 0,
         limit: n,
     });
-    let presets = result.presets || [];
-    if (search && presets.length > 1) {
-        const scored = presets.map((p) => ({p, score: searchScore(search, [p.name], _lastPresetMode)}));
-        scored.sort((a, b) => b.score - a.score);
-        presets = scored.map((x) => x.p);
-    }
-    return presets;
+    return result.presets || [];
 }
 
 function updatePresetExportButton() {

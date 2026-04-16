@@ -100,20 +100,10 @@ async function fetchPluginPage() {
             limit: AUDIO_PAGE_SIZE,
         });
         if (seq !== _pluginQuerySeq) return;
-        let plugins = result.plugins || [];
+        const plugins = result.plugins || [];
         _pluginTotalCount = result.totalCount || 0;
         _pluginTotalCountCapped = result.totalCountCapped === true;
         _pluginTotalUnfiltered = result.totalUnfiltered || 0;
-
-        // Re-sort by fzf relevance score on the frontend (SQL can only do subsequence LIKE)
-        if (search && plugins.length > 1) {
-            const scored = plugins.map(p => ({
-                p,
-                score: searchScore(search, [p.name, p.manufacturer || ''], _lastPluginMode)
-            }));
-            scored.sort((a, b) => b.score - a.score);
-            plugins = scored.map(s => s.p);
-        }
 
         if (typeof yieldToBrowser === 'function') await yieldToBrowser();
         if (seq !== _pluginQuerySeq) return;
@@ -180,16 +170,7 @@ async function fetchPluginsForExport() {
         offset: 0,
         limit: n,
     });
-    let plugins = result.plugins || [];
-    if (search && plugins.length > 1) {
-        const scored = plugins.map((p) => ({
-            p,
-            score: searchScore(search, [p.name, p.manufacturer || ''], _lastPluginMode)
-        }));
-        scored.sort((a, b) => b.score - a.score);
-        plugins = scored.map((s) => s.p);
-    }
-    return plugins;
+    return result.plugins || [];
 }
 
 /**

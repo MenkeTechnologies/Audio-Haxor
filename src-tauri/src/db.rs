@@ -4188,10 +4188,11 @@ DROP TABLE _pl_refresh_paths;"#;
             (n, false)
         };
 
-        // FTS substring search: ORDER BY column sorts the entire match set before LIMIT (stalls).
-        // Use bm25 + LIMIT like PDF/MIDI; frontend may re-rank with `searchScore`.
-        let use_fts_bm25 = fts_match.is_some();
-        let query_sql = if use_fts_bm25 {
+        // FTS substring search: sort the match set by the user's chosen column so header
+        // clicks work while a search is active. Match set is capped at
+        // `FTS_INVENTORY_MATCH_COUNT_CAP`, so ORDER BY + LIMIT stays bounded.
+        let use_fts = fts_match.is_some();
+        let query_sql = if use_fts {
             let (mut w, mut next_ph) = if single_scan {
                 (
                     String::from(
@@ -4232,7 +4233,7 @@ DROP TABLE _pl_refresh_paths;"#;
             let plim = next_ph;
             let poff = next_ph + 1;
             w.push_str(&format!(
-                " ORDER BY bm25(audio_samples_fts) LIMIT ?{plim} OFFSET ?{poff}"
+                " ORDER BY s.{sort_col} {sort_dir} {nulls} LIMIT ?{plim} OFFSET ?{poff}"
             ));
             w
         } else {
@@ -4250,7 +4251,7 @@ DROP TABLE _pl_refresh_paths;"#;
 
         let mut stmt = conn.prepare(&query_sql).map_err(|e| e.to_string())?;
         let mut idx = 1;
-        if use_fts_bm25 {
+        if use_fts {
             let m = fts_match.as_ref().expect("fts");
             stmt.raw_bind_parameter(idx, m).map_err(|e| e.to_string())?;
             idx += 1;
@@ -5041,8 +5042,9 @@ DROP TABLE _pl_refresh_paths;"#;
         };
         let dir = if sort_asc { "ASC" } else { "DESC" };
 
-        // FTS substring search: ORDER BY column sorts the entire match set before LIMIT (stalls).
-        // Use bm25 + LIMIT like MIDI/PDF; frontend may re-rank with `searchScore`.
+        // FTS substring search: sort the match set by the user's chosen column so header
+        // clicks work while a search is active. Match set is capped at
+        // `FTS_INVENTORY_MATCH_COUNT_CAP`, so ORDER BY + LIMIT stays bounded.
         let use_fts_rank_page = fts_match.is_some();
 
         let (total_count, total_count_capped) = if let Some(m) = fts_match.as_ref() {
@@ -5098,7 +5100,7 @@ DROP TABLE _pl_refresh_paths;"#;
             let li = next_ph;
             let oi = next_ph + 1;
             w.push_str(&format!(
-                " ORDER BY bm25(daw_projects_fts) LIMIT ?{li} OFFSET ?{oi}"
+                " ORDER BY d.{sort_col} {dir} NULLS LAST LIMIT ?{li} OFFSET ?{oi}"
             ));
             w
         } else {
@@ -5279,10 +5281,11 @@ DROP TABLE _pl_refresh_paths;"#;
             (n, false)
         };
 
-        // FTS substring search: ORDER BY column sorts the entire match set before LIMIT (stalls).
-        // Use bm25 + LIMIT like PDF/MIDI; frontend may re-rank with `searchScore`.
-        let use_fts_bm25 = fts_match.is_some();
-        let sql = if use_fts_bm25 {
+        // FTS substring search: sort the match set by the user's chosen column so header
+        // clicks work while a search is active. Match set is capped at
+        // `FTS_INVENTORY_MATCH_COUNT_CAP`, so ORDER BY + LIMIT stays bounded.
+        let use_fts = fts_match.is_some();
+        let sql = if use_fts {
             let mut w = String::from(
                 "SELECT p.name, p.path, p.directory, p.format, p.size, p.size_formatted, p.modified
                  FROM presets_fts
@@ -5308,7 +5311,7 @@ DROP TABLE _pl_refresh_paths;"#;
             let plim = next_ph;
             let poff = next_ph + 1;
             w.push_str(&format!(
-                " ORDER BY bm25(presets_fts) LIMIT ?{plim} OFFSET ?{poff}"
+                " ORDER BY p.{sort_col} {dir} NULLS LAST LIMIT ?{plim} OFFSET ?{poff}"
             ));
             w
         } else {
@@ -5319,7 +5322,7 @@ DROP TABLE _pl_refresh_paths;"#;
         };
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
         let mut bi = 1;
-        if use_fts_bm25 {
+        if use_fts {
             let m = fts_match.as_ref().expect("fts");
             stmt.raw_bind_parameter(bi, m).map_err(|e| e.to_string())?;
             bi += 1;
@@ -6858,9 +6861,9 @@ DROP TABLE _pl_refresh_paths;"#;
         };
         let dir = if sort_asc { "ASC" } else { "DESC" };
 
-        // FTS + ORDER BY name/size/… over millions of substring hits forces SQLite to sort the
-        // full match set before LIMIT — multi‑minute stalls. Always use bm25 + LIMIT for FTS
-        // (column sort is ignored in SQL; JS may re-rank the page with `searchScore`).
+        // FTS substring search: sort the match set by the user's chosen column so header
+        // clicks work while a search is active. Match set is capped at
+        // `FTS_INVENTORY_MATCH_COUNT_CAP`, so ORDER BY + LIMIT stays bounded.
         let use_fts_rank_page = fts_match.is_some();
 
         let (total_count, total_count_capped) = if let Some(m) = fts_match.as_ref() {
@@ -6915,7 +6918,7 @@ DROP TABLE _pl_refresh_paths;"#;
             let li = next_ph;
             let oi = next_ph + 1;
             w.push_str(&format!(
-                " ORDER BY bm25(midi_files_fts) LIMIT ?{li} OFFSET ?{oi}"
+                " ORDER BY m.{sort_col} {dir} NULLS LAST LIMIT ?{li} OFFSET ?{oi}"
             ));
             w
         } else {
@@ -7355,7 +7358,7 @@ DROP TABLE _pl_refresh_paths;"#;
             let li = next_ph;
             let oi = next_ph + 1;
             w.push_str(&format!(
-                " ORDER BY bm25(video_files_fts) LIMIT ?{li} OFFSET ?{oi}"
+                " ORDER BY v.{sort_col} {dir} NULLS LAST LIMIT ?{li} OFFSET ?{oi}"
             ));
             w
         } else {
@@ -8193,17 +8196,18 @@ DROP TABLE _pl_refresh_paths;"#;
             (n, false)
         };
 
-        // FTS substring search: ORDER BY column sorts the entire match set before LIMIT (stalls).
-        // Use bm25 + LIMIT like MIDI; frontend may re-rank with `searchScore`.
-        let use_fts_bm25 = fts_match.is_some();
-        let sql = if use_fts_bm25 {
-            String::from(
+        // FTS substring search: sort the match set by the user's chosen column so header
+        // clicks work while a search is active. Match set is capped at
+        // `FTS_INVENTORY_MATCH_COUNT_CAP`, so ORDER BY + LIMIT stays bounded.
+        let use_fts = fts_match.is_some();
+        let sql = if use_fts {
+            format!(
                 "SELECT p.name, p.path, p.directory, p.size, p.size_formatted, p.modified
                  FROM pdfs_fts
                  INNER JOIN pdfs p ON p.id = pdfs_fts.rowid
                  INNER JOIN pdf_library lib ON lib.pdf_id = p.id
                  WHERE pdfs_fts MATCH ?1
-                 ORDER BY bm25(pdfs_fts) LIMIT ?2 OFFSET ?3",
+                 ORDER BY p.{sort_col} {dir} NULLS LAST LIMIT ?2 OFFSET ?3",
             )
         } else {
             format!(
@@ -8213,7 +8217,7 @@ DROP TABLE _pl_refresh_paths;"#;
         };
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
         let mut bi = 1;
-        if use_fts_bm25 {
+        if use_fts {
             let m = fts_match.as_ref().expect("fts");
             stmt.raw_bind_parameter(bi, m).map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, limit as i64)
@@ -8228,7 +8232,7 @@ DROP TABLE _pl_refresh_paths;"#;
                 .map_err(|e| e.to_string())?;
             bi += 1;
         }
-        if !use_fts_bm25 {
+        if !use_fts {
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -10542,7 +10546,7 @@ mod tests {
     }
 
     /// Search (name subsequence) + pagination: verifies full query_audio path.
-    /// With FTS active, row order is bm25 relevance (not column sort); UI may re-rank client-side.
+    /// With FTS active, rows are ordered by the user's chosen `sort_key` (same as non-FTS).
     #[test]
     fn test_query_audio_search_subsequence_and_sort_size_desc() {
         use std::collections::HashSet;
@@ -12165,7 +12169,7 @@ mod tests {
     }
 
     /// Subsequence search on name + pagination (full `query_presets` path).
-    /// With FTS active, row order is bm25 relevance (not column sort); UI may re-rank client-side.
+    /// With FTS active, rows are ordered by the user's chosen `sort_key` (same as non-FTS).
     #[test]
     fn test_query_presets_search_subsequence_and_sort_size_desc() {
         use std::collections::HashSet;

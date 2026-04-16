@@ -65,13 +65,7 @@ async function fetchVideoPage() {
             limit: VIDEO_PAGE_SIZE,
         });
         if (seq !== _videoQuerySeq) return;
-        let files = result.videoFiles || [];
-        if (search && files.length > 1 && typeof searchScore === 'function') {
-            const scored = files.map((v) => ({v, score: searchScore(search, [v.name, v.directory || ''], _lastVideoMode)}));
-            scored.sort((a, b) => b.score - a.score);
-            files = scored.map((x) => x.v);
-        }
-        filteredVideos = files;
+        filteredVideos = result.videoFiles || [];
         _videoTotalCount = result.totalCount || 0;
         _videoTotalCountCapped = result.totalCountCapped === true;
         _videoTotalUnfiltered = result.totalUnfiltered || 0;

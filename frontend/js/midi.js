@@ -111,14 +111,7 @@ async function fetchMidiPage() {
             limit: MIDI_PAGE_SIZE,
         });
         if (seq !== _midiQuerySeq) return;
-        let files = result.midiFiles || [];
-        // Re-sort by fzf relevance when searching
-        if (search && files.length > 1 && typeof searchScore === 'function') {
-            const scored = files.map(s => ({s, score: searchScore(search, [s.name, s.directory || ''], _lastMidiMode)}));
-            scored.sort((a, b) => b.score - a.score);
-            files = scored.map(x => x.s);
-        }
-        filteredMidi = files;
+        filteredMidi = result.midiFiles || [];
         _midiTotalCount = result.totalCount || 0;
         _midiTotalCountCapped = result.totalCountCapped === true;
         _midiTotalUnfiltered = result.totalUnfiltered || 0;
@@ -520,11 +513,6 @@ async function fetchMidiFilesForExport() {
         limit: n,
     });
     let files = result.midiFiles || [];
-    if (search && files.length > 1 && typeof searchScore === 'function') {
-        const scored = files.map((s) => ({s, score: searchScore(search, [s.name, s.directory || ''], _lastMidiMode)}));
-        scored.sort((a, b) => b.score - a.score);
-        files = scored.map((x) => x.s);
-    }
     const metadataKeys = new Set(['tracks', 'bpm', 'time', 'key', 'notes', 'ch', 'duration']);
     if (metadataKeys.has(midiSortKey)) {
         const saved = filteredMidi;

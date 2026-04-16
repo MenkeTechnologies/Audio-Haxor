@@ -61,16 +61,9 @@ async function fetchDawPage() {
             limit: typeof DAW_PAGE_SIZE !== 'undefined' ? DAW_PAGE_SIZE : 200,
         });
         if (seq !== _dawQuerySeq) return;
-        let projects = result.projects || [];
-        // Re-sort by fzf relevance score
-        if (search && projects.length > 1) {
-            const scored = projects.map(p => ({p, score: searchScore(search, [p.name], _lastDawMode)}));
-            scored.sort((a, b) => b.score - a.score);
-            projects = scored.map(x => x.p);
-        }
         // Page-at-a-time: filteredDawProjects only holds the LATEST page, DOM accumulates.
         // This keeps JS memory bounded at one page regardless of scan size (6M+ safe).
-        filteredDawProjects = projects;
+        filteredDawProjects = result.projects || [];
         _dawTotalCount = result.totalCount || 0;
         _dawTotalCountCapped = result.totalCountCapped === true;
         _dawTotalUnfiltered = result.totalUnfiltered || 0;
@@ -382,13 +375,7 @@ async function fetchDawProjectsForExport() {
         offset: 0,
         limit: n,
     });
-    let projects = result.projects || [];
-    if (search && projects.length > 1 && typeof searchScore === 'function') {
-        const scored = projects.map((p) => ({p, score: searchScore(search, [p.name], _lastDawMode)}));
-        scored.sort((a, b) => b.score - a.score);
-        projects = scored.map((x) => x.p);
-    }
-    return projects;
+    return result.projects || [];
 }
 
 function sortDaw(key, forceAsc) {
