@@ -2062,6 +2062,19 @@ mod tests {
     use flate2::read::GzDecoder;
 
     #[test]
+    fn test_ableton_version_default() {
+        let v = AbletonVersion::default();
+        assert_eq!(v.major, 12);
+        assert_eq!(v.creator, "Ableton Live 12.0");
+    }
+
+    #[test]
+    fn test_ableton_version_detect_from_path_missing() {
+        let v = AbletonVersion::detect_from_path("/non/existent/path");
+        assert!(v.is_none());
+    }
+
+    #[test]
     fn test_xml_escape() {
         assert_eq!(xml_escape("hello"), "hello");
         assert_eq!(xml_escape("at&t"), "at&amp;t");

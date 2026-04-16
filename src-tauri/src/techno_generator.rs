@@ -3925,9 +3925,27 @@ mod additional_tests {
     }
 
     #[test]
-    fn test_track_arrangement_new() {
-        let t = TrackArrangement::new("TEST", vec![(1.0, 10.0)]);
-        assert_eq!(t.name, "TEST");
-        assert_eq!(t.sections, vec![(1.0, 10.0)]);
+    fn test_apply_chaos_to_arrangements_protected() {
+        let arrangements = vec![TrackArrangement::new("FILL 1", vec![(1.0, 10.0), (20.0, 30.0)])];
+        let result = apply_chaos_to_arrangements(arrangements.clone(), 1.0);
+        assert_eq!(result, arrangements, "Protected FILL track should not be modified by chaos");
+    }
+
+    #[test]
+    fn test_apply_parallelism_exempt_tracks() {
+        let arrangements = vec![
+            TrackArrangement::new("IMPACT 1", vec![(1.0, 10.0)]),
+            TrackArrangement::new("IMPACT 2", vec![(1.0, 10.0)]),
+        ];
+        // Parallelism 0.0 usually thins out to 1 track, but IMPACT is exempt
+        let result = apply_parallelism(arrangements.clone(), 0.0, 0.0);
+        assert_eq!(result.len(), 2, "Exempt IMPACT tracks should not be thinned by parallelism");
+    }
+
+    #[test]
+    fn test_apply_variation_zero() {
+        let arrangements = vec![TrackArrangement::new("SYNTH", vec![(1.0, 10.0), (20.0, 30.0), (40.0, 50.0)])];
+        let result = apply_variation(arrangements.clone(), 0.0);
+        assert_eq!(result, arrangements, "Zero variation should not modify arrangements");
     }
 }
