@@ -130,7 +130,7 @@
           <li><strong>16 — Audio Engine tab</strong>: device selection, plugin insert chain, diagnostics. <a href="tutorial/16-audio-engine.html">Read &rarr;</a></li>
           <li><strong>17 — Theme &amp; color schemes</strong>: Cyberpunk, Midnight, Matrix, Ember, Arctic + custom editor. <a href="tutorial/17-theme.html">Read &rarr;</a></li>
           <li><strong>18 — Keyboard shortcuts</strong>: full default keymap, rebinding UI, FZF syntax. <a href="tutorial/18-shortcuts.html">Read &rarr;</a></li>
-          <li><strong>19 — ALS generator</strong>: genre / key / hardness, 27-slider track counts, 6-lane section timeline, KICKS bus + group-level sidechain, return sends, Eq8 HPF + Limiter master chain. <a href="tutorial/19-als-generator.html">Read &rarr;</a></li>
+          <li><strong>19 — ALS generator</strong>: genre / key / hardness, 27-slider track counts, 6-lane × 8-bar-block section timeline, KICKS bus + group-level sidechain, return sends, Eq8 HPF + Limiter master chain. <a href="tutorial/19-als-generator.html">Read &rarr;</a></li>
         </ul>
       </section>
 
@@ -212,10 +212,15 @@
             fadedown / outro). Genre-aware bar counts: 224 Techno, 256 Trance,
             208 Schranz.</li>
           <li><strong>Section-override timeline</strong> — 6-lane HUD canvas
-            lets you pin per-section values for chaos / glitch / density /
-            variation / parallelism / scatter. Drag top edge, shift-click to
-            add, scroll to nudge &plusmn;0.05, right-click to delete. Persists
-            to <code>alsSectionOverrides</code> in prefs.</li>
+            lets you pin <strong>per-8-bar-block</strong> values for chaos /
+            glitch / density / variation / parallelism / scatter. Each
+            section is subdivided on the Ableton phrase grid (28 blocks for
+            Techno, 32 for Trance, 26 for Schranz) so you can shape dynamics
+            at phrase granularity, not just at the 32-bar section level.
+            Drag top edge, shift-click to add, scroll to nudge &plusmn;0.05,
+            right-click to delete. Persists to <code>alsSectionOverrides</code>
+            in prefs as a flat bar-start &rarr; value map; legacy section-name
+            keys migrate on first load.</li>
           <li><strong>Sample selection</strong> — key &amp; BPM-matched queries
             against <code>audio_samples</code>, atonal filter per-type, genre-
             specific SQL fallback categories when sample-analysis rows aren&rsquo;t

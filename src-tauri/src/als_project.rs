@@ -8,6 +8,7 @@
 
 use crate::db;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
 // Genre & configuration types
@@ -166,37 +167,55 @@ fn default_4() -> u32 { 4 }
 fn default_chaos() -> f32 { 0.3 }
 fn default_parallelism() -> f32 { 0.4 }
 
-/// Per-section values for a single dynamics parameter.
-/// Each value is 0.0-1.0, with None meaning "use the global scalar for this param".
-/// Bar ranges are genre-specific (see `get_sections_for_genre`); the 7 names are fixed.
+/// Per-8-bar-block overrides for a single dynamics parameter.
+///
+/// Keys are the starting bar of each 8-bar block (1, 9, 17, 25, …), absolute
+/// within the song arrangement. Values are 0.0–1.0. A missing key means
+/// "use the global scalar for this param at that block".
+///
+/// Kept as a `BTreeMap<String, f32>` so JSON serialization is trivial (JSON
+/// object keys are strings by spec). Helpers below parse keys back to `u32`
+/// when resolving bar → block.
+///
+/// Replaced the old 7-named-section layout (intro/build/breakdown/drop1/…) on
+/// 2026-04-16; the timeline UI now subdivides each section into 8-bar blocks
+/// so users can shape dynamics at phrase granularity, not just section
+/// granularity.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(transparent)]
 pub struct SectionValues {
-    #[serde(default)]
-    pub intro: Option<f32>,
-    #[serde(default)]
-    pub build: Option<f32>,
-    #[serde(default)]
-    pub breakdown: Option<f32>,
-    #[serde(default)]
-    pub drop1: Option<f32>,
-    #[serde(default)]
-    pub drop2: Option<f32>,
-    #[serde(default)]
-    pub fadedown: Option<f32>,
-    #[serde(default)]
-    pub outro: Option<f32>,
+    pub blocks: BTreeMap<String, f32>,
 }
 
 impl SectionValues {
     /// Any override set? (used to skip resolver work when the param has no overrides)
     pub fn any(&self) -> bool {
-        self.intro.is_some()
-            || self.build.is_some()
-            || self.breakdown.is_some()
-            || self.drop1.is_some()
-            || self.drop2.is_some()
-            || self.fadedown.is_some()
-            || self.outro.is_some()
+        !self.blocks.is_empty()
+    }
+
+    /// Return the override value for the 8-bar block containing `bar` (1-indexed),
+    /// falling back to `global` when nothing is pinned there. Blocks start on
+    /// bars 1, 9, 17, … so `((bar-1)/8)*8 + 1` maps any bar to its block start.
+    pub fn value_at_bar(&self, bar: u32, global: f32) -> f32 {
+        let block_start = ((bar.saturating_sub(1)) / 8) * 8 + 1;
+        self.blocks
+            .get(&block_start.to_string())
+            .copied()
+            .unwrap_or(global)
+    }
+
+    /// Every pinned block value, for callers that want to average or sum
+    /// overrides (e.g. the per-section `apply_*` helpers).
+    pub fn values(&self) -> impl Iterator<Item = f32> + '_ {
+        self.blocks.values().copied()
+    }
+
+    /// Insert a value at an explicit block-start bar. Out-of-range values are
+    /// clamped to [0, 1]; non-block-start bars are snapped down to their block.
+    pub fn set(&mut self, block_start_bar: u32, value: f32) {
+        let snapped = ((block_start_bar.saturating_sub(1)) / 8) * 8 + 1;
+        let clamped = value.clamp(0.0, 1.0);
+        self.blocks.insert(snapped.to_string(), clamped);
     }
 }
 
@@ -1355,11 +1374,11 @@ mod tests {
         let mut sv = SectionValues::default();
         assert!(!sv.any());
         
-        sv.intro = Some(0.5);
+        sv.set(1, 0.5);
         assert!(sv.any());
         
-        sv.intro = None;
-        sv.outro = Some(0.1);
+        sv.blocks.clear();
+        sv.set(193, 0.1);
         assert!(sv.any());
     }
 

@@ -3498,26 +3498,10 @@ async fn generate_als_project(
             scatter: ta.scatter,
             vox: ta.vox,
         };
-        // Map all 6 per-section overrides from SectionOverridesConfig into the generator's SectionOverrides type
-        let map_section = |sv: &als_project::SectionValues| -> techno_generator::SectionValues {
-            techno_generator::SectionValues {
-                intro: sv.intro,
-                build: sv.build,
-                breakdown: sv.breakdown,
-                drop1: sv.drop1,
-                drop2: sv.drop2,
-                fadedown: sv.fadedown,
-                outro: sv.outro,
-            }
-        };
-        let section_overrides = techno_generator::SectionOverrides {
-            chaos: map_section(&config.section_overrides.chaos),
-            glitch: map_section(&config.section_overrides.glitch),
-            density: map_section(&config.section_overrides.density),
-            variation: map_section(&config.section_overrides.variation),
-            parallelism: map_section(&config.section_overrides.parallelism),
-            scatter: map_section(&config.section_overrides.scatter),
-        };
+        // The generator's `SectionOverrides` is a type alias for
+        // `als_project::SectionOverridesConfig` since the 8-bar-block refactor,
+        // so a plain clone is the whole mapping.
+        let section_overrides: techno_generator::SectionOverrides = config.section_overrides.clone();
         let result = techno_generator::generate(
             &output_path,
             config.bpm as f64,
@@ -9280,6 +9264,45 @@ mod log_verbosity_tests {
         LOG_VERBOSITY_LEVEL.store(2, Ordering::Relaxed);
         assert_eq!(log_verbosity_level(), 2);
         LOG_VERBOSITY_LEVEL.store(1, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn test_playback_active_flag() {
+        use super::{set_playback_active, should_yield_for_playback};
+        set_playback_active(true);
+        assert!(should_yield_for_playback());
+        set_playback_active(false);
+        assert!(!should_yield_for_playback());
+    }
+
+    #[test]
+    fn test_bg_throttle_level_range() {
+        use super::{get_bg_throttle_level, set_bg_throttle_level};
+        set_bg_throttle_level(2);
+        assert_eq!(get_bg_throttle_level(), 2);
+        set_bg_throttle_level(5); // Should clamp to 3
+        assert_eq!(get_bg_throttle_level(), 3);
+        set_bg_throttle_level(0);
+        assert_eq!(get_bg_throttle_level(), 0);
+    }
+
+    #[test]
+    fn test_bg_io_guard_and_drain() {
+        use super::{BG_WORKERS_ACTIVE, BgIoGuard, wait_for_bg_workers_drain};
+        assert_eq!(BG_WORKERS_ACTIVE.load(Ordering::Relaxed), 0);
+        {
+            let _guard = BgIoGuard::new();
+            assert_eq!(BG_WORKERS_ACTIVE.load(Ordering::Relaxed), 1);
+            
+            // wait_for_bg_workers_drain should respect timeout
+            let waited = wait_for_bg_workers_drain(50);
+            assert!(waited >= 50);
+        }
+        assert_eq!(BG_WORKERS_ACTIVE.load(Ordering::Relaxed), 0);
+        
+        // Now it should drain immediately
+        let waited = wait_for_bg_workers_drain(500);
+        assert!(waited < 50);
     }
 }
 

@@ -179,15 +179,20 @@ fn generate_scatter_hits(section_scatter: &SectionValues, global_scatter: f32) -
     const PATTERN_BARS: u32 = 32;
     const SIXTEENTHS_PER_PATTERN: u32 = PATTERN_BARS * SIXTEENTHS_PER_BAR; // 512 sixteenths
     
-    // All song sections with their bar ranges and per-section scatter values
+    // All song sections with their bar ranges. Per-section scatter is now
+    // resolved by bar via the 8-bar-block map — we sample the block at the
+    // section's start bar as representative of the section's scatter level.
+    // Over- or under-density inside a section (when blocks differ within it)
+    // is acceptable for this coarse generator; fine-grained variance comes
+    // from apply_density_per_section, which walks blocks directly.
     let sections: Vec<(&str, u32, u32, f32)> = vec![
-        ("intro",     1,   32,  section_scatter.intro.unwrap_or(global_scatter)),
-        ("build",     33,  64,  section_scatter.build.unwrap_or(global_scatter)),
-        ("breakdown", 65,  96,  section_scatter.breakdown.unwrap_or(global_scatter)),
-        ("drop1",     97,  128, section_scatter.drop1.unwrap_or(global_scatter)),
-        ("drop2",     129, 160, section_scatter.drop2.unwrap_or(global_scatter)),
-        ("fadedown",  161, 192, section_scatter.fadedown.unwrap_or(global_scatter)),
-        ("outro",     193, 224, section_scatter.outro.unwrap_or(global_scatter)),
+        ("intro",     1,   32,  section_scatter.value_at_bar(1,   global_scatter)),
+        ("build",     33,  64,  section_scatter.value_at_bar(33,  global_scatter)),
+        ("breakdown", 65,  96,  section_scatter.value_at_bar(65,  global_scatter)),
+        ("drop1",     97,  128, section_scatter.value_at_bar(97,  global_scatter)),
+        ("drop2",     129, 160, section_scatter.value_at_bar(129, global_scatter)),
+        ("fadedown",  161, 192, section_scatter.value_at_bar(161, global_scatter)),
+        ("outro",     193, 224, section_scatter.value_at_bar(193, global_scatter)),
     ];
     
     // Filter to only sections with scatter > 0
@@ -980,47 +985,32 @@ fn get_arrangement_with_params(chaos: f32, glitch_intensity: f32, section_overri
     let mut arrangements = get_arrangement(chaos);
     
     // Apply chaos per-section (bar-level gaps within sections)
-    let has_any_chaos = chaos > 0.0 || section_overrides.chaos.intro.is_some() ||
-                        section_overrides.chaos.build.is_some() || section_overrides.chaos.breakdown.is_some() ||
-                        section_overrides.chaos.drop1.is_some() || section_overrides.chaos.drop2.is_some() ||
-                        section_overrides.chaos.fadedown.is_some() || section_overrides.chaos.outro.is_some();
+    let has_any_chaos = chaos > 0.0 || section_overrides.chaos.any();
     if has_any_chaos {
         arrangements = apply_chaos_per_section(arrangements, &section_overrides.chaos, chaos);
     }
     
     // Apply parallelism per-section - limit how many tracks of same type play at once
-    let has_any_parallelism = parallelism < 1.0 || section_overrides.parallelism.intro.is_some() ||
-                              section_overrides.parallelism.build.is_some() || section_overrides.parallelism.breakdown.is_some() ||
-                              section_overrides.parallelism.drop1.is_some() || section_overrides.parallelism.drop2.is_some() ||
-                              section_overrides.parallelism.fadedown.is_some() || section_overrides.parallelism.outro.is_some();
+    let has_any_parallelism = parallelism < 1.0 || section_overrides.parallelism.any();
     if has_any_parallelism {
         arrangements = apply_parallelism_per_section(arrangements, &section_overrides.parallelism, parallelism, &section_overrides.variation, variation);
     }
     
     // Apply variation per-section - elements drop in/out more frequently
-    let has_any_variation = variation > 0.0 || section_overrides.variation.intro.is_some() ||
-                            section_overrides.variation.build.is_some() || section_overrides.variation.breakdown.is_some() ||
-                            section_overrides.variation.drop1.is_some() || section_overrides.variation.drop2.is_some() ||
-                            section_overrides.variation.fadedown.is_some() || section_overrides.variation.outro.is_some();
+    let has_any_variation = variation > 0.0 || section_overrides.variation.any();
     if has_any_variation {
         arrangements = apply_variation_per_section(arrangements, &section_overrides.variation, variation);
     }
     
     // Apply density per-section (extra clips in dense sections)
-    let has_any_density = density > 0.0 || section_overrides.density.intro.is_some() ||
-                          section_overrides.density.build.is_some() || section_overrides.density.breakdown.is_some() ||
-                          section_overrides.density.drop1.is_some() || section_overrides.density.drop2.is_some() ||
-                          section_overrides.density.fadedown.is_some() || section_overrides.density.outro.is_some();
+    let has_any_density = density > 0.0 || section_overrides.density.any();
     if has_any_density {
         arrangements = apply_density_per_section(arrangements, &section_overrides.density, density);
     }
     
     // Add scattered one-shot hits on 1/16 grid
     // Uses per-section scatter overrides, falling back to global scatter parameter
-    let has_any_scatter = scatter > 0.0 || section_overrides.scatter.intro.is_some() ||
-                          section_overrides.scatter.build.is_some() || section_overrides.scatter.breakdown.is_some() ||
-                          section_overrides.scatter.drop1.is_some() || section_overrides.scatter.drop2.is_some() ||
-                          section_overrides.scatter.fadedown.is_some() || section_overrides.scatter.outro.is_some();
+    let has_any_scatter = scatter > 0.0 || section_overrides.scatter.any();
     if has_any_scatter {
         arrangements.extend(generate_scatter_hits(&section_overrides.scatter, scatter));
     }
@@ -1385,11 +1375,9 @@ fn apply_chaos_to_arrangements(mut arrangements: Vec<TrackArrangement>, chaos: f
 
 /// Apply chaos per-section - uses section-specific chaos values
 fn apply_chaos_per_section(arrangements: Vec<TrackArrangement>, section_chaos: &SectionValues, global_chaos: f32) -> Vec<TrackArrangement> {
-    // Calculate effective chaos as average of all sections that have values
-    let vals: Vec<f32> = [
-        section_chaos.intro, section_chaos.build, section_chaos.breakdown,
-        section_chaos.drop1, section_chaos.drop2, section_chaos.fadedown, section_chaos.outro,
-    ].iter().filter_map(|v| *v).collect();
+    // Effective chaos = mean of every pinned 8-bar block value, falling back
+    // to the global scalar when nothing is pinned.
+    let vals: Vec<f32> = section_chaos.values().collect();
     let effective = if vals.is_empty() { global_chaos } else { vals.iter().sum::<f32>() / vals.len() as f32 };
     if effective > 0.0 {
         apply_chaos_to_arrangements(arrangements, effective)
@@ -1400,20 +1388,14 @@ fn apply_chaos_per_section(arrangements: Vec<TrackArrangement>, section_chaos: &
 
 /// Apply parallelism per-section - uses section-specific parallelism values
 fn apply_parallelism_per_section(arrangements: Vec<TrackArrangement>, section_parallelism: &SectionValues, global_parallelism: f32, section_variation: &SectionValues, global_variation: f32) -> Vec<TrackArrangement> {
-    // Calculate effective parallelism as average
-    let p_vals: Vec<f32> = [
-        section_parallelism.intro, section_parallelism.build, section_parallelism.breakdown,
-        section_parallelism.drop1, section_parallelism.drop2, section_parallelism.fadedown, section_parallelism.outro,
-    ].iter().filter_map(|v| *v).collect();
+    // Effective parallelism = mean of every pinned 8-bar block value.
+    let p_vals: Vec<f32> = section_parallelism.values().collect();
     let effective_p = if p_vals.is_empty() { global_parallelism } else { p_vals.iter().sum::<f32>() / p_vals.len() as f32 };
-    
-    // Calculate effective variation for switch interval
-    let v_vals: Vec<f32> = [
-        section_variation.intro, section_variation.build, section_variation.breakdown,
-        section_variation.drop1, section_variation.drop2, section_variation.fadedown, section_variation.outro,
-    ].iter().filter_map(|v| *v).collect();
+
+    // Switch interval is driven by variation — same averaging rule.
+    let v_vals: Vec<f32> = section_variation.values().collect();
     let effective_v = if v_vals.is_empty() { global_variation } else { v_vals.iter().sum::<f32>() / v_vals.len() as f32 };
-    
+
     if effective_p < 1.0 {
         apply_parallelism(arrangements, effective_p, effective_v)
     } else {
@@ -1423,11 +1405,8 @@ fn apply_parallelism_per_section(arrangements: Vec<TrackArrangement>, section_pa
 
 /// Apply variation per-section - uses section-specific variation values
 fn apply_variation_per_section(arrangements: Vec<TrackArrangement>, section_variation: &SectionValues, global_variation: f32) -> Vec<TrackArrangement> {
-    // Calculate effective variation as average
-    let vals: Vec<f32> = [
-        section_variation.intro, section_variation.build, section_variation.breakdown,
-        section_variation.drop1, section_variation.drop2, section_variation.fadedown, section_variation.outro,
-    ].iter().filter_map(|v| *v).collect();
+    // Effective variation = mean of every pinned 8-bar block value.
+    let vals: Vec<f32> = section_variation.values().collect();
     let effective = if vals.is_empty() { global_variation } else { vals.iter().sum::<f32>() / vals.len() as f32 };
     if effective > 0.0 {
         apply_variation(arrangements, effective)
@@ -1436,50 +1415,55 @@ fn apply_variation_per_section(arrangements: Vec<TrackArrangement>, section_vari
     }
 }
 
-/// Apply density per-section - adds extra clips/layers in high-density sections
+/// Apply density per-block — walks the standard 224-bar Techno arrangement in
+/// 8-bar blocks, resolving density from the block override (if any) or the
+/// global scalar, and inserting micro-accent clips on densifiable tracks where
+/// the block's density roll succeeds.
+///
+/// 8-bar blocks give ~28 dice rolls across the song instead of 7 — the finer
+/// grid both matches the timeline UI's granularity and produces noticeably more
+/// varied accenting without changing average density.
 fn apply_density_per_section(mut arrangements: Vec<TrackArrangement>, section_density: &SectionValues, global_density: f32) -> Vec<TrackArrangement> {
     let mut rng = rand::rng();
-    
-    // Section bar ranges
-    let sections: [(u32, u32, Option<f32>); 7] = [
-        (1, 32, section_density.intro),
-        (33, 64, section_density.build),
-        (65, 96, section_density.breakdown),
-        (97, 128, section_density.drop1),
-        (129, 160, section_density.drop2),
-        (161, 192, section_density.fadedown),
-        (193, 224, section_density.outro),
-    ];
-    
+
+    // 28 blocks of 8 bars each, covering bars 1..=224 (Techno standard).
+    // TODO: respect per-genre SectionBounds total_bars once plumbed through.
+    let block_starts: Vec<u32> = (1..=SONG_LENGTH_BARS).step_by(8).collect();
+
     // Tracks that can have density-based doubling
     let densifiable = ["HAT", "PERC", "SYNTH", "ARP", "PAD"];
-    
+
     for arr in arrangements.iter_mut() {
         if !densifiable.iter().any(|p| arr.name.starts_with(p)) {
             continue;
         }
-        
+
         let mut new_sections: Vec<(f64, f64)> = Vec::new();
-        
+
         for &(start, end) in &arr.sections {
             new_sections.push((start, end));
-            
-            // Check which section this falls into and get its density
-            for &(sec_start, sec_end, sec_density) in &sections {
-                let density = sec_density.unwrap_or(global_density);
+
+            // Walk every 8-bar block that overlaps this clip, pulling the
+            // block-specific density (falling back to the global scalar).
+            for &block_start in &block_starts {
+                let density = section_density.value_at_bar(block_start, global_density);
                 if density <= 0.0 { continue; }
-                
-                let sec_start_f = sec_start as f64;
-                let sec_end_f = sec_end as f64;
-                
-                // If this section overlaps with our clip
-                if start < sec_end_f && end > sec_start_f {
-                    // Probability of adding extra micro-clips based on density
+
+                let block_end = block_start + 8;
+                let block_start_f = block_start as f64;
+                let block_end_f = block_end as f64;
+
+                // Does the clip overlap this block?
+                if start < block_end_f && end > block_start_f {
                     if rng.random_bool(density as f64 * 0.4) {
-                        // Add 1-2 bar "accent" clip within the section
+                        // Add a 1- or 2-bar accent clip somewhere inside the
+                        // overlap between the source clip and this block.
                         let clip_len = if rng.random_bool(0.5) { 1.0 } else { 2.0 };
-                        let clip_start = start.max(sec_start_f) + rng.random_range(0..(((end.min(sec_end_f) - start.max(sec_start_f)) as u32).max(1))) as f64;
-                        let clip_end = (clip_start + clip_len).min(end).min(sec_end_f);
+                        let lo = start.max(block_start_f);
+                        let hi = end.min(block_end_f);
+                        let span = ((hi - lo) as u32).max(1);
+                        let clip_start = lo + rng.random_range(0..span) as f64;
+                        let clip_end = (clip_start + clip_len).min(end).min(block_end_f);
                         if clip_end > clip_start {
                             new_sections.push((clip_start, clip_end));
                         }
@@ -1487,12 +1471,12 @@ fn apply_density_per_section(mut arrangements: Vec<TrackArrangement>, section_de
                 }
             }
         }
-        
+
         // Sort and dedupe
         new_sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         arr.sections = new_sections;
     }
-    
+
     arrangements
 }
 
@@ -1508,15 +1492,10 @@ fn apply_density_per_section(mut arrangements: Vec<TrackArrangement>, section_de
 /// IMPORTANT: All positions must be multiples of 0.25 bars (1 beat) to produce valid ALS XML.
 /// Ableton expects integer beat values for CurrentStart/CurrentEnd.
 fn apply_glitch_edits(mut arrangements: Vec<TrackArrangement>, glitch_intensity: f32, section_glitch: &SectionValues) -> Vec<TrackArrangement> {
-    // Check if any glitch is enabled at all
-    let has_any_glitch = glitch_intensity > 0.05 
-        || section_glitch.intro.is_some_and(|v| v > 0.05)
-        || section_glitch.build.is_some_and(|v| v > 0.05)
-        || section_glitch.breakdown.is_some_and(|v| v > 0.05)
-        || section_glitch.drop1.is_some_and(|v| v > 0.05)
-        || section_glitch.drop2.is_some_and(|v| v > 0.05)
-        || section_glitch.fadedown.is_some_and(|v| v > 0.05)
-        || section_glitch.outro.is_some_and(|v| v > 0.05);
+    // Check if any glitch is enabled at all — either the global scalar is
+    // non-trivial, or some per-block override pins a non-trivial value.
+    let has_any_glitch = glitch_intensity > 0.05
+        || section_glitch.values().any(|v| v > 0.05);
     
     if !has_any_glitch {
         return arrangements;
@@ -2772,62 +2751,16 @@ impl Default for TrackCounts {
     }
 }
 
-/// Per-section values for a single parameter.
-/// Each value is 0.0-1.0, with None meaning "use global value".
-#[derive(Debug, Clone, Default)]
-pub struct SectionValues {
-    pub intro: Option<f32>,
-    pub build: Option<f32>,
-    pub breakdown: Option<f32>,
-    pub drop1: Option<f32>,
-    pub drop2: Option<f32>,
-    pub fadedown: Option<f32>,
-    pub outro: Option<f32>,
-}
+/// Per-8-bar-block overrides for one dynamics parameter. Shared with the
+/// IPC-facing type in `als_project` — both sides use the same `BTreeMap<String, f32>`
+/// backing so no field-by-field mapping is needed at the IPC boundary.
+///
+/// Keys: the starting bar of an 8-bar block (1, 9, 17, …). Values: 0.0–1.0.
+/// Missing keys fall back to the global scalar.
+pub type SectionValues = crate::als_project::SectionValues;
 
-impl SectionValues {
-    /// Any override set?
-    pub fn any(&self) -> bool {
-        self.intro.is_some()
-            || self.build.is_some()
-            || self.breakdown.is_some()
-            || self.drop1.is_some()
-            || self.drop2.is_some()
-            || self.fadedown.is_some()
-            || self.outro.is_some()
-    }
-
-    /// Get value for a given bar number, falling back to global value.
-    pub fn value_at_bar(&self, bar: u32, global: f32) -> f32 {
-        let section_val = if bar < BUILD1_START {
-            self.intro
-        } else if bar < BREAKDOWN_START {
-            self.build
-        } else if bar < DROP1_START {
-            self.breakdown
-        } else if bar < DROP2_START {
-            self.drop1
-        } else if bar < FADEDOWN_START {
-            self.drop2
-        } else if bar < OUTRO_START {
-            self.fadedown
-        } else {
-            self.outro
-        };
-        section_val.unwrap_or(global)
-    }
-}
-
-/// Per-section overrides for all 6 dynamics params.
-#[derive(Debug, Clone, Default)]
-pub struct SectionOverrides {
-    pub chaos: SectionValues,
-    pub glitch: SectionValues,
-    pub density: SectionValues,
-    pub variation: SectionValues,
-    pub parallelism: SectionValues,
-    pub scatter: SectionValues,
-}
+/// Per-block overrides for all 6 dynamics params.
+pub type SectionOverrides = crate::als_project::SectionOverridesConfig;
 
 /// Legacy type alias for backwards compatibility
 pub type SectionGlitch = SectionValues;
@@ -3971,11 +3904,11 @@ mod tests {
         let mut sv = SectionValues::default();
         assert!(!sv.any());
         
-        sv.intro = Some(0.5);
+        sv.set(1, 0.5);
         assert!(sv.any());
         
-        sv.intro = None;
-        sv.outro = Some(0.1);
+        sv.blocks.clear();
+        sv.set(193, 0.1);
         assert!(sv.any());
     }
 
@@ -3989,27 +3922,28 @@ mod tests {
         assert_eq!(sv.value_at_bar(100, global), global);
         assert_eq!(sv.value_at_bar(200, global), global);
         
-        // Single section override
-        sv.intro = Some(0.8);
+        // Single section override (set for the whole block starting at 1)
+        sv.set(1, 0.8);
         assert_eq!(sv.value_at_bar(1, global), 0.8);
-        assert_eq!(sv.value_at_bar(32, global), 0.8);
-        assert_eq!(sv.value_at_bar(33, global), global); // BUILD1_START
+        assert_eq!(sv.value_at_bar(8, global), 0.8);
+        assert_eq!(sv.value_at_bar(9, global), global); // Next block
         
-        // Multiple overrides
-        sv.build = Some(0.1);
-        sv.breakdown = Some(0.0);
-        sv.drop1 = Some(1.0);
-        sv.drop2 = Some(0.9);
-        sv.fadedown = Some(0.4);
-        sv.outro = Some(0.2);
+        // Multiple overrides (set at the start of each old 32-bar section)
+        sv.set(33, 0.1);  // Build
+        sv.set(65, 0.0);  // Breakdown
+        sv.set(97, 1.0);  // Drop1
+        sv.set(129, 0.9); // Drop2
+        sv.set(161, 0.4); // Fadedown
+        sv.set(193, 0.2); // Outro
         
-        assert_eq!(sv.value_at_bar(10, global), 0.8);   // Intro
-        assert_eq!(sv.value_at_bar(40, global), 0.1);   // Build
-        assert_eq!(sv.value_at_bar(70, global), 0.0);   // Breakdown
-        assert_eq!(sv.value_at_bar(100, global), 1.0);  // Drop1
-        assert_eq!(sv.value_at_bar(140, global), 0.9);  // Drop2
-        assert_eq!(sv.value_at_bar(170, global), 0.4);  // Fadedown
-        assert_eq!(sv.value_at_bar(200, global), 0.2);  // Outro
+        assert_eq!(sv.value_at_bar(1, global), 0.8);    // Intro start
+        assert_eq!(sv.value_at_bar(40, global), 0.1);   // Build (bar 40 -> block 33)
+        assert_eq!(sv.value_at_bar(70, global), 0.0);   // Breakdown (bar 70 -> block 65)
+        assert_eq!(sv.value_at_bar(100, global), 1.0);  // Drop1 (bar 100 -> block 97)
+        assert_eq!(sv.value_at_bar(130, global), 0.9);  // Drop2 (bar 130 -> block 129)
+        // Let's use exact block starts for simplicity in tests
+        assert_eq!(sv.value_at_bar(161, global), 0.4);
+        assert_eq!(sv.value_at_bar(193, global), 0.2);
     }
 
     #[test]
@@ -4033,8 +3967,8 @@ mod tests {
         let global_v = 0.3;
         
         // Mocking behavior of average-based effective values
-        p_vals.intro = Some(1.0);
-        p_vals.outro = Some(1.0);
+        p_vals.set(1, 1.0);
+        p_vals.set(193, 1.0);
         
         // Effective parallelism = (1.0 + 1.0) / 2 = 1.0
         // Result should be arrangements unchanged if effective_p >= 1.0
@@ -4049,8 +3983,8 @@ mod tests {
         let mut v_vals = SectionValues::default();
         let global_v = 0.0;
         
-        v_vals.intro = Some(0.0);
-        v_vals.outro = Some(0.0);
+        v_vals.set(1, 0.0);
+        v_vals.set(193, 0.0);
         
         // Effective variation = (0.0 + 0.0) / 2 = 0.0
         // Result should be arrangements unchanged if effective_v <= 0.0
@@ -4082,16 +4016,13 @@ mod tests {
         
         // Helper to check if any chaos is detected
         let has_any_chaos = |overrides: &SectionOverrides, chaos: f32| -> bool {
-            chaos > 0.0 || overrides.chaos.intro.is_some() ||
-            overrides.chaos.build.is_some() || overrides.chaos.breakdown.is_some() ||
-            overrides.chaos.drop1.is_some() || overrides.chaos.drop2.is_some() ||
-            overrides.chaos.fadedown.is_some() || overrides.chaos.outro.is_some()
+            chaos > 0.0 || overrides.chaos.any()
         };
 
         assert!(!has_any_chaos(&overrides, 0.0));
         assert!(has_any_chaos(&overrides, 0.1));
         
-        overrides.chaos.breakdown = Some(0.5);
+        overrides.chaos.set(65, 0.5); // breakdown
         assert!(has_any_chaos(&overrides, 0.0));
     }
 
@@ -4100,7 +4031,7 @@ mod tests {
         // Use a track that is NOT protected (KICK)
         let arrangements = vec![TrackArrangement::new("KICK", vec![(1.0, 5.0)])];
         let mut section_glitch = SectionValues::default();
-        section_glitch.intro = Some(1.0); // Heavy glitch in intro
+        section_glitch.set(1, 1.0); // Heavy glitch in intro
         
         let result = apply_glitch_edits(arrangements.clone(), 1.0, &section_glitch);
         
@@ -4118,13 +4049,70 @@ mod tests {
         // Use a densifiable track (HAT)
         let arrangements = vec![TrackArrangement::new("HAT", vec![(1.0, 5.0)])];
         let mut section_density = SectionValues::default();
-        section_density.intro = Some(1.0); // High density in intro
+        section_density.set(1, 1.0); // High density in intro
         
         let result = apply_density_per_section(arrangements.clone(), &section_density, 1.0);
         
         // At 1.0 density, it should likely add accent clips
         assert!(result[0].sections.len() >= arrangements[0].sections.len());
         assert_eq!(result[0].name, "HAT");
+    }
+
+    #[test]
+    fn test_generate_scatter_hits_logic() {
+        let mut section_scatter = SectionValues::default();
+        let global_scatter = 0.0;
+        
+        // No scatter anywhere: should return empty
+        let results = generate_scatter_hits(&section_scatter, global_scatter);
+        assert!(results.is_empty());
+        
+        // Global scatter enabled
+        let results = generate_scatter_hits(&section_scatter, 0.5);
+        assert!(!results.is_empty());
+        assert_eq!(results.len(), 4); // It always generates 4 tracks if active
+        assert!(results[0].name.contains("SCATTER"));
+        
+        // Per-section scatter
+        section_scatter.set(1, 1.0); // Intro
+        let results = generate_scatter_hits(&section_scatter, 0.0);
+        assert!(!results.is_empty());
+        // Check that hits are only in the intro (bars 1-32)
+        for track in results {
+            for (start, _) in track.sections {
+                assert!(start >= 1.0 && start < 33.0, "Scatter hit at {} outside intro", start);
+            }
+        }
+    }
+
+    #[test]
+    fn test_generate_random_fills_logic() {
+        let fills = generate_random_fills();
+        assert!(!fills.is_empty());
+        assert_eq!(fills.len(), 8); // Always generates 8 tracks
+        for (i, track) in fills.iter().enumerate() {
+            assert_eq!(track.name, format!("FILL {}", i + 1));
+            // Fills should only occur at the end of 8-bar phrases
+            for (start, end) in &track.sections {
+                // Fills are 1, 2, or 4 beats long.
+                // 1 beat = 0.25 bars. 4 beats = 1.0 bar.
+                assert!(*end > *start);
+                assert!(*end - *start <= 1.0);
+            }
+        }
+    }
+
+    #[test]
+    fn test_generate_glitch_arrangements_logic() {
+        let glitches = generate_glitch_arrangements();
+        assert!(!glitches.is_empty());
+        assert_eq!(glitches.len(), 8);
+        for (i, track) in glitches.iter().enumerate() {
+            assert_eq!(track.name, format!("GLITCH {}", i + 1));
+            for (start, end) in &track.sections {
+                assert!(*end > *start);
+            }
+        }
     }
 }
 
@@ -4458,5 +4446,120 @@ mod additional_tests {
         let val: f64 = cap[1].parse().unwrap();
         assert!(val <= 0.0, "Ceiling must be ≤ 0 dB, got {}", val);
         assert!(val >= -1.0, "Ceiling {} dB is too aggressive (< -1 dB)", val);
+    }
+
+    // ---------- 8-bar-block granularity tests (2026-04 refactor) ----------
+
+    #[test]
+    fn value_at_bar_resolves_block_by_bar_position_not_section() {
+        // The whole point of the 8-bar-block refactor: two bars inside the
+        // same section resolve to *different* block values when the blocks
+        // differ. Previously this was impossible — a whole 32-bar section
+        // shared one value.
+        let mut sv = SectionValues::default();
+        sv.set(1, 0.1);   // Intro block 1 (bars 1-8)
+        sv.set(9, 0.5);   // Intro block 2 (bars 9-16)
+        sv.set(17, 0.9);  // Intro block 3 (bars 17-24)
+        sv.set(25, 0.2);  // Intro block 4 (bars 25-32)
+
+        // Each bar inside a block resolves to that block's value.
+        assert_eq!(sv.value_at_bar(1, 0.0), 0.1);
+        assert_eq!(sv.value_at_bar(4, 0.0), 0.1);
+        assert_eq!(sv.value_at_bar(8, 0.0), 0.1);
+        assert_eq!(sv.value_at_bar(9, 0.0), 0.5);
+        assert_eq!(sv.value_at_bar(12, 0.0), 0.5);
+        assert_eq!(sv.value_at_bar(16, 0.0), 0.5);
+        assert_eq!(sv.value_at_bar(17, 0.0), 0.9);
+        assert_eq!(sv.value_at_bar(24, 0.0), 0.9);
+        assert_eq!(sv.value_at_bar(25, 0.0), 0.2);
+        assert_eq!(sv.value_at_bar(32, 0.0), 0.2);
+    }
+
+    #[test]
+    fn value_at_bar_unpinned_block_falls_back_to_global() {
+        // Only two blocks pinned out of ~28; every other bar must read the
+        // global scalar verbatim.
+        let mut sv = SectionValues::default();
+        sv.set(65, 0.8);  // Breakdown block 1
+        sv.set(129, 0.3); // Drop2 block 1
+
+        let g = 0.42;
+        assert_eq!(sv.value_at_bar(1, g), g,   "intro block 1 unpinned");
+        assert_eq!(sv.value_at_bar(40, g), g,  "build block 2 unpinned");
+        assert_eq!(sv.value_at_bar(100, g), g, "drop1 block 2 unpinned");
+        assert_eq!(sv.value_at_bar(200, g), g, "outro block 2 unpinned");
+        // And the two pinned blocks still return their pinned values.
+        assert_eq!(sv.value_at_bar(65, g), 0.8);
+        assert_eq!(sv.value_at_bar(129, g), 0.3);
+    }
+
+    #[test]
+    fn set_snaps_non_block_start_bars_to_block_start() {
+        // If a caller (or IPC payload) addresses a bar that isn't a block
+        // boundary, we snap down to the containing block. Guards against
+        // duplicate overrides from off-by-one callers.
+        let mut sv = SectionValues::default();
+        sv.set(5, 0.6);  // mid-block 1 → snaps to 1
+        sv.set(14, 0.7); // mid-block 2 → snaps to 9
+        sv.set(9, 0.4);  // exact block-start → overwrites 9
+
+        assert_eq!(sv.blocks.len(), 2, "two distinct blocks after snapping");
+        assert_eq!(sv.value_at_bar(1, 0.0), 0.6);
+        assert_eq!(sv.value_at_bar(9, 0.0), 0.4, "overwritten");
+    }
+
+    #[test]
+    fn set_clamps_value_to_unit_interval() {
+        // Bad IPC payloads shouldn't poison the resolver — clamp extremes
+        // rather than passing through out-of-range values.
+        let mut sv = SectionValues::default();
+        sv.set(1, -0.5);
+        sv.set(9, 5.0);
+        assert_eq!(sv.value_at_bar(1, 0.0), 0.0, "negative clamped to 0");
+        assert_eq!(sv.value_at_bar(9, 0.0), 1.0, "over-1 clamped to 1");
+    }
+
+    #[test]
+    fn section_values_serde_is_flat_bar_keyed_map() {
+        // The IPC wire format must be a flat `{"1": 0.5, "9": 0.3}` object —
+        // frontend depends on this shape. Serde's transparent on the struct
+        // means no `{"blocks": {...}}` wrapper.
+        let mut sv = SectionValues::default();
+        sv.set(1, 0.5);
+        sv.set(9, 0.25);
+        let json = serde_json::to_string(&sv).unwrap();
+        assert!(json.contains(r#""1":0.5"#), "missing flat bar-1 key: {}", json);
+        assert!(json.contains(r#""9":0.25"#), "missing flat bar-9 key: {}", json);
+        assert!(!json.contains(r#""blocks""#), "struct wrapper leaked: {}", json);
+
+        // Round-trip: the same shape deserializes into an equivalent map.
+        let back: SectionValues = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.value_at_bar(1, 0.0), 0.5);
+        assert_eq!(back.value_at_bar(9, 0.0), 0.25);
+    }
+
+    #[test]
+    fn values_iterator_averages_correctly() {
+        // apply_*_per_section helpers average every pinned block value —
+        // confirm the iterator returns them all (order doesn't matter for a
+        // mean).
+        let mut sv = SectionValues::default();
+        sv.set(1, 0.2);
+        sv.set(33, 0.4);
+        sv.set(65, 0.6);
+        let mean: f32 = sv.values().sum::<f32>() / sv.values().count() as f32;
+        assert!((mean - 0.4).abs() < 1e-5, "mean should be 0.4, got {}", mean);
+    }
+
+    #[test]
+    fn apply_glitch_edits_gates_on_per_block_threshold() {
+        // Even when the global scalar is 0, a single pinned block above the
+        // 0.05 gate must re-enable glitch editing. Catches the regression we
+        // just fixed in the `has_any_glitch` computation.
+        let mut sv = SectionValues::default();
+        sv.set(97, 0.9); // Drop1 block 1 — heavy glitch
+        let arr = vec![TrackArrangement::new("KICK", vec![(97.0, 100.0)])];
+        let out = apply_glitch_edits(arr.clone(), 0.0, &sv);
+        assert_ne!(out, arr, "a pinned block > 0.05 must trigger glitch even with global=0");
     }
 }

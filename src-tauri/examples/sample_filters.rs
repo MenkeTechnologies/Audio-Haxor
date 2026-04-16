@@ -169,3 +169,7 @@ mod tests {
         assert!(result.contains(&"extra2"));
     }
 }
+
+fn main() {
+    println!("This example is a container for shared constants and tests.");
+}

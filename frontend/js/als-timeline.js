@@ -1,23 +1,35 @@
 // ──────────────────────────────────────────────────────────────────────────
 // ALS Generator — Section Overrides Timeline Editor (Ableton-arrangement style)
 //
-// Replaces the old 7-slider "Section Glitch Override" row. Lets the user drag
-// regions inside 6 stacked lanes (Chaos, Glitch, Density, Variation, Parallelism, Scatter),
-// each region overriding one parameter across one-or-more song sections.
+// Six stacked lanes (Chaos, Glitch, Density, Variation, Parallelism, Scatter),
+// subdivided into 8-bar blocks that match the Ableton phrase grid. Each block
+// is an independently-pinnable override cell — drag the top edge to set value
+// by height, scroll to fine-tune, right-click to clear.
 //
-// Model:
+// Model (2026-04 refactor):
 //   _overrides = {
-//     chaos: { intro: 0.5, drop1: 0.8, ... },   // section-name → float 0..1
-//     glitch: { ... }, density: { ... }, variation: { ... }, parallelism: { ... }, scatter: { ... }
+//     chaos:   { "1": 0.5, "9": 0.3, "65": 0.8, ... },   // bar-start → float 0..1
+//     glitch:  { ... }, density: { ... }, variation: { ... }, parallelism: { ... }, scatter: { ... }
 //   }
-// Missing section key = "use global scalar".
+//   Keys are strings (JSON object-key rule) holding the starting bar of an
+//   8-bar block (1, 9, 17, 25, …). A missing key means "use global scalar".
 //
-// Regions in the UI are visual groupings of consecutive sections with the same
-// value in the same lane. The model stores per-section; rendering coalesces
-// adjacent identical values into one block and edit actions apply to the block.
+// The Rust side (`als_project::SectionValues`) uses the same flat shape as a
+// `BTreeMap<String, f32>` with `#[serde(transparent)]`, so the payload flows
+// straight through without field remapping.
 //
-// Persisted to prefs under `alsSectionOverrides`; serialized for IPC into the
-// `section_overrides` field of the ProjectConfig payload.
+// Block count per genre (since section sizes vary):
+//   Techno  (224 bars): 28 blocks — 7 sections × 4 blocks of 8 bars
+//   Trance  (256 bars): 32 blocks — 48-bar breakdown/outro = 6 blocks each
+//   Schranz (208 bars): 26 blocks — 16-bar breakdown/outro = 2 blocks each
+//
+// Section names remain as visual labels only — heavier vertical dividers show
+// where sections begin so the user can navigate the arrangement visually while
+// editing at block resolution.
+//
+// Persisted to prefs under `alsSectionOverrides`. Migrates legacy section-name
+// keys ("intro", "build", …) on first load by fanning out each value to every
+// 8-bar block inside that section for the current genre.
 // ──────────────────────────────────────────────────────────────────────────
 
 (function () {
@@ -42,8 +54,9 @@
         fadedown: 'FADEDOWN',
         outro: 'OUTRO',
     };
+    const BLOCK_BARS = 8;
 
-    // Bar ranges per genre — MUST match src-tauri/src/als_project.rs::get_sections_for_genre.
+    // Bar ranges per genre — MUST match src-tauri/src/als_project.rs::SectionBounds.
     // Inclusive lo, exclusive hi.
     const GENRE_SECTION_BARS = {
         techno:  { intro: [1, 33],  build: [33, 65],  breakdown: [65, 97],   drop1: [97, 129],  drop2: [129, 161], fadedown: [161, 193], outro: [193, 225]  },
@@ -63,10 +76,9 @@
 
     // ── Mutable state ──────────────────────────────────────────────────────
     let _overrides = { chaos: {}, glitch: {}, density: {}, variation: {}, parallelism: {}, scatter: {} };
-    let _selected = null;   // { param: string, section: string }
-    let _drag = null;       // { mode: 'create'|'resize-l'|'resize-r'|'move'|'value', ... }
+    let _selected = null;   // { param: string, blockKey: string (bar start), section: string }
+    let _drag = null;       // { mode: 'value', param, blockKey, laneTop, laneH }
     let _ro = null;         // ResizeObserver
-    let _popoverDragging = false;
 
     function getGenre() {
         const el = document.getElementById('alsGenre');
@@ -75,6 +87,26 @@
 
     function sectionBars(genre) {
         return GENRE_SECTION_BARS[genre] || GENRE_SECTION_BARS.techno;
+    }
+
+    // Enumerate every 8-bar block across the arrangement for this genre.
+    // Each entry carries its starting bar (1-indexed), exclusive end bar, and
+    // which section it belongs to (for visual labeling + popover context).
+    function blocksForGenre(genre) {
+        const bars = sectionBars(genre);
+        const out = [];
+        for (const name of SECTIONS) {
+            const [lo, hi] = bars[name];
+            for (let b = lo; b < hi; b += BLOCK_BARS) {
+                out.push({
+                    startBar: b,
+                    endBar: Math.min(b + BLOCK_BARS, hi),
+                    section: name,
+                    key: String(b),
+                });
+            }
+        }
+        return out;
     }
 
     // Layout computes pixel geometry for the current canvas size + genre.
@@ -104,13 +136,24 @@
 
         const genre = getGenre();
         const bars = sectionBars(genre);
-        // Total bar span for this genre's arrangement (out of outro, exclusive)
-        const totalBars = bars.outro[1] - bars.intro[0];
+        // Total bar span for this genre's arrangement (outro end exclusive)
+        const firstBar = bars.intro[0];
+        const lastBar = bars.outro[1];
+        const totalBars = lastBar - firstBar;
 
+        const blocks = blocksForGenre(genre).map((b) => {
+            const offsetLo = b.startBar - firstBar;
+            const offsetHi = b.endBar - firstBar;
+            const x = gridX + (offsetLo / totalBars) * gridW;
+            const w = ((offsetHi - offsetLo) / totalBars) * gridW;
+            return { ...b, x, w };
+        });
+
+        // Section headers: one label per section, centered over its first block.
         const sections = SECTIONS.map((name) => {
             const [lo, hi] = bars[name];
-            const offsetLo = lo - bars.intro[0];
-            const offsetHi = hi - bars.intro[0];
+            const offsetLo = lo - firstBar;
+            const offsetHi = hi - firstBar;
             const x = gridX + (offsetLo / totalBars) * gridW;
             const w = ((offsetHi - offsetLo) / totalBars) * gridW;
             return { name, lo, hi, x, w };
@@ -123,17 +166,17 @@
             height: laneH,
         }));
 
-        return { dpr, W, H, padL, padR, headerH, lanesY, laneH, laneGap, gridX, gridW, sections, lanes, bars, genre, totalBars };
+        return { dpr, W, H, padL, padR, headerH, lanesY, laneH, laneGap, gridX, gridW, blocks, sections, lanes, bars, genre, totalBars };
     }
 
-    // Hit-test: returns { param, section } or null. Lane labels/header are not interactive.
+    // Hit-test: returns { param, block, lane } or null.
     function hit(x, y, L) {
         if (x < L.gridX) return null;
         const lane = L.lanes.find((ln) => y >= ln.top && y <= ln.bottom);
         if (!lane) return null;
-        const sec = L.sections.find((s) => x >= s.x && x < s.x + s.w);
-        if (!sec) return null;
-        return { param: lane.param, section: sec.name, lane, sec };
+        const block = L.blocks.find((b) => x >= b.x && x < b.x + b.w);
+        if (!block) return null;
+        return { param: lane.param, block, lane };
     }
 
     // ── Paint ──────────────────────────────────────────────────────────────
@@ -159,22 +202,16 @@
         ctx.lineTo(L.padL + 0.5, L.H);
         ctx.stroke();
 
-        // Section header row (▷ SECTIONNAME) — Ableton-style
+        // Section header row (▷ SECTIONNAME) — one label per section,
+        // stretched across all the blocks it owns.
         ctx.font = 'bold 10px "Share Tech Mono", monospace';
         ctx.textBaseline = 'middle';
         for (const s of L.sections) {
             const sy = L.headerH / 2;
-            // Divider line at each section start
-            ctx.strokeStyle = '#1e1e2e';
-            ctx.beginPath();
-            ctx.moveTo(Math.round(s.x) + 0.5, 0);
-            ctx.lineTo(Math.round(s.x) + 0.5, L.H);
-            ctx.stroke();
-            // ▷ marker + label
             ctx.fillStyle = '#7a8ba8';
             ctx.textAlign = 'left';
             ctx.fillText('\u25B7 ' + SECTION_LABELS[s.name], s.x + 4, sy);
-            // Bar-range sublabel under it (first 2 chars offset)
+            // Bar-range sublabel under it
             ctx.fillStyle = '#3a4858';
             ctx.font = '9px "Share Tech Mono", monospace';
             ctx.fillText(`${s.lo}\u2013${s.hi - 1}`, s.x + 4, sy + 10);
@@ -195,52 +232,56 @@
             ctx.textBaseline = 'middle';
             ctx.fillText(PARAM_LABELS[ln.param], L.padL - 8, ln.top + ln.height / 2);
 
-            // Section dividers inside lane
-            ctx.strokeStyle = '#141422';
-            ctx.beginPath();
-            for (const s of L.sections) {
-                const gx = Math.round(s.x) + 0.5;
+            // Block dividers inside lane — subtle on every 8-bar boundary,
+            // slightly brighter where a section begins.
+            for (let i = 0; i < L.blocks.length; i++) {
+                const b = L.blocks[i];
+                const isSectionStart = i === 0 || L.blocks[i - 1].section !== b.section;
+                ctx.strokeStyle = isSectionStart ? '#2a2a44' : '#141422';
+                ctx.lineWidth = isSectionStart ? 1 : 1;
+                ctx.beginPath();
+                const gx = Math.round(b.x) + 0.5;
                 ctx.moveTo(gx, ln.top);
                 ctx.lineTo(gx, ln.bottom);
+                ctx.stroke();
             }
-            ctx.stroke();
 
-            // Regions (one rectangle per section with an override value)
+            // Override cells — one rectangle per pinned 8-bar block.
             const laneOverrides = _overrides[ln.param] || {};
             const color = LANE_COLORS[ln.param];
-            for (const s of L.sections) {
-                const v = laneOverrides[s.name];
+            for (const b of L.blocks) {
+                const v = laneOverrides[b.key];
                 if (typeof v !== 'number') continue;
                 const clamped = Math.max(0, Math.min(1, v));
                 const fillH = Math.max(2, Math.round(clamped * (ln.height - 2)));
                 const fy = ln.bottom - fillH;
                 ctx.fillStyle = color.fill;
-                ctx.fillRect(s.x + 1, fy, s.w - 1, fillH);
+                ctx.fillRect(b.x + 1, fy, Math.max(1, b.w - 1), fillH);
                 ctx.strokeStyle = color.stroke;
                 ctx.lineWidth = 1;
-                ctx.strokeRect(s.x + 1.5, fy + 0.5, s.w - 2, fillH - 1);
-                // Value label inside if wide enough
-                if (s.w > 40) {
+                ctx.strokeRect(b.x + 1.5, fy + 0.5, Math.max(0, b.w - 2), Math.max(0, fillH - 1));
+                // Value label only shown on block wide enough to read (else it clips).
+                if (b.w > 32) {
                     ctx.fillStyle = '#05050a';
-                    ctx.fillRect(s.x + 3, ln.top + 1, 32, 10);
+                    ctx.fillRect(b.x + 2, ln.top + 1, 26, 10);
                     ctx.fillStyle = color.stroke;
                     ctx.font = '9px "Share Tech Mono", monospace';
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'top';
-                    ctx.fillText(clamped.toFixed(2), s.x + 4, ln.top + 2);
+                    ctx.fillText(clamped.toFixed(2), b.x + 3, ln.top + 2);
                 }
             }
 
             // Selected outline
             if (_selected && _selected.param === ln.param) {
-                const s = L.sections.find((sx) => sx.name === _selected.section);
-                if (s) {
+                const b = L.blocks.find((bx) => bx.key === _selected.blockKey);
+                if (b) {
                     ctx.strokeStyle = '#05d9e8';
                     ctx.lineWidth = 2;
-                    ctx.strokeRect(s.x + 1, ln.top + 1, s.w - 2, ln.height - 2);
+                    ctx.strokeRect(b.x + 1, ln.top + 1, Math.max(0, b.w - 2), ln.height - 2);
                     ctx.shadowBlur = 8;
                     ctx.shadowColor = 'rgba(5, 217, 232, 0.6)';
-                    ctx.strokeRect(s.x + 1, ln.top + 1, s.w - 2, ln.height - 2);
+                    ctx.strokeRect(b.x + 1, ln.top + 1, Math.max(0, b.w - 2), ln.height - 2);
                     ctx.shadowBlur = 0;
                 }
             }
@@ -252,47 +293,48 @@
         ctx.textAlign = 'left';
         ctx.textBaseline = 'bottom';
         const hint = _selected
-            ? `Selected: ${PARAM_LABELS[_selected.param]} / ${SECTION_LABELS[_selected.section]}  ·  drag top edge to set value  ·  scroll \u00B10.05  ·  right-click to delete`
-            : 'Shift-click a section to add an override  \u00B7  Click to edit  \u00B7  Drag top-edge to set value  \u00B7  Scroll wheel to fine-tune  \u00B7  Right-click to delete';
+            ? `Selected: ${PARAM_LABELS[_selected.param]} / bars ${_selected.blockKey}\u2013${parseInt(_selected.blockKey, 10) + BLOCK_BARS - 1}  \u00B7  drag top edge to set value  \u00B7  scroll \u00B10.05  \u00B7  right-click to delete`
+            : `Shift-click an 8-bar block to add an override  \u00B7  Click to edit  \u00B7  Drag top-edge to set value  \u00B7  Scroll wheel to fine-tune  \u00B7  Right-click to delete  \u00B7  ${L.blocks.length} blocks`;
         ctx.fillText(hint, L.padL, L.H - 4);
     }
 
     // ── Interactions ───────────────────────────────────────────────────────
-    function setOverride(param, section, value) {
+    function setOverride(param, blockKey, value) {
         if (value == null) {
-            delete _overrides[param][section];
+            delete _overrides[param][blockKey];
         } else {
-            _overrides[param][section] = Math.max(0, Math.min(1, value));
+            _overrides[param][blockKey] = Math.max(0, Math.min(1, value));
         }
         saveOverrides();
         renderTimeline();
     }
 
-    function currentValue(param, section) {
-        const v = _overrides[param] && _overrides[param][section];
+    function currentValue(param, blockKey) {
+        const v = _overrides[param] && _overrides[param][blockKey];
         return typeof v === 'number' ? v : null;
     }
 
-    function openPopover(canvas, L, param, section) {
+    function openPopover(canvas, L, param, block) {
         const pop = document.getElementById('alsTimelinePopover');
         if (!pop) return;
         pop.hidden = false;
         const title = pop.querySelector('.als-timeline-popover-title');
         const range = document.getElementById('alsTimelinePopoverValue');
         const label = document.getElementById('alsTimelinePopoverValueLabel');
-        if (title) title.textContent = `${PARAM_LABELS[param]} · ${SECTION_LABELS[section]}`;
-        const v = currentValue(param, section);
+        if (title) {
+            title.textContent = `${PARAM_LABELS[param]} \u00B7 ${SECTION_LABELS[block.section]} \u00B7 bars ${block.startBar}\u2013${block.endBar - 1}`;
+        }
+        const v = currentValue(param, block.key);
         const pct = v == null ? 50 : Math.round(v * 100);
         if (range) range.value = String(pct);
         if (label) label.textContent = (pct / 100).toFixed(2);
-        // Position popover under the section rect, within the wrap
-        const s = L.sections.find((x) => x.name === section);
+        // Position popover under the block rect, within the wrap
         const lane = L.lanes.find((ln) => ln.param === param);
-        if (s && lane) {
-            const popW = 220;
+        if (lane) {
+            const popW = 240;
             const wrap = canvas.parentElement;
             const wrapW = wrap ? wrap.clientWidth : L.W;
-            let left = s.x + s.w / 2 - popW / 2;
+            let left = block.x + block.w / 2 - popW / 2;
             if (left < 4) left = 4;
             if (left + popW > wrapW - 4) left = wrapW - popW - 4;
             let top = lane.bottom + 6;
@@ -324,27 +366,27 @@
 
         // Shift-click = create (or toggle default .5 if already present)
         if (e.shiftKey) {
-            setOverride(h.param, h.section, 0.5);
-            _selected = { param: h.param, section: h.section };
-            openPopover(canvas, L, h.param, h.section);
+            setOverride(h.param, h.block.key, 0.5);
+            _selected = { param: h.param, blockKey: h.block.key, section: h.block.section };
+            openPopover(canvas, L, h.param, h.block);
             return;
         }
 
         // Drag top-edge band (top 6px of lane) = "set value by height"
         const topBand = y - h.lane.top < 6;
-        if (topBand && currentValue(h.param, h.section) != null) {
-            _drag = { mode: 'value', param: h.param, section: h.section, laneTop: h.lane.top, laneH: h.lane.height };
+        if (topBand && currentValue(h.param, h.block.key) != null) {
+            _drag = { mode: 'value', param: h.param, blockKey: h.block.key, laneTop: h.lane.top, laneH: h.lane.height };
             e.preventDefault();
             return;
         }
 
         // Regular click = select + open popover (creates region with default if none)
-        if (currentValue(h.param, h.section) == null) {
-            setOverride(h.param, h.section, 0.5);
+        if (currentValue(h.param, h.block.key) == null) {
+            setOverride(h.param, h.block.key, 0.5);
         }
-        _selected = { param: h.param, section: h.section };
+        _selected = { param: h.param, blockKey: h.block.key, section: h.block.section };
         renderTimeline();
-        openPopover(canvas, L, h.param, h.section);
+        openPopover(canvas, L, h.param, h.block);
     }
 
     function onMouseMove(e) {
@@ -354,7 +396,7 @@
         const y = e.clientY - r.top;
         // Map y within lane to value (top=1, bottom=0)
         const rel = 1 - (y - _drag.laneTop) / _drag.laneH;
-        setOverride(_drag.param, _drag.section, rel);
+        setOverride(_drag.param, _drag.blockKey, rel);
     }
 
     function onMouseUp() {
@@ -369,13 +411,13 @@
         const L = layout(canvas);
         const h = hit(x, y, L);
         if (!h) return;
-        const cur = currentValue(h.param, h.section);
+        const cur = currentValue(h.param, h.block.key);
         if (cur == null) return;
         e.preventDefault();
         const step = e.deltaY < 0 ? 0.05 : -0.05;
-        setOverride(h.param, h.section, cur + step);
-        _selected = { param: h.param, section: h.section };
-        openPopover(canvas, L, h.param, h.section);
+        setOverride(h.param, h.block.key, cur + step);
+        _selected = { param: h.param, blockKey: h.block.key, section: h.block.section };
+        openPopover(canvas, L, h.param, h.block);
     }
 
     function onContext(e) {
@@ -388,9 +430,9 @@
         if (!h) return;
         e.preventDefault();
         // Right-click = delete this override
-        if (currentValue(h.param, h.section) != null) {
-            setOverride(h.param, h.section, null);
-            if (_selected && _selected.param === h.param && _selected.section === h.section) {
+        if (currentValue(h.param, h.block.key) != null) {
+            setOverride(h.param, h.block.key, null);
+            if (_selected && _selected.param === h.param && _selected.blockKey === h.block.key) {
                 _selected = null;
                 closePopover();
             }
@@ -404,12 +446,12 @@
         const v = pct / 100;
         const label = document.getElementById('alsTimelinePopoverValueLabel');
         if (label) label.textContent = v.toFixed(2);
-        setOverride(_selected.param, _selected.section, v);
+        setOverride(_selected.param, _selected.blockKey, v);
     }
 
     function onDeleteClick() {
         if (!_selected) return;
-        setOverride(_selected.param, _selected.section, null);
+        setOverride(_selected.param, _selected.blockKey, null);
         _selected = null;
         closePopover();
     }
@@ -431,37 +473,63 @@
         } catch { /* ignore */ }
     }
 
+    // Legacy: old pref format used section names as keys. Fan each section's
+    // single value out to every 8-bar block in that section for the current
+    // genre so returning users don't silently lose their settings. Exposed so
+    // tests can exercise it.
+    function migrateLegacyOverrides(raw, genre) {
+        const bars = sectionBars(genre);
+        const out = { chaos: {}, glitch: {}, density: {}, variation: {}, parallelism: {}, scatter: {} };
+        if (!raw || typeof raw !== 'object') return out;
+        for (const p of PARAMS) {
+            if (!raw[p] || typeof raw[p] !== 'object') continue;
+            const lane = raw[p];
+            for (const key of Object.keys(lane)) {
+                const v = lane[key];
+                if (typeof v !== 'number' || v < 0 || v > 1) continue;
+                // New format: numeric string key (block start bar).
+                if (/^\d+$/.test(key)) {
+                    // Snap to block start to normalize.
+                    const n = parseInt(key, 10);
+                    const snap = Math.floor((n - 1) / BLOCK_BARS) * BLOCK_BARS + 1;
+                    out[p][String(snap)] = v;
+                    continue;
+                }
+                // Legacy format: section name. Expand to every block in the section.
+                if (bars[key]) {
+                    const [lo, hi] = bars[key];
+                    for (let b = lo; b < hi; b += BLOCK_BARS) {
+                        out[p][String(b)] = v;
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
     function restoreOverrides() {
         try {
             if (typeof prefs === 'undefined') return;
             const raw = prefs.getItem('alsSectionOverrides');
             if (!raw) return;
             const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === 'object') {
-                for (const p of PARAMS) {
-                    if (parsed[p] && typeof parsed[p] === 'object') {
-                        _overrides[p] = {};
-                        for (const s of SECTIONS) {
-                            const v = parsed[p][s];
-                            if (typeof v === 'number' && v >= 0 && v <= 1) _overrides[p][s] = v;
-                        }
-                    }
-                }
-            }
+            _overrides = migrateLegacyOverrides(parsed, getGenre());
+            // Persist the migrated format so we only do the fan-out once.
+            saveOverrides();
         } catch { /* ignore bad JSON */ }
     }
 
     // ── IPC payload — matches Rust SectionOverridesConfig shape ───────────
     function buildIpcPayload() {
-        // Rust expects: { chaos:{intro:0.5|null,...}, glitch:{...}, ... }.
-        // Our internal object skips missing keys; serde treats absent as None.
-        // We return a copy so callers can't mutate our state.
+        // Rust expects: { chaos: {"1":0.5,"9":0.3,...}, glitch: {...}, ... }.
+        // Keys are string representations of 8-bar-block starting bars.
+        // `#[serde(transparent)]` on SectionValues means no wrapper object.
         const out = {};
         for (const p of PARAMS) {
             out[p] = {};
             const lane = _overrides[p] || {};
-            for (const s of SECTIONS) {
-                if (typeof lane[s] === 'number') out[p][s] = lane[s];
+            for (const key of Object.keys(lane)) {
+                if (typeof lane[key] === 'number') out[p][key] = lane[key];
             }
         }
         return out;
@@ -491,7 +559,7 @@
             else if (act === 'alsOverridesClearAll') onClearAllClick();
         });
 
-        // Genre changes → section bar ranges change → repaint
+        // Genre changes → block count / section bars change → repaint
         const genreSel = document.getElementById('alsGenre');
         if (genreSel) genreSel.addEventListener('change', renderTimeline);
 
@@ -518,4 +586,7 @@
         saveOverrides();
         renderTimeline();
     };
+    // Test hook — lets tests verify the migration without poking internals.
+    window.__alsTimelineMigrateLegacyOverrides = migrateLegacyOverrides;
+    window.__alsTimelineBlocksForGenre = blocksForGenre;
 })();
