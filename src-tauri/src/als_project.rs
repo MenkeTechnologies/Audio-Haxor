@@ -1317,4 +1317,45 @@ mod tests {
         assert!(!name.is_empty());
         assert!(name.contains(" - "), "Name should contain timestamp separator: {}", name);
     }
+
+    #[test]
+    fn test_genre_bpm() {
+        assert_eq!(Genre::Techno.default_bpm(), 132);
+        assert_eq!(Genre::Schranz.default_bpm(), 155);
+        assert_eq!(Genre::Trance.default_bpm(), 140);
+        
+        assert_eq!(Genre::Techno.bpm_range(), (120, 140));
+        assert_eq!(Genre::Schranz.bpm_range(), (145, 165));
+        assert_eq!(Genre::Trance.bpm_range(), (130, 160));
+    }
+
+    #[test]
+    fn test_section_values_any() {
+        let mut sv = SectionValues::default();
+        assert!(!sv.any());
+        
+        sv.intro = Some(0.5);
+        assert!(sv.any());
+        
+        sv.intro = None;
+        sv.outro = Some(0.1);
+        assert!(sv.any());
+    }
+
+    #[test]
+    fn test_compatible_keys_edge_cases() {
+        // Unknown root or mode should return a safe fallback
+        let keys = get_compatible_keys("Z", "Aeolian");
+        assert_eq!(keys, vec!["Z Minor".to_string()]);
+        
+        let keys2 = get_compatible_keys("C", "UnknownMode");
+        // C Aeolian (offset -9) -> major_idx 3 (D#), minor_idx 0 (C)
+        assert!(keys2.contains(&"D# Major".to_string()));
+        assert!(keys2.contains(&"C Minor".to_string()));
+        
+        // Case insensitivity
+        let keys3 = get_compatible_keys("c", "aeolian");
+        assert!(keys3.contains(&"D# Major".to_string()));
+        assert!(keys3.contains(&"C Minor".to_string()));
+    }
 }

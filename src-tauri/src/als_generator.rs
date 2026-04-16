@@ -2065,30 +2065,171 @@ mod tests {
         assert_eq!(xml_escape("hello"), "hello");
         assert_eq!(xml_escape("at&t"), "at&amp;t");
         assert_eq!(xml_escape("quote \""), "quote &quot;");
+        assert_eq!(xml_escape("single '"), "single &apos;");
         assert_eq!(xml_escape("tag <br>"), "tag &lt;br&gt;");
+        assert_eq!(xml_escape("multiple &&"), "multiple &amp;&amp;");
+        assert_eq!(xml_escape("mixed <\"&'>"), "mixed &lt;&quot;&amp;&apos;&gt;");
+    }
+
+    #[test]
+    fn test_id_allocator() {
+        let mut ids = IdAllocator::new(100);
+        assert_eq!(ids.next(), 100);
+        assert_eq!(ids.next(), 101);
+        assert_eq!(ids.next(), 102);
+    }
+
+    #[test]
+    fn test_ableton_version_parsing() {
+        let v = AbletonVersion::parse_version_string("12.3.7 (2026-03-30_c92a51f028)").unwrap();
+        assert_eq!(v.major, 12);
+        assert_eq!(v.minor, 3);
+        assert_eq!(v.patch, 7);
+        
+        let v2 = AbletonVersion::parse_version_string("11.0.12").unwrap();
+        assert_eq!(v2.major, 11);
+        assert_eq!(v2.minor, 0);
+        assert_eq!(v2.patch, 12);
+
+        let v3 = AbletonVersion::parse_version_string("12.1").unwrap();
+        assert_eq!(v3.major, 12);
+        assert_eq!(v3.minor, 1);
+        assert_eq!(v3.patch, 0);
+        
+        assert!(AbletonVersion::parse_version_string("invalid").is_none());
+        assert!(AbletonVersion::parse_version_string("").is_none());
+    }
+
+    #[test]
+    fn test_section_bars() {
+        assert_eq!(Section::Intro.bars(), 16);
+        assert_eq!(Section::Buildup.bars(), 16);
+        assert_eq!(Section::Drop.bars(), 32);
+        assert_eq!(Section::Breakdown.bars(), 16);
+        assert_eq!(Section::Drop2.bars(), 32);
+        assert_eq!(Section::Outro.bars(), 16);
     }
 
     #[test]
     fn test_sample_info_loop_bars() {
+        // 120 bpm = 2.0s per bar (4 beats)
         let sample = SampleInfo {
             path: "test.wav".to_string(),
             name: "test".to_string(),
-            duration_secs: 2.0, // 2 seconds at 120 bpm = 1 bar
+            duration_secs: 2.0,
             sample_rate: 44100,
             file_size: 1000,
             bpm: Some(120.0),
         };
         assert_eq!(sample.loop_bars(120.0), 1);
 
-        let long_sample = SampleInfo {
-            path: "test.wav".to_string(),
-            name: "test".to_string(),
-            duration_secs: 8.0, // 8 seconds at 120 bpm = 4 bars
+        // 4.0s = 2 bars
+        let sample2 = sample.clone();
+        let mut sample2 = sample2;
+        sample2.duration_secs = 4.0;
+        assert_eq!(sample2.loop_bars(120.0), 2);
+
+        // 8.0s = 4 bars
+        let mut sample3 = sample.clone();
+        sample3.duration_secs = 8.0;
+        assert_eq!(sample3.loop_bars(120.0), 4);
+
+        // 16.0s = 8 bars
+        let mut sample4 = sample.clone();
+        sample4.duration_secs = 16.0;
+        assert_eq!(sample4.loop_bars(120.0), 8);
+        
+        // Very short sample
+        let mut sample_short = sample.clone();
+        sample_short.duration_secs = 0.1;
+        assert_eq!(sample_short.loop_bars(120.0), 1);
+
+        // Very long sample
+        let mut sample_long = sample.clone();
+        sample_long.duration_secs = 120.0;
+        assert_eq!(sample_long.loop_bars(120.0), 16);
+        
+        // No BPM provided, use project BPM
+        let mut sample_no_bpm = sample.clone();
+        sample_no_bpm.bpm = None;
+        sample_no_bpm.duration_secs = 2.0;
+        assert_eq!(sample_no_bpm.loop_bars(120.0), 1);
+    }
+
+    #[test]
+    fn test_techno_arrangement_logic() {
+        let kick = SampleInfo {
+            path: "kick.wav".to_string(),
+            name: "Kick".to_string(),
+            duration_secs: 0.5,
             sample_rate: 44100,
             file_size: 1000,
-            bpm: Some(120.0),
+            bpm: None,
         };
-        assert_eq!(long_sample.loop_bars(120.0), 4);
+        let clap = SampleInfo {
+            path: "clap.wav".to_string(),
+            name: "Clap".to_string(),
+            duration_secs: 0.5,
+            sample_rate: 44100,
+            file_size: 1000,
+            bpm: None,
+        };
+        let hat = SampleInfo {
+            path: "hat.wav".to_string(),
+            name: "Hat".to_string(),
+            duration_secs: 0.5,
+            sample_rate: 44100,
+            file_size: 1000,
+            bpm: None,
+        };
+
+        let config = TechnoConfig {
+            bpm: 130.0,
+            kick,
+            clap,
+            hat,
+        };
+
+        let tracks = config.generate_arrangement();
+        assert_eq!(tracks.len(), 3);
+        assert_eq!(tracks[0].name, "Kick");
+        assert_eq!(tracks[1].name, "Clap");
+        assert_eq!(tracks[2].name, "Hat");
+
+        let kick_clips = &tracks[0].clips;
+        let clap_clips = &tracks[1].clips;
+        let hat_clips = &tracks[2].clips;
+
+        // Intro: bars 0-16 (beats 0-64)
+        // Kick every 4 bars: 0, 16, 32, 48
+        assert!(kick_clips.iter().any(|c| c.start_beat == 0.0));
+        assert!(kick_clips.iter().any(|c| c.start_beat == 16.0));
+        assert!(kick_clips.iter().any(|c| c.start_beat == 32.0));
+        assert!(kick_clips.iter().any(|c| c.start_beat == 48.0));
+        assert!(!kick_clips.iter().any(|c| c.start_beat == 4.0)); // Should NOT have kick here
+
+        // Buildup: bars 16-32 (beats 64-128)
+        // Kick on every beat
+        for b in 64..128 {
+            assert!(kick_clips.iter().any(|c| c.start_beat == b as f64), "Missing buildup kick at beat {}", b);
+        }
+        // Clap on 2 and 4 (beats 65, 67, 69, 71...)
+        assert!(clap_clips.iter().any(|c| c.start_beat == 65.0));
+        assert!(clap_clips.iter().any(|c| c.start_beat == 67.0));
+
+        // Drop: bars 32-64 (beats 128-256)
+        // Hats on 16th notes
+        assert!(hat_clips.iter().any(|c| c.start_beat == 128.0));
+        assert!(hat_clips.iter().any(|c| c.start_beat == 128.25));
+        assert!(hat_clips.iter().any(|c| c.start_beat == 128.5));
+        assert!(hat_clips.iter().any(|c| c.start_beat == 128.75));
+
+        // Breakdown: bars 64-80 (beats 256-320)
+        // No kick
+        assert!(!kick_clips.iter().any(|c| c.start_beat >= 256.0 && c.start_beat < 320.0));
+        // Sparse clap at end of 4-bar phrases (bar 67, 71, 75, 79)
+        // Bar 67 is beats 268-272. Sparse clap on beat 3 of the bar = beat 271.
+        assert!(clap_clips.iter().any(|c| c.start_beat == 271.0));
     }
 
     #[test]
