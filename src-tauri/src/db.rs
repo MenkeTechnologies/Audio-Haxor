@@ -4662,11 +4662,9 @@ DROP TABLE _pl_refresh_paths;"#;
             placeholders.join(",")
         );
         let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-        let mut idx = 1;
-        for p in paths {
+        for (idx, p) in (1..).zip(paths.iter()) {
             let p = normalize_path_for_db(p);
             stmt.raw_bind_parameter(idx, p).map_err(|e| e.to_string())?;
-            idx += 1;
         }
         let mut result = Vec::new();
         let mut rows = stmt.raw_query();
@@ -8461,7 +8459,7 @@ DROP TABLE _pl_refresh_paths;"#;
             *folder_acc.entry(key).or_insert(0) += 1;
         }
         let mut top_pairs: Vec<(String, u64)> = folder_acc.into_iter().collect();
-        top_pairs.sort_by(|a, b| b.1.cmp(&a.1));
+        top_pairs.sort_by_key(|x| std::cmp::Reverse(x.1));
         let top_folders: Vec<TopFolderRow> = top_pairs
             .into_iter()
             .take(12)

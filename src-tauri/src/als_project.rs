@@ -343,11 +343,10 @@ pub fn query_samples(
 ) -> Result<Vec<SelectedSample>, String> {
     // Try analyzed path first
     let results = query_samples_analyzed(category, config, require_loop, limit);
-    if let Ok(ref r) = results {
-        if !r.is_empty() {
+    if let Ok(ref r) = results
+        && !r.is_empty() {
             return results;
         }
-    }
 
     // Fallback: direct query against audio_samples (before analysis runs)
     query_samples_direct(category, config, require_loop, limit)
@@ -1226,6 +1225,7 @@ mod tests {
             density: 0.0,
             variation: 0.0,
             parallelism: 0.4,
+            scatter: 0.0,
             bpm: 130,
             root_note: Some("A".into()),
             mode: Some("Aeolian".into()),
@@ -1260,6 +1260,7 @@ mod tests {
             density: 0.0,
             variation: 0.0,
             parallelism: 0.4,
+            scatter: 0.0,
             bpm: 155,
             root_note: None,
             mode: None,
@@ -1297,6 +1298,7 @@ mod tests {
             density: 0.0,
             variation: 0.0,
             parallelism: 0.4,
+            scatter: 0.0,
             bpm: 130,
             root_note: Some("A".into()),
             mode: Some("Aeolian".into()),

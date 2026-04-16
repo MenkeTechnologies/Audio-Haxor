@@ -79,15 +79,14 @@ pub fn extract_bpm(name: &str) -> Option<u32> {
             continue;
         };
 
-        if let Ok(bpm) = val_str.parse::<u32>() {
-            if (80..=180).contains(&bpm) {
+        if let Ok(bpm) = val_str.parse::<u32>()
+            && (80..=180).contains(&bpm) {
                 match best {
                     Some((_, p)) if priority < p => best = Some((bpm, priority)),
                     None => best = Some((bpm, priority)),
                     _ => {}
                 }
             }
-        }
     }
 
     best.map(|(bpm, _)| bpm)
@@ -197,18 +196,16 @@ pub fn extract_key(name: &str) -> Option<String> {
     let normalized_name = normalize_sharp_flat_words(name);
     
     // 1. Try explicit minor
-    if let Some(caps) = MINOR_RE.captures(&normalized_name) {
-        if let Some(note) = normalize_note(caps.get(1)?.as_str()) {
+    if let Some(caps) = MINOR_RE.captures(&normalized_name)
+        && let Some(note) = normalize_note(caps.get(1)?.as_str()) {
             return Some(format!("{} Minor", note));
         }
-    }
 
     // 2. Try explicit major
-    if let Some(caps) = MAJOR_RE.captures(&normalized_name) {
-        if let Some(note) = normalize_note(caps.get(1)?.as_str()) {
+    if let Some(caps) = MAJOR_RE.captures(&normalized_name)
+        && let Some(note) = normalize_note(caps.get(1)?.as_str()) {
             return Some(format!("{} Major", note));
         }
-    }
 
     // 3. Bare note → minor
     if let Some(caps) = BARE_NOTE_RE.captures(&normalized_name) {

@@ -1024,8 +1024,8 @@ document.addEventListener('click', (e) => {
                 break;
             case 'alsOpenProject':
                 if (el.dataset.path) {
-                    showToast('Opening in Ableton...');
-                    window.vstUpdater.openDawProject(el.dataset.path).catch(e => showToast('Failed to open: ' + e, 4000, 'error'));
+                    showToast(toastFmt('toast.opening_in_ableton'));
+                    window.vstUpdater.openDawProject(el.dataset.path).catch(e => showToast(toastFmt('toast.failed_open_file', {err: e}), 4000, 'error'));
                 }
                 break;
             case 'deleteDataFile':

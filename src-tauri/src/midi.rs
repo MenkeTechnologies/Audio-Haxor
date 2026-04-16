@@ -124,9 +124,9 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
                             }
                         }
                     }
-                    0x51 => {
+                    0x51
                         // Tempo: 3 bytes, microseconds per quarter note
-                        if meta_end - tp >= 3 {
+                        if meta_end - tp >= 3 => {
                             tempo_us = ((data[tp] as u32) << 16)
                                 | ((data[tp + 1] as u32) << 8)
                                 | (data[tp + 2] as u32);
@@ -134,19 +134,17 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
                                 info.tempo = 60_000_000.0 / tempo_us as f64;
                             }
                         }
-                    }
-                    0x58 => {
+                    0x58
                         // Time signature: nn/2^dd
-                        if meta_end - tp >= 2 {
+                        if meta_end - tp >= 2 => {
                             let nn = data[tp];
                             let dd = data[tp + 1];
                             let denom = 1u32 << dd;
                             info.time_signature = format!("{nn}/{denom}");
                         }
-                    }
-                    0x59 => {
+                    0x59
                         // Key signature: sf mi (sf=sharps/flats, mi=0 major/1 minor)
-                        if meta_end - tp >= 2 {
+                        if meta_end - tp >= 2 => {
                             let sf = data[tp] as i8;
                             let mi = data[tp + 1];
                             let key_names_major = [
@@ -168,7 +166,6 @@ pub fn parse_midi(path: &Path) -> Option<MidiInfo> {
                                 info.key_signature = format!("{name} {mode}");
                             }
                         }
-                    }
                     _ => {}
                 }
                 tp = meta_end;

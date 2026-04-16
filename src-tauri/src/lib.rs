@@ -809,7 +809,7 @@ async fn scan_plugins(
         }
 
         let was_stopped = scan_state.stop_scan.load(Ordering::Relaxed);
-        all_plugins.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        all_plugins.sort_by_key(|a| a.name.to_lowercase());
         let roots: Vec<String> = directories.clone();
         let _ = db.plugin_scan_parent_finalize(
             &plugin_scan_id,
@@ -3285,7 +3285,7 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                 // 3. Never rely on filename-parsed key alone
                 let resolved_key = if existing_key.is_some() {
                     existing_key.clone()
-                } else if analysis.category.as_ref().map_or(false, |c| c.is_key_sensitive) {
+                } else if analysis.category.as_ref().is_some_and(|c| c.is_key_sensitive) {
                     // Run audio key detection for key-sensitive categories
                     let detected = key_detect::detect_key(path);
                     if detected.is_some() {

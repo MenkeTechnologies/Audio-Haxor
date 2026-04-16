@@ -27,6 +27,7 @@ TOAST_EN: dict[str, str] = {
     "toast.log_cleared": "Log cleared",
     "toast.failed_clear_log": "Failed to clear log",
     "toast.opening_log_file": "Opening log file...",
+    "toast.opening_in_ableton": "Opening in Ableton...",
     "toast.opening_data_dir": "Opening data directory...",
     "toast.cache_list_refreshed": "Cache list refreshed",
     "toast.cache_stats_refreshed": "Cache stats refreshed",

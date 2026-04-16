@@ -1837,6 +1837,9 @@ pub fn generate_als_from_template(
 
     // Step 4: Create tracks by cloning the template
     let mut all_tracks_xml = Vec::new();
+    let name_re = Regex::new(r#"<EffectiveName Value="[^"]*" />"#).unwrap();
+    let username_re = Regex::new(r#"(<EffectiveName Value="[^"]*" />\s*<UserName Value=")[^"]*(" />)"#).unwrap();
+    let color_re = Regex::new(r#"<Color Value="\d+" />"#).unwrap();
     for track in tracks {
         let mut t = audio_track_template.clone();
 
@@ -1852,13 +1855,10 @@ pub fn generate_als_from_template(
         }
 
         // Set name
-        let name_re = Regex::new(r#"<EffectiveName Value="[^"]*" />"#).unwrap();
         t = name_re.replace(&t, format!(r#"<EffectiveName Value="{}" />"#, xml_escape(&track.name))).to_string();
-        let username_re = Regex::new(r#"(<EffectiveName Value="[^"]*" />\s*<UserName Value=")[^"]*(" />)"#).unwrap();
         t = username_re.replace(&t, format!(r#"${{1}}{}${{2}}"#, xml_escape(&track.name))).to_string();
 
         // Set color
-        let color_re = Regex::new(r#"<Color Value="\d+" />"#).unwrap();
         t = color_re.replace_all(&t, format!(r#"<Color Value="{}" />"#, track.color)).to_string();
 
         // Create clips

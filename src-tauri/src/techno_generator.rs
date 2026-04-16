@@ -222,7 +222,7 @@ fn generate_scatter_hits(section_scatter: &SectionValues, global_scatter: f32) -
                 
                 // Avoid hits within 4 sixteenths (1 beat) of each other for this track
                 let too_close = pattern_sixteenths.iter().any(|&s| {
-                    let diff = if sixteenth > s { sixteenth - s } else { s - sixteenth };
+                    let diff = sixteenth.abs_diff(s);
                     diff < 4
                 });
                 
@@ -1099,6 +1099,7 @@ fn apply_parallelism(arrangements: Vec<TrackArrangement>, parallelism: f32, vari
         // For each track, determine which slots it's active
         let mut track_active_slots: Vec<Vec<bool>> = vec![vec![false; num_slots as usize]; group_size];
         
+        #[allow(clippy::needless_range_loop)]
         for slot in 0..num_slots as usize {
             // Randomly pick which tracks are active this slot
             let mut candidates: Vec<usize> = (0..group_size).collect();
@@ -1248,12 +1249,11 @@ fn apply_variation(mut arrangements: Vec<TrackArrangement>, variation: f32) -> V
         // Merge overlapping sections
         let mut merged: Vec<(f64, f64)> = Vec::new();
         for (s, e) in filtered {
-            if let Some(last) = merged.last_mut() {
-                if s <= last.1 {
+            if let Some(last) = merged.last_mut()
+                && s <= last.1 {
                     last.1 = last.1.max(e);
                     continue;
                 }
-            }
             merged.push((s, e));
         }
         
@@ -1364,11 +1364,10 @@ fn apply_chaos_to_arrangements(mut arrangements: Vec<TrackArrangement>, chaos: f
             if rng.random_bool(stagger_chance as f64) {
                 // Delay first section by 2-4 bars (not remove it entirely)
                 let delay = if rng.random_bool(0.5) { 2.0 } else { 4.0 };
-                if let Some((start, end)) = new_sections.first_mut() {
-                    if *end - *start > delay + 2.0 {
+                if let Some((start, end)) = new_sections.first_mut()
+                    && *end - *start > delay + 2.0 {
                         *start += delay;
                     }
-                }
             }
         }
         
@@ -1510,13 +1509,13 @@ fn apply_density_per_section(mut arrangements: Vec<TrackArrangement>, section_de
 fn apply_glitch_edits(mut arrangements: Vec<TrackArrangement>, glitch_intensity: f32, section_glitch: &SectionValues) -> Vec<TrackArrangement> {
     // Check if any glitch is enabled at all
     let has_any_glitch = glitch_intensity > 0.05 
-        || section_glitch.intro.map_or(false, |v| v > 0.05)
-        || section_glitch.build.map_or(false, |v| v > 0.05)
-        || section_glitch.breakdown.map_or(false, |v| v > 0.05)
-        || section_glitch.drop1.map_or(false, |v| v > 0.05)
-        || section_glitch.drop2.map_or(false, |v| v > 0.05)
-        || section_glitch.fadedown.map_or(false, |v| v > 0.05)
-        || section_glitch.outro.map_or(false, |v| v > 0.05);
+        || section_glitch.intro.is_some_and(|v| v > 0.05)
+        || section_glitch.build.is_some_and(|v| v > 0.05)
+        || section_glitch.breakdown.is_some_and(|v| v > 0.05)
+        || section_glitch.drop1.is_some_and(|v| v > 0.05)
+        || section_glitch.drop2.is_some_and(|v| v > 0.05)
+        || section_glitch.fadedown.is_some_and(|v| v > 0.05)
+        || section_glitch.outro.is_some_and(|v| v > 0.05);
     
     if !has_any_glitch {
         return arrangements;
@@ -1884,8 +1883,7 @@ impl SampleInfo {
             return 4;
         }
         let bars = (duration * bpm) / (60.0 * 4.0);
-        if bars <= 0.75 { 1 }
-        else if bars <= 1.5 { 1 }
+        if bars <= 1.5 { 1 }
         else if bars <= 3.0 { 2 }
         else if bars <= 6.0 { 4 }
         else if bars <= 12.0 { 8 }
@@ -2883,7 +2881,7 @@ pub fn generate(
         output_path, bpm, num_songs, root_note, mode, genre, hardness, chaos, glitch_intensity, density, variation, parallelism, scatter, atonal, track_counts, type_atonal
     ));
 
-    let cancelled = || cancel.map_or(false, |c| c.load(std::sync::atomic::Ordering::Relaxed));
+    let cancelled = || cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed));
     let progress = |msg: &str| { if let Some(cb) = on_progress { cb(msg); } };
 
     let ids = IdAllocator::new(1000000);
@@ -3029,8 +3027,8 @@ pub fn generate(
         ];
         
         for (prefix, base_name) in layer_patterns {
-            if let Some(num_str) = name.strip_prefix(prefix) {
-                if let Ok(layer_num) = num_str.parse::<usize>() {
+            if let Some(num_str) = name.strip_prefix(prefix)
+                && let Ok(layer_num) = num_str.parse::<usize>() {
                     // Get base arrangement
                     if let Some(base_arr) = arrangements.iter().find(|a| a.name == base_name) {
                         let base_sections = &base_arr.sections;
@@ -3059,7 +3057,6 @@ pub fn generate(
                         return base_sections[trim..total - trim].to_vec();
                     }
                 }
-            }
         }
         
         // For dynamic tracks (DRUM LOOP N, BASS LOOP N, etc.), use full arrangement
