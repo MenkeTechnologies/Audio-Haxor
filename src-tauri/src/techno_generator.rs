@@ -17,18 +17,91 @@ use std::sync::atomic::{AtomicU32, Ordering};
 // Silence between songs (bars)
 const GAP_BETWEEN_SONGS: u32 = 32;
 
-// Arrangement structure (224 bars = 7 minutes at 128 BPM)
-// All values in bars (1-indexed)
+// Canonical arrangement span — 224 bars (7 × 32-bar sections). This is the
+// *reference* layout that every `TrackArrangement` template is written
+// against; users can override per-section bar counts via
+// `ProjectConfig.section_lengths`, and at generation time we remap the
+// canonical ranges into the user's layout (see `remap_bar_range`).
+// The authoritative per-section starts live in
+// `SectionLengths::techno_default().starts()` / `canonical_section_starts()`;
+// this const is retained because `apply_density_per_section` walks the
+// canonical 8-bar block grid before remapping (dynamics are applied in
+// canonical coordinates, then bar ranges projected to user coordinates).
 const SONG_LENGTH_BARS: u32 = 224;
 
-// Section start positions (all 32 bars each)
-const INTRO_START: u32 = 1;
-const BUILD1_START: u32 = 33;
-const BREAKDOWN_START: u32 = 65;
-const DROP1_START: u32 = 97;
-const DROP2_START: u32 = 129;
-const FADEDOWN_START: u32 = 161;
-const OUTRO_START: u32 = 193;
+/// Canonical section starts — fixed, matches the values all templates were
+/// written against. User layouts are derived from `SectionLengths::starts()`.
+fn canonical_section_starts() -> crate::als_project::SectionStarts {
+    crate::als_project::SectionLengths::techno_default().starts()
+}
+
+/// Project a canonical-layout bar range onto the user's section layout.
+///
+/// The canonical layout is 7 × 32 bars (see the `INTRO_START` family of
+/// consts). Every `TrackArrangement` template is written with absolute bar
+/// positions inside that layout — no template range crosses a section
+/// boundary, which is what lets this remap stay a pure offset shift:
+///
+///   canonical_bar = canonical_section_start + offset_in_section
+///   user_bar      = user_section_start      + offset_in_section
+///
+/// Ranges that extend past the user's (possibly shorter) section end are
+/// clipped; ranges whose start is already past the user's section end are
+/// dropped entirely (returns None). This gracefully handles the common user
+/// edit ("shrink outro 48 → 32") without template rewrites.
+///
+/// For sections the user has *extended* beyond the canonical 32-bar length,
+/// the remap produces bars only up to the original 32-bar span — the
+/// extension remains silent (no template content fills it). Addressing that
+/// is a future enhancement; for now the user's stated use case (shrinking
+/// back to uniform 32) is handled correctly.
+pub fn remap_bar_range(
+    canon_start: f64,
+    canon_end: f64,
+    user: &crate::als_project::SectionStarts,
+) -> Option<(f64, f64)> {
+    let c = canonical_section_starts();
+    let s_u32 = canon_start as u32;
+    // Pick the canonical/user pair for the section containing `canon_start`.
+    let (c_lo, c_hi, u_lo, u_hi) = if s_u32 < c.build.0 {
+        (c.intro.0, c.intro.1, user.intro.0, user.intro.1)
+    } else if s_u32 < c.breakdown.0 {
+        (c.build.0, c.build.1, user.build.0, user.build.1)
+    } else if s_u32 < c.drop1.0 {
+        (c.breakdown.0, c.breakdown.1, user.breakdown.0, user.breakdown.1)
+    } else if s_u32 < c.drop2.0 {
+        (c.drop1.0, c.drop1.1, user.drop1.0, user.drop1.1)
+    } else if s_u32 < c.fadedown.0 {
+        (c.drop2.0, c.drop2.1, user.drop2.0, user.drop2.1)
+    } else if s_u32 < c.outro.0 {
+        (c.fadedown.0, c.fadedown.1, user.fadedown.0, user.fadedown.1)
+    } else {
+        (c.outro.0, c.outro.1, user.outro.0, user.outro.1)
+    };
+
+    // Sanity: if canon_start isn't inside the canonical section we picked
+    // (shouldn't happen for well-formed templates), drop silently.
+    if canon_start < c_lo as f64 || canon_start >= c_hi as f64 {
+        return None;
+    }
+
+    let offset_start = canon_start - c_lo as f64;
+    let offset_end = canon_end - c_lo as f64;
+    let user_section_len = (u_hi - u_lo) as f64;
+
+    // Range starts past the end of the user's (shorter) section → nothing.
+    if offset_start >= user_section_len {
+        return None;
+    }
+
+    let new_start = u_lo as f64 + offset_start;
+    let new_end = (u_lo as f64 + offset_end).min(u_hi as f64);
+    if new_end <= new_start {
+        None
+    } else {
+        Some((new_start, new_end))
+    }
+}
 
 // Element entry/exit positions (in bars, supports fractional for beat precision)
 // 16.75 = bar 16, beat 4 (last beat of bar 16)
@@ -2460,22 +2533,29 @@ fn query_samples_internal(
     results
 }
 
-// Section locators for arrangement navigation (for one song)
-fn get_song_locators() -> Vec<(&'static str, u32)> {
+// Section locators for arrangement navigation (for one song). Built from the
+// user's section layout so locators land on the actual section boundaries
+// Ableton sees, not the canonical 32/32/32/32/32/32/32 grid.
+fn get_song_locators(starts: &crate::als_project::SectionStarts) -> Vec<(&'static str, u32)> {
     vec![
-        ("INTRO", INTRO_START),        // 1
-        ("BUILD", BUILD1_START),       // 33
-        ("BREAKDOWN", BREAKDOWN_START),// 65
-        ("DROP 1", DROP1_START),       // 97
-        ("DROP 2", DROP2_START),       // 129
-        ("FADEDOWN", FADEDOWN_START),  // 161
-        ("OUTRO", OUTRO_START),        // 193
+        ("INTRO",     starts.intro.0),
+        ("BUILD",     starts.build.0),
+        ("BREAKDOWN", starts.breakdown.0),
+        ("DROP 1",    starts.drop1.0),
+        ("DROP 2",    starts.drop2.0),
+        ("FADEDOWN",  starts.fadedown.0),
+        ("OUTRO",     starts.outro.0),
     ]
 }
 
-fn create_locators_xml_multi(ids: &IdAllocator, num_songs: u32, song_keys: &[String]) -> String {
+fn create_locators_xml_multi(
+    ids: &IdAllocator,
+    num_songs: u32,
+    song_keys: &[String],
+    user_starts: &crate::als_project::SectionStarts,
+) -> String {
     let mut locators: Vec<String> = Vec::new();
-    let bars_per_song = SONG_LENGTH_BARS + GAP_BETWEEN_SONGS;
+    let bars_per_song = user_starts.total_bars() + GAP_BETWEEN_SONGS;
 
     for song_idx in 0..num_songs {
         let offset = song_idx * bars_per_song;
@@ -2498,7 +2578,7 @@ fn create_locators_xml_multi(ids: &IdAllocator, num_songs: u32, song_keys: &[Str
         }
 
         // Add section markers for this song
-        for (name, bar) in get_song_locators() {
+        for (name, bar) in get_song_locators(user_starts) {
             let id = ids.alloc();
             let time_beats = (bar - 1 + offset) * 4; // bar 1 = beat 0
             // Only prefix with song number if multiple songs
@@ -2821,24 +2901,31 @@ pub fn generate(
     atonal: bool,
     track_counts: TrackCounts,
     type_atonal: TypeAtonal,
+    section_lengths: crate::als_project::SectionLengths,
     cancel: Option<&std::sync::atomic::AtomicBool>,
     on_progress: Option<&dyn Fn(&str)>,
 ) -> Result<GenerationResult, String> {
     let gen_start = std::time::Instant::now();
+    // Sanitize before use — if the frontend (or a stale IPC payload) ships
+    // non-multiple-of-8 or sub-8 values, clamp them up to the grid so we
+    // never produce a song with a 3-bar intro.
+    let lengths = section_lengths.sanitize();
+    let user_starts = lengths.starts();
+    let song_length_bars = lengths.total_bars();
     write_app_log(format!(
-        "[techno_generator] generate: INPUT PARAMS: output={:?}, bpm={}, num_songs={}, root_note={:?}, mode={:?}, genre={:?}, hardness={}, chaos={}, glitch_intensity={}, density={}, variation={}, parallelism={}, scatter={}, atonal={}, tracks={:?}, type_atonal={:?}",
-        output_path, bpm, num_songs, root_note, mode, genre, hardness, chaos, glitch_intensity, density, variation, parallelism, scatter, atonal, track_counts, type_atonal
+        "[techno_generator] generate: INPUT PARAMS: output={:?}, bpm={}, num_songs={}, root_note={:?}, mode={:?}, genre={:?}, hardness={}, chaos={}, glitch_intensity={}, density={}, variation={}, parallelism={}, scatter={}, atonal={}, tracks={:?}, type_atonal={:?}, lengths={:?} ({} bars)",
+        output_path, bpm, num_songs, root_note, mode, genre, hardness, chaos, glitch_intensity, density, variation, parallelism, scatter, atonal, track_counts, type_atonal, lengths, song_length_bars
     ));
 
     let cancelled = || cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed));
     let progress = |msg: &str| { if let Some(cb) = on_progress { cb(msg); } };
 
     let ids = IdAllocator::new(1000000);
-    let bars_per_song = SONG_LENGTH_BARS + GAP_BETWEEN_SONGS;
+    let bars_per_song = song_length_bars + GAP_BETWEEN_SONGS;
     let total_bars = bars_per_song * num_songs;
     write_app_log(format!(
         "[techno_generator] generate: COMPUTED: bars_per_song={}, total_bars={}, song_length={} bars, gap={} bars",
-        bars_per_song, total_bars, SONG_LENGTH_BARS, GAP_BETWEEN_SONGS
+        bars_per_song, total_bars, song_length_bars, GAP_BETWEEN_SONGS
     ));
 
     // Build target key from root_note + mode, or pick random
@@ -2935,18 +3022,32 @@ pub fn generate(
     bass_fx_group = inject_device_into_group_chain(&bass_fx_group, &group_sc_bass_fx);
     melodics_group = inject_device_into_group_chain(&melodics_group, &group_sc_melodics);
 
-    // Get arrangement structure with all section overrides applied
-    let arrangements = get_arrangement_with_params(chaos, glitch_intensity, &section_overrides, density, variation, parallelism, scatter);
-    
-    // Default full-song arrangement for extra loop tracks (play throughout most of the song)
+    // Get arrangement structure with all section overrides applied. The
+    // templates are in the canonical 224-bar layout; we remap onto the user's
+    // `lengths` immediately after so everything downstream (clip placement,
+    // find_arr fallback, full_arrangement) speaks in user bars.
+    let mut arrangements = get_arrangement_with_params(chaos, glitch_intensity, &section_overrides, density, variation, parallelism, scatter);
+    for arr in arrangements.iter_mut() {
+        let mut remapped: Vec<(f64, f64)> = Vec::with_capacity(arr.sections.len());
+        for &(s, e) in arr.sections.iter() {
+            if let Some(r) = remap_bar_range(s, e, &user_starts) {
+                remapped.push(r);
+            }
+        }
+        arr.sections = remapped;
+    }
+
+    // Default full-song arrangement for extra loop tracks — spans every
+    // section of the user's layout, not the canonical one, so tracks using
+    // this fallback fill the song regardless of section length customization.
     let full_arrangement: Vec<(f64, f64)> = vec![
-        (1.0, 32.0),     // Intro
-        (33.0, 64.0),    // Build
-        (65.0, 96.0),    // Breakdown
-        (97.0, 128.0),   // Drop 1
-        (129.0, 160.0),  // Drop 2
-        (161.0, 192.0),  // Fadedown
-        (193.0, 224.0),  // Outro
+        (user_starts.intro.0     as f64, (user_starts.intro.1     - 1) as f64),
+        (user_starts.build.0     as f64, (user_starts.build.1     - 1) as f64),
+        (user_starts.breakdown.0 as f64, (user_starts.breakdown.1 - 1) as f64),
+        (user_starts.drop1.0     as f64, (user_starts.drop1.1     - 1) as f64),
+        (user_starts.drop2.0     as f64, (user_starts.drop2.1     - 1) as f64),
+        (user_starts.fadedown.0  as f64, (user_starts.fadedown.1  - 1) as f64),
+        (user_starts.outro.0     as f64, (user_starts.outro.1     - 1) as f64),
     ];
 
     // Helper to find arrangement for a track
@@ -3262,7 +3363,7 @@ pub fn generate(
     // Add locators at section boundaries for ALL songs
     // Template has outer wrapper: <Locators>\n\t\t\t<Locators />\n\t\t</Locators>
     // We replace the inner <Locators /> with our populated <Locators>...</Locators>
-    let locators_xml = create_locators_xml_multi(&ids, num_songs, &song_keys);
+    let locators_xml = create_locators_xml_multi(&ids, num_songs, &song_keys, &user_starts);
     let inner_locators_re = Regex::new(r#"<Locators\s*/>"#).unwrap();
     if inner_locators_re.is_match(&xml) {
         xml = inner_locators_re.replace(&xml, locators_xml.as_str()).to_string();
@@ -3293,7 +3394,7 @@ pub fn generate(
     Ok(GenerationResult {
         tracks: track_count,
         clips: clip_count,
-        bars: (SONG_LENGTH_BARS + GAP_BETWEEN_SONGS) * num_songs,
+        bars: bars_per_song * num_songs,
         warnings,
         keys: song_keys,
     })
@@ -3947,16 +4048,30 @@ mod tests {
     }
 
     #[test]
-    fn test_section_bounds_alignment() {
-        // Verify constants align with expected structure
-        assert_eq!(INTRO_START, 1);
-        assert_eq!(BUILD1_START, 33);
-        assert_eq!(BREAKDOWN_START, 65);
-        assert_eq!(DROP1_START, 97);
-        assert_eq!(DROP2_START, 129);
-        assert_eq!(FADEDOWN_START, 161);
-        assert_eq!(OUTRO_START, 193);
-        assert_eq!(SONG_LENGTH_BARS, 224);
+    fn test_canonical_section_layout_is_stable() {
+        // Every arrangement template is written in the canonical 7×32-bar
+        // layout. If this ever drifts, `remap_bar_range` silently misroutes
+        // every clip. Anchor on both the lengths struct and the derived
+        // starts so a change to either surfaces here.
+        let lengths = crate::als_project::SectionLengths::techno_default();
+        assert_eq!(lengths.intro, 32);
+        assert_eq!(lengths.build, 32);
+        assert_eq!(lengths.breakdown, 32);
+        assert_eq!(lengths.drop1, 32);
+        assert_eq!(lengths.drop2, 32);
+        assert_eq!(lengths.fadedown, 32);
+        assert_eq!(lengths.outro, 32);
+        assert_eq!(lengths.total_bars(), 224);
+        assert_eq!(SONG_LENGTH_BARS, lengths.total_bars());
+
+        let s = lengths.starts();
+        assert_eq!(s.intro, (1, 33));
+        assert_eq!(s.build, (33, 65));
+        assert_eq!(s.breakdown, (65, 97));
+        assert_eq!(s.drop1, (97, 129));
+        assert_eq!(s.drop2, (129, 161));
+        assert_eq!(s.fadedown, (161, 193));
+        assert_eq!(s.outro, (193, 225));
     }
 
     #[test]
@@ -4561,5 +4676,172 @@ mod additional_tests {
         let arr = vec![TrackArrangement::new("KICK", vec![(97.0, 100.0)])];
         let out = apply_glitch_edits(arr.clone(), 0.0, &sv);
         assert_ne!(out, arr, "a pinned block > 0.05 must trigger glitch even with global=0");
+    }
+
+    // ---------- Remap + user-chosen section length tests (2026-04-16) ----------
+
+    fn canonical_starts() -> crate::als_project::SectionStarts {
+        crate::als_project::SectionLengths::techno_default().starts()
+    }
+
+    #[test]
+    fn remap_identity_leaves_canonical_ranges_untouched() {
+        // A 32/32/32/32/32/32/32 user layout is the canonical layout — every
+        // template range should remap to itself.
+        let user = crate::als_project::SectionLengths::techno_default().starts();
+        assert_eq!(remap_bar_range(1.0, 16.75, &user), Some((1.0, 16.75)));
+        assert_eq!(remap_bar_range(97.0, 104.75, &user), Some((97.0, 104.75)));
+        assert_eq!(remap_bar_range(193.0, 208.5, &user), Some((193.0, 208.5)));
+        assert_eq!(remap_bar_range(217.0, 224.0, &user), Some((217.0, 224.0)));
+    }
+
+    #[test]
+    fn remap_shrink_clips_ranges_past_section_end() {
+        // Trance with user outro=32 (shrunk from the 48 default). Template
+        // has KICK playing `(193.0, 208.5)` in canonical outro (bars 193-224).
+        // User's outro in this layout starts at bar 209 (intro 32 + build 32 +
+        // breakdown 48 + drop1 32 + drop2 32 + fadedown 32 = 208; outro starts
+        // 209) and spans 32 bars (209..=240, exclusive 241).
+        let user = crate::als_project::SectionLengths {
+            intro: 32, build: 32, breakdown: 48, drop1: 32, drop2: 32, fadedown: 32, outro: 32,
+        }.starts();
+        assert_eq!(user.outro, (209, 241));
+
+        // canonical (193.0, 208.5) → offset (0, 15.5) → user (209.0, 224.5)
+        let remapped = remap_bar_range(193.0, 208.5, &user).expect("range should project");
+        assert!((remapped.0 - 209.0).abs() < 1e-9);
+        assert!((remapped.1 - 224.5).abs() < 1e-9);
+
+        // A canonical range deep in the outro: (217.0, 224.0) = offsets 24-31
+        // from canonical outro start 193. In the user's 32-bar outro starting
+        // at bar 209, those offsets project to bars 233-240 — still inside the
+        // user's outro (which ends exclusive at 241), no clipping.
+        let remapped = remap_bar_range(217.0, 224.0, &user).expect("range should project");
+        assert!((remapped.0 - 233.0).abs() < 1e-9, "got {}", remapped.0);
+        assert!((remapped.1 - 240.0).abs() < 1e-9, "got {}", remapped.1);
+    }
+
+    #[test]
+    fn remap_shrink_drops_ranges_starting_past_user_section_end() {
+        // If user shrinks outro to 16 bars, canonical ranges starting past
+        // bar 209 (offset 16 from canonical outro start) must be dropped —
+        // they have no room to play.
+        let user = crate::als_project::SectionLengths {
+            intro: 32, build: 32, breakdown: 32, drop1: 32, drop2: 32, fadedown: 32, outro: 16,
+        }.starts();
+        // Canonical outro (193-225); user outro is 16 bars. Range (209.0, 216.75)
+        // starts at offset 16 — already past the user's 16-bar outro end.
+        assert_eq!(remap_bar_range(209.0, 216.75, &user), None);
+        // But (193.0, 208.5) starts at offset 0 — fits in the first 15.5 bars.
+        assert!(remap_bar_range(193.0, 208.5, &user).is_some());
+    }
+
+    #[test]
+    fn remap_clips_range_that_straddles_shrunk_section_end() {
+        // A canonical range partially inside a shrunk user section should
+        // clip at the user's section end (not silently leak into the next
+        // section, which would corrupt the arrangement).
+        let user = crate::als_project::SectionLengths {
+            intro: 32, build: 32, breakdown: 16, drop1: 32, drop2: 32, fadedown: 32, outro: 32,
+        }.starts();
+        // User breakdown = 16 bars (bars 65..=80, exclusive 81). Canonical
+        // range (89.0, 96.0) is inside canonical breakdown (65-96) at offset
+        // 24-31 — past the 16-bar user breakdown. Starts past end → None.
+        assert_eq!(remap_bar_range(89.0, 96.0, &user), None);
+        // Canonical range (65.0, 80.0) fits (offsets 0-15 of user breakdown).
+        assert_eq!(remap_bar_range(65.0, 80.0, &user), Some((65.0, 80.0)));
+        // (65.0, 96.0) straddles — clip at user breakdown end (bar 81).
+        let r = remap_bar_range(65.0, 96.0, &user).expect("starts inside user section");
+        assert_eq!(r.0, 65.0);
+        assert!((r.1 - 81.0).abs() < 1e-9, "clipped to user breakdown end, got {}", r.1);
+    }
+
+    #[test]
+    fn remap_extend_produces_silent_tail() {
+        // User extends intro from 32 → 48 bars. Canonical template covers
+        // bars 1-32 only (3 gap patterns), then produces no ranges beyond.
+        // Remap just passes template ranges through unchanged since offset 0-32
+        // fits in user intro (0-48). Bars 33-48 of user intro are silent because
+        // no template range addresses them — that's the known extension limitation.
+        let user = crate::als_project::SectionLengths {
+            intro: 48, build: 32, breakdown: 32, drop1: 32, drop2: 32, fadedown: 32, outro: 32,
+        }.starts();
+        assert_eq!(user.intro, (1, 49));
+        assert_eq!(user.build, (49, 81)); // shifted right by 16
+        // Canonical intro ranges (1.0, 32.0) fit unchanged.
+        assert_eq!(remap_bar_range(1.0, 32.0, &user), Some((1.0, 32.0)));
+        // Canonical build ranges shift by 16.
+        assert_eq!(remap_bar_range(33.0, 64.0, &user), Some((49.0, 80.0)));
+    }
+
+    #[test]
+    fn section_lengths_defaults_match_historical_section_bounds() {
+        // Regression guard: the canonical Techno layout stays at 32×7; trance
+        // keeps 32/32/48/32/32/32/48 = 256; schranz keeps 32/32/16/32/48/32/16 = 208.
+        // These values came from the old (now-deleted) SectionBounds struct
+        // and represent shipped defaults users may rely on.
+        let techno = crate::als_project::SectionLengths::techno_default();
+        assert_eq!(techno.total_bars(), 224);
+
+        let trance = crate::als_project::SectionLengths::trance_default();
+        assert_eq!(trance.breakdown, 48);
+        assert_eq!(trance.outro, 48);
+        assert_eq!(trance.total_bars(), 256);
+
+        let schranz = crate::als_project::SectionLengths::schranz_default();
+        assert_eq!(schranz.breakdown, 16);
+        assert_eq!(schranz.drop2, 48);
+        assert_eq!(schranz.outro, 16);
+        assert_eq!(schranz.total_bars(), 208);
+    }
+
+    #[test]
+    fn section_lengths_sanitize_clamps_and_snaps_to_8bar_grid() {
+        // Bad IPC payload: 3-bar intro would mangle every template range.
+        // sanitize() snaps each field down to a multiple of 8 and enforces a
+        // minimum of 8 (so zero/negative/sub-8 values don't silently pass).
+        let bad = crate::als_project::SectionLengths {
+            intro: 0, build: 3, breakdown: 15, drop1: 16, drop2: 31, fadedown: 40, outro: 100,
+        }.sanitize();
+        assert_eq!(bad.intro, 8, "0 → clamped to min 8");
+        assert_eq!(bad.build, 8, "3 → snapped down to 0, clamped to min 8");
+        assert_eq!(bad.breakdown, 8, "15 → snapped to 8");
+        assert_eq!(bad.drop1, 16, "16 → unchanged (already multiple of 8)");
+        assert_eq!(bad.drop2, 24, "31 → snapped down to 24");
+        assert_eq!(bad.fadedown, 40);
+        assert_eq!(bad.outro, 96, "100 → snapped down to 96");
+    }
+
+    #[test]
+    fn section_starts_chain_correctly_from_lengths() {
+        // The sum-chain invariant: outro.end - 1 == total_bars.
+        let lengths = crate::als_project::SectionLengths {
+            intro: 16, build: 32, breakdown: 48, drop1: 32, drop2: 32, fadedown: 32, outro: 32,
+        };
+        let s = lengths.starts();
+        assert_eq!(s.intro, (1, 17));
+        assert_eq!(s.build, (17, 49));
+        assert_eq!(s.breakdown, (49, 97));
+        assert_eq!(s.drop1, (97, 129));
+        assert_eq!(s.drop2, (129, 161));
+        assert_eq!(s.fadedown, (161, 193));
+        assert_eq!(s.outro, (193, 225));
+        assert_eq!(s.total_bars(), lengths.total_bars());
+        assert_eq!(s.total_bars(), 224);
+    }
+
+    #[test]
+    fn canonical_starts_matches_historical_consts() {
+        // The "remap against" layout must stay at the 224-bar Techno grid —
+        // every template is authored against it. Confirm the canonical
+        // accessor returns the values that used to be compile-time consts.
+        let c = canonical_starts();
+        assert_eq!(c.intro, (1, 33));
+        assert_eq!(c.build, (33, 65));
+        assert_eq!(c.breakdown, (65, 97));
+        assert_eq!(c.drop1, (97, 129));
+        assert_eq!(c.drop2, (129, 161));
+        assert_eq!(c.fadedown, (161, 193));
+        assert_eq!(c.outro, (193, 225));
     }
 }

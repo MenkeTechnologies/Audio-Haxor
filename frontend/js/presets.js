@@ -571,11 +571,18 @@ async function scanPresets(resume = false, unifiedResult = null, overrideRoots =
                 const loadMore = document.getElementById('presetLoadMore');
                 if (loadMore) loadMore.remove();
                 const scanFmtSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('presetFormatFilter') : null;
-                const scanSearch = (document.getElementById('presetSearchInput')?.value || '').trim().toLowerCase();
+                const scanSearch = (document.getElementById('presetSearchInput')?.value || '').trim();
+                const scanMode = typeof getSearchMode === 'function' ? getSearchMode('regexPresets') : (_lastPresetMode || 'fuzzy');
                 const visibleBatch = (scanFmtSet || scanSearch)
                     ? presetBatch.filter(p => {
                         if (scanFmtSet && !scanFmtSet.has(p.format)) return false;
-                        if (scanSearch && !((p.name || '').toLowerCase().includes(scanSearch))) return false;
+                        if (scanSearch) {
+                            if (typeof searchMatch === 'function') {
+                                if (!searchMatch(scanSearch, [p.name || '', p.directory || ''], scanMode)) return false;
+                            } else if (!((p.name || '').toLowerCase().includes(scanSearch.toLowerCase()))) {
+                                return false;
+                            }
+                        }
                         return true;
                     })
                     : presetBatch;

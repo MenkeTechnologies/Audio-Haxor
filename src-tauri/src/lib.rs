@@ -3520,6 +3520,7 @@ async fn generate_als_project(
             config.atonal,
             track_counts,
             type_atonal,
+            config.section_lengths,
             Some(&ALS_GENERATION_CANCEL),
             Some(&progress_cb),
         )?;

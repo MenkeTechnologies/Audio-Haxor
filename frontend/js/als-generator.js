@@ -206,6 +206,12 @@
       section_overrides: typeof window.alsSectionOverridesForIpc === 'function'
         ? window.alsSectionOverridesForIpc()
         : { chaos: {}, glitch: {}, density: {}, variation: {}, parallelism: {}, scatter: {} },
+      // Per-section bar lengths chosen by the user (draggable in the timeline
+      // canvas). Falls back to genre defaults when the user hasn't touched
+      // anything. Shape matches Rust `SectionLengths`.
+      section_lengths: typeof window.alsSectionLengthsForIpc === 'function'
+        ? window.alsSectionLengthsForIpc()
+        : { intro: 32, build: 32, breakdown: 32, drop1: 32, drop2: 32, fadedown: 32, outro: 32 },
     };
   }
 

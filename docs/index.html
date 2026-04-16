@@ -209,8 +209,15 @@
             riser, downlifter, crash, impact, hit, sweep up/down, snare roll,
             reverse, sub drop, boom kick, atmos, glitch, scatter, vox) across
             seven sections (intro / build / breakdown / drop 1 / drop 2 /
-            fadedown / outro). Genre-aware bar counts: 224 Techno, 256 Trance,
-            208 Schranz.</li>
+            fadedown / outro). Default bar counts per genre: 224 Techno (32×7),
+            256 Trance (32/32/48/32/32/32/48), 208 Schranz (32/32/16/32/48/32/16).
+            <strong>Per-section lengths are user-editable per genre</strong> —
+            drag any section boundary in the timeline canvas (8-bar snap, min 8,
+            max 128 bars) to resize; saved under <code>alsSectionLengthsByGenre</code>
+            in prefs and plumbed through <code>ProjectConfig.section_lengths</code> to
+            the generator. Templates are authored against the canonical 224-bar
+            Techno layout and remapped onto the user&rsquo;s layout at generate
+            time via <code>remap_bar_range</code>.</li>
           <li><strong>Section-override timeline</strong> — 6-lane HUD canvas
             lets you pin <strong>per-8-bar-block</strong> values for chaos /
             glitch / density / variation / parallelism / scatter. Each

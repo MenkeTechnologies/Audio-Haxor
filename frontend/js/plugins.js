@@ -317,7 +317,8 @@ async function scanPlugins(resume = false, overrideRoots = null) {
                     temp.innerHTML = batch.map(p => buildPluginCardHtml(p)).join('');
                     const scanTypeSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('typeFilter') : null;
                     const scanStatusSet = typeof getMultiFilterValues === 'function' ? getMultiFilterValues('statusFilter') : null;
-                    const scanSearch = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+                    const scanSearch = (document.getElementById('searchInput')?.value || '').trim();
+                    const scanMode = typeof getSearchMode === 'function' ? getSearchMode('regexPlugins') : (_lastPluginMode || 'fuzzy');
                     const hasFilter = !!(scanTypeSet || scanStatusSet || scanSearch);
                     while (temp.firstChild) {
                         const c = temp.firstChild;
@@ -328,7 +329,7 @@ async function scanPlugins(resume = false, overrideRoots = null) {
                             let match = true;
                             if (scanTypeSet && t && !scanTypeSet.has(t)) match = false;
                             if (match && scanStatusSet && c.dataset.pluginStatus && !scanStatusSet.has(c.dataset.pluginStatus)) match = false;
-                            if (match && scanSearch && !n.includes(scanSearch) && !m.includes(scanSearch)) match = false;
+                            if (match && scanSearch && typeof searchMatch === 'function' && !searchMatch(scanSearch, [n, m], scanMode)) match = false;
                             if (!match) c.style.display = 'none';
                         }
                         fragment.appendChild(c);

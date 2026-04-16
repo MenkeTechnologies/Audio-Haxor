@@ -495,9 +495,12 @@ async function scanPdfs(resume = false, unifiedResult = null, overrideRoots = nu
 
         const tbody = document.getElementById('pdfTableBody');
         if (!_pdfScanDbView && tbody && pdfRenderCount < 2000) {
-            const scanSearch = (document.getElementById('pdfSearchInput')?.value || '').trim().toLowerCase();
+            const scanSearch = (document.getElementById('pdfSearchInput')?.value || '').trim();
+            const scanMode = typeof getSearchMode === 'function' ? getSearchMode('regexPdf') : (_lastPdfMode || 'fuzzy');
             const visibleBatch = scanSearch
-                ? batch.filter(p => (p.name || '').toLowerCase().includes(scanSearch))
+                ? batch.filter(p => typeof searchMatch === 'function'
+                    ? searchMatch(scanSearch, [p.name || '', p.directory || ''], scanMode)
+                    : (p.name || '').toLowerCase().includes(scanSearch.toLowerCase()))
                 : batch;
             const toRender = visibleBatch.slice(0, 2000 - pdfRenderCount);
             tbody.insertAdjacentHTML('beforeend', toRender.map(buildPdfRow).join(''));
