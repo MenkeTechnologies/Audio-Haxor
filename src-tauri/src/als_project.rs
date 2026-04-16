@@ -131,6 +131,51 @@ pub struct ProjectConfig {
     /// Per-type track counts (new - takes precedence over category-based tracks)
     #[serde(default)]
     pub track_counts: TrackCountsConfig,
+    /// Optional seed for deterministic generation. `None` = a fresh random seed
+    /// is drawn by the Tauri command and returned to the caller so it can be
+    /// locked for a subsequent "regenerate with the same seed" run.
+    ///
+    /// When the user locks the seed, identical configs produce bit-identical
+    /// arrangements and project names (the filename still gets a wall-clock
+    /// timestamp suffix so back-to-back locked runs do not overwrite each
+    /// other).
+    ///
+    /// Accepts either a JSON number or a string form — the wizard always
+    /// sends a string so seeds above `Number.MAX_SAFE_INTEGER` round-trip
+    /// through JS without precision loss.
+    #[serde(default, deserialize_with = "deserialize_seed")]
+    pub seed: Option<u64>,
+}
+
+/// Deserialize the wizard's `seed` field from either a u64 JSON number or a
+/// decimal string. Empty strings, whitespace, and `null` map to `None` so the
+/// Tauri command treats them as "pick a fresh random seed for this run".
+fn deserialize_seed<'de, D>(d: D) -> Result<Option<u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum SeedRepr {
+        Num(u64),
+        Str(String),
+    }
+    let raw: Option<SeedRepr> = Option::deserialize(d)?;
+    match raw {
+        None => Ok(None),
+        Some(SeedRepr::Num(n)) => Ok(Some(n)),
+        Some(SeedRepr::Str(s)) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                Ok(None)
+            } else {
+                trimmed
+                    .parse::<u64>()
+                    .map(Some)
+                    .map_err(serde::de::Error::custom)
+            }
+        }
+    }
 }
 
 /// Per-type track counts from frontend
@@ -707,18 +752,18 @@ fn category_to_like_pattern(category: &str) -> String {
 // Project name generation
 // ---------------------------------------------------------------------------
 
-/// Generate a project name from inputs.
-pub fn generate_project_name(config: &ProjectConfig) -> String {
+/// Generate a project name from inputs. `seed` is the resolved generation
+/// seed (see `ProjectConfig::seed`) — same seed + same config → same name.
+/// Callers who want a non-deterministic name pass a fresh random u64.
+pub fn generate_project_name(config: &ProjectConfig, seed: u64) -> String {
+    // Mix the seed through DefaultHasher so word slots don't correlate trivially
+    // with the low bits of the input (seeds are often sequential when users
+    // bump "Seed +1"). The rest of the function is the same deterministic
+    // pick-a-word-per-slot it always was.
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-
-    // Use a deterministic-but-varied selection based on current time (millis for uniqueness)
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
     let mut hasher = DefaultHasher::new();
-    now.hash(&mut hasher);
+    seed.hash(&mut hasher);
     let seed = hasher.finish() as usize;
 
     let genre_words: &[&str] = match config.genre {
@@ -850,8 +895,9 @@ mod tests {
             output_path: "/tmp/test.als".into(),
             project_name: None,
             num_songs: 1,
+            seed: None,
         };
-        let name = generate_project_name(&config);
+        let name = generate_project_name(&config, 0x4242_4242);
         assert!(!name.is_empty());
         assert!(name.contains(" - "), "Name should contain timestamp separator: {}", name);
     }
@@ -951,8 +997,9 @@ mod tests {
             output_path: "/tmp/test.als".into(),
             project_name: None,
             num_songs: 1,
+            seed: None,
         };
-        
+
         let keys = build_target_keys(&config);
         assert!(!keys.is_empty());
         assert!(keys.contains(&"D# Major".to_string()));
@@ -977,5 +1024,154 @@ mod tests {
         let keys3 = get_compatible_keys("c", "aeolian");
         assert!(keys3.contains(&"D# Major".to_string()));
         assert!(keys3.contains(&"C Minor".to_string()));
+    }
+
+    /// Lock the seed → same config + same seed must always produce the same
+    /// word-pattern portion of the project name. The trailing `- YYYYMMDD_HHMMSS`
+    /// stamp still varies per wall-clock call, so we compare only the prefix.
+    #[test]
+    fn test_generate_project_name_deterministic_with_seed() {
+        let config = ProjectConfig {
+            genre: Genre::Techno,
+            hardness: 0.5,
+            chaos: 0.3,
+            glitch_intensity: 0.0,
+            section_overrides: SectionOverridesConfig::default(),
+            density: 0.0,
+            variation: 0.0,
+            parallelism: 0.4,
+            scatter: 0.0,
+            bpm: 130,
+            root_note: Some("A".into()),
+            mode: Some("Aeolian".into()),
+            atonal: false,
+            keywords: vec![],
+            element_keywords: Default::default(),
+            sample_source_path: None,
+            tracks: TrackConfig::default(),
+            track_counts: TrackCountsConfig::default(),
+            type_atonal: TypeAtonalConfig::default(),
+            section_lengths: SectionLengths::default(),
+            output_path: "/tmp/test.als".into(),
+            project_name: None,
+            num_songs: 1,
+            seed: None,
+        };
+        let prefix = |name: String| name.split(" - ").next().unwrap().to_string();
+        let a = prefix(generate_project_name(&config, 0xDEAD_BEEF));
+        let b = prefix(generate_project_name(&config, 0xDEAD_BEEF));
+        assert_eq!(a, b, "same seed + same config → same name prefix");
+    }
+
+    /// Different seeds should produce different name prefixes — not guaranteed
+    /// for every pair (the word pool is finite), but a handful of distinct
+    /// seeds should yield at least two distinct names.
+    #[test]
+    fn test_generate_project_name_varies_with_seed() {
+        let config = ProjectConfig {
+            genre: Genre::Trance,
+            hardness: 0.5,
+            chaos: 0.3,
+            glitch_intensity: 0.0,
+            section_overrides: SectionOverridesConfig::default(),
+            density: 0.0,
+            variation: 0.0,
+            parallelism: 0.4,
+            scatter: 0.0,
+            bpm: 140,
+            root_note: Some("C".into()),
+            mode: Some("Ionian".into()),
+            atonal: false,
+            keywords: vec![],
+            element_keywords: Default::default(),
+            sample_source_path: None,
+            tracks: TrackConfig::default(),
+            track_counts: TrackCountsConfig::default(),
+            type_atonal: TypeAtonalConfig::default(),
+            section_lengths: SectionLengths::default(),
+            output_path: "/tmp/test.als".into(),
+            project_name: None,
+            num_songs: 1,
+            seed: None,
+        };
+        let prefix = |s: u64| -> String {
+            generate_project_name(&config, s).split(" - ").next().unwrap().to_string()
+        };
+        // Scan a handful of well-separated seeds and assert we see at least two
+        // distinct prefixes. Using 10 seeds keeps the test fast and the chance
+        // of a false negative astronomically small (given 32 genre × 28 mood
+        // × 28 key words + 12 patterns).
+        let names: std::collections::HashSet<String> =
+            (0u64..10).map(|i| prefix(i.wrapping_mul(0x9E37_79B9_7F4A_7C15))).collect();
+        assert!(names.len() >= 2, "10 distinct seeds should produce ≥2 distinct names, got {:?}", names);
+    }
+
+    /// The wizard sends `seed` as a string (to avoid JS Number precision loss
+    /// for values above 2^53). The custom deserializer must accept both forms
+    /// plus treat empty / whitespace-only strings as `None`.
+    #[test]
+    fn test_project_config_seed_accepts_string_and_number() {
+        let make_json = |seed_val: &str| format!(
+            r#"{{
+                "genre": "techno", "hardness": 0.5, "bpm": 130, "atonal": false,
+                "keywords": [], "element_keywords": {{}},
+                "tracks": {{
+                    "drums": {{"count": 3, "character": 0.5}},
+                    "bass": {{"count": 2, "character": 0.5}},
+                    "leads": {{"count": 2, "character": 0.5}},
+                    "pads": {{"count": 2, "character": 0.5}},
+                    "fx": {{"count": 6, "character": 0.5}},
+                    "vocals": {{"count": 0, "character": 0.5}}
+                }},
+                "output_path": "/tmp/x.als", "project_name": null, "num_songs": 1,
+                "seed": {}
+            }}"#,
+            seed_val
+        );
+        let parse = |json: String| -> ProjectConfig {
+            serde_json::from_str(&json).expect("deserialize")
+        };
+
+        // JSON number
+        assert_eq!(parse(make_json("12345")).seed, Some(12345));
+        // JSON string (what the wizard actually sends)
+        assert_eq!(parse(make_json("\"12345\"")).seed, Some(12345));
+        // Large u64 — exceeds Number.MAX_SAFE_INTEGER (2^53 - 1)
+        assert_eq!(parse(make_json("\"18446744073709551615\"")).seed, Some(u64::MAX));
+        // Empty string → treat as unset
+        assert_eq!(parse(make_json("\"\"")).seed, None);
+        // Whitespace-only string → treat as unset
+        assert_eq!(parse(make_json("\"   \"")).seed, None);
+        // Explicit null → unset
+        assert_eq!(parse(make_json("null")).seed, None);
+        // Non-numeric string → hard error (surfaced to the user, not silently dropped)
+        assert!(serde_json::from_str::<ProjectConfig>(&make_json("\"abc\"")).is_err());
+    }
+
+    /// Config-as-JSON without a `seed` field must deserialize with `seed = None`.
+    /// This is the back-compat guarantee for any cached wizard payloads.
+    #[test]
+    fn test_project_config_seed_defaults_to_none() {
+        let json = r#"{
+            "genre": "techno",
+            "hardness": 0.5,
+            "bpm": 130,
+            "atonal": false,
+            "keywords": [],
+            "element_keywords": {},
+            "tracks": {
+                "drums": {"count": 3, "character": 0.5},
+                "bass": {"count": 2, "character": 0.5},
+                "leads": {"count": 2, "character": 0.5},
+                "pads": {"count": 2, "character": 0.5},
+                "fx": {"count": 6, "character": 0.5},
+                "vocals": {"count": 0, "character": 0.5}
+            },
+            "output_path": "/tmp/x.als",
+            "project_name": null,
+            "num_songs": 1
+        }"#;
+        let cfg: ProjectConfig = serde_json::from_str(json).expect("deserialize");
+        assert!(cfg.seed.is_none(), "missing `seed` field must default to None");
     }
 }

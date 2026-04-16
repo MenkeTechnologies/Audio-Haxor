@@ -3405,10 +3405,16 @@ async fn generate_als_project(
     let app_handle = app.clone();
 
     let result = tokio::task::spawn_blocking(move || {
+        // Resolve the generation seed: honor the user's locked seed if they set
+        // one, otherwise draw a fresh u64. Either way, `seed` is concrete by
+        // the time we call the generator, and we echo it back in the result so
+        // the frontend can show "Seed: 12345" and let the user lock it for a
+        // "regenerate with same seed" run.
+        let seed: u64 = config.seed.unwrap_or_else(rand::random);
         let project_name = config
             .project_name
             .clone()
-            .unwrap_or_else(|| als_project::generate_project_name(&config));
+            .unwrap_or_else(|| als_project::generate_project_name(&config, seed));
 
         let expanded = if config.output_path.starts_with("~/") {
             dirs::home_dir()
@@ -3521,10 +3527,15 @@ async fn generate_als_project(
             track_counts,
             type_atonal,
             config.section_lengths,
+            seed,
             Some(&ALS_GENERATION_CANCEL),
             Some(&progress_cb),
         )?;
 
+        // `seed` is echoed back so the wizard can display it and the user can
+        // lock it for a subsequent "regenerate with same seed" run. Serialize
+        // as a string because JSON numbers are IEEE-754 doubles — seeds in the
+        // top 11 bits of a u64 would silently lose precision as JS Numbers.
         Ok(serde_json::json!({
             "path": output_path.to_string_lossy(),
             "projectName": project_name,
@@ -3535,6 +3546,7 @@ async fn generate_als_project(
             "genre": format!("{:?}", config.genre),
             "warnings": result.warnings,
             "keys": result.keys,
+            "seed": seed.to_string(),
         }))
     })
     .await

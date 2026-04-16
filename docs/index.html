@@ -276,6 +276,32 @@
             so arrangements diverge. IDs are allocated through
             <code>IdAllocator</code> (starts at 1&nbsp;000&nbsp;000 with
             <code>HashSet</code> dedup against reserved template IDs).</li>
+          <li><strong>Deterministic seed</strong> — wizard field
+            (<code>#alsSeed</code>) with 🎲 randomize button and 🔒 Lock
+            toggle (<code>#alsSeedLocked</code>). When set, every random
+            decision (swoosh rotation, scatter hits, fills, glitches,
+            parallelism thinning, variation chunking, chaos gaps, density
+            accents, sample-shuffle tie-breakers) derives from the seed via
+            a thread-local <code>StdRng</code> in
+            <code>techno_generator.rs</code> (<code>init_gen_rng</code> /
+            <code>with_gen_rng</code>), seeded at the top of
+            <code>generate()</code> and cleared on every exit path.
+            <code>generate_als_project</code> resolves
+            <code>config.seed.unwrap_or_else(rand::random)</code> and echoes
+            the used seed back in the result JSON so the wizard can display
+            &ldquo;Seed: 12345&rdquo; and offer a &ldquo;regenerate with same
+            seed&rdquo; flow. Seeds travel as JSON strings to round-trip
+            through JS <code>Number</code> precision without truncation;
+            <code>deserialize_seed</code> in <code>als_project.rs</code>
+            accepts either numeric or string form and treats empty strings as
+            &ldquo;pick a fresh random seed&rdquo;. Project names and word
+            patterns are derived from the same seed via
+            <code>generate_project_name(config, seed)</code>; the filename
+            still carries a wall-clock <code>YYYYMMDD_HHMMSS</code> suffix so
+            back-to-back locked runs never collide on disk.
+            <code>restoreAlsPrefs</code> drops the stored seed on startup
+            when Lock is off, preventing a previous session&rsquo;s seed from
+            silently pinning every new generation.</li>
         </ul>
 
         <h3>Deeper reference documents</h3>

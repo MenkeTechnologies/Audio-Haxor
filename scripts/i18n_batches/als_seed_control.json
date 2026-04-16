@@ -1,0 +1,8 @@
+{
+  "ui.st.als_seed": "Seed",
+  "ui.sd.als_seed": "Lock the seed to regenerate the same arrangement",
+  "ui.st.als_lock_seed": "Lock",
+  "ui.ph.als_seed": "(random each generation)",
+  "ui.tt.als_randomize_seed": "Generate a new random seed",
+  "ui.tt.als_lock_seed": "Keep this seed for the next generation"
+}

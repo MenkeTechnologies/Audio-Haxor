@@ -7,7 +7,9 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use rand::prelude::*;
+use rand::rngs::StdRng;
 use regex::Regex;
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -16,6 +18,67 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 // Silence between songs (bars)
 const GAP_BETWEEN_SONGS: u32 = 32;
+
+// ---------------------------------------------------------------------------
+// Seeded RNG for deterministic generation
+// ---------------------------------------------------------------------------
+//
+// Every random decision the generator makes — sample shuffling, scatter
+// placement, glitch edit positions, fill rotations, swoosh selection — reads
+// from a single seeded `StdRng` stored in a thread-local `RefCell`.
+//
+// `generate()` calls `init_gen_rng(seed)` at entry and `clear_gen_rng()` at
+// every exit path (success AND error), so a locked seed + identical config
+// produces a bit-identical arrangement. Without this, each `rand::rng()` call
+// drew from the thread's entropy source — two generations with the same
+// wizard settings would produce different output, and there was no way to
+// "regenerate the one I liked".
+//
+// Chose thread-local over explicit `&mut StdRng` threading because the
+// generator has 10 helpers and 4 coordinators that currently pull from the
+// global RNG — explicit threading would have touched every signature and
+// every test caller. Thread-local scopes cleanly to a single `generate()`
+// invocation (the Tauri command wraps the call in `spawn_blocking`, one task
+// per generation) and keeps the diff localised to the actual randomness
+// sources. Re-entrancy is not a concern: helpers never call each other
+// recursively and all RNG access is inside `with_gen_rng` which holds a
+// `RefCell` borrow only for the closure's lifetime.
+thread_local! {
+    static GEN_RNG: RefCell<Option<StdRng>> = const { RefCell::new(None) };
+}
+
+/// Seed the thread-local generation RNG. Called once at the top of `generate()`.
+fn init_gen_rng(seed: u64) {
+    GEN_RNG.with(|c| *c.borrow_mut() = Some(StdRng::seed_from_u64(seed)));
+}
+
+/// Drop the thread-local RNG. Called on every `generate()` exit path so a
+/// later non-ALS use of this thread cannot observe leftover state (and so
+/// tests that run helpers directly fall back to the wall-clock seed below).
+fn clear_gen_rng() {
+    GEN_RNG.with(|c| *c.borrow_mut() = None);
+}
+
+/// Run `f` with a mutable reference to the thread-local generation RNG.
+///
+/// When no generation is in progress (typically unit tests that invoke
+/// helpers directly without going through `generate()`), lazily seed the
+/// slot from the current wall-clock nanoseconds. This preserves the
+/// pre-refactor behaviour (each helper call was seeded from system entropy)
+/// while keeping the seeded path deterministic.
+fn with_gen_rng<R>(f: impl FnOnce(&mut StdRng) -> R) -> R {
+    GEN_RNG.with(|c| {
+        let mut b = c.borrow_mut();
+        if b.is_none() {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(0xA5A5_5A5A_A5A5_5A5A);
+            *b = Some(StdRng::seed_from_u64(nanos));
+        }
+        f(b.as_mut().unwrap())
+    })
+}
 
 // Canonical arrangement span — 224 bars (7 × 32-bar sections). This is the
 // *reference* layout that every `TrackArrangement` template is written
@@ -168,73 +231,73 @@ struct SongSamples {
 /// - Tracks rotate through grid positions
 fn generate_swoosh_arrangements() -> Vec<TrackArrangement> {
     use rand::seq::SliceRandom;
-    let mut rng = rand::rng();
-    
-    // 16-bar grid positions throughout the track (224 bars total)
-    let grid_positions: Vec<u32> = vec![16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208];
-    
-    // 4 tracks each for UP and DOWN
-    let num_tracks = 4;
-    
-    // Default bar lengths for variety
-    let bar_lengths: Vec<u32> = vec![2, 4, 4, 8];
-    
-    // Initialize track sections
-    let mut up_tracks: Vec<Vec<(f64, f64)>> = (0..num_tracks).map(|_| Vec::new()).collect();
-    let mut down_tracks: Vec<Vec<(f64, f64)>> = (0..num_tracks).map(|_| Vec::new()).collect();
-    
-    // Shuffle grid positions and distribute to tracks
-    let mut shuffled_up = grid_positions.clone();
-    let mut shuffled_down = grid_positions.clone();
-    shuffled_up.shuffle(&mut rng);
-    shuffled_down.shuffle(&mut rng);
-    
-    // Assign UP sweeps - round-robin across tracks
-    for (i, &grid) in shuffled_up.iter().enumerate() {
-        let track_idx = i % num_tracks;
-        let bar_len = bar_lengths[track_idx];
-        let start = (grid - bar_len) as f64;
-        let end = grid as f64;
-        up_tracks[track_idx].push((start, end));
-    }
-    
-    // Assign DOWN sweeps - round-robin across tracks (all tracks get sections)
-    for (i, &grid) in shuffled_down.iter().enumerate() {
-        let track_idx = i % num_tracks;
-        let bar_len = bar_lengths[track_idx];
-        let start = grid as f64;
-        let end = (grid + bar_len) as f64;
-        down_tracks[track_idx].push((start, end));
-    }
-    
-    // Sort each track's sections by start time
-    for sections in up_tracks.iter_mut() {
-        sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-    }
-    for sections in down_tracks.iter_mut() {
-        sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-    }
-    
-    // Build track arrangements
-    let mut arrangements = Vec::new();
-    
-    // SWEEP UP 1, SWEEP UP 2, SWEEP UP 3, SWEEP UP 4
-    for (i, sections) in up_tracks.into_iter().enumerate() {
-        if !sections.is_empty() {
-            let name = format!("SWEEP UP {}", i + 1);
-            arrangements.push(TrackArrangement { name, sections });
+    with_gen_rng(|rng| {
+        // 16-bar grid positions throughout the track (224 bars total)
+        let grid_positions: Vec<u32> = vec![16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208];
+
+        // 4 tracks each for UP and DOWN
+        let num_tracks = 4;
+
+        // Default bar lengths for variety
+        let bar_lengths: Vec<u32> = vec![2, 4, 4, 8];
+
+        // Initialize track sections
+        let mut up_tracks: Vec<Vec<(f64, f64)>> = (0..num_tracks).map(|_| Vec::new()).collect();
+        let mut down_tracks: Vec<Vec<(f64, f64)>> = (0..num_tracks).map(|_| Vec::new()).collect();
+
+        // Shuffle grid positions and distribute to tracks
+        let mut shuffled_up = grid_positions.clone();
+        let mut shuffled_down = grid_positions.clone();
+        shuffled_up.shuffle(rng);
+        shuffled_down.shuffle(rng);
+
+        // Assign UP sweeps - round-robin across tracks
+        for (i, &grid) in shuffled_up.iter().enumerate() {
+            let track_idx = i % num_tracks;
+            let bar_len = bar_lengths[track_idx];
+            let start = (grid - bar_len) as f64;
+            let end = grid as f64;
+            up_tracks[track_idx].push((start, end));
         }
-    }
-    
-    // SWEEP DOWN 1, SWEEP DOWN 2, SWEEP DOWN 3, SWEEP DOWN 4
-    for (i, sections) in down_tracks.into_iter().enumerate() {
-        if !sections.is_empty() {
-            let name = format!("SWEEP DOWN {}", i + 1);
-            arrangements.push(TrackArrangement { name, sections });
+
+        // Assign DOWN sweeps - round-robin across tracks (all tracks get sections)
+        for (i, &grid) in shuffled_down.iter().enumerate() {
+            let track_idx = i % num_tracks;
+            let bar_len = bar_lengths[track_idx];
+            let start = grid as f64;
+            let end = (grid + bar_len) as f64;
+            down_tracks[track_idx].push((start, end));
         }
-    }
-    
-    arrangements
+
+        // Sort each track's sections by start time
+        for sections in up_tracks.iter_mut() {
+            sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        }
+        for sections in down_tracks.iter_mut() {
+            sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        }
+
+        // Build track arrangements
+        let mut arrangements = Vec::new();
+
+        // SWEEP UP 1, SWEEP UP 2, SWEEP UP 3, SWEEP UP 4
+        for (i, sections) in up_tracks.into_iter().enumerate() {
+            if !sections.is_empty() {
+                let name = format!("SWEEP UP {}", i + 1);
+                arrangements.push(TrackArrangement { name, sections });
+            }
+        }
+
+        // SWEEP DOWN 1, SWEEP DOWN 2, SWEEP DOWN 3, SWEEP DOWN 4
+        for (i, sections) in down_tracks.into_iter().enumerate() {
+            if !sections.is_empty() {
+                let name = format!("SWEEP DOWN {}", i + 1);
+                arrangements.push(TrackArrangement { name, sections });
+            }
+        }
+
+        arrangements
+    })
 }
 
 /// Generate scattered one-shot hits on 1/16th grid.
@@ -245,111 +308,111 @@ fn generate_swoosh_arrangements() -> Vec<TrackArrangement> {
 /// 
 /// Ableton supports fractional beat values (e.g., 480.5, 95.75) for 1/16th grid precision.
 fn generate_scatter_hits(section_scatter: &SectionValues, global_scatter: f32) -> Vec<TrackArrangement> {
-    let mut rng = rand::rng();
-    
-    // Work on 1/16th grid (16 sixteenths per bar)
-    const SIXTEENTHS_PER_BAR: u32 = 16;
-    const PATTERN_BARS: u32 = 32;
-    const SIXTEENTHS_PER_PATTERN: u32 = PATTERN_BARS * SIXTEENTHS_PER_BAR; // 512 sixteenths
-    
-    // All song sections with their bar ranges. Per-section scatter is now
-    // resolved by bar via the 8-bar-block map — we sample the block at the
-    // section's start bar as representative of the section's scatter level.
-    // Over- or under-density inside a section (when blocks differ within it)
-    // is acceptable for this coarse generator; fine-grained variance comes
-    // from apply_density_per_section, which walks blocks directly.
-    let sections: Vec<(&str, u32, u32, f32)> = vec![
-        ("intro",     1,   32,  section_scatter.value_at_bar(1,   global_scatter)),
-        ("build",     33,  64,  section_scatter.value_at_bar(33,  global_scatter)),
-        ("breakdown", 65,  96,  section_scatter.value_at_bar(65,  global_scatter)),
-        ("drop1",     97,  128, section_scatter.value_at_bar(97,  global_scatter)),
-        ("drop2",     129, 160, section_scatter.value_at_bar(129, global_scatter)),
-        ("fadedown",  161, 192, section_scatter.value_at_bar(161, global_scatter)),
-        ("outro",     193, 224, section_scatter.value_at_bar(193, global_scatter)),
-    ];
-    
-    // Filter to only sections with scatter > 0
-    let active_sections: Vec<_> = sections.iter()
-        .filter(|(_, _, _, density)| *density > 0.0)
-        .collect();
-    
-    if active_sections.is_empty() {
-        return vec![];
-    }
-    
-    // Generate 4 scatter tracks with different patterns
-    let mut results: Vec<TrackArrangement> = Vec::new();
-    
-    for track_num in 1..=4u32 {
-        // Convert pattern to actual clip positions for each section
-        let mut sections_out: Vec<(f64, f64)> = Vec::new();
-        
-        for (_, section_start, section_end, density) in &active_sections {
-            // Hits per 32 bars based on density (density 1.0 = ~32 hits, density 0.5 = ~16 hits)
-            let target_hits = ((*density * 32.0) as u32).max(2);
-            
-            // Generate a 32-bar pattern of random 1/16th positions (0-511)
-            let mut pattern_sixteenths: Vec<u32> = Vec::new();
-            
-            // Each track has different density - track 1 most dense, track 4 least
-            let track_density = target_hits / track_num;
-            
-            // Pick random 1/16th positions, avoiding hits too close together
-            let mut attempts = 0;
-            while pattern_sixteenths.len() < track_density as usize && attempts < 1000 {
-                let sixteenth: u32 = rng.random_range(0..SIXTEENTHS_PER_PATTERN);
-                
-                // Avoid hits within 4 sixteenths (1 beat) of each other for this track
-                let too_close = pattern_sixteenths.iter().any(|&s| {
-                    let diff = sixteenth.abs_diff(s);
-                    diff < 4
-                });
-                
-                if !too_close {
-                    pattern_sixteenths.push(sixteenth);
+    with_gen_rng(|rng| {
+        // Work on 1/16th grid (16 sixteenths per bar)
+        const SIXTEENTHS_PER_BAR: u32 = 16;
+        const PATTERN_BARS: u32 = 32;
+        const SIXTEENTHS_PER_PATTERN: u32 = PATTERN_BARS * SIXTEENTHS_PER_BAR; // 512 sixteenths
+
+        // All song sections with their bar ranges. Per-section scatter is now
+        // resolved by bar via the 8-bar-block map — we sample the block at the
+        // section's start bar as representative of the section's scatter level.
+        // Over- or under-density inside a section (when blocks differ within it)
+        // is acceptable for this coarse generator; fine-grained variance comes
+        // from apply_density_per_section, which walks blocks directly.
+        let sections: Vec<(&str, u32, u32, f32)> = vec![
+            ("intro",     1,   32,  section_scatter.value_at_bar(1,   global_scatter)),
+            ("build",     33,  64,  section_scatter.value_at_bar(33,  global_scatter)),
+            ("breakdown", 65,  96,  section_scatter.value_at_bar(65,  global_scatter)),
+            ("drop1",     97,  128, section_scatter.value_at_bar(97,  global_scatter)),
+            ("drop2",     129, 160, section_scatter.value_at_bar(129, global_scatter)),
+            ("fadedown",  161, 192, section_scatter.value_at_bar(161, global_scatter)),
+            ("outro",     193, 224, section_scatter.value_at_bar(193, global_scatter)),
+        ];
+
+        // Filter to only sections with scatter > 0
+        let active_sections: Vec<_> = sections.iter()
+            .filter(|(_, _, _, density)| *density > 0.0)
+            .collect();
+
+        if active_sections.is_empty() {
+            return vec![];
+        }
+
+        // Generate 4 scatter tracks with different patterns
+        let mut results: Vec<TrackArrangement> = Vec::new();
+
+        for track_num in 1..=4u32 {
+            // Convert pattern to actual clip positions for each section
+            let mut sections_out: Vec<(f64, f64)> = Vec::new();
+
+            for (_, section_start, section_end, density) in &active_sections {
+                // Hits per 32 bars based on density (density 1.0 = ~32 hits, density 0.5 = ~16 hits)
+                let target_hits = ((*density * 32.0) as u32).max(2);
+
+                // Generate a 32-bar pattern of random 1/16th positions (0-511)
+                let mut pattern_sixteenths: Vec<u32> = Vec::new();
+
+                // Each track has different density - track 1 most dense, track 4 least
+                let track_density = target_hits / track_num;
+
+                // Pick random 1/16th positions, avoiding hits too close together
+                let mut attempts = 0;
+                while pattern_sixteenths.len() < track_density as usize && attempts < 1000 {
+                    let sixteenth: u32 = rng.random_range(0..SIXTEENTHS_PER_PATTERN);
+
+                    // Avoid hits within 4 sixteenths (1 beat) of each other for this track
+                    let too_close = pattern_sixteenths.iter().any(|&s| {
+                        let diff = sixteenth.abs_diff(s);
+                        diff < 4
+                    });
+
+                    if !too_close {
+                        pattern_sixteenths.push(sixteenth);
+                    }
+                    attempts += 1;
                 }
-                attempts += 1;
+
+                pattern_sixteenths.sort();
+
+                let section_bars = *section_end - *section_start;
+
+                // Repeat the 32-bar pattern across the section
+                let mut bar_offset = 0u32;
+                while bar_offset < section_bars {
+                    for &sixteenth in &pattern_sixteenths {
+                        // Convert sixteenth to bar position
+                        let sixteenth_bar = sixteenth / SIXTEENTHS_PER_BAR;
+                        let sixteenth_within_bar = sixteenth % SIXTEENTHS_PER_BAR;
+
+                        if sixteenth_bar >= PATTERN_BARS.min(section_bars - bar_offset) {
+                            continue;
+                        }
+
+                        let abs_bar = *section_start + bar_offset + sixteenth_bar;
+
+                        if abs_bar >= *section_end {
+                            continue;
+                        }
+
+                        // Position as bar + fraction (0.0625 per 1/16th = 1/16 of a bar)
+                        // This produces values like 65.0625, 65.125, 65.1875, etc.
+                        let abs_pos: f64 = abs_bar as f64 + (sixteenth_within_bar as f64 * 0.0625);
+
+                        // One-shot = start and end at same position (single hit)
+                        sections_out.push((abs_pos, abs_pos));
+                    }
+                    bar_offset += PATTERN_BARS;
+                }
             }
-            
-            pattern_sixteenths.sort();
-            
-            let section_bars = *section_end - *section_start;
-            
-            // Repeat the 32-bar pattern across the section
-            let mut bar_offset = 0u32;
-            while bar_offset < section_bars {
-                for &sixteenth in &pattern_sixteenths {
-                    // Convert sixteenth to bar position
-                    let sixteenth_bar = sixteenth / SIXTEENTHS_PER_BAR;
-                    let sixteenth_within_bar = sixteenth % SIXTEENTHS_PER_BAR;
-                    
-                    if sixteenth_bar >= PATTERN_BARS.min(section_bars - bar_offset) {
-                        continue;
-                    }
-                    
-                    let abs_bar = *section_start + bar_offset + sixteenth_bar;
-                    
-                    if abs_bar >= *section_end {
-                        continue;
-                    }
-                    
-                    // Position as bar + fraction (0.0625 per 1/16th = 1/16 of a bar)
-                    // This produces values like 65.0625, 65.125, 65.1875, etc.
-                    let abs_pos: f64 = abs_bar as f64 + (sixteenth_within_bar as f64 * 0.0625);
-                    
-                    // One-shot = start and end at same position (single hit)
-                    sections_out.push((abs_pos, abs_pos));
-                }
-                bar_offset += PATTERN_BARS;
+
+            if !sections_out.is_empty() {
+                results.push(TrackArrangement::new(&format!("SCATTER {}", track_num), sections_out));
             }
         }
-        
-        if !sections_out.is_empty() {
-            results.push(TrackArrangement::new(&format!("SCATTER {}", track_num), sections_out));
-        }
-    }
-    
-    results
+
+        results
+    })
 }
 
 /// Generate randomized fill arrangements for variety.
@@ -358,123 +421,123 @@ fn generate_scatter_hits(section_scatter: &SectionValues, global_scatter: f32) -
 /// (1-beat, 2-beat, or 4-beat) and which SAMPLE (A, B, C, D) is randomized.
 /// This prevents the "machine gun" effect of predictable fill patterns.
 fn generate_random_fills() -> Vec<TrackArrangement> {
-    let mut rng = rand::rng();
-    
-    // All possible fill positions (bar numbers where fills can occur)
-    // These are the last bar of each 8-bar phrase
-    let fill_positions: Vec<u32> = vec![
-        16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216
-    ];
-    
-    // For each position, randomly choose fill length: 1, 2, or 4 beats
-    // Weight towards variety - don't repeat same length too often
-    let mut fill_assignments: Vec<(u32, u8, u8)> = Vec::new(); // (bar, length, sample_variant)
-    let mut last_length: u8 = 0;
-    
-    for &bar in &fill_positions {
-        // Weighted random: less likely to repeat same length twice
-        let weights: Vec<u8> = vec![1, 2, 4];
-        let length = loop {
-            let choice = *weights.choose(&mut rng).unwrap();
-            // 70% chance to pick different length, 30% to repeat
-            if choice != last_length || rng.random_bool(0.3) {
-                break choice;
-            }
-        };
-        last_length = length;
-        
-        // Random sample variant (A=0, B=1, C=2, D=3 for 4-beat; A=0, B=1 for 1/2-beat)
-        let max_variant = if length == 4 { 4 } else { 2 };
-        let variant: u8 = rng.random_range(0..max_variant);
-        
-        fill_assignments.push((bar, length, variant));
-    }
-    
-    // Distribute assignments to the 8 fill tracks
-    let mut fill_1a: Vec<(f64, f64)> = Vec::new();
-    let mut fill_1b: Vec<(f64, f64)> = Vec::new();
-    let mut fill_2a: Vec<(f64, f64)> = Vec::new();
-    let mut fill_2b: Vec<(f64, f64)> = Vec::new();
-    let mut fill_4a: Vec<(f64, f64)> = Vec::new();
-    let mut fill_4b: Vec<(f64, f64)> = Vec::new();
-    let mut fill_4c: Vec<(f64, f64)> = Vec::new();
-    let mut fill_4d: Vec<(f64, f64)> = Vec::new();
-    
-    for (bar, length, variant) in fill_assignments {
-        let bar_f = bar as f64;
-        let section = match length {
-            1 => (bar_f + 0.75, bar_f + 1.0), // Last beat of bar
-            2 => (bar_f + 0.5, bar_f + 1.0),  // Last 2 beats of bar
-            4 => (bar_f, bar_f + 1.0),        // Full bar
-            _ => continue,
-        };
-        
-        match (length, variant) {
-            (1, 0) => fill_1a.push(section),
-            (1, 1) => fill_1b.push(section),
-            (2, 0) => fill_2a.push(section),
-            (2, 1) => fill_2b.push(section),
-            (4, 0) => fill_4a.push(section),
-            (4, 1) => fill_4b.push(section),
-            (4, 2) => fill_4c.push(section),
-            (4, 3) => fill_4d.push(section),
-            _ => {}
+    with_gen_rng(|rng| {
+        // All possible fill positions (bar numbers where fills can occur)
+        // These are the last bar of each 8-bar phrase
+        let fill_positions: Vec<u32> = vec![
+            16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216
+        ];
+
+        // For each position, randomly choose fill length: 1, 2, or 4 beats
+        // Weight towards variety - don't repeat same length too often
+        let mut fill_assignments: Vec<(u32, u8, u8)> = Vec::new(); // (bar, length, sample_variant)
+        let mut last_length: u8 = 0;
+
+        for &bar in &fill_positions {
+            // Weighted random: less likely to repeat same length twice
+            let weights: Vec<u8> = vec![1, 2, 4];
+            let length = loop {
+                let choice = *weights.choose(rng).unwrap();
+                // 70% chance to pick different length, 30% to repeat
+                if choice != last_length || rng.random_bool(0.3) {
+                    break choice;
+                }
+            };
+            last_length = length;
+
+            // Random sample variant (A=0, B=1, C=2, D=3 for 4-beat; A=0, B=1 for 1/2-beat)
+            let max_variant = if length == 4 { 4 } else { 2 };
+            let variant: u8 = rng.random_range(0..max_variant);
+
+            fill_assignments.push((bar, length, variant));
         }
-    }
-    
-    vec![
-        TrackArrangement::new("FILL 1", fill_1a),
-        TrackArrangement::new("FILL 2", fill_1b),
-        TrackArrangement::new("FILL 3", fill_2a),
-        TrackArrangement::new("FILL 4", fill_2b),
-        TrackArrangement::new("FILL 5", fill_4a),
-        TrackArrangement::new("FILL 6", fill_4b),
-        TrackArrangement::new("FILL 7", fill_4c),
-        TrackArrangement::new("FILL 8", fill_4d),
-    ]
+
+        // Distribute assignments to the 8 fill tracks
+        let mut fill_1a: Vec<(f64, f64)> = Vec::new();
+        let mut fill_1b: Vec<(f64, f64)> = Vec::new();
+        let mut fill_2a: Vec<(f64, f64)> = Vec::new();
+        let mut fill_2b: Vec<(f64, f64)> = Vec::new();
+        let mut fill_4a: Vec<(f64, f64)> = Vec::new();
+        let mut fill_4b: Vec<(f64, f64)> = Vec::new();
+        let mut fill_4c: Vec<(f64, f64)> = Vec::new();
+        let mut fill_4d: Vec<(f64, f64)> = Vec::new();
+
+        for (bar, length, variant) in fill_assignments {
+            let bar_f = bar as f64;
+            let section = match length {
+                1 => (bar_f + 0.75, bar_f + 1.0), // Last beat of bar
+                2 => (bar_f + 0.5, bar_f + 1.0),  // Last 2 beats of bar
+                4 => (bar_f, bar_f + 1.0),        // Full bar
+                _ => continue,
+            };
+
+            match (length, variant) {
+                (1, 0) => fill_1a.push(section),
+                (1, 1) => fill_1b.push(section),
+                (2, 0) => fill_2a.push(section),
+                (2, 1) => fill_2b.push(section),
+                (4, 0) => fill_4a.push(section),
+                (4, 1) => fill_4b.push(section),
+                (4, 2) => fill_4c.push(section),
+                (4, 3) => fill_4d.push(section),
+                _ => {}
+            }
+        }
+
+        vec![
+            TrackArrangement::new("FILL 1", fill_1a),
+            TrackArrangement::new("FILL 2", fill_1b),
+            TrackArrangement::new("FILL 3", fill_2a),
+            TrackArrangement::new("FILL 4", fill_2b),
+            TrackArrangement::new("FILL 5", fill_4a),
+            TrackArrangement::new("FILL 6", fill_4b),
+            TrackArrangement::new("FILL 7", fill_4c),
+            TrackArrangement::new("FILL 8", fill_4d),
+        ]
+    })
 }
 
 /// Generate glitch arrangements at fill positions (same timing as fills).
 /// Glitches add variety and are placed at phrase boundaries.
 fn generate_glitch_arrangements() -> Vec<TrackArrangement> {
     use rand::seq::SliceRandom;
-    let mut rng = rand::rng();
-    
-    // Fill positions (every 8 bars)
-    let mut positions: Vec<u32> = vec![
-        16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216
-    ];
-    positions.shuffle(&mut rng);
-    
-    // Distribute positions across up to 8 glitch tracks (round-robin)
-    let num_tracks = 8;
-    let mut track_sections: Vec<Vec<(f64, f64)>> = (0..num_tracks).map(|_| Vec::new()).collect();
-    
-    for (i, &bar) in positions.iter().enumerate() {
-        let track_idx = i % num_tracks;
-        // Glitches are short bursts - 1-2 beats
-        let bar_f = bar as f64;
-        let section = if rng.random_bool(0.5) {
-            (bar_f + 0.75, bar_f + 1.0) // 1 beat
-        } else {
-            (bar_f + 0.5, bar_f + 1.0)  // 2 beats
-        };
-        track_sections[track_idx].push(section);
-    }
-    
-    // Sort each track's sections by time
-    for sections in track_sections.iter_mut() {
-        sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-    }
-    
-    // Build arrangements (only for non-empty tracks)
-    let mut arrangements = Vec::new();
-    for (i, sections) in track_sections.into_iter().enumerate() {
-        if !sections.is_empty() {
-            arrangements.push(TrackArrangement::new(&format!("GLITCH {}", i + 1), sections));
+    with_gen_rng(|rng| {
+        // Fill positions (every 8 bars)
+        let mut positions: Vec<u32> = vec![
+            16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216
+        ];
+        positions.shuffle(rng);
+
+        // Distribute positions across up to 8 glitch tracks (round-robin)
+        let num_tracks = 8;
+        let mut track_sections: Vec<Vec<(f64, f64)>> = (0..num_tracks).map(|_| Vec::new()).collect();
+
+        for (i, &bar) in positions.iter().enumerate() {
+            let track_idx = i % num_tracks;
+            // Glitches are short bursts - 1-2 beats
+            let bar_f = bar as f64;
+            let section = if rng.random_bool(0.5) {
+                (bar_f + 0.75, bar_f + 1.0) // 1 beat
+            } else {
+                (bar_f + 0.5, bar_f + 1.0)  // 2 beats
+            };
+            track_sections[track_idx].push(section);
         }
-    }
-    arrangements
+
+        // Sort each track's sections by time
+        for sections in track_sections.iter_mut() {
+            sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        }
+
+        // Build arrangements (only for non-empty tracks)
+        let mut arrangements = Vec::new();
+        for (i, sections) in track_sections.into_iter().enumerate() {
+            if !sections.is_empty() {
+                arrangements.push(TrackArrangement::new(&format!("GLITCH {}", i + 1), sections));
+            }
+        }
+        arrangements
+    })
 }
 
 fn get_arrangement(chaos: f32) -> Vec<TrackArrangement> {
@@ -1100,18 +1163,17 @@ fn get_arrangement_with_params(chaos: f32, glitch_intensity: f32, section_overri
 /// variation controls switch interval: 0.0 = every 16 bars, 1.0 = every 4 bars
 fn apply_parallelism(arrangements: Vec<TrackArrangement>, parallelism: f32, variation: f32) -> Vec<TrackArrangement> {
     use std::collections::HashMap;
-    let mut rng = rand::rng();
-    
+
     // Group tracks by their base type (strip trailing numbers)
     let get_base_type = |name: &str| -> String {
         let trimmed = name.trim_end_matches(|c: char| c.is_ascii_digit() || c == ' ');
         trimmed.trim().to_string()
     };
-    
+
     // One-shot/FX tracks that shouldn't have parallelism applied
-    let exempt = ["FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP", 
+    let exempt = ["FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP",
                   "BOOM KICK", "SNARE ROLL", "GLITCH", "REVERSE", "SWEEP", "SCATTER"];
-    
+
     // Group arrangements by base type
     let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
     for (idx, arr) in arrangements.iter().enumerate() {
@@ -1121,27 +1183,27 @@ fn apply_parallelism(arrangements: Vec<TrackArrangement>, parallelism: f32, vari
         let base = get_base_type(&arr.name);
         groups.entry(base).or_default().push(idx);
     }
-    
+
     // Switch interval based on variation: low variation = long intervals, high = short
     // Range: 16 bars (variation=0) down to 4 bars (variation=1)
     let switch_bars = (16.0 - variation * 12.0).max(4.0) as u32;
-    
+
     let mut result = arrangements;
-    
+
     // For each group with multiple tracks, thin out based on parallelism
     for (_base_type, indices) in groups.iter() {
         let group_size = indices.len();
         if group_size <= 1 {
             continue; // Single track, nothing to thin
         }
-        
+
         // How many can play at once: at least 1, at most all
         let max_concurrent = ((group_size as f32 * parallelism).ceil() as usize).max(1).min(group_size);
-        
+
         if max_concurrent >= group_size {
             continue; // All can play, no thinning needed
         }
-        
+
         // Find the overall time range across all tracks in group
         let mut min_start = f64::MAX;
         let mut max_end = 0.0f64;
@@ -1151,33 +1213,38 @@ fn apply_parallelism(arrangements: Vec<TrackArrangement>, parallelism: f32, vari
                 max_end = max_end.max(end);
             }
         }
-        
+
         if min_start >= max_end {
             continue;
         }
-        
+
         // Divide into time slots and randomly assign which tracks are active
         let total_bars = (max_end - min_start) as u32;
         let num_slots = (total_bars / switch_bars).max(1);
-        
+
         // For each track, determine which slots it's active
         let mut track_active_slots: Vec<Vec<bool>> = vec![vec![false; num_slots as usize]; group_size];
-        
-        #[allow(clippy::needless_range_loop)]
-        for slot in 0..num_slots as usize {
-            // Randomly pick which tracks are active this slot
-            let mut candidates: Vec<usize> = (0..group_size).collect();
-            
-            // Shuffle and take max_concurrent
-            for i in (1..candidates.len()).rev() {
-                let j = rng.random_range(0..=i as u32) as usize;
-                candidates.swap(i, j);
+
+        // Build the slot assignments with a single borrow of the seeded RNG.
+        // Inline closure so the RefCell borrow stays scoped to this chunk;
+        // the section-splitting logic below is pure math and doesn't need rng.
+        with_gen_rng(|rng| {
+            #[allow(clippy::needless_range_loop)]
+            for slot in 0..num_slots as usize {
+                // Randomly pick which tracks are active this slot
+                let mut candidates: Vec<usize> = (0..group_size).collect();
+
+                // Shuffle and take max_concurrent
+                for i in (1..candidates.len()).rev() {
+                    let j = rng.random_range(0..=i as u32) as usize;
+                    candidates.swap(i, j);
+                }
+
+                for &track_idx in candidates.iter().take(max_concurrent) {
+                    track_active_slots[track_idx][slot] = true;
+                }
             }
-            
-            for &track_idx in candidates.iter().take(max_concurrent) {
-                track_active_slots[track_idx][slot] = true;
-            }
-        }
+        });
         
         // Apply the active slots to each track's sections
         for (group_idx, &arr_idx) in indices.iter().enumerate() {
@@ -1229,216 +1296,216 @@ fn apply_parallelism(arrangements: Vec<TrackArrangement>, parallelism: f32, vari
 /// Apply variation to arrangements - elements drop in/out within sections
 /// variation 0.0 = elements play full sections, 1.0 = constant movement
 fn apply_variation(mut arrangements: Vec<TrackArrangement>, variation: f32) -> Vec<TrackArrangement> {
-    let mut rng = rand::rng();
-    
-    // Tracks that should NOT have variation applied (core rhythm, fills, one-shots)
-    let protected = ["KICK", "FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP", 
-                     "BOOM KICK", "SNARE ROLL", "GLITCH", "REVERSE", "SWEEP", "SCATTER"];
-    
-    // Tracks that can have moderate variation (drums keep groove)
-    let light_variation = ["CLAP", "SNARE", "BASS", "SUB"];
-    
-    // Snap to 4-bar boundaries for musical phrasing
-    let snap_4bar = |v: f64| -> f64 { (v / 4.0).round() * 4.0 };
-    
-    for arr in arrangements.iter_mut() {
-        // Skip protected tracks
-        if protected.iter().any(|p| arr.name.starts_with(p)) {
-            continue;
-        }
-        
-        let is_light = light_variation.iter().any(|p| arr.name.starts_with(p));
-        let effective_variation = if is_light { variation * 0.3 } else { variation };
-        
-        let mut new_sections: Vec<(f64, f64)> = Vec::new();
-        
-        for &(start, end) in &arr.sections {
-            let section_len = end - start;
-            
-            // Skip short sections
-            if section_len < 8.0 {
-                new_sections.push((start, end));
+    with_gen_rng(|rng| {
+        // Tracks that should NOT have variation applied (core rhythm, fills, one-shots)
+        let protected = ["KICK", "FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP",
+                         "BOOM KICK", "SNARE ROLL", "GLITCH", "REVERSE", "SWEEP", "SCATTER"];
+
+        // Tracks that can have moderate variation (drums keep groove)
+        let light_variation = ["CLAP", "SNARE", "BASS", "SUB"];
+
+        // Snap to 4-bar boundaries for musical phrasing
+        let snap_4bar = |v: f64| -> f64 { (v / 4.0).round() * 4.0 };
+
+        for arr in arrangements.iter_mut() {
+            // Skip protected tracks
+            if protected.iter().any(|p| arr.name.starts_with(p)) {
                 continue;
             }
-            
-            // Probability of breaking up this section increases with variation
-            if !rng.random_bool(effective_variation as f64 * 0.7) {
-                new_sections.push((start, end));
-                continue;
-            }
-            
-            // Break section into 4 or 8 bar chunks with gaps
-            let chunk_size = if rng.random_bool(0.5) { 4.0 } else { 8.0 };
-            let mut pos = start;
-            
-            while pos < end {
-                let chunk_end = (pos + chunk_size).min(end);
-                
-                // Guard against infinite loop: if chunk_end didn't advance, break
-                if chunk_end <= pos {
-                    break;
-                }
-                
-                // Randomly decide to play or skip this chunk
-                // Higher variation = more skips
-                let play_prob = 1.0 - (effective_variation as f64 * 0.5);
-                
-                if rng.random_bool(play_prob) {
-                    // Play this chunk, maybe with shortened duration
-                    let actual_end = if rng.random_bool(effective_variation as f64 * 0.3) {
-                        // Cut chunk short by 1-2 bars
-                        let cut = if rng.random_bool(0.5) { 1.0 } else { 2.0 };
-                        (chunk_end - cut).max(pos + 2.0)
-                    } else {
-                        chunk_end
-                    };
-                    
-                    if actual_end > pos {
-                        new_sections.push((snap_4bar(pos).max(start), snap_4bar(actual_end).min(end)));
-                    }
-                }
-                // else: skip this chunk (gap)
-                
-                pos = chunk_end;
-            }
-        }
-        
-        // Filter out invalid/duplicate sections and sort
-        let mut filtered: Vec<(f64, f64)> = new_sections
-            .into_iter()
-            .filter(|(s, e)| e > s && *e - *s >= 2.0)
-            .collect();
-        filtered.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        
-        // Merge overlapping sections
-        let mut merged: Vec<(f64, f64)> = Vec::new();
-        for (s, e) in filtered {
-            if let Some(last) = merged.last_mut()
-                && s <= last.1 {
-                    last.1 = last.1.max(e);
+
+            let is_light = light_variation.iter().any(|p| arr.name.starts_with(p));
+            let effective_variation = if is_light { variation * 0.3 } else { variation };
+
+            let mut new_sections: Vec<(f64, f64)> = Vec::new();
+
+            for &(start, end) in &arr.sections {
+                let section_len = end - start;
+
+                // Skip short sections
+                if section_len < 8.0 {
+                    new_sections.push((start, end));
                     continue;
                 }
-            merged.push((s, e));
+
+                // Probability of breaking up this section increases with variation
+                if !rng.random_bool(effective_variation as f64 * 0.7) {
+                    new_sections.push((start, end));
+                    continue;
+                }
+
+                // Break section into 4 or 8 bar chunks with gaps
+                let chunk_size = if rng.random_bool(0.5) { 4.0 } else { 8.0 };
+                let mut pos = start;
+
+                while pos < end {
+                    let chunk_end = (pos + chunk_size).min(end);
+
+                    // Guard against infinite loop: if chunk_end didn't advance, break
+                    if chunk_end <= pos {
+                        break;
+                    }
+
+                    // Randomly decide to play or skip this chunk
+                    // Higher variation = more skips
+                    let play_prob = 1.0 - (effective_variation as f64 * 0.5);
+
+                    if rng.random_bool(play_prob) {
+                        // Play this chunk, maybe with shortened duration
+                        let actual_end = if rng.random_bool(effective_variation as f64 * 0.3) {
+                            // Cut chunk short by 1-2 bars
+                            let cut = if rng.random_bool(0.5) { 1.0 } else { 2.0 };
+                            (chunk_end - cut).max(pos + 2.0)
+                        } else {
+                            chunk_end
+                        };
+
+                        if actual_end > pos {
+                            new_sections.push((snap_4bar(pos).max(start), snap_4bar(actual_end).min(end)));
+                        }
+                    }
+                    // else: skip this chunk (gap)
+
+                    pos = chunk_end;
+                }
+            }
+
+            // Filter out invalid/duplicate sections and sort
+            let mut filtered: Vec<(f64, f64)> = new_sections
+                .into_iter()
+                .filter(|(s, e)| e > s && *e - *s >= 2.0)
+                .collect();
+            filtered.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+            // Merge overlapping sections
+            let mut merged: Vec<(f64, f64)> = Vec::new();
+            for (s, e) in filtered {
+                if let Some(last) = merged.last_mut()
+                    && s <= last.1 {
+                        last.1 = last.1.max(e);
+                        continue;
+                    }
+                merged.push((s, e));
+            }
+
+            if !merged.is_empty() {
+                arr.sections = merged;
+            }
         }
-        
-        if !merged.is_empty() {
-            arr.sections = merged;
-        }
-    }
-    
-    arrangements
+
+        arrangements
+    })
 }
 
 /// Apply chaos to arrangements: random gaps + call-and-response patterns
 /// chaos 0.0 = no changes, 1.0 = maximum randomization
 fn apply_chaos_to_arrangements(mut arrangements: Vec<TrackArrangement>, chaos: f32) -> Vec<TrackArrangement> {
-    let mut rng = rand::rng();
-    
-    // Tracks that should NOT be chaotified (fills, one-shots, FX impacts)
-    let protected_prefixes = ["FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP", "BOOM KICK", "SNARE ROLL", "GLITCH", "REVERSE", "SWEEP"];
-    
-    // Core rhythm tracks - can only have tiny gaps (1-2 beats max)
-    let core_rhythm_prefixes = ["KICK", "CLAP", "SNARE", "HAT", "BASS", "SUB"];
-    
-    // Tracks that can use call-and-response (melodic/harmonic elements)
-    let call_response_prefixes = ["SYNTH", "PAD", "LEAD", "ARP"];
-    
-    for arr in arrangements.iter_mut() {
-        // Skip protected tracks entirely
-        if protected_prefixes.iter().any(|p| arr.name.starts_with(p)) {
-            continue;
-        }
-        
-        // Skip if too few sections
-        if arr.sections.len() < 2 {
-            continue;
-        }
-        
-        let is_core_rhythm = core_rhythm_prefixes.iter().any(|p| arr.name.starts_with(p));
-        
-        // Snap to beat grid (0.25 bar = 1 beat) - Ableton requires integer beat values
-        let snap = |v: f64| -> f64 { (v * 4.0).round() / 4.0 };
-        
-        // 1. Micro-gaps: punch small holes in sections (1-2 bars max for core, 2-4 bars for others)
-        // This creates variation without losing the groove
-        let mut new_sections: Vec<(f64, f64)> = Vec::new();
-        
-        for section in arr.sections.iter() {
-            let (start, end) = *section;
-            let section_len = end - start;
-            
-            // Only apply micro-gaps to sections longer than 4 bars
-            if section_len < 4.0 {
-                new_sections.push((start, end));
+    with_gen_rng(|rng| {
+        // Tracks that should NOT be chaotified (fills, one-shots, FX impacts)
+        let protected_prefixes = ["FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP", "BOOM KICK", "SNARE ROLL", "GLITCH", "REVERSE", "SWEEP"];
+
+        // Core rhythm tracks - can only have tiny gaps (1-2 beats max)
+        let core_rhythm_prefixes = ["KICK", "CLAP", "SNARE", "HAT", "BASS", "SUB"];
+
+        // Tracks that can use call-and-response (melodic/harmonic elements)
+        let call_response_prefixes = ["SYNTH", "PAD", "LEAD", "ARP"];
+
+        for arr in arrangements.iter_mut() {
+            // Skip protected tracks entirely
+            if protected_prefixes.iter().any(|p| arr.name.starts_with(p)) {
                 continue;
             }
-            
-            // Chance to add a micro-gap in this section
-            let gap_chance = chaos * 0.4;
-            if !rng.random_bool(gap_chance as f64) {
-                new_sections.push((start, end));
+
+            // Skip if too few sections
+            if arr.sections.len() < 2 {
                 continue;
             }
-            
-            // Gap size: 1-2 bars for core rhythm, 2-4 bars for melodics/perc
-            let max_gap = if is_core_rhythm { 2.0 } else { 4.0 };
-            let min_gap = if is_core_rhythm { 1.0 } else { 2.0 };
-            let gap_size = snap(min_gap + rng.random::<f64>() * (max_gap - min_gap));
-            
-            // Gap position: somewhere in the middle (not first 2 or last 2 bars)
-            let margin = 2.0;
-            let gap_range = section_len - gap_size - (margin * 2.0);
-            if gap_range <= 0.0 {
-                new_sections.push((start, end));
-                continue;
+
+            let is_core_rhythm = core_rhythm_prefixes.iter().any(|p| arr.name.starts_with(p));
+
+            // Snap to beat grid (0.25 bar = 1 beat) - Ableton requires integer beat values
+            let snap = |v: f64| -> f64 { (v * 4.0).round() / 4.0 };
+
+            // 1. Micro-gaps: punch small holes in sections (1-2 bars max for core, 2-4 bars for others)
+            // This creates variation without losing the groove
+            let mut new_sections: Vec<(f64, f64)> = Vec::new();
+
+            for section in arr.sections.iter() {
+                let (start, end) = *section;
+                let section_len = end - start;
+
+                // Only apply micro-gaps to sections longer than 4 bars
+                if section_len < 4.0 {
+                    new_sections.push((start, end));
+                    continue;
+                }
+
+                // Chance to add a micro-gap in this section
+                let gap_chance = chaos * 0.4;
+                if !rng.random_bool(gap_chance as f64) {
+                    new_sections.push((start, end));
+                    continue;
+                }
+
+                // Gap size: 1-2 bars for core rhythm, 2-4 bars for melodics/perc
+                let max_gap = if is_core_rhythm { 2.0 } else { 4.0 };
+                let min_gap = if is_core_rhythm { 1.0 } else { 2.0 };
+                let gap_size = snap(min_gap + rng.random::<f64>() * (max_gap - min_gap));
+
+                // Gap position: somewhere in the middle (not first 2 or last 2 bars)
+                let margin = 2.0;
+                let gap_range = section_len - gap_size - (margin * 2.0);
+                if gap_range <= 0.0 {
+                    new_sections.push((start, end));
+                    continue;
+                }
+
+                let gap_start = snap(start + margin + rng.random::<f64>() * gap_range);
+                let gap_end = snap(gap_start + gap_size);
+
+                // Split section around the gap
+                if gap_start > start + 1.0 {
+                    new_sections.push((snap(start), gap_start));
+                }
+                if end > gap_end + 1.0 {
+                    new_sections.push((gap_end, snap(end)));
+                }
             }
-            
-            let gap_start = snap(start + margin + rng.random::<f64>() * gap_range);
-            let gap_end = snap(gap_start + gap_size);
-            
-            // Split section around the gap
-            if gap_start > start + 1.0 {
-                new_sections.push((snap(start), gap_start));
+
+            // 2. Call-and-response: for melodic tracks, shift some sections by 2-4 bars
+            if call_response_prefixes.iter().any(|p| arr.name.starts_with(p)) {
+                let has_number = arr.name.chars().last().map(|c| c.is_ascii_digit()).unwrap_or(false);
+                if has_number {
+                    let shift_chance = chaos * 0.3;
+                    new_sections = new_sections.iter().map(|(start, end)| {
+                        if rng.random_bool(shift_chance as f64) && *start >= 8.0 {
+                            let shift = if rng.random_bool(0.5) { 2.0 } else { 4.0 };
+                            (*start + shift, *end + shift)
+                        } else {
+                            (*start, *end)
+                        }
+                    }).collect();
+                }
             }
-            if end > gap_end + 1.0 {
-                new_sections.push((gap_end, snap(end)));
-            }
-        }
-        
-        // 2. Call-and-response: for melodic tracks, shift some sections by 2-4 bars
-        if call_response_prefixes.iter().any(|p| arr.name.starts_with(p)) {
+
+            // 3. Staggered entry: for non-primary tracks, slightly delay first section
             let has_number = arr.name.chars().last().map(|c| c.is_ascii_digit()).unwrap_or(false);
-            if has_number {
-                let shift_chance = chaos * 0.3;
-                new_sections = new_sections.iter().map(|(start, end)| {
-                    if rng.random_bool(shift_chance as f64) && *start >= 8.0 {
-                        let shift = if rng.random_bool(0.5) { 2.0 } else { 4.0 };
-                        (*start + shift, *end + shift)
-                    } else {
-                        (*start, *end)
-                    }
-                }).collect();
+            if has_number && !new_sections.is_empty() && !is_core_rhythm {
+                let stagger_chance = chaos * 0.25;
+                if rng.random_bool(stagger_chance as f64) {
+                    // Delay first section by 2-4 bars (not remove it entirely)
+                    let delay = if rng.random_bool(0.5) { 2.0 } else { 4.0 };
+                    if let Some((start, end)) = new_sections.first_mut()
+                        && *end - *start > delay + 2.0 {
+                            *start += delay;
+                        }
+                }
             }
+
+            arr.sections = new_sections;
         }
-        
-        // 3. Staggered entry: for non-primary tracks, slightly delay first section
-        let has_number = arr.name.chars().last().map(|c| c.is_ascii_digit()).unwrap_or(false);
-        if has_number && !new_sections.is_empty() && !is_core_rhythm {
-            let stagger_chance = chaos * 0.25;
-            if rng.random_bool(stagger_chance as f64) {
-                // Delay first section by 2-4 bars (not remove it entirely)
-                let delay = if rng.random_bool(0.5) { 2.0 } else { 4.0 };
-                if let Some((start, end)) = new_sections.first_mut()
-                    && *end - *start > delay + 2.0 {
-                        *start += delay;
-                    }
-            }
-        }
-        
-        arr.sections = new_sections;
-    }
-    
-    arrangements
+
+        arrangements
+    })
 }
 
 // ============================================================================
@@ -1497,38 +1564,38 @@ fn apply_variation_per_section(arrangements: Vec<TrackArrangement>, section_vari
 /// grid both matches the timeline UI's granularity and produces noticeably more
 /// varied accenting without changing average density.
 fn apply_density_per_section(mut arrangements: Vec<TrackArrangement>, section_density: &SectionValues, global_density: f32) -> Vec<TrackArrangement> {
-    let mut rng = rand::rng();
+    with_gen_rng(|rng| {
+        // 28 blocks of 8 bars each, covering bars 1..=224 (Techno standard).
+        // TODO: respect per-genre SectionBounds total_bars once plumbed through.
+        let block_starts: Vec<u32> = (1..=SONG_LENGTH_BARS).step_by(8).collect();
 
-    // 28 blocks of 8 bars each, covering bars 1..=224 (Techno standard).
-    // TODO: respect per-genre SectionBounds total_bars once plumbed through.
-    let block_starts: Vec<u32> = (1..=SONG_LENGTH_BARS).step_by(8).collect();
+        // Tracks that can have density-based doubling
+        let densifiable = ["HAT", "PERC", "SYNTH", "ARP", "PAD"];
 
-    // Tracks that can have density-based doubling
-    let densifiable = ["HAT", "PERC", "SYNTH", "ARP", "PAD"];
+        for arr in arrangements.iter_mut() {
+            if !densifiable.iter().any(|p| arr.name.starts_with(p)) {
+                continue;
+            }
 
-    for arr in arrangements.iter_mut() {
-        if !densifiable.iter().any(|p| arr.name.starts_with(p)) {
-            continue;
-        }
+            let mut new_sections: Vec<(f64, f64)> = Vec::new();
 
-        let mut new_sections: Vec<(f64, f64)> = Vec::new();
+            for &(start, end) in &arr.sections {
+                new_sections.push((start, end));
 
-        for &(start, end) in &arr.sections {
-            new_sections.push((start, end));
+                // Walk every 8-bar block that overlaps this clip, pulling the
+                // block-specific density (falling back to the global scalar).
+                for &block_start in &block_starts {
+                    let density = section_density.value_at_bar(block_start, global_density);
+                    if density <= 0.0 { continue; }
 
-            // Walk every 8-bar block that overlaps this clip, pulling the
-            // block-specific density (falling back to the global scalar).
-            for &block_start in &block_starts {
-                let density = section_density.value_at_bar(block_start, global_density);
-                if density <= 0.0 { continue; }
+                    let block_end = block_start + 8;
+                    let block_start_f = block_start as f64;
+                    let block_end_f = block_end as f64;
 
-                let block_end = block_start + 8;
-                let block_start_f = block_start as f64;
-                let block_end_f = block_end as f64;
-
-                // Does the clip overlap this block?
-                if start < block_end_f && end > block_start_f {
-                    if rng.random_bool(density as f64 * 0.4) {
+                    // Does the clip overlap this block?
+                    if start < block_end_f && end > block_start_f
+                        && rng.random_bool(density as f64 * 0.4)
+                    {
                         // Add a 1- or 2-bar accent clip somewhere inside the
                         // overlap between the source clip and this block.
                         let clip_len = if rng.random_bool(0.5) { 1.0 } else { 2.0 };
@@ -1543,14 +1610,14 @@ fn apply_density_per_section(mut arrangements: Vec<TrackArrangement>, section_de
                     }
                 }
             }
+
+            // Sort and dedupe
+            new_sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            arr.sections = new_sections;
         }
 
-        // Sort and dedupe
-        new_sections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        arr.sections = new_sections;
-    }
-
-    arrangements
+        arrangements
+    })
 }
 
 /// Apply glitch edits to arrangements - micro-stutters, beat dropouts, and ramping effects.
@@ -1573,20 +1640,19 @@ fn apply_glitch_edits(mut arrangements: Vec<TrackArrangement>, glitch_intensity:
     if !has_any_glitch {
         return arrangements;
     }
-    
-    let mut rng = rand::rng();
-    
+
+    with_gen_rng(|rng| {
     // Snap to beat grid (0.25 bar = 1 beat)
     let snap = |v: f64| -> f64 { (v * 4.0).round() / 4.0 };
-    
+
     // Tracks that get different glitch treatments
     let kick_tracks = ["KICK"];
     let drum_tracks = ["CLAP", "SNARE", "HAT", "PERC", "RIDE"];
     let bass_tracks = ["BASS", "SUB"];
     let melodic_tracks = ["SYNTH", "PAD", "LEAD", "ARP"];
-    
+
     // Tracks that should NOT be glitched (one-shots, FX)
-    let protected = ["FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP", "BOOM KICK", 
+    let protected = ["FILL", "IMPACT", "CRASH", "RISER", "DOWNLIFTER", "SUB DROP", "BOOM KICK",
                      "SNARE ROLL", "GLITCH", "REVERSE", "SWEEP", "ATMOS", "VOX"];
     
     for arr in arrangements.iter_mut() {
@@ -1767,8 +1833,9 @@ fn apply_glitch_edits(mut arrangements: Vec<TrackArrangement>, glitch_intensity:
         
         arr.sections = filtered;
     }
-    
+
     arrangements
+    })
 }
 
 const GROUP_TRACK_TEMPLATE: &str = include_str!("group_track_template.xml");
@@ -2502,11 +2569,12 @@ fn query_samples_internal(
         })
         .collect();
     
-    // Shuffle first to randomize samples with similar scores, then stable sort by score
+    // Shuffle first to randomize samples with similar scores, then stable sort by score.
+    // Pull from the seeded generation RNG so two runs with the same seed pick the
+    // same samples from each score bucket.
     use rand::seq::SliceRandom;
-    let mut rng = rand::rng();
-    scored.shuffle(&mut rng);
-    
+    with_gen_rng(|rng| scored.shuffle(rng));
+
     // Stable sort by score (higher = better match for current hardness)
     scored.sort_by(|a, b| {
         b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
@@ -2884,6 +2952,51 @@ pub struct TypeAtonal {
 }
 
 pub fn generate(
+    output_path: &Path,
+    bpm: f64,
+    num_songs: u32,
+    root_note: Option<&str>,
+    mode: Option<&str>,
+    genre: Option<&str>,
+    hardness: f32,
+    chaos: f32,
+    glitch_intensity: f32,
+    section_overrides: SectionOverrides,
+    density: f32,
+    variation: f32,
+    parallelism: f32,
+    scatter: f32,
+    atonal: bool,
+    track_counts: TrackCounts,
+    type_atonal: TypeAtonal,
+    section_lengths: crate::als_project::SectionLengths,
+    // Generation seed — every random decision derives from this. Caller
+    // (usually the Tauri command) must pass a concrete u64; `None` at the
+    // wizard layer gets resolved to a fresh `rand::random()` before this fn
+    // is called, so we can always echo the seed back in the result for
+    // "regenerate with same seed".
+    seed: u64,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+    on_progress: Option<&dyn Fn(&str)>,
+) -> Result<GenerationResult, String> {
+    // Seed the thread-local generation RNG up front — every helper below
+    // reads from it via `with_gen_rng`. Wrap the rest of the body in a
+    // closure so we can guarantee `clear_gen_rng()` runs on every exit path
+    // (including the many `?` / `return Err` spots), without sprinkling
+    // manual cleanup everywhere.
+    init_gen_rng(seed);
+    let r = generate_inner(
+        output_path, bpm, num_songs, root_note, mode, genre, hardness, chaos,
+        glitch_intensity, section_overrides, density, variation, parallelism,
+        scatter, atonal, track_counts, type_atonal, section_lengths, cancel,
+        on_progress,
+    );
+    clear_gen_rng();
+    r
+}
+
+#[allow(clippy::too_many_arguments)]
+fn generate_inner(
     output_path: &Path,
     bpm: f64,
     num_songs: u32,
@@ -4234,6 +4347,56 @@ mod tests {
 #[cfg(test)]
 mod additional_tests {
     use super::*;
+
+    /// Lock the thread-local RNG, run a helper twice, assert bit-identical
+    /// output. `generate_swoosh_arrangements` is ideal for this — it's pure
+    /// (no I/O, no filesystem, no DB), reads enough random state that any
+    /// leak from uninitialized RNG would diverge, and returns a stable
+    /// `Vec<TrackArrangement>` we can compare directly.
+    #[test]
+    fn test_seeded_helper_is_deterministic() {
+        init_gen_rng(0xCAFE_BABE);
+        let a = generate_swoosh_arrangements();
+        clear_gen_rng();
+
+        init_gen_rng(0xCAFE_BABE);
+        let b = generate_swoosh_arrangements();
+        clear_gen_rng();
+
+        assert_eq!(a, b, "same seed → identical output");
+        assert!(!a.is_empty(), "helper should have produced tracks");
+    }
+
+    /// Different seeds should produce different output — otherwise the seed
+    /// is effectively ignored. We scan a small set so a fluke collision on
+    /// any single pair doesn't flake the test. Uses Debug strings for set
+    /// membership because `TrackArrangement` intentionally doesn't implement
+    /// `Hash` (float fields).
+    #[test]
+    fn test_different_seeds_produce_different_output() {
+        let runs: Vec<String> = [1u64, 2, 3, 4, 5]
+            .iter()
+            .map(|&s| {
+                init_gen_rng(s);
+                let out = generate_swoosh_arrangements();
+                clear_gen_rng();
+                format!("{:?}", out)
+            })
+            .collect();
+        let unique: std::collections::HashSet<&String> = runs.iter().collect();
+        assert!(unique.len() >= 2, "5 distinct seeds must produce ≥2 distinct outputs");
+    }
+
+    /// After `clear_gen_rng`, helpers should still work — the fallback path
+    /// seeds from wall-clock nanos so tests that never call `generate()` keep
+    /// working as they did before the refactor. Non-determinism is acceptable
+    /// here; we only assert we get *some* output.
+    #[test]
+    fn test_helper_works_without_generate_init() {
+        clear_gen_rng();
+        let out = generate_swoosh_arrangements();
+        assert!(!out.is_empty(), "helper should fall back when no seed is set");
+    }
 
     #[test]
     fn test_get_arrangement_basics() {

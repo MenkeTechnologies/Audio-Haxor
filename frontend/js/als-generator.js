@@ -212,6 +212,11 @@
       section_lengths: typeof window.alsSectionLengthsForIpc === 'function'
         ? window.alsSectionLengthsForIpc()
         : { intro: 32, build: 32, breakdown: 32, drop1: 32, drop2: 32, fadedown: 32, outro: 32 },
+      // Seed — empty string or missing = let the backend pick a fresh random
+      // one. We send as a STRING so u64 seeds above Number.MAX_SAFE_INTEGER
+      // round-trip without precision loss; the Rust side deserializes either
+      // form (see `deserialize_seed` in als_project.rs).
+      seed: (el('alsSeed')?.value || '').trim() || null,
     };
   }
 
@@ -383,6 +388,7 @@
         } else if (payload.phase === 'completed' && payload.result) {
           if (pText) pText.textContent = 'Done!';
           if (spinner) spinner.style.display = 'none';
+          applySeedFromResult(payload.result);
           if (resultEl) {
             const r = payload.result;
             resultEl.style.display = 'block';
@@ -392,6 +398,7 @@
                 <div>${r.projectName}</div>
                 <div style="margin-top:4px;color:var(--text-dim);">${r.tracks} tracks, ${r.clips} clips, ${r.bars} bars @ ${r.bpm} BPM</div>
                 <div style="margin-top:4px;color:var(--text-dim);word-break:break-all;">${r.path}</div>
+                ${r.seed ? `<div style="margin-top:4px;color:var(--text-dim);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">Seed: ${r.seed}</div>` : ''}
                 ${r.warnings?.length ? '<div style="margin-top:4px;color:var(--accent);">Warnings: ' + r.warnings.join(', ') + '</div>' : ''}
                 <button class="btn btn-primary" style="margin-top:8px;" data-action="alsOpenProject" data-path="${r.path}">Open in Ableton Live</button>
               </div>`;
@@ -415,6 +422,7 @@
       if (res) {
         if (progressText) progressText.textContent = 'Done!';
         if (spinner) spinner.style.display = 'none';
+        applySeedFromResult(res);
         if (result) {
           result.style.display = 'block';
           result.innerHTML = `
@@ -423,6 +431,7 @@
               <div>${res.projectName}</div>
               <div style="margin-top:4px;color:var(--text-dim);">${res.tracks} tracks, ${res.clips} clips, ${res.bars} bars @ ${res.bpm} BPM</div>
               <div style="margin-top:4px;color:var(--text-dim);word-break:break-all;">${res.path}</div>
+              ${res.seed ? `<div style="margin-top:4px;color:var(--text-dim);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">Seed: ${res.seed}</div>` : ''}
               ${res.warnings?.length ? '<div style="margin-top:4px;color:var(--accent);">Warnings: ' + res.warnings.join(', ') + '</div>' : ''}
               <button class="btn btn-primary" style="margin-top:8px;" data-action="alsOpenProject" data-path="${res.path}">Open in Ableton Live</button>
             </div>`;
@@ -623,6 +632,10 @@
     { id: 'alsTonalGlitch', type: 'checked' },
     { id: 'alsTonalScatter', type: 'checked' },
     { id: 'alsTonalVox', type: 'checked' },
+    // Seed: saved as a string (full u64 precision). The lock checkbox gates
+    // whether the seed is restored on next load — see `restoreAlsPrefs`.
+    { id: 'alsSeed', type: 'value' },
+    { id: 'alsSeedLocked', type: 'checked' },
     // Per-section overrides now live in the canvas timeline (als-timeline.js);
     // that module persists to prefs under `alsSectionOverrides`.
   ];
@@ -651,12 +664,48 @@
         if (f.type === 'checked') el.checked = !!data[f.id];
         else el.value = data[f.id];
       }
+      // Seed: only restore the value if the user locked it. Otherwise drop
+      // the stored seed on startup so a fresh random one is drawn — avoids
+      // the footgun where a previous session's seed silently sticks around
+      // across restarts and every generation produces the same arrangement.
+      const seedEl = document.getElementById('alsSeed');
+      const lockEl = document.getElementById('alsSeedLocked');
+      if (seedEl && lockEl && !lockEl.checked) seedEl.value = '';
       updateTrackCountLabels();
       updateEstimatedTracks();
       const hv = document.getElementById('alsHardnessValue');
       const h = document.getElementById('alsHardness');
       if (hv && h) hv.textContent = (parseInt(h.value, 10) / 100).toFixed(2);
     } catch (_) {}
+  }
+
+  // After a successful generation, copy the backend-resolved seed into the
+  // seed input so the user can see what was used and optionally lock it for
+  // a "regenerate with same seed" run. `result.seed` is a string (the Rust
+  // side serializes u64 as string to avoid JSON Number precision loss), so
+  // we assign as-is. Also triggers `saveAlsPrefs` so the restored-on-reload
+  // state stays coherent.
+  function applySeedFromResult(result) {
+    if (!result || result.seed == null) return;
+    const el = document.getElementById('alsSeed');
+    if (!el) return;
+    el.value = String(result.seed);
+    saveAlsPrefs();
+  }
+
+  // Generate a random decimal seed in the JS safe-integer range (0 .. 2^53-1)
+  // and drop it into the seed input. Rust's `StdRng::seed_from_u64` treats
+  // any u64 equally, so capping to 53 bits costs no real entropy. Capping
+  // here (instead of using full u64) means the string round-trips losslessly
+  // through JS `Number` in any future tool that reads it back.
+  function randomizeAlsSeed() {
+    const el = document.getElementById('alsSeed');
+    if (!el) return;
+    // Number.MAX_SAFE_INTEGER = 2^53 - 1 = 9007199254740991
+    const seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+    el.value = String(seed);
+    saveAlsPrefs();
+    if (typeof updateSummary === 'function') updateSummary();
   }
 
   // ---------------------------------------------------------------------------
@@ -1212,6 +1261,9 @@
         break;
       case 'alsCancelGenerate':
         cancelGeneration();
+        break;
+      case 'alsRandomizeSeed':
+        randomizeAlsSeed();
         break;
     }
   });
