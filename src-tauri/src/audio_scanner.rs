@@ -520,21 +520,59 @@ fn parse_wav(path: &Path, meta: &mut AudioMetadata) {
         Ok(f) => f,
         Err(_) => return,
     };
-    let mut header = [0u8; 44];
-    if file.read_exact(&mut header).is_err() {
+    
+    // Read enough to find the data chunk (most WAV files have it within first 4KB)
+    let mut buf = [0u8; 4096];
+    let bytes_read = match file.read(&mut buf) {
+        Ok(n) => n,
+        Err(_) => return,
+    };
+
+    if bytes_read < 44 || &buf[0..4] != b"RIFF" || &buf[8..12] != b"WAVE" {
         return;
     }
 
-    if &header[0..4] == b"RIFF" && &header[8..12] == b"WAVE" {
-        meta.channels = Some(u16::from_le_bytes([header[22], header[23]]));
-        meta.sample_rate = Some(u32::from_le_bytes([
-            header[24], header[25], header[26], header[27],
-        ]));
-        let byte_rate = u32::from_le_bytes([header[28], header[29], header[30], header[31]]);
-        meta.bits_per_sample = Some(u16::from_le_bytes([header[34], header[35]]));
-        let data_size = u32::from_le_bytes([header[40], header[41], header[42], header[43]]);
-        if byte_rate > 0 {
-            meta.duration = Some(data_size as f64 / byte_rate as f64);
+    // Parse fmt chunk (always at offset 12 in valid WAV)
+    if &buf[12..16] == b"fmt " {
+        meta.channels = Some(u16::from_le_bytes([buf[22], buf[23]]));
+        meta.sample_rate = Some(u32::from_le_bytes([buf[24], buf[25], buf[26], buf[27]]));
+        meta.bits_per_sample = Some(u16::from_le_bytes([buf[34], buf[35]]));
+    }
+    
+    // Scan for the "data" chunk - it may not be at offset 36 if there are extra chunks
+    // (LIST, bext, JUNK, etc. can appear between fmt and data)
+    let mut offset = 12usize;
+    let mut data_size: Option<u32> = None;
+    
+    while offset + 8 < bytes_read {
+        let chunk_id = &buf[offset..offset + 4];
+        let chunk_size = u32::from_le_bytes([
+            buf[offset + 4],
+            buf[offset + 5],
+            buf[offset + 6],
+            buf[offset + 7],
+        ]);
+        
+        if chunk_id == b"data" {
+            data_size = Some(chunk_size);
+            break;
+        }
+        
+        // Move to next chunk (8 byte header + chunk size, padded to even)
+        let padded_size = ((chunk_size + 1) & !1) as usize;
+        offset += 8 + padded_size;
+    }
+    
+    // Calculate duration from data size and format info
+    if let (Some(sr), Some(ch), Some(bits), Some(ds)) = 
+        (meta.sample_rate, meta.channels, meta.bits_per_sample, data_size) 
+    {
+        if sr > 0 && ch > 0 && bits > 0 {
+            let bytes_per_sample = ((bits + 7) / 8) as u32;
+            let bytes_per_second = sr * ch as u32 * bytes_per_sample;
+            if bytes_per_second > 0 {
+                meta.duration = Some(ds as f64 / bytes_per_second as f64);
+            }
         }
     }
 }

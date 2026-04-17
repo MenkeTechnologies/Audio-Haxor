@@ -1,6 +1,6 @@
 loading spinner in Blacklist/SOurce dirs modal until hooked up, buttons dont work at first
 
-ALS gen
+ALS generator
 - blacklist stems/construction kits samples b/c no loopable in this context
 - blacklist all samples longer than 32 bars
 - show all tracks even if no samples found

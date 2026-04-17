@@ -203,6 +203,7 @@ struct SongSamples {
     synths: Vec<Vec<SampleInfo>>,
     pads: Vec<Vec<SampleInfo>>,
     arps: Vec<Vec<SampleInfo>>,
+    keyss: Vec<Vec<SampleInfo>>,
     // FX
     risers: Vec<Vec<SampleInfo>>,
     downlifters: Vec<Vec<SampleInfo>>,
@@ -866,6 +867,26 @@ fn get_arrangement(chaos: f32) -> Vec<TrackArrangement> {
                 (145.0, 152.5),
                 (153.0, 160.0),
                 (161.0, 168.75),  // drops at 169
+            ]),
+
+        // === KEYS (piano/organ - similar to pads but with more rhythmic presence) ===
+        TrackArrangement::new("KEYS 1", vec![
+                // BREAKDOWN - keys shine here
+                (65.0, 72.5),
+                (73.0, 80.0),
+                (81.0, 88.5),
+                (89.0, 96.0),
+                // DROP 2 - add texture
+                (129.0, 136.75),
+                (137.0, 144.0),
+                (145.0, 152.5),
+                (153.0, 160.0),
+            ]),
+        TrackArrangement::new("KEYS 2", vec![
+                (73.0, 80.0),
+                (81.0, 88.5),
+                (145.0, 152.5),
+                (153.0, 160.0),
             ]),
 
         // === FX - RISERS (CONTINUE THROUGH FILL GAPS for seamless tension) ===
@@ -1865,7 +1886,15 @@ struct SampleInfo {
 }
 
 impl SampleInfo {
-    fn from_db(path: &str, db_duration: f64, db_size: u64, db_bpm: Option<f64>) -> SampleInfo {
+    fn from_db(
+        path: &str,
+        db_duration: f64,
+        db_size: u64,
+        db_bpm: Option<f64>,
+        sample_rate: u32,
+        channels: u16,
+        bits_per_sample: u16,
+    ) -> SampleInfo {
         let name = Path::new(path)
             .file_name()
             .and_then(|n| n.to_str())
@@ -1874,11 +1903,51 @@ impl SampleInfo {
 
         // Trust DB values - don't hit disk for every sample (network mounts are slow)
         let file_size = if db_size > 0 { db_size } else { 0 };
-        let duration_secs = if db_duration > 0.0 { db_duration } else { 1.0 };
-
+        
         // Prefer BPM from filename (most reliable) over DB metadata
         let filename_bpm = crate::sample_analysis::extract_bpm(&name).map(|b| b as f64);
         let bpm = filename_bpm.or(db_bpm);
+        
+        // Duration validation: must be at least 0.5s to be valid
+        // Many samples in DB have incorrect durations (e.g., 0.002s when should be 3.8s)
+        // because WAV header parsing failed for non-standard chunk layouts.
+        // If duration looks invalid, estimate from file size using actual audio format.
+        // 
+        // Validate format values - DB can have garbage like sample_rate=1818386796
+        let valid_sample_rate = sample_rate > 0 && sample_rate <= 192000;
+        let valid_channels = channels > 0 && channels <= 8;
+        let valid_bits = bits_per_sample >= 8 && bits_per_sample <= 64;
+        
+        let duration_secs = if db_duration >= 0.5 {
+            db_duration
+        } else if file_size > 0 && valid_sample_rate && valid_channels && valid_bits {
+            // Calculate bytes per second using actual format info (use u64 to avoid overflow)
+            let bytes_per_sample = ((bits_per_sample as u64) + 7) / 8;
+            let bytes_per_second = (sample_rate as u64) * (channels as u64) * bytes_per_sample;
+            let estimated_duration = file_size as f64 / bytes_per_second as f64;
+            
+            // For loops with BPM, quantize to standard bar lengths
+            if let Some(sample_bpm) = bpm {
+                if name.to_lowercase().contains("loop") {
+                    let estimated_bars = (estimated_duration * sample_bpm) / (60.0 * 4.0);
+                    let bars = if estimated_bars <= 1.5 { 1.0 }
+                        else if estimated_bars <= 3.0 { 2.0 }
+                        else if estimated_bars <= 6.0 { 4.0 }
+                        else if estimated_bars <= 12.0 { 8.0 }
+                        else { estimated_bars.min(32.0) };
+                    (bars * 4.0 * 60.0) / sample_bpm
+                } else {
+                    // Has BPM but not a loop - use estimated duration directly
+                    estimated_duration.max(0.1)
+                }
+            } else {
+                // No BPM - use estimated duration directly (one-shots, etc.)
+                estimated_duration.max(0.1)
+            }
+        } else {
+            // No file size or format info - use 1 second as last resort fallback
+            1.0
+        };
 
         SampleInfo {
             path: path.to_string(),
@@ -1967,23 +2036,41 @@ impl SampleInfo {
         false
     }
 
+    /// Calculate the loop length in bars based on the sample's actual duration and BPM.
+    /// 
+    /// Uses the sample's original BPM (from filename or metadata) to determine how many
+    /// bars the sample represents. Quantizes to standard loop lengths: 1, 2, 4, 8, 16, 32.
+    /// 
+    /// The project_bpm is only used as a fallback when the sample has no BPM metadata,
+    /// in which case we assume the sample was recorded at the project tempo.
     fn loop_bars(&self, project_bpm: f64) -> u32 {
-        let bpm = self.bpm.unwrap_or(project_bpm);
+        // Use the sample's original BPM to calculate bar length.
+        // Only fall back to project BPM if sample BPM is unknown.
+        let sample_bpm = self.bpm.unwrap_or(project_bpm);
+        
         let duration = if self.duration_secs <= 0.0 || self.duration_secs > 300.0 {
+            // Invalid duration - assume 4 bars at project tempo as fallback
             (4.0 * 60.0 * 4.0) / project_bpm
         } else {
             self.duration_secs
         };
 
-        if bpm <= 0.0 {
-            return 4;
+        if sample_bpm <= 0.0 {
+            return 4; // Fallback for invalid BPM
         }
-        let bars = (duration * bpm) / (60.0 * 4.0);
+        
+        // Calculate actual bar count: duration_secs * bpm / (60 * beats_per_bar)
+        // At 120 BPM, 1 bar (4 beats) = 2 seconds
+        let bars = (duration * sample_bpm) / (60.0 * 4.0);
+        
+        // Quantize to standard loop lengths (1, 2, 4, 8, 16, 32 bars)
+        // Using midpoint thresholds for rounding to nearest power of 2
         if bars <= 1.5 { 1 }
         else if bars <= 3.0 { 2 }
         else if bars <= 6.0 { 4 }
         else if bars <= 12.0 { 8 }
-        else { 16 }
+        else if bars <= 24.0 { 16 }
+        else { 32 }
     }
 
     fn xml_path(&self) -> String {
@@ -2436,7 +2523,8 @@ fn query_samples_internal(
     // Use FTS5 for fast substring search via trigram index
     // Query FTS first, then join - FTS rowid = audio_samples.id
     let query = format!(
-        "SELECT s.path, COALESCE(s.duration, 0), s.bpm, COALESCE(s.size, 0)
+        "SELECT s.path, COALESCE(s.duration, 0), s.bpm, COALESCE(s.size, 0),
+                COALESCE(s.sample_rate, 44100), COALESCE(s.channels, 2), COALESCE(s.bits_per_sample, 16)
          FROM audio_samples_fts fts
          JOIN audio_samples s ON s.id = fts.rowid
          WHERE s.format = 'WAV'
@@ -2457,12 +2545,17 @@ fn query_samples_internal(
         let duration: f64 = row.get(1)?;
         let bpm: Option<f64> = row.get(2)?;
         let size: u64 = row.get::<_, i64>(3).map(|v| v as u64)?;
-        Ok((path, duration, bpm, size))
+        let sample_rate: u32 = row.get(4)?;
+        let channels: u16 = row.get(5)?;
+        let bits_per_sample: u16 = row.get(6)?;
+        Ok((path, duration, bpm, size, sample_rate, channels, bits_per_sample))
     })
     .ok()
     .map(|rows| {
         rows.filter_map(|r| r.ok())
-            .map(|(path, duration, bpm, size)| SampleInfo::from_db(&path, duration, size, bpm))
+            .map(|(path, duration, bpm, size, sample_rate, channels, bits_per_sample)| {
+                SampleInfo::from_db(&path, duration, size, bpm, sample_rate, channels, bits_per_sample)
+            })
             .collect()
     })
     .unwrap_or_default();
@@ -2472,7 +2565,13 @@ fn query_samples_internal(
     // 2. Reversed samples (files ending with -R.wav, _R.wav, etc.)
     // 3. Ableton project samples (frozen, consolidated, rendered from sessions)
     // 4. Bad genres (checked on directory path only, not filename)
-    use crate::sample_filters::{REVERSED_SUFFIXES, PROJECT_RENDER_KEYWORDS, BAD_GENRES, is_ableton_project_sample};
+    // 5. Construction kits/stems (not loopable, meant to be mixed not looped)
+    // 6. Samples longer than 32 bars (too long for loop-based arrangement)
+    use crate::sample_filters::{REVERSED_SUFFIXES, PROJECT_RENDER_KEYWORDS, CONSTRUCTION_KIT_KEYWORDS, BAD_GENRES, is_ableton_project_sample};
+    
+    // Max duration: 32 bars at the reference BPM (32 bars * 4 beats/bar * 60s/min / BPM)
+    let max_duration_secs = (32.0 * 4.0 * 60.0) / REFERENCE_BPM;
+    
     let all_samples: Vec<SampleInfo> = all_samples
         .into_iter()
         .filter(|s| {
@@ -2493,8 +2592,16 @@ fn query_samples_internal(
             if PROJECT_RENDER_KEYWORDS.iter().any(|kw| path_lower.contains(kw)) {
                 return false;
             }
+            // Skip construction kits and stems (not loopable)
+            if CONSTRUCTION_KIT_KEYWORDS.iter().any(|kw| path_lower.contains(kw)) {
+                return false;
+            }
             // Skip samples inside Ableton project directories
             if is_ableton_project_sample(&s.path) {
+                return false;
+            }
+            // Skip samples longer than 32 bars (too long for loop-based arrangement)
+            if s.duration_secs > max_duration_secs {
                 return false;
             }
             // Skip bad genres - check directory path only (exclude filename)
@@ -2726,22 +2833,26 @@ fn load_song_samples(song_num: u32, target_key: Option<&str>, atonal: bool, hard
     let kick_inc = &["kick_loop", "kick loop", "drum_loops/kick", "drum loops/kick"];
     let kicks = query_n_keyed!("KICK", kick_inc, true, track_counts.kick, key_for(type_atonal.kick));
 
-    let clap_inc = &["clap_loop", "clap loop", "clap"];
+    let clap_inc = &["clap_loop", "clap loop", "claps/", "clap/"];
     let claps = query_n_keyed!("CLAP", clap_inc, true, track_counts.clap, key_for(type_atonal.clap));
 
-    let snare_inc = &["snare_loop", "snare loop", "snare"];
+    // Exclude snare_roll/snare_build - those go to SNARE_ROLL
+    let snare_inc = &["snare_loop", "snare loop", "snares/", "snare/"];
     let snares = query_n_keyed!("SNARE", snare_inc, true, track_counts.snare, key_for(type_atonal.snare));
 
-    let hat_inc = &["hat_loop", "hihat_loop", "top_loop", "closed_hat", "open_hat", "hats/", "/hats"];
+    let hat_inc = &["hat_loop", "hihat_loop", "closed_hat", "open_hat", "hats/", "/hats", "hihat/"];
     let hats = query_n_keyed!("HAT", hat_inc, true, track_counts.hat, key_for(type_atonal.hat));
 
-    let perc_inc = &["perc_loop", "percussion_loop", "percussion_&_top", "perc loop", "percussion loop", "top_loop", "shaker", "tom_loop", "conga", "bongo"];
+    // top_loop removed - too ambiguous, could be hats or full drum tops
+    let perc_inc = &["perc_loop", "percussion_loop", "percussion_&_top", "perc loop", "percussion loop", 
+                     "shaker", "tom_loop", "conga", "bongo", "perc/", "percussion/"];
     let percs = query_n_keyed!("PERC", perc_inc, true, track_counts.perc, key_for(type_atonal.perc));
 
     let ride_inc = &["ride_loop", "ride loop", "cymbal_loop", "cymbal loop", "cymbals/"];
     let rides = query_n_keyed!("RIDE", ride_inc, true, track_counts.ride, key_for(type_atonal.ride));
 
-    let fill_inc = &["drum_fill", "drum fill", "fills/", "fill", "break", "breaks/"];
+    // "fill" alone is too broad (matches "filter"), use more specific patterns
+    let fill_inc = &["drum_fill", "drum fill", "fills/", "fill/", "drum_break", "breaks/"];
     let fills = query_n_keyed!("FILL", fill_inc, false, track_counts.fill, key_for(type_atonal.fill));
 
     // === BASS (key matched unless atonal) ===
@@ -2752,20 +2863,29 @@ fn load_song_samples(song_num: u32, target_key: Option<&str>, atonal: bool, hard
     let subs = query_n_keyed!("SUB", sub_inc, true, track_counts.sub, key_for(type_atonal.sub));
 
     // === MELODICS (key matched unless atonal) ===
+    // Query pads FIRST so synth_pad/pad_synth samples go to pads, not synths
+    let pad_inc = &["pad_loop", "pad loop", "pad_loops/", "pad/", "pads/", "drone_loop", "atmosphere_loop",
+                    "synth_pad", "synth pad", "pad_synth", "pad synth"];
+    let pads = query_n_keyed!("PAD", pad_inc, true, track_counts.pad, key_for(type_atonal.pad));
+
     let lead_inc = &["lead_loop", "lead loop", "synth_lead", "lead/"];
     let leads = query_n_keyed!("LEAD", lead_inc, true, track_counts.lead, key_for(type_atonal.lead));
 
-    let synth_inc = &["synth_loop", "synth loop", "synth_loops/", "synth/", "music_loops/", "melody_loop", "acid_loop"];
+    // Exclude pad/drone patterns - those go to PAD category
+    let synth_inc = &["synth_loop", "synth loop", "synth_loops/", "music_loops/", "melody_loop", "acid_loop"];
     let synths = query_n_keyed!("SYNTH", synth_inc, true, track_counts.synth, key_for(type_atonal.synth));
 
-    let pad_inc = &["pad_loop", "pad loop", "pad_loops/", "pad/", "pads/", "drone_loop", "atmosphere_loop"];
-    let pads = query_n_keyed!("PAD", pad_inc, true, track_counts.pad, key_for(type_atonal.pad));
-
-    let arp_inc = &["arp_loop", "arp loop", "arpegg", "arpeggio", "arp/", "arps/", "pluck_loop", "sequence_loop", "pluck/", "piano/"];
+    // pluck_loop stays but pluck/ alone is too broad (one-shots), piano/ might not be arps
+    let arp_inc = &["arp_loop", "arp loop", "arpegg", "arpeggio", "arp/", "arps/", "pluck_loop", "sequence_loop"];
     let arps = query_n_keyed!("ARP", arp_inc, true, track_counts.arp, key_for(type_atonal.arp));
 
+    let keys_inc = &["keys", "keys/", "piano", "piano/", "piano_loop", "keyboard", "keyboard/", 
+                     "electric_piano", "rhodes", "wurlitzer", "organ_loop", "organ/"];
+    let keyss = query_n_keyed!("KEYS", keys_inc, true, track_counts.keys, key_for(type_atonal.keys));
+
     // === FX (mixed - some tonal, some not) ===
-    let riser_inc = &["riser", "risers___lifters", "uplifter", "riser/", "build", "tension"];
+    // "build" alone could match "buildup" for snare rolls - use more specific
+    let riser_inc = &["riser", "risers___lifters", "uplifter", "riser/", "risers/", "tension", "build_up", "build_fx"];
     let risers = query_n_keyed!("RISER", riser_inc, false, track_counts.riser, key_for(type_atonal.riser));
 
     let downlifter_inc = &["downlifter", "falls___descenders", "fall", "descend"];
@@ -2774,7 +2894,8 @@ fn load_song_samples(song_num: u32, target_key: Option<&str>, atonal: bool, hard
     let crash_inc = &["crash", "cymbal_crash", "crash___cymbals", "cymbal_hit"];
     let crashes = query_n_keyed!("CRASH", crash_inc, false, track_counts.crash, key_for(type_atonal.crash));
 
-    let impact_inc = &["impact", "impacts___bombs", "boom", "thud", "slam", "low impact"];
+    // Remove "impacts___bombs" - also in BOOM_KICK. Remove "boom" - too broad
+    let impact_inc = &["impact", "impacts/", "thud", "slam", "low_impact"];
     let impacts = query_n_keyed!("IMPACT", impact_inc, false, track_counts.impact, key_for(type_atonal.impact));
 
     let hit_inc = &["orchestral_hits", "fx_hit", "perc_shot", "rave_hit", "stab_hit"];
@@ -2795,10 +2916,11 @@ fn load_song_samples(song_num: u32, target_key: Option<&str>, atonal: bool, hard
     let sub_drop_inc = &["sub drop", "sub_drop", "subboom", "sub_boom", "808_hit", "low_impact", "sine_sub"];
     let sub_drops = query_n_keyed!("SUB_DROP", sub_drop_inc, false, track_counts.sub_drop, key_for(type_atonal.sub_drop));
 
-    let boom_kick_inc = &["kick fx", "kick_fx", "impact fx", "boom kick", "boom_kick", "reverb kick", "reverb_kick", "impacts___bombs"];
+    let boom_kick_inc = &["kick fx", "kick_fx", "impact fx", "impact_fx", "boom kick", "boom_kick", "reverb kick", "reverb_kick", "impacts___bombs"];
     let boom_kicks = query_n_keyed!("BOOM_KICK", boom_kick_inc, false, track_counts.boom_kick, key_for(type_atonal.boom_kick));
 
-    let atmos_inc = &["atmos", "atmosphere", "atmospheres/", "ambient", "texture", "drone", "soundscape"];
+    let atmos_inc = &["atmos", "atmosphere", "atmospheres/", "ambient", "texture", "drone", "soundscape",
+                      "foley", "foley/", "synth_drone", "synth drone"];
     let atmoses = query_n_keyed!("ATMOS", atmos_inc, false, track_counts.atmos, key_for(type_atonal.atmos));
 
     let glitch_inc = &["glitch", "glitches/", "glitch_fx", "glitch fx", "stutter_fx", "stutter fx", "stutters/", "glitch_loop", "glitch loop"];
@@ -2830,7 +2952,8 @@ fn load_song_samples(song_num: u32, target_key: Option<&str>, atonal: bool, hard
     };
 
     // === VOCALS ===
-    let vox_inc = &["vox", "vocal", "voice", "vocals/", "vocal_cut", "vocal cut", "vocal_loop", "choir", "chant"];
+    let vox_inc = &["vox", "vocal", "voice", "vocals/", "vocal_cut", "vocal cut", "vocal_loop", "choir", "chant",
+                    "vox_fx", "vox fx", "vocal_fx", "vocal fx"];
     let voxes = query_n_keyed!("VOX", vox_inc, false, track_counts.vox, key_for(type_atonal.vox));
 
     // Log non-empty counts for debugging
@@ -2847,7 +2970,7 @@ fn load_song_samples(song_num: u32, target_key: Option<&str>, atonal: bool, hard
         key: track_key,
         kicks, claps, snares, hats, percs, rides, fills,
         basses, subs,
-        leads, synths, pads, arps,
+        leads, synths, pads, arps, keyss,
         risers, downlifters, crashes, impacts, hits, sweep_ups, sweep_downs, snare_rolls, reverses, sub_drops, boom_kicks, atmoses, glitches, scatters,
         voxes,
     }
@@ -2880,6 +3003,7 @@ pub struct TrackCounts {
     pub synth: u32,
     pub pad: u32,
     pub arp: u32,
+    pub keys: u32,
     // FX
     pub riser: u32,
     pub downlifter: u32,
@@ -2904,7 +3028,7 @@ impl Default for TrackCounts {
         Self {
             kick: 1, clap: 1, snare: 1, hat: 2, perc: 2, ride: 1, fill: 4,
             bass: 1, sub: 1,
-            lead: 1, synth: 3, pad: 2, arp: 2,
+            lead: 1, synth: 3, pad: 2, arp: 2, keys: 2,
             riser: 3, downlifter: 1, crash: 2, impact: 2, hit: 2, sweep_up: 4, sweep_down: 4, snare_roll: 1, reverse: 2, sub_drop: 2, boom_kick: 2, atmos: 2, glitch: 2, scatter: 4,
             vox: 1,
         }
@@ -2944,6 +3068,7 @@ pub struct TypeAtonal {
     pub synth: bool,
     pub pad: bool,
     pub arp: bool,
+    pub keys: bool,
     // FX (mixed - some tonal like risers/sweeps, some atonal like crashes/hits)
     pub riser: bool,
     pub downlifter: bool,
@@ -3124,6 +3249,7 @@ fn generate_inner(
     let bass_fx_group_id = ids.alloc();
     let melodics_group_id = ids.alloc();
     let fx_group_id = ids.alloc();
+    let scatter_group_id = ids.alloc();
 
     // Create groups
     let kicks_group = create_group_track("KICKS", DRUMS_COLOR, kicks_group_id, &ids)?;
@@ -3132,6 +3258,7 @@ fn generate_inner(
     let bass_fx_group = create_group_track("BASS FX", BASS_COLOR, bass_fx_group_id, &ids)?;
     let melodics_group = create_group_track("MELODICS", MELODICS_COLOR, melodics_group_id, &ids)?;
     let fx_group = create_group_track("FX", FX_COLOR, fx_group_id, &ids)?;
+    let scatter_group = create_group_track("SCATTER", FX_COLOR, scatter_group_id, &ids)?;
 
     // Device injection (sidechain compressors, master EQ/limiter) is disabled
     // because Ableton's ALS parser crashes on programmatically injected device
@@ -3197,6 +3324,7 @@ fn generate_inner(
             ("SYNTH ", "SYNTH 1"),
             ("PAD ", "PAD 1"),
             ("ARP ", "ARP 1"),
+            ("KEYS ", "KEYS 1"),
             ("ATMOS ", "ATMOS"),
             // FX
             ("RISER ", "RISER 1"),
@@ -3255,24 +3383,23 @@ fn generate_inner(
 
     if cancelled() { return Err("Generation cancelled".into()); }
 
-    // Count total tracks to create (for progress bar). Group tracks are only
-    // emitted when they have at least one child, so compute dynamically rather
-    // than hard-coding a magic number that drifts every time groups change.
-    let has_any = |v: &[Vec<SampleInfo>]| v.iter().any(|x| !x.is_empty());
-    let kicks_group_emitted = has_any(&song1.kicks);
-    let drums_group_emitted = has_any(&song1.claps) || has_any(&song1.snares)
-        || has_any(&song1.hats) || has_any(&song1.percs) || has_any(&song1.rides)
-        || has_any(&song1.fills);
-    let bass_group_emitted = has_any(&song1.basses) || has_any(&song1.subs);
-    let bass_fx_group_emitted = has_any(&song1.sub_drops) || has_any(&song1.boom_kicks);
-    let melodics_group_emitted = has_any(&song1.leads) || has_any(&song1.synths)
-        || has_any(&song1.pads) || has_any(&song1.arps) || has_any(&song1.atmoses);
-    let fx_group_emitted = has_any(&song1.risers) || has_any(&song1.downlifters)
-        || has_any(&song1.crashes) || has_any(&song1.impacts) || has_any(&song1.hits)
-        || has_any(&song1.sweep_ups) || has_any(&song1.sweep_downs)
-        || has_any(&song1.snare_rolls) || has_any(&song1.reverses)
-        || has_any(&song1.glitches) || has_any(&song1.scatters)
-        || has_any(&song1.voxes);
+    // Count total tracks to create (for progress bar).
+    // Always show ALL requested tracks even if empty - user wants to see what they asked for.
+    // Groups are emitted when they have any requested children (not just non-empty samples).
+    let kicks_group_emitted = !song1.kicks.is_empty();
+    let drums_group_emitted = !song1.claps.is_empty() || !song1.snares.is_empty()
+        || !song1.hats.is_empty() || !song1.percs.is_empty() || !song1.rides.is_empty()
+        || !song1.fills.is_empty();
+    let bass_group_emitted = !song1.basses.is_empty() || !song1.subs.is_empty();
+    let bass_fx_group_emitted = !song1.sub_drops.is_empty() || !song1.boom_kicks.is_empty();
+    let melodics_group_emitted = !song1.leads.is_empty() || !song1.synths.is_empty()
+        || !song1.pads.is_empty() || !song1.arps.is_empty() || !song1.atmoses.is_empty();
+    let fx_group_emitted = !song1.risers.is_empty() || !song1.downlifters.is_empty()
+        || !song1.crashes.is_empty() || !song1.impacts.is_empty() || !song1.hits.is_empty()
+        || !song1.sweep_ups.is_empty() || !song1.sweep_downs.is_empty()
+        || !song1.snare_rolls.is_empty() || !song1.reverses.is_empty()
+        || !song1.glitches.is_empty() || !song1.voxes.is_empty();
+    let scatter_group_emitted = !song1.scatters.is_empty();
     let group_count = [
         kicks_group_emitted,
         drums_group_emitted,
@@ -3280,36 +3407,38 @@ fn generate_inner(
         bass_fx_group_emitted,
         melodics_group_emitted,
         fx_group_emitted,
+        scatter_group_emitted,
     ].iter().filter(|b| **b).count();
+    // Count ALL tracks (not just non-empty) since we show all requested tracks
     let total_tracks = group_count
-        + song1.kicks.iter().filter(|v| !v.is_empty()).count()
-        + song1.claps.iter().filter(|v| !v.is_empty()).count()
-        + song1.snares.iter().filter(|v| !v.is_empty()).count()
-        + song1.hats.iter().filter(|v| !v.is_empty()).count()
-        + song1.percs.iter().filter(|v| !v.is_empty()).count()
-        + song1.rides.iter().filter(|v| !v.is_empty()).count()
-        + song1.fills.iter().filter(|v| !v.is_empty()).count()
-        + song1.basses.iter().filter(|v| !v.is_empty()).count()
-        + song1.subs.iter().filter(|v| !v.is_empty()).count()
-        + song1.leads.iter().filter(|v| !v.is_empty()).count()
-        + song1.synths.iter().filter(|v| !v.is_empty()).count()
-        + song1.pads.iter().filter(|v| !v.is_empty()).count()
-        + song1.arps.iter().filter(|v| !v.is_empty()).count()
-        + song1.risers.iter().filter(|v| !v.is_empty()).count()
-        + song1.downlifters.iter().filter(|v| !v.is_empty()).count()
-        + song1.crashes.iter().filter(|v| !v.is_empty()).count()
-        + song1.impacts.iter().filter(|v| !v.is_empty()).count()
-        + song1.hits.iter().filter(|v| !v.is_empty()).count()
-        + song1.sweep_ups.iter().filter(|v| !v.is_empty()).count()
-        + song1.sweep_downs.iter().filter(|v| !v.is_empty()).count()
-        + song1.snare_rolls.iter().filter(|v| !v.is_empty()).count()
-        + song1.reverses.iter().filter(|v| !v.is_empty()).count()
-        + song1.sub_drops.iter().filter(|v| !v.is_empty()).count()
-        + song1.boom_kicks.iter().filter(|v| !v.is_empty()).count()
-        + song1.atmoses.iter().filter(|v| !v.is_empty()).count()
-        + song1.glitches.iter().filter(|v| !v.is_empty()).count()
-        + song1.scatters.iter().filter(|v| !v.is_empty()).count()
-        + song1.voxes.iter().filter(|v| !v.is_empty()).count();
+        + song1.kicks.len()
+        + song1.claps.len()
+        + song1.snares.len()
+        + song1.hats.len()
+        + song1.percs.len()
+        + song1.rides.len()
+        + song1.fills.len()
+        + song1.basses.len()
+        + song1.subs.len()
+        + song1.leads.len()
+        + song1.synths.len()
+        + song1.pads.len()
+        + song1.arps.len()
+        + song1.risers.len()
+        + song1.downlifters.len()
+        + song1.crashes.len()
+        + song1.impacts.len()
+        + song1.hits.len()
+        + song1.sweep_ups.len()
+        + song1.sweep_downs.len()
+        + song1.snare_rolls.len()
+        + song1.reverses.len()
+        + song1.sub_drops.len()
+        + song1.boom_kicks.len()
+        + song1.atmoses.len()
+        + song1.glitches.len()
+        + song1.scatters.len()
+        + song1.voxes.len();
 
     let mut tracks_created = 0usize;
     let report_progress = |created: usize, total: usize| {
@@ -3323,27 +3452,27 @@ fn generate_inner(
     let mut warnings: Vec<String> = Vec::new();
     let mut all_tracks: Vec<String> = Vec::new();
 
-    // Helper to check if a sample vec has any non-empty entries
-    let has_samples = |samples: &[Vec<SampleInfo>]| -> bool {
-        samples.iter().any(|v| !v.is_empty())
+    // Helper to check if any tracks were requested (regardless of whether samples were found)
+    let has_requested = |samples: &[Vec<SampleInfo>]| -> bool {
+        !samples.is_empty()
     };
 
     // Macro to reduce repetition in track creation
     // Always use numbered names (e.g., "HAT 1", "HAT 2") for consistent arrangement lookup
     // Returns the number of tracks created
+    // IMPORTANT: Always creates tracks even if samples are empty (user wants to see all requested tracks)
     macro_rules! create_tracks {
         ($samples:expr, $base_name:expr, $color:expr, $group_id:expr) => {{
             let mut created = 0usize;
             for i in 0..$samples.len() {
                 let name = format!("{} {}", $base_name, i + 1);
-                if !$samples[i].is_empty() {
-                    match create_arranged_track_multi(&original_audio_track, &name, $color, $group_id, &all_songs, &find_arr(&name), &ids, bpm, bars_per_song) {
-                        Ok(track) => { all_tracks.push(track); created += 1; },
-                        Err(e) => warnings.push(format!("{}: {}", name, e)),
-                    }
-                    tracks_created += 1;
-                    report_progress(tracks_created, total_tracks);
+                // Always create the track even if empty - user requested this many tracks
+                match create_arranged_track_multi(&original_audio_track, &name, $color, $group_id, &all_songs, &find_arr(&name), &ids, bpm, bars_per_song) {
+                    Ok(track) => { all_tracks.push(track); created += 1; },
+                    Err(e) => warnings.push(format!("{}: {}", name, e)),
                 }
+                tracks_created += 1;
+                report_progress(tracks_created, total_tracks);
             }
             created
         }};
@@ -3351,7 +3480,7 @@ fn generate_inner(
 
     // === KICKS === (own group so its bus output can drive sidechain inputs
     // on every other group without the kick itself ducking to its own pulse).
-    let kicks_has_children = has_samples(&song1.kicks);
+    let kicks_has_children = has_requested(&song1.kicks);
     if kicks_has_children {
         all_tracks.push(kicks_group.clone());
         tracks_created += 1;
@@ -3360,9 +3489,9 @@ fn generate_inner(
     create_tracks!(song1.kicks, "KICK", DRUMS_COLOR, if kicks_has_children { kicks_group_id as i32 } else { -1 });
 
     // === DRUMS === (non-kick drums: claps/snares/hats/percs/rides/fills).
-    let drums_has_children = has_samples(&song1.claps) || has_samples(&song1.snares) ||
-                             has_samples(&song1.hats) || has_samples(&song1.percs) || has_samples(&song1.rides) ||
-                             has_samples(&song1.fills);
+    let drums_has_children = has_requested(&song1.claps) || has_requested(&song1.snares) ||
+                             has_requested(&song1.hats) || has_requested(&song1.percs) || has_requested(&song1.rides) ||
+                             has_requested(&song1.fills);
     if drums_has_children {
         all_tracks.push(drums_group.clone());
         tracks_created += 1;
@@ -3376,7 +3505,7 @@ fn generate_inner(
     create_tracks!(song1.fills, "FILL", DRUMS_COLOR, if drums_has_children { drums_group_id as i32 } else { -1 });
 
     // === BASS === (only add group if it will have children)
-    let bass_has_children = has_samples(&song1.basses) || has_samples(&song1.subs);
+    let bass_has_children = has_requested(&song1.basses) || has_requested(&song1.subs);
     if bass_has_children {
         all_tracks.push(bass_group.clone());
         tracks_created += 1;
@@ -3386,7 +3515,7 @@ fn generate_inner(
     create_tracks!(song1.subs, "SUB", BASS_COLOR, if bass_has_children { bass_group_id as i32 } else { -1 });
 
     // === BASS FX === (only add group if it will have children)
-    let bass_fx_has_children = has_samples(&song1.sub_drops) || has_samples(&song1.boom_kicks);
+    let bass_fx_has_children = has_requested(&song1.sub_drops) || has_requested(&song1.boom_kicks);
     if bass_fx_has_children {
         all_tracks.push(bass_fx_group.clone());
         tracks_created += 1;
@@ -3396,8 +3525,8 @@ fn generate_inner(
     create_tracks!(song1.boom_kicks, "BOOM KICK", BASS_COLOR, if bass_fx_has_children { bass_fx_group_id as i32 } else { -1 });
 
     // === MELODICS === (only add group if it will have children)
-    let melodics_has_children = has_samples(&song1.leads) || has_samples(&song1.synths) || has_samples(&song1.pads) ||
-                                has_samples(&song1.arps) || has_samples(&song1.atmoses);
+    let melodics_has_children = has_requested(&song1.leads) || has_requested(&song1.synths) || has_requested(&song1.pads) ||
+                                has_requested(&song1.arps) || has_requested(&song1.keyss) || has_requested(&song1.atmoses);
     if melodics_has_children {
         all_tracks.push(melodics_group.clone());
         tracks_created += 1;
@@ -3407,13 +3536,14 @@ fn generate_inner(
     create_tracks!(song1.synths, "SYNTH", MELODICS_COLOR, if melodics_has_children { melodics_group_id as i32 } else { -1 });
     create_tracks!(song1.pads, "PAD", MELODICS_COLOR, if melodics_has_children { melodics_group_id as i32 } else { -1 });
     create_tracks!(song1.arps, "ARP", MELODICS_COLOR, if melodics_has_children { melodics_group_id as i32 } else { -1 });
+    create_tracks!(song1.keyss, "KEYS", MELODICS_COLOR, if melodics_has_children { melodics_group_id as i32 } else { -1 });
     create_tracks!(song1.atmoses, "ATMOS", MELODICS_COLOR, if melodics_has_children { melodics_group_id as i32 } else { -1 });
 
     // === FX === (only add group if it will have children)
-    let fx_has_children = has_samples(&song1.risers) || has_samples(&song1.downlifters) || has_samples(&song1.crashes) ||
-                          has_samples(&song1.impacts) || has_samples(&song1.hits) || has_samples(&song1.sweep_ups) ||
-                          has_samples(&song1.sweep_downs) || has_samples(&song1.snare_rolls) || has_samples(&song1.reverses) ||
-                          has_samples(&song1.glitches) || has_samples(&song1.scatters) || has_samples(&song1.voxes);
+    let fx_has_children = has_requested(&song1.risers) || has_requested(&song1.downlifters) || has_requested(&song1.crashes) ||
+                          has_requested(&song1.impacts) || has_requested(&song1.hits) || has_requested(&song1.sweep_ups) ||
+                          has_requested(&song1.sweep_downs) || has_requested(&song1.snare_rolls) || has_requested(&song1.reverses) ||
+                          has_requested(&song1.glitches) || has_requested(&song1.voxes);
     if fx_has_children {
         all_tracks.push(fx_group.clone());
         tracks_created += 1;
@@ -3429,10 +3559,18 @@ fn generate_inner(
     create_tracks!(song1.snare_rolls, "SNARE ROLL", FX_COLOR, if fx_has_children { fx_group_id as i32 } else { -1 });
     create_tracks!(song1.reverses, "REVERSE", FX_COLOR, if fx_has_children { fx_group_id as i32 } else { -1 });
     create_tracks!(song1.glitches, "GLITCH", FX_COLOR, if fx_has_children { fx_group_id as i32 } else { -1 });
-    create_tracks!(song1.scatters, "SCATTER", FX_COLOR, if fx_has_children { fx_group_id as i32 } else { -1 });
 
     // === VOCALS === (part of FX group)
     create_tracks!(song1.voxes, "VOX", FX_COLOR, if fx_has_children { fx_group_id as i32 } else { -1 });
+
+    // === SCATTER === (own group for random one-shot hits)
+    let scatter_has_children = has_requested(&song1.scatters);
+    if scatter_has_children {
+        all_tracks.push(scatter_group.clone());
+        tracks_created += 1;
+        report_progress(tracks_created, total_tracks);
+    }
+    create_tracks!(song1.scatters, "SCATTER", FX_COLOR, if scatter_has_children { scatter_group_id as i32 } else { -1 });
 
     // Log warnings
     for w in &warnings {
@@ -3523,44 +3661,38 @@ fn create_audio_clip(sample: &SampleInfo, color: u32, clip_id: u32, start_bar: f
     let start_beat = (start_bar - 1.0) * beats_per_bar;
     let end_beat = (end_bar - 1.0) * beats_per_bar;
 
-    // Clip length in beats - if start == end (one-shot placement), use sample's natural duration
-    let clip_length_beats = {
-        let requested = end_beat - start_beat;
-        if requested <= 0.0 {
-            // One-shot: use sample's natural length (at least 1 bar)
-            let loop_bars = sample.loop_bars(bpm);
-            loop_bars as f64 * beats_per_bar
-        } else {
-            requested
-        }
-    };
-    
-    // Recalculate end_beat if we adjusted clip_length for one-shots
-    let end_beat = start_beat + clip_length_beats;
-
+    // Loop length is the sample's natural length - this doesn't change
+    // Clip length (end_beat - start_beat) can be shorter if cut at a boundary
     let loop_bars = sample.loop_bars(bpm);
-    let sample_loop_beats = loop_bars as f64 * beats_per_bar;
-
-    // Cap loop to clip length - don't let sample loop beyond the clip boundary
-    let loop_beats = if clip_length_beats < sample_loop_beats {
-        clip_length_beats
-    } else {
-        sample_loop_beats
-    };
+    let loop_beats = loop_bars as f64 * beats_per_bar;
+    
+    // DEBUG: Log loop calculation details
+    write_app_log(format!(
+        "[create_audio_clip] {} | duration={:.2}s | sample_bpm={:?} | project_bpm={} | loop_bars={} | loop_beats={}",
+        sample.name, sample.duration_secs, sample.bpm, bpm, loop_bars, loop_beats
+    ));
 
     // WarpMarker tells Ableton: "at SecTime seconds into the sample, we should be at BeatTime beats"
-    // SecTime = actual duration of audio in the file (based on ORIGINAL sample BPM)
+    // SecTime = actual duration of audio in the file
     // BeatTime = where that audio should align in the project timeline
-    // Ableton uses these two points to calculate stretch ratio
+    // Ableton uses these two points to calculate the stretch ratio
     //
-    // Example: 125 BPM loop, 4 beats = 1.92 sec actual audio
-    // We set SecTime=1.92, BeatTime=4 → Ableton stretches to match project tempo
-    let sample_bpm = sample.bpm.filter(|&b| b > 0.0).unwrap_or(bpm);
-    // Guard against division by zero which would produce Infinity in the XML
-    let warp_sec = if sample_bpm > 0.0 {
-        (loop_beats * 60.0) / sample_bpm
+    // The critical insight: we should use the ACTUAL sample duration for the warp marker,
+    // not a derived value based on quantized bars and estimated BPM. This ensures:
+    // 1. The loop point matches the actual audio content
+    // 2. Warping works correctly even when BPM metadata is missing or wrong
+    //
+    // However, we cap it to the loop_beats duration at sample BPM (if known) to avoid
+    // including silence or partial content beyond the loop boundary.
+    let sample_bpm = sample.bpm.filter(|&b| b > 0.0);
+    let warp_sec = if let Some(sbpm) = sample_bpm {
+        // Known BPM: calculate exact duration for the loop length
+        (loop_beats * 60.0) / sbpm
     } else {
-        (loop_beats * 60.0) / bpm.max(1.0)
+        // Unknown BPM: use actual sample duration, capped to reasonable length
+        // This preserves the original audio timing without artificial stretching
+        let max_sec = (loop_beats * 60.0) / bpm.max(1.0);
+        sample.duration_secs.min(max_sec).max(0.1)
     };
 
     format!(r#"<AudioClip Id="{clip_id}" Time="{start_beat}">
@@ -3975,6 +4107,9 @@ fn get_track_samples(song: &SongSamples, track_name: &str) -> Vec<SampleInfo> {
     if let Some(idx) = parse_idx(track_name, "ARP") {
         return song.arps.get(idx).cloned().unwrap_or_default();
     }
+    if let Some(idx) = parse_idx(track_name, "KEYS") {
+        return song.keyss.get(idx).cloned().unwrap_or_default();
+    }
     if let Some(idx) = parse_idx(track_name, "RISER") {
         return song.risers.get(idx).cloned().unwrap_or_default();
     }
@@ -4095,9 +4230,35 @@ fn create_arranged_track_multi(
         let sample = &samples[0];
         let offset = (song_idx as u32 * bars_per_song) as f64;
         
-        for &(start_bar, end_bar) in sections.iter() {
-            let clip_id = ids.alloc();
-            clips.push(create_audio_clip(sample, color, clip_id, start_bar + offset, end_bar + offset, bpm));
+        // Get the sample's natural loop length in bars
+        let loop_bars = sample.loop_bars(bpm) as f64;
+        
+        // Merge consecutive sections into continuous regions, then fill with loop-length clips
+        // Example: sections [(33,35), (35,37), (37,39), (39,41)] with a gap at 41-42
+        //          becomes regions [(33,41)] then fill with 4-bar clips: 33-37, 37-41
+        
+        // Step 1: Merge consecutive/overlapping sections into regions
+        let mut regions: Vec<(f64, f64)> = Vec::new();
+        for &(start, end) in sections.iter() {
+            if let Some(last) = regions.last_mut() {
+                // If this section is consecutive (within 0.5 bar tolerance), extend the region
+                if start <= last.1 + 0.5 {
+                    last.1 = last.1.max(end);
+                    continue;
+                }
+            }
+            regions.push((start, end));
+        }
+        
+        // Step 2: Fill each region with full-length clips, last one cut at boundary
+        for (region_start, region_end) in regions {
+            let mut pos = region_start;
+            while pos < region_end {
+                let clip_end = (pos + loop_bars).min(region_end);
+                let clip_id = ids.alloc();
+                clips.push(create_audio_clip(sample, color, clip_id, pos + offset, clip_end + offset, bpm));
+                pos += loop_bars;
+            }
         }
     }
 

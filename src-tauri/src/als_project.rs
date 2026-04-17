@@ -194,6 +194,7 @@ pub struct TrackCountsConfig {
     #[serde(default = "default_3")] pub synth: u32,
     #[serde(default = "default_2")] pub pad: u32,
     #[serde(default = "default_2")] pub arp: u32,
+    #[serde(default)] pub keys: Option<u32>,
     #[serde(default = "default_3")] pub riser: u32,
     #[serde(default = "default_1")] pub downlifter: u32,
     #[serde(default = "default_2")] pub crash: u32,
@@ -404,7 +405,7 @@ impl Default for TrackCountsConfig {
         Self {
             kick: 1, clap: 1, snare: 1, hat: 2, perc: 2, ride: 1, fill: 4,
             bass: 1, sub: 1,
-            lead: 1, synth: 3, pad: 2, arp: 2,
+            lead: 1, synth: 3, pad: 2, arp: 2, keys: None,
             riser: 3, downlifter: 1, crash: 2, impact: 2, hit: 2, sweep_up: 4, sweep_down: 4, snare_roll: 1, reverse: 2, sub_drop: 2, boom_kick: 2, atmos: 2, glitch: 2, scatter: 4,
             vox: 1,
         }
@@ -427,6 +428,7 @@ pub struct TypeAtonalConfig {
     #[serde(default)] pub synth: bool,
     #[serde(default)] pub pad: bool,
     #[serde(default)] pub arp: bool,
+    #[serde(default)] pub keys: Option<bool>,
     #[serde(default)] pub riser: bool,
     #[serde(default)] pub downlifter: bool,
     #[serde(default)] pub crash: bool,
@@ -756,15 +758,11 @@ fn category_to_like_pattern(category: &str) -> String {
 /// seed (see `ProjectConfig::seed`) — same seed + same config → same name.
 /// Callers who want a non-deterministic name pass a fresh random u64.
 pub fn generate_project_name(config: &ProjectConfig, seed: u64) -> String {
-    // Mix the seed through DefaultHasher so word slots don't correlate trivially
-    // with the low bits of the input (seeds are often sequential when users
-    // bump "Seed +1"). The rest of the function is the same deterministic
-    // pick-a-word-per-slot it always was.
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut hasher = DefaultHasher::new();
-    seed.hash(&mut hasher);
-    let seed = hasher.finish() as usize;
+    // Use a seeded RNG for better distribution instead of modular arithmetic
+    // which had collision issues (e.g. "Ocean Demolish Night" appearing repeatedly)
+    use rand::prelude::*;
+    use rand::rngs::StdRng;
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let genre_words: &[&str] = match config.genre {
         Genre::Techno => &[
@@ -819,11 +817,12 @@ pub fn generate_project_name(config: &ProjectConfig, seed: u64) -> String {
         ]
     };
 
-    let g = genre_words[seed % genre_words.len()];
-    let m = mood_words[(seed / 7) % mood_words.len()];
-    let k = key_words[(seed / 13) % key_words.len()];
-    let g2 = genre_words[(seed / 17) % genre_words.len()];
-    let m2 = mood_words[(seed / 23) % mood_words.len()];
+    // Use RNG to pick words with better distribution than modular arithmetic
+    let g = genre_words[rng.random_range(0..genre_words.len())];
+    let m = mood_words[rng.random_range(0..mood_words.len())];
+    let k = key_words[rng.random_range(0..key_words.len())];
+    let g2 = genre_words[rng.random_range(0..genre_words.len())];
+    let m2 = mood_words[rng.random_range(0..mood_words.len())];
 
     let patterns = [
         format!("{} {}", g, k),
@@ -840,7 +839,7 @@ pub fn generate_project_name(config: &ProjectConfig, seed: u64) -> String {
         format!("{} {} {}", g, k, m2),
     ];
 
-    let name = &patterns[seed % patterns.len()];
+    let name = &patterns[rng.random_range(0..patterns.len())];
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
     format!("{} - {}", name, timestamp)
 }

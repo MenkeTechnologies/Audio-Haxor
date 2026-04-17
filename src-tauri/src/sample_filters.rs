@@ -14,6 +14,20 @@ pub const PROJECT_RENDER_KEYWORDS: &[&str] = &[
     "frozen", "consolidated", "flattened", "bounced", "rendered",
 ];
 
+/// Keywords indicating construction kits/stems - not usable as loops
+/// Construction kits are full song parts meant to be mixed together, not looped individually
+/// Stems are isolated track bounces from full productions
+pub const CONSTRUCTION_KIT_KEYWORDS: &[&str] = &[
+    "construction kit", "construction_kit", "constructionkit",
+    "/stems/", "\\stems\\", "/stem/", "\\stem\\",
+    "_stem_", "_stem.", " stem.", " stem ",
+    "full mix", "full_mix", "fullmix",
+    "song starter", "song_starter", "songstarter",
+    "track starter", "track_starter",
+    "production kit", "production_kit",
+    "demo track", "demo_track",
+];
+
 /// Check if a sample path is inside an Ableton Live project directory.
 /// Ableton projects have structure: "Something Project/Samples/..." with an .als file nearby.
 pub fn is_ableton_project_sample(path: &str) -> bool {

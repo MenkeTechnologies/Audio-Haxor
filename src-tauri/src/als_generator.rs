@@ -152,20 +152,25 @@ pub struct TrackInfo {
 }
 
 impl SampleInfo {
+    /// Calculate the loop length in bars based on the sample's actual duration and BPM.
+    /// 
+    /// Uses the sample's original BPM to determine how many bars the sample represents.
+    /// Quantizes to standard loop lengths: 1, 2, 4, 8, 16, 32.
     fn loop_bars(&self, project_bpm: f64) -> u32 {
-        let bpm = self.bpm.unwrap_or(project_bpm);
+        let sample_bpm = self.bpm.unwrap_or(project_bpm);
         let duration = if self.duration_secs <= 0.0 || self.duration_secs > 300.0 {
             (4.0 * 60.0 * 4.0) / project_bpm
         } else {
             self.duration_secs
         };
-        if bpm <= 0.0 { return 4; }
-        let bars = (duration * bpm) / (60.0 * 4.0);
+        if sample_bpm <= 0.0 { return 4; }
+        let bars = (duration * sample_bpm) / (60.0 * 4.0);
         if bars <= 1.5 { 1 }
         else if bars <= 3.0 { 2 }
         else if bars <= 6.0 { 4 }
         else if bars <= 12.0 { 8 }
-        else { 16 }
+        else if bars <= 24.0 { 16 }
+        else { 32 }
     }
 }
 
@@ -1816,7 +1821,15 @@ pub fn generate_als_from_template(
             let loop_bars = sample.loop_bars(bpm);
             let loop_beats = (loop_bars as f64) * 4.0;
             let loop_beats = if clip.duration_beats < loop_beats { clip.duration_beats } else { loop_beats };
-            let warp_sec = (loop_beats * 60.0) / bpm;
+            // WarpMarker SecTime should use the sample's actual BPM if known,
+            // otherwise fall back to actual duration to avoid incorrect stretching
+            let warp_sec = if let Some(sample_bpm) = sample.bpm.filter(|&b| b > 0.0) {
+                (loop_beats * 60.0) / sample_bpm
+            } else {
+                // Unknown BPM: use actual sample duration, capped to reasonable length
+                let max_sec = (loop_beats * 60.0) / bpm.max(1.0);
+                sample.duration_secs.min(max_sec).max(0.1)
+            };
 
             clips_xml.push(format!(
                 r#"<AudioClip Id="{clip_id}" Time="{start_beat}">
