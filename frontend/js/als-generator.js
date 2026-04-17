@@ -934,45 +934,44 @@
     }
   }
 
-  // Blacklist modal event handlers
+  // Blacklist modal event handlers — use `.closest()` so clicks on child text nodes
+  // or inner spans still resolve to the target button / overlay.
   document.addEventListener('click', (e) => {
     // Open modal
-    if (e.target.id === 'alsViewBlacklist') {
+    if (e.target.closest('#alsViewBlacklist')) {
       e.preventDefault();
       openBlacklistModal();
       return;
     }
-    // Close modal
-    if (e.target.id === 'blacklistModalClose' || (e.target.id === 'blacklistModal' && e.target === e.currentTarget)) {
+    // Close modal (× button OR overlay background)
+    if (e.target.closest('#blacklistModalClose')) {
+      closeBlacklistModal();
+      return;
+    }
+    if (e.target.id === 'blacklistModal') {
       closeBlacklistModal();
       return;
     }
     // Add entry
-    if (e.target.id === 'blacklistAddBtn') {
+    if (e.target.closest('#blacklistAddBtn')) {
       const input = document.getElementById('blacklistAddInput');
-      if (input?.value) {
+      if (input?.value?.trim()) {
         addToBlacklist(input.value);
         input.value = '';
       }
       return;
     }
     // Remove entry
-    if (e.target.classList.contains('blacklist-remove-btn')) {
-      const entry = e.target.dataset.entry;
+    const removeBtn = e.target.closest('.blacklist-remove-btn');
+    if (removeBtn) {
+      const entry = removeBtn.dataset.entry;
       if (entry) removeFromBlacklist(entry);
       return;
     }
     // Clear all from modal
-    if (e.target.id === 'blacklistClearAllBtn') {
+    if (e.target.closest('#blacklistClearAllBtn')) {
       clearBlacklist().then(() => refreshBlacklistModal());
       return;
-    }
-  });
-
-  // Close modal on overlay click
-  document.addEventListener('click', (e) => {
-    if (e.target.id === 'blacklistModal') {
-      closeBlacklistModal();
     }
   });
 
@@ -1155,30 +1154,34 @@
     }
   }
 
-  // Whitelist modal event handlers
+  // Whitelist modal event handlers — `.closest()` for robustness.
   document.addEventListener('click', (e) => {
     // Open modal
-    if (e.target.id === 'alsViewWhitelist') {
+    if (e.target.closest('#alsViewWhitelist')) {
       e.preventDefault();
       openWhitelistModal();
       return;
     }
     // Close modal
-    if (e.target.id === 'whitelistModalClose') {
+    if (e.target.closest('#whitelistModalClose')) {
+      closeWhitelistModal();
+      return;
+    }
+    if (e.target.id === 'whitelistModal') {
       closeWhitelistModal();
       return;
     }
     // Add entry
-    if (e.target.id === 'whitelistAddBtn') {
+    if (e.target.closest('#whitelistAddBtn')) {
       const input = document.getElementById('whitelistAddInput');
-      if (input?.value) {
+      if (input?.value?.trim()) {
         addToWhitelist(input.value);
         input.value = '';
       }
       return;
     }
     // Browse for folder
-    if (e.target.id === 'whitelistBrowseBtn') {
+    if (e.target.closest('#whitelistBrowseBtn')) {
       if (typeof window.__TAURI__?.dialog?.open === 'function') {
         window.__TAURI__.dialog.open({ directory: true, title: 'Choose sample source directory' }).then(path => {
           if (path) addToWhitelist(path);
@@ -1187,28 +1190,22 @@
       return;
     }
     // Remove entry
-    if (e.target.classList.contains('whitelist-remove-btn')) {
-      const entry = e.target.dataset.entry;
+    const removeBtn = e.target.closest('.whitelist-remove-btn');
+    if (removeBtn) {
+      const entry = removeBtn.dataset.entry;
       if (entry) removeFromWhitelist(entry);
       return;
     }
     // Clear all from modal
-    if (e.target.id === 'whitelistClearAllBtn') {
+    if (e.target.closest('#whitelistClearAllBtn')) {
       clearWhitelist().then(() => refreshWhitelistModal());
       return;
     }
     // Clear whitelist from main UI
-    if (e.target.id === 'alsClearWhitelist') {
+    if (e.target.closest('#alsClearWhitelist')) {
       e.preventDefault();
       clearWhitelist();
       return;
-    }
-  });
-
-  // Close whitelist modal on overlay click
-  document.addEventListener('click', (e) => {
-    if (e.target.id === 'whitelistModal') {
-      closeWhitelistModal();
     }
   });
 
@@ -1221,18 +1218,18 @@
 
   document.addEventListener('click', (e) => {
     // Handle clear blacklist button
-    if (e.target.id === 'alsClearBlacklist') {
+    if (e.target.closest('#alsClearBlacklist')) {
       e.preventDefault();
       clearBlacklist();
       return;
     }
     // Handle select/deselect all tonal
-    if (e.target.id === 'alsTonalSelectAll') {
+    if (e.target.closest('#alsTonalSelectAll')) {
       e.preventDefault();
       setAllTonal(true);
       return;
     }
-    if (e.target.id === 'alsTonalDeselectAll') {
+    if (e.target.closest('#alsTonalDeselectAll')) {
       e.preventDefault();
       setAllTonal(false);
       return;

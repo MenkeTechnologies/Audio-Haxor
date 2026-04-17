@@ -3692,6 +3692,67 @@
             flex: 1;
         }
 
+        /* Blacklist / whitelist list modals — explicit classes instead of inline
+           style="display:flex" which release WebKit strips on plain divs.
+           Ref: feedback_tauri_build_differences.md */
+        .modal-body-list {
+            padding: 16px;
+            display: block;
+            max-height: 60vh;
+            overflow: hidden;
+        }
+        .modal-row-inline {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .modal-input-flex {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-size: 12px;
+            font-family: inherit;
+            border-radius: 2px;
+        }
+        .modal-filter-count {
+            font-size: 11px;
+            color: var(--text-dim);
+            min-width: 60px;
+            flex: 0 0 auto;
+        }
+        .modal-list-desc {
+            font-size: 12px;
+            color: var(--text-dim);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-list-entries {
+            overflow-y: auto;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 8px;
+            font-family: monospace;
+            font-size: 11px;
+            min-height: 200px;
+            max-height: 400px;
+            margin-bottom: 12px;
+        }
+        .modal-list-loading { color: var(--text-dim); }
+        .modal-row-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-footer-count {
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
         .app-confirm-message {
             margin: 0;
             line-height: 1.5;
@@ -13391,40 +13452,40 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=52971"></script>
-<script src="js/utils.js?v=52971"></script>
-<script src="js/ui-idle.js?v=52971"></script>
-<script src="js/ipc.js?v=52971"></script>
-<script src="js/tooltip-hover.js?v=52971"></script>
-<script src="js/drag-reorder.js?v=52971"></script>
-<script src="js/modal-drag.js?v=52971"></script>
-<script src="js/columns.js?v=52971"></script>
-<script src="js/notes.js?v=52971"></script>
-<script src="js/favorites.js?v=52971"></script>
-<script src="js/export.js?v=52971"></script>
-<script src="js/plugins.js?v=52971"></script>
-<script src="js/settings.js?v=52971"></script>
-<script src="js/history.js?v=52971"></script>
-<script src="js/kvr.js?v=52971"></script>
-<script src="js/graph-freeze.js?v=52971"></script>
-<script src="js/audio.js?v=52971"></script>
-<script src="js/daw.js?v=52971"></script>
-<script src="js/disk-usage.js?v=52971"></script>
-<script src="js/presets.js?v=52971"></script>
-<script src="js/batch-select.js?v=52971"></script>
-<script src="js/native-file-drag.js?v=52971"></script>
-<script src="js/sort-persist.js?v=52971"></script>
-<script src="js/multi-filter.js?v=52971"></script>
-<script src="js/file-browser.js?v=52971"></script>
-<script src="js/duplicates.js?v=52971"></script>
-<script src="js/command-palette.js?v=52971"></script>
-<script src="js/xref.js?v=52971"></script>
-<script src="js/dep-graph.js?v=52971"></script>
-<script src="js/smart-playlists.js?v=52971"></script>
-<script src="js/heatmap-dashboard.js?v=52971"></script>
-<script src="js/midi.js?v=52971"></script>
-<script src="js/pdf.js?v=52971"></script>
-<script src="js/video.js?v=52971"></script>
+<script src="js/i18n-ui.js?v=46117"></script>
+<script src="js/utils.js?v=46117"></script>
+<script src="js/ui-idle.js?v=46117"></script>
+<script src="js/ipc.js?v=46117"></script>
+<script src="js/tooltip-hover.js?v=46117"></script>
+<script src="js/drag-reorder.js?v=46117"></script>
+<script src="js/modal-drag.js?v=46117"></script>
+<script src="js/columns.js?v=46117"></script>
+<script src="js/notes.js?v=46117"></script>
+<script src="js/favorites.js?v=46117"></script>
+<script src="js/export.js?v=46117"></script>
+<script src="js/plugins.js?v=46117"></script>
+<script src="js/settings.js?v=46117"></script>
+<script src="js/history.js?v=46117"></script>
+<script src="js/kvr.js?v=46117"></script>
+<script src="js/graph-freeze.js?v=46117"></script>
+<script src="js/audio.js?v=46117"></script>
+<script src="js/daw.js?v=46117"></script>
+<script src="js/disk-usage.js?v=46117"></script>
+<script src="js/presets.js?v=46117"></script>
+<script src="js/batch-select.js?v=46117"></script>
+<script src="js/native-file-drag.js?v=46117"></script>
+<script src="js/sort-persist.js?v=46117"></script>
+<script src="js/multi-filter.js?v=46117"></script>
+<script src="js/file-browser.js?v=46117"></script>
+<script src="js/duplicates.js?v=46117"></script>
+<script src="js/command-palette.js?v=46117"></script>
+<script src="js/xref.js?v=46117"></script>
+<script src="js/dep-graph.js?v=46117"></script>
+<script src="js/smart-playlists.js?v=46117"></script>
+<script src="js/heatmap-dashboard.js?v=46117"></script>
+<script src="js/midi.js?v=46117"></script>
+<script src="js/pdf.js?v=46117"></script>
+<script src="js/video.js?v=46117"></script>
 <!-- Blacklist Modal -->
 <div id="blacklistModal" class="modal-overlay" style="display:none;">
     <div class="modal-content" style="max-width:600px;">
@@ -13432,21 +13493,21 @@
             <h2 data-i18n="ui.h2.sample_blacklist">Sample Blacklist</h2>
             <button class="modal-close" id="blacklistModalClose">&times;</button>
         </div>
-        <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;gap:12px;max-height:60vh;overflow:hidden;">
-            <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" id="blacklistAddInput" placeholder="Add sample path to blacklist..." style="flex:1;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);font-size:12px;" data-i18n-placeholder="ui.ph.add_sample_path_to_blacklist">
-                <button class="btn btn-primary" id="blacklistAddBtn" style="padding:8px 12px;" data-i18n="ui.btn.add">Add</button>
+        <div class="modal-body modal-body-list">
+            <div class="modal-row-inline">
+                <input type="text" class="modal-input-flex" id="blacklistAddInput" placeholder="Add sample path to blacklist..." data-i18n-placeholder="ui.ph.add_sample_path_to_blacklist" title="Add sample path to blacklist" data-i18n-title="ui.ph.add_sample_path_to_blacklist">
+                <button class="btn btn-primary btn-compact" id="blacklistAddBtn" data-i18n="ui.btn.add" title="Add to blacklist" data-i18n-title="ui.ph.add_sample_path_to_blacklist">Add</button>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" id="blacklistSearchInput" placeholder="Search blacklist..." style="flex:1;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);font-size:12px;" data-i18n-placeholder="ui.ph.search_blacklist">
-                <span id="blacklistFilterCount" style="font-size:11px;color:var(--text-dim);min-width:60px;"></span>
+            <div class="modal-row-inline">
+                <input type="text" class="modal-input-flex" id="blacklistSearchInput" placeholder="Search blacklist..." data-i18n-placeholder="ui.ph.search_blacklist" title="Search blacklist" data-i18n-title="ui.ph.search_blacklist">
+                <span class="modal-filter-count" id="blacklistFilterCount"></span>
             </div>
-            <div id="blacklistEntries" style="flex:1;overflow-y:auto;background:var(--bg-secondary);border:1px solid var(--border);padding:8px;font-family:monospace;font-size:11px;min-height:200px;max-height:400px;">
-                <p style="color:var(--text-dim);" data-i18n="ui.p.loading">Loading...</p>
+            <div class="modal-list-entries" id="blacklistEntries">
+                <p class="modal-list-loading" data-i18n="ui.p.loading">Loading...</p>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <span id="blacklistTotalCount" style="font-size:11px;color:var(--text-dim);">0 entries</span>
-                <button class="btn btn-secondary" id="blacklistClearAllBtn" style="font-size:11px;" data-i18n="ui.btn.clear_all">Clear All</button>
+            <div class="modal-row-footer">
+                <span class="modal-footer-count" id="blacklistTotalCount">0 entries</span>
+                <button class="btn btn-secondary btn-compact" id="blacklistClearAllBtn" data-i18n="ui.btn.clear_all" title="Clear all blacklist entries" data-i18n-title="ui.btn.clear_all">Clear All</button>
             </div>
         </div>
     </div>
@@ -13459,41 +13520,41 @@
             <h2 data-i18n="ui.h2.source_directories">Source Directories</h2>
             <button class="modal-close" id="whitelistModalClose">&times;</button>
         </div>
-        <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;gap:12px;max-height:60vh;overflow:hidden;">
-            <div style="font-size:12px;color:var(--text-dim);padding-bottom:8px;border-bottom:1px solid var(--border);">
+        <div class="modal-body modal-body-list">
+            <div class="modal-list-desc" data-i18n="ui.crate.whitelist_desc">
                 Only samples from these directories will be used for generation. Leave empty to use all directories.
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" id="whitelistAddInput" placeholder="Add directory path..." style="flex:1;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);font-size:12px;" data-i18n-placeholder="ui.ph.add_directory_path">
-                <button class="btn btn-primary" id="whitelistAddBtn" style="padding:8px 12px;" data-i18n="ui.btn.add">Add</button>
-                <button class="btn btn-secondary" id="whitelistBrowseBtn" style="padding:8px 12px;" title="Browse for folder" data-i18n-title="ui.tt.browse_for_folder">📁</button>
+            <div class="modal-row-inline">
+                <input type="text" class="modal-input-flex" id="whitelistAddInput" placeholder="Add directory path..." data-i18n-placeholder="ui.ph.add_directory_path" title="Add directory path" data-i18n-title="ui.ph.add_directory_path">
+                <button class="btn btn-primary btn-compact" id="whitelistAddBtn" data-i18n="ui.btn.add" title="Add directory" data-i18n-title="ui.ph.add_directory_path">Add</button>
+                <button class="btn btn-secondary btn-compact" id="whitelistBrowseBtn" title="Browse for folder" data-i18n-title="ui.tt.browse_for_folder">📁</button>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <input type="text" id="whitelistSearchInput" placeholder="Search directories..." style="flex:1;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);font-size:12px;" data-i18n-placeholder="ui.ph.search_directories">
-                <span id="whitelistFilterCount" style="font-size:11px;color:var(--text-dim);min-width:60px;"></span>
+            <div class="modal-row-inline">
+                <input type="text" class="modal-input-flex" id="whitelistSearchInput" placeholder="Search directories..." data-i18n-placeholder="ui.ph.search_directories" title="Search directories" data-i18n-title="ui.ph.search_directories">
+                <span class="modal-filter-count" id="whitelistFilterCount"></span>
             </div>
-            <div id="whitelistEntries" style="flex:1;overflow-y:auto;background:var(--bg-secondary);border:1px solid var(--border);padding:8px;font-family:monospace;font-size:11px;min-height:200px;max-height:400px;">
-                <p style="color:var(--text-dim);" data-i18n="ui.p.loading">Loading...</p>
+            <div class="modal-list-entries" id="whitelistEntries">
+                <p class="modal-list-loading" data-i18n="ui.p.loading">Loading...</p>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <span id="whitelistTotalCount" style="font-size:11px;color:var(--text-dim);">0 directories (all allowed)</span>
-                <button class="btn btn-secondary" id="whitelistClearAllBtn" style="font-size:11px;" data-i18n="ui.btn.clear_all">Clear All</button>
+            <div class="modal-row-footer">
+                <span class="modal-footer-count" id="whitelistTotalCount">0 directories (all allowed)</span>
+                <button class="btn btn-secondary btn-compact" id="whitelistClearAllBtn" data-i18n="ui.btn.clear_all" title="Clear all source directories" data-i18n-title="ui.btn.clear_all">Clear All</button>
             </div>
         </div>
     </div>
 </div>
 
-<script src="js/settings-search.js?v=52971"></script>
-<script src="js/visualizer.js?v=52971"></script>
-<script src="js/walker-status.js?v=52971"></script>
-<script src="js/audio-engine.js?v=52971"></script>
-<script src="js/als-timeline.js?v=52971"></script>
-<script src="js/als-generator.js?v=52971"></script>
-<script src="js/sample-browser.js?v=52971"></script>
-<script src="js/context-menu.js?v=52971"></script>
-<script src="js/shortcuts.js?v=52971"></script>
-<script src="js/help-overlay.js?v=52971"></script>
-<script src="js/keyboard-nav.js?v=52971"></script>
-<script src="js/app.js?v=52971"></script>
+<script src="js/settings-search.js?v=46117"></script>
+<script src="js/visualizer.js?v=46117"></script>
+<script src="js/walker-status.js?v=46117"></script>
+<script src="js/audio-engine.js?v=46117"></script>
+<script src="js/als-timeline.js?v=46117"></script>
+<script src="js/als-generator.js?v=46117"></script>
+<script src="js/sample-browser.js?v=46117"></script>
+<script src="js/context-menu.js?v=46117"></script>
+<script src="js/shortcuts.js?v=46117"></script>
+<script src="js/help-overlay.js?v=46117"></script>
+<script src="js/keyboard-nav.js?v=46117"></script>
+<script src="js/app.js?v=46117"></script>
 </body>
 </html>

@@ -1158,6 +1158,7 @@
   "ui.crate.prefetch_tt_stop": "Stop het vooraf ophalen van achtergrondgolfvormen",
   "ui.crate.search_placeholder": "Search path or filename (/ to focus)",
   "ui.crate.search_placeholder_regex": "Regex zoekkrat...",
+  "ui.crate.whitelist_desc": "Only samples from these directories will be used for generation. Leave empty to use all directories.",
   "ui.daw.no_filter_matches": "Er zijn geen DAW-projecten die overeenkomen met het huidige filter.",
   "ui.dep_graph.analytics_empty": "Geen gegevens om te analyseren. Bouw eerst de plugin-index.",
   "ui.dep_graph.and_n_more": "...en {n} meer",

@@ -1158,6 +1158,7 @@
   "ui.crate.prefetch_tt_stop": "Stoppa förhämtning av bakgrundsvågform",
   "ui.crate.search_placeholder": "Search path or filename (/ to focus)",
   "ui.crate.search_placeholder_regex": "Regex söklåda...",
+  "ui.crate.whitelist_desc": "Only samples from these directories will be used for generation. Leave empty to use all directories.",
   "ui.daw.no_filter_matches": "Inga DAW-projekt matchar det aktuella filtret.",
   "ui.dep_graph.analytics_empty": "Inga data att analysera. Bygg plugin-indexet först.",
   "ui.dep_graph.and_n_more": "...och {n} till",

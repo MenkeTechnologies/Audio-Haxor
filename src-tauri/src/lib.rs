@@ -3734,12 +3734,16 @@ async fn waveform_prefetch_start(app: tauri::AppHandle) -> Result<serde_json::Va
     let app_handle = app.clone();
 
     tokio::task::spawn_blocking(move || {
-        use rayon::prelude::*;
-        // Smaller batches → more frequent progress emissions so the UI moves visibly.
-        const BATCH_SIZE: u64 = 50;
+        // Serial through the audio-engine preview child (`dedicated_audio_engine_request`
+        // routes `waveform_preview` to the preview process, not the playback one). Same
+        // JUCE decoders that the Samples tab uses → identical peaks. No rayon — the
+        // engine processes one request at a time via stdin/stdout JSON lines.
+        const BATCH_SIZE: u64 = 100;
+        const WIDTH_PX: u64 = 800;
         let mut total_built: u64 = 0;
         let mut total_failed: u64 = 0;
         let start = std::time::Instant::now();
+        let mut emit_counter: u64 = 0;
 
         loop {
             if stop_flag.load(Ordering::Relaxed) {
@@ -3759,44 +3763,56 @@ async fn waveform_prefetch_start(app: tauri::AppHandle) -> Result<serde_json::Va
                 break;
             }
 
-            // Parallel decode + peak bucket. `yield_if_playback_active` defers work when
-            // the user is auditioning so prefetch doesn't fight the audio thread for cores.
-            let results: Vec<(String, Option<Vec<waveform_prefetch::Peak>>)> = paths
-                .par_iter()
-                .map(|p| {
-                    yield_if_playback_active();
-                    if stop_flag.load(Ordering::Relaxed) {
-                        return (p.clone(), None);
-                    }
-                    (
-                        p.clone(),
-                        waveform_prefetch::compute_peaks(p, waveform_prefetch::WAVEFORM_WIDTH_PX),
-                    )
-                })
-                .collect();
+            for path in &paths {
+                if stop_flag.load(Ordering::Relaxed) {
+                    break;
+                }
+                yield_if_playback_active();
 
-            for (path, maybe_peaks) in &results {
-                match maybe_peaks {
-                    Some(peaks) => {
-                        let value = serde_json::to_value(peaks).unwrap_or(serde_json::json!([]));
-                        match db::global().upsert_waveform_cache_row(path, &value) {
+                let req = serde_json::json!({
+                    "cmd": "waveform_preview",
+                    "path": path,
+                    "width_px": WIDTH_PX,
+                });
+                match audio_engine::dedicated_audio_engine_request(&req) {
+                    Ok(resp)
+                        if resp.get("ok") == Some(&serde_json::Value::Bool(true))
+                            && resp.get("peaks").is_some() =>
+                    {
+                        let peaks = resp.get("peaks").unwrap();
+                        match db::global().upsert_waveform_cache_row(path, peaks) {
                             Ok(()) => total_built += 1,
                             Err(_) => total_failed += 1,
                         }
                     }
-                    None => {
-                        // Tombstone unsupported / unreadable files so the same 50 bad
-                        // paths don't come back out of `unwaveformed_sample_paths` every
-                        // iteration and pin the job at 0% forever. `_isUsableWaveformPeaks`
-                        // in audio.js rejects this sentinel so the frontend falls through
-                        // to the audio-engine path (which handles more formats) on demand.
+                    _ => {
+                        // Tombstone so this path doesn't re-queue forever.
                         let tombstone = serde_json::json!({ "failed": true });
                         let _ = db::global().upsert_waveform_cache_row(path, &tombstone);
                         total_failed += 1;
                     }
                 }
+
+                // Emit progress every 10 files so the badge counter climbs visibly.
+                emit_counter += 1;
+                if emit_counter % 10 == 0 {
+                    let (cached_now, total_now) =
+                        db::global().waveform_cache_stats().unwrap_or((0, 0));
+                    let _ = app_handle.emit(
+                        "waveform-prefetch-progress",
+                        serde_json::json!({
+                            "phase": "building",
+                            "cached": cached_now,
+                            "total": total_now,
+                            "built": total_built,
+                            "failed": total_failed,
+                            "elapsed_ms": start.elapsed().as_millis() as u64,
+                        }),
+                    );
+                }
             }
 
+            // Also emit after each full batch.
             let (cached_now, total_now) = db::global().waveform_cache_stats().unwrap_or((0, 0));
             let _ = app_handle.emit(
                 "waveform-prefetch-progress",

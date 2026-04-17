@@ -1158,6 +1158,7 @@
   "ui.crate.prefetch_tt_stop": "Stop background waveform prefetch",
   "ui.crate.search_placeholder": "Fuzzy search crate...",
   "ui.crate.search_placeholder_regex": "Regex search crate...",
+  "ui.crate.whitelist_desc": "Only samples from these directories will be used for generation. Leave empty to use all directories.",
   "ui.daw.no_filter_matches": "No DAW projects match the current filter.",
   "ui.dep_graph.analytics_empty": "No data to analyze. Build the plugin index first.",
   "ui.dep_graph.and_n_more": "...and {n} more",

@@ -1158,6 +1158,7 @@
   "ui.crate.prefetch_tt_stop": "Arresta il prelettura della forma d'onda in background",
   "ui.crate.search_placeholder": "Search path or filename (/ to focus)",
   "ui.crate.search_placeholder_regex": "Cassa di ricerca regex...",
+  "ui.crate.whitelist_desc": "Only samples from these directories will be used for generation. Leave empty to use all directories.",
   "ui.daw.no_filter_matches": "Nessun progetto DAW corrisponde al filtro corrente.",
   "ui.dep_graph.analytics_empty": "Nessun dato da analizzare. Crea prima l'indice del plugin.",
   "ui.dep_graph.and_n_more": "...e {n} altro",
