@@ -223,18 +223,16 @@ function showDepGraph() {
         if (typeof showToast === 'function' && typeof toastFmt === 'function') {
             showToast(toastFmt('toast.run_plugin_index_first'), 5000, 'error');
         }
-        if (typeof tauriConfirm === 'function') {
-            tauriConfirm(
-                catalogFmt('ui.dep_graph.confirm_build_index_body'),
-                catalogFmt('ui.dep_graph.title')
-            ).then(ok => {
-                if (ok && typeof buildXrefIndex === 'function') {
-                    buildXrefIndex().then(() => {
-                        filterDawProjects();
-                        showDepGraph();
-                    });
-                }
-            });
+        const msg = typeof catalogFmt === 'function'
+            ? catalogFmt('ui.dep_graph.confirm_build_index_body')
+            : 'Build plugin index now?';
+        if (confirm(msg)) {
+            if (typeof buildXrefIndex === 'function') {
+                buildXrefIndex().then(() => {
+                    if (typeof filterDawProjects === 'function') filterDawProjects();
+                    showDepGraph();
+                });
+            }
         }
         return;
     }
@@ -306,7 +304,7 @@ function showDepGraph() {
     // ── Analytics tab content ──
     const analyticsHtml = buildAnalyticsHtml(data);
 
-    const html = `<div class="modal-overlay" id="depGraphModal" data-action-modal="closeDepGraph">
+    const html = `<div class="modal-overlay modal-visible" id="depGraphModal" data-action-modal="closeDepGraph">
     <div class="modal-content modal-wide dep-graph-modal">
       <div class="modal-header">
         <h2>${escapeHtml(catalogFmt('ui.dep_graph.title'))}</h2>
@@ -465,3 +463,6 @@ document.addEventListener('keydown', (e) => {
         closeDepGraph();
     }
 });
+
+// Export for menu-action handler in ipc.js
+window.showDepGraph = showDepGraph;

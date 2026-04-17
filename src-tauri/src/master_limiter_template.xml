@@ -19,21 +19,7 @@
 	<LastSelectedTimeableIndex Value="0" />
 	<LastSelectedClipEnvelopeIndex Value="0" />
 	<LastPresetRef>
-		<Value>
-			<AbletonDefaultPresetRef Id="1">
-				<FileRef>
-					<RelativePathType Value="5" />
-					<RelativePath Value="Devices/Audio Effects/Limiter" />
-					<Path Value="D:/ABLETONLIVE11/Resources/Core Library/Devices/Audio Effects/Limiter" />
-					<Type Value="1" />
-					<LivePackName Value="Core Library" />
-					<LivePackId Value="www.ableton.com/0" />
-					<OriginalFileSize Value="0" />
-					<OriginalCrc Value="0" />
-				</FileRef>
-				<DeviceId Name="Limiter" />
-			</AbletonDefaultPresetRef>
-		</Value>
+		<Value />
 	</LastPresetRef>
 	<LockedScripts />
 	<IsFolded Value="true" />

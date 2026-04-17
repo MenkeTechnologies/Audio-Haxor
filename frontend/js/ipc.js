@@ -45,7 +45,21 @@ function runExport(fn) {
     });
 }
 
+/** Look up function by name on window and run it - for cross-file calls where load order matters */
+function callGlobal(name, ...args) {
+    const fn = window[name];
+    if (typeof fn === 'function') return fn(...args);
+}
+
+/** Like callGlobal but wraps in runExport for async export functions */
+function runExportByName(name) {
+    const fn = window[name];
+    if (typeof fn === 'function') runExport(fn);
+}
+
 window.runExport = runExport;
+window.callGlobal = callGlobal;
+window.runExportByName = runExportByName;
 function applyBuildInfoToDom() {
     const ver = window.__appBuildVersion ? String(window.__appBuildVersion) : '';
     const info = window.__appBuildInfo && typeof window.__appBuildInfo === 'object' ? window.__appBuildInfo : {};
@@ -237,28 +251,28 @@ listen('menu-action', (event) => {
             if (typeof stopAll === 'function') stopAll();
             break;
         case 'export_plugins':
-            runExport(exportPlugins);
+            if (typeof window.exportPlugins === 'function') runExport(window.exportPlugins);
             break;
         case 'import_plugins':
-            if (typeof importPlugins === 'function') importPlugins();
+            if (typeof window.importPlugins === 'function') window.importPlugins();
             break;
         case 'export_audio':
-            runExport(exportAudio);
+            if (typeof window.exportAudio === 'function') runExport(window.exportAudio);
             break;
         case 'import_audio':
-            if (typeof importAudio === 'function') importAudio();
+            if (typeof window.importAudio === 'function') window.importAudio();
             break;
         case 'export_daw':
-            runExport(exportDaw);
+            if (typeof window.exportDaw === 'function') runExport(window.exportDaw);
             break;
         case 'import_daw':
-            if (typeof importDaw === 'function') importDaw();
+            if (typeof window.importDaw === 'function') window.importDaw();
             break;
         case 'export_presets':
-            runExport(exportPresets);
+            if (typeof window.exportPresets === 'function') runExport(window.exportPresets);
             break;
         case 'import_presets':
-            if (typeof importPresets === 'function') importPresets();
+            if (typeof window.importPresets === 'function') window.importPresets();
             break;
         case 'open_prefs':
             if (typeof openPrefsFile === 'function') openPrefsFile();
@@ -281,6 +295,9 @@ listen('menu-action', (event) => {
             break;
         case 'scan_pdfs':
             if (typeof scanPdfs === 'function') scanPdfs();
+            break;
+        case 'scan_videos':
+            if (typeof scanVideos === 'function') scanVideos();
             break;
         case 'stop_pdf_scan':
             if (typeof stopPdfScan === 'function') void stopPdfScan();
@@ -319,34 +336,133 @@ listen('menu-action', (event) => {
         case 'tab_audio_engine':
             if (typeof switchTab === 'function') switchTab('audioEngine');
             break;
+        case 'tab_crate':
+            if (typeof switchTab === 'function') switchTab('crate');
+            break;
+        case 'tab_tags':
+            if (typeof switchTab === 'function') switchTab('tags');
+            break;
+        case 'tab_visualizer':
+            if (typeof switchTab === 'function') switchTab('visualizer');
+            break;
+        case 'tab_walkers':
+            if (typeof switchTab === 'function') switchTab('walkers');
+            break;
+        case 'tab_midi':
+            if (typeof switchTab === 'function') switchTab('midi');
+            break;
+        case 'tab_pdf':
+            if (typeof switchTab === 'function') switchTab('pdf');
+            break;
+        case 'tab_videos':
+            if (typeof switchTab === 'function') switchTab('videos');
+            break;
+        case 'tab_als_generator':
+            if (typeof switchTab === 'function') switchTab('alsGenerator');
+            break;
         // View — appearance
         case 'toggle_theme':
-            if (typeof settingToggleTheme === 'function') settingToggleTheme();
+            if (typeof window.settingToggleTheme === 'function') window.settingToggleTheme();
             break;
         case 'toggle_crt':
-            if (typeof settingToggleCrt === 'function') settingToggleCrt();
+            if (typeof window.settingToggleCrt === 'function') window.settingToggleCrt();
             break;
         case 'reset_columns':
-            if (typeof settingResetColumns === 'function') settingResetColumns();
+            if (typeof window.settingResetColumns === 'function') window.settingResetColumns();
             break;
         case 'reset_tabs':
-            if (typeof settingResetTabOrder === 'function') settingResetTabOrder();
+            if (typeof window.settingResetTabOrder === 'function') window.settingResetTabOrder();
             break;
         // Data
         case 'clear_history':
-            if (typeof settingClearAllHistory === 'function') settingClearAllHistory();
+            if (typeof window.settingClearAllHistory === 'function') window.settingClearAllHistory();
             break;
         case 'clear_all_databases':
-            if (typeof settingClearAllDatabases === 'function') settingClearAllDatabases();
+            if (typeof window.settingClearAllDatabases === 'function') window.settingClearAllDatabases();
             break;
         case 'clear_kvr':
-            if (typeof settingClearKvrCache === 'function') settingClearKvrCache();
+            if (typeof window.settingClearKvrCache === 'function') window.settingClearKvrCache();
             break;
         case 'clear_favorites':
-            if (typeof clearFavorites === 'function') clearFavorites();
+            if (typeof window.clearFavorites === 'function') window.clearFavorites();
+            break;
+        case 'clear_all_caches':
+            if (window.vstUpdater?.dbClearCaches) {
+                if (typeof showToast === 'function') showToast(toastFmt('toast.clearing_caches'));
+                window.vstUpdater.dbClearCaches().then(() => {
+                    if (typeof showToast === 'function') showToast(toastFmt('toast.all_caches_cleared'));
+                    if (typeof invalidateDbCacheStatsSnapshot === 'function') invalidateDbCacheStatsSnapshot();
+                    if (typeof renderCacheStats === 'function') void renderCacheStats();
+                }).catch(e => {
+                    if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: e}), 4000, 'error');
+                });
+            }
+            break;
+        case 'clear_bpm_cache':
+            if (window.vstUpdater?.dbClearCacheTable) {
+                window.vstUpdater.dbClearCacheTable('bpm').then(() => {
+                    if (typeof showToast === 'function') showToast(toastFmt('toast.cache_cleared', {name: 'BPM'}));
+                    if (typeof invalidateDbCacheStatsSnapshot === 'function') invalidateDbCacheStatsSnapshot();
+                    if (typeof renderCacheStats === 'function') void renderCacheStats();
+                });
+            }
+            break;
+        case 'clear_key_cache':
+            if (window.vstUpdater?.dbClearCacheTable) {
+                window.vstUpdater.dbClearCacheTable('key').then(() => {
+                    if (typeof showToast === 'function') showToast(toastFmt('toast.cache_cleared', {name: 'Key'}));
+                    if (typeof invalidateDbCacheStatsSnapshot === 'function') invalidateDbCacheStatsSnapshot();
+                    if (typeof renderCacheStats === 'function') void renderCacheStats();
+                });
+            }
+            break;
+        case 'clear_lufs_cache':
+            if (window.vstUpdater?.dbClearCacheTable) {
+                window.vstUpdater.dbClearCacheTable('lufs').then(() => {
+                    if (typeof showToast === 'function') showToast(toastFmt('toast.cache_cleared', {name: 'LUFS'}));
+                    if (typeof invalidateDbCacheStatsSnapshot === 'function') invalidateDbCacheStatsSnapshot();
+                    if (typeof renderCacheStats === 'function') void renderCacheStats();
+                });
+            }
+            break;
+        case 'clear_waveform_cache':
+            if (window.vstUpdater?.dbClearCacheTable) {
+                window.vstUpdater.dbClearCacheTable('waveform').then(() => {
+                    if (typeof showToast === 'function') showToast(toastFmt('toast.cache_cleared', {name: 'Waveform'}));
+                    if (typeof invalidateDbCacheStatsSnapshot === 'function') invalidateDbCacheStatsSnapshot();
+                    if (typeof renderCacheStats === 'function') void renderCacheStats();
+                });
+            }
+            break;
+        case 'clear_spectrogram_cache':
+            if (window.vstUpdater?.dbClearCacheTable) {
+                window.vstUpdater.dbClearCacheTable('spectrogram').then(() => {
+                    if (typeof showToast === 'function') showToast(toastFmt('toast.cache_cleared', {name: 'Spectrogram'}));
+                    if (typeof invalidateDbCacheStatsSnapshot === 'function') invalidateDbCacheStatsSnapshot();
+                    if (typeof renderCacheStats === 'function') void renderCacheStats();
+                });
+            }
+            break;
+        case 'clear_fingerprint_cache':
+            if (window.vstUpdater?.dbClearCacheTable) {
+                window.vstUpdater.dbClearCacheTable('fingerprint').then(() => {
+                    if (typeof showToast === 'function') showToast(toastFmt('toast.cache_cleared', {name: 'Fingerprint'}));
+                    if (typeof invalidateDbCacheStatsSnapshot === 'function') invalidateDbCacheStatsSnapshot();
+                    if (typeof renderCacheStats === 'function') void renderCacheStats();
+                });
+            }
+            break;
+        case 'clear_xref_cache':
+            if (window.vstUpdater?.dbClearCacheTable) {
+                window.vstUpdater.dbClearCacheTable('xref').then(() => {
+                    if (typeof showToast === 'function') showToast(toastFmt('toast.cache_cleared', {name: 'Plugin Index'}));
+                    if (typeof invalidateDbCacheStatsSnapshot === 'function') invalidateDbCacheStatsSnapshot();
+                    if (typeof renderCacheStats === 'function') void renderCacheStats();
+                });
+            }
             break;
         case 'reset_all':
-            if (typeof resetAllScans === 'function') resetAllScans();
+            if (typeof window.resetAllScans === 'function') window.resetAllScans();
             break;
         // Playback
         case 'play_pause':
@@ -396,26 +512,32 @@ listen('menu-action', (event) => {
             break;
         // Tools
         case 'find_duplicates':
-            if (typeof showDuplicateReport === 'function') showDuplicateReport();
+            if (typeof window.showDuplicateReport === 'function') window.showDuplicateReport();
+            break;
+        case 'sample_analysis_start':
+            if (typeof runCrateSampleAnalysis === 'function') runCrateSampleAnalysis();
+            break;
+        case 'sample_analysis_stop':
+            if (typeof stopCrateSampleAnalysis === 'function') stopCrateSampleAnalysis();
             break;
         case 'bpm_key_lufs_start':
-            if (typeof triggerBackgroundBpmKeyLufsAnalysis === 'function') {
-                triggerBackgroundBpmKeyLufsAnalysis();
+            if (typeof window.triggerBackgroundBpmKeyLufsAnalysis === 'function') {
+                window.triggerBackgroundBpmKeyLufsAnalysis();
             }
             break;
         case 'bpm_key_lufs_stop':
-            if (typeof triggerStopBackgroundBpmKeyLufsAnalysis === 'function') {
-                triggerStopBackgroundBpmKeyLufsAnalysis();
+            if (typeof window.triggerStopBackgroundBpmKeyLufsAnalysis === 'function') {
+                window.triggerStopBackgroundBpmKeyLufsAnalysis();
             }
             break;
         case 'extract_pdf_metadata':
-            if (typeof buildPdfPagesCache === 'function') buildPdfPagesCache();
+            if (typeof window.buildPdfPagesCache === 'function') window.buildPdfPagesCache();
             break;
         case 'stop_pdf_metadata':
-            if (typeof stopPdfMetadataExtractionUser === 'function') void stopPdfMetadataExtractionUser();
+            if (typeof window.stopPdfMetadataExtractionUser === 'function') void window.stopPdfMetadataExtractionUser();
             break;
         case 'build_fingerprint_cache_menu':
-            if (typeof triggerStartFingerprintCacheBuild === 'function') void triggerStartFingerprintCacheBuild();
+            if (typeof window.triggerStartFingerprintCacheBuild === 'function') void window.triggerStartFingerprintCacheBuild();
             break;
         case 'stop_fingerprint_cache_menu':
             if (window.vstUpdater && typeof window.vstUpdater.stopFingerprintCache === 'function') {
@@ -423,29 +545,63 @@ listen('menu-action', (event) => {
             }
             break;
         case 'start_content_dup_scan':
-            if (typeof triggerStartBackgroundContentDupScan === 'function') {
-                triggerStartBackgroundContentDupScan();
+            if (typeof window.triggerStartBackgroundContentDupScan === 'function') {
+                window.triggerStartBackgroundContentDupScan();
             }
             break;
         case 'stop_content_dup_scan':
-            if (typeof triggerStopBackgroundContentDupScan === 'function') {
-                triggerStopBackgroundContentDupScan();
+            if (typeof window.triggerStopBackgroundContentDupScan === 'function') {
+                window.triggerStopBackgroundContentDupScan();
             }
             break;
+        case 'start_waveform_prefetch':
+            if (typeof window.startCrateWaveformPrefetch === 'function') void window.startCrateWaveformPrefetch();
+            break;
+        case 'stop_waveform_prefetch':
+            if (typeof window.stopCrateWaveformPrefetch === 'function') void window.stopCrateWaveformPrefetch();
+            break;
         case 'start_all_background_jobs':
-            if (typeof triggerStartAllBackgroundJobs === 'function') triggerStartAllBackgroundJobs();
+            if (typeof window.triggerStartAllBackgroundJobs === 'function') window.triggerStartAllBackgroundJobs();
             break;
         case 'stop_all_background_jobs':
-            if (typeof triggerStopAllBackgroundJobs === 'function') triggerStopAllBackgroundJobs();
+            if (typeof window.triggerStopAllBackgroundJobs === 'function') window.triggerStopAllBackgroundJobs();
             break;
         case 'dep_graph':
-            if (typeof showDepGraph === 'function') showDepGraph();
+            if (typeof window.showDepGraph === 'function') window.showDepGraph();
+            break;
+        case 'heatmap_dashboard':
+            if (typeof window.showHeatmapDashboard === 'function') void window.showHeatmapDashboard();
+            break;
+        case 'build_plugin_index':
+            if (typeof window.buildXrefIndex === 'function') {
+                if (typeof showToast === 'function') showToast(toastFmt('toast.building_plugin_index'));
+                window.buildXrefIndex();
+            }
+            break;
+        case 'new_smart_playlist':
+            if (typeof window.showSmartPlaylistEditor === 'function') window.showSmartPlaylistEditor(null);
+            break;
+        case 'open_log_file':
+            if (window.vstUpdater?.getPrefsPath && window.vstUpdater?.openWithApp) {
+                window.vstUpdater.getPrefsPath().then(p => {
+                    const lp = p.replace(/preferences\.toml$/, 'app.log');
+                    window.vstUpdater.openWithApp(lp, 'TextEdit').catch(() => {});
+                });
+            }
+            break;
+        case 'open_data_directory':
+            if (window.vstUpdater?.getPrefsPath && window.vstUpdater?.openPluginFolder) {
+                window.vstUpdater.getPrefsPath().then(p => {
+                    const dir = p.replace(/[/\\][^/\\]+$/, '');
+                    window.vstUpdater.openPluginFolder(dir);
+                });
+            }
             break;
         case 'cmd_palette':
-            if (typeof openPalette === 'function') void openPalette();
+            if (typeof window.openPalette === 'function') void window.openPalette();
             break;
         case 'help_overlay':
-            if (typeof toggleHelpOverlay === 'function') toggleHelpOverlay();
+            if (typeof window.toggleHelpOverlay === 'function') window.toggleHelpOverlay();
             break;
         // Help
         case 'github':
@@ -454,7 +610,7 @@ listen('menu-action', (event) => {
             break;
         case 'docs':
             if (typeof showToast === 'function') showToast(toastFmt('toast.opening_docs'));
-            if (typeof openUpdate === 'function') openUpdate('https://github.com/MenkeTechnologies/Audio-Haxor');
+            if (typeof openUpdate === 'function') openUpdate('https://menketechnologies.github.io/Audio-Haxor');
             break;
         // Find (handled by existing Cmd+F)
         case 'find': {
@@ -763,31 +919,31 @@ document.addEventListener('click', (e) => {
                 deleteMidiScanEntry(el.dataset.id);
                 break;
             case 'exportPlugins':
-                runExport(exportPlugins);
+                if (typeof window.exportPlugins === 'function') runExport(window.exportPlugins);
                 break;
             case 'importPlugins':
-                importPlugins();
+                if (typeof window.importPlugins === 'function') window.importPlugins();
                 break;
             case 'exportAudio':
-                runExport(exportAudio);
+                if (typeof window.exportAudio === 'function') runExport(window.exportAudio);
                 break;
             case 'importAudio':
-                importAudio();
+                if (typeof window.importAudio === 'function') window.importAudio();
                 break;
             case 'exportDaw':
-                runExport(exportDaw);
+                if (typeof window.exportDaw === 'function') runExport(window.exportDaw);
                 break;
             case 'exportXrefPlugins':
-                if (typeof exportXrefPlugins === 'function') exportXrefPlugins();
+                if (typeof window.exportXrefPlugins === 'function') window.exportXrefPlugins();
                 break;
             case 'importDaw':
-                importDaw();
+                if (typeof window.importDaw === 'function') window.importDaw();
                 break;
             case 'exportPresets':
-                runExport(exportPresets);
+                if (typeof window.exportPresets === 'function') runExport(window.exportPresets);
                 break;
             case 'importPresets':
-                importPresets();
+                if (typeof window.importPresets === 'function') window.importPresets();
                 break;
             case 'exportMidi':
                 if (typeof exportMidi === 'function') runExport(exportMidi);

@@ -20,21 +20,7 @@
 	<LastSelectedTimeableIndex Value="74" />
 	<LastSelectedClipEnvelopeIndex Value="74" />
 	<LastPresetRef>
-		<Value>
-			<FilePresetRef Id="1">
-				<FileRef>
-					<RelativePathType Value="1" />
-					<RelativePath Value="../../../../../../../../../../EQ Eight.adv" />
-					<Path Value="/../../../../../../EQ Eight.adv" />
-					<Type Value="2" />
-					<LivePackName Value="" />
-					<LivePackId Value="" />
-					<OriginalFileSize Value="0" />
-					<OriginalCrc Value="0" />
-					<SourceHint Value="" />
-				</FileRef>
-			</FilePresetRef>
-		</Value>
+		<Value />
 	</LastPresetRef>
 	<LockedScripts />
 	<IsFolded Value="true" />

@@ -2323,8 +2323,13 @@ pub fn get_whitelist_entries() -> Vec<String> {
 
 /// Add a directory to the whitelist
 pub fn add_to_whitelist(path: &str) {
-    // Normalize path (remove trailing slash)
-    let normalized = path.trim_end_matches('/').trim_end_matches('\\');
+    // Normalize path: remove trailing slashes, but preserve "/" (Unix root)
+    let trimmed = path.trim();
+    let normalized = if trimmed == "/" || trimmed == "\\" {
+        trimmed
+    } else {
+        trimmed.trim_end_matches('/').trim_end_matches('\\')
+    };
     if normalized.is_empty() {
         return;
     }
@@ -3153,14 +3158,16 @@ fn generate_inner(
     // Default full-song arrangement for extra loop tracks — spans every
     // section of the user's layout, not the canonical one, so tracks using
     // this fallback fill the song regardless of section length customization.
+    // Section bounds are (start_bar, end_bar_exclusive), e.g. intro=(1,33) for
+    // 32 bars. Clips use the same exclusive end convention.
     let full_arrangement: Vec<(f64, f64)> = vec![
-        (user_starts.intro.0     as f64, (user_starts.intro.1     - 1) as f64),
-        (user_starts.build.0     as f64, (user_starts.build.1     - 1) as f64),
-        (user_starts.breakdown.0 as f64, (user_starts.breakdown.1 - 1) as f64),
-        (user_starts.drop1.0     as f64, (user_starts.drop1.1     - 1) as f64),
-        (user_starts.drop2.0     as f64, (user_starts.drop2.1     - 1) as f64),
-        (user_starts.fadedown.0  as f64, (user_starts.fadedown.1  - 1) as f64),
-        (user_starts.outro.0     as f64, (user_starts.outro.1     - 1) as f64),
+        (user_starts.intro.0     as f64, user_starts.intro.1     as f64),
+        (user_starts.build.0     as f64, user_starts.build.1     as f64),
+        (user_starts.breakdown.0 as f64, user_starts.breakdown.1 as f64),
+        (user_starts.drop1.0     as f64, user_starts.drop1.1     as f64),
+        (user_starts.drop2.0     as f64, user_starts.drop2.1     as f64),
+        (user_starts.fadedown.0  as f64, user_starts.fadedown.1  as f64),
+        (user_starts.outro.0     as f64, user_starts.outro.1     as f64),
     ];
 
     // Helper to find arrangement for a track
@@ -3552,8 +3559,13 @@ fn create_audio_clip(sample: &SampleInfo, color: u32, clip_id: u32, start_bar: f
     //
     // Example: 125 BPM loop, 4 beats = 1.92 sec actual audio
     // We set SecTime=1.92, BeatTime=4 → Ableton stretches to match project tempo
-    let sample_bpm = sample.bpm.unwrap_or(bpm); // Fall back to project BPM if unknown
-    let warp_sec = (loop_beats * 60.0) / sample_bpm;
+    let sample_bpm = sample.bpm.filter(|&b| b > 0.0).unwrap_or(bpm);
+    // Guard against division by zero which would produce Infinity in the XML
+    let warp_sec = if sample_bpm > 0.0 {
+        (loop_beats * 60.0) / sample_bpm
+    } else {
+        (loop_beats * 60.0) / bpm.max(1.0)
+    };
 
     format!(r#"<AudioClip Id="{clip_id}" Time="{start_beat}">
 										<LomId Value="0" />

@@ -69,10 +69,17 @@ window.filterCrate = filterCrate;
 async function loadCrateTab() {
     if (_crate.loaded) return;
     _crate.initialized = true;
+    const host = document.getElementById('crateResults');
+    if (host && !host.innerHTML.trim()) {
+        const label = typeof catalogFmt === 'function' ? catalogFmt('ui.crate.loading') : 'Loading...';
+        host.innerHTML = `<div class="crate-empty" style="text-align:center;padding:40px;"><div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div><div style="color:var(--text-muted);font-size:12px;">${typeof escapeHtml === 'function' ? escapeHtml(label) : label}</div></div>`;
+    }
     await refreshCrateAll();
     _crate.loaded = true;
 }
 window.loadCrateTab = loadCrateTab;
+window.runCrateSampleAnalysis = runCrateSampleAnalysis;
+window.stopCrateSampleAnalysis = stopCrateSampleAnalysis;
 
 async function refreshCrateAll() {
     try {
@@ -124,10 +131,64 @@ async function runCrateSampleAnalysis() {
     if (!window.vstUpdater?.sampleAnalysisStart) return;
     try {
         if (typeof showToast === 'function') showToast(toastFmt('toast.crate_analysis_started'), 2000);
+        updateCrateAnalysisButtons(true);
         await window.vstUpdater.sampleAnalysisStart();
     } catch (err) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.crate_analysis_failed', {err}), 4000, 'error');
+        updateCrateAnalysisButtons(false);
     }
+}
+
+async function stopCrateSampleAnalysis() {
+    if (!window.vstUpdater?.sampleAnalysisStop) return;
+    try {
+        await window.vstUpdater.sampleAnalysisStop();
+        if (typeof showToast === 'function') showToast(toastFmt('toast.crate_analysis_stopped'), 2000);
+    } catch (err) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.crate_analysis_stop_failed', {err}), 4000, 'error');
+    }
+}
+
+function updateCrateAnalysisButtons(running) {
+    const startBtn = document.getElementById('crateAnalysisStartBtn');
+    const stopBtn = document.getElementById('crateAnalysisStopBtn');
+    if (startBtn) startBtn.hidden = running;
+    if (stopBtn) stopBtn.hidden = !running;
+}
+
+/** Update global status bar badge for sample analysis progress. */
+function updateCrateSampleAnalysisBadge(payload) {
+    const badge = document.getElementById('bgSampleAnalysisBadge');
+    if (!badge) return;
+
+    const phase = payload?.phase;
+    const running = phase === 'started' || phase === 'analyzing';
+
+    window.__statusBarSampleAnalysisJob = running;
+    updateCrateAnalysisButtons(running);
+
+    if (running) {
+        const analyzed = Number(payload.analyzed) || 0;
+        const total = Number(payload.total) || 0;
+        const pct = total > 0 ? Math.round((analyzed / total) * 100) : 0;
+        badge.textContent = typeof formatBgJobBadgeLine === 'function'
+            ? formatBgJobBadgeLine('sampleAnalysis', 'ui.stats.sample_analysis_progress', {n: analyzed, total, pct})
+            : `Analysis: ${analyzed} / ${total} (${pct}%)`;
+    } else if (phase === 'completed') {
+        const analyzed = Number(payload.analyzed) || 0;
+        const total = Number(payload.total) || 0;
+        badge.textContent = typeof catalogFmt === 'function'
+            ? catalogFmt('ui.stats.sample_analysis_done', {n: analyzed, total})
+            : `Analysis done: ${analyzed} / ${total}`;
+        setTimeout(() => {
+            if (!window.__statusBarSampleAnalysisJob) badge.textContent = '';
+            if (typeof syncAppStatusBarVisibility === 'function') syncAppStatusBarVisibility();
+        }, 4000);
+    } else {
+        badge.textContent = '';
+    }
+
+    if (typeof syncAppStatusBarVisibility === 'function') syncAppStatusBarVisibility();
 }
 
 // ── Waveform prefetch panel ──
@@ -180,7 +241,10 @@ async function startCrateWaveformPrefetch() {
 
 async function stopCrateWaveformPrefetch() {
     if (!window.vstUpdater?.waveformPrefetchStop) return;
-    try { await window.vstUpdater.waveformPrefetchStop(); } catch { /* ignore */ }
+    try {
+        await window.vstUpdater.waveformPrefetchStop();
+        if (typeof showToast === 'function') showToast(toastFmt('toast.crate_waveform_prefetch_stopped'), 2000);
+    } catch { /* ignore */ }
 }
 
 /** Global entry point — called from `triggerStartAllBackgroundJobs` and wherever else
@@ -690,6 +754,14 @@ function initCrateTab() {
         }
     });
 
+    // Sample analysis panel buttons.
+    document.getElementById('crateAnalysisStartBtn')?.addEventListener('click', () => {
+        void runCrateSampleAnalysis();
+    });
+    document.getElementById('crateAnalysisStopBtn')?.addEventListener('click', () => {
+        void stopCrateSampleAnalysis();
+    });
+
     // Waveform prefetch panel buttons.
     document.getElementById('cratePrefetchStartBtn')?.addEventListener('click', () => {
         void startCrateWaveformPrefetch();
@@ -707,8 +779,12 @@ function initCrateTab() {
 
     // Re-seed facets + category counts whenever the sample-analysis job emits progress — keeps
     // the tree live as new rows land, so the user sees categories populate as analysis runs.
+    // Also updates the global status bar badge so users know analysis is running.
     if (window.vstUpdater?.onSampleAnalysisProgress) {
-        window.vstUpdater.onSampleAnalysisProgress(async () => {
+        window.vstUpdater.onSampleAnalysisProgress(async (payload) => {
+            // Update global status bar badge for any tab
+            updateCrateSampleAnalysisBadge(payload);
+
             if (!isCrateTabActive()) return;
             try {
                 const [counts, facets] = await Promise.all([
@@ -902,8 +978,14 @@ function onCrateKeydown(e) {
         if (row && typeof previewAudio === 'function') previewAudio(row.path, {minimizeFloatingPlayer: true});
         return;
     }
-    // `s` = global shuffle, `f` = global toggleFavorite, `w` = global findSimilar —
-    // don't hijack any of them. Row-level star / similar stay wired to the buttons.
+    if (key === 'f') {
+        e.preventDefault();
+        const row = _crate.rows[_crate.navIndex];
+        if (row && row.pack_id != null) {
+            void toggleCrateFavoritePack(row.pack_id);
+        }
+        return;
+    }
     if (key === 'Escape') {
         e.preventDefault();
         if (typeof isAudioPlaying === 'function' && isAudioPlaying() && typeof previewAudio === 'function') {
@@ -953,6 +1035,22 @@ async function toggleCrateFavoritePack(packId) {
 
 async function runCrateSimilar(sampleId) {
     const row = _crate.rows.find(r => r.sample_id === sampleId);
+    // If row not found in current view, try to get path from the DOM element
+    if (!row) {
+        const el = document.querySelector(`.crate-row[data-sample-id="${sampleId}"]`);
+        if (el) {
+            const path = el.dataset.samplePath;
+            const name = el.querySelector('.crate-row-name')?.textContent || '';
+            if (path) {
+                // Fall back to global findSimilarSamples with path
+                if (typeof findSimilarSamples === 'function') {
+                    findSimilarSamples(path);
+                }
+                return;
+            }
+        }
+        return;
+    }
     if (!row) return;
     if (typeof showToast === 'function') showToast(toastFmt('toast.crate_finding_similar', {name: row.name}), 2000);
     try {
@@ -991,6 +1089,12 @@ function _crateEsc(s) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 }
+
+// ── Exports for context-menu.js and ipc.js menu-action handler ──
+window.runCrateSimilar = runCrateSimilar;
+window.toggleCrateFavoritePack = toggleCrateFavoritePack;
+window.startCrateWaveformPrefetch = startCrateWaveformPrefetch;
+window.stopCrateWaveformPrefetch = stopCrateWaveformPrefetch;
 
 // ── Boot ──
 if (typeof document !== 'undefined') {

@@ -2459,3 +2459,12 @@ function resetSettingsSectionOrder() {
     }
     showToast(toastFmt('toast.settings_layout_reset_short'));
 }
+
+// Export for menu-action handler in ipc.js
+window.settingToggleTheme = settingToggleTheme;
+window.settingToggleCrt = settingToggleCrt;
+window.settingResetColumns = settingResetColumns;
+window.settingClearAllDatabases = settingClearAllDatabases;
+window.settingClearAllHistory = settingClearAllHistory;
+window.resetAllScans = resetAllScans;
+window.settingClearKvrCache = settingClearKvrCache;

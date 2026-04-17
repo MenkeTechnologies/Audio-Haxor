@@ -111,7 +111,7 @@ function showXrefModal(projectName, plugins) {
     window._xrefExportProjectName = projectName;
     window._xrefExportProjectPath = window._xrefLastProjectPath || '';
 
-    const html = `<div class="modal-overlay" id="xrefModal" data-action-modal="closeXref">
+    const html = `<div class="modal-overlay modal-visible" id="xrefModal" data-action-modal="closeXref">
     <div class="modal-content modal-wide">
       <div class="modal-header" style="display:flex;align-items:center;gap:8px;">
         <h2>${escapeHtml(catalogFmt('ui.export.plugins_in_project', {name: projectName}))}</h2>
@@ -134,7 +134,7 @@ async function showProjectPlugins(projectPath, projectName) {
     // Show loading modal
     let existing = document.getElementById('xrefModal');
     if (existing) existing.remove();
-    const loadHtml = `<div class="modal-overlay" id="xrefModal" data-action-modal="closeXref">
+    const loadHtml = `<div class="modal-overlay modal-visible" id="xrefModal" data-action-modal="closeXref">
     <div class="modal-content modal-wide">
       <div class="modal-header">
         <h2>${escapeHtml(catalogFmt('ui.export.plugins_in_project', {name: projectName}))}</h2>
@@ -219,7 +219,7 @@ function showReverseXrefModal(pluginName, projects) {
         }).join('')}</ul>`;
     }
 
-    const html = `<div class="modal-overlay" id="xrefModal" data-action-modal="closeXref">
+    const html = `<div class="modal-overlay modal-visible" id="xrefModal" data-action-modal="closeXref">
     <div class="modal-content modal-wide">
       <div class="modal-header">
         <h2>${escapeHtml(catalogFmt('ui.xref.projects_using_plugin', {name: pluginName}))}</h2>
@@ -424,7 +424,7 @@ async function showProjectViewer(filePath, projectName) {
 async function showXmlProjectViewer(filePath, projectName) {
     let existing = document.getElementById('projectViewerModal');
     if (existing) existing.remove();
-    const loadHtml = `<div class="modal-overlay" id="projectViewerModal" data-action-modal="closeProjectViewer">
+    const loadHtml = `<div class="modal-overlay modal-visible" id="projectViewerModal" data-action-modal="closeProjectViewer">
     <div class="modal-content" style="max-width:90vw;max-height:90vh;width:900px;">
       <div class="modal-header"><h2>${escapeHtml(catalogFmt('ui.xref.modal_title_xml', {project: projectName}))}</h2><button class="modal-close" data-action-modal="closeProjectViewer" title="${escapeHtml(catalogFmt('menu.close'))}">&#10005;</button></div>
       <div class="modal-body" style="padding:0;"><div style="text-align:center;padding:32px;"><div class="spinner" style="width:20px;height:20px;margin:0 auto 12px;"></div>${escapeHtml(catalogFmt('ui.xref.loading'))}</div></div>
@@ -531,7 +531,7 @@ async function showXmlProjectViewer(filePath, projectName) {
 async function showTextProjectViewer(filePath, projectName) {
     let existing = document.getElementById('projectViewerModal');
     if (existing) existing.remove();
-    const loadHtml = `<div class="modal-overlay" id="projectViewerModal" data-action-modal="closeProjectViewer">
+    const loadHtml = `<div class="modal-overlay modal-visible" id="projectViewerModal" data-action-modal="closeProjectViewer">
     <div class="modal-content" style="max-width:90vw;max-height:90vh;width:900px;">
       <div class="modal-header"><h2>${escapeHtml(catalogFmt('ui.xref.modal_title_reaper', {project: projectName}))}</h2><button class="modal-close" data-action-modal="closeProjectViewer" title="${escapeHtml(catalogFmt('menu.close'))}">&#10005;</button></div>
       <div class="modal-body" style="padding:0;"><div style="text-align:center;padding:32px;"><div class="spinner" style="width:20px;height:20px;margin:0 auto 12px;"></div>${escapeHtml(catalogFmt('ui.xref.loading'))}</div></div>
@@ -561,7 +561,7 @@ async function showTextProjectViewer(filePath, projectName) {
 async function showBinaryProjectViewer(filePath, projectName) {
     let existing = document.getElementById('bwViewerModal');
     if (existing) existing.remove();
-    const loadHtml = `<div class="modal-overlay" id="bwViewerModal" data-action-modal="closeBwViewer">
+    const loadHtml = `<div class="modal-overlay modal-visible" id="bwViewerModal" data-action-modal="closeBwViewer">
     <div class="modal-content" style="max-width:90vw;max-height:90vh;width:900px;">
       <div class="modal-header"><h2>${escapeHtml(catalogFmt('ui.xref.modal_title_pair', {left: projectName, right: catalogFmt('ui.xref.format_binary')}))}</h2><button class="modal-close" data-action-modal="closeBwViewer" title="${escapeHtml(catalogFmt('menu.close'))}">&#10005;</button></div>
       <div class="modal-body" style="padding:0;"><div style="text-align:center;padding:32px;"><div class="spinner" style="width:20px;height:20px;margin:0 auto 12px;"></div>${escapeHtml(catalogFmt('ui.xref.parsing_binary_data'))}</div></div>
@@ -603,7 +603,7 @@ async function showAlsViewer(filePath, projectName) {
     let existing = document.getElementById('alsViewerModal');
     if (existing) existing.remove();
 
-    const loadHtml = `<div class="modal-overlay" id="alsViewerModal" data-action-modal="closeAlsViewer">
+    const loadHtml = `<div class="modal-overlay modal-visible" id="alsViewerModal" data-action-modal="closeAlsViewer">
     <div class="modal-content" style="max-width:90vw;max-height:90vh;width:900px;">
       <div class="modal-header">
         <h2>${escapeHtml(catalogFmt('ui.xref.modal_title_xml', {project: projectName}))}</h2>
@@ -829,7 +829,7 @@ async function showBwViewer(filePath, projectName) {
     let existing = document.getElementById('bwViewerModal');
     if (existing) existing.remove();
 
-    const loadHtml = `<div class="modal-overlay" id="bwViewerModal" data-action-modal="closeBwViewer">
+    const loadHtml = `<div class="modal-overlay modal-visible" id="bwViewerModal" data-action-modal="closeBwViewer">
     <div class="modal-content" style="max-width:90vw;max-height:90vh;width:900px;">
       <div class="modal-header">
         <h2>${escapeHtml(catalogFmt('ui.xref.modal_title_bitwig', {project: projectName}))}</h2>

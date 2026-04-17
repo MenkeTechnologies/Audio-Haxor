@@ -145,7 +145,7 @@ function showNoteEditor(path, name) {
         </div>
       </div>` : '';
 
-    const html = `<div class="modal-overlay" id="noteModal" data-action-modal="closeNote">
+    const html = `<div class="modal-overlay modal-visible" id="noteModal" data-action-modal="closeNote">
     <div class="modal-content modal-small">
       <div class="modal-header">
         <h2>Notes: ${escapeHtml(name)}</h2>
@@ -943,7 +943,7 @@ function showTagWizard() {
     if (existing) existing.remove();
     _tagWizardRenaming = null;
 
-    const html = `<div class="modal-overlay" id="tagWizardModal" data-action-modal="closeTagWizard">
+    const html = `<div class="modal-overlay modal-visible" id="tagWizardModal" data-action-modal="closeTagWizard">
     <div class="modal-content modal-wide">
       <div class="modal-header">
         <h2>Tag Manager</h2>

@@ -2851,7 +2851,26 @@ async fn pdf_history_diff(old_id: String, new_id: String) -> Option<history::Pdf
 
 #[tauri::command]
 async fn open_pdf_file(file_path: String) -> Result<(), String> {
-    open_plugin_folder(file_path).await
+    let path = file_path.clone();
+    std::thread::spawn(move || {
+        let p = std::path::Path::new(path.trim());
+        let target = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("open").arg(&target).spawn();
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("cmd")
+                .args(["/C", "start", "", &target.to_string_lossy()])
+                .spawn();
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let _ = std::process::Command::new("xdg-open").arg(&target).spawn();
+        }
+    });
+    Ok(())
 }
 
 #[tauri::command]
@@ -3273,6 +3292,7 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                 Option<String>,
                 Option<String>,
                 Option<String>,
+                Option<String>,
                 f32,
                 bool,
             )> = Vec::with_capacity(samples.len());
@@ -3287,12 +3307,15 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
 
                 // Determine the key to store:
                 // 1. Use existing audio_samples.key_name if already detected
-                // 2. For key-sensitive categories, run audio key detection
-                // 3. Never rely on filename-parsed key alone
+                // 2. Use filename-parsed key if present
+                // 3. For key-sensitive categories without filename key, run audio detection
                 let resolved_key = if existing_key.is_some() {
                     existing_key.clone()
+                } else if analysis.parsed_key.is_some() {
+                    // Filename had a key like "Am" or "C#" - use it
+                    analysis.parsed_key.clone()
                 } else if analysis.category.as_ref().is_some_and(|c| c.is_key_sensitive) {
-                    // Run audio key detection for key-sensitive categories
+                    // Run audio key detection for key-sensitive categories without filename key
                     let detected = key_detect::detect_key(path);
                     if detected.is_some() {
                         keys_detected += 1;
@@ -3306,7 +3329,7 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                     }
                     detected
                 } else {
-                    None // non-key-sensitive category, key doesn't matter
+                    None // non-key-sensitive category without filename key
                 };
 
                 batch_rows.push((
@@ -3315,6 +3338,7 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                     resolved_key,
                     analysis.category.as_ref().map(|c| c.name.clone()),
                     analysis.manufacturer.as_ref().map(|m| m.manufacturer_pattern.clone()),
+                    analysis.pack_name.clone(),
                     analysis.category.as_ref().map(|c| c.confidence).unwrap_or(0.0),
                     analysis.is_loop,
                 ));
@@ -3514,9 +3538,11 @@ async fn generate_als_project(
         // `als_project::SectionOverridesConfig` since the 8-bar-block refactor,
         // so a plain clone is the whole mapping.
         let section_overrides: techno_generator::SectionOverrides = config.section_overrides.clone();
+        // Sanity: clamp BPM to a valid range to avoid division-by-zero or broken audio
+        let bpm = (config.bpm as f64).clamp(20.0, 999.0);
         let result = techno_generator::generate(
             &output_path,
-            config.bpm as f64,
+            bpm,
             num_songs,
             config.root_note.as_deref(),
             config.mode.as_deref(),

@@ -77,7 +77,7 @@ function showHeatmapDashboard() {
     const presets = typeof allPresets !== 'undefined' ? allPresets : [];
 
     const loadingLine = escapeHtml(_hmFmt('ui.js.query_loading'));
-    const html = `<div class="modal-overlay" id="heatmapDashModal" data-action-modal="closeHeatmapDash">
+    const html = `<div class="modal-overlay modal-visible" id="heatmapDashModal" data-action-modal="closeHeatmapDash">
     <div class="modal-content modal-wide" style="max-width:95vw;width:95vw;max-height:95vh;height:95vh;">
       <div class="modal-header">
         <h2>${escapeHtml(_hmFmt('ui.hm.title'))}</h2>

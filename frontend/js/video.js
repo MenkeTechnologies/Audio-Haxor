@@ -308,6 +308,11 @@ async function loadVideoFiles() {
     _videoLoaded = true;
     _videoOffset = 0;
     videoRenderCount = 0;
+    const emptyState = document.getElementById('videoEmptyState');
+    if (emptyState) {
+        const label = typeof catalogFmt === 'function' ? catalogFmt('ui.video.loading') : 'Loading...';
+        emptyState.innerHTML = `<div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div><div style="color:var(--text-muted);font-size:12px;">${typeof escapeHtml === 'function' ? escapeHtml(label) : label}</div>`;
+    }
     await fetchVideoPage();
     if (typeof requestIdleCallback === 'function') {
         requestIdleCallback(() => {

@@ -91,7 +91,7 @@ function toggleHelpOverlay() {
     const moreRows = _helpMoreRows();
     const videoFsRow = _helpVideoFullscreenRow(h);
 
-    const html = `<div class="modal-overlay" id="helpOverlay" data-action-modal="closeHelp">
+    const html = `<div class="modal-overlay modal-visible" id="helpOverlay" data-action-modal="closeHelp">
     <div class="modal-content">
       <div class="modal-header">
         <h2>${h('help.title')}</h2>
@@ -196,3 +196,6 @@ document.addEventListener('click', (e) => {
         }
     }
 });
+
+// Export for menu-action handler in ipc.js
+window.toggleHelpOverlay = toggleHelpOverlay;

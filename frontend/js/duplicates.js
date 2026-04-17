@@ -357,7 +357,7 @@ function showDuplicateReport() {
     const tabContent = catalogFmt('ui.dup.tab_content');
     const title = catalogFmt('menu.find_duplicates');
 
-    const html = `<div class="modal-overlay" id="dupModal" data-action-modal="closeDup">
+    const html = `<div class="modal-overlay modal-visible" id="dupModal" data-action-modal="closeDup">
     <div class="modal-content dup-modal-content">
       <div class="modal-header dup-modal-header">
         <div class="dup-header-main">
@@ -501,3 +501,8 @@ document.addEventListener('click', (e) => {
         triggerStopBackgroundContentDupScan();
     }
 });
+
+// Export for menu-action handler in ipc.js
+window.showDuplicateReport = showDuplicateReport;
+window.triggerStartBackgroundContentDupScan = triggerStartBackgroundContentDupScan;
+window.triggerStopBackgroundContentDupScan = triggerStopBackgroundContentDupScan;

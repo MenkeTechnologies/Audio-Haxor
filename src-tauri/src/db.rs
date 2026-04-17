@@ -2785,7 +2785,6 @@ DROP TABLE _pl_refresh_paths;"#;
                  LEFT JOIN sample_analysis sa ON sa.pack_id = sp.id
                  LEFT JOIN favorite_sample_packs fp ON fp.pack_id = sp.id
                  GROUP BY sp.id
-                 HAVING n > 0
                  ORDER BY is_fav DESC, sp.name COLLATE NOCASE",
             )
             .map_err(|e| e.to_string())?;
@@ -2809,7 +2808,6 @@ DROP TABLE _pl_refresh_paths;"#;
                  FROM sample_pack_manufacturers mfr
                  LEFT JOIN sample_analysis sa ON sa.manufacturer_id = mfr.id
                  GROUP BY mfr.id
-                 HAVING n > 0
                  ORDER BY mfr.name COLLATE NOCASE",
             )
             .map_err(|e| e.to_string())?;
@@ -2825,18 +2823,10 @@ DROP TABLE _pl_refresh_paths;"#;
             .filter_map(|r| r.ok())
             .collect();
 
-        let mut key_stmt = conn
-            .prepare(
-                "SELECT DISTINCT parsed_key FROM sample_analysis
-                 WHERE parsed_key IS NOT NULL AND parsed_key <> ''
-                 ORDER BY parsed_key",
-            )
-            .map_err(|e| e.to_string())?;
-        let keys: Vec<String> = key_stmt
-            .query_map([], |row| row.get::<_, String>(0))
-            .map_err(|e| e.to_string())?
-            .filter_map(|r| r.ok())
-            .collect();
+        let keys: Vec<String> = vec![
+            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+            "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
+        ].into_iter().map(String::from).collect();
 
         Ok(CrateFacets {
             packs,
@@ -2874,9 +2864,12 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push("sa.manufacturer_id = ?".into());
             binds.push(Box::new(mid));
         }
-        if let (Some(lo), Some(hi)) = (params.bpm_min, params.bpm_max) {
-            where_parts.push("sa.parsed_bpm BETWEEN ? AND ?".into());
+        if let Some(lo) = params.bpm_min {
+            where_parts.push("sa.parsed_bpm >= ?".into());
             binds.push(Box::new(lo as i64));
+        }
+        if let Some(hi) = params.bpm_max {
+            where_parts.push("sa.parsed_bpm <= ?".into());
             binds.push(Box::new(hi as i64));
         }
         if let Some(k) = params.key.as_deref().filter(|s| !s.is_empty()) {
@@ -10230,28 +10223,53 @@ DROP TABLE _pl_refresh_paths;"#;
     }
 
     /// Batch insert analysis results. Each row is:
-    /// (sample_id, parsed_bpm, parsed_key, category_name, manufacturer_pattern, category_confidence, is_loop)
+    /// (sample_id, parsed_bpm, parsed_key, category_name, manufacturer_pattern, pack_name, category_confidence, is_loop)
     pub fn batch_insert_sample_analysis(
         &self,
-        rows: &[(i64, Option<u32>, Option<String>, Option<String>, Option<String>, f32, bool)],
+        rows: &[(
+            i64,
+            Option<u32>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            f32,
+            bool,
+        )],
     ) -> Result<u32, String> {
         let conn = self.read_conn();
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         let mut count: u32 = 0;
         {
+            // First, insert any new pack names into sample_packs
+            let mut pack_stmt = tx
+                .prepare_cached(
+                    "INSERT OR IGNORE INTO sample_packs (name, manufacturer_id)
+                     VALUES (?1, (SELECT id FROM sample_pack_manufacturers WHERE name = ?2))",
+                )
+                .map_err(|e| e.to_string())?;
+
             let mut stmt = tx
                 .prepare_cached(
                     "INSERT OR REPLACE INTO sample_analysis
-                         (sample_id, parsed_bpm, parsed_key, category_id, manufacturer_id, category_confidence, is_loop)
+                         (sample_id, parsed_bpm, parsed_key, category_id, manufacturer_id, pack_id, category_confidence, is_loop)
                      VALUES (
                          ?1, ?2, ?3,
                          (SELECT id FROM sample_categories WHERE name = ?4),
                          (SELECT id FROM sample_pack_manufacturers WHERE name = ?5),
-                         ?6, ?7
+                         (SELECT id FROM sample_packs WHERE name = ?6),
+                         ?7, ?8
                      )",
                 )
                 .map_err(|e| e.to_string())?;
-            for (sample_id, bpm, key, cat_name, mfr_pattern, confidence, is_loop) in rows {
+
+            for (sample_id, bpm, key, cat_name, mfr_pattern, pack_name, confidence, is_loop) in rows
+            {
+                // Insert pack if we have one
+                if let Some(pn) = pack_name {
+                    let _ = pack_stmt.execute(rusqlite::params![pn, mfr_pattern]);
+                }
+
                 let n = stmt
                     .execute(rusqlite::params![
                         sample_id,
@@ -10259,6 +10277,7 @@ DROP TABLE _pl_refresh_paths;"#;
                         key,
                         cat_name,
                         mfr_pattern,
+                        pack_name,
                         confidence,
                         *is_loop as i32,
                     ])

@@ -255,7 +255,7 @@ function showSmartPlaylistEditor(existingId) {
     if (prev) prev.remove();
 
     const titleText = existing ? appFmt('ui.sp_modal_title_edit') : appFmt('ui.sp_modal_title_create');
-    const html = `<div class="modal-overlay" id="smartPlaylistModal" data-action-modal="closeSmartPlaylist">
+    const html = `<div class="modal-overlay modal-visible" id="smartPlaylistModal" data-action-modal="closeSmartPlaylist">
     <div class="modal-content modal-wide smart-playlist-modal">
       <div class="modal-header">
         <h2>${escapeHtml(titleText)}</h2>

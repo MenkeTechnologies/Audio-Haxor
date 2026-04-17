@@ -79,6 +79,11 @@ async function loadMidiFiles() {
     _midiTableInit = false;
     _midiRenderCount = 0;
     _midiOffset = 0;
+    const tableWrap = document.getElementById('midiTableWrap');
+    if (tableWrap && !tableWrap.innerHTML.trim()) {
+        const label = typeof catalogFmt === 'function' ? catalogFmt('ui.midi.loading') : 'Loading...';
+        tableWrap.innerHTML = `<div style="text-align:center;padding:40px;"><div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div><div style="color:var(--text-muted);font-size:12px;">${typeof escapeHtml === 'function' ? escapeHtml(label) : label}</div></div>`;
+    }
     await fetchMidiPage();
     if (typeof requestIdleCallback === 'function') {
         requestIdleCallback(() => {

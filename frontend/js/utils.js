@@ -798,7 +798,7 @@ function showAppConfirmModal(message, title) {
         const yesL = _confirmBtnLabel('confirm.btn_yes', 'Yes');
         const noL = _confirmBtnLabel('confirm.btn_no', 'No');
         const msgHtml = escapeHtml(message);
-        const html = `<div class="modal-overlay" id="appConfirmModal" role="alertdialog" aria-modal="true" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmMsg">
+        const html = `<div class="modal-overlay modal-visible" id="appConfirmModal" role="alertdialog" aria-modal="true" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmMsg">
     <div class="modal-content modal-small">
       <div class="modal-header">
         <h2 id="appConfirmTitle">${escapeHtml(t)}</h2>
@@ -901,6 +901,10 @@ async function triggerStartAllBackgroundJobs() {
     }
     // Stagger job starts to prevent IPC flood — each job's initial DB query
     // can block the Tauri IPC channel and cause UI jank if fired simultaneously.
+    if (typeof runCrateSampleAnalysis === 'function') {
+        runCrateSampleAnalysis();
+        await new Promise(r => setTimeout(r, 50));
+    }
     if (typeof triggerBackgroundBpmKeyLufsAnalysis === 'function') {
         triggerBackgroundBpmKeyLufsAnalysis();
         await new Promise(r => setTimeout(r, 50));
@@ -934,6 +938,7 @@ function triggerStopAllBackgroundJobs() {
     if (typeof triggerStopBackgroundContentDupScan === 'function') triggerStopBackgroundContentDupScan();
     if (typeof stopPdfScan === 'function') void stopPdfScan();
     if (typeof stopPdfMetadataExtractionUser === 'function') void stopPdfMetadataExtractionUser();
+    if (typeof stopCrateSampleAnalysis === 'function') void stopCrateSampleAnalysis();
     const vu = window.vstUpdater;
     if (vu && typeof vu.stopFingerprintCache === 'function') void vu.stopFingerprintCache();
     if (vu && typeof vu.waveformPrefetchStop === 'function') void vu.waveformPrefetchStop();
@@ -1608,3 +1613,8 @@ if (typeof document !== 'undefined') {
         if (typeof syncAppStatusBarVisibility === 'function') syncAppStatusBarVisibility();
     });
 }
+
+// Export for menu-action handler in ipc.js
+window.triggerStartAllBackgroundJobs = triggerStartAllBackgroundJobs;
+window.triggerStopAllBackgroundJobs = triggerStopAllBackgroundJobs;
+window.settingResetTabOrder = settingResetTabOrder;

@@ -236,6 +236,13 @@ pub fn build_native_menu_bar<R: Runtime>(
         true,
         Some("CmdOrCtrl+Shift+F"),
     )?;
+    let scan_videos = MenuItem::with_id(
+        handle,
+        "scan_videos",
+        t("menu.scan_videos", "Scan Videos"),
+        true,
+        Some("CmdOrCtrl+Shift+V"),
+    )?;
     let stop_pdf_scan = MenuItem::with_id(
         handle,
         "stop_pdf_scan",
@@ -263,6 +270,7 @@ pub fn build_native_menu_bar<R: Runtime>(
             &scan_daw,
             &scan_presets,
             &scan_pdfs,
+            &scan_videos,
             &stop_pdf_scan,
             &scan_sep,
             &check_updates,
@@ -340,6 +348,62 @@ pub fn build_native_menu_bar<R: Runtime>(
         true,
         Some("CmdOrCtrl+F6"),
     )?;
+    let tab_crate = MenuItem::with_id(
+        handle,
+        "tab_crate",
+        t("menu.tab_crate", "Crate"),
+        true,
+        Some("CmdOrCtrl+0"),
+    )?;
+    let tab_tags = MenuItem::with_id(
+        handle,
+        "tab_tags",
+        t("menu.tab_tags", "Tags"),
+        true,
+        Some("CmdOrCtrl+Shift+9"),
+    )?;
+    let tab_visualizer = MenuItem::with_id(
+        handle,
+        "tab_visualizer",
+        t("menu.tab_visualizer", "Visualizer"),
+        true,
+        Some("F4"),
+    )?;
+    let tab_walkers = MenuItem::with_id(
+        handle,
+        "tab_walkers",
+        t("menu.tab_walkers", "Walkers"),
+        true,
+        Some("F5"),
+    )?;
+    let tab_midi = MenuItem::with_id(
+        handle,
+        "tab_midi",
+        t("menu.tab_midi", "MIDI"),
+        true,
+        Some("CmdOrCtrl+Shift+0"),
+    )?;
+    let tab_pdf = MenuItem::with_id(
+        handle,
+        "tab_pdf",
+        t("menu.tab_pdf", "PDF"),
+        true,
+        Some("F3"),
+    )?;
+    let tab_videos = MenuItem::with_id(
+        handle,
+        "tab_videos",
+        t("menu.tab_videos", "Videos"),
+        true,
+        Some("F7"),
+    )?;
+    let tab_als_generator = MenuItem::with_id(
+        handle,
+        "tab_als_generator",
+        t("menu.tab_als_generator", "ALS Generator"),
+        true,
+        Some("F8"),
+    )?;
     let view_sep = PredefinedMenuItem::separator(handle)?;
     let toggle_theme = MenuItem::with_id(
         handle,
@@ -379,14 +443,22 @@ pub fn build_native_menu_bar<R: Runtime>(
         &[
             &tab_plugins,
             &tab_samples,
+            &tab_crate,
             &tab_daw,
             &tab_presets,
             &tab_favorites,
             &tab_notes,
+            &tab_tags,
             &tab_history,
-            &tab_settings,
             &tab_files,
+            &tab_visualizer,
+            &tab_walkers,
             &tab_audio_engine,
+            &tab_midi,
+            &tab_pdf,
+            &tab_videos,
+            &tab_als_generator,
+            &tab_settings,
             &view_sep,
             &toggle_theme,
             &toggle_crt,
@@ -537,6 +609,82 @@ pub fn build_native_menu_bar<R: Runtime>(
         Some("CmdOrCtrl+Shift+Backspace"),
     )?;
     let data_sep = PredefinedMenuItem::separator(handle)?;
+
+    // Cache submenu
+    let clear_all_caches = MenuItem::with_id(
+        handle,
+        "clear_all_caches",
+        t("menu.clear_all_caches", "Clear All Caches"),
+        true,
+        None::<&str>,
+    )?;
+    let clear_bpm_cache = MenuItem::with_id(
+        handle,
+        "clear_bpm_cache",
+        t("menu.clear_bpm_cache", "Clear BPM Cache"),
+        true,
+        None::<&str>,
+    )?;
+    let clear_key_cache = MenuItem::with_id(
+        handle,
+        "clear_key_cache",
+        t("menu.clear_key_cache", "Clear Key Cache"),
+        true,
+        None::<&str>,
+    )?;
+    let clear_lufs_cache = MenuItem::with_id(
+        handle,
+        "clear_lufs_cache",
+        t("menu.clear_lufs_cache", "Clear LUFS Cache"),
+        true,
+        None::<&str>,
+    )?;
+    let clear_waveform_cache = MenuItem::with_id(
+        handle,
+        "clear_waveform_cache",
+        t("menu.clear_waveform_cache", "Clear Waveform Cache"),
+        true,
+        None::<&str>,
+    )?;
+    let clear_spectrogram_cache = MenuItem::with_id(
+        handle,
+        "clear_spectrogram_cache",
+        t("menu.clear_spectrogram_cache", "Clear Spectrogram Cache"),
+        true,
+        None::<&str>,
+    )?;
+    let clear_fingerprint_cache = MenuItem::with_id(
+        handle,
+        "clear_fingerprint_cache",
+        t("menu.clear_fingerprint_cache", "Clear Fingerprint Cache"),
+        true,
+        None::<&str>,
+    )?;
+    let clear_xref_cache = MenuItem::with_id(
+        handle,
+        "clear_xref_cache",
+        t("menu.clear_xref_cache", "Clear Plugin Index Cache"),
+        true,
+        None::<&str>,
+    )?;
+    let cache_sep = PredefinedMenuItem::separator(handle)?;
+    let cache_submenu = Submenu::with_id_and_items(
+        handle,
+        "cache",
+        t("menu.cache", "Cache"),
+        true,
+        &[
+            &clear_all_caches,
+            &cache_sep,
+            &clear_bpm_cache,
+            &clear_key_cache,
+            &clear_lufs_cache,
+            &clear_waveform_cache,
+            &clear_spectrogram_cache,
+            &clear_fingerprint_cache,
+            &clear_xref_cache,
+        ],
+    )?;
     let find_duplicates = MenuItem::with_id(
         handle,
         "find_duplicates",
@@ -545,6 +693,21 @@ pub fn build_native_menu_bar<R: Runtime>(
         Some("CmdOrCtrl+D"),
     )?;
     let tools_bg_sep = PredefinedMenuItem::separator(handle)?;
+    let tools_sep = PredefinedMenuItem::separator(handle)?;
+    let sample_analysis_start = MenuItem::with_id(
+        handle,
+        "sample_analysis_start",
+        t("menu.start_sample_analysis", "Start Sample Analysis"),
+        true,
+        Some("CmdOrCtrl+Shift+Alt+A"),
+    )?;
+    let sample_analysis_stop = MenuItem::with_id(
+        handle,
+        "sample_analysis_stop",
+        t("menu.stop_sample_analysis", "Stop Sample Analysis"),
+        true,
+        None::<&str>,
+    )?;
     let bpm_key_lufs_start = MenuItem::with_id(
         handle,
         "bpm_key_lufs_start",
@@ -553,7 +716,7 @@ pub fn build_native_menu_bar<R: Runtime>(
             "Start BPM/Key/LUFS background analysis",
         ),
         true,
-        Some("CmdOrCtrl+Shift+V"),
+        Some("CmdOrCtrl+Shift+Alt+V"),
     )?;
     let bpm_key_lufs_stop = MenuItem::with_id(
         handle,
@@ -614,6 +777,20 @@ pub fn build_native_menu_bar<R: Runtime>(
         true,
         Some("CmdOrCtrl+Shift+Period"),
     )?;
+    let start_waveform_prefetch = MenuItem::with_id(
+        handle,
+        "start_waveform_prefetch",
+        t("menu.start_waveform_prefetch", "Start waveform prefetch"),
+        true,
+        Some("CmdOrCtrl+Shift+Alt+W"),
+    )?;
+    let stop_waveform_prefetch = MenuItem::with_id(
+        handle,
+        "stop_waveform_prefetch",
+        t("menu.stop_waveform_prefetch", "Stop waveform prefetch"),
+        true,
+        Some("CmdOrCtrl+Shift+Alt+X"),
+    )?;
     let start_all_background_jobs = MenuItem::with_id(
         handle,
         "start_all_background_jobs",
@@ -634,6 +811,41 @@ pub fn build_native_menu_bar<R: Runtime>(
         t("menu.dep_graph", "Dependency Graph"),
         true,
         Some("CmdOrCtrl+G"),
+    )?;
+    let heatmap_dashboard = MenuItem::with_id(
+        handle,
+        "heatmap_dashboard",
+        t("menu.heatmap_dashboard", "Heatmap Dashboard"),
+        true,
+        Some("CmdOrCtrl+H"),
+    )?;
+    let build_plugin_index = MenuItem::with_id(
+        handle,
+        "build_plugin_index",
+        t("menu.build_plugin_index", "Build Plugin Index"),
+        true,
+        Some("CmdOrCtrl+B"),
+    )?;
+    let new_smart_playlist = MenuItem::with_id(
+        handle,
+        "new_smart_playlist",
+        t("menu.new_smart_playlist", "New Smart Playlist"),
+        true,
+        Some("CmdOrCtrl+N"),
+    )?;
+    let open_log_file = MenuItem::with_id(
+        handle,
+        "open_log_file",
+        t("menu.open_log_file", "Open Log File"),
+        true,
+        Some("CmdOrCtrl+Alt+L"),
+    )?;
+    let open_data_directory = MenuItem::with_id(
+        handle,
+        "open_data_directory",
+        t("menu.open_data_directory", "Open Data Directory"),
+        true,
+        Some("CmdOrCtrl+Alt+D"),
     )?;
     let cmd_palette = MenuItem::with_id(
         handle,
@@ -661,6 +873,8 @@ pub fn build_native_menu_bar<R: Runtime>(
             &clear_kvr,
             &clear_favorites,
             &data_sep,
+            &cache_submenu,
+            &data_sep,
             &reset_all,
         ],
     )?;
@@ -673,6 +887,8 @@ pub fn build_native_menu_bar<R: Runtime>(
         &[
             &find_duplicates,
             &tools_bg_sep,
+            &sample_analysis_start,
+            &sample_analysis_stop,
             &bpm_key_lufs_start,
             &bpm_key_lufs_stop,
             &extract_pdf_metadata,
@@ -681,10 +897,19 @@ pub fn build_native_menu_bar<R: Runtime>(
             &stop_fingerprint_cache_menu,
             &start_content_dup_scan,
             &stop_content_dup_scan,
+            &start_waveform_prefetch,
+            &stop_waveform_prefetch,
             &start_all_background_jobs,
             &stop_all_background_jobs,
+            &tools_sep,
             &dep_graph,
-            &data_sep,
+            &heatmap_dashboard,
+            &build_plugin_index,
+            &new_smart_playlist,
+            &tools_sep,
+            &open_log_file,
+            &open_data_directory,
+            &tools_sep,
             &cmd_palette,
             &help_overlay,
         ],

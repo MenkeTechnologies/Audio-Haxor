@@ -391,7 +391,7 @@ async function fetchPdfsForExport() {
 
 function openPdfFile(path) {
     window.vstUpdater.openPdfFile(path)
-        .then(() => showToast(toastFmt('toast.revealed_in_finder')))
+        .then(() => showToast(toastFmt('toast.pdf_opened')))
         .catch(e => showToast(toastFmt('toast.failed', {err: e}), 4000, 'error'));
 }
 
@@ -958,3 +958,7 @@ function maybeAutoStartPdfScanOnStartup() {
         /* ignore */
     }
 }
+
+// Export for menu-action handler in ipc.js
+window.buildPdfPagesCache = buildPdfPagesCache;
+window.stopPdfMetadataExtractionUser = stopPdfMetadataExtractionUser;

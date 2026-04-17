@@ -8374,3 +8374,8 @@ function _loopRegionPathForBox(box) {
         run();
     }
 })();
+
+// Export for menu-action handler in ipc.js
+window.triggerBackgroundBpmKeyLufsAnalysis = triggerBackgroundBpmKeyLufsAnalysis;
+window.triggerStopBackgroundBpmKeyLufsAnalysis = triggerStopBackgroundBpmKeyLufsAnalysis;
+window.triggerStartFingerprintCacheBuild = triggerStartFingerprintCacheBuild;

@@ -549,3 +549,6 @@ document.addEventListener('dblclick', (e) => {
         if (typeof openPresetFolder === 'function') openPresetFolder(path);
     }
 });
+
+// Export for menu-action handler in ipc.js
+window.clearFavorites = clearFavorites;

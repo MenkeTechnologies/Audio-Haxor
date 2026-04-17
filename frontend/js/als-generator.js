@@ -793,13 +793,13 @@
   async function openBlacklistModal() {
     const modal = document.getElementById('blacklistModal');
     if (!modal) return;
-    modal.style.display = 'flex';
+    modal.classList.add('modal-visible');
     await refreshBlacklistModal();
   }
 
   function closeBlacklistModal() {
     const modal = document.getElementById('blacklistModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) modal.classList.remove('modal-visible');
   }
 
   async function refreshBlacklistModal() {
@@ -1003,11 +1003,11 @@
     // Close modals on Escape
     if (e.key === 'Escape') {
       const blacklistModal = document.getElementById('blacklistModal');
-      if (blacklistModal && blacklistModal.style.display !== 'none') {
+      if (blacklistModal && blacklistModal.classList.contains('modal-visible')) {
         closeBlacklistModal();
       }
       const whitelistModal = document.getElementById('whitelistModal');
-      if (whitelistModal && whitelistModal.style.display !== 'none') {
+      if (whitelistModal && whitelistModal.classList.contains('modal-visible')) {
         closeWhitelistModal();
       }
     }
@@ -1033,13 +1033,13 @@
   async function openWhitelistModal() {
     const modal = document.getElementById('whitelistModal');
     if (!modal) return;
-    modal.style.display = 'flex';
+    modal.classList.add('modal-visible');
     await refreshWhitelistModal();
   }
 
   function closeWhitelistModal() {
     const modal = document.getElementById('whitelistModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) modal.classList.remove('modal-visible');
   }
 
   async function refreshWhitelistModal() {

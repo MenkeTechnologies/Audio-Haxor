@@ -131,7 +131,7 @@ function showExportModal(type, titleKey, itemCount, titleVars) {
     const btnExport = _exportFmt('ui.export.btn_export');
     const btnCancel = _exportFmt('ui.export.btn_cancel');
 
-    const html = `<div class="modal-overlay" id="exportModal" data-action-modal="closeExport">
+    const html = `<div class="modal-overlay modal-visible" id="exportModal" data-action-modal="closeExport">
     <div class="modal-content modal-small">
       <div class="modal-header">
         <h2>${escapeHtml(modalHeading)}</h2>
@@ -1253,3 +1253,18 @@ function exportXrefPlugins() {
     };
     showExportModal('xref', 'ui.export.plugins_in_project', rawLen, {name: projectName});
 }
+
+// Export for menu-action handler in ipc.js
+window.exportPlugins = exportPlugins;
+window.exportAudio = exportAudio;
+window.exportDaw = exportDaw;
+window.exportPresets = exportPresets;
+window.exportMidi = exportMidi;
+window.exportPdfs = exportPdfs;
+window.exportVideos = exportVideos;
+window.importPlugins = importPlugins;
+window.importAudio = importAudio;
+window.importDaw = importDaw;
+window.importPresets = importPresets;
+window.importPdfs = importPdfs;
+window.importVideos = importVideos;

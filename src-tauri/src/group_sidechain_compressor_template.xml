@@ -29,22 +29,7 @@
 	<LastSelectedTimeableIndex Value="0" />
 	<LastSelectedClipEnvelopeIndex Value="0" />
 	<LastPresetRef>
-		<Value>
-			<AbletonDefaultPresetRef Id="1">
-				<FileRef>
-					<RelativePathType Value="1" />
-					<RelativePath Value="../../../../../../../../../../Users/pma/Desktop" />
-					<Path Value="/../../../../../../Users/pma/Desktop" />
-					<Type Value="2" />
-					<LivePackName Value="" />
-					<LivePackId Value="" />
-					<OriginalFileSize Value="0" />
-					<OriginalCrc Value="0" />
-					<SourceHint Value="" />
-				</FileRef>
-				<DeviceId Name="" />
-			</AbletonDefaultPresetRef>
-		</Value>
+		<Value />
 	</LastPresetRef>
 	<LockedScripts />
 	<IsFolded Value="true" />

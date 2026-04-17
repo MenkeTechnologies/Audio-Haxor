@@ -708,6 +708,102 @@ document.addEventListener('contextmenu', (e) => {
             return;
         }
 
+        // ── Crate sample rows ──
+        const crateRow = e.target.closest('.crate-row[data-sample-path]');
+        if (crateRow) {
+            const path = crateRow.dataset.samplePath;
+            const sampleId = crateRow.dataset.sampleId ? Number(crateRow.dataset.sampleId) : null;
+            const name = crateRow.querySelector('.crate-row-name')?.textContent || '';
+            const packId = (() => {
+                const btn = crateRow.querySelector('[data-pack-id]');
+                return btn ? Number(btn.dataset.packId) : null;
+            })();
+            const isPlaying = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === path && (typeof isAudioPlaying === 'function' ? isAudioPlaying() : false);
+            const items = [
+                {
+                    icon: isPlaying ? '&#9646;&#9646;' : '&#9654;',
+                    label: isPlaying ? appFmt('menu.pause') : appFmt('menu.play'), ..._noEcho, ...shortcutTip('playPause'),
+                    action: () => typeof previewAudio === 'function' && previewAudio(path)
+                },
+                {
+                    icon: '&#8634;', label: appFmt('menu.loop'), ..._noEcho, ...shortcutTip('toggleLoop'),
+                    action: () => typeof toggleRowLoop === 'function' && toggleRowLoop(path, new MouseEvent('click'))
+                },
+                '---',
+                {
+                    icon: '&#128270;',
+                    label: appFmt('menu.find_similar_samples'), ..._noEcho,
+                    action: () => {
+                        if (sampleId != null && typeof runCrateSimilar === 'function') {
+                            runCrateSimilar(sampleId);
+                        } else if (typeof findSimilarSamples === 'function') {
+                            findSimilarSamples(path);
+                        }
+                    }
+                },
+                '---',
+                ...(packId != null ? [(() => {
+                    const isFav = typeof _crate !== 'undefined' && _crate.favoritePackIds?.has(packId);
+                    return {
+                        icon: isFav ? '&#9734;' : '&#9733;',
+                        label: isFav ? appFmt('menu.unstar_pack') : appFmt('menu.star_pack'), ..._noEcho,
+                        action: () => typeof toggleCrateFavoritePack === 'function' && toggleCrateFavoritePack(packId)
+                    };
+                })()] : []),
+                ...[(() => {
+                    const f = typeof isFavorite === 'function' && isFavorite(path);
+                    return {
+                        icon: f ? '&#9734;' : '&#9733;',
+                        label: f ? appFmt('menu.remove_from_favorites') : appFmt('menu.add_to_favorites'), ..._noEcho, ...shortcutTip('toggleFavorite'),
+                        action: () => {
+                            if (f) {
+                                if (typeof removeFavorite === 'function') removeFavorite(path);
+                            } else {
+                                if (typeof addFavorite === 'function') addFavorite('sample', path, name, {});
+                            }
+                        }
+                    };
+                })()],
+                {icon: '&#128221;', label: appFmt('menu.add_note'), action: () => typeof showNoteEditor === 'function' && showNoteEditor(path, name)},
+                ...quickTagItems(path, name),
+                '---',
+                {
+                    icon: '&#127926;',
+                    label: appFmt('menu.open_in_music'), ..._noEcho,
+                    action: () => typeof openWithApp === 'function' && openWithApp(path, 'Music')
+                },
+                {
+                    icon: '&#127911;',
+                    label: appFmt('menu.open_in_quicktime'), ..._noEcho,
+                    action: () => typeof openWithApp === 'function' && openWithApp(path, 'QuickTime Player')
+                },
+                {
+                    icon: '&#127908;',
+                    label: appFmt('menu.open_audacity'), ..._noEcho,
+                    action: () => typeof openWithApp === 'function' && openWithApp(path, 'Audacity')
+                },
+                '---',
+                {
+                    icon: '&#128193;',
+                    label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'),
+                    action: () => typeof openAudioFolder === 'function' && openAudioFolder(path)
+                },
+                {
+                    icon: '&#128194;', label: appFmt('menu.show_file_browser'), ..._noEcho, action: () => {
+                        switchTab('files');
+                        setTimeout(() => {
+                            if (typeof loadDirectory === 'function') loadDirectory(path.replace(/\/[^/]+$/, ''));
+                        }, 200);
+                    }
+                },
+                '---',
+                {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => typeof copyToClipboard === 'function' && copyToClipboard(name)},
+                {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => typeof copyToClipboard === 'function' && copyToClipboard(path)},
+            ];
+            showContextMenu(e, items);
+            return;
+        }
+
         // ── MIDI file rows ──
         const midiRow = e.target.closest('#midiTableBody tr[data-midi-path]');
         if (midiRow) {
@@ -1125,21 +1221,21 @@ document.addEventListener('contextmenu', (e) => {
                     icon: '&#8615;',
                     label: appFmt('menu.export_plugins'),
                     ...shortcutTip('exportTab'), action: () => {
-                        if (typeof runExport === 'function') runExport(exportPlugins); else if (typeof exportPlugins === 'function') exportPlugins();
+                        if (typeof window.exportPlugins === 'function') runExport(window.exportPlugins);
                     },
                     disabled: (typeof getPluginExportableCount === 'function' ? getPluginExportableCount() : allPlugins.length) === 0,
                 });
-                items.push({icon: '&#8613;', label: appFmt('menu.import_plugins'), ...shortcutTip('importTab'), action: () => importPlugins()});
+                items.push({icon: '&#8613;', label: appFmt('menu.import_plugins'), ...shortcutTip('importTab'), action: () => { if (typeof window.importPlugins === 'function') window.importPlugins(); }});
             } else if (tabId === 'tabSamples') {
                 items.push({icon: '&#127925;', label: appFmt('menu.scan_samples'), action: () => scanAudioSamples()});
                 items.push('---');
                 items.push({
                     icon: '&#8615;',
                     label: appFmt('menu.export_samples'),
-                    ...shortcutTip('exportTab'), action: () => (typeof runExport === 'function' ? runExport(exportAudio) : exportAudio()),
+                    ...shortcutTip('exportTab'), action: () => { if (typeof window.exportAudio === 'function') runExport(window.exportAudio); },
                     disabled: Math.max(audioTotalCount || 0, allAudioSamples.length) === 0
                 });
-                items.push({icon: '&#8613;', label: appFmt('menu.import_samples'), ...shortcutTip('importTab'), action: () => importAudio()});
+                items.push({icon: '&#8613;', label: appFmt('menu.import_samples'), ...shortcutTip('importTab'), action: () => { if (typeof window.importAudio === 'function') window.importAudio(); }});
             } else if (tabId === 'tabDaw') {
                 items.push({icon: '&#127911;', label: appFmt('menu.scan_daw'), action: () => scanDawProjects()});
                 items.push('---');

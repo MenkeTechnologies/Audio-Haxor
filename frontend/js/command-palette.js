@@ -85,6 +85,7 @@ async function fetchPaletteDatabaseItems(query) {
                 action: () => {
                     _paletteSwitchTab('plugins');
                     setTimeout(() => {
+                        if (typeof setMultiFilterValue === 'function') setMultiFilterValue('typeFilter', 'all');
                         const el = document.getElementById('pluginSearchInput');
                         if (el) {
                             el.value = p.name;
@@ -107,6 +108,7 @@ async function fetchPaletteDatabaseItems(query) {
                 action: () => {
                     _paletteSwitchTab('samples');
                     setTimeout(() => {
+                        if (typeof setMultiFilterValue === 'function') setMultiFilterValue('audioFormatFilter', 'all');
                         const el = document.getElementById('audioSearchInput');
                         if (el) {
                             el.value = s.name;
@@ -124,17 +126,17 @@ async function fetchPaletteDatabaseItems(query) {
                 type: 'daw',
                 name: d.name,
                 detail: d.daw + ' · ' + (d.sizeFormatted || ''),
-                fields: [d.name, d.daw, d.format],
+                fields: [d.name, d.daw, d.format, d.path || ''],
                 icon: '&#127911;',
                 action: () => {
-                    _paletteSwitchTab('daw');
-                    setTimeout(() => {
-                        const el = document.getElementById('dawSearchInput');
-                        if (el) {
-                            el.value = d.name;
-                            if (typeof filterDawProjects === 'function') filterDawProjects();
+                    if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                        showToast(toastFmt('toast.opening_in_daw', {name: d.name, daw: d.daw}));
+                    }
+                    window.vstUpdater.openDawProject(d.path).catch(err => {
+                        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                            showToast(toastFmt('toast.daw_not_installed', {daw: d.daw, err}), 4000, 'error');
                         }
-                    }, 100);
+                    });
                 },
             });
         }
@@ -151,6 +153,7 @@ async function fetchPaletteDatabaseItems(query) {
                 action: () => {
                     _paletteSwitchTab('presets');
                     setTimeout(() => {
+                        if (typeof setMultiFilterValue === 'function') setMultiFilterValue('presetFormatFilter', 'all');
                         const el = document.getElementById('presetSearchInput');
                         if (el) {
                             el.value = p.name;
@@ -171,14 +174,11 @@ async function fetchPaletteDatabaseItems(query) {
                 fields: [p.name, p.directory || ''],
                 icon: '&#128196;',
                 action: () => {
-                    _paletteSwitchTab('pdf');
-                    setTimeout(() => {
-                        const el = document.getElementById('pdfSearchInput');
-                        if (el) {
-                            el.value = p.name;
-                            if (typeof filterPdfs === 'function') filterPdfs();
-                        }
-                    }, 100);
+                    if (typeof openPdfFile === 'function') {
+                        openPdfFile(p.path);
+                    } else if (window.vstUpdater?.openPdfFile) {
+                        window.vstUpdater.openPdfFile(p.path);
+                    }
                 },
             });
         }
@@ -217,6 +217,7 @@ function buildPaletteStaticItems() {
     const tabs = [
         {type: 'tab', name: appFmt('menu.tab_plugins'), icon: '&#9889;', ...paletteShortcutTip('tab1'), action: () => _paletteSwitchTab('plugins')},
         {type: 'tab', name: appFmt('menu.tab_samples'), icon: '&#127925;', ...paletteShortcutTip('tab2'), action: () => _paletteSwitchTab('samples')},
+        {type: 'tab', name: appFmt('menu.tab_crate'), icon: '&#128230;', action: () => _paletteSwitchTab('crate')},
         {type: 'tab', name: appFmt('menu.tab_daw'), icon: '&#127911;', ...paletteShortcutTip('tab3'), action: () => _paletteSwitchTab('daw')},
         {type: 'tab', name: appFmt('menu.tab_presets'), icon: '&#127924;', ...paletteShortcutTip('tab4'), action: () => _paletteSwitchTab('presets')},
         {
@@ -241,6 +242,8 @@ function buildPaletteStaticItems() {
         {type: 'tab', name: appFmt('menu.tab_audio_engine'), icon: '&#127898;', ...paletteShortcutTip('tab14'), action: () => _paletteSwitchTab('audioEngine')},
         {type: 'tab', name: appFmt('menu.tab_midi'), icon: '&#127929;', ...paletteShortcutTip('tab5'), action: () => _paletteSwitchTab('midi')},
         {type: 'tab', name: appFmt('menu.tab_pdf'), icon: '&#128196;', ...paletteShortcutTip('tab6'), action: () => _paletteSwitchTab('pdf')},
+        {type: 'tab', name: appFmt('menu.tab_videos'), icon: '&#127909;', action: () => _paletteSwitchTab('videos')},
+        {type: 'tab', name: appFmt('menu.tab_als_generator'), icon: '&#127932;', action: () => _paletteSwitchTab('alsGenerator')},
         {type: 'tab', name: appFmt('menu.tab_settings'), icon: '&#9881;', ...paletteShortcutTip('openPrefs'), action: () => _paletteSwitchTab('settings')},
     ];
     items.push(...tabs);
@@ -389,6 +392,38 @@ function buildPaletteStaticItems() {
             action: () => triggerStopBackgroundContentDupScan()
         });
     }
+    if (typeof triggerStartWaveformPrefetch === 'function') {
+        items.push({
+            type: 'action',
+            name: appFmt('menu.start_waveform_analysis'),
+            icon: '&#127925;',
+            action: () => triggerStartWaveformPrefetch()
+        });
+    }
+    if (window.vstUpdater?.waveformPrefetchStop) {
+        items.push({
+            type: 'action',
+            name: appFmt('menu.stop_waveform_analysis'),
+            icon: '&#9632;',
+            action: () => window.vstUpdater.waveformPrefetchStop()
+        });
+    }
+    items.push({
+        type: 'action',
+        name: appFmt('menu.start_sample_analysis'),
+        icon: '&#128300;',
+        action: () => {
+            if (typeof runCrateSampleAnalysis === 'function') runCrateSampleAnalysis();
+        }
+    });
+    items.push({
+        type: 'action',
+        name: appFmt('menu.stop_sample_analysis'),
+        icon: '&#9632;',
+        action: () => {
+            if (typeof stopCrateSampleAnalysis === 'function') stopCrateSampleAnalysis();
+        }
+    });
     items.push({
         type: 'action',
         name: appFmt('menu.start_all_background_jobs'),
@@ -1429,3 +1464,6 @@ document.addEventListener('mousemove', (e) => {
         }
     }
 });
+
+// Export for menu-action handler in ipc.js
+window.openPalette = openPalette;

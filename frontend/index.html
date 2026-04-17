@@ -2142,14 +2142,12 @@
             transition: color 0.15s;
         }
 
-        /* Modal entrance - only animate when visible (display:flex set via JS) */
-        .modal-overlay[style*="display: flex"],
-        .modal-overlay[style*="display:flex"] {
+        /* Modal entrance - only animate when visible */
+        .modal-overlay.modal-visible {
             animation: modal-fade-in 0.2s ease-out;
         }
 
-        .modal-overlay[style*="display: flex"] .modal-content,
-        .modal-overlay[style*="display:flex"] .modal-content {
+        .modal-overlay.modal-visible .modal-content {
             animation: modal-zoom-in 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
@@ -3615,7 +3613,7 @@
             background: rgba(5, 217, 232, 0.06) !important;
         }
 
-        /* Modal overlay — hidden by default, shown via inline style="display:flex" */
+        /* Modal overlay — hidden by default, shown via .modal-visible class */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -3628,8 +3626,7 @@
             align-items: center;
             justify-content: center;
         }
-        .modal-overlay[style*="display: flex"],
-        .modal-overlay[style*="display:flex"] {
+        .modal-overlay.modal-visible {
             display: flex !important;
             animation: fadeIn 0.2s ease-out;
         }
@@ -9522,6 +9519,14 @@
         }
         /* Highlighted spans (mark.fzf-hl) already themed globally; no extra rules needed here. */
 
+        /* Sample analysis sidebar panel */
+        .crate-analysis-panel {
+            margin-top: 12px;
+            padding: 8px 6px 10px;
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+        }
+
         /* Waveform prefetch sidebar panel — sticky-ish at the bottom of the category tree. */
         .crate-prefetch-panel {
             margin-top: 12px;
@@ -13313,6 +13318,21 @@
                     <span class="crate-left-sub" id="crateAnalyzedStatus">&hellip;</span>
                 </div>
                 <div class="crate-category-tree" id="crateCategoryTree"></div>
+                <div class="crate-analysis-panel" id="crateAnalysisPanel">
+                    <div class="crate-prefetch-head">
+                        <span class="crate-prefetch-title" data-i18n="ui.crate.analysis_title">Sample Analysis</span>
+                    </div>
+                    <div class="crate-prefetch-actions">
+                        <button type="button" class="btn-small" id="crateAnalysisStartBtn"
+                                title="Detect categories, packs, BPM, key for all samples"
+                                data-i18n-title="ui.crate.analysis_tt_start"
+                                data-i18n="ui.crate.analysis_start">Run Analysis</button>
+                        <button type="button" class="btn-small" id="crateAnalysisStopBtn" hidden
+                                title="Stop sample analysis"
+                                data-i18n-title="ui.crate.analysis_tt_stop"
+                                data-i18n="ui.btn.9632_stop">Stop</button>
+                    </div>
+                </div>
                 <div class="crate-prefetch-panel" id="cratePrefetchPanel">
                     <div class="crate-prefetch-head">
                         <span class="crate-prefetch-title" data-i18n="ui.crate.prefetch_title">Waveform cache</span>
@@ -13487,7 +13507,7 @@
 <script src="js/pdf.js?v=46117"></script>
 <script src="js/video.js?v=46117"></script>
 <!-- Blacklist Modal -->
-<div id="blacklistModal" class="modal-overlay" style="display:none;">
+<div id="blacklistModal" class="modal-overlay">
     <div class="modal-content" style="max-width:600px;">
         <div class="modal-header">
             <h2 data-i18n="ui.h2.sample_blacklist">Sample Blacklist</h2>
@@ -13514,7 +13534,7 @@
 </div>
 
 <!-- Whitelist Modal -->
-<div id="whitelistModal" class="modal-overlay" style="display:none;">
+<div id="whitelistModal" class="modal-overlay">
     <div class="modal-content" style="max-width:600px;">
         <div class="modal-header">
             <h2 data-i18n="ui.h2.source_directories">Source Directories</h2>
