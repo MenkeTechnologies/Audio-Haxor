@@ -1853,6 +1853,11 @@ window.vstUpdater = {
     removeFromAlsWhitelist: (path) => invoke('remove_from_als_whitelist', {path}),
     clearAlsWhitelist: () => invoke('clear_als_whitelist'),
     alsQuerySamples: (category, config, limit) => invoke('als_query_samples', {category, config, limit: limit || 3}),
+    // Trance Lead Generator
+    generateMidiLead: (config, outputDir) => invoke('generate_midi_lead', {config, outputDir}),
+    generateMidiKits: (config, outputDir) => invoke('generate_midi_kits', {config, outputDir}),
+    generateTranceStarter: (config, outputDir) => invoke('generate_trance_starter', {config, outputDir}),
+    findTranceSamples: (config) => invoke('find_trance_samples', {config}),
     // Crate tab — params use snake_case to match the Rust CrateQueryParams serde defaults (matches AudioQueryParams convention across this app).
     crateCategoryCounts: () => invoke('crate_category_counts'),
     crateFacets: () => invoke('crate_facets'),

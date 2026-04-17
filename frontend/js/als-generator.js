@@ -732,6 +732,7 @@
     checkAnalysisStatus();
     updateBlacklistCount();
     updateWhitelistCount();
+    if (typeof window.initTranceLead === 'function') window.initTranceLead();
   }
 
   // ---------------------------------------------------------------------------

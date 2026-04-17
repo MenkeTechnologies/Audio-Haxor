@@ -34,6 +34,7 @@ pub mod key_detect;
 pub mod kvr;
 pub mod lufs;
 pub mod midi;
+pub mod midi_generator;
 pub mod midi_scanner;
 pub mod native_menu;
 pub mod video_scanner;
@@ -50,6 +51,7 @@ pub mod scanner;
 pub mod scanner_skip_dirs;
 pub mod similarity;
 pub mod techno_generator;
+pub mod trance_starter;
 pub mod tray_menu;
 mod tray_popover_escape_macos;
 pub mod unified_walker;
@@ -3609,6 +3611,79 @@ async fn generate_als_project(
 async fn cancel_als_generation() -> Result<(), String> {
     ALS_GENERATION_CANCEL.store(true, Ordering::SeqCst);
     Ok(())
+}
+
+/// Generate trance lead MIDI file(s) on the fly.
+/// Returns a JSON array of `{ path, size, info }` objects.
+#[tauri::command]
+async fn generate_midi_lead(
+    config: midi_generator::MidiGenConfig,
+    output_dir: String,
+) -> Result<serde_json::Value, String> {
+    let base_dir = std::path::Path::new(&output_dir);
+    // Create a subdirectory: "Am TwoLayer 8bars 140bpm 2026-04-17"
+    let base_name = midi_generator::build_base_name(&config);
+    let ts = chrono::Local::now().format("%Y-%m-%d_%H%M%S").to_string();
+    let dir = base_dir.join(format!("{base_name} {ts}"));
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let files = midi_generator::generate_batch(&config)?;
+    let n = files.len();
+    let mut results = Vec::new();
+    for (i, bytes) in files.iter().enumerate() {
+        let name = midi_generator::build_filename(&config, i, n);
+        let path = dir.join(&name);
+        std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+        let info = midi::parse_midi(&path);
+        results.push(serde_json::json!({
+            "path": path.to_string_lossy(),
+            "size": bytes.len(),
+            "info": info,
+        }));
+    }
+    Ok(serde_json::json!(results))
+}
+
+/// Generate full trance MIDI kits (Lead + Pad + Bass + Progressive per kit directory).
+#[tauri::command]
+async fn generate_midi_kits(
+    config: midi_generator::KitGenConfig,
+    output_dir: String,
+) -> Result<serde_json::Value, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        let dir = std::path::Path::new(&output_dir);
+        midi_generator::generate_kits(&config, dir)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    serde_json::to_value(&result).map_err(|e| e.to_string())
+}
+
+/// Generate trance lead MIDI + find matching samples from the library.
+#[tauri::command]
+async fn generate_trance_starter(
+    config: trance_starter::TranceStarterConfig,
+    output_dir: String,
+) -> Result<serde_json::Value, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        let dir = std::path::Path::new(&output_dir);
+        trance_starter::generate_and_match(&config, dir)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    serde_json::to_value(&result).map_err(|e| e.to_string())
+}
+
+/// Find matching samples for a key without generating MIDI.
+#[tauri::command]
+async fn find_trance_samples(
+    config: trance_starter::TranceStarterConfig,
+) -> Result<serde_json::Value, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        trance_starter::find_matching_samples(&config)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    serde_json::to_value(&result).map_err(|e| e.to_string())
 }
 
 /// Clear the sample blacklist so previously used samples can be reused.
@@ -9330,6 +9405,10 @@ pub fn run() {
             sample_analysis_stats,
             generate_als_project,
             cancel_als_generation,
+            generate_midi_lead,
+            generate_midi_kits,
+            generate_trance_starter,
+            find_trance_samples,
             clear_als_sample_blacklist,
             get_als_blacklist_count,
             get_als_blacklist_entries,

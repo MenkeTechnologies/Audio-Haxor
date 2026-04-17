@@ -2874,8 +2874,114 @@
            The pane spans every grid column so it gets the full tab width — 5 lanes × 7 sections
            need horizontal room the 4-column auto-fit grid can't provide. */
         #tabAlsGenerator .als-overrides-section,
-        #tabAlsGenerator .als-analysis-section {
+        #tabAlsGenerator .als-analysis-section,
+        #tabAlsGenerator .als-trance-section {
             grid-column: 1 / -1;
+        }
+
+        /* Trance Lead Generator pane */
+        #tabAlsGenerator .tl-config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 24px;
+        }
+        @media (max-width: 900px) {
+            #tabAlsGenerator .tl-config-grid { grid-template-columns: 1fr; }
+        }
+        #tabAlsGenerator .tl-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        #tabAlsGenerator .tl-results {
+            margin-top: 16px;
+        }
+        #tabAlsGenerator .tl-compatible-keys {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-bottom: 10px;
+        }
+        #tabAlsGenerator .tl-midi-results {
+            margin-bottom: 12px;
+        }
+        #tabAlsGenerator .tl-midi-results .tl-midi-file {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            margin: 2px 4px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            font-size: 12px;
+            color: var(--text);
+        }
+        #tabAlsGenerator .tl-layer-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 10px;
+        }
+        #tabAlsGenerator .tl-layer-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 10px;
+        }
+        #tabAlsGenerator .tl-layer-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        #tabAlsGenerator .tl-layer-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--cyan);
+            text-transform: capitalize;
+        }
+        #tabAlsGenerator .tl-layer-badge {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            border: 1px solid;
+        }
+        #tabAlsGenerator .tl-layer-badge.key-matched {
+            color: #4ade80;
+            border-color: #4ade8044;
+        }
+        #tabAlsGenerator .tl-layer-badge.no-match {
+            color: var(--text-dim);
+            border-color: var(--border);
+        }
+        #tabAlsGenerator .tl-sample-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 0;
+            font-size: 11px;
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+            cursor: default;
+        }
+        #tabAlsGenerator .tl-sample-row:last-child { border-bottom: none; }
+        #tabAlsGenerator .tl-sample-row:hover { color: var(--cyan); }
+        #tabAlsGenerator .tl-sample-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #tabAlsGenerator .tl-sample-key {
+            font-size: 10px;
+            color: var(--text-dim);
+            flex-shrink: 0;
+        }
+        #tabAlsGenerator .tl-no-samples {
+            font-size: 11px;
+            color: var(--text-dim);
+            font-style: italic;
+            padding: 4px 0;
         }
         #tabAlsGenerator .als-overrides-desc {
             color: var(--text-dim);
@@ -13325,6 +13431,142 @@
                 </div>
             </div>
 
+            <!-- Full-width Trance Lead Generator pane. Generates MIDI leads + finds matching samples. -->
+            <div class="settings-section als-trance-section" data-section="als-trance">
+                <h2 class="settings-heading">&#9776; Trance Lead Generator</h2>
+
+                <div class="tl-config-grid">
+                    <!-- Row 1: Key + Scale -->
+                    <div class="settings-row">
+                        <div class="settings-label"><span class="settings-title" data-i18n="ui.tl.key">Key</span></div>
+                        <div class="settings-control">
+                            <select class="settings-select" id="tlKey" data-i18n-title="ui.tt.tl_key" style="width:80px;">
+                                <option value="0">C</option><option value="1">C#</option>
+                                <option value="2">D</option><option value="3">D#</option>
+                                <option value="4">E</option><option value="5">F</option>
+                                <option value="6">F#</option><option value="7">G</option>
+                                <option value="8">G#</option><option value="9" selected>A</option>
+                                <option value="10">A#</option><option value="11">B</option>
+                            </select>
+                            <select class="settings-select" id="tlScale" data-i18n-title="ui.tt.tl_scale" style="width:90px;margin-left:8px;">
+                                <option value="minor" selected>Minor</option>
+                                <option value="major">Major</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Row 2: Lead Type -->
+                    <div class="settings-row">
+                        <div class="settings-label"><span class="settings-title" data-i18n="ui.tl.lead_type">Lead Type</span></div>
+                        <div class="settings-control">
+                            <select class="settings-select" id="tlLeadType" data-i18n-title="ui.tt.tl_lead_type">
+                                <option value="two_layer" data-i18n="ui.tl.lead_type_two_layer">Two Layer (Arp + Melody)</option>
+                                <option value="zigzag" data-i18n="ui.tl.lead_type_zigzag">Zigzag (Mono Cells)</option>
+                                <option value="bounce" data-i18n="ui.tl.lead_type_bounce">Bounce (Gapped)</option>
+                                <option value="cell" data-i18n="ui.tl.lead_type_cell">Cell (Mixed Duration)</option>
+                                <option value="shuffle" data-i18n="ui.tl.lead_type_shuffle">Shuffle (Swing)</option>
+                                <option value="chord_arp" data-i18n="ui.tl.lead_type_chord_arp">Chord Arp (Triad Cycle)</option>
+                                <option value="gated_stab" data-i18n="ui.tl.lead_type_gated_stab">Gated Stab (Rhythmic Chords)</option>
+                                <option value="pad_chord" data-i18n="ui.tl.lead_type_pad_chord">Pad Chord (Sustained)</option>
+                                <option value="deep_bass" data-i18n="ui.tl.lead_type_deep_bass">Deep Bass (Root Notes)</option>
+                                <option value="sub_bass" data-i18n="ui.tl.lead_type_sub_bass">Sub Bass (16th Patterns)</option>
+                                <option value="progressive" data-i18n="ui.tl.lead_type_progressive">Progressive (8th Chords)</option>
+                                <option value="trill" data-i18n="ui.tl.lead_type_trill">Trill (32nd Runs)</option>
+                                <option value="slow_melody" data-i18n="ui.tl.lead_type_slow_melody">Slow Melody (Vocal)</option>
+                                <option value="chord_pluck" data-i18n="ui.tl.lead_type_chord_pluck">Chord Pluck (16th Wall)</option>
+                                <option value="piano_chord" data-i18n="ui.tl.lead_type_piano_chord">Piano Chord (Mixed)</option>
+                                <option value="unison" data-i18n="ui.tl.lead_type_unison">Unison (Octave Doubled)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Chord Progression -->
+                    <div class="settings-row">
+                        <div class="settings-label"><span class="settings-title" data-i18n="ui.tl.progression">Progression</span></div>
+                        <div class="settings-control">
+                            <select class="settings-select" id="tlPreset" data-i18n-title="ui.tt.tl_preset" style="width:140px;">
+                                <option value="">Custom...</option>
+                            </select>
+                            <input type="text" class="settings-input" id="tlProgression" value="Am Dm Em C" placeholder="e.g. Am Dm Em C" data-i18n-title="ui.tt.tl_progression" style="width:180px;margin-left:8px;">
+                        </div>
+                    </div>
+
+                    <!-- Row 4: Bars/Chord + Length + BPM -->
+                    <div class="settings-row">
+                        <div class="settings-label"><span class="settings-title" data-i18n="ui.tl.bars_per_chord">Bars / Chord</span></div>
+                        <div class="settings-control">
+                            <select class="settings-select" id="tlBarsPerChord" data-i18n-title="ui.tt.tl_bars_per_chord" style="width:70px;">
+                                <option value="1">1</option>
+                                <option value="2" selected>2</option>
+                                <option value="4">4</option>
+                                <option value="8">8</option>
+                                <option value="16">16</option>
+                                <option value="32">32</option>
+                            </select>
+                            <span class="settings-title" style="margin-left:12px;">Length</span>
+                            <input type="number" class="settings-input" id="tlLengthBars" min="0" max="256" value="0" style="width:60px;margin-left:6px;" title="Total bars (0 = auto from chords x bars/chord)">
+                            <span id="tlTotalBars" style="margin-left:8px;font-size:12px;color:var(--text-dim);"></span>
+                            <span class="settings-title" style="margin-left:16px;" data-i18n="ui.tl.bpm">BPM</span>
+                            <input type="number" class="settings-input" id="tlBpm" min="80" max="180" value="120" data-i18n-title="ui.tt.tl_bpm" style="width:70px;margin-left:8px;">
+                        </div>
+                    </div>
+
+                    <!-- Row 5: Variations + Seed -->
+                    <div class="settings-row">
+                        <div class="settings-label"><span class="settings-title" data-i18n="ui.tl.variations">Variations</span></div>
+                        <div class="settings-control">
+                            <input type="number" class="settings-input" id="tlVariations" min="1" max="50" value="5" data-i18n-title="ui.tt.tl_variations" style="width:60px;">
+                            <span class="settings-title" style="margin-left:16px;" data-i18n="ui.tl.seed">Seed</span>
+                            <input type="number" class="settings-input" id="tlSeed" value="42" data-i18n-title="ui.tt.tl_seed" style="width:100px;margin-left:8px;">
+                            <button class="btn btn-secondary btn-compact" data-action="tlRandomizeSeed" data-i18n-title="ui.tt.randomize_seed" style="margin-left:4px;">&#x1F3B2;</button>
+                        </div>
+                    </div>
+
+                    <!-- Row 6: Samples per layer -->
+                    <div class="settings-row">
+                        <div class="settings-label"><span class="settings-title" data-i18n="ui.tl.samples_per_layer">Samples / Layer</span></div>
+                        <div class="settings-control">
+                            <input type="number" class="settings-input" id="tlPerLayer" min="1" max="50" value="10" data-i18n-title="ui.tt.tl_per_layer" style="width:60px;">
+                        </div>
+                    </div>
+
+                    <!-- Row 7: Chromaticism -->
+                    <div class="settings-row">
+                        <div class="settings-label"><span class="settings-title" data-i18n="ui.tl.chromaticism">Chromaticism</span></div>
+                        <div class="settings-control">
+                            <div class="settings-range-wrap">
+                                <input class="settings-range" type="range" min="0" max="50" step="1" id="tlChromaticism" value="15" title="0 = strictly in key, 50 = very chromatic">
+                                <span class="settings-range-value" id="tlChromaticismValue">15%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 8: Output folder -->
+                    <div class="settings-row">
+                        <div class="settings-label"><span class="settings-title" data-i18n="ui.tl.output_folder">Output Folder</span></div>
+                        <div class="settings-control">
+                            <input type="text" class="settings-input" id="tlOutputPath" value="" data-i18n-title="ui.tt.tl_output_path" style="flex:1;" readonly>
+                            <button class="btn btn-secondary btn-compact" data-action="tlPickOutput" data-i18n-title="ui.tt.pick_output_folder" style="margin-left:4px;">...</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="tl-actions">
+                    <button class="btn btn-primary" data-action="tlGenerateMidi" data-i18n="ui.tl.generate_midi" data-i18n-title="ui.tt.generate_midi">Generate MIDI</button>
+                    <button class="btn btn-secondary" data-action="tlFindSamples" data-i18n="ui.tl.find_samples" data-i18n-title="ui.tt.find_samples">Find Matching Samples</button>
+                    <button class="btn btn-accent" data-action="tlGenerateAll" data-i18n="ui.tl.generate_all" data-i18n-title="ui.tt.generate_plus_samples">Generate + Match Samples</button>
+                    <button class="btn btn-primary" data-action="tlGenerateKits" data-i18n="ui.tl.generate_kits" data-i18n-title="ui.tt.generate_kits">Generate Kits</button>
+                </div>
+
+                <!-- Results area -->
+                <div id="tlResults" class="tl-results" hidden>
+                    <div id="tlMidiResults" class="tl-midi-results"></div>
+                    <div id="tlCompatibleKeys" class="tl-compatible-keys"></div>
+                    <div id="tlLayerResults" class="tl-layer-results"></div>
+                </div>
+            </div>
+
             <!-- Full-width Sample Analysis pane (bottom of tab). Spans every grid column
                  via `.als-analysis-section`. Status + Run / Stop controls live here. -->
             <div class="settings-section als-analysis-section" data-section="als-analysis">
@@ -13503,40 +13745,40 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=22405"></script>
-<script src="js/utils.js?v=22405"></script>
-<script src="js/ui-idle.js?v=22405"></script>
-<script src="js/ipc.js?v=22405"></script>
-<script src="js/tooltip-hover.js?v=22405"></script>
-<script src="js/drag-reorder.js?v=22405"></script>
-<script src="js/modal-drag.js?v=22405"></script>
-<script src="js/columns.js?v=22405"></script>
-<script src="js/notes.js?v=22405"></script>
-<script src="js/favorites.js?v=22405"></script>
-<script src="js/export.js?v=22405"></script>
-<script src="js/plugins.js?v=22405"></script>
-<script src="js/settings.js?v=22405"></script>
-<script src="js/history.js?v=22405"></script>
-<script src="js/kvr.js?v=22405"></script>
-<script src="js/graph-freeze.js?v=22405"></script>
-<script src="js/audio.js?v=22405"></script>
-<script src="js/daw.js?v=22405"></script>
-<script src="js/disk-usage.js?v=22405"></script>
-<script src="js/presets.js?v=22405"></script>
-<script src="js/batch-select.js?v=22405"></script>
-<script src="js/native-file-drag.js?v=22405"></script>
-<script src="js/sort-persist.js?v=22405"></script>
-<script src="js/multi-filter.js?v=22405"></script>
-<script src="js/file-browser.js?v=22405"></script>
-<script src="js/duplicates.js?v=22405"></script>
-<script src="js/command-palette.js?v=22405"></script>
-<script src="js/xref.js?v=22405"></script>
-<script src="js/dep-graph.js?v=22405"></script>
-<script src="js/smart-playlists.js?v=22405"></script>
-<script src="js/heatmap-dashboard.js?v=22405"></script>
-<script src="js/midi.js?v=22405"></script>
-<script src="js/pdf.js?v=22405"></script>
-<script src="js/video.js?v=22405"></script>
+<script src="js/i18n-ui.js?v=97828"></script>
+<script src="js/utils.js?v=97828"></script>
+<script src="js/ui-idle.js?v=97828"></script>
+<script src="js/ipc.js?v=97828"></script>
+<script src="js/tooltip-hover.js?v=97828"></script>
+<script src="js/drag-reorder.js?v=97828"></script>
+<script src="js/modal-drag.js?v=97828"></script>
+<script src="js/columns.js?v=97828"></script>
+<script src="js/notes.js?v=97828"></script>
+<script src="js/favorites.js?v=97828"></script>
+<script src="js/export.js?v=97828"></script>
+<script src="js/plugins.js?v=97828"></script>
+<script src="js/settings.js?v=97828"></script>
+<script src="js/history.js?v=97828"></script>
+<script src="js/kvr.js?v=97828"></script>
+<script src="js/graph-freeze.js?v=97828"></script>
+<script src="js/audio.js?v=97828"></script>
+<script src="js/daw.js?v=97828"></script>
+<script src="js/disk-usage.js?v=97828"></script>
+<script src="js/presets.js?v=97828"></script>
+<script src="js/batch-select.js?v=97828"></script>
+<script src="js/native-file-drag.js?v=97828"></script>
+<script src="js/sort-persist.js?v=97828"></script>
+<script src="js/multi-filter.js?v=97828"></script>
+<script src="js/file-browser.js?v=97828"></script>
+<script src="js/duplicates.js?v=97828"></script>
+<script src="js/command-palette.js?v=97828"></script>
+<script src="js/xref.js?v=97828"></script>
+<script src="js/dep-graph.js?v=97828"></script>
+<script src="js/smart-playlists.js?v=97828"></script>
+<script src="js/heatmap-dashboard.js?v=97828"></script>
+<script src="js/midi.js?v=97828"></script>
+<script src="js/pdf.js?v=97828"></script>
+<script src="js/video.js?v=97828"></script>
 <!-- Blacklist Modal -->
 <div id="blacklistModal" class="modal-overlay">
     <div class="modal-content" style="max-width:600px;">
@@ -13595,17 +13837,18 @@
     </div>
 </div>
 
-<script src="js/settings-search.js?v=22405"></script>
-<script src="js/visualizer.js?v=22405"></script>
-<script src="js/walker-status.js?v=22405"></script>
-<script src="js/audio-engine.js?v=22405"></script>
-<script src="js/als-timeline.js?v=22405"></script>
-<script src="js/als-generator.js?v=22405"></script>
-<script src="js/sample-browser.js?v=22405"></script>
-<script src="js/context-menu.js?v=22405"></script>
-<script src="js/shortcuts.js?v=22405"></script>
-<script src="js/help-overlay.js?v=22405"></script>
-<script src="js/keyboard-nav.js?v=22405"></script>
-<script src="js/app.js?v=22405"></script>
+<script src="js/settings-search.js?v=97828"></script>
+<script src="js/visualizer.js?v=97828"></script>
+<script src="js/walker-status.js?v=97828"></script>
+<script src="js/audio-engine.js?v=97828"></script>
+<script src="js/als-timeline.js?v=97828"></script>
+<script src="js/als-generator.js?v=97828"></script>
+<script src="js/trance-lead.js?v=97828"></script>
+<script src="js/sample-browser.js?v=97828"></script>
+<script src="js/context-menu.js?v=97828"></script>
+<script src="js/shortcuts.js?v=97828"></script>
+<script src="js/help-overlay.js?v=97828"></script>
+<script src="js/keyboard-nav.js?v=97828"></script>
+<script src="js/app.js?v=97828"></script>
 </body>
 </html>
