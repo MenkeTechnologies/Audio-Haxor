@@ -772,6 +772,13 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("Niche Audio",      -0.4,  0.2),
     ("Sample Diggers",   -0.4,  0.2),
     ("Raw Cutz",         -0.4,  0.3),
+    ("TeknoVault",       -1.0,  0.95),
+    ("Tekno Vault",      -1.0,  0.95),
+    ("teknovault",       -1.0,  0.95),
+    ("ASHRAM",            0.3, -0.3),
+    ("Riemann Kollektion",-0.8, 0.5),
+    ("Florian Meindl",   -0.8,  0.5),
+    ("FLASH Recordings", -0.8,  0.5),
 
     // === HARD TECHNO / INDUSTRIAL ARTISTS ===
     ("Thomas Schumacher",-0.9,  0.75),
@@ -912,6 +919,82 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("Ciaran McAuley",    0.9,  0.3),
     ("Above & Beyond",    0.8,  0.1),
     ("Above and Beyond",  0.8,  0.1),
+    ("Tycoos",            0.9,  0.4),
+
+    // === EDM / ELECTRONIC SAMPLE LABELS (genre-specific) ===
+    ("Audiotent",        -0.5,  0.2),
+    ("Four4",            -0.4,  0.3),
+    ("Prospect Sounds",  -0.5,  0.3),
+    ("Chop Shop Samples",-0.5,  0.4),
+    ("Unity Records",    -0.6,  0.4),
+    ("System 6 Samples", -0.5,  0.3),
+    ("RV Samplepacks",   -0.6,  0.4),
+    ("Abstract Sounds",  -0.5,  0.3),
+    ("Rewind Samples",   -0.5,  0.3),
+    ("Lost Audio",       -0.4,  0.3),
+    ("Mainground Music", -0.3,  0.3),
+    ("Mask Movement Samples",-0.5,0.3),
+    ("NITELIFE Audio",   -0.3,  0.2),
+    ("Keep It Sample",   -0.3,  0.2),
+    ("Munchies Jukebox", -0.3,  0.2),
+    ("Kittball Records", -0.3,  0.2),
+    ("Monster Sounds",   -0.3,  0.2),
+    ("Moody Recordings", -0.3,  0.2),
+    ("Delectable Records",-0.4, 0.2),
+    ("Tech House Market",-0.3,  0.2),
+    ("Multiton Bits",    -0.3,  0.3),
+    ("SHARP",            -0.3,  0.3),
+    ("Streamline Samples",-0.3, 0.2),
+
+    // === BASS / DnB / DUBSTEP LABELS ===
+    ("Disciple Samples", -0.2,  0.7),
+    ("Test Press",       -0.4,  0.3),
+    ("Renraku",          -0.3,  0.4),
+    ("DABRO Music",      -0.3,  0.5),
+    ("Deep Heads",       -0.3,  0.2),
+
+    // === HARD DANCE / HARDSTYLE ===
+    ("Nutty Traxx",       0.4,  0.9),
+
+    // === EDM / FESTIVAL ===
+    ("Dropgun Samples",   0.2,  0.3),
+    ("Dharma Studio",     0.1,  0.3),
+    ("Skifonix Sounds",   0.2,  0.3),
+    ("Echo Sound Works",  0.1,  0.1),
+    ("Catalyst Samples",  0.1,  0.2),
+    ("Standalone-Music",  0.3,  0.2),
+    ("mau5trap",         -0.3,  0.3),
+    ("Freaky Loops",      0.0,  0.2),
+    ("Unmüte",            0.0,  0.2),
+    ("Code Sounds",       0.0,  0.2),
+    ("Red Sounds",        0.0,  0.2),
+    ("Pure EDM",          0.2,  0.3),
+    ("Stickz",            0.1,  0.2),
+    ("Tunecraft Sounds",  0.0,  0.1),
+
+    // === GENERAL / NEUTRAL PLATFORMS ===
+    ("Plugin Boutique",   0.0,  0.0),
+    ("99Sounds",          0.0,  0.0),
+    ("99sounds",          0.0,  0.0),
+    ("SampleRadar",       0.0,  0.0),
+    ("MusicRadar",        0.0,  0.0),
+    ("Samplephonics",     0.0,  0.0),
+    ("91Vocals",          0.0,  0.0),
+    ("Vital Vocals",      0.0,  0.0),
+    ("Vocal Roads",       0.0,  0.0),
+    ("Organic Loops",     0.0, -0.2),
+    ("Drumdrops",         0.0,  0.0),
+    ("Soundiron",         0.0,  0.0),
+    ("Audio Imperia",     0.0,  0.0),
+    ("Laniakea Sounds",   0.0,  0.0),
+    ("Samplestar",        0.0,  0.0),
+    ("SFXtools",          0.0,  0.0),
+    ("Kits Kreme",        0.0,  0.0),
+    ("Diginoiz",          0.0,  0.0),
+    ("Origin Sound",     -0.2,  0.1),
+    ("Aim Audio",        -0.2, -0.2),
+    ("Osaka Sound",      -0.3,  0.1),
+    ("Axtone",            0.2,  0.3),
 ];
 
 /// Result of manufacturer/pack detection from a directory path.
@@ -1496,16 +1579,49 @@ mod tests {
     }
 
     #[test]
+    fn bpm_ableton_format() {
+        // Ableton uses "NNN bpm" with space and lowercase
+        assert_eq!(extract_bpm("Electric Guitar Funky Wah G# Minor 115 bpm.wav"), Some(115));
+        assert_eq!(extract_bpm("Chugged Arp Fmin 130 bpm.wav"), Some(130));
+        assert_eq!(extract_bpm("Space Paddy C 140 bpm.wav"), Some(140));
+    }
+
+    #[test]
+    fn bpm_traktor_format() {
+        // Traktor uses _NNN_PL suffix for loops
+        assert_eq!(extract_bpm("PercLoop_Broken_141_PL.wav"), Some(141));
+        assert_eq!(extract_bpm("FXLoop_Mercury_138_PL.wav"), Some(138));
+        assert_eq!(extract_bpm("TopLoop_Springy_140_PL.wav"), Some(140));
+    }
+
+    #[test]
+    fn key_splice_suffix_formats() {
+        // Splice uses Cmin, D#min, Am, Bm at end of filename
+        assert_eq!(extract_key("SLS_SS2_70_songstarter_C#min.wav"), Some("C# Minor".into()));
+        assert_eq!(extract_key("DBM_NYM2_87_piano_loop_C#min.wav"), Some("C# Minor".into()));
+        assert_eq!(extract_key("OS_MEM_145_melodic_stack_Em.wav"), Some("E Minor".into()));
+        assert_eq!(extract_key("VOX_SWL_94_vocal_hook_Cm.wav"), Some("C Minor".into()));
+        assert_eq!(extract_key("SOUTHSIDE_130_synth_melody_D#min.wav"), Some("D# Minor".into()));
+    }
+
+    #[test]
+    fn key_ableton_verbose() {
+        // Ableton uses verbose "G# Minor", "Bb Minor" format
+        assert_eq!(extract_key("Electric Guitar Funky Wah G# Minor 115 bpm.wav"), Some("G# Minor".into()));
+        assert_eq!(extract_key("Underwater Synth Progression Bb Minor 85 bpm.wav"), Some("A# Minor".into()));
+    }
+
+    #[test]
     fn key_edge_cases() {
         // Key at end after underscore
         assert_eq!(extract_key("Bass_Loop_01_Am.wav"), Some("A Minor".into()));
         assert_eq!(extract_key("Synth_Pad_F#m.wav"), Some("F# Minor".into()));
-        
+
         // Key with flat notation (should convert to sharp)
         assert_eq!(extract_key("Lead_Bbmin.wav"), Some("A# Minor".into()));
         assert_eq!(extract_key("Pad_Ebm.wav"), Some("D# Minor".into()));
         assert_eq!(extract_key("Bass_Abmin.wav"), Some("G# Minor".into()));
-        
+
         // Key should NOT match inside words
         assert_eq!(extract_key("Crash_Big_01.wav"), None); // "C" inside "Crash"
         assert_eq!(extract_key("Fade_Out.wav"), None);     // "F" and "A" inside words
