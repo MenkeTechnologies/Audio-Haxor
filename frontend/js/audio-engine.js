@@ -3,12 +3,13 @@
 /** Force CSS columns rebalance on the audio engine masonry grid. */
 function aeReflow() {
     const c = document.querySelector('#tabAudioEngine .ae-main-stack');
-    if (!c) return;
+    if (!c || !c.parentNode) return;
     requestAnimationFrame(() => {
-        c.style.columnCount = '1';
-        requestAnimationFrame(() => {
-            c.style.columnCount = '';
-        });
+        const parent = c.parentNode;
+        const next = c.nextSibling;
+        parent.removeChild(c);
+        void parent.offsetHeight;
+        parent.insertBefore(c, next);
     });
 }
 

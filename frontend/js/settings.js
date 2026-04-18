@@ -6,14 +6,16 @@
  *  rebalance on their own. Toggling column-count triggers a reflow. */
 function settingsReflow() {
     const c = document.querySelector('#tabSettings .settings-container');
-    if (!c) return;
-    // Double-rAF: browser must commit the columnCount:1 frame before
-    // we clear it, otherwise both writes batch into a no-op.
+    if (!c || !c.parentNode) return;
+    // CSS columns only rebalance when child elements are physically
+    // moved in the DOM (same reason drag-reorder triggers reflow).
+    // Remove + re-insert the container to force full rebalance.
     requestAnimationFrame(() => {
-        c.style.columnCount = '1';
-        requestAnimationFrame(() => {
-            c.style.columnCount = '';
-        });
+        const parent = c.parentNode;
+        const next = c.nextSibling;
+        parent.removeChild(c);
+        void parent.offsetHeight;
+        parent.insertBefore(c, next);
     });
 }
 
