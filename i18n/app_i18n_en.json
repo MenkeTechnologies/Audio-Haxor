@@ -2477,6 +2477,7 @@
   "ui.tt.add_note_tags_to_current_track_n": "Add note/tags to current track (N)",
   "ui.tt.add_remove_current_track_from_favorites_f": "Add/remove current track from favorites (F)",
   "ui.tt.add_selected_to_favorites": "Add selected to favorites",
+  "ui.tt.als_midi_tracks": "Generate MIDI tracks for melodic layers",
   "ui.tt.additional_directories_to_scan_for_audio_samples_o": "Additional directories to scan for audio samples, one path per line",
   "ui.tt.additional_directories_to_scan_for_daw_project_fil": "Additional directories to scan for DAW project files, one path per line",
   "ui.tt.additional_directories_to_scan_for_midi_files_o": "Additional directories to scan for MIDI files, one path per line. Press Enter between paths; long paths scroll horizontally (no soft wrap).",
