@@ -2725,7 +2725,7 @@ document.addEventListener('contextmenu', (e) => {
                 action: () => { if (_termInstance) _termInstance.clear(); },
             });
             items.push({
-                icon: '&#8634;', label: appFmt('menu.reset') || 'Reset',
+                icon: '&#8634;', label: appFmt('menu.reset_terminal') || 'Reset Terminal',
                 ..._noEcho,
                 action: () => { if (_termInstance) _termInstance.reset(); },
             });
