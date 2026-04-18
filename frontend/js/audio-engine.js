@@ -2,14 +2,16 @@
 
 /** Force CSS columns rebalance on the audio engine masonry grid. */
 function aeReflow() {
-    const c = document.querySelector('#tabAudioEngine .ae-main-stack');
-    if (!c || !c.parentNode) return;
     requestAnimationFrame(() => {
-        const parent = c.parentNode;
-        const next = c.nextSibling;
-        parent.removeChild(c);
-        void parent.offsetHeight;
-        parent.insertBefore(c, next);
+        requestAnimationFrame(() => {
+            const c = document.querySelector('#tabAudioEngine .ae-main-stack');
+            if (!c || !c.parentNode) return;
+            const parent = c.parentNode;
+            const next = c.nextSibling;
+            parent.removeChild(c);
+            void parent.offsetHeight;
+            parent.insertBefore(c, next);
+        });
     });
 }
 

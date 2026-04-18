@@ -5,17 +5,19 @@
  *  content height after the initial layout — CSS columns won't
  *  rebalance on their own. Toggling column-count triggers a reflow. */
 function settingsReflow() {
-    const c = document.querySelector('#tabSettings .settings-container');
-    if (!c || !c.parentNode) return;
-    // CSS columns only rebalance when child elements are physically
-    // moved in the DOM (same reason drag-reorder triggers reflow).
-    // Remove + re-insert the container to force full rebalance.
+    // Wait for the browser to paint the new content first (double-rAF),
+    // THEN remove + re-insert the container to force CSS columns rebalance.
+    // Single rAF fires before WebKit has committed the new content layout.
     requestAnimationFrame(() => {
-        const parent = c.parentNode;
-        const next = c.nextSibling;
-        parent.removeChild(c);
-        void parent.offsetHeight;
-        parent.insertBefore(c, next);
+        requestAnimationFrame(() => {
+            const c = document.querySelector('#tabSettings .settings-container');
+            if (!c || !c.parentNode) return;
+            const parent = c.parentNode;
+            const next = c.nextSibling;
+            parent.removeChild(c);
+            void parent.offsetHeight;
+            parent.insertBefore(c, next);
+        });
     });
 }
 
