@@ -598,6 +598,11 @@ function buildPaletteStaticItems() {
         }
     });
     items.push({
+        type: 'action', name: 'Terminal', icon: '&#9002;', ...paletteShortcutTip('toggleTerminal'), action: () => {
+            typeof toggleTerminalPopup === 'function' && toggleTerminalPopup();
+        }
+    });
+    items.push({
         type: 'action', name: appFmt('menu.open_log_file'), icon: '&#128196;', ...paletteShortcutTip('openLogFile'), action: () => {
             const vu = window.vstUpdater;
             if (!vu || typeof vu.getPrefsPath !== 'function' || typeof vu.openWithApp !== 'function') return;

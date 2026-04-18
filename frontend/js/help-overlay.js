@@ -54,6 +54,7 @@ const HELP_MORE_SHORTCUT_IDS = [
     'toggleAutoAnalysis', 'toggleAutoPlaySampleOnSelect', 'toggleAutoScan',
     'toggleAutoUpdate', 'toggleExpandOnClick', 'toggleFolderWatch', 'toggleIncludeBackups',
     'toggleIncrementalDirectoryScan', 'togglePruneOldScans', 'toggleSingleClickPlay',
+    'toggleTerminal',
 ];
 
 function _helpMoreRows() {

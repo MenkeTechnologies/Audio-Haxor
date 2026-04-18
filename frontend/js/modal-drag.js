@@ -17,16 +17,24 @@
     /** Dock classes pin the player with bottom/right (or top/left) using !important — conflicts with resize math that uses left/top + width/height. */
     const PLAYER_DOCK_CLASSES = ['dock-tl', 'dock-tr', 'dock-bl', 'dock-br'];
 
+    /** IDs that use the dock system (player + terminal). */
+    const DOCK_IDS = ['audioNowPlaying', 'terminalPane'];
+
+    function isDockable(modal) {
+        return DOCK_IDS.includes(modal.id);
+    }
+
     function stripPlayerDockForResize(modal) {
-        if (modal.id !== 'audioNowPlaying') return;
+        if (!isDockable(modal)) return;
         PLAYER_DOCK_CLASSES.forEach((c) => modal.classList.remove(c));
     }
 
     function restorePlayerDockAfterResize(modal) {
-        if (modal.id !== 'audioNowPlaying') return;
+        if (!isDockable(modal)) return;
+        const dockKey = modal.id === 'terminalPane' ? 'terminalDock' : 'playerDock';
         let dock = 'dock-br';
         if (typeof prefs !== 'undefined') {
-            const saved = prefs.getItem('playerDock');
+            const saved = prefs.getItem(dockKey);
             if (saved && PLAYER_DOCK_CLASSES.includes(saved)) {
                 dock = saved;
             }
@@ -121,14 +129,14 @@
             modal.appendChild(handle);
         }
 
-        // Audio player has its own dock drag system — skip modal drag & geometry restore
-        const isPlayer = modal.id === 'audioNowPlaying';
+        // Dockable panes have their own dock drag system — skip modal drag & geometry restore
+        const isDock = isDockable(modal);
 
-        // Restore saved geometry (skip for audio player — dock position managed separately)
-        if (!isPlayer) restoreGeometry(modal);
+        // Restore saved geometry (skip for dockable panes — dock position managed separately)
+        if (!isDock) restoreGeometry(modal);
 
-        // Drag via modal header (skip for audio player — has custom dock drag)
-        const header = !isPlayer ? modal.querySelector('.modal-header') : null;
+        // Drag via modal header (skip for dockable panes — have custom dock drag)
+        const header = !isDock ? modal.querySelector('.modal-header') : null;
         if (header) {
             header.style.cursor = 'move';
             header.addEventListener('mousedown', (e) => {
@@ -180,7 +188,7 @@
             modal.style.maxWidth = 'none';
             modal.style.maxHeight = 'none';
 
-            if (modal.id === 'audioNowPlaying') {
+            if (isDockable(modal)) {
                 modal.style.right = 'auto';
                 modal.style.bottom = 'auto';
             }

@@ -7,6 +7,7 @@
           name="description">
     <meta content="AUDIO_HAXOR" name="application-name">
     <title data-i18n="ui.page_title">AUDIO_HAXOR</title>
+    <link rel="stylesheet" href="lib/xterm.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&display=swap');
 
@@ -3973,6 +3974,81 @@
         /* Player: drag strip + toolbar sit above default z-index:10 handles without this */
         .audio-now-playing .modal-resize {
             z-index: 200;
+        }
+
+        /* ── Terminal pane (fixed, dockable like audio player) ── */
+        .terminal-pane {
+            display: none;
+            position: fixed;
+            z-index: 9998;
+            width: 680px;
+            height: 420px;
+            min-width: 320px;
+            min-height: 200px;
+            max-width: 95vw;
+            max-height: 90vh;
+            background: rgba(5, 5, 10, 0.88);
+            border: 1px solid var(--cyan);
+            border-radius: 2px;
+            box-shadow:
+                0 0 0 1px rgba(0, 229, 255, 0.15),
+                0 0 30px rgba(0, 229, 255, 0.12),
+                0 0 60px rgba(176, 38, 255, 0.06),
+                0 8px 32px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(0, 229, 255, 0.08);
+            flex-direction: column;
+            overflow: visible;
+        }
+        .terminal-pane.active {
+            display: flex;
+        }
+        .terminal-pane.dock-br { bottom: 24px !important; right: 24px !important; top: auto !important; left: auto !important; }
+        .terminal-pane.dock-bl { bottom: 24px !important; left: 24px !important; top: auto !important; right: auto !important; }
+        .terminal-pane.dock-tr { top: 24px !important; right: 24px !important; bottom: auto !important; left: auto !important; }
+        .terminal-pane.dock-tl { top: 24px !important; left: 24px !important; bottom: auto !important; right: auto !important; }
+        .terminal-pane.snapping { transition: top 0.3s ease, bottom 0.3s ease, left 0.3s ease, right 0.3s ease; }
+        .terminal-pane.dragging {
+            opacity: 0.9;
+            cursor: grabbing;
+            transition: none;
+            transform: rotate(2deg) scale(1.05);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(5, 217, 232, 0.3);
+            border: 2px solid var(--cyan);
+        }
+        .term-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px;
+            cursor: grab;
+            border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+            background: rgba(0, 229, 255, 0.04);
+            flex: 0 0 auto;
+        }
+        .term-toolbar-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+        }
+        .term-toolbar-actions { display: flex; gap: 4px; }
+        .term-body {
+            flex: 1 1 auto;
+            overflow: hidden;
+            min-height: 0;
+            background: transparent;
+        }
+        #terminalContainer .xterm {
+            padding: 4px;
+        }
+        /* Make xterm.js viewport transparent so pane bg shows through */
+        #terminalContainer .xterm-viewport {
+            background: transparent !important;
+        }
+        #terminalContainer .xterm-screen {
+            background: transparent;
         }
 
         .modal-wide {
@@ -10131,6 +10207,16 @@
 <div class="audio-restore-pill" data-action="showPlayer" data-i18n-title="ui.tt.show_audio_player" id="audioRestorePill"
      title="Show player">&#9835; Playing
 </div>
+<div class="terminal-pane modal-content dock-br" id="terminalPane">
+    <div class="term-toolbar modal-header" id="termDragHandle">
+        <span class="term-toolbar-title">&#9002; Terminal</span>
+        <div class="term-toolbar-actions">
+            <button class="np-toolbar-btn" data-action="hideTerminal" title="Hide terminal">&#9868;</button>
+            <button class="np-toolbar-btn btn-close" data-action="killTerminal" title="Kill &amp; close">&#10005;</button>
+        </div>
+    </div>
+    <div class="term-body" id="terminalContainer"></div>
+</div>
 <div class="batch-action-bar" id="batchActionBar">
     <span class="batch-count" id="batchSelectionCount">0 selected</span>
     <div class="batch-sep"></div>
@@ -13853,6 +13939,8 @@
 <script src="js/als-generator.js?v=97828"></script>
 <script src="js/trance-lead.js?v=97828"></script>
 <script src="js/sample-browser.js?v=97828"></script>
+<script src="lib/xterm.js?v=97828"></script>
+<script src="js/terminal.js?v=97828"></script>
 <script src="js/context-menu.js?v=97828"></script>
 <script src="js/shortcuts.js?v=97828"></script>
 <script src="js/help-overlay.js?v=97828"></script>

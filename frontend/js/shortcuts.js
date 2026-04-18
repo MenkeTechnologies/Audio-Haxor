@@ -112,6 +112,7 @@ const SHORTCUT_LABEL_KEYS = {
     togglePruneOldScans: 'ui.shortcut.toggle_prune_old_scans',
     toggleSingleClickPlay: 'ui.shortcut.toggle_single_click_play',
     togglePdfMetadataAutoExtract: 'ui.shortcut.toggle_pdf_metadata_auto_extract',
+    toggleTerminal: 'ui.shortcut.toggle_terminal',
 };
 
 const DEFAULT_SHORTCUT_DEFS = {
@@ -154,7 +155,7 @@ const DEFAULT_SHORTCUT_DEFS = {
     findDuplicates: {key: 'd', mod: true, shift: false},
     depGraph: {key: 'g', mod: true, shift: false},
     resetAllScans: {key: 'Backspace', mod: true, shift: false},
-    toggleTheme: {key: 't', mod: true, shift: false},
+    toggleTheme: {key: 'y', mod: true, shift: false},
     openPrefs: {key: ',', mod: true, shift: false},
     nextTab: {key: ']', mod: true, shift: false},
     prevTab: {key: '[', mod: true, shift: false},
@@ -228,6 +229,7 @@ const DEFAULT_SHORTCUT_DEFS = {
     togglePruneOldScans: {key: 'F11', mod: true, shift: true},
     toggleSingleClickPlay: {key: 'F12', mod: true, shift: false},
     togglePdfMetadataAutoExtract: {key: 'F12', mod: true, shift: true},
+    toggleTerminal: {key: 't', mod: true, shift: false},
 };
 
 const TAB_MAP = ['plugins', 'samples', 'daw', 'presets', 'midi', 'pdf', 'favorites', 'notes', 'tags', 'files', 'history', 'visualizer', 'walkers', 'audioEngine', 'settings'];
@@ -459,6 +461,14 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         e.stopPropagation();
         if (typeof toggleHelpOverlay === 'function') toggleHelpOverlay();
+        return;
+    }
+
+    // Terminal toggle: must work even when the xterm textarea is focused
+    if (mod && !e.shiftKey && e.key === 't') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof toggleTerminalPopup === 'function') toggleTerminalPopup();
         return;
     }
 
@@ -800,6 +810,8 @@ function executeShortcut(id) {
         if (typeof settingToggleSingleClickPlay === 'function') settingToggleSingleClickPlay();
     } else if (id === 'togglePdfMetadataAutoExtract') {
         if (typeof settingTogglePdfMetadataAutoExtract === 'function') settingTogglePdfMetadataAutoExtract();
+    } else if (id === 'toggleTerminal') {
+        if (typeof toggleTerminalPopup === 'function') toggleTerminalPopup();
     }
 }
 

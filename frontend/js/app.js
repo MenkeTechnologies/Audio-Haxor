@@ -115,6 +115,10 @@ async function handleFileWatcherChange(event) {
     if (typeof restorePlayerDock === 'function') restorePlayerDock();
     if (typeof restorePlayerDimensions === 'function') restorePlayerDimensions();
     if (typeof restorePlayerPaneVisibilityFromPrefs === 'function') restorePlayerPaneVisibilityFromPrefs();
+    // Restore terminal pane layout
+    if (typeof restoreTerminalDock === 'function') restoreTerminalDock();
+    if (typeof restoreTerminalDimensions === 'function') restoreTerminalDimensions();
+    if (typeof restoreTerminalPaneVisibilityFromPrefs === 'function') restoreTerminalPaneVisibilityFromPrefs();
     initTabDragReorder();
     initMultiFilters();
     initSortPersistence();

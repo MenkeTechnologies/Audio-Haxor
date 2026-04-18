@@ -52,6 +52,7 @@ pub mod scanner_skip_dirs;
 pub mod similarity;
 pub mod track_generator;
 pub mod trance_generator;
+pub mod terminal;
 pub mod trance_starter;
 pub mod tray_menu;
 mod tray_popover_escape_macos;
@@ -9173,6 +9174,7 @@ pub fn run() {
             pdf_dirs: Arc::new(std::sync::Mutex::new(Vec::new())),
             unified_scanning: AtomicBool::new(false),
         })
+        .manage(terminal::TerminalState::default())
         .manage(file_watcher::FileWatcherState::new())
         .manage(tray_menu::TrayState::default())
         .invoke_handler(tauri::generate_handler![
@@ -9433,6 +9435,10 @@ pub fn run() {
             waveform_prefetch_start,
             waveform_prefetch_stop,
             waveform_prefetch_stats,
+            terminal::terminal_spawn,
+            terminal::terminal_write,
+            terminal::terminal_resize,
+            terminal::terminal_kill,
         ])
         .setup(|app| {
             // Restore window size/position

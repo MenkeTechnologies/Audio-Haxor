@@ -2245,6 +2245,7 @@
   "ui.shortcut.toggle_shuffle": "Toggle shuffle",
   "ui.shortcut.toggle_single_click_play": "Toggle single-click sample playback",
   "ui.shortcut.toggle_tag_filter_bar": "Toggle tag filter bar",
+  "ui.shortcut.toggle_terminal": "Toggle terminal",
   "ui.shortcut.toggle_theme": "Toggle light/dark theme",
   "ui.shortcut.video_audio_route_engine": "Video audio: use Audio Engine",
   "ui.shortcut.video_audio_route_html5": "Video audio: use WebView (HTML5)",

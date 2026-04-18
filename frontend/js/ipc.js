@@ -1331,6 +1331,13 @@ document.addEventListener('click', (e) => {
             case 'showPlayer':
                 showPlayer();
                 break;
+            case 'hideTerminal':
+                if (typeof hideTerminal === 'function') hideTerminal();
+                break;
+            case 'killTerminal':
+                if (typeof killTerminal === 'function') killTerminal();
+                if (typeof hideTerminal === 'function') hideTerminal();
+                break;
             case 'prevTrack':
                 prevTrack();
                 break;
