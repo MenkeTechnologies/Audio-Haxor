@@ -1371,6 +1371,11 @@ document.addEventListener('contextmenu', (e) => {
                     }
                 },
                 {
+                    icon: '&#127911;', label: appFmt('menu.genre_rules'), ...shortcutTip('genreRules'), action: () => {
+                        if (typeof showGenreRulesDashboard === 'function') void showGenreRulesDashboard();
+                    }
+                },
+                {
                     icon: '&#128200;', label: appFmt('menu.dep_graph'), ...shortcutTip('depGraph'), action: () => {
                         if (typeof showDepGraph === 'function') showDepGraph();
                     }
@@ -2596,6 +2601,25 @@ document.addEventListener('contextmenu', (e) => {
                     if (typeof closeHeatmapDash === 'function') closeHeatmapDash();
                 }
             });
+            showContextMenu(e, items);
+            return;
+        }
+
+        // ── Genre rules dashboard ──
+        const grDash = e.target.closest('#genreRulesModal');
+        if (grDash) {
+            const items = [
+                {
+                    icon: '&#8634;', label: 'Refresh', action: () => {
+                        if (typeof showGenreRulesDashboard === 'function') void showGenreRulesDashboard();
+                    }
+                },
+                {
+                    icon: '&#10005;', label: 'Close', action: () => {
+                        if (typeof closeGenreRules === 'function') closeGenreRules();
+                    }
+                },
+            ];
             showContextMenu(e, items);
             return;
         }

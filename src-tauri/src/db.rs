@@ -193,6 +193,24 @@ pub struct CrateCategoryCount {
 }
 
 #[derive(Debug, Serialize)]
+pub struct GenreRuleRow {
+    pub name: String,
+    pub genre_score: f64,
+    pub hardness_score: f64,
+    pub sample_count: u64,
+    pub loop_count: u64,
+    pub oneshot_count: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GenreRulesReport {
+    pub manufacturers: Vec<GenreRuleRow>,
+    pub categories: Vec<CrateCategoryCount>,
+    pub total_analyzed: u64,
+    pub total_unanalyzed: u64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct CratePack {
     pub id: i64,
     pub name: String,
@@ -2769,6 +2787,54 @@ DROP TABLE _pl_refresh_paths;"#;
             out.push(r.map_err(|e| e.to_string())?);
         }
         Ok(out)
+    }
+
+    /// Genre rules report: all manufacturers with their genre/hardness scores and sample counts.
+    pub fn genre_rules_report(&self) -> Result<GenreRulesReport, String> {
+        let conn = self.read_conn();
+
+        let mut mfr_stmt = conn
+            .prepare(
+                "SELECT mfr.name, mfr.genre_score, mfr.hardness_score,
+                        COUNT(sa.sample_id) AS n,
+                        SUM(CASE WHEN sa.is_loop = 1 THEN 1 ELSE 0 END) AS loops,
+                        SUM(CASE WHEN sa.is_loop = 0 THEN 1 ELSE 0 END) AS oneshots
+                 FROM sample_pack_manufacturers mfr
+                 LEFT JOIN sample_analysis sa ON sa.manufacturer_id = mfr.id
+                 GROUP BY mfr.id
+                 ORDER BY mfr.genre_score ASC, mfr.name COLLATE NOCASE",
+            )
+            .map_err(|e| e.to_string())?;
+        let manufacturers: Vec<GenreRuleRow> = mfr_stmt
+            .query_map([], |row| {
+                Ok(GenreRuleRow {
+                    name: row.get(0)?,
+                    genre_score: row.get(1)?,
+                    hardness_score: row.get(2)?,
+                    sample_count: row.get::<_, i64>(3)? as u64,
+                    loop_count: row.get::<_, i64>(4)? as u64,
+                    oneshot_count: row.get::<_, i64>(5)? as u64,
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let categories = self.crate_category_counts()?;
+
+        let analyzed: u64 = conn
+            .query_row("SELECT COUNT(*) FROM sample_analysis", [], |r| r.get::<_, i64>(0))
+            .unwrap_or(0) as u64;
+        let total_audio: u64 = conn
+            .query_row("SELECT COUNT(*) FROM audio_samples WHERE id IN (SELECT sample_id FROM audio_library)", [], |r| r.get::<_, i64>(0))
+            .unwrap_or(0) as u64;
+
+        Ok(GenreRulesReport {
+            manufacturers,
+            categories,
+            total_analyzed: analyzed,
+            total_unanalyzed: total_audio.saturating_sub(analyzed),
+        })
     }
 
     /// One-shot facets call for the filter bar: packs, manufacturers, distinct keys.

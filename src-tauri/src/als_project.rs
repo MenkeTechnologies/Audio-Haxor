@@ -648,7 +648,7 @@ fn query_samples_direct(
 
     // Genre keyword patterns for scoring
     let genre_keywords: &[&str] = match config.genre {
-        Genre::Techno => &["techno", "tech", "warehouse", "berlin", "underground", "minimal", "industrial"],
+        Genre::Techno => &["techno", "warehouse", "berlin", "underground", "minimal", "industrial"],
         Genre::Schranz => &["schranz", "hardtechno", "hard techno", "industrial", "distorted", "aggressive", "rave"],
         Genre::Trance => &["trance", "uplifting", "progressive", "euphoric", "psy", "melodic", "epic"],
     };
@@ -684,6 +684,13 @@ fn query_samples_direct(
         .collect::<Vec<_>>()
         .join(" + ");
 
+    // Penalize wrong subgenres to prevent them ranking above the target genre
+    let genre_penalty: &str = match config.genre {
+        Genre::Techno => " + (CASE WHEN LOWER(s.path) LIKE '%tech house%' THEN -2 ELSE 0 END)",
+        Genre::Schranz => " + (CASE WHEN LOWER(s.path) LIKE '%tech house%' OR LOWER(s.path) LIKE '%melodic%' THEN -2 ELSE 0 END)",
+        Genre::Trance => "",
+    };
+
     let query = format!(
         "SELECT s.id, s.path, s.name, COALESCE(s.duration, 0.0), COALESCE(s.size, 0),
                 CAST(s.bpm AS INTEGER), s.key_name, NULL AS cat_name,
@@ -696,11 +703,12 @@ fn query_samples_direct(
            {bpm_clause}
            {key_where}
          ORDER BY
-           ({genre_score}) DESC,
+           ({genre_score}{genre_penalty}) DESC,
            RANDOM()
          LIMIT {limit}",
         name_pattern = name_pattern,
         genre_score = if genre_score.is_empty() { "0" } else { &genre_score },
+        genre_penalty = genre_penalty,
     );
 
     let results = db::global().query_samples_for_als(&query)?;

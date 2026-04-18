@@ -492,6 +492,13 @@ function buildPaletteStaticItems() {
             }
         });
     }
+    if (typeof showGenreRulesDashboard === 'function') {
+        items.push({
+            type: 'action', name: appFmt('menu.genre_rules'), icon: '&#127911;', ...paletteShortcutTip('genreRules'), action: () => {
+                void showGenreRulesDashboard();
+            }
+        });
+    }
     if (typeof showSmartPlaylistEditor === 'function') {
         items.push({
             type: 'action', name: appFmt('menu.new_smart_playlist'), icon: '&#127926;', ...paletteShortcutTip('newSmartPlaylist'), action: () => {

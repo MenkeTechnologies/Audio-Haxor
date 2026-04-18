@@ -2567,7 +2567,7 @@ fn query_samples_internal(
     // 4. Bad genres (checked on directory path only, not filename)
     // 5. Construction kits/stems (not loopable, meant to be mixed not looped)
     // 6. Samples longer than 32 bars (too long for loop-based arrangement)
-    use crate::sample_filters::{REVERSED_SUFFIXES, PROJECT_RENDER_KEYWORDS, CONSTRUCTION_KIT_KEYWORDS, BAD_GENRES, is_ableton_project_sample};
+    use crate::sample_filters::{REVERSED_SUFFIXES, PROJECT_RENDER_KEYWORDS, CONSTRUCTION_KIT_KEYWORDS, BAD_GENRES, is_ableton_project_sample, is_excluded_genre};
     
     // Max duration: 32 bars at the reference BPM (32 bars * 4 beats/bar * 60s/min / BPM)
     let max_duration_secs = (32.0 * 4.0 * 60.0) / REFERENCE_BPM;
@@ -2606,8 +2606,7 @@ fn query_samples_internal(
             }
             // Skip bad genres - check directory path only (exclude filename)
             if let Some(last_slash) = s.path.rfind('/').or_else(|| s.path.rfind('\\')) {
-                let dir_path = s.path[..last_slash].to_lowercase();
-                if BAD_GENRES.iter().any(|genre| dir_path.contains(genre)) {
+                if is_excluded_genre(&s.path[..last_slash], BAD_GENRES) {
                     return false;
                 }
             }

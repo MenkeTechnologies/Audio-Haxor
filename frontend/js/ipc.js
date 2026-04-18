@@ -775,6 +775,9 @@ document.addEventListener('click', (e) => {
             case 'showHeatmapDash':
                 if (typeof showHeatmapDashboard === 'function') void showHeatmapDashboard();
                 break;
+            case 'showGenreRules':
+                if (typeof showGenreRulesDashboard === 'function') void showGenreRulesDashboard();
+                break;
             case 'scanPresets':
                 scanPresets();
                 break;
@@ -1868,6 +1871,7 @@ window.vstUpdater = {
     // Crate tab — params use snake_case to match the Rust CrateQueryParams serde defaults (matches AudioQueryParams convention across this app).
     crateCategoryCounts: () => invoke('crate_category_counts'),
     crateFacets: () => invoke('crate_facets'),
+    genreRulesReport: () => invoke('genre_rules_report'),
     crateQuery: (params) => invoke('crate_query', {params: params || {}}),
     crateFavoritePackToggle: (packId) => invoke('crate_favorite_pack_toggle', {packId}),
     crateFavoritePacksList: () => invoke('crate_favorite_packs_list'),

@@ -82,11 +82,40 @@ pub const BAD_GENRES: &[&str] = &[
     
     // Wrong character
     "organic", "natural", "live", "vintage", "retro", "80s", "70s", "60s",
-    "happy", "uplifting", "euphoric", "cheerful", "bright", "sunny",
-    
+    "happy", "uplifting", "euphoric", "cheerful", "bright",
+
     // Sample pack brands known for non-electronic content
     "ghosthack", "cymatics", "splice_top", "beatport_top",
 ];
+
+/// Keywords that override BAD_GENRES filtering.
+/// If a directory path contains any of these, it passes genre filtering
+/// regardless of BAD_GENRES matches. This prevents false positives where
+/// a bad genre keyword appears alongside a strong genre indicator
+/// (e.g., "AFRO HOUSE & TECHNO" should not be killed by "afro").
+pub const GENRE_OVERRIDE_KEYWORDS: &[&str] = &[
+    "techno", "schranz", "hardtechno", "hard techno", "trance",
+];
+
+/// Check if a directory path should be excluded by genre filtering.
+/// Returns true if the path should be EXCLUDED (is a bad genre).
+///
+/// Override logic: skip exclusion if the path contains a genre override keyword
+/// OR a known non-neutral manufacturer/label (genre_score or hardness_score != 0).
+/// This trusts recognized electronic labels over naive substring matching.
+pub fn is_excluded_genre(dir_path: &str, bad_genres: &[&str]) -> bool {
+    let lower = dir_path.to_lowercase();
+    if GENRE_OVERRIDE_KEYWORDS.iter().any(|kw| lower.contains(kw)) {
+        return false;
+    }
+    // Trust known electronic labels — if a non-neutral manufacturer matches, don't exclude
+    if crate::sample_analysis::MANUFACTURER_SIGNALS.iter().any(|&(pat, genre, hardness)| {
+        (genre != 0.0 || hardness != 0.0) && lower.contains(&pat.to_lowercase())
+    }) {
+        return false;
+    }
+    bad_genres.iter().any(|genre| lower.contains(genre))
+}
 
 /// Trance-specific exclusions - same as BAD_GENRES but allows uplifting/euphoric
 /// since those are valid trance subgenres
@@ -119,8 +148,8 @@ pub const BAD_GENRES_TRANCE: &[&str] = &[
     
     // Wrong character (NOTE: uplifting/euphoric allowed for trance)
     "organic", "natural", "live", "vintage", "retro", "80s", "70s", "60s",
-    "happy", "cheerful", "bright", "sunny",
-    
+    "happy", "cheerful", "bright",
+
     // Sample pack brands
     "ghosthack", "cymatics", "splice_top", "beatport_top",
 ];
@@ -158,7 +187,7 @@ pub const BAD_GENRES_SCHRANZ: &[&str] = &[
     
     // Wrong character - schranz is dark/industrial only
     "organic", "natural", "live", "vintage", "retro", "80s", "70s", "60s",
-    "happy", "uplifting", "euphoric", "cheerful", "bright", "sunny",
+    "happy", "uplifting", "euphoric", "cheerful", "bright",
     "soft", "gentle", "smooth", "mellow", "warm",
     
     // Trance (wrong genre for schranz)
@@ -214,5 +243,73 @@ mod tests {
         assert!(result.contains(&"samba"));
         assert!(result.contains(&"extra1"));
         assert!(result.contains(&"extra2"));
+    }
+
+    #[test]
+    fn genre_override_afro_techno() {
+        assert!(!is_excluded_genre(
+            "/Samples/ztekno/ZTEKNO - AFRO HOUSE & TECHNO (WAVS)/Kicks",
+            BAD_GENRES,
+        ));
+    }
+
+    #[test]
+    fn genre_override_ethnic_techno() {
+        assert!(!is_excluded_genre(
+            "/Samples/ztekno/ZTEKNO - ETHNIC TECHNO (ZIP MAIN)/Loops",
+            BAD_GENRES,
+        ));
+    }
+
+    #[test]
+    fn genre_override_ableton_live_techno() {
+        assert!(!is_excluded_genre(
+            "/Samples/ztekno/ZTEKNO - TECHNO CONCENTRATE (ABLETON LIVE 9.7.5+)/Synths",
+            BAD_GENRES,
+        ));
+    }
+
+    #[test]
+    fn genre_override_trance_in_path() {
+        // "trance" in path overrides any BAD_GENRES match
+        assert!(!is_excluded_genre(
+            "/Samples/freshly squeezed/Activa Trance Essentials/Loops",
+            BAD_GENRES,
+        ));
+    }
+
+    #[test]
+    fn genre_sunny_lax_not_excluded() {
+        // "sunny" was removed from BAD_GENRES — artist name false positive
+        assert!(!is_excluded_genre(
+            "/Samples/freshly squeezed/Sunny Lax Studio Essentials Volume 2 - Drum Loops",
+            BAD_GENRES,
+        ));
+    }
+
+    #[test]
+    fn genre_looplicious_classical_not_excluded() {
+        // Looplicious is a known electronic label — "classical" in BAD_GENRES
+        // should not exclude it because the manufacturer override kicks in
+        assert!(!is_excluded_genre(
+            "/Samples/freshly squeezed/Looplicious - Ethereal Classical Vocals 2",
+            BAD_GENRES,
+        ));
+    }
+
+    #[test]
+    fn genre_no_override_pure_afro() {
+        assert!(is_excluded_genre(
+            "/Samples/some_label/Afro Beats Collection/Drums",
+            BAD_GENRES,
+        ));
+    }
+
+    #[test]
+    fn genre_no_override_pure_live() {
+        assert!(is_excluded_genre(
+            "/Samples/some_label/Live Jazz Sessions/Piano",
+            BAD_GENRES,
+        ));
     }
 }

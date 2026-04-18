@@ -76,7 +76,6 @@ function showHeatmapDashboard() {
     const projects = typeof allDawProjects !== 'undefined' ? allDawProjects : [];
     const presets = typeof allPresets !== 'undefined' ? allPresets : [];
 
-    const loadingLine = escapeHtml(_hmFmt('ui.js.query_loading'));
     const html = `<div class="modal-overlay modal-visible" id="heatmapDashModal" data-action-modal="closeHeatmapDash">
     <div class="modal-content modal-wide" style="max-width:95vw;width:95vw;max-height:95vh;height:95vh;">
       <div class="modal-header">
@@ -84,8 +83,8 @@ function showHeatmapDashboard() {
         <button class="modal-close" data-action-modal="closeHeatmapDash" title="${escapeHtml(_hmFmt('ui.hm.close'))}">&#10005;</button>
       </div>
       <div class="modal-body" style="overflow-y:auto;max-height:calc(90vh - 60px);">
-        <div class="hm-overview" id="hmOverview"><div class="hm-loading" style="padding:12px 4px;color:var(--text-muted);">${loadingLine}</div></div>
-        <div class="hm-grid" id="hmGrid"><div class="hm-loading" style="padding:8px 4px;color:var(--text-muted);">${loadingLine}</div></div>
+        <div class="hm-overview" id="hmOverview"><div style="display:flex;align-items:center;justify-content:center;padding:24px;"><div class="spinner"></div></div></div>
+        <div class="hm-grid" id="hmGrid"></div>
       </div>
     </div>
   </div>`;

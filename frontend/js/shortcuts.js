@@ -55,6 +55,7 @@ const SHORTCUT_LABEL_KEYS = {
     setSampleLoopRegionStart: 'ui.shortcut.set_sample_loop_region_start',
     setSampleLoopRegionEnd: 'ui.shortcut.set_sample_loop_region_end',
     heatmapDash: 'ui.shortcut.heatmap_dashboard',
+    genreRules: 'ui.shortcut.genre_rules',
     togglePlayer: 'ui.shortcut.show_hide_player',
     toggleCrt: 'ui.shortcut.toggle_crt',
     toggleNeonGlow: 'ui.shortcut.toggle_neon_glow',
@@ -170,6 +171,7 @@ const DEFAULT_SHORTCUT_DEFS = {
     setSampleLoopRegionStart: {key: '[', mod: false, shift: false},
     setSampleLoopRegionEnd: {key: ']', mod: false, shift: false},
     heatmapDash: {key: 'd', mod: false},
+    genreRules: {key: 'g', mod: true, shift: true},
     togglePlayer: {key: 'p', mod: false},
     toggleCrt: {key: 'F1', mod: false},
     toggleNeonGlow: {key: 'F2', mod: false},
@@ -653,6 +655,8 @@ function executeShortcut(id) {
         if (typeof setSampleLoopRegionEndAtPlayhead === 'function') setSampleLoopRegionEndAtPlayhead();
     } else if (id === 'heatmapDash') {
         if (typeof showHeatmapDashboard === 'function') void showHeatmapDashboard();
+    } else if (id === 'genreRules') {
+        if (typeof showGenreRulesDashboard === 'function') void showGenreRulesDashboard();
     } else if (id === 'togglePlayer') {
         const np = document.getElementById('audioNowPlaying');
         if (np && np.classList.contains('active')) {

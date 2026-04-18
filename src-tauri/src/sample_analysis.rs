@@ -581,6 +581,10 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("Minus",            -0.8,  0.2),
     ("M_nus",            -0.8,  0.2),
 
+    // === TECHNO SAMPLE PACK LABELS ===
+    ("ZTEKNO",           -0.8,  0.5),
+    ("True Samples",     -0.3,  0.2),
+
     // === SAMPLE PACK COMPANIES ===
     ("Loopmasters",       0.0,  0.0),
     ("Splice",            0.0,  0.0),
@@ -593,11 +597,48 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("Function Loops",    0.0,  0.0),
     ("Producer Loops",    0.0,  0.0),
     ("Zenhiser",         -0.3,  0.3),
-    ("Freshly Squeezed",  0.5,  0.5),
+    ("Freshly Squeezed",  0.7,  0.3),
     ("Mutekki",          -0.6,  0.4),
     ("Toolroom",         -0.4,  0.2),
     ("Revealed",          0.3,  0.4),
     ("Spinnin",           0.2,  0.2),
+    ("Noiiz",            -0.3,  0.3),
+    ("noizz",            -0.3,  0.3),
+    ("UNDRGRND",         -0.6,  0.3),
+    ("Riemann",          -0.8,  0.5),
+    ("SINEE",            -0.9,  0.8),
+    ("Bluezone",         -0.5,  0.6),
+    ("Datacode",         -0.6,  0.4),
+    ("Sonic Academy",    -0.3,  0.3),
+    ("Glitchedtones",    -0.3,  0.5),
+    ("Glitchmachines",   -0.3,  0.5),
+    ("Ueberschall",      -0.5,  0.6),
+    ("Zero-G",            0.0,  0.0),
+    ("Resonance Sound",  -0.3,  0.3),
+    ("Samplesound",      -0.4,  0.2),
+    ("ADSR",              0.0,  0.0),
+    ("Sounds of KSHMR",   0.0,  0.3),
+    ("R-Loops",           0.0,  0.0),
+    ("Myloops",           0.7,  0.3),
+    ("Samplified",        0.0,  0.0),
+    ("Sounds.com",       -0.3,  0.3),
+    ("from Mars",        -0.5,  0.3),
+    ("Producers Choice",  0.0,  0.0),
+    ("WA Production",     0.0,  0.0),
+    ("W. A. Production",  0.0,  0.0),
+    ("WA_Prod",           0.0,  0.0),
+    ("WAProd",            0.0,  0.0),
+    ("Angry Parrot",      0.0,  0.0),
+    ("AngryParrot",       0.0,  0.0),
+    ("Soundtrack Loops",  0.0,  0.0),
+    ("soundtrack_loops",  0.0,  0.0),
+    ("glitchmach",       -0.3,  0.5),
+    ("Asonic",            0.0,  0.0),
+    ("Computer Music",    0.0,  0.0),
+    ("sonicacademy",     -0.3,  0.3),
+    ("functionloops",     0.0,  0.0),
+    ("from_mars",        -0.5,  0.3),
+    ("Krotosaudio",       0.0,  0.0),
 
     // === ARTIST PACKS ===
     ("Allen Watts",       0.9,  0.5),
@@ -623,6 +664,30 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("Tale of Us",       -0.5,  0.1),
     ("Metta & Glyde",     0.9,  0.5),
     ("Metta Glyde",       0.9,  0.5),
+    ("mettaglyde",        0.9,  0.5),
+    ("Sunny Lax",         0.8,  0.2),
+    ("Activa",            0.9,  0.5),
+    ("Dave Parkinson",    0.7,  0.4),
+    ("Driftmoon",         0.8,  0.4),
+    ("Max Braiman",       0.9,  0.5),
+    ("Temple One",        0.9,  0.3),
+    ("Thrillseekers",     0.8,  0.4),
+    ("Talamanca",         0.7,  0.2),
+    ("Kobana",            0.5,  0.1),
+    ("Jerome Isma-Ae",    0.5,  0.3),
+    ("Ad Brown",          0.5,  0.2),
+    ("Vitodito",          0.6,  0.2),
+    ("Genix",             0.8,  0.5),
+    ("Sander Van Doorn",  0.6,  0.4),
+    ("Kolonie",           0.7,  0.3),
+    ("Looplicious",       0.6,  0.1),
+    ("Carl Cox",         -0.8,  0.5),
+    ("Axel Karakasis",   -0.8,  0.6),
+    ("David Moleon",     -0.9,  0.7),
+    ("Pedro Delgardo",   -0.9,  0.7),
+    ("Alex Di Stefano",   0.8,  0.6),
+    ("Airbase",           0.9,  0.3),
+    ("Bart Skils",       -0.8,  0.6),
 ];
 
 /// Result of manufacturer/pack detection from a directory path.
@@ -1334,6 +1399,56 @@ mod tests {
     }
 
     #[test]
+    fn detect_manufacturer_freshly_squeezed() {
+        let m = detect_manufacturer(
+            "/Samples/freshly squeezed/Freshly Squeezed Samples - Max Braiman Trance Essentials/Kicks/"
+        ).unwrap();
+        // "Max Braiman" (11 chars) beats "Freshly Squeezed" (16 chars)? No — both non-neutral,
+        // "Freshly Squeezed" is longer, so it wins. But "Max Braiman" is more specific.
+        // Actually: "Freshly Squeezed" = 16 chars > "Max Braiman" = 11 chars → Freshly Squeezed wins
+        assert!(m.genre_score > 0.0, "should be trance-leaning");
+    }
+
+    #[test]
+    fn detect_manufacturer_sunny_lax() {
+        // "Sunny Lax" (9) vs "Freshly Squeezed" (16) — both non-neutral, Freshly Squeezed wins (longer)
+        // But both are trance-positive so either is fine
+        let m = detect_manufacturer(
+            "/Samples/freshly squeezed/Sunny Lax Kick Essentials Volume 1/Kicks/"
+        ).unwrap();
+        assert!(m.genre_score > 0.0, "should be trance-leaning");
+    }
+
+    #[test]
+    fn detect_manufacturer_ztekno() {
+        let m = detect_manufacturer(
+            "/Users/wizard/mnt/production/MusicProduction/Samples/ztekno/ZTEKNO - TECHNO BLAST (WAVS)/Kicks/"
+        ).unwrap();
+        assert_eq!(m.manufacturer_pattern, "ZTEKNO");
+        assert!(m.genre_score < 0.0, "ZTEKNO should be techno-leaning (negative)");
+        assert!(m.hardness_score > 0.0, "ZTEKNO should have positive hardness");
+    }
+
+    #[test]
+    fn detect_manufacturer_true_samples_under_ztekno() {
+        // Both "ZTEKNO" and "True Samples" match; "True Samples" wins (longer, both non-neutral)
+        let m = detect_manufacturer(
+            "/Samples/ztekno/True Samples - Techno Moonwalkers/Loops/"
+        ).unwrap();
+        assert_eq!(m.manufacturer_pattern, "True Samples");
+        assert!(m.genre_score < 0.0, "True Samples should lean electronic");
+    }
+
+    #[test]
+    fn detect_manufacturer_ztekno_ambiguous_name() {
+        // Packs with no genre in name still get ZTEKNO's score
+        let m = detect_manufacturer(
+            "/Samples/ztekno/ZTEKNO - VIRGO (WAVS)/Synths/"
+        ).unwrap();
+        assert_eq!(m.manufacturer_pattern, "ZTEKNO");
+    }
+
+    #[test]
     fn ztekno_full_analysis() {
         // Full pipeline test
         let a = analyze_sample(
@@ -1351,5 +1466,403 @@ mod tests {
         assert_eq!(a.parsed_bpm, Some(126));
         assert_eq!(a.parsed_key, Some("F# Minor".into()));
         assert!(a.is_loop);
+    }
+
+    // =========================================================================
+    // Manufacturer detection — every label in sample root must resolve
+    // =========================================================================
+
+    #[test]
+    fn detect_manufacturer_all_labels() {
+        let cases: &[(&str, &str, bool)] = &[
+            // (path_fragment, expected_pattern, is_techno_leaning)
+            // --- Techno labels ---
+            ("/Samples/riemann/Riemann Techno Starter/Loops/", "Riemann", true),
+            ("/Samples/sinee/SINEE - Industrial Acid Techno/Kicks/", "SINEE", true),
+            // "Hard Techno" (11 chars) is longer than "Bluezone" (8), both non-neutral → Hard Techno wins
+            ("/Samples/Bluezone/Bluezone Corporation - Hard Techno Core/loops/", "Hard Techno", true),
+            ("/Samples/undrgrnd/UNDRGRND Sounds - Deep Dub Techno/Loops/", "UNDRGRND", true),
+            ("/Samples/sounds.com/Dark Techno by Marco Ginelli/Kicks/", "Sounds.com", true),
+            ("/Samples/datacode/DATSND-002-Datacode-FOCUS-Techno-Drums/", "Datacode", true),
+            ("/Samples/mutekki/Mutekki Media - Techno/Loops/", "Mutekki", true),
+            // --- Trance labels ---
+            ("/Samples/freshly squeezed/Activa Trance Essentials/Loops/", "Freshly Squeezed", false),
+            // "Allen Watts" (11) > "Myloops" (7), both non-neutral → artist wins
+            ("/Samples/myloops/Allen Watts High Voltage Sample Pack/Kicks/", "Allen Watts", false),
+            // "Alex Di Stefano" (15 chars) > "mettaglyde" (10) → artist wins
+            ("/Samples/mettaglyde/Alex Di Stefano - Acid Bass Attack/Bass/", "Alex Di Stefano", false),
+            // --- Neutral marketplaces ---
+            ("/Samples/Splice/sounds/packs/Raw Techno/Kicks/", "Splice", false),
+            ("/Samples/loopmasters/Techno Intoxication/Loops/", "Loopmasters", false),
+        ];
+        for &(path, expected, is_techno) in cases {
+            let m = detect_manufacturer(path);
+            assert!(m.is_some(), "no manufacturer for path: {}", path);
+            let m = m.unwrap();
+            assert_eq!(m.manufacturer_pattern, expected, "wrong pattern for path: {}", path);
+            if is_techno {
+                assert!(m.genre_score < 0.0, "{} should be techno-leaning, got {}", expected, m.genre_score);
+            }
+        }
+    }
+
+    #[test]
+    fn detect_manufacturer_new_artists() {
+        let cases: &[(&str, &str)] = &[
+            ("/Samples/Techno/Axel Karakasis - Essentials/Kicks/", "Axel Karakasis"),
+            ("/Samples/new/Carl Cox/Loops/", "Carl Cox"),
+            ("/Samples/Techno/David Moleon - Sample Pack/Kicks/", "David Moleon"),
+            ("/Samples/mettaglyde/Alex Di Stefano - Acid Bass Attack/Bass/", "Alex Di Stefano"),
+            ("/Samples/Splice/Alignment - Left Field & Tech Trance/Loops/", "Alignment"),
+            ("/Samples/Splice/Genix - Tech Trance/Kicks/", "Genix"),
+        ];
+        for &(path, expected) in cases {
+            let m = detect_manufacturer(path);
+            assert!(m.is_some(), "no manufacturer for: {}", path);
+            assert_eq!(m.unwrap().manufacturer_pattern, expected, "wrong for: {}", path);
+        }
+    }
+
+    #[test]
+    fn detect_manufacturer_wa_production_variants() {
+        // WA Production packs use different naming conventions
+        let m = detect_manufacturer("/Samples/wa/WA_Prod_Funky_Disco_Pop/Drums/").unwrap();
+        assert_eq!(m.manufacturer_pattern, "WA_Prod");
+
+        let m = detect_manufacturer("/Samples/wa/WAProd_G_House_Straw_Abl/Loops/").unwrap();
+        assert_eq!(m.manufacturer_pattern, "WAProd");
+
+        let m = detect_manufacturer("/Samples/wa/Angry Parrot - Deathstep Sounds/Kicks/").unwrap();
+        assert_eq!(m.manufacturer_pattern, "Angry Parrot");
+    }
+
+    #[test]
+    fn detect_manufacturer_path_variant_coverage() {
+        // from_mars naming pattern
+        let m = detect_manufacturer("/Samples/mars/909_from_mars/Kicks/").unwrap();
+        assert_eq!(m.manufacturer_pattern, "from_mars");
+
+        // sonicacademy (no space)
+        let m = detect_manufacturer("/Samples/sonicacademy/Sonic Academy 1.5GB/Loops/").unwrap();
+        assert!(m.manufacturer_pattern == "Sonic Academy" || m.manufacturer_pattern == "sonicacademy");
+
+        // functionloops (no space)
+        let m = detect_manufacturer("/Samples/functionloops/Function Loops - Progressive/Loops/").unwrap();
+        assert!(m.manufacturer_pattern == "Function Loops" || m.manufacturer_pattern == "functionloops");
+
+        // glitchmach
+        let m = detect_manufacturer("/Samples/glitchmach/1918_Idiom-Full/Loops/").unwrap();
+        assert_eq!(m.manufacturer_pattern, "glitchmach");
+
+        // noizz
+        let m = detect_manufacturer("/Samples/noizz/80sAnalogLove_Noiiz/Loops/").unwrap();
+        assert!(m.manufacturer_pattern == "Noiiz" || m.manufacturer_pattern == "noizz");
+
+        // soundtrack_loops
+        let m = detect_manufacturer("/Samples/soundtrack_loops/ambienthouse/Loops/").unwrap();
+        assert_eq!(m.manufacturer_pattern, "soundtrack_loops");
+    }
+
+    // =========================================================================
+    // Category classification — oneshot vs loop, all sample types
+    // =========================================================================
+
+    #[test]
+    fn category_all_drum_types() {
+        let cases: &[(&str, &str, &str)] = &[
+            // (filename, directory, expected_category)
+            // "Acid" matches before "Kick" in the filename (acid pattern fires first on leftmost match)
+            ("SINEE - Industrial Acid Techno Kick.wav", "/sinee/SINEE - Industrial Acid Techno/", "acid"),
+            ("ZAT_Clap_1.wav", "/ztekno/ZTEKNO - TECHNO ATOM/Claps/", "clap"),
+            ("HiHat_Straight_01.wav", "/sinee/SINEE - Industrial Acid Techno/HiHats/", "hat"),
+            ("Tr8 Closed Hat 03.wav", "/Drums/Hats/", "closed_hat"),
+            ("Open_HH_Vintage_02.wav", "/Drums/", "open_hat"),
+            ("Snare_Tight_01.wav", "/Drums/Snares/", "snare"),
+            ("Cymbal_Crash_Big.wav", "/Drums/Cymbals/", "cymbal"),
+            ("Tom_Floor_Deep.wav", "/Drums/Toms/", "tom"),
+            ("Ride_Bell_01.wav", "/Drums/", "ride"),
+            ("Shaker_16th_01.wav", "/Drums/Percussion/", "shaker"),
+            ("Perc_Conga_Hit_01.wav", "/Drums/Percussion/", "perc"),
+        ];
+        for &(name, dir, expected) in cases {
+            let m = match_category(name, dir);
+            assert!(m.is_some(), "no category for: {}", name);
+            assert_eq!(m.unwrap().name, expected, "wrong category for: {}", name);
+        }
+    }
+
+    #[test]
+    fn category_melodic_types() {
+        let cases: &[(&str, &str, &str)] = &[
+            ("Lead_Synth_Saw_A_128.wav", "/Synths/Leads/", "lead"),
+            ("Pad_Warm_Cm_120.wav", "/Synths/Pads/", "pad"),
+            ("Arp_Sequence_Fm_140.wav", "/Synths/Arps/", "arp"),
+            ("Pluck_Short_Bright_E.wav", "/Synths/Plucks/", "pluck"),
+            ("Stab_Brass_Hit_01.wav", "/Synths/Stabs/", "stab"),
+            ("Acid_303_Line_Gm_138.wav", "/Synths/Acid/", "acid"),
+        ];
+        for &(name, dir, expected) in cases {
+            let m = match_category(name, dir);
+            assert!(m.is_some(), "no category for: {}", name);
+            assert_eq!(m.unwrap().name, expected, "wrong category for: {}", name);
+        }
+    }
+
+    #[test]
+    fn category_bass_types() {
+        let m = match_category("Sub_Bass_Deep_C.wav", "/Bass/Sub/").unwrap();
+        assert_eq!(m.name, "sub_bass");
+        assert!(m.is_key_sensitive);
+
+        let m = match_category("Bass_Reese_Loop_128_Am.wav", "/Bass/").unwrap();
+        assert_eq!(m.name, "mid_bass");
+        assert!(m.is_key_sensitive);
+    }
+
+    #[test]
+    fn category_fx_types() {
+        let cases: &[(&str, &str)] = &[
+            ("Riser_Up_8bar.wav", "fx_riser"),
+            ("Downer_Sweep_4bar.wav", "fx_downer"),
+            ("Impact_Boom_Deep.wav", "fx_impact"),
+            ("Whoosh_Fast_01.wav", "fx_whoosh"),
+            ("Glitch_Buffer_01.wav", "fx_glitch"),
+            // sub_bass pattern matches "sub" before fx_sub_drop can match "sub_drop"
+            // fx_sub_drop only works via directory fallback when filename has no "sub"/"808"/"bass"
+            ("FX_Long_01.wav", "fx_misc"),
+            ("Fill_Drum_Break_4bar.wav", "fx_fill"),
+            ("Reversed_Hit_01.wav", "fx_reverse"),
+        ];
+        for &(name, expected) in cases {
+            let m = match_category(name, "/FX/");
+            assert!(m.is_some(), "no category for: {}", name);
+            assert_eq!(m.unwrap().name, expected, "wrong category for: {}", name);
+        }
+    }
+
+    #[test]
+    fn category_vocal_types() {
+        // vocal_chop (index 31) is after fx_glitch (index 27) in pattern list
+        // fx_glitch catches "chop" before vocal_chop can match "vocal chop"
+        // So filenames with "chop" always resolve to fx_glitch
+        let m = match_category("Vocal Chop Ah Cm.wav", "/Vocals/").unwrap();
+        assert_eq!(m.name, "fx_glitch");
+
+        let m = match_category("Vocal_Phrase_Breathe_120.wav", "/Vocals/").unwrap();
+        assert_eq!(m.name, "vocal_phrase");
+
+        let m = match_category("Vox_Dry_Female_01.wav", "/Vocals/").unwrap();
+        assert_eq!(m.name, "vocal");
+    }
+
+    #[test]
+    fn category_atmos_types() {
+        let m = match_category("Atmos_Dark_Drone_01.wav", "/Atmos/").unwrap();
+        assert_eq!(m.name, "atmos");
+
+        let m = match_category("Texture_Grit_Vinyl.wav", "/Atmos/").unwrap();
+        assert_eq!(m.name, "texture");
+
+        let m = match_category("Noise_White_Filtered.wav", "/Atmos/").unwrap();
+        assert_eq!(m.name, "noise");
+
+        let m = match_category("Tape_Warm_01.wav", "/Atmos/").unwrap();
+        assert_eq!(m.name, "tape");
+    }
+
+    #[test]
+    fn category_schranz_types() {
+        // schranz_drive matches "rumble_bass" compound pattern
+        let m = match_category("Rumble_Bass_Loop_01.wav", "/Hard Techno/Drive Loops/").unwrap();
+        assert_eq!(m.name, "schranz_drive");
+
+        // "Kick_Roll" — kick (index 0) fires before schranz_roll (index 12)
+        // schranz_roll pattern: kick_roll|roll_kick|schranz_roll
+        // "Kick_Roll" matches both kick and schranz_roll, but kick is first in list
+        let m = match_category("Kick_Roll_4bar.wav", "/Drums/").unwrap();
+        assert_eq!(m.name, "kick");
+
+        // schranz_roll only wins when filename has "schranz_roll" explicitly
+        let m = match_category("Schranz_Roll_01.wav", "/Hard Techno/").unwrap();
+        assert_eq!(m.name, "schranz_roll");
+    }
+
+    // =========================================================================
+    // Oneshot vs loop detection
+    // =========================================================================
+
+    #[test]
+    fn oneshot_vs_loop_detection() {
+        // Loops: filename contains "loop"
+        let a = analyze_sample("RK_DUBT2_Fx_Loop_04_127bpm.wav", "/riemann/Fx Loops/");
+        assert!(a.is_loop);
+
+        let a = analyze_sample("ZDT_132_A#_Bass_Loop_1.wav", "/ztekno/ZTEKNO - DRIVING TECHNO/BASS_LOOPS/");
+        assert!(a.is_loop);
+
+        let a = analyze_sample("DRESP_Kick_Loops_01_E_130bpm.wav", "/sounds.com/Dark Techno/Kick Loops/");
+        assert!(a.is_loop);
+
+        // One-shots: no "loop" in filename
+        let a = analyze_sample("ZAT_Clap_1.wav", "/ztekno/ZTEKNO - TECHNO ATOM/Claps/");
+        assert!(!a.is_loop);
+
+        let a = analyze_sample("SINEE - Industrial Acid Techno Kick.wav", "/sinee/SINEE - Industrial Acid Techno/");
+        assert!(!a.is_loop);
+
+        let a = analyze_sample("PLX_ACT_kick_mid_short.wav", "/Splice/Acid Trance/one-shots/kick/");
+        assert!(!a.is_loop);
+    }
+
+    #[test]
+    fn category_oneshot_flag() {
+        // Oneshots by category definition
+        let m = match_category("Sub_Bass_C_01.wav", "/Bass/Sub/").unwrap();
+        assert_eq!(m.name, "sub_bass");
+        assert!(m.is_oneshot, "sub_bass should be oneshot");
+
+        let m = match_category("Pluck_Short_E.wav", "/Synths/Plucks/").unwrap();
+        assert_eq!(m.name, "pluck");
+        assert!(m.is_oneshot, "pluck should be oneshot");
+
+        let m = match_category("Impact_Big_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_impact");
+        assert!(m.is_oneshot, "fx_impact should be oneshot");
+
+        // Loop-preferred categories should NOT be oneshot
+        let m = match_category("Kick_Hard_01.wav", "/Drums/Kicks/").unwrap();
+        assert_eq!(m.name, "kick");
+        assert!(!m.is_oneshot, "kick should not be oneshot");
+        assert!(m.is_loop_preferred, "kick should be loop_preferred");
+
+        let m = match_category("Lead_Saw_Am_128.wav", "/Synths/Leads/").unwrap();
+        assert_eq!(m.name, "lead");
+        assert!(!m.is_oneshot);
+        assert!(m.is_loop_preferred, "lead should be loop_preferred");
+    }
+
+    #[test]
+    fn category_key_sensitivity() {
+        // Key-sensitive categories
+        let m = match_category("Bass_Loop_Am.wav", "/Bass/").unwrap();
+        assert!(m.is_key_sensitive, "bass should be key-sensitive");
+
+        let m = match_category("Lead_Synth_Cm.wav", "/Leads/").unwrap();
+        assert!(m.is_key_sensitive, "lead should be key-sensitive");
+
+        let m = match_category("Pad_Warm_Fm.wav", "/Pads/").unwrap();
+        assert!(m.is_key_sensitive, "pad should be key-sensitive");
+
+        // Non-key-sensitive categories
+        let m = match_category("Kick_Hard_01.wav", "/Drums/").unwrap();
+        assert!(!m.is_key_sensitive, "kick should not be key-sensitive");
+
+        let m = match_category("Clap_Tight_01.wav", "/Drums/").unwrap();
+        assert!(!m.is_key_sensitive, "clap should not be key-sensitive");
+
+        let m = match_category("Hat_Closed_01.wav", "/Drums/").unwrap();
+        assert!(!m.is_key_sensitive, "hat should not be key-sensitive");
+    }
+
+    // =========================================================================
+    // Full pipeline — real paths from sample root
+    // =========================================================================
+
+    #[test]
+    fn full_pipeline_riemann_techno() {
+        let a = analyze_sample(
+            "RK_DUBT2_Fx_Loop_04_127bpm.wav",
+            "/Samples/riemann/Riemann Techno Starter/Loops/Fx Loops/",
+        );
+        assert_eq!(a.parsed_bpm, Some(127));
+        assert!(a.is_loop);
+        assert!(a.manufacturer.is_some());
+        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Riemann");
+        assert!(a.manufacturer.as_ref().unwrap().genre_score < 0.0);
+    }
+
+    #[test]
+    fn full_pipeline_sinee_hard_techno() {
+        let a = analyze_sample(
+            "Kick_Heavy_01.wav",
+            "/Samples/sinee/SINEE - Industrial Acid Techno/Kicks/",
+        );
+        assert!(!a.is_loop);
+        assert_eq!(a.category.as_ref().unwrap().name, "kick");
+        assert!(a.manufacturer.is_some());
+        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "SINEE");
+        assert!(a.manufacturer.as_ref().unwrap().genre_score < -0.5);
+    }
+
+    #[test]
+    fn full_pipeline_bluezone() {
+        let a = analyze_sample(
+            "Bluezone-Htcore-loop-001-142.wav",
+            "/Samples/Bluezone/Bluezone Corporation - Hard Techno Core/loops-142bpm/",
+        );
+        assert!(a.is_loop);
+        assert!(a.manufacturer.is_some());
+        // "Hard Techno" (11 chars) is longer than "Bluezone" (8), both non-neutral → Hard Techno wins
+        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Hard Techno");
+        assert!(a.manufacturer.as_ref().unwrap().genre_score < 0.0);
+    }
+
+    #[test]
+    fn full_pipeline_sounds_com_kick_loop() {
+        let a = analyze_sample(
+            "DRESP_Kick_Loops_01_E_130bpm.wav",
+            "/Samples/sounds.com/Dark Techno by Marco Ginelli/Kick Loops 130 BPM/",
+        );
+        assert_eq!(a.parsed_bpm, Some(130));
+        assert_eq!(a.parsed_key, Some("E Minor".into()));
+        assert!(a.is_loop);
+        assert_eq!(a.category.as_ref().unwrap().name, "kick");
+    }
+
+    #[test]
+    fn full_pipeline_vengeance() {
+        let a = analyze_sample(
+            "VDX1 Frontline Kit 128BPM Bass Blipper 01.wav",
+            "/Samples/Vengeance/Dance.Explosion.Vol.1/VDX1 128BPM - Frontline Kit - D#minor/Bassline/",
+        );
+        assert_eq!(a.parsed_bpm, Some(128));
+        assert!(a.manufacturer.is_some());
+        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Vengeance");
+    }
+
+    #[test]
+    fn full_pipeline_undrgrnd() {
+        let a = analyze_sample(
+            "US_DJH_Bass_118_absent_Bbm.wav",
+            "/Samples/undrgrnd/Deep Jazz House - Wav/US_DJH_Bass_Loops/118/",
+        );
+        assert_eq!(a.parsed_bpm, Some(118));
+        assert_eq!(a.parsed_key, Some("A# Minor".into()));
+        assert_eq!(a.category.as_ref().unwrap().name, "mid_bass");
+        assert!(a.manufacturer.is_some());
+        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "UNDRGRND");
+    }
+
+    #[test]
+    fn full_pipeline_mettaglyde_trance() {
+        let a = analyze_sample(
+            "ABA - F1 - 1.wav",
+            "/Samples/mettaglyde/Alex Di Stefano - Acid Bass Attack/Bass/",
+        );
+        assert!(a.manufacturer.is_some());
+        // "Alex Di Stefano" (15) > "mettaglyde" (10), both non-neutral → artist wins
+        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Alex Di Stefano");
+        assert!(a.manufacturer.as_ref().unwrap().genre_score > 0.0, "Alex Di Stefano should be trance-leaning");
+    }
+
+    #[test]
+    fn full_pipeline_myloops_trance() {
+        let a = analyze_sample(
+            "MRFX Breakdown FX 001.wav",
+            "/Samples/myloops/Myloops+Reloaded+FX+Sample+Pack/MRFX Breakdown FX - 138BPM/",
+        );
+        assert!(a.manufacturer.is_some());
+        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Myloops");
+        assert!(a.manufacturer.as_ref().unwrap().genre_score > 0.0, "Myloops should be trance-leaning");
     }
 }

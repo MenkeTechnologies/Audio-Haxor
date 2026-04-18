@@ -3782,6 +3782,11 @@ async fn crate_category_counts() -> Result<Vec<db::CrateCategoryCount>, String> 
 }
 
 #[tauri::command]
+async fn genre_rules_report() -> Result<db::GenreRulesReport, String> {
+    blocking_res(|| db::global().genre_rules_report()).await
+}
+
+#[tauri::command]
 async fn crate_facets() -> Result<db::CrateFacets, String> {
     blocking_res(|| db::global().crate_facets()).await
 }
@@ -9428,6 +9433,7 @@ pub fn run() {
             als_query_samples,
             crate_category_counts,
             crate_facets,
+            genre_rules_report,
             crate_query,
             crate_favorite_pack_toggle,
             crate_favorite_packs_list,
