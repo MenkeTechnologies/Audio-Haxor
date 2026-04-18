@@ -1,5 +1,16 @@
 // ── Audio Engine tab: separate `audio-engine` process (JUCE devices + playback; VST3/AU scan; insert chain + native editor windows) ──
 
+/** Force CSS columns rebalance on the audio engine masonry grid. */
+function aeReflow() {
+    const c = document.querySelector('#tabAudioEngine .ae-main-stack');
+    if (!c) return;
+    requestAnimationFrame(() => {
+        c.style.columnCount = '1';
+        void c.offsetHeight;
+        c.style.columnCount = '';
+    });
+}
+
 const AE_PREFS_DEVICE = 'audioEngineOutputDeviceId';
 const AE_PREFS_INPUT_DEVICE = 'audioEngineInputDeviceId';
 const AE_PREFS_DEVICE_TYPE = 'audioEngineJuceDeviceType';
@@ -1129,6 +1140,7 @@ function aeAddInsertRow(container, initialPath) {
     container.appendChild(row);
     aeInsertPickers.push(picker);
     if (initialPath) picker.setValue(initialPath);
+    aeReflow();
 }
 
 function aeRemoveInsertRow(idx) {
@@ -1145,6 +1157,7 @@ function aeRemoveInsertRow(idx) {
         const num = container.children[i].querySelector('.ae-slot-num');
         if (num) num.textContent = String(i + 1);
     }
+    aeReflow();
 }
 
 function aePluginEntriesFromChain(chain) {
@@ -1231,6 +1244,7 @@ function aePopulateInsertSlotSelects(chain) {
     }
     if (!Array.isArray(pick)) pick = [];
     aeRebuildInsertChainUI(pick);
+    aeReflow();
 }
 
 /**
@@ -2253,6 +2267,7 @@ async function refreshAudioEnginePanel() {
         fillAeEngineStatusFromError(statusEl, e);
     } finally {
         void refreshAeProcessStats();
+        aeReflow();
     }
 }
 
