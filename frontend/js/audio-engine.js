@@ -6,8 +6,9 @@ function aeReflow() {
     if (!c) return;
     requestAnimationFrame(() => {
         c.style.columnCount = '1';
-        void c.offsetHeight;
-        c.style.columnCount = '';
+        requestAnimationFrame(() => {
+            c.style.columnCount = '';
+        });
     });
 }
 

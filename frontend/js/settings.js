@@ -7,11 +7,13 @@
 function settingsReflow() {
     const c = document.querySelector('#tabSettings .settings-container');
     if (!c) return;
+    // Double-rAF: browser must commit the columnCount:1 frame before
+    // we clear it, otherwise both writes batch into a no-op.
     requestAnimationFrame(() => {
-        const cols = getComputedStyle(c).columnCount;
         c.style.columnCount = '1';
-        void c.offsetHeight;
-        c.style.columnCount = '';
+        requestAnimationFrame(() => {
+            c.style.columnCount = '';
+        });
     });
 }
 
