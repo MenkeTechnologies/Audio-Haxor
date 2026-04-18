@@ -352,6 +352,7 @@ pub static CATEGORY_PATTERNS: &[(&str, &str, Option<&str>, bool, bool, bool)] = 
     ("ride",        r"(?i)(?:^|[\s_\-./])rides?(?:[\s_\-./]|$)", Some("drums"), false, false, true),
     ("shaker",      r"(?i)(?:^|[\s_\-./])(?:shakers?|maracas?|tambourines?|tamb)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
     ("perc",        r"(?i)(?:^|[\s_\-./])(?:percs?|congas?|bongos?|rim|woodblock|cowbell)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
+    ("drum_loop",   r"(?i)(?:^|[\s_\-./])(?:drum[\s_]*loops?|full[\s_]*(?:drum|beat)[\s_]*loops?|top[\s_]*loops?|drum[\s_]*(?:tops?|beats?))(?:[\s_\-./]|$)", Some("drums"), false, false, true),
 
     // === SCHRANZ-SPECIFIC ===
     ("schranz_kick",  r"(?i)schranz.*kick|kick.*schranz|hard[\s_]*techno.*kick", Some("drums"), false, false, true),
@@ -359,12 +360,15 @@ pub static CATEGORY_PATTERNS: &[(&str, &str, Option<&str>, bool, bool, bool)] = 
     ("schranz_roll",  r"(?i)kick[\s_]*roll|roll[\s_]*kick|schranz[\s_]*roll", Some("drums"), false, false, true),
 
     // === BASS ===
+    ("acid_bass",   r"(?i)acid[\s_]*bass|303[\s_]*bass|303[\s_]*line|tb[\s_\-]*303|acid[\s_]*line", Some("bass"), false, true, true),
     ("sub_bass",    r"(?i)(?:^|[\s_\-./])(?:sub|808)(?:[\s_\-./]|$)|bass[\s_]*sub|low[\s_]*end", Some("bass"), true, true, false),
     ("mid_bass",    r"(?i)(?:^|[\s_\-./])(?:bass|reese|hoover|wobble)(?:[\s_\-./]|$)", Some("bass"), false, true, true),
 
     // === MELODIC ===
+    ("supersaw",    r"(?i)(?:^|[\s_\-./])(?:supersaws?|super[\s_]*saws?|unison[\s_]*saw|trance[\s_]*lead|anthem)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
     ("lead",        r"(?i)(?:^|[\s_\-./])(?:leads?|riffs?)(?:[\s_\-./]|$)|(?:^|[\s_\-])ld[_\-]|synth[\s_]*lead", Some("melodic"), false, true, true),
     ("pad",         r"(?i)(?:^|[\s_\-./])(?:pads?|strings?|chords?|evolve)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
+    ("keys",        r"(?i)(?:^|[\s_\-./])(?:keys|piano|rhodes|wurlitzer|organ|electric[\s_]*piano|epiano|e[\s_]*piano|clav(?:inet)?)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
     ("arp",         r"(?i)(?:^|[\s_\-./])(?:arps?|sequences?)(?:[\s_\-./]|$)|(?:^|[\s_\-])seq[_\-]", Some("melodic"), false, true, true),
     ("pluck",       r"(?i)(?:^|[\s_\-./])(?:plucks?|pizz|picked|marimba)(?:[\s_\-./]|$)", Some("melodic"), true, true, false),
     ("stab",        r"(?i)(?:^|[\s_\-./])(?:stabs?|brass)(?:[\s_\-./]|$)", Some("melodic"), true, true, false),
@@ -394,6 +398,10 @@ pub static CATEGORY_PATTERNS: &[(&str, &str, Option<&str>, bool, bool, bool)] = 
     ("fx_whoosh",   r"(?i)(?:^|[\s_\-./])(?:whoosh|swish|swoosh)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
     ("fx_laser",    r"(?i)(?:^|[\s_\-./])(?:laser|zap|beam|blaster)(?:[\s_\-./]|$)|sci-?fi", Some("fx"), true, false, false),
     ("fx_reverse",  r"(?i)(?:^|[\s_\-./])(?:reverse|reversed|backwards)(?:[\s_\-./]|$)|(?:^|[\s_\-])rev[_\-]", Some("fx"), true, false, false),
+
+    // === FX — Sweep / Gate ===
+    ("fx_sweep",    r"(?i)(?:^|[\s_\-./])(?:sweeps?|filter[\s_]*sweep|freq[\s_]*sweep)(?:[\s_\-./]|$)", Some("fx"), false, false, false),
+    ("fx_gate",     r"(?i)(?:^|[\s_\-./])(?:gates?|gated|trance[\s_]*gates?|side[\s_]*chain)(?:[\s_\-./]|$)", Some("fx"), false, false, true),
 
     // === FX — Misc ===
     ("fx_sub_drop", r"(?i)sub[\s_]*drop|808[\s_]*drop|bass[\s_]*drop", Some("fx"), true, false, false),
@@ -764,6 +772,146 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("Niche Audio",      -0.4,  0.2),
     ("Sample Diggers",   -0.4,  0.2),
     ("Raw Cutz",         -0.4,  0.3),
+
+    // === HARD TECHNO / INDUSTRIAL ARTISTS ===
+    ("Thomas Schumacher",-0.9,  0.75),
+    ("Torsten Kanzler",  -1.0,  0.95),
+    ("Dax J",            -0.9,  0.9),
+    ("I Hate Models",    -0.9,  0.9),
+    ("Nico Moreno",      -1.0,  0.95),
+    ("KRTM",             -1.0,  1.0),
+    ("Rebekah",          -0.9,  0.9),
+    ("Paula Temple",     -0.9,  0.9),
+    ("Surgeon",          -0.9,  0.85),
+    ("Oscar Mulero",     -0.9,  0.85),
+    ("Ancient Methods",  -0.9,  0.9),
+    ("Ansome",           -0.9,  0.9),
+    ("VTSS",             -0.9,  0.85),
+    ("Hadone",           -1.0,  0.95),
+    ("Kobosil",          -0.9,  0.9),
+    ("SNTS",             -0.9,  0.9),
+    ("AnD",              -0.9,  0.9),
+    ("BLAWAN",           -0.9,  0.85),
+    ("Phase Fatale",     -0.9,  0.85),
+    ("Headless Horseman",-0.9,  0.85),
+    ("Charlie Sparks",   -1.0,  0.95),
+    ("Airod",            -1.0,  0.95),
+    ("Remco Beekwilder", -0.9,  0.9),
+    ("Parallx",          -0.9,  0.9),
+    ("Scalameriya",      -0.9,  0.9),
+    ("Lewis Fautzi",     -0.9,  0.8),
+    ("Setaoc Mass",      -0.9,  0.85),
+    ("Kwartz",           -0.9,  0.9),
+    ("Regal",            -0.9,  0.85),
+    ("Luigi Madonna",    -0.8,  0.75),
+    ("Dustin Zahn",      -0.9,  0.85),
+    ("Pappenheimer",     -0.9,  0.85),
+    ("999999999",        -1.0,  0.95),
+    ("Manu Le Malin",    -1.0,  0.95),
+    ("Distortion Code",  -1.0,  0.95),
+
+    // === HARD TECHNO / INDUSTRIAL LABELS ===
+    ("Electric Ballroom",-0.9,  0.8),
+    ("Sleaze Records",   -0.9,  0.8),
+    ("Suara",            -0.8,  0.7),
+    ("Monnom Black",     -0.9,  0.85),
+    ("HATE",             -1.0,  1.0),
+    ("Involve Records",  -0.9,  0.85),
+    ("Enemy Records",    -0.9,  0.85),
+    ("Noise Manifesto",  -0.9,  0.9),
+    ("TOKEN",            -0.9,  0.8),
+    ("Pole Group",       -0.9,  0.8),
+    ("Set About",        -0.9,  0.8),
+    ("Kraftek",          -0.8,  0.75),
+    ("HEX Recordings",   -0.9,  0.85),
+    ("Voitax",           -0.9,  0.85),
+    ("Construct Reform", -0.9,  0.85),
+
+    // === HARD TECHNO SAMPLE PACK LABELS ===
+    ("Engineering Samples",-0.8, 0.85),
+    ("Dirty Music",      -0.8,  0.8),
+    ("Raw Loops",        -0.8,  0.85),
+    ("Hypnotic Room",    -0.8,  0.8),
+    ("Sample Genie",     -0.7,  0.7),
+    ("HY2ROGEN",         -0.8,  0.75),
+    ("BHK Samples",      -0.8,  0.8),
+    ("Alien Samples",    -0.8,  0.8),
+    ("Dark Arts",        -0.9,  0.85),
+    ("SampleTraxx",      -0.7,  0.8),
+
+    // === TRANCE RECORD LABELS ===
+    ("Coldharbour",       0.7,  0.3),
+    ("Mental Asylum",     0.9,  0.7),
+    ("Pharmacy Music",    0.7,  0.5),
+    ("Blue Soho",         0.8,  0.3),
+    ("Digital Society",   0.9,  0.4),
+    ("AVA Recordings",    0.7,  0.3),
+    ("Always Alive",      0.9,  0.3),
+    ("Abora",             0.9,  0.2),
+    ("Enhanced",          0.7,  0.2),
+    ("Perfecto",          0.7,  0.3),
+    ("Platipus",          0.7,  0.3),
+    ("Bonzai",            0.7,  0.3),
+    ("Discover Records",  0.8,  0.4),
+    ("Magik Muzik",       0.8,  0.3),
+    ("In Trance We Trust",0.9,  0.4),
+    ("Magic Island",      0.7,  0.1),
+    ("Dreamstate",        0.8,  0.4),
+    ("Elliptical Sun",    0.6,  0.1),
+
+    // === TRANCE SAMPLE PACK LABELS ===
+    ("Lucid Samples",     0.6,  0.3),
+    ("lucidsamples",      0.6,  0.3),
+    ("Dance Midi Samples",0.5,  0.3),
+    ("DanceMidiSamples",  0.5,  0.3),
+    ("Allan Morrow",      0.9,  0.5),
+    ("Elevated Trance",   0.9,  0.4),
+    ("ProducerBox",       0.5,  0.2),
+    ("producerbox",       0.5,  0.2),
+
+    // === TRANCE ARTISTS ===
+    ("Greg Downey",       0.8,  0.5),
+    ("Darren Porter",     0.9,  0.4),
+    ("Protoculture",      0.7,  0.4),
+    ("Project 8",         0.8,  0.5),
+    ("Aly & Fila",        0.9,  0.4),
+    ("Aly and Fila",      0.9,  0.4),
+    ("Armin van Buuren",  0.8,  0.2),
+    ("Paul van Dyk",      0.9,  0.3),
+    ("Ferry Corsten",     0.8,  0.3),
+    ("Cosmic Gate",       0.8,  0.4),
+    ("Gareth Emery",      0.7,  0.2),
+    ("Markus Schulz",     0.7,  0.3),
+    ("Giuseppe Ottaviani",0.9,  0.4),
+    ("Roger Shah",        0.8,  0.1),
+    ("Solarstone",        0.8,  0.2),
+    ("Kai Tracid",        0.8,  0.8),
+    ("Scot Project",      0.8,  0.8),
+    ("Cold Blue",         0.9,  0.4),
+    ("Craig Connelly",    0.8,  0.3),
+    ("Stoneface & Terminal",0.8, 0.4),
+    ("Stoneface Terminal",0.8,  0.4),
+    ("Dan Stone",         0.8,  0.3),
+    ("Robert Nickson",    0.8,  0.2),
+    ("Jordan Suckley",    0.8,  0.6),
+    ("Indecent Noise",    0.8,  0.7),
+    ("Mark Sherry",       0.8,  0.6),
+    ("John O'Callaghan",  0.9,  0.5),
+    ("Standerwick",       0.8,  0.5),
+    ("Ilan Bluestone",    0.8,  0.2),
+    ("MaRLo",             0.8,  0.5),
+    ("Andrew Rayel",      0.8,  0.3),
+    ("Alessandra Roncone",0.9,  0.4),
+    ("Astrix",            0.7,  0.5),
+    ("Infected Mushroom", 0.6,  0.5),
+    ("Vini Vici",         0.7,  0.6),
+    ("Ace Ventura",       0.7,  0.5),
+    ("Omnia",             0.8,  0.3),
+    ("Bjorn Akesson",     0.9,  0.4),
+    ("Jorn van Deynhoven",0.9,  0.5),
+    ("Ciaran McAuley",    0.9,  0.3),
+    ("Above & Beyond",    0.8,  0.1),
+    ("Above and Beyond",  0.8,  0.1),
 ];
 
 /// Result of manufacturer/pack detection from a directory path.
@@ -1692,7 +1840,7 @@ mod tests {
             ("Arp_Sequence_Fm_140.wav", "/Synths/Arps/", "arp"),
             ("Pluck_Short_Bright_E.wav", "/Synths/Plucks/", "pluck"),
             ("Stab_Brass_Hit_01.wav", "/Synths/Stabs/", "stab"),
-            ("Acid_303_Line_Gm_138.wav", "/Synths/Acid/", "acid"),
+            ("Acid_303_Line_Gm_138.wav", "/Synths/Acid/", "acid_bass"),
         ];
         for &(name, dir, expected) in cases {
             let m = match_category(name, dir);
@@ -1710,6 +1858,68 @@ mod tests {
         let m = match_category("Bass_Reese_Loop_128_Am.wav", "/Bass/").unwrap();
         assert_eq!(m.name, "mid_bass");
         assert!(m.is_key_sensitive);
+
+        // acid_bass: 303 lines and acid bass
+        let m = match_category("Acid_Bass_Loop_Am_138.wav", "/Bass/").unwrap();
+        assert_eq!(m.name, "acid_bass");
+        assert!(m.is_key_sensitive);
+
+        let m = match_category("TB_303_Line_Fm.wav", "/Bass/Acid/").unwrap();
+        assert_eq!(m.name, "acid_bass");
+    }
+
+    #[test]
+    fn category_new_melodic_types() {
+        // supersaw before lead
+        let m = match_category("Supersaw_Chord_Am_138.wav", "/Synths/").unwrap();
+        assert_eq!(m.name, "supersaw");
+        assert!(m.is_key_sensitive);
+
+        let m = match_category("Super_Saw_Layer_01.wav", "/Trance/Leads/").unwrap();
+        assert_eq!(m.name, "supersaw");
+
+        let m = match_category("Trance_Lead_Am_140.wav", "/Leads/").unwrap();
+        assert_eq!(m.name, "supersaw");
+
+        // keys
+        let m = match_category("Piano_Loop_Cm_128.wav", "/Melodic/").unwrap();
+        assert_eq!(m.name, "keys");
+        assert!(m.is_key_sensitive);
+
+        let m = match_category("Rhodes_Loop_Am.wav", "/Keys/").unwrap();
+        assert_eq!(m.name, "keys");
+
+        let m = match_category("Organ_Loop_01.wav", "/Melodic/").unwrap();
+        assert_eq!(m.name, "keys");
+    }
+
+    #[test]
+    fn category_drum_loop() {
+        let m = match_category("Full_Drum_Loop_128.wav", "/Drums/").unwrap();
+        assert_eq!(m.name, "drum_loop");
+
+        let m = match_category("Top_Loop_01.wav", "/Drums/Tops/").unwrap();
+        assert_eq!(m.name, "drum_loop");
+
+        let m = match_category("Drum_Beat_126.wav", "/Loops/").unwrap();
+        assert_eq!(m.name, "drum_loop");
+    }
+
+    #[test]
+    fn category_new_fx_types() {
+        // fx_sweep
+        let m = match_category("Sweep_FX_8bar.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_sweep");
+
+        let m = match_category("Filter_Sweep_01.wav", "/FX/Sweeps/").unwrap();
+        assert_eq!(m.name, "fx_sweep");
+
+        // fx_gate
+        let m = match_category("Trance_Gate_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_gate");
+
+        let m = match_category("Gated_Loop_8bar.wav", "/FX/Gates/").unwrap();
+        assert_eq!(m.name, "fx_gate");
     }
 
     #[test]
