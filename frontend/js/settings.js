@@ -1,5 +1,20 @@
 // ── Settings ──
 
+/** Force CSS columns rebalance on the settings container.
+ *  Dynamically-loaded panes (app info, caches, system info) change
+ *  content height after the initial layout — CSS columns won't
+ *  rebalance on their own. Toggling column-count triggers a reflow. */
+function settingsReflow() {
+    const c = document.querySelector('#tabSettings .settings-container');
+    if (!c) return;
+    requestAnimationFrame(() => {
+        const cols = getComputedStyle(c).columnCount;
+        c.style.columnCount = '1';
+        void c.offsetHeight;
+        c.style.columnCount = '';
+    });
+}
+
 function _uiTheme(isLight) {
     if (typeof appFmt !== 'function') return isLight ? 'Light' : 'Dark';
     return isLight ? appFmt('ui.js.theme_light') : appFmt('ui.js.theme_dark');
@@ -581,6 +596,7 @@ async function renderCacheStats() {
         const rows = Array.isArray(stats) ? stats : [];
         _lastDbCacheStatsRows = rows;
         grid.innerHTML = buildCacheStatsTableHtml(rows);
+        settingsReflow();
     } catch (e) {
         if (gen !== _cacheStatsFetchGen) return;
         const msg = catalogFmt('ui.settings.cache_load_failed', {err: e.message || String(e)});
@@ -2153,6 +2169,7 @@ function refreshSettingsUI() {
             const appPane = appInfo?.closest('.settings-section');
             if (sysPane) sysPane.style.display = '';
             if (appPane) appPane.style.display = '';
+            settingsReflow();
         }).catch((err) => {
             const c = navigator.hardwareConcurrency || '?';
             perfInfo.textContent = f('ui.perf.load_error', {cpus: String(c), err: String(err)});
@@ -2251,6 +2268,7 @@ function refreshSettingsUI() {
     }
 
     if (typeof renderFzfSettings === 'function') renderFzfSettings();
+    settingsReflow();
 }
 
 // Restore settings on load
