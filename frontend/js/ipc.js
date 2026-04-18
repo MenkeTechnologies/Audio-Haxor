@@ -778,6 +778,15 @@ document.addEventListener('click', (e) => {
             case 'showGenreRules':
                 if (typeof showGenreRulesDashboard === 'function') void showGenreRulesDashboard();
                 break;
+            case 'findDuplicates':
+                if (typeof showDuplicateReport === 'function') void showDuplicateReport();
+                break;
+            case 'showSmartPlaylistEditor':
+                if (typeof showSmartPlaylistEditor === 'function') showSmartPlaylistEditor(null);
+                break;
+            case 'showTerminal':
+                if (typeof showTerminal === 'function') showTerminal();
+                break;
             case 'scanPresets':
                 scanPresets();
                 break;

@@ -4594,6 +4594,154 @@
             max-width: 640px;
         }
 
+        /* Genre rules dashboard — all colors via classes, no inline styles.
+           Uses --border (not --border-color), hardcoded fallbacks for release WebKit. */
+        #genreRulesModal .modal-content {
+            max-width: 95vw !important;
+            width: 95vw !important;
+            max-height: 95vh !important;
+            height: 95vh !important;
+        }
+        #genreRulesModal .modal-body {
+            overflow-y: auto !important;
+            max-height: calc(90vh - 60px) !important;
+            padding: 12px !important;
+        }
+        .gr-stats {
+            margin-bottom: 14px;
+            text-align: center;
+        }
+        .gr-stat {
+            display: inline-block;
+            text-align: center;
+            padding: 8px 16px;
+            margin: 0 4px 8px 0;
+            border: 1px solid #2a2a3e;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.3);
+        }
+        .gr-stat-val {
+            font-size: 20px;
+            font-weight: 700;
+            color: #00e5ff;
+        }
+        .gr-stat-label {
+            display: block;
+            font-size: 10px;
+            color: #8888aa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .gr-legend {
+            margin-bottom: 14px;
+            font-size: 11px;
+            color: #8888aa;
+            text-align: center;
+        }
+        .gr-legend span {
+            display: inline;
+        }
+        .gr-columns {
+            overflow: hidden;
+        }
+        .gr-col-left {
+            float: left;
+            width: 58%;
+            padding-right: 8px;
+            box-sizing: border-box;
+        }
+        .gr-col-right {
+            float: left;
+            width: 42%;
+            box-sizing: border-box;
+        }
+        .gr-card {
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border: 1px solid #2a2a3e;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.25);
+        }
+        .gr-card-title {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #00e5ff;
+            border-bottom: 1px solid #2a2a3e;
+            padding-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .gr-table {
+            width: 100%;
+            font-size: 11px;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        /* Manufacturer table columns: label | genre | hard | samples | loops | shots | bar */
+        .gr-table .gc-label  { width: auto; }
+        .gr-table .gc-genre  { width: 50px; }
+        .gr-table .gc-hard   { width: 45px; }
+        .gr-table .gc-count  { width: 60px; }
+        .gr-table .gc-loops  { width: 50px; }
+        .gr-table .gc-shots  { width: 50px; }
+        .gr-table .gc-bar    { width: 25%; }
+        /* Category table columns: name | count | bar */
+        .gr-table .gc-cat    { width: auto; }
+        .gr-table .gc-catcnt { width: 70px; }
+        .gr-table .gc-catbar { width: 45%; }
+        .gr-table th {
+            text-align: left;
+            padding: 3px 4px;
+            font-weight: 500;
+            color: #8888aa;
+            border-bottom: 1px solid #2a2a3e;
+        }
+        .gr-table th.r { text-align: right; }
+        .gr-table td {
+            padding: 3px 4px;
+            color: #e0e0e0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .gr-table td.r { text-align: right; }
+        .gr-table td.dim { color: #8888aa; }
+        .gr-table td.label {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .gr-bar {
+            height: 12px;
+            min-height: 12px;
+            width: 0;
+            border-radius: 2px;
+        }
+        /* Genre score text colors */
+        .gr-g0 { color: #ff3860 !important; }
+        .gr-g1 { color: #ff6b8a !important; }
+        .gr-g2 { color: #ffdd57 !important; }
+        .gr-g3 { color: #6c7a89 !important; }
+        .gr-g4 { color: #88d8f7 !important; }
+        .gr-g5 { color: #00e5ff !important; }
+        .gr-g6 { color: #5dfc8a !important; }
+        /* Hardness text colors */
+        .gr-h0 { color: #6c7a89 !important; }
+        .gr-h1 { color: #88d8f7 !important; }
+        .gr-h2 { color: #ffdd57 !important; }
+        .gr-h3 { color: #ff9f43 !important; }
+        .gr-h4 { color: #ff3860 !important; }
+        /* Bar background colors */
+        .gr-bg0 { background-color: #ff3860 !important; }
+        .gr-bg1 { background-color: #ff6b8a !important; }
+        .gr-bg2 { background-color: #ffdd57 !important; }
+        .gr-bg3 { background-color: #6c7a89 !important; }
+        .gr-bg4 { background-color: #88d8f7 !important; }
+        .gr-bg5 { background-color: #00e5ff !important; }
+        .gr-bg6 { background-color: #5dfc8a !important; }
+        .gr-bold { font-weight: 600 !important; }
+
         /* Plugin xref */
         /* XML tree viewer */
         .xml-node {
@@ -4730,6 +4878,14 @@
         .smart-playlist-modal {
             max-width: 900px;
             max-height: 85vh;
+        }
+        .smart-playlist-modal .modal-header h2 {
+            font-family: 'Orbitron', 'Share Tech Mono', monospace;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--cyan);
+            text-shadow: 0 0 8px var(--cyan-glow);
         }
 
         .dep-stats {
@@ -8521,22 +8677,27 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            padding: 4px 8px;
+            padding: 5px 8px;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 2px;
             font-size: 11px;
+            font-family: 'Share Tech Mono', monospace;
             color: var(--text-muted);
-            transition: background 0.15s, color 0.15s;
+            border-left: 2px solid transparent;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
         }
 
         .sp-item:hover {
-            background: var(--bg-hover);
+            background: rgba(0, 229, 255, 0.06);
             color: var(--text-primary);
+            border-left-color: var(--cyan);
         }
 
         .sp-item.active {
-            background: var(--accent-bg, rgba(0, 255, 255, 0.1));
-            color: var(--accent, cyan);
+            background: rgba(0, 229, 255, 0.1);
+            color: var(--cyan);
+            border-left-color: var(--cyan);
+            text-shadow: 0 0 6px var(--cyan-glow);
         }
 
         .sp-item .sp-item-del {
@@ -8572,32 +8733,113 @@
 
         .sp-count {
             font-size: 9px;
-            background: var(--bg-hover);
-            padding: 1px 5px;
-            border-radius: 8px;
-            color: var(--text-dim);
+            font-family: 'Share Tech Mono', monospace;
+            background: rgba(0, 229, 255, 0.1);
+            padding: 1px 6px;
+            border-radius: 2px;
+            color: var(--cyan);
+            border: 1px solid rgba(0, 229, 255, 0.2);
         }
 
         .sp-rule-row {
             display: flex;
             gap: 6px;
             align-items: center;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
+            padding: 6px 8px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border);
+            border-left: 2px solid var(--cyan);
+            border-radius: 2px;
+        }
+        .sp-rule-row:hover {
+            border-left-color: var(--accent);
+            background: rgba(0, 229, 255, 0.04);
         }
 
         .sp-rule-type, .sp-rule-value {
             flex: 1;
-            padding: 4px 6px;
+            padding: 5px 8px;
             font-size: 11px;
-            background: var(--bg-input);
+            background: rgba(0, 0, 0, 0.35);
             color: var(--text-primary);
             border: 1px solid var(--border);
-            border-radius: 3px;
-            font-family: inherit;
+            border-radius: 2px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        .sp-rule-type:focus, .sp-rule-value:focus {
+            border-color: var(--cyan);
+            box-shadow: 0 0 6px var(--cyan-glow);
+            outline: none;
         }
 
         .sp-rule-value {
             flex: 1.5;
+        }
+
+        .sp-rules-list {
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.15);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .sp-preview {
+            font-family: 'Share Tech Mono', monospace;
+            letter-spacing: 0.5px;
+            color: var(--cyan) !important;
+        }
+
+        .smart-playlist-modal .sp-name-input {
+            font-family: 'Orbitron', 'Share Tech Mono', monospace;
+            font-size: 14px;
+            letter-spacing: 1px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 6px var(--cyan-glow);
+        }
+        .smart-playlist-modal .sp-name-input:focus {
+            box-shadow: 0 0 12px var(--cyan-glow), 0 0 24px rgba(0, 229, 255, 0.1);
+        }
+
+        .smart-playlist-modal .sp-match-mode {
+            font-family: 'Share Tech Mono', monospace;
+            background: rgba(0, 0, 0, 0.35);
+            border-color: var(--border);
+            color: var(--text-primary);
+        }
+
+        .smart-playlist-modal .sp-add-rule {
+            border: 1px dashed var(--cyan);
+            color: var(--cyan);
+            background: transparent;
+            font-family: 'Share Tech Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .smart-playlist-modal .sp-add-rule:hover {
+            background: rgba(0, 229, 255, 0.08);
+            box-shadow: 0 0 8px var(--cyan-glow);
+        }
+
+        .smart-playlist-modal .sp-save {
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .smart-playlist-modal .sp-rule-del {
+            border-color: var(--border);
+            color: var(--text-dim);
+        }
+        .smart-playlist-modal .sp-rule-del:hover {
+            color: #ff3860;
+            border-color: #ff3860;
+            box-shadow: 0 0 6px rgba(255, 56, 96, 0.3);
         }
 
         .np-search-input {
@@ -10917,6 +11159,19 @@
                         data-i18n-title="ui.tt.genre_rules_dashboard"
                         title="Genre classification rules (Cmd+Shift+G)">
                     &#127911; <span data-i18n="ui.btn.genre_rules">Genre Rules</span></button>
+                <button class="btn btn-secondary btn-compact" data-action="showDepGraph"
+                        data-i18n-title="ui.tt.show_plugin_dependency_graph_run_plugin_index_firs"
+                        title="Plugin dependency graph">
+                    &#128200; <span data-i18n="ui.btn.128200_dep_graph">Dep Graph</span></button>
+                <button class="btn btn-secondary btn-compact" data-action="findDuplicates"
+                        title="Find duplicate files">
+                    &#128269; <span data-i18n="ui.btn.find_duplicates">Duplicates</span></button>
+                <button class="btn btn-secondary btn-compact" data-action="showSmartPlaylistEditor"
+                        title="Smart playlist editor">
+                    &#127926; <span data-i18n="ui.btn.smart_playlists">Playlists</span></button>
+                <button class="btn btn-secondary btn-compact" data-action="showTerminal"
+                        title="Terminal">
+                    &#9002; <span data-i18n="ui.btn.terminal">Terminal</span></button>
             </div>
         </div>
     </div>
@@ -14382,41 +14637,41 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=33427"></script>
-<script src="js/utils.js?v=33427"></script>
-<script src="js/ui-idle.js?v=33427"></script>
-<script src="js/ipc.js?v=33427"></script>
-<script src="js/tooltip-hover.js?v=33427"></script>
-<script src="js/drag-reorder.js?v=33427"></script>
-<script src="js/modal-drag.js?v=33427"></script>
-<script src="js/columns.js?v=33427"></script>
-<script src="js/notes.js?v=33427"></script>
-<script src="js/favorites.js?v=33427"></script>
-<script src="js/export.js?v=33427"></script>
-<script src="js/plugins.js?v=33427"></script>
-<script src="js/settings.js?v=33427"></script>
-<script src="js/history.js?v=33427"></script>
-<script src="js/kvr.js?v=33427"></script>
-<script src="js/graph-freeze.js?v=33427"></script>
-<script src="js/audio.js?v=33427"></script>
-<script src="js/daw.js?v=33427"></script>
-<script src="js/disk-usage.js?v=33427"></script>
-<script src="js/presets.js?v=33427"></script>
-<script src="js/batch-select.js?v=33427"></script>
-<script src="js/native-file-drag.js?v=33427"></script>
-<script src="js/sort-persist.js?v=33427"></script>
-<script src="js/multi-filter.js?v=33427"></script>
-<script src="js/file-browser.js?v=33427"></script>
-<script src="js/duplicates.js?v=33427"></script>
-<script src="js/command-palette.js?v=33427"></script>
-<script src="js/xref.js?v=33427"></script>
-<script src="js/dep-graph.js?v=33427"></script>
-<script src="js/smart-playlists.js?v=33427"></script>
-<script src="js/heatmap-dashboard.js?v=33427"></script>
-<script src="js/genre-rules-dashboard.js?v=33427"></script>
-<script src="js/midi.js?v=33427"></script>
-<script src="js/pdf.js?v=33427"></script>
-<script src="js/video.js?v=33427"></script>
+<script src="js/i18n-ui.js?v=75820"></script>
+<script src="js/utils.js?v=75820"></script>
+<script src="js/ui-idle.js?v=75820"></script>
+<script src="js/ipc.js?v=75820"></script>
+<script src="js/tooltip-hover.js?v=75820"></script>
+<script src="js/drag-reorder.js?v=75820"></script>
+<script src="js/modal-drag.js?v=75820"></script>
+<script src="js/columns.js?v=75820"></script>
+<script src="js/notes.js?v=75820"></script>
+<script src="js/favorites.js?v=75820"></script>
+<script src="js/export.js?v=75820"></script>
+<script src="js/plugins.js?v=75820"></script>
+<script src="js/settings.js?v=75820"></script>
+<script src="js/history.js?v=75820"></script>
+<script src="js/kvr.js?v=75820"></script>
+<script src="js/graph-freeze.js?v=75820"></script>
+<script src="js/audio.js?v=75820"></script>
+<script src="js/daw.js?v=75820"></script>
+<script src="js/disk-usage.js?v=75820"></script>
+<script src="js/presets.js?v=75820"></script>
+<script src="js/batch-select.js?v=75820"></script>
+<script src="js/native-file-drag.js?v=75820"></script>
+<script src="js/sort-persist.js?v=75820"></script>
+<script src="js/multi-filter.js?v=75820"></script>
+<script src="js/file-browser.js?v=75820"></script>
+<script src="js/duplicates.js?v=75820"></script>
+<script src="js/command-palette.js?v=75820"></script>
+<script src="js/xref.js?v=75820"></script>
+<script src="js/dep-graph.js?v=75820"></script>
+<script src="js/smart-playlists.js?v=75820"></script>
+<script src="js/heatmap-dashboard.js?v=75820"></script>
+<script src="js/genre-rules-dashboard.js?v=75820"></script>
+<script src="js/midi.js?v=75820"></script>
+<script src="js/pdf.js?v=75820"></script>
+<script src="js/video.js?v=75820"></script>
 <!-- Blacklist Modal -->
 <div id="blacklistModal" class="modal-overlay">
     <div class="modal-content" style="max-width:600px;">
@@ -14475,20 +14730,20 @@
     </div>
 </div>
 
-<script src="js/settings-search.js?v=33427"></script>
-<script src="js/visualizer.js?v=33427"></script>
-<script src="js/walker-status.js?v=33427"></script>
-<script src="js/audio-engine.js?v=33427"></script>
-<script src="js/als-timeline.js?v=33427"></script>
-<script src="js/als-generator.js?v=33427"></script>
-<script src="js/trance-lead.js?v=33427"></script>
-<script src="js/sample-browser.js?v=33427"></script>
-<script src="lib/xterm.js?v=33427"></script>
-<script src="js/terminal.js?v=33427"></script>
-<script src="js/context-menu.js?v=33427"></script>
-<script src="js/shortcuts.js?v=33427"></script>
-<script src="js/help-overlay.js?v=33427"></script>
-<script src="js/keyboard-nav.js?v=33427"></script>
-<script src="js/app.js?v=33427"></script>
+<script src="js/settings-search.js?v=75820"></script>
+<script src="js/visualizer.js?v=75820"></script>
+<script src="js/walker-status.js?v=75820"></script>
+<script src="js/audio-engine.js?v=75820"></script>
+<script src="js/als-timeline.js?v=75820"></script>
+<script src="js/als-generator.js?v=75820"></script>
+<script src="js/trance-lead.js?v=75820"></script>
+<script src="js/sample-browser.js?v=75820"></script>
+<script src="lib/xterm.js?v=75820"></script>
+<script src="js/terminal.js?v=75820"></script>
+<script src="js/context-menu.js?v=75820"></script>
+<script src="js/shortcuts.js?v=75820"></script>
+<script src="js/help-overlay.js?v=75820"></script>
+<script src="js/keyboard-nav.js?v=75820"></script>
+<script src="js/app.js?v=75820"></script>
 </body>
 </html>
