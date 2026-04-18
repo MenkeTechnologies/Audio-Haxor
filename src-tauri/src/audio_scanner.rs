@@ -1283,9 +1283,10 @@ mod tests {
         assert_eq!(meta.format, "WAV");
         assert_eq!(meta.channels, Some(2));
         assert_eq!(meta.sample_rate, Some(44100));
+        // byte_rate in header is 0, but duration is computed from sample_rate × channels × (bits/8)
         assert!(
-            meta.duration.is_none(),
-            "byte_rate 0 must not produce duration via division"
+            meta.duration.is_some(),
+            "duration must be computed from sample_rate/channels/bits even when header byte_rate is 0"
         );
         let _ = fs::remove_dir_all(&tmp);
     }

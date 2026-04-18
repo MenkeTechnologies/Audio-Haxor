@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Oluşturulan proje için tür ön ayarı",
   "ui.tt.als_hardness": "Sertlik (normalden serte)",
   "ui.tt.als_lock_seed": "Bu tohumu gelecek nesillere saklayın",
+  "ui.tt.als_midi_tracks": "Melodik katmanlar için MIDI parçaları oluştur",
   "ui.tt.als_mode": "Ölçek modu (majör, minör vb.)",
   "ui.tt.als_num_songs": "Proje başına şarkı sayısı (1-10)",
   "ui.tt.als_output_path": "Oluşturulan ALS dosyaları için çıktı klasörü",

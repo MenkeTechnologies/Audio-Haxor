@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Gatunek ustawiony dla wygenerowanego projektu",
   "ui.tt.als_hardness": "Twardość (regularna do twardej)",
   "ui.tt.als_lock_seed": "Zachowaj to ziarno dla następnego pokolenia",
+  "ui.tt.als_midi_tracks": "Generuj ścieżki MIDI dla warstw melodycznych",
   "ui.tt.als_mode": "Tryb skali (główny, drugorzędny itp.)",
   "ui.tt.als_num_songs": "Liczba utworów na projekt (1–10)",
   "ui.tt.als_output_path": "Folder wyjściowy dla wygenerowanych plików ALS",

@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Přednastavený žánr pro generovaný projekt",
   "ui.tt.als_hardness": "Tvrdost (normální až tvrdá)",
   "ui.tt.als_lock_seed": "Uschovejte toto semeno pro další generaci",
+  "ui.tt.als_midi_tracks": "Generovat MIDI stopy pro melodické vrstvy",
   "ui.tt.als_mode": "Režim měřítka (hlavní, vedlejší atd.)",
   "ui.tt.als_num_songs": "Počet skladeb na projekt (1–10)",
   "ui.tt.als_output_path": "Výstupní složka pro vygenerované soubory ALS",

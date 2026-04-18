@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Preset genre untuk proyek yang dihasilkan",
   "ui.tt.als_hardness": "Kekerasan (biasa hingga keras)",
   "ui.tt.als_lock_seed": "Simpan benih ini untuk generasi berikutnya",
+  "ui.tt.als_midi_tracks": "Buat trek MIDI untuk lapisan melodis",
   "ui.tt.als_mode": "Mode skala (mayor, minor, dll.)",
   "ui.tt.als_num_songs": "Jumlah lagu per proyek (1–10)",
   "ui.tt.als_output_path": "Folder keluaran untuk file ALS yang dihasilkan",

@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Predefinição de gênero para o projeto gerado",
   "ui.tt.als_hardness": "Dureza (regular a dura)",
   "ui.tt.als_lock_seed": "Guarde esta semente para a próxima geração",
+  "ui.tt.als_midi_tracks": "Gerar faixas MIDI para camadas melódicas",
   "ui.tt.als_mode": "Modo de escala (maior, menor, etc.)",
   "ui.tt.als_num_songs": "Número de músicas por projeto (1–10)",
   "ui.tt.als_output_path": "Pasta de saída para arquivos ALS gerados",

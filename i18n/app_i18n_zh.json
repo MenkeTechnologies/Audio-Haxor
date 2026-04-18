@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "为生成的项目预设的类型",
   "ui.tt.als_hardness": "硬度（普通到硬）",
   "ui.tt.als_lock_seed": "为下一代保留这颗种子",
+  "ui.tt.als_midi_tracks": "为旋律层生成MIDI轨道",
   "ui.tt.als_mode": "音阶模式（大调、小调等）",
   "ui.tt.als_num_songs": "每个项目的歌曲数量 (1–10)",
   "ui.tt.als_output_path": "生成的 ALS 文件的输出文件夹",

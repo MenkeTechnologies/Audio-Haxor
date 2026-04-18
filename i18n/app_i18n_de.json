@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Genre-Voreinstellung für das generierte Projekt",
   "ui.tt.als_hardness": "Härte (normal bis hart)",
   "ui.tt.als_lock_seed": "Bewahren Sie diesen Samen für die nächste Generation auf",
+  "ui.tt.als_midi_tracks": "MIDI-Spuren für melodische Ebenen generieren",
   "ui.tt.als_mode": "Tonleitermodus (Dur, Moll usw.)",
   "ui.tt.als_num_songs": "Anzahl Songs pro Projekt (1–10)",
   "ui.tt.als_output_path": "Ausgabeordner für generierte ALS-Dateien",

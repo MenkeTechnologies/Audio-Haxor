@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Előre beállított műfaj a generált projekthez",
   "ui.tt.als_hardness": "Keménység (normáltól keményig)",
   "ui.tt.als_lock_seed": "Tartsa meg ezt a magot a következő generáció számára",
+  "ui.tt.als_midi_tracks": "MIDI sávok generálása dallamrétegekhez",
   "ui.tt.als_mode": "Méretezési mód (dúr, moll stb.)",
   "ui.tt.als_num_songs": "Dalok száma projektenként (1–10)",
   "ui.tt.als_output_path": "Kimeneti mappa a generált ALS-fájlokhoz",

@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Đặt trước thể loại cho dự án được tạo",
   "ui.tt.als_hardness": "Độ cứng (thường đến cứng)",
   "ui.tt.als_lock_seed": "Giữ hạt giống này cho thế hệ sau",
+  "ui.tt.als_midi_tracks": "Tạo các rãnh MIDI cho các lớp giai điệu",
   "ui.tt.als_mode": "Chế độ thang âm (chính, phụ, v.v.)",
   "ui.tt.als_num_songs": "Số lượng bài hát cho mỗi dự án (1–10)",
   "ui.tt.als_output_path": "Thư mục đầu ra cho các tệp ALS được tạo",

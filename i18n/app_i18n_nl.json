@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Genrevoorinstelling voor het gegenereerde project",
   "ui.tt.als_hardness": "Hardheid (normaal tot hard)",
   "ui.tt.als_lock_seed": "Bewaar dit zaadje voor de volgende generatie",
+  "ui.tt.als_midi_tracks": "Genereer MIDI-sporen voor melodische lagen",
   "ui.tt.als_mode": "Schaalmodus (majeur, mineur, enz.)",
   "ui.tt.als_num_songs": "Aantal nummers per project (1–10)",
   "ui.tt.als_output_path": "Uitvoermap voor gegenereerde ALS-bestanden",

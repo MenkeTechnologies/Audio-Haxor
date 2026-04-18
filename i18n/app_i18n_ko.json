@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "생성된 프로젝트의 장르 프리셋",
   "ui.tt.als_hardness": "경도(일반~경질)",
   "ui.tt.als_lock_seed": "다음 세대를 위해 이 씨앗을 간직하세요",
+  "ui.tt.als_midi_tracks": "멜로디 레이어를 위한 MIDI 트랙 생성",
   "ui.tt.als_mode": "스케일 모드(메이저, 마이너 등)",
   "ui.tt.als_num_songs": "프로젝트당 곡 수(1~10)",
   "ui.tt.als_output_path": "생성된 ALS 파일의 출력 폴더",

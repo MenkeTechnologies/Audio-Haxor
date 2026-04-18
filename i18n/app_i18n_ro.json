@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Gen prestabilit pentru proiectul generat",
   "ui.tt.als_hardness": "Duritate (regulată spre tare)",
   "ui.tt.als_lock_seed": "Păstrați această sămânță pentru generația următoare",
+  "ui.tt.als_midi_tracks": "Generați piste MIDI pentru straturi melodice",
   "ui.tt.als_mode": "Modul de scară (major, minor etc.)",
   "ui.tt.als_num_songs": "Număr de melodii per proiect (1–10)",
   "ui.tt.als_output_path": "Dosar de ieșire pentru fișierele ALS generate",

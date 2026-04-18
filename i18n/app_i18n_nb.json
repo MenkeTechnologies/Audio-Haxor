@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "Sjanger forhåndsinnstilt for det genererte prosjektet",
   "ui.tt.als_hardness": "Hardhet (vanlig til hard)",
   "ui.tt.als_lock_seed": "Behold dette frøet for neste generasjon",
+  "ui.tt.als_midi_tracks": "Generer MIDI-spor for melodiske lag",
   "ui.tt.als_mode": "Skalamodus (dur, moll osv.)",
   "ui.tt.als_num_songs": "Antall sanger per prosjekt (1–10)",
   "ui.tt.als_output_path": "Utdatamappe for genererte ALS-filer",

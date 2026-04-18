@@ -2493,6 +2493,7 @@
   "ui.tt.als_genre": "生成されたプロジェクトのジャンルプリセット",
   "ui.tt.als_hardness": "硬さ（普通～硬め）",
   "ui.tt.als_lock_seed": "この種を次世代に残してください",
+  "ui.tt.als_midi_tracks": "メロディックレイヤー用のMIDIトラックを生成",
   "ui.tt.als_mode": "スケールモード (メジャー、マイナーなど)",
   "ui.tt.als_num_songs": "プロジェクトあたりの曲数 (1 ～ 10)",
   "ui.tt.als_output_path": "生成された ALS ファイルの出力フォルダー",
