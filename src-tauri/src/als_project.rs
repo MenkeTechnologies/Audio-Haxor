@@ -209,6 +209,9 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrackCountsConfig {
     #[serde(default = "default_1")] pub kick: u32,
+    #[serde(default)] pub kick_rumble: Option<u32>,
+    #[serde(default)] pub kick_noise: Option<u32>,
+    #[serde(default)] pub hardcore_kick: Option<u32>,
     #[serde(default = "default_1")] pub clap: u32,
     #[serde(default = "default_1")] pub snare: u32,
     #[serde(default = "default_2")] pub hat: u32,
@@ -432,7 +435,8 @@ pub struct SectionOverridesConfig {
 impl Default for TrackCountsConfig {
     fn default() -> Self {
         Self {
-            kick: 1, clap: 1, snare: 1, hat: 2, perc: 2, ride: 1, fill: 4, breakbeat: 1,
+            kick: 1, kick_rumble: None, kick_noise: None, hardcore_kick: None,
+            clap: 1, snare: 1, hat: 2, perc: 2, ride: 1, fill: 4, breakbeat: 1,
             bass: 1, sub: 1,
             lead: 1, synth: 3, pad: 2, arp: 2, keys: None,
             riser: 3, downlifter: 1, crash: 2, impact: 2, hit: 2, sweep_up: 4, sweep_down: 4, snare_roll: 1, reverse: 2, sub_drop: 2, boom_kick: 2, atmos: 2, glitch: 2, scatter: 4,
@@ -445,6 +449,9 @@ impl Default for TrackCountsConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TypeAtonalConfig {
     #[serde(default)] pub kick: bool,
+    #[serde(default)] pub kick_rumble: Option<bool>,
+    #[serde(default)] pub kick_noise: Option<bool>,
+    #[serde(default)] pub hardcore_kick: Option<bool>,
     #[serde(default)] pub clap: bool,
     #[serde(default)] pub snare: bool,
     #[serde(default)] pub hat: bool,

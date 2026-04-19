@@ -3483,6 +3483,9 @@ async fn generate_als_project(
         let tc = &config.track_counts;
         let track_counts = track_generator::TrackCounts {
             kick: tc.kick,
+            kick_rumble: tc.kick_rumble.unwrap_or(1),
+            kick_noise: tc.kick_noise.unwrap_or(1),
+            hardcore_kick: tc.hardcore_kick.unwrap_or(1),
             clap: tc.clap,
             snare: tc.snare,
             hat: tc.hat,
@@ -3517,6 +3520,9 @@ async fn generate_als_project(
         let ta = &config.type_atonal;
         let type_atonal = track_generator::TypeAtonal {
             kick: ta.kick,
+            kick_rumble: ta.kick_rumble.unwrap_or(false),
+            kick_noise: ta.kick_noise.unwrap_or(false),
+            hardcore_kick: ta.hardcore_kick.unwrap_or(false),
             clap: ta.clap,
             snare: ta.snare,
             hat: ta.hat,
