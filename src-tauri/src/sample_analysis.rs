@@ -654,6 +654,7 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("sonicacademy",     -0.3,  0.3),
     ("functionloops",     0.0,  0.0),
     ("from_mars",        -0.5,  0.3),
+    ("from-mars",        -0.5,  0.3),
     ("Krotosaudio",       0.0,  0.0),
 
     // === ARTIST PACKS ===
@@ -701,6 +702,7 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("Axel Karakasis",   -0.8,  0.6),
     ("David Moleon",     -0.9,  0.7),
     ("Pedro Delgardo",   -0.9,  0.7),
+    ("DELGARDO",         -0.9,  0.7),
     ("Alex Di Stefano",   0.8,  0.6),
     ("Airbase",           0.9,  0.3),
     ("Bart Skils",       -0.8,  0.6),
@@ -713,6 +715,8 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     // === TRANCE SAMPLE LABELS ===
     ("Trance Euphoria",   0.9,  0.4),
     ("HighLife Samples",  0.7,  0.3),
+    ("Helion Samples",    0.7,  0.3),
+    ("Helion",            0.7,  0.3),
     ("Nano Musik Loops",  0.6,  0.2),
 
     // === TECHNO SAMPLE LABELS ===
@@ -927,6 +931,10 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("Above & Beyond",    0.8,  0.1),
     ("Above and Beyond",  0.8,  0.1),
     ("Tycoos",            0.9,  0.4),
+    ("Ronny K",           0.9,  0.4),
+    ("Stonevalley",       0.8,  0.4),
+    ("Fast Distance",     0.8,  0.3),
+    ("Anouk Miller",      0.8,  0.3),
 
     // === EDM / ELECTRONIC SAMPLE LABELS (genre-specific) ===
     ("Audiotent",        -0.5,  0.2),
@@ -983,9 +991,32 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("BEAT",              0.0,  0.0),  // BEAT.de German music production magazine
 
     // === SAMPLE LIBRARY PUBLISHERS ===
-    ("Q Up Arts",         0.0,  0.0),  // Q Up Arts sample library publisher
+    ("Q Up Arts",         0.0,  0.0),
     ("qspace",            0.0,  0.0),  // Q Up Arts "QSpace" series
     ("popstrings",        0.0,  0.0),  // Q Up Arts "Pop Strings UK" series
+    ("bennyrietveld",     0.0,  0.0),  // Q Up Arts - Benny Rietveld bass grooves
+    ("gadddrumscores",    0.0,  0.0),  // Q Up Arts - Steve Gadd drum scores
+    ("Audiosample",      -0.3,  0.2),  // ASE-series tech house packs (sas folder)
+    ("BigEDM",            0.1,  0.2),  // Big EDM sample pack label (wa folder)
+    ("Giga Loops",        0.5,  0.4),  // trance/techno loop compilations
+    ("ACID RECORDS",      0.6,  0.7),  // hard trance label
+    ("Little Bit",       -0.6,  0.3),  // techno sample producer
+    ("Little_Bit",       -0.6,  0.3),
+    ("Whitenoise Records",-0.5, 0.3),  // techno percussion label
+    ("LOOP49",           -0.5,  0.3),  // techno loop label
+    ("Phrenetic",        -0.9,  0.85), // hard techno producer
+    ("TSOHT",            -1.0,  1.0),  // The Sound Of Hard Techno series
+    ("Twisted Tools",    -0.3,  0.4),  // experimental electronic sample co
+    ("DWSD",              0.6,  0.5),  // tech trance drums label
+    ("Katana Bits",       0.3,  0.8),  // hard dance sample label
+    ("katana bits",       0.3,  0.8),
+    ("General Guyble",    0.3,  0.9),  // hardstyle/frenchcore sample producer
+    ("Embreda Sounds",    0.9,  0.4),  // trance midi/sample label
+    ("F.G. Noise",        0.8,  0.5),  // trance bass/FX producer
+    ("Omnisphere",        0.0,  0.0),  // Spectrasonics Omnisphere content
+    ("Sonniss",           0.0,  0.0),  // Sonniss game audio bundles
+    ("Native Instruments",0.0,  0.0),  // NI Traktor/Maschine content
+    ("Acapella Nation",   0.0,  0.0),  // vocal sample library
 
     // === GENERAL / NEUTRAL PLATFORMS ===
     ("Plugin Boutique",   0.0,  0.0),
