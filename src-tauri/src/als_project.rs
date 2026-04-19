@@ -215,6 +215,7 @@ pub struct TrackCountsConfig {
     #[serde(default = "default_2")] pub perc: u32,
     #[serde(default = "default_1")] pub ride: u32,
     #[serde(default = "default_4")] pub fill: u32,
+    #[serde(default = "default_1")] pub breakbeat: u32,
     #[serde(default = "default_1")] pub bass: u32,
     #[serde(default = "default_1")] pub sub: u32,
     #[serde(default = "default_1")] pub lead: u32,
@@ -431,7 +432,7 @@ pub struct SectionOverridesConfig {
 impl Default for TrackCountsConfig {
     fn default() -> Self {
         Self {
-            kick: 1, clap: 1, snare: 1, hat: 2, perc: 2, ride: 1, fill: 4,
+            kick: 1, clap: 1, snare: 1, hat: 2, perc: 2, ride: 1, fill: 4, breakbeat: 1,
             bass: 1, sub: 1,
             lead: 1, synth: 3, pad: 2, arp: 2, keys: None,
             riser: 3, downlifter: 1, crash: 2, impact: 2, hit: 2, sweep_up: 4, sweep_down: 4, snare_roll: 1, reverse: 2, sub_drop: 2, boom_kick: 2, atmos: 2, glitch: 2, scatter: 4,
@@ -450,6 +451,7 @@ pub struct TypeAtonalConfig {
     #[serde(default)] pub perc: bool,
     #[serde(default)] pub ride: bool,
     #[serde(default)] pub fill: bool,
+    #[serde(default)] pub breakbeat: Option<bool>,
     #[serde(default)] pub bass: bool,
     #[serde(default)] pub sub: bool,
     #[serde(default)] pub lead: bool,
