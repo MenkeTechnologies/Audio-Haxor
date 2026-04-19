@@ -369,6 +369,8 @@ pub static CATEGORY_PATTERNS: &[(&str, &str, Option<&str>, bool, bool, bool)] = 
     ("lead",        r"(?i)(?:^|[\s_\-./])(?:leads?|riffs?)(?:[\s_\-./]|$)|(?:^|[\s_\-])ld[_\-]|synth[\s_]*lead", Some("melodic"), false, true, true),
     ("pad",         r"(?i)(?:^|[\s_\-./])(?:pads?|strings?|chords?|evolve)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
     ("keys",        r"(?i)(?:^|[\s_\-./])(?:keys|piano|rhodes|wurlitzer|organ|electric[\s_]*piano|epiano|e[\s_]*piano|clav(?:inet)?)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
+    ("bell",        r"(?i)(?:^|[\s_\-./])(?:bells?|glock(?:enspiel)?|celesta|chimes?|tubular[\s_]*bells?|music[\s_]*box|kalimba|thumb[\s_]*piano)(?:[\s_\-./]|$)", Some("melodic"), true, true, false),
+    ("flute",       r"(?i)(?:^|[\s_\-./])(?:flutes?|whistle|pan[\s_]*flute|piccolo|recorder|fife|ocarina)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
     ("arp",         r"(?i)(?:^|[\s_\-./])(?:arps?|sequences?)(?:[\s_\-./]|$)|(?:^|[\s_\-])seq[_\-]", Some("melodic"), false, true, true),
     ("pluck",       r"(?i)(?:^|[\s_\-./])(?:plucks?|pizz|picked|marimba)(?:[\s_\-./]|$)", Some("melodic"), true, true, false),
     ("stab",        r"(?i)(?:^|[\s_\-./])(?:stabs?|brass)(?:[\s_\-./]|$)", Some("melodic"), true, true, false),
@@ -390,9 +392,14 @@ pub static CATEGORY_PATTERNS: &[(&str, &str, Option<&str>, bool, bool, bool)] = 
     ("fx_impact",   r"(?i)(?:^|[\s_\-./])(?:impact|slam|boom|thud)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
     ("fx_explosion",r"(?i)(?:^|[\s_\-./])(?:explo|burst|detonate|blast)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
 
+    // === FX — Industrial / Schranz ===
+    ("fx_industrial", r"(?i)(?:^|[\s_\-./])(?:industrial|metallic|machine|factory|mechanical)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
+    ("fx_distortion", r"(?i)(?:^|[\s_\-./])(?:distort(?:ion|ed)?|overdrive|saturate[d]?|bitcrush|waveshape[dr]?|fuzz)(?:[\s_\-./]|$)", Some("fx"), false, false, false),
+    ("fx_feedback",   r"(?i)(?:^|[\s_\-./])(?:feedback|resonance|self[\s_]*osc|screech|squeal)(?:[\s_\-./]|$)", Some("fx"), false, false, false),
+
     // === FX — Rhythmic ===
     ("fx_fill",     r"(?i)(?:^|[\s_\-./])(?:fill|buildup)(?:[\s_\-./]|$)|snare[\s_]*roll|drum[\s_]*break", Some("fx"), false, false, true),
-    ("fx_glitch",   r"(?i)(?:^|[\s_\-./])(?:glitch|stutter|chop|slice|granular|buffer)(?:[\s_\-./]|$)", Some("fx"), false, false, true),
+    ("fx_glitch",   r"(?i)(?:^|[\s_\-./])(?:glitch|stutter|slice|granular|buffer)(?:[\s_\-./]|$)", Some("fx"), false, false, true),
 
     // === FX — Tonal ===
     ("fx_whoosh",   r"(?i)(?:^|[\s_\-./])(?:whoosh|swish|swoosh)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
@@ -406,11 +413,11 @@ pub static CATEGORY_PATTERNS: &[(&str, &str, Option<&str>, bool, bool, bool)] = 
     // === FX — Misc ===
     ("fx_sub_drop", r"(?i)sub[\s_]*drop|808[\s_]*drop|bass[\s_]*drop", Some("fx"), true, false, false),
     ("fx_white_noise", r"(?i)white[\s_]*noise|noise[\s_]*sweep|filtered[\s_]*noise", Some("fx"), false, false, false),
-    ("fx_vocal",    r"(?i)fx[\s_]*vox|vocal[\s_]*fx|processed[\s_]*vocal|vocal[\s_]*chop", Some("fx"), false, false, true),
+    ("fx_vocal",    r"(?i)fx[\s_]*vox|vocal[\s_]*fx|processed[\s_]*vocal", Some("fx"), false, false, true),
     ("fx_misc",     r"(?i)(?:^|[\s_\-./])(?:fx|sfx|transition|cinematic)(?:[\s_\-./]|$)", Some("fx"), false, false, false),
 
     // === VOCAL ===
-    ("vocal_chop",  r"(?i)vocal[\s_]*chop|chop[\s_]*vocal|vox[\s_]*chop", Some("vocal"), false, false, true),
+    ("vocal_chop",  r"(?i)vocal[\s_]*chop|chop[\s_]*vocal|vox[\s_]*chop|(?:^|[\s_\-./])chop(?:[\s_\-./]|$)", Some("vocal"), false, false, true),
     ("vocal_phrase", r"(?i)vocal[\s_]*phrase|(?:^|[\s_\-./])(?:phrase|spoken|speech)(?:[\s_\-./]|$)", Some("vocal"), false, true, false),
     ("vocal_adlib", r"(?i)(?:^|[\s_\-./])(?:adlib|shout|scream)(?:[\s_\-./]|$)", Some("vocal"), true, false, false),
     ("vocal",       r"(?i)(?:^|[\s_\-./])(?:vox|vocals?|voices?|chants?|acapella)(?:[\s_\-./]|$)", Some("vocal"), false, true, false),
@@ -971,6 +978,14 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("Pure EDM",          0.2,  0.3),
     ("Stickz",            0.1,  0.2),
     ("Tunecraft Sounds",  0.0,  0.1),
+
+    // === MAGAZINE SAMPLE DISCS ===
+    ("BEAT",              0.0,  0.0),  // BEAT.de German music production magazine
+
+    // === SAMPLE LIBRARY PUBLISHERS ===
+    ("Q Up Arts",         0.0,  0.0),  // Q Up Arts sample library publisher
+    ("qspace",            0.0,  0.0),  // Q Up Arts "QSpace" series
+    ("popstrings",        0.0,  0.0),  // Q Up Arts "Pop Strings UK" series
 
     // === GENERAL / NEUTRAL PLATFORMS ===
     ("Plugin Boutique",   0.0,  0.0),
@@ -1864,6 +1879,18 @@ mod tests {
     }
 
     #[test]
+    fn detect_manufacturer_magazine_labels() {
+        let m = detect_manufacturer("/Samples/BEAT/samples/Techno Kicks/").unwrap();
+        assert_eq!(m.manufacturer_pattern, "BEAT");
+
+        let m = detect_manufacturer("/Samples/q/popstrings_uk_beats/").unwrap();
+        assert_eq!(m.manufacturer_pattern, "popstrings");
+
+        let m = detect_manufacturer("/Samples/q/qspacev2edm/").unwrap();
+        assert_eq!(m.manufacturer_pattern, "qspace");
+    }
+
+    #[test]
     fn detect_manufacturer_glitchtone_folder() {
         // "glitchtone" is the folder name; "Glitchedtones" is the full label in subfolder names
         let m = detect_manufacturer(
@@ -2061,11 +2088,9 @@ mod tests {
 
     #[test]
     fn category_vocal_types() {
-        // vocal_chop (index 31) is after fx_glitch (index 27) in pattern list
-        // fx_glitch catches "chop" before vocal_chop can match "vocal chop"
-        // So filenames with "chop" always resolve to fx_glitch
+        // vocal_chop now correctly matches — "chop" removed from fx_glitch
         let m = match_category("Vocal Chop Ah Cm.wav", "/Vocals/").unwrap();
-        assert_eq!(m.name, "fx_glitch");
+        assert_eq!(m.name, "vocal_chop");
 
         let m = match_category("Vocal_Phrase_Breathe_120.wav", "/Vocals/").unwrap();
         assert_eq!(m.name, "vocal_phrase");
@@ -2087,6 +2112,73 @@ mod tests {
 
         let m = match_category("Tape_Warm_01.wav", "/Atmos/").unwrap();
         assert_eq!(m.name, "tape");
+    }
+
+    #[test]
+    fn category_bell_types() {
+        let m = match_category("Bell_Chime_C_01.wav", "/Melodic/").unwrap();
+        assert_eq!(m.name, "bell");
+        assert!(m.is_key_sensitive);
+        assert!(m.is_oneshot);
+
+        let m = match_category("Glockenspiel_Hit_E.wav", "/Melodic/").unwrap();
+        assert_eq!(m.name, "bell");
+
+        let m = match_category("Kalimba_Melody_Am.wav", "/Melodic/").unwrap();
+        assert_eq!(m.name, "bell");
+
+        let m = match_category("Music_Box_Loop_Cm.wav", "/Melodic/").unwrap();
+        assert_eq!(m.name, "bell");
+    }
+
+    #[test]
+    fn category_flute_types() {
+        let m = match_category("Flute_Loop_Am_128.wav", "/Melodic/").unwrap();
+        assert_eq!(m.name, "flute");
+        assert!(m.is_key_sensitive);
+
+        let m = match_category("Whistle_Melody_01.wav", "/Melodic/").unwrap();
+        assert_eq!(m.name, "flute");
+
+        let m = match_category("Pan_Flute_Cm.wav", "/Melodic/").unwrap();
+        assert_eq!(m.name, "flute");
+    }
+
+    #[test]
+    fn category_schranz_fx_types() {
+        let m = match_category("Industrial_Hit_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_industrial");
+        assert!(m.is_oneshot);
+
+        let m = match_category("Metallic_Clang_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_industrial");
+
+        let m = match_category("Distortion_Layer_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_distortion");
+
+        let m = match_category("Bitcrush_FX_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_distortion");
+
+        let m = match_category("Feedback_Loop_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_feedback");
+
+        let m = match_category("Screech_FX_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_feedback");
+    }
+
+    #[test]
+    fn category_chop_now_vocal() {
+        // "chop" alone should now match vocal_chop, not fx_glitch
+        let m = match_category("Chop_Vocal_01.wav", "/Vocals/").unwrap();
+        assert_eq!(m.name, "vocal_chop");
+
+        // "glitch" still matches fx_glitch
+        let m = match_category("Glitch_Buffer_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_glitch");
+
+        // "stutter" still matches fx_glitch
+        let m = match_category("Stutter_FX_01.wav", "/FX/").unwrap();
+        assert_eq!(m.name, "fx_glitch");
     }
 
     #[test]
