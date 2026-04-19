@@ -94,14 +94,40 @@ pub async fn terminal_spawn(
         .name("terminal-reader".into())
         .spawn(move || {
             let mut buf = [0u8; 4096];
+            let mut carry = Vec::new(); // incomplete UTF-8 tail from previous read
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
-                        // Send raw bytes as a UTF-8 string (terminal output is overwhelmingly
-                        // valid UTF-8 / Latin-1; xterm.js handles stray bytes gracefully).
-                        let text = String::from_utf8_lossy(&buf[..n]);
-                        let _ = app2.emit("terminal-output", text.as_ref());
+                        // Prepend any leftover bytes from the previous read.
+                        carry.extend_from_slice(&buf[..n]);
+
+                        // Find the last valid UTF-8 boundary. If the tail is an
+                        // incomplete multi-byte sequence, hold it for the next read
+                        // instead of replacing it with U+FFFD.
+                        let valid_up_to = match std::str::from_utf8(&carry) {
+                            Ok(_) => carry.len(),
+                            Err(e) => {
+                                let valid = e.valid_up_to();
+                                // If the error is at the very end, it's likely a
+                                // split multi-byte char — carry the tail bytes.
+                                // If it's mid-stream, include up to the error and
+                                // let from_utf8_lossy handle the isolated bad byte.
+                                if valid + 4 >= carry.len() {
+                                    valid
+                                } else {
+                                    carry.len()
+                                }
+                            }
+                        };
+
+                        if valid_up_to > 0 {
+                            let text = String::from_utf8_lossy(&carry[..valid_up_to]);
+                            let _ = app2.emit("terminal-output", text.as_ref());
+                        }
+
+                        // Keep only the incomplete tail bytes for next iteration.
+                        carry = carry[valid_up_to..].to_vec();
                     }
                     Err(_) => break,
                 }

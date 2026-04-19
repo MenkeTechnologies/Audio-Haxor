@@ -330,7 +330,14 @@ async function _termSpawnSession() {
     const {invoke} = window.__TAURI__.core;
 
     _termUnlistenOutput = await listen('terminal-output', (event) => {
-        if (_termInstance) _termInstance.write(event.payload);
+        if (!_termInstance) return;
+        const payload = event.payload;
+        // Detect ESC[2J (erase display) — clear xterm.js scrollback so
+        // Ctrl+L (zle clear-screen) actually blanks the viewport.
+        if (payload.includes('\x1b[2J')) {
+            _termInstance.clear();
+        }
+        _termInstance.write(payload);
     });
     _termUnlistenExit = await listen('terminal-exit', () => {
         _termSessionAlive = false;
