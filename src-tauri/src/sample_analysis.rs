@@ -352,7 +352,7 @@ pub static CATEGORY_PATTERNS: &[(&str, &str, Option<&str>, bool, bool, bool)] = 
     ("ride",        r"(?i)(?:^|[\s_\-./])rides?(?:[\s_\-./]|$)", Some("drums"), false, false, true),
     ("shaker",      r"(?i)(?:^|[\s_\-./])(?:shakers?|maracas?|tambourines?|tamb)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
     ("perc",        r"(?i)(?:^|[\s_\-./])(?:percs?|congas?|bongos?|rim|woodblock|cowbell)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("drum_loop",   r"(?i)(?:^|[\s_\-./])(?:drum[\s_]*loops?|full[\s_]*(?:drum|beat)[\s_]*loops?|top[\s_]*loops?|drum[\s_]*(?:tops?|beats?))(?:[\s_\-./]|$)", Some("drums"), false, false, true),
+    ("drum_loop",   r"(?i)(?:^|[\s_\-./])(?:drum[\s_]*loops?|full[\s_]*(?:drum|beat)[\s_]*loops?|top[\s_]*loops?|drum[\s_]*(?:tops?|beats?)|break[\s_]*beats?)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
 
     // === SCHRANZ-SPECIFIC ===
     ("schranz_kick",  r"(?i)schranz.*kick|kick.*schranz|hard[\s_]*techno.*kick", Some("drums"), false, false, true),
@@ -377,7 +377,7 @@ pub static CATEGORY_PATTERNS: &[(&str, &str, Option<&str>, bool, bool, bool)] = 
     ("acid",        r"(?i)(?:^|[\s_\-./])(?:acid|303|squelch)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
 
     // === ATMOS ===
-    ("atmos",       r"(?i)(?:^|[\s_\-./])(?:atmos|ambient|drone|soundscape|background)(?:[\s_\-./]|$)", Some("atmos"), false, true, false),
+    ("atmos",       r"(?i)(?:^|[\s_\-./])(?:atmos(?:phere)?|ambient|drone|soundscape|background)(?:[\s_\-./]|$)", Some("atmos"), false, true, false),
     ("texture",     r"(?i)(?:^|[\s_\-./])(?:texture|foley)(?:[\s_\-./]|$)|field[\s_]*rec", Some("atmos"), false, false, false),
     ("noise",       r"(?i)(?:^|[\s_\-./])(?:noise|static|hiss|crackle)(?:[\s_\-./]|$)", Some("atmos"), false, false, false),
     ("tape",        r"(?i)(?:^|[\s_\-./])(?:tape|vinyl|lo-?fi|cassette)(?:[\s_\-./]|$)", Some("atmos"), false, false, false),
@@ -1025,6 +1025,20 @@ pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     ("SampleRadar",       0.0,  0.0),
     ("MusicRadar",        0.0,  0.0),
     ("Samplephonics",     0.0,  0.0),
+    ("LANDR",             0.0,  0.0),
+    ("Raveyard",         -0.8,  0.8),  // hard techno/rave/neorave
+    ("Vortex Samples",   -0.9,  0.9),  // hard industrial techno/rawstyle
+    ("vortexsamples",    -0.9,  0.9),
+    ("VS_Schranz",       -1.0,  1.0),  // Vortex Samples schranz packs
+    ("VS_Annihilator",   -0.9,  0.9),  // Vortex Samples pack
+    ("VS_Rustworks",     -0.9,  0.9),  // Vortex Samples pack
+    ("VS_Pandemonium",   -0.9,  0.9),  // Vortex Samples pack
+    ("VS_Hellstorm",     -0.9,  0.9),  // Vortex Samples pack
+    ("VS_Xtasis",        -0.9,  0.9),  // Vortex Samples pack
+    ("VS_Destructor",    -0.9,  0.9),  // Vortex Samples pack
+    ("VS_Eradicator",    -0.9,  0.9),  // Vortex Samples pack
+    ("VS_Voltage",       -0.9,  0.8),  // Vortex Samples analog hard techno
+    ("VS_Drumtek",       -0.8,  0.7),  // Vortex Samples hardgroove
     ("91Vocals",          0.0,  0.0),
     ("Vital Vocals",      0.0,  0.0),
     ("Vocal Roads",       0.0,  0.0),
