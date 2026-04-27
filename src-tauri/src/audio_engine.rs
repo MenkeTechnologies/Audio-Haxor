@@ -15,7 +15,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
@@ -69,23 +69,32 @@ pub fn dedicated_audio_engine_request(
 ) -> Result<serde_json::Value, String> {
     let cmd = request.get("cmd").and_then(|c| c.as_str()).unwrap_or("");
     let is_preview = cmd == "waveform_preview" || cmd == "spectrogram_preview";
-    
+
     let (resp_tx, resp_rx) = std::sync::mpsc::sync_channel(1);
-    
-    // Use blocking send — the dedicated thread drains quickly (audio engine responds fast).
-    // Queue depth of 256/128 means this only blocks if 256+ requests are in flight,
-    // which would indicate a stuck audio engine (and blocking is correct behavior then).
-    if is_preview {
+
+    let started = std::time::Instant::now();
+    let (inflight_slot, peak_slot) = if is_preview {
+        (&PREVIEW_INFLIGHT, &PREVIEW_INFLIGHT_PEAK)
+    } else {
+        (&MAIN_INFLIGHT, &MAIN_INFLIGHT_PEAK)
+    };
+    bump_inflight(inflight_slot, peak_slot);
+
+    let send_result = if is_preview {
         PREVIEW_IPC_TX
             .send((request.clone(), resp_tx))
-            .map_err(|_| "preview IPC thread dead")?;
+            .map_err(|_| "preview IPC thread dead")
     } else {
         MAIN_IPC_TX
             .send((request.clone(), resp_tx))
-            .map_err(|_| "main IPC thread dead")?;
+            .map_err(|_| "main IPC thread dead")
+    };
+    if let Err(e) = send_result {
+        inflight_slot.fetch_sub(1, Ordering::Relaxed);
+        return Err(e.to_string());
     }
-    
-    if is_preview {
+
+    let result = if is_preview {
         // Preview decodes (waveform/spectrogram) get a 60 s timeout so a hung JUCE decoder
         // on a corrupt file doesn't block the waveform prefetch loop forever overnight.
         resp_rx
@@ -98,28 +107,40 @@ pub fn dedicated_audio_engine_request(
                 std::sync::mpsc::RecvTimeoutError::Disconnected => {
                     "IPC response channel closed".to_string()
                 }
-            })?
+            })
+            .and_then(|r| r)
     } else {
         // Main engine (playback, transport) — no timeout; transport commands must not be dropped.
-        resp_rx.recv().map_err(|_| "IPC response channel closed")?
+        resp_rx
+            .recv()
+            .map_err(|_| "IPC response channel closed".to_string())
+            .and_then(|r| r)
+    };
+
+    let elapsed_us = started.elapsed().as_micros() as u64;
+    inflight_slot.fetch_sub(1, Ordering::Relaxed);
+    if is_preview {
+        PREVIEW_COUNT.fetch_add(1, Ordering::Relaxed);
+        PREVIEW_TOTAL_US.fetch_add(elapsed_us, Ordering::Relaxed);
+        record_max(&PREVIEW_MAX_US, elapsed_us);
+    } else {
+        MAIN_COUNT.fetch_add(1, Ordering::Relaxed);
+        MAIN_TOTAL_US.fetch_add(elapsed_us, Ordering::Relaxed);
+        record_max(&MAIN_MAX_US, elapsed_us);
     }
+    result
 }
 
-/// Async wrapper that spawns the blocking wait on a short-lived thread.
-/// This ensures the tokio runtime is never blocked.
+/// Async wrapper that runs the blocking IPC wait on the tokio blocking pool.
+/// Uses `spawn_blocking` so the tokio runtime stays unblocked **without** allocating
+/// a fresh OS thread per call — the 30 Hz `playback_status` poll alone can fire
+/// hundreds of thousands of these per session, so reusing the pooled threads matters.
 pub async fn async_dedicated_audio_engine_request(
     request: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    
-    // Spawn a very short-lived thread just to wait on the response.
-    // This thread does almost no work - just recv() on a channel.
-    thread::spawn(move || {
-        let result = dedicated_audio_engine_request(&request);
-        let _ = tx.send(result);
-    });
-    
-    rx.await.map_err(|_| "async IPC response dropped")?
+    tokio::task::spawn_blocking(move || dedicated_audio_engine_request(&request))
+        .await
+        .map_err(|e| format!("async IPC join: {e}"))?
 }
 
 /// Placeholder struct kept for serde stability / future prefs sync.
@@ -215,6 +236,86 @@ fn clear_preview_engine_pid() {
 #[inline]
 pub fn audio_engine_child_pid() -> u32 {
     ENGINE_CHILD_PID.load(Ordering::SeqCst)
+}
+
+/// OS PID of the current preview AudioEngine subprocess, or `0` if none.
+#[inline]
+pub fn preview_engine_child_pid() -> u32 {
+    PREVIEW_ENGINE_CHILD_PID.load(Ordering::SeqCst)
+}
+
+// ── IPC health metrics ──
+//
+// Wraps `dedicated_audio_engine_request` to track per-channel inflight depth, RTT, and counts.
+// The `lib.rs` health sampler drains these every 30 s and writes one HEALTH line to `app.log`.
+// Without this, progressive slowdown (queue backpressure behind a slow `playback_load`,
+// engine RSS bloat, etc.) is invisible until the user notices stutter.
+
+static MAIN_INFLIGHT: AtomicUsize = AtomicUsize::new(0);
+static MAIN_INFLIGHT_PEAK: AtomicUsize = AtomicUsize::new(0);
+static MAIN_COUNT: AtomicU64 = AtomicU64::new(0);
+static MAIN_TOTAL_US: AtomicU64 = AtomicU64::new(0);
+static MAIN_MAX_US: AtomicU64 = AtomicU64::new(0);
+static PREVIEW_INFLIGHT: AtomicUsize = AtomicUsize::new(0);
+static PREVIEW_INFLIGHT_PEAK: AtomicUsize = AtomicUsize::new(0);
+static PREVIEW_COUNT: AtomicU64 = AtomicU64::new(0);
+static PREVIEW_TOTAL_US: AtomicU64 = AtomicU64::new(0);
+static PREVIEW_MAX_US: AtomicU64 = AtomicU64::new(0);
+
+#[inline]
+fn bump_inflight(cur: &AtomicUsize, peak: &AtomicUsize) -> usize {
+    let new = cur.fetch_add(1, Ordering::Relaxed) + 1;
+    let mut p = peak.load(Ordering::Relaxed);
+    while new > p {
+        match peak.compare_exchange_weak(p, new, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => break,
+            Err(actual) => p = actual,
+        }
+    }
+    new
+}
+
+#[inline]
+fn record_max(slot: &AtomicU64, val: u64) {
+    let mut cur = slot.load(Ordering::Relaxed);
+    while val > cur {
+        match slot.compare_exchange_weak(cur, val, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => break,
+            Err(actual) => cur = actual,
+        }
+    }
+}
+
+pub struct IpcMetricsSnapshot {
+    pub main_count: u64,
+    pub main_total_us: u64,
+    pub main_max_us: u64,
+    pub main_peak_inflight: usize,
+    pub main_inflight_now: usize,
+    pub preview_count: u64,
+    pub preview_total_us: u64,
+    pub preview_max_us: u64,
+    pub preview_peak_inflight: usize,
+    pub preview_inflight_now: usize,
+}
+
+/// Atomically read + reset accumulating counters; current inflight depth is read but NOT reset.
+/// Peak inflight resets to the current depth so the next window's peak measures only that window.
+pub fn drain_ipc_metrics() -> IpcMetricsSnapshot {
+    let main_now = MAIN_INFLIGHT.load(Ordering::Relaxed);
+    let preview_now = PREVIEW_INFLIGHT.load(Ordering::Relaxed);
+    IpcMetricsSnapshot {
+        main_count: MAIN_COUNT.swap(0, Ordering::Relaxed),
+        main_total_us: MAIN_TOTAL_US.swap(0, Ordering::Relaxed),
+        main_max_us: MAIN_MAX_US.swap(0, Ordering::Relaxed),
+        main_peak_inflight: MAIN_INFLIGHT_PEAK.swap(main_now, Ordering::Relaxed),
+        main_inflight_now: main_now,
+        preview_count: PREVIEW_COUNT.swap(0, Ordering::Relaxed),
+        preview_total_us: PREVIEW_TOTAL_US.swap(0, Ordering::Relaxed),
+        preview_max_us: PREVIEW_MAX_US.swap(0, Ordering::Relaxed),
+        preview_peak_inflight: PREVIEW_INFLIGHT_PEAK.swap(preview_now, Ordering::Relaxed),
+        preview_inflight_now: preview_now,
+    }
 }
 
 /// Hard-kill by PID so quit works even when no [`Child`] handle is available.

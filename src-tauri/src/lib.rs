@@ -55,6 +55,10 @@ pub mod trance_generator;
 pub mod terminal;
 pub mod trance_starter;
 pub mod tray_menu;
+#[cfg(target_os = "macos")]
+mod app_activity_macos;
+#[cfg(target_os = "macos")]
+mod space_preview_macos;
 mod tray_popover_escape_macos;
 pub mod unified_walker;
 pub mod xref;
@@ -5671,6 +5675,23 @@ fn get_virtual_bytes() -> u64 {
     get_process_info().1
 }
 
+/// RSS bytes for an arbitrary PID (sysinfo cross-platform). Returns 0 if the PID is unknown
+/// or sysinfo couldn't refresh it. Used by the HEALTH sampler so the main + preview
+/// AudioEngine RSS shows up next to the host's own RSS in `app.log`.
+fn foreign_process_rss(pid: u32) -> u64 {
+    if pid == 0 {
+        return 0;
+    }
+    use std::sync::{Mutex, OnceLock};
+    use sysinfo::{Pid, ProcessesToUpdate, System};
+    static SYS: OnceLock<Mutex<System>> = OnceLock::new();
+    let sys_mutex = SYS.get_or_init(|| Mutex::new(System::new()));
+    let mut sys = sys_mutex.lock().unwrap();
+    let pid = Pid::from_u32(pid);
+    sys.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+    sys.process(pid).map(|p| p.memory()).unwrap_or(0)
+}
+
 fn get_thread_count() -> u32 {
     // Linux: `Process::tasks()` (per-thread PIDs). Never use `cpu_usage()` here (`f32`) — that
     // mismatch only surfaces on Linux targets. Other OSes use fallbacks below.
@@ -9564,6 +9585,15 @@ pub fn run() {
 
             tray_popover_escape_macos::install(app.handle().clone());
 
+            #[cfg(target_os = "macos")]
+            space_preview_macos::install(app.handle().clone());
+
+            // App Nap disable is deferred to `RunEvent::Ready` (see `.run(...)` below) —
+            // calling `NSProcessInfo.beginActivityWithOptions:reason:` from a worker thread
+            // during `applicationDidFinishLaunching:` could throw an ObjC exception that
+            // unwound across the Rust frame and triggered `panic_cannot_unwind`, aborting
+            // the host before the WebView could render (white-screen launch crash).
+
             /* Finder pre-warm: the first AppleEvent to Finder in a session loads Finder's scripting
              * support + Launch Services cache. On a cold machine (and ESPECIALLY when the user's
              * audio library lives on an SMB share), this cost can run multiple seconds on the first
@@ -9587,11 +9617,82 @@ pub fn run() {
                     .spawn();
             });
 
+            // ── HEALTH sampler ────────────────────────────────────────────────────
+            // Single line per 30 s into `app.log`. When users report "app got slow after a
+            // day," the sampled history makes the trajectory visible: which RSS climbed,
+            // when ipc_main queue depth started piling up, when avg/max RTT diverged.
+            // 30 s cadence × 5 MiB log rotation = ~7 days of breadcrumbs at typical line size.
+            std::thread::Builder::new()
+                .name("ah-health-sampler".to_string())
+                .spawn(|| {
+                    // Skip the first tick — RSS during startup is dominated by lazy init noise.
+                    std::thread::sleep(std::time::Duration::from_secs(30));
+                    loop {
+                        let rss_mib = get_rss_bytes() / 1024 / 1024;
+                        let virt_mib = get_virtual_bytes() / 1024 / 1024;
+                        let threads = get_thread_count();
+                        let main_pid = audio_engine::audio_engine_child_pid();
+                        let prev_pid = audio_engine::preview_engine_child_pid();
+                        let main_eng_mib = foreign_process_rss(main_pid) / 1024 / 1024;
+                        let prev_eng_mib = foreign_process_rss(prev_pid) / 1024 / 1024;
+                        let snap = audio_engine::drain_ipc_metrics();
+                        let avg_main_ms = if snap.main_count > 0 {
+                            (snap.main_total_us / snap.main_count) / 1000
+                        } else {
+                            0
+                        };
+                        let avg_prev_ms = if snap.preview_count > 0 {
+                            (snap.preview_total_us / snap.preview_count) / 1000
+                        } else {
+                            0
+                        };
+                        write_app_log(format!(
+                            "HEALTH | rss={rss_mib}MB virt={virt_mib}MB thr={threads} | engine_main={main_eng_mib}MB(pid={main_pid}) preview={prev_eng_mib}MB(pid={prev_pid}) | ipc_main n={mc} avg={avg_main_ms}ms max={main_max}ms peak_q={mpq} now={mnow} | ipc_prev n={pc} avg={avg_prev_ms}ms max={prev_max}ms peak_q={ppq} now={pnow}",
+                            mc = snap.main_count,
+                            main_max = snap.main_max_us / 1000,
+                            mpq = snap.main_peak_inflight,
+                            mnow = snap.main_inflight_now,
+                            pc = snap.preview_count,
+                            prev_max = snap.preview_max_us / 1000,
+                            ppq = snap.preview_peak_inflight,
+                            pnow = snap.preview_inflight_now,
+                        ));
+
+                        // Keep-alive ping — touches the `audio-engine` subprocess so its
+                        // working set stays resident in RAM across long user idle. Without
+                        // this, after ~hours of zero IPC traffic, JUCE's pages get paged
+                        // out, and the first `playback_load` blocks on page-in. Only ping
+                        // when the previous 30 s window had near-zero IPC (<5 calls means
+                        // playback / visualization is NOT keeping the engine warm on its
+                        // own); during active use this is a no-op.
+                        if snap.main_count < 5 && audio_engine::audio_engine_child_pid() != 0 {
+                            let _ = audio_engine::dedicated_audio_engine_request(
+                                &serde_json::json!({ "cmd": "ping" }),
+                            );
+                        }
+
+                        std::thread::sleep(std::time::Duration::from_secs(30));
+                    }
+                })
+                .ok();
+
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {
+            /* App Nap disable runs here (not in `setup`) because `setup` executes inside
+             * `applicationDidFinishLaunching:`, an extern "C" callback. A foreign ObjC
+             * exception from `beginActivity` (or any other AppKit/Foundation call) would
+             * unwind through the Rust frame and trip `panic_cannot_unwind`, aborting the
+             * host before the WebView could render. `RunEvent::Ready` fires on the main
+             * thread after `did_finish_launching` returns, in a regular Tauri runloop
+             * tick — no extern "C" boundary, panics bubble normally. */
+            tauri::RunEvent::Ready => {
+                #[cfg(target_os = "macos")]
+                app_activity_macos::install_on_main();
+                let _ = app;
+            }
             tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
                 let _ = audio_engine::shutdown_audio_engine_child();
                 log_shutdown();

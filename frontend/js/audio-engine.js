@@ -4089,9 +4089,18 @@ function syncAeOutputGraphsAfterStreamStateChange() {
     scheduleAeGraphRafLoop();
 }
 
+/* Single-flight guard: a slow `playback_load` (e.g. SMB first-touch) can hold the
+ * `ENGINE_CHILD` mutex on the Rust side for seconds, during which the 33 ms
+ * `setInterval` would otherwise queue dozens of stale status polls behind the load.
+ * When the load finally returns, the engine then services that backlog instead of
+ * starting playback — user-visible "slow to play". Skip a tick if the previous IPC
+ * is still in flight; the next interval fire will pick up. */
+let _enginePlaybackStatusTickInFlight = false;
 async function runEnginePlaybackStatusTick() {
+    if (_enginePlaybackStatusTickInFlight) return;
     const inv = getAeAudioEngineInvoke();
     if (!inv) return;
+    _enginePlaybackStatusTickInFlight = true;
     try {
         const st = await inv(buildEnginePlaybackStatusRequest());
         if (st && st.ok === true) {
@@ -4143,6 +4152,8 @@ async function runEnginePlaybackStatusTick() {
         }
     } catch {
         /* ignore */
+    } finally {
+        _enginePlaybackStatusTickInFlight = false;
     }
 }
 

@@ -106,6 +106,13 @@ function loadAudioSandbox() {
   sandbox.window = sandbox;
   sandbox.window.innerWidth = 1280;
   sandbox.window.innerHeight = 800;
+  // Timer globals — audio.js installs an interval-driven JS health sampler at module
+  // load (`_startJsHealthSampler`); the real WebView always provides these, so wire them
+  // up as no-ops here rather than guarding every caller.
+  sandbox.setInterval = () => 0;
+  sandbox.clearInterval = () => {};
+  sandbox.setTimeout = () => 0;
+  sandbox.clearTimeout = () => {};
   sandbox.window.vstUpdater = {
     stopAudioScan: async () => {},
     scanAudioSamples: async () => ({ samples: [], roots: [] }),

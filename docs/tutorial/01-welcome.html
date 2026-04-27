@@ -162,6 +162,17 @@ Walkers      F5       Audio Engine F6       Settings     Cmd+,</pre>
         </ul>
       </section>
 
+      <section class="tutorial-section">
+        <h2>macOS platform polish</h2>
+        <p>Several quality-of-life fixes run silently in the background on macOS &mdash; you do not configure them, but it&rsquo;s useful to know they exist when something looks &ldquo;wrong&rdquo; and isn&rsquo;t.</p>
+        <ul>
+          <li><strong>Mission Control / Spaces previews</strong> &mdash; on stock WKWebView, switching to Mission Control or moving the window to another Space shows a blank gray thumbnail (WebKit bug 146877, open since 2015). AUDIO_HAXOR layers an <code>NSImageView</code> snapshot above the WebView and refreshes it every 1.5 s while focused, so Mission Control / Cmd-Tab / Spaces grab a real bitmap of what you were just looking at instead of an empty rectangle. The live WebView is unhidden the moment focus returns. Source: <code>src-tauri/src/space_preview_macos.rs</code>.</li>
+          <li><strong>App Nap mitigation</strong> &mdash; macOS will throttle, coalesce timers, and (under memory pressure) page out the app after long idle, which makes the first sample playback after walking away for hours lag for several seconds. AUDIO_HAXOR holds an <code>NSProcessInfo</code> activity assertion (same option set Music.app uses) so the host stays unthrottled. The laptop can still sleep when you walk away &mdash; we just block the Nap throttle, not full system sleep. The <code>audio-engine</code> subprocess gets its own keep-alive: the host pings it every 30 s of idle so JUCE&rsquo;s pages stay resident.</li>
+          <li><strong>Tray popover Escape key</strong> &mdash; the menu-bar popover is a borderless <code>NSPanel</code>, so its WKWebView rarely becomes first responder and JS <code>keydown</code> never fires. <code>tray_popover_escape_macos.rs</code> installs a local <code>NSEvent</code> monitor so Escape closes the popover anyway.</li>
+          <li><strong>Background-mode breadcrumbs</strong> &mdash; <code>app.log</code> picks up <code>APP BG: resignActive</code> / <code>APP BG: becomeActive</code> on every focus transition, plus <code>HEALTH</code> + <code>HEALTH-JS</code> lines every 30 s with RSS, IPC counters, JS heap, cache sizes, and audio-engine subprocess vitals. If the app ever feels sluggish, that log + <code>engine.log</code> (which captures stack frames + dyld images on engine SIGSEGV) is the fastest path to a diagnosis.</li>
+        </ul>
+      </section>
+
       <nav class="tutorial-nav">
         <div class="nav-stub">
           <span class="nav-label">Start</span>

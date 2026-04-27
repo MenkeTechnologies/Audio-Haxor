@@ -172,6 +172,41 @@ get_input_device_info { type }</pre>
         </ul>
       </section>
 
+      <section class="tutorial-section">
+        <h2>Background diagnostics</h2>
+        <p>You don&rsquo;t need to touch any of these from the UI &mdash; they are passive log channels &mdash; but they are the fastest way to diagnose &ldquo;the engine got slow / crashed / went silent&rdquo; reports. All of them land in the data directory (<code>~/Library/Application Support/com.menketechnologies.audio-haxor/</code> on macOS).</p>
+        <h3>Host-side keep-alive ping</h3>
+        <p>The host runs a <strong>HEALTH sampler</strong> thread (spawned at the end of <code>setup()</code> in <code>src-tauri/src/lib.rs</code>) that wakes every 30 seconds and writes one line to <code>app.log</code>:</p>
+        <pre>HEALTH | rss=&hellip;MB virt=&hellip;MB thr=&hellip; |
+        engine_main=&hellip;MB(pid=&hellip;) preview=&hellip;MB(pid=&hellip;) |
+        ipc_main n=&hellip; avg=&hellip;ms max=&hellip;ms peak_q=&hellip; now=&hellip; |
+        ipc_prev n=&hellip; avg=&hellip;ms max=&hellip;ms peak_q=&hellip; now=&hellip;</pre>
+        <p>If the previous 30-second window had fewer than 5 IPC calls (the engine is effectively idle), the sampler also fires a <code>{ &quot;cmd&quot;: &quot;ping&quot; }</code> request to the audio-engine subprocess via <code>dedicated_audio_engine_request</code>. The ping itself is a no-op &mdash; its purpose is to <strong>touch JUCE&rsquo;s working set</strong> so macOS does not page out the helper after hours of zero traffic. Without the ping, the first <code>playback_load</code> after a long idle blocks for seconds while the kernel pages everything back in.</p>
+        <p>During active use the ping is automatically suppressed (the IPC counter exceeds the threshold), so it costs nothing.</p>
+        <h3>HEALTH-JS sampler</h3>
+        <p><code>_startJsHealthSampler</code> in <code>frontend/js/audio.js</code> runs on the same 30-second cadence and writes a parallel <code>HEALTH-JS</code> line via <code>vstUpdater.appendLog</code>:</p>
+        <pre>HEALTH-JS | heap=&lt;used&gt;/&lt;total&gt;MB(lim=&lt;limit&gt;MB) |
+           wf_cache=&hellip; sg_cache=&hellip; wf_hydrating=&hellip; decode_pending=&hellip; |
+           actx=&lt;running|suspended|none&gt; playback=&lt;running|suspended|none&gt;</pre>
+        <p>Useful for catching frontend memory creep, runaway waveform / spectrogram caches, decode-worker backpressure, and AudioContext state that drifted out of sync with what the UI thinks it is.</p>
+        <h3>Engine fatal-signal crash dump</h3>
+        <p>The JUCE subprocess installs a signal handler for SIGSEGV / SIGBUS / SIGABRT that dumps a self-contained record to <code>engine.log</code> before the helper aborts:</p>
+        <pre>[ENGINE crash] handler entered
+ENGINE [fatal signal &lt;n&gt;] si_addr=0x&hellip;
+0x&hellip;       &lt;raw frame addresses, top of stack first&gt;
+0x&hellip;
+&hellip;
+
+[ENGINE crash] dyld images
+image 0x&hellip; /Applications/AUDIO_HAXOR.app/&hellip;/audio-engine
+image 0x&hellip; /System/Library/Frameworks/&hellip;
+&hellip;</pre>
+        <p>The writer is signal-safe (<code>write(2)</code> only, no malloc / no flush) so it survives any state the engine was in when the signal fired. To symbolicate, take any frame address minus the dyld base of its containing image and feed both to <code>atos</code>:</p>
+        <pre>atos -o /Applications/AUDIO_HAXOR.app/Contents/MacOS/AudioHaxorEngine.app/Contents/MacOS/audio-engine \
+     -l 0x&lt;dyld_base_of_audio-engine&gt; 0x&lt;frame_addr&gt;</pre>
+        <p>Crashes that happen during teardown (engine sees <em>stdin closed, exiting</em> right before the signal) are usually the host shutting down faster than JUCE can drain its audio-graph &mdash; benign and not worth chasing unless you also see signal frames pointing into your own playback path. Crashes that happen mid-session need a real symbolicated trace.</p>
+      </section>
+
       <section class="tutorial-callout">
         <strong>Tip</strong>If you want to test a mastering chain, host your mastering plugins in the insert chain, play back a few reference tracks via engine mode, and compare against your DAW's output. Same plugin binaries, same sample rate, same buffer — just a different host.
       </section>

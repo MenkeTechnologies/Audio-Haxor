@@ -69,6 +69,12 @@ function postAudioDecodeWorker(payload, transfer) {
         const id = ++_audioDecodeWorkerJobId;
         const timer = setTimeout(() => {
             _audioDecodeWorkerPending.delete(id);
+            /* Tell the worker to drop this job — `decodeAudioData` itself can't be aborted
+             * mid-flight, but the worker checks `_cancelledIds` before the expensive
+             * peak / spectrogram FFT pass and skips the result post if the id was cancelled.
+             * Without this, an abandoned 800-col × 1024-pt spectrogram still burns CPU and
+             * allocates an AudioBuffer that lingers in worker scope until GC. */
+            try { w.postMessage({ type: 'cancel', id }); } catch (_) { /* worker dead */ }
             reject(new Error('audio decode worker timeout'));
         }, _AUDIO_DECODE_TIMEOUT_MS);
         _audioDecodeWorkerPending.set(id, { resolve, reject, timer });
@@ -80,6 +86,53 @@ function postAudioDecodeWorker(payload, transfer) {
             reject(e);
         }
     });
+}
+
+/* ── HEALTH sampler (JS side) ────────────────────────────────────────────
+ * Pairs with the Rust HEALTH sampler in `lib.rs::run`. One line per 30 s into
+ * `app.log` so JS-side accumulation (heap, worker pending, waveform / spectrogram
+ * cache sizes) is visible alongside Rust-side IPC metrics. Heap size is best-effort
+ * — `performance.memory` is non-standard and only Chrome / WKWebView expose it. */
+let _jsHealthSamplerStarted = false;
+function _safeMapSize(m) {
+    return m && typeof m.size === 'number' ? m.size : 0;
+}
+function _safeObjKeyCount(o) {
+    if (!o || typeof o !== 'object') return 0;
+    try { return Object.keys(o).length; } catch (_) { return 0; }
+}
+function _startJsHealthSampler() {
+    if (_jsHealthSamplerStarted) return;
+    _jsHealthSamplerStarted = true;
+    setInterval(() => {
+        try {
+            const u = typeof window !== 'undefined' ? window.vstUpdater : null;
+            if (!u || typeof u.appendLog !== 'function') return;
+            const mem = (typeof performance !== 'undefined' && performance.memory) ? performance.memory : null;
+            const heapMb = mem && typeof mem.usedJSHeapSize === 'number'
+                ? Math.round(mem.usedJSHeapSize / 1024 / 1024) : -1;
+            const heapTotalMb = mem && typeof mem.totalJSHeapSize === 'number'
+                ? Math.round(mem.totalJSHeapSize / 1024 / 1024) : -1;
+            const heapLimitMb = mem && typeof mem.jsHeapSizeLimit === 'number'
+                ? Math.round(mem.jsHeapSizeLimit / 1024 / 1024) : -1;
+            const wfCacheSize = typeof _waveformCache !== 'undefined' ? _safeObjKeyCount(_waveformCache) : 0;
+            const sgCacheSize = typeof _spectrogramCache !== 'undefined' ? _safeObjKeyCount(_spectrogramCache) : 0;
+            const wfHydrating = typeof _wfSqliteHydrateInflight !== 'undefined' ? _safeMapSize(_wfSqliteHydrateInflight) : 0;
+            const decodePending = _safeMapSize(_audioDecodeWorkerPending);
+            const audioCtxState = _audioCtx ? _audioCtx.state : 'none';
+            const playbackCtxState = _playbackCtx ? _playbackCtx.state : 'none';
+            u.appendLog(
+                `HEALTH-JS | heap=${heapMb}/${heapTotalMb}MB(lim=${heapLimitMb}MB) | wf_cache=${wfCacheSize} sg_cache=${sgCacheSize} wf_hydrating=${wfHydrating} decode_pending=${decodePending} | actx=${audioCtxState} playback=${playbackCtxState}`
+            );
+        } catch (_) { /* never let logging break the app */ }
+    }, 30_000);
+}
+if (typeof window !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _startJsHealthSampler, { once: true });
+    } else {
+        _startJsHealthSampler();
+    }
 }
 
 /** Main-thread fetch of file bytes (async I/O only); decode runs in [`audio-decode-worker.js`]. */

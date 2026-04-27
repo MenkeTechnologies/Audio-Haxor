@@ -136,12 +136,41 @@ function decodeToBufferFromAb(ab) {
     return ctx.decodeAudioData(ab.slice(0));
 }
 
+/* IDs the host abandoned (timeout / track switch). `decodeAudioData` can't be cancelled
+ * mid-flight, but we can skip the spectrogram FFT (800 × 1024-pt) and the postMessage
+ * after the decode resolves, which is where the bulk of the CPU + retained allocations
+ * sit. Bounded — capped at 256 entries with FIFO eviction. */
+const _cancelledIds = new Set();
+function _markCancelled(id) {
+    _cancelledIds.add(id);
+    if (_cancelledIds.size > 256) {
+        const it = _cancelledIds.values();
+        for (let i = 0; i < 64; i++) {
+            const v = it.next();
+            if (v.done) break;
+            _cancelledIds.delete(v.value);
+        }
+    }
+}
+function _isCancelled(id) {
+    if (_cancelledIds.has(id)) {
+        _cancelledIds.delete(id);
+        return true;
+    }
+    return false;
+}
+
 self.onmessage = async (e) => {
     const msg = e.data;
     const { id, type, url, bars, ab } = msg;
+    if (type === 'cancel') {
+        _markCancelled(id);
+        return;
+    }
     try {
         if (type === 'peaksFromBuffer') {
             const audioBuf = await decodeToBufferFromAb(ab);
+            if (_isCancelled(id)) return;
             const raw = audioBuf.getChannelData(0);
             const peaks = computePeaksFromChannel(raw, bars);
             self.postMessage({ id, ok: true, peaks });
@@ -149,14 +178,17 @@ self.onmessage = async (e) => {
         }
         if (type === 'metaFromBuffer') {
             const audioBuf = await decodeToBufferFromAb(ab);
+            if (_isCancelled(id)) return;
             const raw = audioBuf.getChannelData(0);
             const peaks = computePeaksFromChannel(raw, bars);
+            if (_isCancelled(id)) return;
             const sgData = computeSpectrogramData(raw);
             self.postMessage({ id, ok: true, peaks, sgData });
             return;
         }
         if (type === 'spectrogramFromBuffer') {
             const audioBuf = await decodeToBufferFromAb(ab);
+            if (_isCancelled(id)) return;
             const raw = audioBuf.getChannelData(0);
             const sgData = computeSpectrogramData(raw);
             self.postMessage({ id, ok: true, sgData });
@@ -164,6 +196,7 @@ self.onmessage = async (e) => {
         }
         if (type === 'channelsFromBuffer') {
             const audioBuf = await decodeToBufferFromAb(ab);
+            if (_isCancelled(id)) return;
             const nCh = audioBuf.numberOfChannels;
             const len = audioBuf.length;
             const sampleRate = audioBuf.sampleRate;
@@ -181,6 +214,7 @@ self.onmessage = async (e) => {
         }
         if (type === 'peaks') {
             const audioBuf = await decodeToBuffer(url);
+            if (_isCancelled(id)) return;
             const raw = audioBuf.getChannelData(0);
             const peaks = computePeaksFromChannel(raw, bars);
             self.postMessage({ id, ok: true, peaks });
@@ -188,14 +222,17 @@ self.onmessage = async (e) => {
         }
         if (type === 'meta') {
             const audioBuf = await decodeToBuffer(url);
+            if (_isCancelled(id)) return;
             const raw = audioBuf.getChannelData(0);
             const peaks = computePeaksFromChannel(raw, bars);
+            if (_isCancelled(id)) return;
             const sgData = computeSpectrogramData(raw);
             self.postMessage({ id, ok: true, peaks, sgData });
             return;
         }
         if (type === 'spectrogram') {
             const audioBuf = await decodeToBuffer(url);
+            if (_isCancelled(id)) return;
             const raw = audioBuf.getChannelData(0);
             const sgData = computeSpectrogramData(raw);
             self.postMessage({ id, ok: true, sgData });
@@ -203,6 +240,7 @@ self.onmessage = async (e) => {
         }
         if (type === 'channels') {
             const audioBuf = await decodeToBuffer(url);
+            if (_isCancelled(id)) return;
             const nCh = audioBuf.numberOfChannels;
             const len = audioBuf.length;
             const sampleRate = audioBuf.sampleRate;
@@ -220,6 +258,7 @@ self.onmessage = async (e) => {
         }
         self.postMessage({ id, ok: false, error: 'unknown_type' });
     } catch (err) {
+        if (_isCancelled(id)) return;
         self.postMessage({
             id,
             ok: false,
