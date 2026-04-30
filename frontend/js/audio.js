@@ -1513,6 +1513,11 @@ function applyMetaLoopRegionUI(filePath) {
     if (videoBox && videoBox.dataset.path === filePath) {
         _paintLoopRegionOverlay(videoBox, region);
     }
+    // Sample-browser crate row — same overlay child elements, just smaller container.
+    const crateBox = document.querySelector(`.crate-row-wave[data-wave-path="${CSS.escape(filePath)}"]`);
+    if (crateBox) {
+        _paintLoopRegionOverlay(crateBox, region);
+    }
 }
 
 /** Refresh the now-playing loop overlay from the current `audioPlayerPath` — used on track change. */
@@ -1563,6 +1568,12 @@ function toggleMetaLoopRegion() {
     const box = document.getElementById('metaWaveformBox');
     if (!box) return;
     const filePath = box.dataset.path || '';
+    if (!filePath) return;
+    toggleLoopRegionForPath(filePath);
+}
+
+/** Toggle the loop region by file path — used from any waveform host (meta, video, crate row). */
+function toggleLoopRegionForPath(filePath) {
     if (!filePath) return;
     const region = getSampleLoopRegion(filePath);
     region.enabled = !region.enabled;
@@ -1948,15 +1959,26 @@ function handleEnginePlaybackEofFromPoll() {
 /**
  * Rust EOF watchdog already issued `playback_load` + `start_playback` for `nextPath`
  * (see `audio_engine.rs::audio_engine_eof_watchdog_start` + `take_next_track_hint`).
- * JS only needs to sync the world: mark EOF handled so the next `playback_status` poll
- * does not re-fire `nextTrack`, point the engine-resume tracker at the new path, refresh
- * the tray HUD + recently-played list, and push the *following* next-track hint so the
- * autoplay cascade survives further BG transitions. No `playback_load` IPC issued here.
+ * JS only needs to sync UI: point the engine-resume tracker at the new path, refresh
+ * the tray HUD, and push the *following* next-track hint so the autoplay cascade
+ * survives further BG transitions. No `playback_load` IPC issued here.
+ *
+ * Do NOT set `_enginePlaybackEofHandled = true` — the previous attempt did that to
+ * suppress JS double-handling of the just-fired EOF, but the engine has already
+ * advanced to `nextPath` by the time this handler runs (Rust ran `playback_load`
+ * synchronously before emitting the event), so any subsequent `playback_status` poll
+ * sees `eof=false` for the new track and does not fire `handleEnginePlaybackEofFromPoll`
+ * regardless of the flag.  Setting the flag instead broke autoplay on the BG→FG
+ * transition: a Rust-driven advance in BG would leave the flag stuck true, and when
+ * the user foregrounded and the new track later ended, JS poll's EOF detection
+ * bailed and the chain stopped.  The flag is reset only by `enginePlaybackStart`
+ * (called for JS-initiated playback) — which Rust-driven advance bypasses, so the
+ * flag would stay stuck forever.  Leaving it false here lets future EOF cycles work
+ * normally.
  */
 function handleEngineRustAdvanced(nextPath) {
     if (typeof nextPath !== 'string' || nextPath.length === 0) return;
     if (!_enginePlaybackActive) return;
-    _enginePlaybackEofHandled = true;
     if (typeof window !== 'undefined') {
         window._enginePlaybackResumePath = nextPath;
     }
@@ -3932,6 +3954,12 @@ function updateLoopBtnStates() {
             btn.classList.toggle('active', isThis && audioLooping);
         });
     }
+    // Crate-tab row loop buttons — same pattern as the audio table.
+    document.querySelectorAll('.crate-row[data-sample-path] .btn-loop').forEach(btn => {
+        const r = btn.closest('.crate-row');
+        const p = r ? r.dataset.samplePath || '' : '';
+        btn.classList.toggle('active', p === audioPlayerPath && audioLooping);
+    });
 }
 
 function stopAudioPlayback() {
@@ -4794,6 +4822,30 @@ function updatePlaybackTime() {
             window._fbCursorEl.style.display = '';
             window._fbCursorEl.style.left = pct + '%';
         }
+        // Playback cursor + progress fill — sample-browser crate row waveform.  Crate
+        // rows are paginated (rebuilt on page change / scroll), so re-query when the
+        // cached element detaches.
+        if (
+            !window._crateCursorPath ||
+            window._crateCursorPath !== audioPlayerPath ||
+            (window._crateCursorEl && !window._crateCursorEl.isConnected)
+        ) {
+            if (window._crateCursorEl) window._crateCursorEl.style.display = 'none';
+            if (window._crateProgressEl) window._crateProgressEl.style.width = '0%';
+            const crateWave = audioPlayerPath
+                ? document.querySelector(`.crate-row-wave[data-wave-path="${CSS.escape(audioPlayerPath)}"]`)
+                : null;
+            window._crateCursorEl = crateWave?.querySelector('.waveform-cursor') || null;
+            window._crateProgressEl = crateWave?.querySelector('.waveform-progress-fill') || null;
+            window._crateCursorPath = audioPlayerPath;
+        }
+        if (window._crateCursorEl) {
+            window._crateCursorEl.style.display = '';
+            window._crateCursorEl.style.left = pct + '%';
+        }
+        if (window._crateProgressEl) {
+            window._crateProgressEl.style.width = pct + '%';
+        }
     } else {
         if (_npCursorEl) _npCursorEl.style.display = 'none';
         const metaHideBox =
@@ -4809,6 +4861,8 @@ function updatePlaybackTime() {
             if (vhc) vhc.style.display = 'none';
         }
         if (window._fbCursorEl) window._fbCursorEl.style.display = 'none';
+        if (window._crateCursorEl) window._crateCursorEl.style.display = 'none';
+        if (window._crateProgressEl) window._crateProgressEl.style.width = '0%';
     }
     if (typeof window.syncAeTransportFromPlayback === 'function') {
         let aeTab = _npAeTransportTabEl;
@@ -6156,9 +6210,19 @@ function getTablePlaybackListItems() {
 
 /**
  * Which list EOF autoplay advances through (`prefs.autoplayNextSource`).
- * @returns {'player' | 'samples'}
+ * The Crate tab dynamically overrides this when active — EOF autoplay there must walk
+ * the crate's filtered/sorted result list, NOT the unrelated audio table or player
+ * history (the user described the previous behavior as "fucking confusing").
+ * @returns {'player' | 'samples' | 'crate'}
  */
 function getAutoplayNextSource() {
+    if (typeof window !== 'undefined' &&
+        typeof window.isCrateTabActive === 'function' &&
+        window.isCrateTabActive() &&
+        typeof window.getCratePlaybackListItems === 'function' &&
+        window.getCratePlaybackListItems().length > 0) {
+        return 'crate';
+    }
     if (typeof prefs === 'undefined') return 'samples';
     return prefs.getItem('autoplayNextSource') === 'player' ? 'player' : 'samples';
 }
@@ -6168,7 +6232,13 @@ window.getAutoplayNextSource = getAutoplayNextSource;
 /** Whether autoplay-after-EOF may run (Settings on + non-empty chosen list). */
 function canAutoplayAdvanceTrack() {
     if (typeof prefs === 'undefined' || prefs.getItem('autoplayNext') === 'off') return false;
-    if (getAutoplayNextSource() === 'player') {
+    const src = getAutoplayNextSource();
+    if (src === 'crate') {
+        return typeof window !== 'undefined' &&
+            typeof window.getCratePlaybackListItems === 'function' &&
+            window.getCratePlaybackListItems().length >= 1;
+    }
+    if (src === 'player') {
         return getPlayerHistoryListItems().length >= 1;
     }
     return getTablePlaybackListItems().length >= 1;
@@ -6191,8 +6261,21 @@ function getAutoplayNextPathAfter(currentPath, opts) {
         items = getPlayerHistoryListItems();
     } else if (o.sourceList === 'samples') {
         items = getTablePlaybackListItems();
+    } else if (o.sourceList === 'crate') {
+        items = (typeof window !== 'undefined' && typeof window.getCratePlaybackListItems === 'function')
+            ? window.getCratePlaybackListItems()
+            : [];
     } else if (useSourceList) {
-        items = getAutoplayNextSource() === 'player' ? getPlayerHistoryListItems() : getTablePlaybackListItems();
+        const src = getAutoplayNextSource();
+        if (src === 'crate') {
+            items = (typeof window !== 'undefined' && typeof window.getCratePlaybackListItems === 'function')
+                ? window.getCratePlaybackListItems()
+                : [];
+        } else if (src === 'player') {
+            items = getPlayerHistoryListItems();
+        } else {
+            items = getTablePlaybackListItems();
+        }
     } else {
         items = getPlayerHistoryListItems();
     }
@@ -6583,12 +6666,19 @@ function prevTrack(opts) {
      * affecting EOF autoplay. */
     const useSourceList = o.respectAutoplaySource === true;
     const resolvedSource =
-        o.sourceList === 'player' || o.sourceList === 'samples'
+        o.sourceList === 'player' || o.sourceList === 'samples' || o.sourceList === 'crate'
             ? o.sourceList
             : (useSourceList ? getAutoplayNextSource() : 'player');
-    const items = resolvedSource === 'player'
-        ? getPlayerHistoryListItems()
-        : getTablePlaybackListItems();
+    let items;
+    if (resolvedSource === 'crate') {
+        items = (typeof window !== 'undefined' && typeof window.getCratePlaybackListItems === 'function')
+            ? window.getCratePlaybackListItems()
+            : [];
+    } else if (resolvedSource === 'player') {
+        items = getPlayerHistoryListItems();
+    } else {
+        items = getTablePlaybackListItems();
+    }
     /* Resolve the effective current path — during AudioEngine playback, `audioPlayerPath` is
      * null and the real path lives in `window._enginePlaybackResumePath`. Using the null
      * value below made `items.findIndex(...)` return -1, which fell through to "wrap to last
@@ -8295,6 +8385,9 @@ function _loopRegionPathForBox(box) {
         if (fromDs) return fromDs;
         return (typeof videoPlayerPath !== 'undefined' && videoPlayerPath) ? videoPlayerPath : '';
     }
+    if (box.classList && box.classList.contains('crate-row-wave')) {
+        return box.dataset ? box.dataset.wavePath || '' : '';
+    }
     return '';
 }
 
@@ -8322,7 +8415,7 @@ function _loopRegionPathForBox(box) {
         // Loop brace handles consume their own pointerdown (drag); don't treat as seek.
         if (t.closest && t.closest('.waveform-loop-brace')) return;
         // Shift+click on a loop-capable waveform starts the region paint (rubber band); skip seek.
-        if (e.shiftKey && t.closest && t.closest('#metaWaveformBox, #npWaveform, #videoWaveformBox')) return;
+        if (e.shiftKey && t.closest && t.closest('#metaWaveformBox, #npWaveform, #videoWaveformBox, .crate-row-wave')) return;
         const meta = typeof t.closest === 'function' ? t.closest('#metaWaveformBox') : null;
         if (meta && typeof seekMetaWaveform === 'function') {
             // Click to the right of the loop end brace exits the loop region — lets playback continue past `end`.
@@ -8344,6 +8437,19 @@ function _loopRegionPathForBox(box) {
             maybeExitLoopOnRightClickFrac(videoWf, e);
             e.preventDefault();
             seekVideoWaveform(e);
+            return;
+        }
+        // Crate-row mini waveform: only seeks when the row is the currently-playing
+        // sample (otherwise the click should fall through to the row's audition click).
+        const crateWf = typeof t.closest === 'function' ? t.closest('.crate-row-wave') : null;
+        if (crateWf && audioPlayerPath && crateWf.dataset.wavePath === audioPlayerPath) {
+            maybeExitLoopOnRightClickFrac(crateWf, e);
+            const rect = crateWf.getBoundingClientRect();
+            if (rect.width > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                seekPlaybackToPercent((e.clientX - rect.left) / rect.width);
+            }
         }
     }
     if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
@@ -8362,7 +8468,7 @@ function _loopRegionPathForBox(box) {
         // Don't start paint when the user shift-clicks a brace or the toggle button.
         if (t.closest('.waveform-loop-brace')) return;
         if (t.closest('button, input, select, textarea')) return;
-        const box = t.closest('#metaWaveformBox, #npWaveform, #videoWaveformBox');        if (!box) return;
+        const box = t.closest('#metaWaveformBox, #npWaveform, #videoWaveformBox, .crate-row-wave');        if (!box) return;
         const filePath = _loopRegionPathForBox(box);
         if (!filePath) return;
         const rect = box.getBoundingClientRect();
@@ -8494,12 +8600,14 @@ function _loopRegionPathForBox(box) {
         if (!t || typeof t.closest !== 'function') return;
         const btn = t.closest('.waveform-loop-toggle');
         if (!btn) return;
-        const host = btn.closest('#metaWaveformBox, #videoWaveformBox');
+        const host = btn.closest('#metaWaveformBox, #videoWaveformBox, .crate-row-wave');
         if (!host) return;
         e.preventDefault();
         e.stopPropagation();
         if (host.id === 'videoWaveformBox') {
             if (typeof toggleVideoLoopRegionFn === 'function') toggleVideoLoopRegionFn();
+        } else if (host.classList && host.classList.contains('crate-row-wave')) {
+            toggleLoopRegionForPath(host.dataset.wavePath || '');
         } else {
             toggleMetaLoopRegion();
         }

@@ -10420,14 +10420,69 @@
             padding-left: 8px;
         }
         .crate-row-wave {
+            position: relative;
             flex: 0 0 200px;
             width: 200px;
             height: 40px;
             background: rgba(0,0,0,0.35);
             border-radius: 2px;
             overflow: hidden;
+            cursor: pointer;
         }
-        .crate-row-wave-canvas { display: block; }
+        .crate-row-wave-canvas { display: block; position: relative; z-index: 1; }
+        .crate-row-wave .waveform-progress-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 0;
+            background: linear-gradient(90deg, rgba(5, 217, 232, 0.15), rgba(255, 42, 109, 0.10));
+            pointer-events: none;
+            z-index: 2;
+        }
+        .crate-row-wave .waveform-cursor {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 2px;
+            background: var(--cyan);
+            display: none;
+            pointer-events: none;
+            box-shadow: 0 0 4px rgba(5, 217, 232, 0.7);
+            z-index: 4;
+        }
+        /* Loop braces are 12px wide globally; on the 200px crate row that is 6%, fine for a visual marker. */
+        .crate-row-wave .waveform-loop-brace { width: 8px; }
+        .crate-row-wave .waveform-loop-brace-end { margin-left: -8px; }
+        .crate-row-wave .waveform-loop-toggle {
+            position: absolute;
+            top: 1px;
+            left: 2px;
+            font-size: 8px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            color: var(--text-muted);
+            background: rgba(0, 0, 0, 0.55);
+            border: 1px solid var(--border);
+            padding: 0 4px;
+            cursor: pointer;
+            z-index: 5;
+            line-height: 1.2;
+            letter-spacing: 1px;
+        }
+        .crate-row-wave .waveform-loop-toggle:hover { color: var(--cyan); border-color: var(--cyan); }
+        .crate-row-wave .waveform-loop-toggle.active { color: #ffe600; border-color: #ffe600; }
+        /* Gate: until `renderCrateWaveformFor` finishes painting peaks, hide every overlay
+         * child so the L button + (potentially-saved) loop brace don't appear on top of a
+         * blank canvas while the waveform is still being fetched / hydrated. */
+        .crate-row-wave--unloaded .waveform-loop-toggle,
+        .crate-row-wave--unloaded .waveform-loop-region,
+        .crate-row-wave--unloaded .waveform-loop-brace,
+        .crate-row-wave--unloaded .waveform-cursor,
+        .crate-row-wave--unloaded .waveform-progress-fill {
+            display: none !important;
+        }
         .crate-row-body {
             flex: 1 1 auto;
             min-width: 0;
@@ -14637,41 +14692,41 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=72768"></script>
-<script src="js/utils.js?v=72768"></script>
-<script src="js/ui-idle.js?v=72768"></script>
-<script src="js/ipc.js?v=72768"></script>
-<script src="js/tooltip-hover.js?v=72768"></script>
-<script src="js/drag-reorder.js?v=72768"></script>
-<script src="js/modal-drag.js?v=72768"></script>
-<script src="js/columns.js?v=72768"></script>
-<script src="js/notes.js?v=72768"></script>
-<script src="js/favorites.js?v=72768"></script>
-<script src="js/export.js?v=72768"></script>
-<script src="js/plugins.js?v=72768"></script>
-<script src="js/settings.js?v=72768"></script>
-<script src="js/history.js?v=72768"></script>
-<script src="js/kvr.js?v=72768"></script>
-<script src="js/graph-freeze.js?v=72768"></script>
-<script src="js/audio.js?v=72768"></script>
-<script src="js/daw.js?v=72768"></script>
-<script src="js/disk-usage.js?v=72768"></script>
-<script src="js/presets.js?v=72768"></script>
-<script src="js/batch-select.js?v=72768"></script>
-<script src="js/native-file-drag.js?v=72768"></script>
-<script src="js/sort-persist.js?v=72768"></script>
-<script src="js/multi-filter.js?v=72768"></script>
-<script src="js/file-browser.js?v=72768"></script>
-<script src="js/duplicates.js?v=72768"></script>
-<script src="js/command-palette.js?v=72768"></script>
-<script src="js/xref.js?v=72768"></script>
-<script src="js/dep-graph.js?v=72768"></script>
-<script src="js/smart-playlists.js?v=72768"></script>
-<script src="js/heatmap-dashboard.js?v=72768"></script>
-<script src="js/genre-rules-dashboard.js?v=72768"></script>
-<script src="js/midi.js?v=72768"></script>
-<script src="js/pdf.js?v=72768"></script>
-<script src="js/video.js?v=72768"></script>
+<script src="js/i18n-ui.js?v=27196"></script>
+<script src="js/utils.js?v=27196"></script>
+<script src="js/ui-idle.js?v=27196"></script>
+<script src="js/ipc.js?v=27196"></script>
+<script src="js/tooltip-hover.js?v=27196"></script>
+<script src="js/drag-reorder.js?v=27196"></script>
+<script src="js/modal-drag.js?v=27196"></script>
+<script src="js/columns.js?v=27196"></script>
+<script src="js/notes.js?v=27196"></script>
+<script src="js/favorites.js?v=27196"></script>
+<script src="js/export.js?v=27196"></script>
+<script src="js/plugins.js?v=27196"></script>
+<script src="js/settings.js?v=27196"></script>
+<script src="js/history.js?v=27196"></script>
+<script src="js/kvr.js?v=27196"></script>
+<script src="js/graph-freeze.js?v=27196"></script>
+<script src="js/audio.js?v=27196"></script>
+<script src="js/daw.js?v=27196"></script>
+<script src="js/disk-usage.js?v=27196"></script>
+<script src="js/presets.js?v=27196"></script>
+<script src="js/batch-select.js?v=27196"></script>
+<script src="js/native-file-drag.js?v=27196"></script>
+<script src="js/sort-persist.js?v=27196"></script>
+<script src="js/multi-filter.js?v=27196"></script>
+<script src="js/file-browser.js?v=27196"></script>
+<script src="js/duplicates.js?v=27196"></script>
+<script src="js/command-palette.js?v=27196"></script>
+<script src="js/xref.js?v=27196"></script>
+<script src="js/dep-graph.js?v=27196"></script>
+<script src="js/smart-playlists.js?v=27196"></script>
+<script src="js/heatmap-dashboard.js?v=27196"></script>
+<script src="js/genre-rules-dashboard.js?v=27196"></script>
+<script src="js/midi.js?v=27196"></script>
+<script src="js/pdf.js?v=27196"></script>
+<script src="js/video.js?v=27196"></script>
 <!-- Blacklist Modal -->
 <div id="blacklistModal" class="modal-overlay">
     <div class="modal-content" style="max-width:600px;">
@@ -14730,20 +14785,20 @@
     </div>
 </div>
 
-<script src="js/settings-search.js?v=72768"></script>
-<script src="js/visualizer.js?v=72768"></script>
-<script src="js/walker-status.js?v=72768"></script>
-<script src="js/audio-engine.js?v=72768"></script>
-<script src="js/als-timeline.js?v=72768"></script>
-<script src="js/als-generator.js?v=72768"></script>
-<script src="js/trance-lead.js?v=72768"></script>
-<script src="js/sample-browser.js?v=72768"></script>
-<script src="lib/xterm.js?v=72768"></script>
-<script src="js/terminal.js?v=72768"></script>
-<script src="js/context-menu.js?v=72768"></script>
-<script src="js/shortcuts.js?v=72768"></script>
-<script src="js/help-overlay.js?v=72768"></script>
-<script src="js/keyboard-nav.js?v=72768"></script>
-<script src="js/app.js?v=72768"></script>
+<script src="js/settings-search.js?v=27196"></script>
+<script src="js/visualizer.js?v=27196"></script>
+<script src="js/walker-status.js?v=27196"></script>
+<script src="js/audio-engine.js?v=27196"></script>
+<script src="js/als-timeline.js?v=27196"></script>
+<script src="js/als-generator.js?v=27196"></script>
+<script src="js/trance-lead.js?v=27196"></script>
+<script src="js/sample-browser.js?v=27196"></script>
+<script src="lib/xterm.js?v=27196"></script>
+<script src="js/terminal.js?v=27196"></script>
+<script src="js/context-menu.js?v=27196"></script>
+<script src="js/shortcuts.js?v=27196"></script>
+<script src="js/help-overlay.js?v=27196"></script>
+<script src="js/keyboard-nav.js?v=27196"></script>
+<script src="js/app.js?v=27196"></script>
 </body>
 </html>

@@ -17,6 +17,10 @@
     let winFocused = true;
     let winMinimized = false;
     let winVisible = true;
+    /* True once Tauri's `WebviewWindow` has been queried successfully (any of `isFocused`,
+     * `isMinimized`, `isVisible` resolved).  Switches `recompute` to trust ONLY Tauri-reported
+     * minimized/visible state, ignoring `document.hidden` — see comment on `recompute`. */
+    let hasTauriWindowState = false;
 
     /* IDLE only on actual invisibility — hidden tab, minimized window, or `isVisible:false`.
      * Merely losing keyboard focus (e.g. the tray popover grabbing focus, the user clicking in
@@ -25,8 +29,17 @@
      * all stop behind this flag. The user reported that dragging the tray volume slider stopped
      * updating the main window's playhead + FFT until they clicked the main window to refocus
      * it — classic symptom of an idle-on-blur heuristic. Being visible-but-unfocused is NOT idle.
-     * `winFocused` is still tracked for diagnostics but is not part of the idle condition. */
+     * `winFocused` is still tracked for diagnostics but is not part of the idle condition.
+     *
+     * `document.hidden` is NOT load-bearing on macOS WKWebView: when the tray popover panel
+     * is `alwaysOnTop` and overlaps the main window, WebKit's occlusion API flips
+     * `visibilityState` to `hidden` even though the main window is still on screen and the
+     * Tauri-side `isVisible` / `isMinimized` say otherwise.  Trusting `document.hidden` in
+     * that case freezes the main window the moment the user clicks the tray.  When Tauri's
+     * window state is available, trust ONLY `winMinimized` / `winVisible` — those reflect
+     * native window-on-screen reality, not WebKit occlusion. */
     function recompute() {
+        if (hasTauriWindowState) return winMinimized || !winVisible;
         return docHidden || winMinimized || !winVisible;
     }
 
@@ -112,7 +125,9 @@
             }));
         }
         if (ps.length === 0) return Promise.resolve();
-        return Promise.all(ps);
+        return Promise.all(ps).then(() => {
+            hasTauriWindowState = true;
+        });
     }
 
     (async function setupTauri() {

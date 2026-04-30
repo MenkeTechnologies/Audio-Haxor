@@ -2095,6 +2095,18 @@ struct Engine::Impl
     /// pair cannot clear the session mid-transition.
     uint64_t loadGen = 0;
     uint64_t consumedGen = 0;
+    /** Race guard for the JS `enginePlaybackStop()` pair `(stop_output_stream, playback_stop)`
+     *  fired-and-forgotten before a new `enginePlaybackStart()`.  IPC FIFO ordering puts the
+     *  trailing `playback_stop` AFTER the new `playback_load_and_start`, so without this guard
+     *  the stale stop tears down the brand-new transport and the user gets silence.
+     *
+     *  `pendingPlaybackStops` counts `stop_output_stream` IPCs that have not yet seen their
+     *  paired trailing `playback_stop`.  When a `start_output_stream` / `playback_load_and_start`
+     *  arrives while the count is non-zero, the pair is stale: the corresponding trailing
+     *  `playback_stop` is meant for the OLD session, not the one we just started.  Move that
+     *  count into `staleStopsToSkip`; the next N `playback_stop` IPCs become no-ops. */
+    int pendingPlaybackStops = 0;
+    int staleStopsToSkip = 0;
     std::atomic<uint32_t> deviceRate{0};
     bool reverseWanted = false;
     /** Forward: `AudioFormatReaderSource::setLooping`. Reverse: `DspStereoFileSource` wraps RAM buffer. */
@@ -2917,6 +2929,43 @@ struct Engine::Impl
             appLogLine("audio device: output stream stopped name=\"" + prevName + "\" id=\"" + prevId + "\"");
     }
 
+    /** Tear down the current playback source while leaving the CoreAudio device + the
+     *  `sourcePlayer` callback wired and running.  The audio thread keeps pulling — it
+     *  reads silence from the now-source-less `transport` — so `outputRunning` stays
+     *  true and no HAL open/close happens.
+     *
+     *  Used by `startOutputStreamLocked` when the JS-requested device + buffer + mode
+     *  match the currently running config: rapid sample auditioning in the crate tab
+     *  was previously triggering `outputManager.closeAudioDevice()` +
+     *  `setAudioDeviceSetup()` per click, churning `coreaudiod` to the point of a
+     *  system-wide audio wedge requiring `sudo killall coreaudiod`.  Source-only swap
+     *  eliminates the churn — the daemon never sees the click.
+     *
+     *  Sequence mirrors `stopOutputLocked` except we (a) keep the audio callback wired
+     *  and (b) skip `closeAudioDevice`.  Order of teardown is critical:
+     *    1. `sourcePlayer.setSource(nullptr)` quiets the audio thread *before* we touch
+     *       `transport` or `fileSource`.  `addAudioCallback`/`removeAudioCallback` flip
+     *       the active-callback list under a lock, but `setSource(nullptr)` here is the
+     *       same swap-under-lock pattern used by JUCE's own `AudioSourcePlayer`.
+     *    2. Tear down `transport` chain.
+     *    3. Reset `fileSource` (destroys the DSP source + insert chain).
+     *    4. Clear the spectrum/scope rings *after* the audio thread is silenced. */
+    void softStopForWarmSwap()
+    {
+        sourcePlayer.setSource(nullptr);
+        clearSpectrumCallbacks();
+        clearScopeCallbacks();
+        transport.setSource(nullptr);
+        transport.stop();
+        transport.releaseResources();
+        fileSource.reset();
+        clearSpectrumRing();
+        clearScopeRing();
+        playbackMode = false;
+        toneMode = false;
+        playbackPeak.store(0.0f);
+    }
+
     void stopInputLocked()
     {
         const bool wasRunning = inputRunning;
@@ -3095,8 +3144,32 @@ struct Engine::Impl
             bf = (uint32_t) (int) req["buffer_frames"];
         if (bf > kMaxBufferFrames)
             bf = kMaxBufferFrames;
+        const bool userSr = req.hasProperty("sample_rate_hz") && !req["sample_rate_hz"].isVoid();
 
-        stopOutputLocked();
+        /* Warm-swap fast path: when the device is already running with the requested
+         * config, skip `closeAudioDevice` / `setAudioDeviceSetup`.  Each cold cycle
+         * round-trips with `coreaudiod`; rapid sample auditioning in the crate tab
+         * was wedging the system audio daemon (the user had to `killall coreaudiod`
+         * to recover all audio).  Source-only swap eliminates the churn entirely.
+         *
+         * Conditions: an output is already running, this is a playback start (not
+         * a tone-toggle), no reverse preload (which has its own one-shot read path),
+         * device_id is unset or matches current, buffer_frames matches current, and
+         * the caller didn't ask for a specific sample rate (engine keeps the device
+         * rate; `rateCorrection` already handles file-vs-device rate mismatch). */
+        const bool warmSwap = outputRunning
+            && startPlayback
+            && !tone
+            && !reverseWanted
+            && (deviceId.isEmpty() || deviceId == outDeviceId)
+            && (bf == 0 || (outStreamBufferFrames.has_value() && (int) bf == *outStreamBufferFrames))
+            && !userSr
+            && outputManager.getCurrentAudioDevice() != nullptr;
+
+        if (warmSwap)
+            softStopForWarmSwap();
+        else
+            stopOutputLocked();
 
         if (startPlayback && sessionPath.isEmpty())
             return errObj("playback_load required before start_playback");
@@ -3104,48 +3177,54 @@ struct Engine::Impl
         if (startPlayback)
             consumedGen = loadGen;
 
-        juce::String devName = resolveOutputDeviceName(outputManager, deviceId);
-        if (devName.isEmpty() && !deviceId.isEmpty())
-            return errObj("unknown device_id: " + deviceId);
-
-        juce::AudioDeviceManager::AudioDeviceSetup setup;
-        if (devName.isNotEmpty())
-            setup.outputDeviceName = devName;
-        setup.inputDeviceName = "";
-        if (bf > 0)
-            setup.bufferSize = (int) bf;
-
-        const bool userSr = req.hasProperty("sample_rate_hz") && !req["sample_rate_hz"].isVoid();
-        if (userSr)
+        juce::String devName;
+        if (!warmSwap)
         {
-            const double sr = (double) (int) req["sample_rate_hz"];
-            if (sr > 1000.0)
-                setup.sampleRate = sr;
-        }
-        else if (startPlayback)
-        {
-            /* `sessionSrcRate` was set by `playbackLoad` from the same reader we are
-             * about to consume below — no need to re-open the file just for the rate. */
-            setup.sampleRate = (double) sessionSrcRate;
-        }
+            devName = resolveOutputDeviceName(outputManager, deviceId);
+            if (devName.isEmpty() && !deviceId.isEmpty())
+                return errObj("unknown device_id: " + deviceId);
 
-        outputManager.setAudioDeviceSetup(setup, true);
+            juce::AudioDeviceManager::AudioDeviceSetup setup;
+            if (devName.isNotEmpty())
+                setup.outputDeviceName = devName;
+            setup.inputDeviceName = "";
+            if (bf > 0)
+                setup.bufferSize = (int) bf;
+
+            if (userSr)
+            {
+                const double sr = (double) (int) req["sample_rate_hz"];
+                if (sr > 1000.0)
+                    setup.sampleRate = sr;
+            }
+            else if (startPlayback)
+            {
+                /* `sessionSrcRate` was set by `playbackLoad` from the same reader we are
+                 * about to consume below — no need to re-open the file just for the rate. */
+                setup.sampleRate = (double) sessionSrcRate;
+            }
+
+            outputManager.setAudioDeviceSetup(setup, true);
+        }
         juce::AudioIODevice* dev = outputManager.getCurrentAudioDevice();
         if (dev == nullptr)
             return errObj("no output device");
 
-        maybeBumpBufferForStablePlayback(outputManager, dev, bf);
-        if (dev == nullptr)
-            return errObj("no output device");
+        if (!warmSwap)
+        {
+            maybeBumpBufferForStablePlayback(outputManager, dev, bf);
+            if (dev == nullptr)
+                return errObj("no output device");
 
-        deviceRate.store((uint32_t) dev->getCurrentSampleRate());
+            deviceRate.store((uint32_t) dev->getCurrentSampleRate());
 
-        outDeviceId = outputIdForDeviceName(outputManager, dev->getName());
-        outDeviceName = dev->getName();
-        outSampleRate = (int) dev->getCurrentSampleRate();
-        outChannels = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
-        outBufferSizeJson = bufferSizeJson(dev);
-        outStreamBufferFrames = (bf > 0) ? std::optional<int>((int) bf) : std::nullopt;
+            outDeviceId = outputIdForDeviceName(outputManager, dev->getName());
+            outDeviceName = dev->getName();
+            outSampleRate = (int) dev->getCurrentSampleRate();
+            outChannels = juce::jmax(1, dev->getActiveOutputChannels().countNumberOfSetBits());
+            outBufferSizeJson = bufferSizeJson(dev);
+            outStreamBufferFrames = (bf > 0) ? std::optional<int>((int) bf) : std::nullopt;
+        }
 
         if (startPlayback)
         {
@@ -3913,7 +3992,16 @@ juce::var Engine::dispatch(const juce::var& req)
     }
 
     if (cmd == "start_output_stream")
+    {
+        // Any pending `playback_stop` IPCs in flight from a fire-and-forget
+        // `enginePlaybackStop()` are now stale — their target session is being replaced.
+        if (impl->pendingPlaybackStops > 0)
+        {
+            impl->staleStopsToSkip += impl->pendingPlaybackStops;
+            impl->pendingPlaybackStops = 0;
+        }
         return impl->startOutputStreamLocked(req);
+    }
 
     /** Compound command: `playback_load` + `start_output_stream { start_playback: true }`
      *  in one engine round-trip.  JS-side `enginePlaybackStart` previously fired these
@@ -3925,6 +4013,13 @@ juce::var Engine::dispatch(const juce::var& req)
      *  (`duration_sec`, `sample_rate_hz`) plus whatever `start_output_stream` returns. */
     if (cmd == "playback_load_and_start")
     {
+        // Promote any in-flight stale `playback_stop`s before loading + starting —
+        // see `pendingPlaybackStops` rationale.
+        if (impl->pendingPlaybackStops > 0)
+        {
+            impl->staleStopsToSkip += impl->pendingPlaybackStops;
+            impl->pendingPlaybackStops = 0;
+        }
         const juce::var loadRes = impl->playbackLoad(req);
         if (auto* o = loadRes.getDynamicObject())
         {
@@ -3955,7 +4050,20 @@ juce::var Engine::dispatch(const juce::var& req)
         return impl->startInputStreamLocked(req);
 
     if (cmd == "playback_stop")
+    {
+        if (impl->staleStopsToSkip > 0)
+        {
+            // Trailing half of a fire-and-forget `enginePlaybackStop()` whose paired
+            // `stop_output_stream` already ran BEFORE the most recent start — its target
+            // session no longer exists, and tearing down the new transport would silence
+            // the just-started playback.  Skip the destructive ops.
+            --impl->staleStopsToSkip;
+            return okObj();
+        }
+        if (impl->pendingPlaybackStops > 0)
+            --impl->pendingPlaybackStops;
         return impl->playbackStopLocked();
+    }
 
     if (cmd == "playback_pause")
     {
@@ -4067,6 +4175,11 @@ juce::var Engine::dispatch(const juce::var& req)
 
     if (cmd == "stop_output_stream")
     {
+        // JS `enginePlaybackStop()` always fires `stop_output_stream` followed by
+        // `playback_stop`.  Track the pair so a trailing `playback_stop` racing AFTER
+        // a new `playback_load_and_start` doesn't kill the new session — see
+        // `pendingPlaybackStops` field comment.
+        ++impl->pendingPlaybackStops;
         const bool was = impl->outputRunning;
         impl->stopOutputLocked();
         juce::var out = okObj();

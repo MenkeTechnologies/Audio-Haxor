@@ -533,8 +533,14 @@ function renderCrateRow(r, idx) {
     const nameHl = _hl(r.name);
     const pathHl = _hl(r.path);
     return `<div class="crate-row" data-idx="${idx}" data-sample-id="${r.sample_id}" data-sample-path="${_crateEsc(r.path)}" data-sample-name="${_crateEsc(r.name)}" role="button" tabindex="-1">
-        <div class="crate-row-wave" data-wave-path="${_crateEsc(r.path)}">
+        <div class="crate-row-wave crate-row-wave--unloaded" data-wave-path="${_crateEsc(r.path)}">
             <canvas class="crate-row-wave-canvas" width="200" height="40"></canvas>
+            <div class="waveform-progress-fill"></div>
+            <div class="waveform-loop-region" style="display:none;"></div>
+            <div class="waveform-loop-brace waveform-loop-brace-start" data-loop-brace="start" style="display:none;left:25%;" title="Loop start"></div>
+            <div class="waveform-loop-brace waveform-loop-brace-end" data-loop-brace="end" style="display:none;left:75%;" title="Loop end"></div>
+            <button type="button" class="waveform-loop-toggle" title="Toggle loop region">L</button>
+            <div class="waveform-cursor"></div>
         </div>
         <div class="crate-row-body">
             <div class="crate-row-name" title="${_crateEsc(r.path)}">${nameHl}${typeof rowBadges === 'function' ? rowBadges(r.path) : ''}</div>
@@ -550,6 +556,7 @@ function renderCrateRow(r, idx) {
             ${confBar}
         </div>
         <div class="crate-row-actions">
+            <button type="button" class="crate-row-btn btn-loop${typeof audioPlayerPath !== 'undefined' && audioPlayerPath === r.path && typeof audioLooping !== 'undefined' && audioLooping ? ' active' : ''}" data-action="toggleRowLoop" data-path="${_crateEsc(r.path)}" title="Toggle playback loop">&#8634;</button>
             <button type="button" class="crate-row-btn crate-row-sample-fav ${typeof _badgeCtx !== 'undefined' && _badgeCtx?.favPaths?.has(r.path) ? 'on' : ''}" data-action="crate-sample-fav" data-sample-path="${_crateEsc(r.path)}" data-sample-name="${_crateEsc(r.name)}" title="Toggle favorite (F)">&#9733;</button>
             <button type="button" class="crate-row-btn" data-action="crate-similar" data-sample-id="${r.sample_id}" title="Find similar (s)">≈</button>
             ${r.pack_id != null ? `<button type="button" class="crate-row-btn crate-row-star ${_crate.favoritePackIds.has(r.pack_id) ? 'on' : ''}" data-action="crate-fav-toggle" data-pack-id="${r.pack_id}" title="Toggle favorite pack (f)">★</button>` : ''}
@@ -639,6 +646,14 @@ async function renderCrateWaveformFor(row, path) {
     if (typeof renderWaveformData === 'function') {
         renderWaveformData(ctx, canvas, peaks);
     }
+    // Reveal the L toggle / braces / cursor / progress overlay now that peaks are painted.
+    // Up to this point the row carried `.crate-row-wave--unloaded`, which the CSS uses to
+    // suppress every overlay child — without it the L button + a stale-saved-region brace
+    // would float over a blank canvas while the waveform was still being fetched.
+    const wave = row.querySelector('.crate-row-wave');
+    if (wave) wave.classList.remove('crate-row-wave--unloaded');
+    // Paint persisted loop region (braces + region band + L button state) for this row.
+    if (typeof applyMetaLoopRegionUI === 'function') applyMetaLoopRegionUI(path);
 }
 
 // ── Audition panel ──
@@ -998,6 +1013,15 @@ function onCrateKeydown(e) {
     }
     if (key === ' ' || key === 'Spacebar') {
         e.preventDefault();
+        /* If a track is loaded, Space toggles pause/resume of the currently-playing track —
+         * NOT the navigation-highlighted row.  Without this, navigating with j/k off the
+         * playing row and pressing Space starts a new playback for the highlighted sample
+         * instead of stopping the current one (the user's expectation: Space = play/pause
+         * of whatever is currently playing, same as every other tab). */
+        if (typeof audioPlayerPath !== 'undefined' && audioPlayerPath && typeof toggleAudioPlayback === 'function') {
+            toggleAudioPlayback();
+            return;
+        }
         const row = _crate.rows[_crate.navIndex];
         if (row && typeof previewAudio === 'function') previewAudio(row.path, {minimizeFloatingPlayer: true});
         return;
@@ -1033,6 +1057,31 @@ function onCrateGlobalKeydown(e) {
 
 function isCrateTabActive() {
     return document.querySelector('.tab-content.active')?.id === 'tabCrate';
+}
+
+/**
+ * Current crate result list as autoplay items — same shape as `getTablePlaybackListItems`.
+ * Returns the search/filter/category-narrowed rows in their displayed order so EOF autoplay
+ * advances through "what the user is browsing" rather than the unrelated audio table.
+ *
+ * @returns {Array<{ path: string, name: string, format: string, size: string }>}
+ */
+function getCratePlaybackListItems() {
+    if (!_crate || !Array.isArray(_crate.rows)) return [];
+    const items = [];
+    for (const r of _crate.rows) {
+        if (!r || typeof r.path !== 'string' || r.path.length === 0) continue;
+        const name = typeof r.name === 'string' && r.name.length > 0
+            ? r.name
+            : r.path.split('/').pop().replace(/\.[^.]+$/, '');
+        items.push({ path: r.path, name, format: r.format || '', size: '' });
+    }
+    return items;
+}
+
+if (typeof window !== 'undefined') {
+    window.isCrateTabActive = isCrateTabActive;
+    window.getCratePlaybackListItems = getCratePlaybackListItems;
 }
 
 async function toggleCrateSampleFavorite(btn, path, name) {

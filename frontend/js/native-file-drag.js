@@ -295,6 +295,14 @@ function resolveNativeDragPathsFromTarget(t) {
     if (id === 'tabCrate') {
         const row = t.closest('#crateResults .crate-row[data-sample-path]');
         if (!row || t.closest('.crate-row-actions') || t.closest('.crate-row-btn')) return null;
+        // The 200×40 waveform area handles its own pointer interactions: click-to-seek,
+        // shift+click+drag to paint a loop region, drag the brace handles to resize the
+        // region, and the `L` toggle.  Treating pointerdowns inside it as the start of a
+        // native file drag conflicts with the loop-paint rubber band and steals the
+        // brace-drag pointer capture.  Drag-to-DAW still works from the row body / name /
+        // path — only the wave area is excluded, mirroring the audio tab's
+        // `.audio-meta-row` carve-out.
+        if (t.closest('.crate-row-wave')) return null;
         const p = row.dataset.samplePath;
         return p ? {paths: [p]} : null;
     }
