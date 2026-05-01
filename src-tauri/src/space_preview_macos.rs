@@ -8,10 +8,14 @@
 //!
 //! Workaround: keep an `NSImageView` overlay layered **above** the WKWebView inside the
 //! window's content view. Periodically refresh it via `WKWebView.takeSnapshot:` while the
-//! window is the key window. Toggle visible when the window resigns key / becomes
-//! occluded so the Mission Control preview captures the bitmap-backed image view's
-//! `CALayer` instead of the empty `CARemoteLayer`. Live WebView resumes when the window
-//! regains focus.
+//! window is the key window. Toggle visible only on **occlusion-state change** (window
+//! genuinely off-screen / behind Mission Control / on another Space) so the system's
+//! window snapshot captures the bitmap-backed image view's `CALayer` instead of the empty
+//! `CARemoteLayer`. Plain key-focus loss (e.g. the tray popover stealing focus, Cmd-Tab
+//! to an app that does not fully occlude us) does NOT show the overlay — pinning a static
+//! bitmap over a still-on-screen live WebView looks like the app froze. The resign-key
+//! observer is kept only to refresh the cached snapshot so it's current the moment
+//! occlusion does fire. Live WebView resumes when occlusion clears.
 //!
 //! Public API only. WKWebView snapshot has been available since macOS 10.13.
 
@@ -277,14 +281,20 @@ fn install_window_observers(
     let nil_queue: *const AnyObject = std::ptr::null();
 
     // NSWindowDidResignKeyNotification — about to lose focus (Mission Control invoke,
-    // Space switch, app switch). Capture a final fresh frame before unhiding so the
-    // overlay shows what the user was just looking at, not a stale screen.
+    // Space switch, app switch, OR tray-popover stealing key focus while main window
+    // is fully on screen). Refresh the cached snapshot so it's current for the moment
+    // the window actually becomes occluded — but do NOT show the overlay here. Resign
+    // key fires for plain focus loss too (clicking the tray popover, clicking another
+    // app while ours stays visible), and pinning a static bitmap over the live WKWebView
+    // in that case looks like the app froze. Let `NSWindowDidChangeOcclusionStateNotification`
+    // alone decide when to actually swap to the overlay; that one fires only when the
+    // window is truly off-screen / occluded, which is the only case where Mission
+    // Control / Spaces previews need the snapshot.
     {
         let webview = webview.clone();
         let overlay = overlay.clone();
         let block = RcBlock::new(move |_n: NonNull<NSNotification>| {
             capture_snapshot_into(&webview, &overlay);
-            overlay.setHidden(false);
         });
         let block_ref: &block2::DynBlock<dyn Fn(NonNull<NSNotification>)> = &block;
         let name = NSString::from_str("NSWindowDidResignKeyNotification");
