@@ -993,7 +993,11 @@ function restoreFilterStates() {
                     setMultiFilterValue(id, v);
                 }
                 if (typeof updateMultiFilterLabel === 'function') {
-                    const allLabel = wrapper.querySelector('.multi-filter-item.multi-filter-all label')?.textContent?.trim() || 'All';
+                    /* Dropdown is body-mounted; wrapper.querySelector for the All
+                     * label can't reach it. Use `_allLabel` set by init/refresh. */
+                    const allLabel = wrapper._allLabel
+                        || wrapper._select?.options[0]?.text
+                        || 'All';
                     updateMultiFilterLabel(wrapper, allLabel);
                 }
             }

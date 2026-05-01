@@ -1159,7 +1159,8 @@ document.addEventListener('contextmenu', (e) => {
                     label: catalogFmt('menu.reset_to_all'),
                     action: () => {
                         multiFilter._selected.clear();
-                        const dropdown = multiFilter.querySelector('.multi-filter-dropdown');
+                        /* Dropdown is body-mounted now, not a child of wrapper. */
+                        const dropdown = multiFilter._dropdown;
                         if (dropdown) {
                             dropdown.querySelectorAll('input[data-value]').forEach((c) => {
                                 c.checked = c.dataset.value === 'all';

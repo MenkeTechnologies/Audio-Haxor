@@ -4,6 +4,57 @@
 // 17k sample packs don't create 17k DOM nodes.
 
 const MULTI_FILTER_RENDER_CAP = 200;
+const MULTI_FILTER_DROPDOWN_MIN_WIDTH = 160;
+const MULTI_FILTER_VIEWPORT_PADDING = 8;
+
+/* Position a `position: fixed` dropdown so it sits flush below its trigger button.
+ * Falls back to right-aligned / above placement if the natural placement clips
+ * the viewport — same pattern as native `<select>` popovers. Called on open and
+ * on window scroll/resize while open. */
+function positionMultiFilterDropdown(btn, dropdown) {
+    if (!btn || !dropdown) return;
+    const r = btn.getBoundingClientRect();
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    const pad = MULTI_FILTER_VIEWPORT_PADDING;
+
+    const naturalWidth = Math.max(r.width, MULTI_FILTER_DROPDOWN_MIN_WIDTH);
+    const maxWidth = Math.max(MULTI_FILTER_DROPDOWN_MIN_WIDTH, vw - pad * 2);
+    const width = Math.min(naturalWidth, maxWidth);
+    dropdown.style.width = width + 'px';
+
+    const roomBelow = Math.max(0, vh - r.bottom - pad);
+    const roomAbove = Math.max(0, r.top - pad);
+    const placeAbove = roomBelow < 160 && roomAbove > roomBelow;
+    const maxH = Math.max(120, placeAbove ? roomAbove : roomBelow);
+    dropdown.style.maxHeight = maxH + 'px';
+
+    let left = r.left;
+    if (left + width > vw - pad) left = Math.max(pad, vw - pad - width);
+    if (left < pad) left = pad;
+    dropdown.style.left = left + 'px';
+
+    if (placeAbove) {
+        dropdown.style.top = '';
+        dropdown.style.bottom = (vh - r.top + 2) + 'px';
+    } else {
+        dropdown.style.bottom = '';
+        dropdown.style.top = (r.bottom + 2) + 'px';
+    }
+}
+
+function _repositionOpenMultiFilterDropdowns() {
+    const open = document.querySelector('.multi-filter-dropdown.open');
+    if (!open) return;
+    const wrapper = open._wrapper;
+    const btn = wrapper && wrapper.querySelector('.multi-filter-btn');
+    if (btn) positionMultiFilterDropdown(btn, open);
+}
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('resize', _repositionOpenMultiFilterDropdowns);
+    window.addEventListener('scroll', _repositionOpenMultiFilterDropdowns, true);
+}
 
 function initMultiFilters() {
     document.querySelectorAll('.filter-select').forEach(select => {
@@ -28,7 +79,12 @@ function initMultiFilters() {
 
         const dropdown = document.createElement('div');
         dropdown.className = 'multi-filter-dropdown';
-        wrapper.appendChild(dropdown);
+        /* Append to `document.body`, NOT inside the wrapper. `position: fixed` is
+         * normally viewport-relative, BUT if any ancestor has `transform`/`filter`/
+         * `will-change`/etc. that ancestor becomes the containing block and "viewport
+         * coords" silently shift to it — the dropdown lands hundreds of px off.
+         * Body-mount sidesteps every ancestor. */
+        document.body.appendChild(dropdown);
 
         select.parentNode.insertBefore(wrapper, select.nextSibling);
 
@@ -36,9 +92,15 @@ function initMultiFilters() {
         wrapper._selected = new Set(); // empty = all
         wrapper._select = select;
         wrapper._action = action;
-        wrapper._allOptions = []; // {value, text} — full list, never in DOM
-        wrapper._allLabel = 'All';
+        /* Pull current `<select>` options at init time so static filters (audio
+         * format, preset format, video format, etc.) render their hardcoded entries
+         * without waiting for an external `refreshMultiFilter(...)` call. */
+        const _initOpts = [...select.options].filter(o => o.value !== '' && o.value !== 'all');
+        wrapper._allOptions = _initOpts.map(o => ({value: o.value, text: o.text}));
+        wrapper._allLabel = select.options[0]?.text || 'All';
         wrapper._search = '';
+        wrapper._dropdown = dropdown;
+        dropdown._wrapper = wrapper;
 
         // Toggle dropdown
         btn.addEventListener('click', (e) => {
@@ -46,9 +108,10 @@ function initMultiFilters() {
             document.querySelectorAll('.multi-filter-dropdown.open').forEach(d => {
                 if (d !== dropdown) d.classList.remove('open');
             });
+            const willOpen = !dropdown.classList.contains('open');
             dropdown.classList.toggle('open');
-            // Focus search input when opening
-            if (dropdown.classList.contains('open')) {
+            if (willOpen) {
+                positionMultiFilterDropdown(btn, dropdown);
                 const input = dropdown.querySelector('.multi-filter-search');
                 if (input) input.focus();
             }
@@ -101,7 +164,7 @@ function initMultiFilters() {
 /// Internal: rebuild dropdown DOM from wrapper._allOptions, filtered by wrapper._search.
 /// Only renders up to MULTI_FILTER_RENDER_CAP items; shows a "N more" hint when truncated.
 function _rebuildDropdown(wrapper) {
-    const dropdown = wrapper.querySelector('.multi-filter-dropdown');
+    const dropdown = wrapper._dropdown;
     if (!dropdown) return;
     const opts = wrapper._allOptions;
     const allLabel = wrapper._allLabel;

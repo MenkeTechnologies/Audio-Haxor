@@ -2013,19 +2013,21 @@
         }
 
         .multi-filter-dropdown {
+            /* `position: fixed` (not absolute) so the dropdown escapes ancestor
+             * `overflow:hidden` / `overflow-y:auto` clipping. JS sets top/left
+             * inline from the trigger button's `getBoundingClientRect()`. */
             display: none;
-            position: absolute;
-            top: 100%;
+            position: fixed;
+            top: 0;
             left: 0;
             z-index: 1000;
-            min-width: 100%;
+            min-width: 160px;
             max-height: 70vh;
             overflow-y: auto;
             background: var(--bg-primary);
             border: 1px solid var(--cyan);
             box-shadow: 0 0 15px var(--cyan-glow), 0 4px 16px rgba(0, 0, 0, 0.5);
             padding: 4px 0;
-            margin-top: 2px;
         }
 
         .multi-filter-dropdown.open {
@@ -14692,41 +14694,41 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=27196"></script>
-<script src="js/utils.js?v=27196"></script>
-<script src="js/ui-idle.js?v=27196"></script>
-<script src="js/ipc.js?v=27196"></script>
-<script src="js/tooltip-hover.js?v=27196"></script>
-<script src="js/drag-reorder.js?v=27196"></script>
-<script src="js/modal-drag.js?v=27196"></script>
-<script src="js/columns.js?v=27196"></script>
-<script src="js/notes.js?v=27196"></script>
-<script src="js/favorites.js?v=27196"></script>
-<script src="js/export.js?v=27196"></script>
-<script src="js/plugins.js?v=27196"></script>
-<script src="js/settings.js?v=27196"></script>
-<script src="js/history.js?v=27196"></script>
-<script src="js/kvr.js?v=27196"></script>
-<script src="js/graph-freeze.js?v=27196"></script>
-<script src="js/audio.js?v=27196"></script>
-<script src="js/daw.js?v=27196"></script>
-<script src="js/disk-usage.js?v=27196"></script>
-<script src="js/presets.js?v=27196"></script>
-<script src="js/batch-select.js?v=27196"></script>
-<script src="js/native-file-drag.js?v=27196"></script>
-<script src="js/sort-persist.js?v=27196"></script>
-<script src="js/multi-filter.js?v=27196"></script>
-<script src="js/file-browser.js?v=27196"></script>
-<script src="js/duplicates.js?v=27196"></script>
-<script src="js/command-palette.js?v=27196"></script>
-<script src="js/xref.js?v=27196"></script>
-<script src="js/dep-graph.js?v=27196"></script>
-<script src="js/smart-playlists.js?v=27196"></script>
-<script src="js/heatmap-dashboard.js?v=27196"></script>
-<script src="js/genre-rules-dashboard.js?v=27196"></script>
-<script src="js/midi.js?v=27196"></script>
-<script src="js/pdf.js?v=27196"></script>
-<script src="js/video.js?v=27196"></script>
+<script src="js/i18n-ui.js?v=2197"></script>
+<script src="js/utils.js?v=2197"></script>
+<script src="js/ui-idle.js?v=2197"></script>
+<script src="js/ipc.js?v=2197"></script>
+<script src="js/tooltip-hover.js?v=2197"></script>
+<script src="js/drag-reorder.js?v=2197"></script>
+<script src="js/modal-drag.js?v=2197"></script>
+<script src="js/columns.js?v=2197"></script>
+<script src="js/notes.js?v=2197"></script>
+<script src="js/favorites.js?v=2197"></script>
+<script src="js/export.js?v=2197"></script>
+<script src="js/plugins.js?v=2197"></script>
+<script src="js/settings.js?v=2197"></script>
+<script src="js/history.js?v=2197"></script>
+<script src="js/kvr.js?v=2197"></script>
+<script src="js/graph-freeze.js?v=2197"></script>
+<script src="js/audio.js?v=2197"></script>
+<script src="js/daw.js?v=2197"></script>
+<script src="js/disk-usage.js?v=2197"></script>
+<script src="js/presets.js?v=2197"></script>
+<script src="js/batch-select.js?v=2197"></script>
+<script src="js/native-file-drag.js?v=2197"></script>
+<script src="js/sort-persist.js?v=2197"></script>
+<script src="js/multi-filter.js?v=2197"></script>
+<script src="js/file-browser.js?v=2197"></script>
+<script src="js/duplicates.js?v=2197"></script>
+<script src="js/command-palette.js?v=2197"></script>
+<script src="js/xref.js?v=2197"></script>
+<script src="js/dep-graph.js?v=2197"></script>
+<script src="js/smart-playlists.js?v=2197"></script>
+<script src="js/heatmap-dashboard.js?v=2197"></script>
+<script src="js/genre-rules-dashboard.js?v=2197"></script>
+<script src="js/midi.js?v=2197"></script>
+<script src="js/pdf.js?v=2197"></script>
+<script src="js/video.js?v=2197"></script>
 <!-- Blacklist Modal -->
 <div id="blacklistModal" class="modal-overlay">
     <div class="modal-content" style="max-width:600px;">
@@ -14785,20 +14787,20 @@
     </div>
 </div>
 
-<script src="js/settings-search.js?v=27196"></script>
-<script src="js/visualizer.js?v=27196"></script>
-<script src="js/walker-status.js?v=27196"></script>
-<script src="js/audio-engine.js?v=27196"></script>
-<script src="js/als-timeline.js?v=27196"></script>
-<script src="js/als-generator.js?v=27196"></script>
-<script src="js/trance-lead.js?v=27196"></script>
-<script src="js/sample-browser.js?v=27196"></script>
-<script src="lib/xterm.js?v=27196"></script>
-<script src="js/terminal.js?v=27196"></script>
-<script src="js/context-menu.js?v=27196"></script>
-<script src="js/shortcuts.js?v=27196"></script>
-<script src="js/help-overlay.js?v=27196"></script>
-<script src="js/keyboard-nav.js?v=27196"></script>
-<script src="js/app.js?v=27196"></script>
+<script src="js/settings-search.js?v=2197"></script>
+<script src="js/visualizer.js?v=2197"></script>
+<script src="js/walker-status.js?v=2197"></script>
+<script src="js/audio-engine.js?v=2197"></script>
+<script src="js/als-timeline.js?v=2197"></script>
+<script src="js/als-generator.js?v=2197"></script>
+<script src="js/trance-lead.js?v=2197"></script>
+<script src="js/sample-browser.js?v=2197"></script>
+<script src="lib/xterm.js?v=2197"></script>
+<script src="js/terminal.js?v=2197"></script>
+<script src="js/context-menu.js?v=2197"></script>
+<script src="js/shortcuts.js?v=2197"></script>
+<script src="js/help-overlay.js?v=2197"></script>
+<script src="js/keyboard-nav.js?v=2197"></script>
+<script src="js/app.js?v=2197"></script>
 </body>
 </html>
