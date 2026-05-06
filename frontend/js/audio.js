@@ -6869,6 +6869,13 @@ async function hydrateWaveformPeaksFromSqlite(filePath) {
             if (!raw || !_isUsableWaveformPeaks(raw)) return;
             _waveformCache[filePath] = raw;
             _evictCache(_waveformCache);
+            /* When minimized on macOS, WebContent timer throttling delays the next rAF-driven
+             * `syncTrayNowPlayingFromPlayback` tick that would otherwise notice the freshly
+             * hydrated peaks via `wfKey`.  Push directly so the tray popover swaps the empty
+             * `[]` placeholder (sent on track-change before SQLite returned) for real peaks. */
+            if (typeof notifyWaveformCacheUpdatedForTray === 'function') {
+                notifyWaveformCacheUpdatedForTray(filePath);
+            }
         } catch {
             /* ignore */
         } finally {
