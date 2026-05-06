@@ -1500,4 +1500,13 @@
         const tw = getTrayWebviewWindow();
         if (tw && typeof tw.hide === 'function') void tw.hide().catch(() => {});
     });
+
+    /* WebContent keep-alive: macOS suspends a hidden NSPanel's WKWebView WebContent process
+     * after long idle (minutes to hours, or across sleep/wake). When the popover is shown
+     * again, the chrome paints from a cached layer but JS event listeners don't fire until
+     * the process resumes — i.e. "the popover opens but clicks don't work". A throttled
+     * `setInterval` keeps a tiny task on the JS event loop so the process stays in the
+     * runnable set even while the panel is ordered out. The handler is intentionally a no-op
+     * (no DOM reads, no timers chained) so it costs effectively nothing. */
+    setInterval(() => { /* keep-alive */ }, 30000);
 })();

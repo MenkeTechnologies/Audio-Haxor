@@ -397,6 +397,14 @@ fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> 
     let _ = win.show();
     /* Re-apply after `show`: some platforms drop window level across `hide`/`show` cycles. */
     let _ = win.set_always_on_top(true);
+    /* Force the WKWebView's WebContent process awake. macOS aggressively suspends WebContent
+     * processes whose webview has been hidden for long stretches (minutes-to-hours of idle, or
+     * across system sleep/wake). When the popover is later re-shown, the chrome paints from the
+     * cached `CALayer` but JS event listeners do not run until the WebContent process resumes —
+     * which from the user's perspective looks like "the popover opened but clicks do nothing".
+     * Posting a no-op `eval` here forces WebKit to enqueue a script-runner task on the
+     * WebContent process, which transitions it out of suspended/throttled state immediately. */
+    let _ = win.eval("void 0;");
     /* Force the popover to become the key window so keyboard events (Escape) reach its JS
      * `keydown` listener AND so `WindowEvent::Focused(false)` fires when the user clicks
      * outside. NSPanel with `visibleOnAllWorkspaces` defaults to non-activating — clicks only

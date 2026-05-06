@@ -61,6 +61,7 @@ mod app_activity_macos;
 mod space_preview_macos;
 mod tray_popover_escape_macos;
 pub mod unified_walker;
+pub mod webview_keepalive;
 pub mod xref;
 
 /// True when the host will transcode this file before JUCE `waveform_preview` / `spectrogram_preview`
@@ -9591,6 +9592,12 @@ pub fn run() {
              * playback even while the main window is unfocused (JS rAF + `setInterval` both stall
              * behind `isUiIdleHeavyCpu`, leaving the tray frozen). JS still pushes the track name. */
             tray_menu::start_tray_host_poll(app.handle().clone());
+
+            /* Keep main + tray-popover WebContent processes from being suspended after long
+             * hidden stretches — without this the `audio-engine-rust-advanced` autoplay-next
+             * cascade stalls in BG (next-track hint stops being refreshed by JS) and the tray
+             * popover's click handlers go dead, both firing in a burst on next foreground. */
+            webview_keepalive::start(app.handle().clone());
 
             tray_popover_escape_macos::install(app.handle().clone());
 
