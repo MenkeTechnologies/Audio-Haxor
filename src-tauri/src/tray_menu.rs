@@ -44,9 +44,23 @@ const TRAY_POPOVER_PARKED_Y: i32 = -32000;
 static TRAY_POPOVER_VISIBLE: AtomicBool = AtomicBool::new(false);
 static TRAY_POPOVER_ALIVE: AtomicBool = AtomicBool::new(false);
 
+/// True only when the popover is user-visible. Used by the `emit_tray_popover_*` helpers to gate
+/// the actual `emit_to` call so events do not pile up in the parked WKWebView's IPC queue —
+/// off-screen WebContent runs at the throttled rate, so a 500 ms host-poll over a multi-hour idle
+/// stretch otherwise produces a backlog that drains in front of the user's click handlers when
+/// the popover is opened (observed: ~10 s of click lag while the queue flushes). The
+/// `last_popover_emit` cache in `TrayState` is updated regardless, so `toggle_tray_popover`'s
+/// open-time emit carries fresh state.
+fn popover_emit_allowed() -> bool {
+    TRAY_POPOVER_VISIBLE.load(Ordering::SeqCst)
+}
+
 /// Set `AUDIO_HAXOR_TRAY_DEBUG=1` in the environment to print every successful `tray-popover-state` /
 /// `tray-popover-ui-theme` emit to stderr (state includes the ~500 ms host poll). Emit **failures** always log.
 fn emit_tray_popover_state(app: &AppHandle<Wry>, emit: &TrayPopoverEmit) {
+    if !popover_emit_allowed() {
+        return;
+    }
     let appearance_n = emit.appearance.as_ref().map(|m| m.len()).unwrap_or(0);
     match app.emit_to("tray-popover", "tray-popover-state", emit) {
         Ok(()) => {
@@ -77,6 +91,9 @@ fn emit_tray_popover_state(app: &AppHandle<Wry>, emit: &TrayPopoverEmit) {
 /// yanking the progress thumb on every shuffle/loop click.
 /// Lightweight favorite toggle sync — same rationale as [`emit_tray_popover_shuffle_loop`].
 fn emit_tray_popover_favorite(app: &AppHandle<Wry>, favorite_on: bool) {
+    if !popover_emit_allowed() {
+        return;
+    }
     let payload = serde_json::json!({ "favorite_on": favorite_on });
     match app.emit_to("tray-popover", "tray-popover-favorite", payload) {
         Ok(()) => {
@@ -91,6 +108,9 @@ fn emit_tray_popover_favorite(app: &AppHandle<Wry>, favorite_on: bool) {
 }
 
 fn emit_tray_popover_shuffle_loop(app: &AppHandle<Wry>, shuffle_on: bool, loop_on: bool) {
+    if !popover_emit_allowed() {
+        return;
+    }
     let payload = serde_json::json!({
         "shuffle_on": shuffle_on,
         "loop_on": loop_on,
@@ -116,6 +136,9 @@ fn emit_tray_popover_shuffle_loop(app: &AppHandle<Wry>, shuffle_on: bool, loop_o
 /// is minimized on macOS (WebKit freezes `<audio>` updates to background windows), yanking the
 /// tray progress thumb backward. This emit carries only the subtitle so interpolation is untouched.
 fn emit_tray_popover_subtitle(app: &AppHandle<Wry>, subtitle: &str) {
+    if !popover_emit_allowed() {
+        return;
+    }
     let payload = serde_json::json!({ "subtitle": subtitle });
     match app.emit_to("tray-popover", "tray-popover-subtitle", payload) {
         Ok(()) => {
@@ -134,6 +157,9 @@ fn emit_tray_popover_subtitle(app: &AppHandle<Wry>, subtitle: &str) {
 
 /// Light/dark from prefs (`prefs_set` key `theme`). Same debug env / failure logging as [`emit_tray_popover_state`].
 pub fn emit_tray_popover_ui_theme(app: &AppHandle<Wry>, ui_theme: &str) {
+    if !popover_emit_allowed() {
+        return;
+    }
     let payload = serde_json::json!({ "ui_theme": ui_theme });
     match app.emit_to("tray-popover", "tray-popover-ui-theme", payload) {
         Ok(()) => {
@@ -451,6 +477,11 @@ fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> 
         waveform_peaks: Vec::new(),
     });
     emit.ui_theme = tray_popover_ui_theme_from_prefs();
+    /* Flip the user-visible flag BEFORE the fresh-state emit. The `emit_tray_popover_*` helpers
+     * gate on `popover_emit_allowed()` to prevent host-poll backlog while parked; with the flag
+     * still false the open-time emit would be dropped and the popover would render last-seen
+     * (potentially hours-stale) state. */
+    TRAY_POPOVER_VISIBLE.store(true, Ordering::SeqCst);
     emit_tray_popover_state(app, &emit);
     let scale = win.scale_factor().unwrap_or(1.0);
     let (mut x, y) = popover_xy_below_tray(rect, scale);
@@ -470,7 +501,6 @@ fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> 
      * transfer "active" status, not key status — so without this call the popover never gets
      * keyboard focus and never fires a blur event either. */
     let _ = win.set_focus();
-    TRAY_POPOVER_VISIBLE.store(true, Ordering::SeqCst);
     Ok(())
 }
 
