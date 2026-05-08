@@ -1600,24 +1600,11 @@ document.addEventListener('keydown', (e) => {
 
     // Escape — dismiss tray popover (unconditional), clear search, or stop operation
     if (e.key === 'Escape') {
-        /* Dismiss the tray popover from the main window. Reach the popover webview directly
-         * via Tauri v2's `WebviewWindow.getByLabel` — no new Rust command required, works
-         * immediately without waiting for `pnpm tauri dev` to rebuild src-tauri. The popover's
-         * own keydown listener in `tray-popover.js` only fires when the popover webview has
-         * keyboard focus, which is rare (shown with `focus: false`). Unconditional call so
-         * Escape dismisses whether or not a search input is focused or an operation is active. */
-        try {
-            const TW = window.__TAURI__ && window.__TAURI__.webviewWindow;
-            const getByLabel = TW && (TW.WebviewWindow?.getByLabel || TW.getByLabel);
-            const popover = typeof getByLabel === 'function' ? getByLabel('tray-popover') : null;
-            if (popover && typeof popover.hide === 'function') {
-                void popover.hide().catch(() => {});
-            } else {
-                void invoke('tray_popover_hide').catch(() => {});
-            }
-        } catch (_) {
-            void invoke('tray_popover_hide').catch(() => {});
-        }
+        /* Dismiss the tray popover from the main window via the Rust `tray_popover_hide` command,
+         * which parks the popover off-screen rather than `orderOut:`-via-`hide()`. Calling
+         * `popover.hide()` directly here would let macOS flag WebContent for suspension and
+         * eventually reproduce the "popover paints but clicks dead" multi-hour-idle bug. */
+        void invoke('tray_popover_hide').catch(() => {});
         const focused = document.activeElement;
         if (focused?.tagName === 'INPUT' && focused.value) {
             focused.value = '';

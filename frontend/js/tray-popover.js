@@ -426,8 +426,9 @@
         items.push({
             label: window.appFmt('menu.close'),
             action: () => {
-                const tw = getTrayWebviewWindow();
-                if (tw && typeof tw.hide === 'function') void tw.hide().catch(() => {});
+                /* `tw.hide()` would call `orderOut:` and let macOS suspend WebContent — route
+                 * through the Rust `tray_popover_hide` command which parks off-screen instead. */
+                if (invoke) void invoke('tray_popover_hide').catch(() => {});
             },
         });
         return items;
@@ -544,11 +545,10 @@
          * either re-fire the reveal handler (if they hit the path span) or silently sink into
          * the popover's hit region. Hiding first gets the overlay out of the way so Finder is
          * actually interactable. User can reopen the popover from the menubar icon. */
-        const tw = getTrayWebviewWindow();
         const path = _trayRevealPath;
-        if (tw && typeof tw.hide === 'function') {
-            void tw.hide().catch(() => {});
-        }
+        /* `tw.hide()` would `orderOut:` and let macOS suspend WebContent — route through
+         * `tray_popover_hide` which parks off-screen so WebContent stays live. */
+        void invoke('tray_popover_hide').catch(() => {});
         void invoke('open_audio_folder', { filePath: path }).catch(() => {});
     }
 
@@ -1222,10 +1222,9 @@
             if (!t || typeof t.closest !== 'function') return;
             if (t.closest('#shell')) return;
             if (t.closest('#trayCtxMenu')) return;
-            const tw = getTrayWebviewWindow();
-            if (tw && typeof tw.hide === 'function') {
-                void tw.hide().catch(() => {});
-            }
+            /* Route dismissal through `tray_popover_hide` so the popover parks off-screen
+             * instead of `orderOut:`-via-`hide` (which lets macOS suspend WebContent). */
+            if (invoke) void invoke('tray_popover_hide').catch(() => {});
         },
         true
     );
@@ -1441,7 +1440,11 @@
 
     void initTrayIpc();
 
-    /* Click-outside-window dismiss: hide when this webview loses focus. */
+    /* Click-outside-window dismiss: park off-screen when this webview loses focus. The Rust
+     * `Focused(false)` handler also parks (defense-in-depth), but the JS path catches focus
+     * losses that don't surface through the Tauri RunEvent stream cleanly. `tw.isVisible()`
+     * always returns `true` now (we never `orderOut:`) so we skip the visibility check and let
+     * `tray_popover_hide` no-op when already parked via its own visibility flag. */
     (async function installClickOutsideDismiss() {
         const tw = getTrayWebviewWindow();
         if (!tw || typeof tw.onFocusChanged !== 'function') return;
@@ -1449,14 +1452,7 @@
             await tw.onFocusChanged((evt) => {
                 const focused = evt && evt.payload !== undefined ? evt.payload : evt;
                 if (focused === true) return;
-                void (async () => {
-                    try {
-                        const vis = typeof tw.isVisible === 'function' ? await tw.isVisible() : true;
-                        if (vis && typeof tw.hide === 'function') await tw.hide();
-                    } catch (_) {
-                        /* ignore */
-                    }
-                })();
+                if (invoke) void invoke('tray_popover_hide').catch(() => {});
             });
         } catch (_) {
             /* non-Tauri or older API */
@@ -1497,16 +1493,15 @@
             e.preventDefault();
             return;
         }
-        const tw = getTrayWebviewWindow();
-        if (tw && typeof tw.hide === 'function') void tw.hide().catch(() => {});
+        /* Park off-screen via Rust command instead of `tw.hide()`, which would `orderOut:` the
+         * NSPanel and let macOS suspend WebContent. */
+        if (invoke) void invoke('tray_popover_hide').catch(() => {});
     });
 
-    /* WebContent keep-alive: macOS suspends a hidden NSPanel's WKWebView WebContent process
-     * after long idle (minutes to hours, or across sleep/wake). When the popover is shown
-     * again, the chrome paints from a cached layer but JS event listeners don't fire until
-     * the process resumes — i.e. "the popover opens but clicks don't work". A throttled
-     * `setInterval` keeps a tiny task on the JS event loop so the process stays in the
-     * runnable set even while the panel is ordered out. The handler is intentionally a no-op
-     * (no DOM reads, no timers chained) so it costs effectively nothing. */
+    /* WebContent keep-alive (defense-in-depth). The primary fix is off-screen parking instead
+     * of `orderOut:` (`tray_menu::park_tray_popover_offscreen`) — once the NSPanel is never
+     * `orderOut:`'d, WebContent has no suspension trigger to begin with. This `setInterval` is
+     * kept as a backstop so a future regression that re-introduces `hide()`/`orderOut:` doesn't
+     * silently bring the bug back. Cost is negligible (no DOM reads, no chained timers). */
     setInterval(() => { /* keep-alive */ }, 30000);
 })();

@@ -26,6 +26,24 @@ const TRAY_POPOVER_W: u32 = 340;
 /// (multi-line title + meta + directory path + progress + volume + speed + transport + padding).
 const TRAY_POPOVER_H: u32 = 480;
 
+/// Off-screen parking position used in lieu of `hide()` / `orderOut:`. Calling `orderOut:` on the
+/// tray popover NSPanel causes macOS to flag its WebContent XPC process for suspension; after long
+/// hidden stretches the process gets enough scheduling pressure that on next show the cached
+/// `CALayer` paints but mouse events from AppKit→WKWebView→JS are dropped (UI updates, clicks
+/// dead). Parking the panel off-screen instead keeps the WKWebView in the live view hierarchy so
+/// WebContent is never a suspension candidate. Coordinates stay inside `i16` range (`i16::MIN` ==
+/// `-32768`) — well below any practical multi-monitor span — and are negative so the panel cannot
+/// overlap any real screen even with bizarre display arrangements.
+const TRAY_POPOVER_PARKED_X: i32 = -32000;
+const TRAY_POPOVER_PARKED_Y: i32 = -32000;
+
+/// User-facing popover visibility — distinct from `WebviewWindow::is_visible()`, which always
+/// returns `true` after the startup `show()` because we never `orderOut:` again. Toggle/dismiss
+/// paths consult this; `tray_popover_action`/JS dismissals just call `park_tray_popover_offscreen`
+/// idempotently.
+static TRAY_POPOVER_VISIBLE: AtomicBool = AtomicBool::new(false);
+static TRAY_POPOVER_ALIVE: AtomicBool = AtomicBool::new(false);
+
 /// Set `AUDIO_HAXOR_TRAY_DEBUG=1` in the environment to print every successful `tray-popover-state` /
 /// `tray-popover-ui-theme` emit to stderr (state includes the ~500 ms host poll). Emit **failures** always log.
 fn emit_tray_popover_state(app: &AppHandle<Wry>, emit: &TrayPopoverEmit) {
@@ -348,6 +366,54 @@ fn popover_xy_below_tray(rect: &Rect, scale_factor: f64) -> (i32, i32) {
     (x.floor() as i32, y.floor() as i32)
 }
 
+/// User-facing visibility — `true` between a tray-icon click and any subsequent dismissal. Use
+/// this instead of `WebviewWindow::is_visible()`, which always returns `true` after the startup
+/// `show()` because the popover never `orderOut:`s again.
+pub fn tray_popover_user_visible() -> bool {
+    TRAY_POPOVER_VISIBLE.load(Ordering::SeqCst)
+}
+
+/// Move the popover off-screen and mark it user-hidden. Replacement for `win.hide()` everywhere
+/// the popover is dismissed (Escape, outside-click, focus loss, JS dismiss). Idempotent: parking
+/// an already-parked popover is a no-op besides re-asserting the off-screen origin.
+pub fn park_tray_popover_offscreen(app: &AppHandle<Wry>) {
+    if let Some(win) = app.get_webview_window("tray-popover") {
+        let _ = win.set_position(tauri::Position::Physical(PhysicalPosition::new(
+            TRAY_POPOVER_PARKED_X,
+            TRAY_POPOVER_PARKED_Y,
+        )));
+    }
+    TRAY_POPOVER_VISIBLE.store(false, Ordering::SeqCst);
+}
+
+/// Park the popover off-screen and `show()` it once. Called from setup so the WKWebView enters the
+/// live view hierarchy at app start and stays there for the process lifetime — macOS only suspends
+/// WebContent for `orderOut:`'d webviews, so an always-visible-but-off-screen panel is the only
+/// portable way to guarantee the WebContent process is never a suspension target. Idempotent.
+pub fn ensure_tray_popover_alive(app: &AppHandle<Wry>) {
+    if TRAY_POPOVER_ALIVE.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let Some(win) = app.get_webview_window("tray-popover") else {
+        TRAY_POPOVER_ALIVE.store(false, Ordering::SeqCst);
+        return;
+    };
+    let _ = win.set_position(tauri::Position::Physical(PhysicalPosition::new(
+        TRAY_POPOVER_PARKED_X,
+        TRAY_POPOVER_PARKED_Y,
+    )));
+    let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(
+        f64::from(TRAY_POPOVER_W),
+        f64::from(TRAY_POPOVER_H),
+    )));
+    let _ = win.set_always_on_top(true);
+    /* `show()` here calls `orderFront:` on the NSPanel without `makeKeyAndOrderFront:` (Tauri/wry
+     * `set_visible(true)` does not steal focus). Off-screen + non-key panel is invisible to the
+     * user but live to the WindowServer, which keeps WebContent in the runnable set. */
+    let _ = win.show();
+    TRAY_POPOVER_VISIBLE.store(false, Ordering::SeqCst);
+}
+
 fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> {
     let tray_state = app.state::<TrayState>();
     let last = tray_state
@@ -359,8 +425,8 @@ fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> 
     let Some(win) = app.get_webview_window("tray-popover") else {
         return Ok(());
     };
-    if win.is_visible().unwrap_or(false) {
-        let _ = win.hide();
+    if TRAY_POPOVER_VISIBLE.load(Ordering::SeqCst) {
+        park_tray_popover_offscreen(app);
         return Ok(());
     }
     let mut emit = last.unwrap_or(TrayPopoverEmit {
@@ -394,27 +460,17 @@ fn toggle_tray_popover(app: &AppHandle<Wry>, rect: &Rect) -> Result<(), String> 
         f64::from(TRAY_POPOVER_H),
     )));
     let _ = win.set_position(tauri::Position::Physical(PhysicalPosition::new(x, y)));
-    let _ = win.show();
-    /* Re-apply after `show`: some platforms drop window level across `hide`/`show` cycles. */
+    /* Re-assert window level — `set_always_on_top` is sticky across position changes but cheap to
+     * re-apply, and a future Tauri / wry refactor that drops it would otherwise let the popover
+     * fall behind the focused window. */
     let _ = win.set_always_on_top(true);
-    /* Force the WKWebView's WebContent process awake. macOS aggressively suspends WebContent
-     * processes whose webview has been hidden for long stretches (minutes-to-hours of idle, or
-     * across system sleep/wake). When the popover is later re-shown, the chrome paints from the
-     * cached `CALayer` but JS event listeners do not run until the WebContent process resumes —
-     * which from the user's perspective looks like "the popover opened but clicks do nothing".
-     * Posting a no-op `eval` here forces WebKit to enqueue a script-runner task on the
-     * WebContent process, which transitions it out of suspended/throttled state immediately. */
-    let _ = win.eval("void 0;");
     /* Force the popover to become the key window so keyboard events (Escape) reach its JS
      * `keydown` listener AND so `WindowEvent::Focused(false)` fires when the user clicks
      * outside. NSPanel with `visibleOnAllWorkspaces` defaults to non-activating — clicks only
      * transfer "active" status, not key status — so without this call the popover never gets
-     * keyboard focus and never fires a blur event either. The historical comment said
-     * `set_focus` causes Mission Control to jump Spaces, but that was about focusing the
-     * main window; the popover itself is `visibleOnAllWorkspaces: true` so focusing it stays
-     * on the current Space. If this turns out to Space-jump in practice we can hop to an
-     * Objective-C `makeKeyWindow` via FFI that skips the `NSApp.activate` step. */
+     * keyboard focus and never fires a blur event either. */
     let _ = win.set_focus();
+    TRAY_POPOVER_VISIBLE.store(true, Ordering::SeqCst);
     Ok(())
 }
 
@@ -1069,15 +1125,13 @@ pub fn show_main_window(app: AppHandle<Wry>) -> Result<(), String> {
     Ok(())
 }
 
-/// Hide the tray popover. Invoked from the main window (Escape keybind in `ipc.js`) so the user
-/// can dismiss the popover from any focused window — `tray-popover.js`'s own `document.keydown`
-/// Escape listener only fires when the popover webview itself has keyboard focus, which doesn't
-/// happen if the popover was shown with `focus: false` and the user never clicked into it.
+/// Dismiss the tray popover (parks off-screen). Invoked from the main window (Escape keybind in
+/// `ipc.js`) and from `tray-popover.js` dismissal paths so every dismissal funnels through the
+/// off-screen-park lifecycle. See [`park_tray_popover_offscreen`] for why we park instead of
+/// `orderOut:`-via-`hide`.
 #[tauri::command]
 pub fn tray_popover_hide(app: AppHandle<Wry>) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("tray-popover") {
-        let _ = win.hide();
-    }
+    park_tray_popover_offscreen(&app);
     Ok(())
 }
 

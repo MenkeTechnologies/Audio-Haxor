@@ -18,13 +18,18 @@ pub fn install(app: tauri::AppHandle) {
         if e.keyCode() != 53 {
             return event.as_ptr();
         }
-        let Some(popover) = app.get_webview_window("tray-popover") else {
-            return event.as_ptr();
-        };
-        if !popover.is_visible().unwrap_or(false) {
+        if app.get_webview_window("tray-popover").is_none() {
             return event.as_ptr();
         }
-        let _ = popover.hide();
+        /* Park off-screen rather than `hide()` so WebContent doesn't become a suspension
+         * candidate. `park_tray_popover_offscreen` consults its own visibility flag, so calling
+         * it when the popover is already parked is a cheap no-op — we still consume the Escape
+         * keystroke (returning null) only if the user-facing visibility flag was on, otherwise
+         * the keystroke falls through to whatever else handles Escape. */
+        if !crate::tray_menu::tray_popover_user_visible() {
+            return event.as_ptr();
+        }
+        crate::tray_menu::park_tray_popover_offscreen(&app);
         std::ptr::null_mut()
     });
 

@@ -9593,11 +9593,20 @@ pub fn run() {
              * behind `isUiIdleHeavyCpu`, leaving the tray frozen). JS still pushes the track name. */
             tray_menu::start_tray_host_poll(app.handle().clone());
 
-            /* Keep main + tray-popover WebContent processes from being suspended after long
-             * hidden stretches — without this the `audio-engine-rust-advanced` autoplay-next
-             * cascade stalls in BG (next-track hint stops being refreshed by JS) and the tray
-             * popover's click handlers go dead, both firing in a burst on next foreground. */
+            /* Keep main WebContent process from being suspended after long hidden stretches —
+             * without this the `audio-engine-rust-advanced` autoplay-next cascade stalls in BG
+             * (next-track hint stops being refreshed by JS) and would fire in a burst on next
+             * foreground. The tray popover used to need this too; it now parks off-screen
+             * instead of `orderOut:`-via-`hide` (see `tray_menu::park_tray_popover_offscreen`)
+             * so its WebContent stays in the runnable set without external pokes. */
             webview_keepalive::start(app.handle().clone());
+
+            /* Off-screen-park the tray popover NSPanel so its WKWebView lives in the view
+             * hierarchy for the process lifetime. macOS only suspends WebContent for `orderOut:`'d
+             * webviews; an always-`orderFront:`ed but off-screen panel is invisible to the user
+             * yet live to the WindowServer, eliminating the suspension race that produced
+             * "popover paints but clicks dead" after multi-hour idle. */
+            tray_menu::ensure_tray_popover_alive(&app.handle().clone());
 
             tray_popover_escape_macos::install(app.handle().clone());
 
@@ -9733,26 +9742,23 @@ pub fn run() {
             }
             /* Tray popover click-outside-dismiss (Rust): (1) popover loses key focus — e.g. click
              * into another app / different Space where the main window does not gain focus;
-             * (2) any other window gains focus — e.g. main window (blur may be unreliable). */
+             * (2) any other window gains focus — e.g. main window (blur may be unreliable).
+             * Park off-screen rather than `hide()` so WebContent never becomes a suspension
+             * candidate (see `tray_menu::park_tray_popover_offscreen`). The park helper is
+             * idempotent and consults its own visibility flag, so unconditional dispatch is safe. */
             tauri::RunEvent::WindowEvent {
                 label,
                 event: tauri::WindowEvent::Focused(false),
                 ..
             } if label == "tray-popover" => {
-                if let Some(popover) = app.get_webview_window("tray-popover")
-                    && popover.is_visible().unwrap_or(false) {
-                        let _ = popover.hide();
-                    }
+                tray_menu::park_tray_popover_offscreen(app);
             }
             tauri::RunEvent::WindowEvent {
                 label,
                 event: tauri::WindowEvent::Focused(true),
                 ..
             } if label != "tray-popover" => {
-                if let Some(popover) = app.get_webview_window("tray-popover")
-                    && popover.is_visible().unwrap_or(false) {
-                        let _ = popover.hide();
-                    }
+                tray_menu::park_tray_popover_offscreen(app);
             }
             _ => {}
         });
