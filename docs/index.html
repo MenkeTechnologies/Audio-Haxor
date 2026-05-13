@@ -147,6 +147,7 @@
           <li><strong>Presets</strong> — preset scan, history/diff, export/import, disk usage.</li>
           <li><strong>MIDI</strong> — MIDI scan + SQLite (<code>db_query_midi</code>), history/diff, note/tempo/key metadata (<code>js/midi.js</code>), export full tab or selection subset (<code>js/export.js</code>).</li>
           <li><strong>PDFs</strong> — PDF scan, optional metadata extraction batch + progress events, open in viewer / default app, export DSV/JSON, import JSON, history/diff (<code>js/pdf.js</code>).</li>
+          <li><strong>Videos</strong> — video file scan + SQLite (<code>db_query_video</code>), history/diff, inline preview / fullscreen player, export/import JSON/DSV, optional AudioEngine vs HTML5 decode route in Settings (<code>js/video.js</code>).</li>
           <li><strong>Favorites</strong> — starred paths across types (<code>js/favorites.js</code>), export/import.</li>
           <li><strong>Notes</strong> — per-item notes (<code>js/notes.js</code>), export/import, clear.</li>
           <li><strong>Tags</strong> — global tag manager + filter bar (position top/bottom; <code>js/multi-filter.js</code>).</li>
@@ -205,9 +206,10 @@
 
       <section class="tutorial-section">
         <h2>ALS generator (Ableton Live Set authoring)</h2>
-        <p><code>src-tauri/src/techno_generator.rs</code> turns the analyzed
-           sample library into a full techno / schranz / trance arrangement
-           and writes it as a gzipped <code>.als</code> file openable directly
+        <p><code>src-tauri/src/als_generator.rs</code> (template + gzip I/O) and
+           <code>track_generator.rs</code> / <code>trance_generator.rs</code> (arrangement)
+           turn the analyzed sample library into a full techno / schranz / trance
+           layout and write it as a gzipped <code>.als</code> file openable directly
            in Ableton Live 11 / 12. The IPC entry point is
            <code>generate_als_project</code> (see IPC inventory below). The
            frontend UI is <code>frontend/js/als-generator.js</code> plus the
@@ -309,7 +311,7 @@
             parallelism thinning, variation chunking, chaos gaps, density
             accents, sample-shuffle tie-breakers) derives from the seed via
             a thread-local <code>StdRng</code> in
-            <code>techno_generator.rs</code> (<code>init_gen_rng</code> /
+            <code>track_generator.rs</code> (<code>init_gen_rng</code> /
             <code>with_gen_rng</code>), seeded at the top of
             <code>generate()</code> and cleared on every exit path.
             <code>generate_als_project</code> resolves
@@ -358,7 +360,7 @@
         <p>Generated HTML for the library crate:</p>
         <ul>
           <li><a href="api/app_lib/index.html">Browse <code>app_lib</code> docs</a> (after <code>pnpm run doc:sync</code>)</li>
-          <li>Local cargo output: <code>src-tauri/target/doc/app_lib/index.html</code></li>
+          <li>Local cargo output (workspace <code>target/</code> at repo root): <code>target/doc/app_lib/index.html</code></li>
         </ul>
         <pre>pnpm run doc:open    # build + open in browser
 pnpm run doc:sync    # copy tree into docs/api/</pre>
@@ -366,7 +368,7 @@ pnpm run doc:sync    # copy tree into docs/api/</pre>
 
       <section class="tutorial-section">
         <h2>Main window IPC &amp; i18n</h2>
-        <p><code>frontend/js/ipc.js</code> is the Tauri bridge (replaces an Electron-style preload):</p>
+        <p><code>frontend/js/ipc.js</code> is the Tauri invoke bridge (<code>window.vstUpdater</code> wraps <code>@tauri-apps/api/core</code> <code>invoke</code>):</p>
         <ul>
           <li><strong><code>window.vstUpdater</code>:</strong> wraps <code>invoke</code> for DB queries, prefs, scans, PDF/MIDI helpers, <code>audio_engine_invoke</code> (subprocess audio engine JSON API — UI in <code>frontend/js/audio-engine.js</code> + <code>frontend/js/audio.js</code>), and palette search (<code>db_query_palette_preview</code>).</li>
           <li><strong>Strings:</strong> startup <code>get_app_strings</code> fills <code>window.__appStr</code>; <code>appFmt</code> / <code>toastFmt</code> for UI and toasts. <code>reloadAppStrings(locale)</code> reloads maps, reapplies i18n, invalidates the command palette static cache, refreshes the native menu (<code>refresh_native_menu</code>), and re-syncs tray now playing.</li>
@@ -451,13 +453,15 @@ i18n:sort / i18n:sort:check / i18n:audit → catalog sort + HTML audit report</p
         </ul>
       </section>
 
-      <section class="tutorial-section">
+      <section class="tutorial-section" id="tauri-invoke-inventory">
         <h2>Tauri <code>invoke</code> inventory</h2>
-        <p>Authoritative list lives in <code>src-tauri/src/lib.rs</code> inside <code>tauri::generate_handler![…]</code>. Grouped here for orientation (names only).</p>
-        <pre>Core / system
-  get_version, get_walker_status, get_home_dir, get_process_stats
+        <p>Authoritative list lives in <code>src-tauri/src/lib.rs</code> inside <code>tauri::generate_handler![…]</code>. Grouped here for orientation (names only). JS calls use the string form (e.g. <code>invoke('terminal_spawn', …)</code>) even when Rust registers <code>terminal::terminal_*</code>.</p>
+        <pre>Core / filesystem
+  get_version, get_build_info, get_walker_status, get_home_dir, get_process_stats
   open_update_url, open_prefs_file, get_prefs_path, open_file_default, open_with_app
-  fs_list_dir, delete_file, rename_file, read_text_file, write_text_file
+  fs_list_dir, delete_file, delete_inventory_item, rename_file
+  read_text_file, write_text_file, write_binary_file, ensure_snapshot_export_dir
+  read_cache_file, write_cache_file, list_data_files, delete_data_file
 
 Plugin scan + KVR + plugin history
   scan_plugins, stop_scan, check_updates, stop_updates, resolve_kvr
@@ -465,52 +469,78 @@ Plugin scan + KVR + plugin history
   kvr_cache_get, kvr_cache_update
   open_plugin_folder, export_plugins_json, export_plugins_csv, import_plugins_json
 
-Audio samples + analysis + fingerprints
+Audio samples + analysis + fingerprints + waveform caches
   scan_audio_samples, stop_audio_scan, get_audio_metadata
   audio_history_save, audio_history_get_scans, audio_history_get_detail, audio_history_delete
   audio_history_clear, audio_history_latest, audio_history_diff
   estimate_bpm, detect_audio_key, measure_lufs, batch_analyze
-  compute_fingerprint, find_similar_samples, build_fingerprint_cache, find_content_duplicates
+  sample_analysis_seed, sample_analysis_start, sample_analysis_stop, sample_analysis_stats
+  compute_fingerprint, find_similar_samples, build_fingerprint_cache, stop_fingerprint_cache
+  find_content_duplicates, cancel_content_duplicate_scan
+  upsert_waveform_cache_entry, read_waveform_cache_entry, upsert_spectrogram_cache_entry
+  waveform_prefetch_start, waveform_prefetch_stop, waveform_prefetch_stats
   open_audio_folder, export_audio_json, export_audio_dsv, import_audio_json
 
 DAW projects
-  scan_daw_projects, stop_daw_scan, daw_history_*, open_daw_folder, open_daw_project
-  extract_project_plugins, read_als_xml, read_bwproject, read_project_file
+  scan_daw_projects, stop_daw_scan
+  daw_history_save, daw_history_get_scans, daw_history_get_detail, daw_history_delete, daw_history_clear, daw_history_latest, daw_history_diff
+  open_daw_folder, open_daw_project, extract_project_plugins, read_als_xml, read_bwproject, read_project_file
   export_daw_json, export_daw_dsv, import_daw_json
 
-Presets / MIDI / PDFs
+Presets / MIDI / PDF / Video
   scan_presets, stop_preset_scan, preset_history_*, open_preset_folder
+  export_presets_json, export_presets_dsv, import_presets_json
   scan_midi_files, stop_midi_scan, midi_history_*, db_query_midi, db_midi_filter_stats, get_midi_info
+  scan_video_files, stop_video_scan, db_query_video, db_video_filter_stats
+  export_videos_json, export_videos_dsv, import_videos_json
   scan_pdfs, stop_pdf_scan, pdf_history_*, open_pdf_file, pdf_metadata_get
   pdf_metadata_extract_abort, pdf_metadata_extract_batch, pdf_metadata_unindexed
-  export/import helpers for presets, PDFs, TOML, etc. (see handler list)
+  export_pdfs_json, export_pdfs_dsv, import_pdfs_json, export_pdf
 
-Unified walker + caches + logs + data files
+Unified scan + logging
   scan_unified, get_unified_scan_run, prepare_unified_scan, stop_unified_scan
-  read_cache_file, write_cache_file, list_data_files, delete_data_file
   append_log, read_log, clear_log
 
 Audio engine subprocess
   audio_engine_invoke, audio_engine_restart
-  audio_engine_eof_watchdog_start, audio_engine_eof_watchdog_stop
+  audio_engine_eof_watchdog_start, audio_engine_eof_watchdog_stop, set_audio_engine_next_track_hint
+  set_playback_active_flag, set_playback_active_and_wait, set_bg_job_throttle, get_bg_job_throttle
   get_audio_engine_process_stats
 
-Preferences + i18n + native chrome
+Preferences + favorites + player history + notes + tags
   prefs_get_all, prefs_set, prefs_remove, prefs_save_all
-  get_app_strings, get_toast_strings, refresh_native_menu
-  tray_menu::update_tray_now_playing, tray_menu::tray_popover_action
-  tray_menu::tray_popover_resize, tray_menu::tray_popover_get_state
-  tray_menu::tray_popover_get_ui_theme
+  favorites_list, favorites_add, favorites_remove, favorites_clear, favorites_is, favorites_set_all
+  player_history_list, player_history_add, player_history_remove, player_history_clear
+  player_history_reorder, player_history_import, player_history_set_all
+  note_get, note_set, notes_get_all
+  tags_standalone_list, tags_standalone_set, tags_standalone_add, tags_standalone_remove
+  tags_all, tags_counts, tags_items_with, tag_rename, tag_delete, tag_add_to_item, tag_remove_from_item, tag_has
 
-SQLite (queries, stats, maintenance, analysis backfill)
-  db_query_audio, db_query_plugins, db_query_daw, db_query_presets, db_query_pdfs
-  db_query_midi, db_query_palette_preview
+i18n + tray + native chrome
+  get_app_strings, get_toast_strings, refresh_native_menu
+  tray_menu::update_tray_now_playing, tray_menu::tray_popover_action, tray_menu::tray_popover_resize
+  tray_menu::tray_popover_get_state, tray_menu::tray_popover_push_subtitle, tray_menu::tray_popover_get_ui_theme
+  tray_menu::show_main_window, tray_menu::tray_popover_hide
+
+SQLite + DB helpers
+  db_query_audio, db_query_plugins, db_query_daw, db_query_presets, db_query_pdfs, db_query_midi, db_query_video, db_query_palette_preview
   db_audio_stats, db_daw_stats, db_preset_stats, db_pdf_stats, db_plugin_filter_stats
-  db_audio_filter_stats, db_daw_filter_stats, db_preset_filter_stats, db_pdf_filter_stats
-  db_midi_filter_stats, get_active_scan_inventory_counts, db_list_scans
+  db_audio_filter_stats, db_daw_filter_stats, db_preset_filter_stats, db_pdf_filter_stats, db_midi_filter_stats, db_video_filter_stats
+  get_active_scan_inventory_counts, db_list_scans
   db_update_bpm, db_update_key, db_update_lufs, db_update_analysis, db_backfill_audio_meta
   db_get_analysis, db_unanalyzed_paths, db_audio_library_paths, db_migrate_json
   db_cache_stats, db_clear_caches, db_clear_cache_table
+
+Import/export TOML
+  export_toml, import_toml
+
+ALS + MIDI authoring + sample crates
+  generate_als_project, cancel_als_generation
+  generate_midi_lead, generate_midi_kits, generate_trance_starter, find_trance_samples
+  clear_als_sample_blacklist, get_als_blacklist_count, get_als_blacklist_entries, add_to_als_blacklist, remove_from_als_blacklist
+  get_als_whitelist_entries, get_als_whitelist_count, add_to_als_whitelist, remove_from_als_whitelist, clear_als_whitelist
+  als_query_samples, crate_category_counts, crate_facets, genre_rules_report, crate_query
+  crate_favorite_pack_toggle, crate_favorite_packs_list, crate_similar_candidates
 
 Embedded terminal
   terminal_spawn, terminal_write, terminal_resize, terminal_kill
@@ -526,7 +556,8 @@ Folder watch
           <li><strong>lib.rs / main.rs</strong> — Tauri builder, <code>generate_handler</code>, window restore, plugin registration.</li>
           <li><strong>db.rs</strong> — SQLite with WAL; dedicated writer mutex vs round-robin read pool (see module docs — avoids starving UI queries during migrations/writes).</li>
           <li><strong>history.rs</strong> — scan snapshots, preferences merge, typed history structs per domain.</li>
-          <li><strong>scanner.rs</strong> — plugin inventory; <strong>audio_scanner.rs</strong>, <strong>daw_scanner.rs</strong>, <strong>preset_scanner.rs</strong>, <strong>midi_scanner.rs</strong>, <strong>pdf_scanner.rs</strong> — parallel domain walkers.</li>
+          <li><strong>scanner.rs</strong> — plugin inventory; <strong>audio_scanner.rs</strong>, <strong>daw_scanner.rs</strong>, <strong>preset_scanner.rs</strong>, <strong>midi_scanner.rs</strong>, <strong>pdf_scanner.rs</strong>, <strong>video_scanner.rs</strong> — parallel domain walkers.</li>
+          <li><strong>als_project.rs</strong>, <strong>als_generator.rs</strong>, <strong>track_generator.rs</strong>, <strong>trance_generator.rs</strong>, <strong>midi_generator.rs</strong> — ALS project config, template/XML + gzip I/O, techno/schranz/trance arrangement, MIDI helpers for generated sets.</li>
           <li><strong>unified_walker.rs</strong> — single filesystem pass feeding the same progress channels as standalone scans.</li>
           <li><strong>audio_engine.rs</strong> — subprocess lifecycle + JSON RPC bridge for decode, transport, DSP, optional plugins.</li>
           <li><strong>bpm.rs / key_detect.rs / lufs.rs</strong> — analysis primitives; <strong>similarity.rs</strong>, <strong>content_hash.rs</strong> — chromaprint / duplicate detection helpers.</li>
