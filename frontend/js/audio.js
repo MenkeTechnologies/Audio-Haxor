@@ -6380,7 +6380,7 @@ function getPlayerHistoryListItems() {
             const score = searchScore(query, [s.name, s.path], 'fuzzy');
             if (score > 0 && !seen.has(s.path)) {
                 seen.add(s.path);
-                scored.push({item: {path: s.path, name: s.name, format: s.format, size: s.sizeFormatted}, score});
+                scored.push({item: {path: s.path, name: s.name, format: s.format, size: s.sizeFormatted, playCount: 0}, score});
             }
         }
     }
@@ -6396,17 +6396,26 @@ function getPlayerHistoryListItems() {
  */
 function addToRecentlyPlayed(filePath, sample, opts) {
     const skipReorder = opts && opts.skipRecentReorder === true;
+    const prevIdx = recentlyPlayed.findIndex(r => r.path === filePath);
+    const prevCount = prevIdx >= 0 ? Number(recentlyPlayed[prevIdx].playCount) || 0 : 0;
+    const prevSize = prevIdx >= 0 ? (recentlyPlayed[prevIdx].size || '') : '';
+    // Fall back to library lookup if caller didn't pass a sample (drag-drop, SMB path,
+    // played before scan completed). Without this, size + format land empty in the DB.
+    const resolvedSample = sample
+        || (typeof allAudioSamples !== 'undefined' && typeof findByPath === 'function'
+            ? findByPath(allAudioSamples, filePath)
+            : null);
     const entry = {
         path: filePath,
-        name: sample ? sample.name : filePath.split('/').pop().replace(/\.[^.]+$/, ''),
-        format: sample ? sample.format : filePath.split('.').pop().toUpperCase(),
-        size: sample ? sample.sizeFormatted : '',
+        name: resolvedSample ? resolvedSample.name : filePath.split('/').pop().replace(/\.[^.]+$/, ''),
+        format: resolvedSample ? resolvedSample.format : filePath.split('.').pop().toUpperCase(),
+        size: (resolvedSample && resolvedSample.sizeFormatted) || prevSize || '',
+        playCount: prevCount + 1,
     };
     // Update in-memory array for immediate UI
     if (skipReorder) {
-        const idx = recentlyPlayed.findIndex(r => r.path === filePath);
-        if (idx >= 0) {
-            recentlyPlayed[idx] = entry;
+        if (prevIdx >= 0) {
+            recentlyPlayed[prevIdx] = entry;
         } else {
             recentlyPlayed.push(entry);
             while (recentlyPlayed.length > MAX_RECENT) recentlyPlayed.shift();
@@ -6416,7 +6425,7 @@ function addToRecentlyPlayed(filePath, sample, opts) {
         recentlyPlayed.unshift(entry);
         if (recentlyPlayed.length > MAX_RECENT) recentlyPlayed.length = MAX_RECENT;
     }
-    // Persist to SQLite (fire-and-forget)
+    // Persist to SQLite (fire-and-forget) — Rust increments play_count atomically on conflict.
     const vu = window.vstUpdater;
     if (vu && typeof vu.playerHistoryAdd === 'function') {
         vu.playerHistoryAdd(entry.path, entry.name, entry.format, entry.size, skipReorder).catch(() => {});
@@ -6439,11 +6448,14 @@ function renderRecentlyPlayed() {
     list.innerHTML = items.map(r => {
         const isActive = r.path === audioPlayerPath;
         const isPlaying = isActive && isAudioPlaying();
+        const count = Number(r.playCount) || 0;
+        const countCell = `<span class="np-h-count" title="Play count">${count > 0 ? count : '&mdash;'}</span>`;
         return `<div class="np-history-item${isActive ? ' active' : ''}" data-action="playRecent" data-path="${escapeHtml(r.path)}">
       <span class="np-h-icon">${isPlaying ? '&#9654;' : '&#9835;'}</span>
       <span class="np-h-name" title="${escapeHtml(r.path)}">${query ? highlightMatch(r.name, query, 'fuzzy') : escapeHtml(r.name)}</span>
       <span class="np-h-format">${r.format}</span>
-      ${r.size ? `<span class="np-h-dur">${r.size}</span>` : ''}
+      ${countCell}
+      <span class="np-h-dur">${r.size || ''}</span>
     </div>`;
     }).join('');
     if (typeof initRecentlyPlayedDragReorder === 'function') requestAnimationFrame(initRecentlyPlayedDragReorder);

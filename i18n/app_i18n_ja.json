@@ -1413,6 +1413,7 @@
   "ui.hdr.abbr_thr": "THR",
   "ui.hdr.abbr_up": "上",
   "ui.hdr.abbr_virt": "仮想",
+  "ui.history.col_plays": "再生回数",
   "ui.history.compare_btn": "比較する",
   "ui.history.compare_btn_title": "選択したスキャンと比較する",
   "ui.history.compare_with": "以下と比較してください:",

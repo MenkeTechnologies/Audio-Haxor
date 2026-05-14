@@ -2820,6 +2820,25 @@ DROP TABLE _pl_refresh_paths;"#;
                 .map_err(|e| format!("Migration v27 schema_version failed: {e}"))?;
         }
 
+        // Migration v28: play_count column on player_history.
+        // Existing rows were played at least once before the column existed → backfill to 1.
+        let has_v28 = conn
+            .query_row(
+                "SELECT 1 FROM schema_version WHERE version = 28",
+                [],
+                |_| Ok(()),
+            )
+            .is_ok();
+        if !has_v28 {
+            conn.execute_batch(
+                "ALTER TABLE player_history ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0;
+                 UPDATE player_history SET play_count = 1 WHERE play_count = 0;",
+            )
+            .map_err(|e| format!("Migration v28 (player_history.play_count) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (28)", [])
+                .map_err(|e| format!("Migration v28 schema_version failed: {e}"))?;
+        }
+
         if conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_i18n'",
@@ -3460,8 +3479,23 @@ DROP TABLE _pl_refresh_paths;"#;
 
     pub fn player_history_list(&self) -> Result<Vec<serde_json::Value>, String> {
         let conn = self.read_conn();
+        // LEFT JOIN audio_samples so rows saved with an empty `size` (sample wasn't
+        // in the lazily-populated allAudioSamples at add-time) still return a value.
+        // Multiple audio_samples rows per path are possible across scans → pick the
+        // most-recent id.
         let mut stmt = conn
-            .prepare("SELECT path, name, format, size FROM player_history ORDER BY sort_order ASC")
+            .prepare(
+                "SELECT ph.path, ph.name, ph.format,
+                        CASE WHEN ph.size <> '' THEN ph.size ELSE COALESCE(asm.size_formatted, '') END,
+                        ph.play_count
+                 FROM player_history ph
+                 LEFT JOIN (
+                     SELECT path, size_formatted
+                     FROM audio_samples
+                     WHERE id IN (SELECT MAX(id) FROM audio_samples GROUP BY path)
+                 ) asm ON asm.path = ph.path
+                 ORDER BY ph.sort_order ASC",
+            )
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |row| {
@@ -3470,6 +3504,7 @@ DROP TABLE _pl_refresh_paths;"#;
                     "name": row.get::<_, String>(1)?,
                     "format": row.get::<_, String>(2)?,
                     "size": row.get::<_, String>(3)?,
+                    "playCount": row.get::<_, i64>(4)?,
                 }))
             })
             .map_err(|e| e.to_string())?;
@@ -3480,7 +3515,8 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(out)
     }
 
-    /// Add or update an entry in player history. If `skip_reorder` is false, moves entry to top.
+    /// Add or update an entry in player history. Increments `play_count` for the path.
+    /// If `skip_reorder` is false, moves entry to top.
     pub fn player_history_add(
         &self,
         path: &str,
@@ -3490,56 +3526,63 @@ DROP TABLE _pl_refresh_paths;"#;
         skip_reorder: bool,
     ) -> Result<(), String> {
         let conn = self.write_conn();
-        if skip_reorder {
-            // Update in place or append at end
-            let exists: bool = conn
-                .query_row(
-                    "SELECT 1 FROM player_history WHERE path = ?1",
-                    params![path],
-                    |_| Ok(true),
-                )
-                .unwrap_or(false);
-            if exists {
-                conn.execute(
-                    "UPDATE player_history SET name = ?2, format = ?3, size = ?4 WHERE path = ?1",
-                    params![path, name, format, size],
-                )
-                .map_err(|e| e.to_string())?;
-            } else {
-                let max_order: i64 = conn
-                    .query_row("SELECT COALESCE(MAX(sort_order), 0) FROM player_history", [], |r| r.get(0))
-                    .unwrap_or(0);
-                conn.execute(
-                    "INSERT INTO player_history (path, name, format, size, sort_order) VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![path, name, format, size, max_order + 1],
-                )
-                .map_err(|e| e.to_string())?;
-                // Enforce max 50 entries
-                conn.execute(
-                    "DELETE FROM player_history WHERE id IN (SELECT id FROM player_history ORDER BY sort_order DESC LIMIT -1 OFFSET 50)",
-                    [],
-                )
-                .map_err(|e| e.to_string())?;
-            }
+        // `allAudioSamples` on the JS side is lazily populated — most callers can't
+        // supply `size`. Fall back to the latest `audio_samples` row for this path.
+        let resolved_size: String = if !size.is_empty() {
+            size.to_string()
         } else {
-            // Move to top (lowest sort_order)
-            conn.execute("DELETE FROM player_history WHERE path = ?1", params![path])
-                .map_err(|e| e.to_string())?;
-            let min_order: i64 = conn
-                .query_row("SELECT COALESCE(MIN(sort_order), 0) FROM player_history", [], |r| r.get(0))
-                .unwrap_or(0);
+            conn.query_row(
+                "SELECT size_formatted FROM audio_samples WHERE path = ?1 ORDER BY id DESC LIMIT 1",
+                params![path],
+                |r| r.get::<_, String>(0),
+            )
+            .unwrap_or_default()
+        };
+        let size = resolved_size.as_str();
+        let sort_order: i64 = if skip_reorder {
+            // Existing rows keep their current sort_order; new rows append at the end.
+            conn.query_row("SELECT COALESCE(MAX(sort_order), 0) FROM player_history", [], |r| r.get(0))
+                .unwrap_or(0)
+                + 1
+        } else {
+            // Move to top (lowest sort_order).
+            conn.query_row("SELECT COALESCE(MIN(sort_order), 0) FROM player_history", [], |r| r.get(0))
+                .unwrap_or(0)
+                - 1
+        };
+        // UPSERT preserves play_count across reorders (DELETE+INSERT would lose it).
+        if skip_reorder {
             conn.execute(
-                "INSERT INTO player_history (path, name, format, size, sort_order) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![path, name, format, size, min_order - 1],
+                "INSERT INTO player_history (path, name, format, size, sort_order, play_count)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 1)
+                 ON CONFLICT(path) DO UPDATE SET
+                     name = excluded.name,
+                     format = excluded.format,
+                     size = excluded.size,
+                     play_count = play_count + 1",
+                params![path, name, format, size, sort_order],
             )
             .map_err(|e| e.to_string())?;
-            // Enforce max 50 entries
+        } else {
             conn.execute(
-                "DELETE FROM player_history WHERE id IN (SELECT id FROM player_history ORDER BY sort_order DESC LIMIT -1 OFFSET 50)",
-                [],
+                "INSERT INTO player_history (path, name, format, size, sort_order, play_count)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 1)
+                 ON CONFLICT(path) DO UPDATE SET
+                     name = excluded.name,
+                     format = excluded.format,
+                     size = excluded.size,
+                     sort_order = excluded.sort_order,
+                     play_count = play_count + 1",
+                params![path, name, format, size, sort_order],
             )
             .map_err(|e| e.to_string())?;
         }
+        // Enforce max 50 entries (oldest sort_order wins; trim the tail).
+        conn.execute(
+            "DELETE FROM player_history WHERE id IN (SELECT id FROM player_history ORDER BY sort_order DESC LIMIT -1 OFFSET 50)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -3571,11 +3614,12 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(())
     }
 
-    /// Import from prefs JSON array (one-time migration).
+    /// Import from prefs JSON array (one-time migration / user import).
+    /// Preserves `playCount` from the source when present; defaults to 1 (already-played at least once).
     pub fn player_history_import(&self, items: &[serde_json::Value]) -> Result<usize, String> {
         let conn = self.write_conn();
         let mut stmt = conn
-            .prepare("INSERT OR IGNORE INTO player_history (path, name, format, size, sort_order) VALUES (?1, ?2, ?3, ?4, ?5)")
+            .prepare("INSERT OR IGNORE INTO player_history (path, name, format, size, sort_order, play_count) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
             .map_err(|e| e.to_string())?;
         let mut count = 0usize;
         for (i, item) in items.iter().enumerate() {
@@ -3583,33 +3627,44 @@ DROP TABLE _pl_refresh_paths;"#;
             let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let format = item.get("format").and_then(|v| v.as_str()).unwrap_or("");
             let size = item.get("size").and_then(|v| v.as_str()).unwrap_or("");
+            let play_count = item
+                .get("playCount")
+                .and_then(|v| v.as_i64())
+                .filter(|n| *n > 0)
+                .unwrap_or(1);
             if path.is_empty() {
                 continue;
             }
-            if stmt.execute(params![path, name, format, size, i as i64]).is_ok() {
+            if stmt.execute(params![path, name, format, size, i as i64, play_count]).is_ok() {
                 count += 1;
             }
         }
         Ok(count)
     }
 
-    /// Replace entire player history (for smart playlists).
+    /// Replace entire player history (drag-reorder / smart playlists).
+    /// Preserves `playCount` from each entry; defaults to 1 when missing.
     pub fn player_history_set_all(&self, items: &[serde_json::Value]) -> Result<(), String> {
         let conn = self.write_conn();
         conn.execute("DELETE FROM player_history", [])
             .map_err(|e| e.to_string())?;
         let mut stmt = conn
-            .prepare("INSERT INTO player_history (path, name, format, size, sort_order) VALUES (?1, ?2, ?3, ?4, ?5)")
+            .prepare("INSERT INTO player_history (path, name, format, size, sort_order, play_count) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
             .map_err(|e| e.to_string())?;
         for (i, item) in items.iter().enumerate() {
             let path = item.get("path").and_then(|v| v.as_str()).unwrap_or("");
             let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let format = item.get("format").and_then(|v| v.as_str()).unwrap_or("");
             let size = item.get("size").and_then(|v| v.as_str()).unwrap_or("");
+            let play_count = item
+                .get("playCount")
+                .and_then(|v| v.as_i64())
+                .filter(|n| *n > 0)
+                .unwrap_or(1);
             if path.is_empty() {
                 continue;
             }
-            stmt.execute(params![path, name, format, size, i as i64])
+            stmt.execute(params![path, name, format, size, i as i64, play_count])
                 .map_err(|e| e.to_string())?;
         }
         Ok(())

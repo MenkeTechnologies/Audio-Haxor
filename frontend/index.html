@@ -8947,6 +8947,81 @@
             flex-shrink: 0;
         }
 
+        .np-history-item .np-h-count {
+            font-size: 10px;
+            font-family: 'Orbitron', sans-serif;
+            color: var(--text-dim);
+            letter-spacing: 1px;
+            flex-shrink: 0;
+            text-align: right;
+        }
+
+        .np-history-item.active .np-h-count {
+            color: var(--cyan);
+        }
+
+        /* Recently Played table layout — scoped to #npHistoryList + .np-h-header
+           so the collapsed-player mini-search results (which reuse .np-history-item
+           under #npSearchResults) keep their existing flex layout. */
+        .np-h-header,
+        #npHistoryList .np-history-item {
+            display: grid;
+            grid-template-columns: 16px minmax(0, 1fr) 56px 56px 64px;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+        }
+
+        .np-h-header {
+            font-size: 9px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            border-bottom: 1px solid rgba(5, 217, 232, 0.18);
+            position: sticky;
+            top: 0;
+            background: var(--bg-primary);
+            z-index: 2;
+            user-select: none;
+            cursor: default;
+        }
+
+        .np-h-header .np-h-icon-h,
+        .np-h-header .np-h-name-h,
+        .np-h-header .np-h-format-h,
+        .np-h-header .np-h-count-h,
+        .np-h-header .np-h-dur-h {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .np-h-header .np-h-count-h,
+        .np-h-header .np-h-dur-h {
+            text-align: right;
+        }
+
+        #npHistoryList .np-history-item .np-h-name {
+            min-width: 0;
+        }
+
+        #npHistoryList .np-history-item .np-h-format {
+            text-align: left;
+        }
+
+        #npHistoryList .np-history-item .np-h-count {
+            justify-self: end;
+        }
+
+        #npHistoryList .np-history-item .np-h-dur {
+            text-align: right;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .np-meta-line {
             font-size: 10px;
             color: var(--text-muted);
@@ -10913,6 +10988,13 @@
                             data-i18n-title="ui.tt.clear_play_history"
                             style="font-size:8px;padding:2px 6px;vertical-align:middle;" title="Clear play history">Clear
                     </button>
+                </div>
+                <div class="np-h-header" role="row">
+                    <span class="np-h-icon-h"></span>
+                    <span class="np-h-name-h" data-i18n="ui.export.col_name">Name</span>
+                    <span class="np-h-format-h" data-i18n="ui.export.col_format">Format</span>
+                    <span class="np-h-count-h" data-i18n="ui.history.col_plays" title="Play count">Plays</span>
+                    <span class="np-h-dur-h" data-i18n="ui.export.col_size">Size</span>
                 </div>
                 <div id="npHistoryList"></div>
             </div>
@@ -14694,41 +14776,41 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=7474"></script>
-<script src="js/utils.js?v=7474"></script>
-<script src="js/ui-idle.js?v=7474"></script>
-<script src="js/ipc.js?v=7474"></script>
-<script src="js/tooltip-hover.js?v=7474"></script>
-<script src="js/drag-reorder.js?v=7474"></script>
-<script src="js/modal-drag.js?v=7474"></script>
-<script src="js/columns.js?v=7474"></script>
-<script src="js/notes.js?v=7474"></script>
-<script src="js/favorites.js?v=7474"></script>
-<script src="js/export.js?v=7474"></script>
-<script src="js/plugins.js?v=7474"></script>
-<script src="js/settings.js?v=7474"></script>
-<script src="js/history.js?v=7474"></script>
-<script src="js/kvr.js?v=7474"></script>
-<script src="js/graph-freeze.js?v=7474"></script>
-<script src="js/audio.js?v=7474"></script>
-<script src="js/daw.js?v=7474"></script>
-<script src="js/disk-usage.js?v=7474"></script>
-<script src="js/presets.js?v=7474"></script>
-<script src="js/batch-select.js?v=7474"></script>
-<script src="js/native-file-drag.js?v=7474"></script>
-<script src="js/sort-persist.js?v=7474"></script>
-<script src="js/multi-filter.js?v=7474"></script>
-<script src="js/file-browser.js?v=7474"></script>
-<script src="js/duplicates.js?v=7474"></script>
-<script src="js/command-palette.js?v=7474"></script>
-<script src="js/xref.js?v=7474"></script>
-<script src="js/dep-graph.js?v=7474"></script>
-<script src="js/smart-playlists.js?v=7474"></script>
-<script src="js/heatmap-dashboard.js?v=7474"></script>
-<script src="js/genre-rules-dashboard.js?v=7474"></script>
-<script src="js/midi.js?v=7474"></script>
-<script src="js/pdf.js?v=7474"></script>
-<script src="js/video.js?v=7474"></script>
+<script src="js/i18n-ui.js?v=66043"></script>
+<script src="js/utils.js?v=66043"></script>
+<script src="js/ui-idle.js?v=66043"></script>
+<script src="js/ipc.js?v=66043"></script>
+<script src="js/tooltip-hover.js?v=66043"></script>
+<script src="js/drag-reorder.js?v=66043"></script>
+<script src="js/modal-drag.js?v=66043"></script>
+<script src="js/columns.js?v=66043"></script>
+<script src="js/notes.js?v=66043"></script>
+<script src="js/favorites.js?v=66043"></script>
+<script src="js/export.js?v=66043"></script>
+<script src="js/plugins.js?v=66043"></script>
+<script src="js/settings.js?v=66043"></script>
+<script src="js/history.js?v=66043"></script>
+<script src="js/kvr.js?v=66043"></script>
+<script src="js/graph-freeze.js?v=66043"></script>
+<script src="js/audio.js?v=66043"></script>
+<script src="js/daw.js?v=66043"></script>
+<script src="js/disk-usage.js?v=66043"></script>
+<script src="js/presets.js?v=66043"></script>
+<script src="js/batch-select.js?v=66043"></script>
+<script src="js/native-file-drag.js?v=66043"></script>
+<script src="js/sort-persist.js?v=66043"></script>
+<script src="js/multi-filter.js?v=66043"></script>
+<script src="js/file-browser.js?v=66043"></script>
+<script src="js/duplicates.js?v=66043"></script>
+<script src="js/command-palette.js?v=66043"></script>
+<script src="js/xref.js?v=66043"></script>
+<script src="js/dep-graph.js?v=66043"></script>
+<script src="js/smart-playlists.js?v=66043"></script>
+<script src="js/heatmap-dashboard.js?v=66043"></script>
+<script src="js/genre-rules-dashboard.js?v=66043"></script>
+<script src="js/midi.js?v=66043"></script>
+<script src="js/pdf.js?v=66043"></script>
+<script src="js/video.js?v=66043"></script>
 <!-- Blacklist Modal -->
 <div id="blacklistModal" class="modal-overlay">
     <div class="modal-content" style="max-width:600px;">
@@ -14787,20 +14869,20 @@
     </div>
 </div>
 
-<script src="js/settings-search.js?v=7474"></script>
-<script src="js/visualizer.js?v=7474"></script>
-<script src="js/walker-status.js?v=7474"></script>
-<script src="js/audio-engine.js?v=7474"></script>
-<script src="js/als-timeline.js?v=7474"></script>
-<script src="js/als-generator.js?v=7474"></script>
-<script src="js/trance-lead.js?v=7474"></script>
-<script src="js/sample-browser.js?v=7474"></script>
-<script src="lib/xterm.js?v=7474"></script>
-<script src="js/terminal.js?v=7474"></script>
-<script src="js/context-menu.js?v=7474"></script>
-<script src="js/shortcuts.js?v=7474"></script>
-<script src="js/help-overlay.js?v=7474"></script>
-<script src="js/keyboard-nav.js?v=7474"></script>
-<script src="js/app.js?v=7474"></script>
+<script src="js/settings-search.js?v=66043"></script>
+<script src="js/visualizer.js?v=66043"></script>
+<script src="js/walker-status.js?v=66043"></script>
+<script src="js/audio-engine.js?v=66043"></script>
+<script src="js/als-timeline.js?v=66043"></script>
+<script src="js/als-generator.js?v=66043"></script>
+<script src="js/trance-lead.js?v=66043"></script>
+<script src="js/sample-browser.js?v=66043"></script>
+<script src="lib/xterm.js?v=66043"></script>
+<script src="js/terminal.js?v=66043"></script>
+<script src="js/context-menu.js?v=66043"></script>
+<script src="js/shortcuts.js?v=66043"></script>
+<script src="js/help-overlay.js?v=66043"></script>
+<script src="js/keyboard-nav.js?v=66043"></script>
+<script src="js/app.js?v=66043"></script>
 </body>
 </html>
