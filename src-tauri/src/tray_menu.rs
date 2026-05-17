@@ -755,14 +755,35 @@ fn tray_popover_emit_shuffle_loop_sync(app: &AppHandle<Wry>, shuffle_on: bool, l
 /// progress thumb backward on every menu click. Handling it in Rust keeps the frontend out of
 /// the loop entirely.
 pub(crate) fn tray_popover_toggle_shuffle(app: &AppHandle<Wry>) -> Result<(), String> {
-    let cur = pref_bool_on_off(history::get_preference("shuffleMode").as_ref());
+    /* Toggle off the in-process tray cache (what the popover button is currently displaying)
+     * rather than off `history::get_preference` — the disk-backed pref has a real race window
+     * after a JS-side `prefsSet` (fire-and-forget IPC) where it returns the pre-toggle value
+     * and tray clicks would flip in the wrong direction. The cache mirrors what main JS last
+     * pushed via `update_tray_now_playing`, so it's always consistent with what the user sees
+     * on the popover. Falls back to pref only when no emit has landed yet (cold start). */
+    let emit_snapshot = match app.try_state::<TrayState>() {
+        Some(tray_state) => tray_state
+            .inner
+            .lock()
+            .map_err(|_| "tray state mutex poisoned".to_string())?
+            .last_popover_emit
+            .clone(),
+        None => None,
+    };
+    let cur = emit_snapshot
+        .as_ref()
+        .map(|e| e.shuffle_on)
+        .unwrap_or_else(|| pref_bool_on_off(history::get_preference("shuffleMode").as_ref()));
     let next = !cur;
     history::set_preference(
         "shuffleMode",
         serde_json::Value::String(if next { "on".into() } else { "off".into() }),
     );
 
-    let loop_fallback = pref_bool_on_off(history::get_preference("audioLoop").as_ref());
+    let loop_fallback = emit_snapshot
+        .as_ref()
+        .map(|e| e.loop_on)
+        .unwrap_or_else(|| pref_bool_on_off(history::get_preference("audioLoop").as_ref()));
 
     let emit_opt = match app.try_state::<TrayState>() {
         Some(tray_state) => {
@@ -794,7 +815,22 @@ pub(crate) fn tray_popover_toggle_shuffle(app: &AppHandle<Wry>) -> Result<(), St
 /// Menu-bar right-click tray menu sibling of [`tray_popover_toggle_shuffle`] — same rationale
 /// for handling it in Rust rather than round-tripping through the main webview.
 pub(crate) fn tray_popover_toggle_loop(app: &AppHandle<Wry>) -> Result<(), String> {
-    let cur = pref_bool_on_off(history::get_preference("audioLoop").as_ref());
+    /* Cache-first toggle — same rationale as `tray_popover_toggle_shuffle` above. The
+     * disk-backed pref can disagree with the popover button's displayed state for the brief
+     * window between a JS-side `prefsSet` and Rust observing it. */
+    let emit_snapshot = match app.try_state::<TrayState>() {
+        Some(tray_state) => tray_state
+            .inner
+            .lock()
+            .map_err(|_| "tray state mutex poisoned".to_string())?
+            .last_popover_emit
+            .clone(),
+        None => None,
+    };
+    let cur = emit_snapshot
+        .as_ref()
+        .map(|e| e.loop_on)
+        .unwrap_or_else(|| pref_bool_on_off(history::get_preference("audioLoop").as_ref()));
     let next = !cur;
     history::set_preference(
         "audioLoop",
@@ -806,7 +842,10 @@ pub(crate) fn tray_popover_toggle_loop(app: &AppHandle<Wry>) -> Result<(), Strin
         );
     });
 
-    let shuffle_fallback = pref_bool_on_off(history::get_preference("shuffleMode").as_ref());
+    let shuffle_fallback = emit_snapshot
+        .as_ref()
+        .map(|e| e.shuffle_on)
+        .unwrap_or_else(|| pref_bool_on_off(history::get_preference("shuffleMode").as_ref()));
 
     let emit_opt = match app.try_state::<TrayState>() {
         Some(tray_state) => {

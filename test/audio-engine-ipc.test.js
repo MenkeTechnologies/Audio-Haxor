@@ -649,6 +649,37 @@ if (!bin) {
       assert.equal(j.loop, false);
     });
 
+    /* `loop_gen` is the engine-side receive counter for `playback_set_loop`. The JS poll uses it
+     * to ignore `playback_status` responses that pre-date its latest user toggle (engine-as-
+     * source-of-truth reconciliation in `runEnginePlaybackStatusTick` / `applyEngineLoopFromStatus`).
+     * Must (a) echo on every set_loop response, (b) increment monotonically by at least 1, and
+     * (c) appear in `playback_status` once a file is loaded. Loss of any of these silently breaks
+     * the reconciliation rule and the loop button drifts out of sync with engine state. */
+    it('playback_set_loop echoes monotonically-increasing loop_gen and playback_status reflects current loop+loop_gen', async () => {
+      const { outLines } = await runEngineExchange(bin, [
+        jl({ cmd: 'playback_set_loop', loop: false }),
+        jl({ cmd: 'playback_set_loop', loop: true }),
+        jl({ cmd: 'playback_load', path: tmpWav }),
+        jl({ cmd: 'playback_status', spectrum: false, scope: false }),
+        jl({ cmd: 'playback_set_loop', loop: false }),
+        jl({ cmd: 'playback_status', spectrum: false, scope: false }),
+      ]);
+      const [setOff1, setOn, load, stat1, setOff2, stat2] = outLines.map((l) => JSON.parse(l));
+      assert.equal(setOff1.ok, true);
+      assert.equal(setOn.ok, true);
+      assert.equal(typeof setOff1.loop_gen, 'number', 'set_loop must echo loop_gen');
+      assert.equal(typeof setOn.loop_gen, 'number');
+      assert.ok(setOn.loop_gen > setOff1.loop_gen, `loop_gen must increase across set_loop calls (got ${setOff1.loop_gen} -> ${setOn.loop_gen})`);
+      assert.equal(load.ok, true);
+      assert.equal(stat1.loaded, true);
+      assert.equal(stat1.loop, true, 'playback_status must reflect the just-set loop value');
+      assert.equal(stat1.loop_gen, setOn.loop_gen, 'playback_status loop_gen must match the last set_loop receipt');
+      assert.equal(setOff2.ok, true);
+      assert.ok(setOff2.loop_gen > setOn.loop_gen, 'loop_gen must continue to increase');
+      assert.equal(stat2.loop, false);
+      assert.equal(stat2.loop_gen, setOff2.loop_gen);
+    });
+
     /* Regression: in loop mode the playback cursor must reset on every loop wrap.
      *
      * Bug fixed in `Engine.cpp::LockFreeStreamSource::getNextReadPosition` — was

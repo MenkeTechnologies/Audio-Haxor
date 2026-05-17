@@ -2111,6 +2111,10 @@ struct Engine::Impl
     bool reverseWanted = false;
     /** Forward: `AudioFormatReaderSource::setLooping`. Reverse: `DspStereoFileSource` wraps RAM buffer. */
     std::atomic<bool> playbackLoopWanted{false};
+    /** Monotonic generation incremented on every `playback_set_loop`. Echoed in `playback_status`
+     * so JS can ignore stale poll responses that landed before its latest toggle was processed
+     * (engine-as-source-of-truth reconciliation, see `runEnginePlaybackStatusTick`). */
+    std::atomic<uint64_t> playbackLoopGen{0};
     bool paused = false;
 
     juce::VST3PluginFormat vst3;
@@ -3546,6 +3550,8 @@ struct Engine::Impl
         o->setProperty("sample_rate_hz", (int) deviceRate.load());
         o->setProperty("src_rate_hz", (int) sessionSrcRate);
         o->setProperty("reverse", reverseWanted);
+        o->setProperty("loop", playbackLoopWanted.load());
+        o->setProperty("loop_gen", (juce::int64) playbackLoopGen.load());
         o->setProperty("speed", (double) juce::jlimit(0.25f, 4.0f, playbackSpeed.load()));
         o->setProperty("speed_mode", speedMode.load() == (int) SpeedMode::TimeStretch
                                          ? juce::String("timestretch")
@@ -4150,11 +4156,15 @@ juce::var Engine::dispatch(const juce::var& req)
     {
         const bool loop = req["loop"].isVoid() ? false : (bool) req["loop"];
         impl->playbackLoopWanted.store(loop);
+        const uint64_t gen = impl->playbackLoopGen.fetch_add(1, std::memory_order_acq_rel) + 1;
         if (impl->playbackMode && impl->fileSource != nullptr && !impl->reverseWanted)
             impl->fileSource->setLooping(loop);
         juce::var out = okObj();
         if (auto* o = out.getDynamicObject())
+        {
             o->setProperty("loop", loop);
+            o->setProperty("loop_gen", (juce::int64) gen);
+        }
         return out;
     }
 

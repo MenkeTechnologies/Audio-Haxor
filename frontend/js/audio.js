@@ -494,6 +494,15 @@ function _audioFmt(key, vars) {
 let audioPlayer = new Audio();
 let audioPlayerPath = null;
 let audioLooping = false;
+/** Monotonic counter of JS-side `playback_set_loop` sends. Lives on `window` because
+ * `syncEnginePlaybackLoop` (audio-engine.js) and `applyEngineLoopFromStatus` (audio.js)
+ * both touch it from different modules. Engine echoes its own receive counter as
+ * `loop_gen` in `playback_status`; we only trust the engine's loop value when
+ * `engineGen >= window._localLoopGen` — i.e. the engine has processed every JS send so
+ * its echoed state cannot pre-date our latest user click. */
+if (typeof window !== 'undefined' && typeof window._localLoopGen !== 'number') {
+    window._localLoopGen = 0;
+}
 let audioPlaybackRAF = null;
 let expandedMetaPath = null;
 let recentlyPlayed = [];
@@ -3882,7 +3891,11 @@ function toggleAudioLoop() {
         if (vid) vid.loop = audioLooping;
     }
     updateLoopBtnStates();
-    if (_enginePlaybackActive && typeof window.syncEnginePlaybackLoop === 'function') {
+    /* Always push to engine, even when `_enginePlaybackActive` is false: the engine retains
+     * `playbackLoopWanted` across loads and applies it on the next `playback_load_and_start`.
+     * Gating on `_enginePlaybackActive` left engine and JS silently out of sync whenever the
+     * user toggled loop before the engine had finished its first activation. */
+    if (typeof window.syncEnginePlaybackLoop === 'function') {
         window.syncEnginePlaybackLoop(audioLooping);
     }
     if (typeof syncTrayNowPlayingFromPlayback === 'function') syncTrayNowPlayingFromPlayback();
@@ -6795,13 +6808,51 @@ function applyTrayPlaybackFlagsFromHost(shuffleOn, loopOn) {
     if (shuffleBtn) shuffleBtn.classList.toggle('active', audioShuffling);
     if (loopBtn) loopBtn.classList.toggle('active', audioLooping);
     updateLoopBtnStates();
-    if (_enginePlaybackActive && typeof window.syncEnginePlaybackLoop === 'function') {
+    /* Always push to engine — see toggleAudioLoop note. The Rust-driven tray toggle already
+     * issued `playback_set_loop` directly to the engine (tray_menu.rs::tray_popover_toggle_loop),
+     * so this is normally redundant; but if the engine restarted between Rust's call and ours
+     * the redundancy is what re-establishes consistency. */
+    if (typeof window.syncEnginePlaybackLoop === 'function') {
         window.syncEnginePlaybackLoop(audioLooping);
     }
 }
 
 if (typeof window !== 'undefined') {
     window.applyTrayPlaybackFlagsFromHost = applyTrayPlaybackFlagsFromHost;
+}
+
+/** Engine-as-source-of-truth reconciliation. Called from `runEnginePlaybackStatusTick` when
+ * `playback_status` reports `loop` + `loop_gen`. Only applies the engine's value when the engine
+ * has already processed every JS-side toggle (gen check), so an in-flight `playback_set_loop`
+ * never gets clobbered by a poll response that was queued before it. */
+function applyEngineLoopFromStatus(loopOn, loopGen) {
+    if (typeof loopOn !== 'boolean') return;
+    if (typeof loopGen !== 'number' || !Number.isFinite(loopGen)) return;
+    const localGen = typeof window !== 'undefined' && typeof window._localLoopGen === 'number'
+        ? window._localLoopGen
+        : 0;
+    if (loopGen < localGen) return;
+    if (!!loopOn === audioLooping) return;
+    audioLooping = !!loopOn;
+    audioPlayer.loop = audioLooping;
+    if (typeof prefs !== 'undefined' && prefs.setItem) {
+        prefs.setItem('audioLoop', audioLooping ? 'on' : 'off');
+    }
+    const loopBtn = document.getElementById('npBtnLoop');
+    if (loopBtn) loopBtn.classList.toggle('active', audioLooping);
+    if (
+        typeof videoPlayerPath !== 'undefined' &&
+        videoPlayerPath &&
+        audioPlayerPath === videoPlayerPath
+    ) {
+        const vid = document.getElementById('videoPlayerEl');
+        if (vid) vid.loop = audioLooping;
+    }
+    updateLoopBtnStates();
+}
+
+if (typeof window !== 'undefined') {
+    window.applyEngineLoopFromStatus = applyEngineLoopFromStatus;
 }
 
 function toggleMute() {
