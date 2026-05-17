@@ -4109,18 +4109,18 @@ async function runEnginePlaybackStatusTick() {
             if (typeof st.peak === 'number' && !Number.isNaN(st.peak)) {
                 window._enginePlaybackPeak = st.peak;
             }
-            /* Engine-as-source-of-truth reconciliation for the loop flag. Engine echoes
-             * `loop` + `loop_gen` in `playback_status`; `applyEngineLoopFromStatus` only
-             * accepts when `loop_gen >= window._localLoopGen` so in-flight toggles are not
-             * clobbered by stale poll responses. Runs regardless of `loaded` so the engine
-             * still acts as a heartbeat for JS state when the file isn't fully loaded yet. */
+            /* Engine-as-source-of-truth reconciliation for the loop flag. Engine echoes `loop`
+             * in `playback_status`; `applyEngineLoopFromStatus` self-gates via a timestamp so
+             * an in-flight JS-side `set_loop` is not clobbered by a poll response that beat it
+             * to the engine. After the quiet window the engine's value wins — that covers
+             * engine restarts and Rust-only toggles (`tray_popover_toggle_loop`) that JS
+             * never observed. */
             if (
                 typeof st.loop === 'boolean' &&
-                typeof st.loop_gen === 'number' &&
                 typeof window !== 'undefined' &&
                 typeof window.applyEngineLoopFromStatus === 'function'
             ) {
-                window.applyEngineLoopFromStatus(st.loop, st.loop_gen);
+                window.applyEngineLoopFromStatus(st.loop);
             }
             if (st.loaded === true) {
                 window._enginePlaybackPosSec = typeof st.position_sec === 'number' ? st.position_sec : 0;
@@ -4235,20 +4235,10 @@ function syncEngineSpeedModeFromPrefs() {
     void inv({cmd: 'playback_set_speed_mode', mode});
 }
 
-/** Bump the local "loop send" counter so the engine's echoed `loop_gen` in `playback_status`
- * has something to catch up to. Until engine `loop_gen >= window._localLoopGen`, the poll
- * reconciler ignores its loop value (would otherwise overwrite an in-flight JS toggle). */
-function bumpLocalLoopGen() {
-    if (typeof window === 'undefined') return;
-    const cur = typeof window._localLoopGen === 'number' ? window._localLoopGen : 0;
-    window._localLoopGen = cur + 1;
-}
-
 /** Full-file loop → `playback_set_loop` (forward: `AudioFormatReaderSource`; reverse: RAM buffer wraps). */
 function syncEnginePlaybackLoop(loop) {
     const inv = getAeAudioEngineInvoke();
     if (!inv) return;
-    bumpLocalLoopGen();
     void inv({cmd: 'playback_set_loop', loop: !!loop});
 }
 
@@ -4259,7 +4249,6 @@ function syncEnginePlaybackLoopFromPrefs() {
         typeof prefs !== 'undefined' && typeof prefs.getItem === 'function'
             ? prefs.getItem('audioLoop') === 'on'
             : false;
-    bumpLocalLoopGen();
     void inv({cmd: 'playback_set_loop', loop: on});
 }
 

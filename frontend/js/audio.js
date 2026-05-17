@@ -494,14 +494,21 @@ function _audioFmt(key, vars) {
 let audioPlayer = new Audio();
 let audioPlayerPath = null;
 let audioLooping = false;
-/** Monotonic counter of JS-side `playback_set_loop` sends. Lives on `window` because
- * `syncEnginePlaybackLoop` (audio-engine.js) and `applyEngineLoopFromStatus` (audio.js)
- * both touch it from different modules. Engine echoes its own receive counter as
- * `loop_gen` in `playback_status`; we only trust the engine's loop value when
- * `engineGen >= window._localLoopGen` — i.e. the engine has processed every JS send so
- * its echoed state cannot pre-date our latest user click. */
-if (typeof window !== 'undefined' && typeof window._localLoopGen !== 'number') {
-    window._localLoopGen = 0;
+/** Timestamp of the latest JS-side loop assertion (user click, row-loop, tray-host sync).
+ * The `playback_status` reconciler in `applyEngineLoopFromStatus` ignores engine echoes
+ * for `LOOP_RECONCILE_QUIET_MS` after this — long enough for the in-flight `set_loop`
+ * IPC to be processed by the engine and reflected in the next poll. Without the gate,
+ * a `playback_status` request that beat the user's `set_loop` into the engine's MAIN_IPC_TX
+ * channel returns the pre-toggle loop value and the reconciler flips `audioLooping`
+ * back to that stale value, making the button feel inert. Lives on `window` so the
+ * row/tray paths and the audio-engine poll module can stamp it. */
+const LOOP_RECONCILE_QUIET_MS = 1500;
+if (typeof window !== 'undefined' && typeof window._lastLoopAssertAt !== 'number') {
+    window._lastLoopAssertAt = 0;
+}
+function stampLoopAssert() {
+    if (typeof window === 'undefined' || typeof performance === 'undefined') return;
+    window._lastLoopAssertAt = performance.now();
 }
 let audioPlaybackRAF = null;
 let expandedMetaPath = null;
@@ -3878,6 +3885,7 @@ function toggleAudioPlayback() {
 
 function toggleAudioLoop() {
     audioLooping = !audioLooping;
+    stampLoopAssert();
     audioPlayer.loop = audioLooping;
     prefs.setItem('audioLoop', audioLooping ? 'on' : 'off');
     document.getElementById('npBtnLoop').classList.toggle('active', audioLooping);
@@ -3906,6 +3914,7 @@ function toggleRowLoop(filePath, event) {
     // If this sample isn't playing yet, start it with loop on
     if (audioPlayerPath !== filePath) {
         audioLooping = true;
+        stampLoopAssert();
         audioPlayer.loop = true;
         prefs.setItem('audioLoop', 'on');
         document.getElementById('npBtnLoop').classList.add('active');
@@ -3927,6 +3936,7 @@ function toggleVideoRowLoop(filePath, event) {
     const a = typeof audioPlayerPath !== 'undefined' && audioPlayerPath === filePath;
     if (!v || !a) {
         audioLooping = true;
+        stampLoopAssert();
         audioPlayer.loop = true;
         prefs.setItem('audioLoop', 'on');
         const loopBtn = document.getElementById('npBtnLoop');
@@ -6798,6 +6808,7 @@ function toggleShuffle() {
 function applyTrayPlaybackFlagsFromHost(shuffleOn, loopOn) {
     audioShuffling = !!shuffleOn;
     audioLooping = !!loopOn;
+    stampLoopAssert();
     audioPlayer.loop = audioLooping;
     if (typeof prefs !== 'undefined' && prefs.setItem) {
         prefs.setItem('shuffleMode', audioShuffling ? 'on' : 'off');
@@ -6822,16 +6833,18 @@ if (typeof window !== 'undefined') {
 }
 
 /** Engine-as-source-of-truth reconciliation. Called from `runEnginePlaybackStatusTick` when
- * `playback_status` reports `loop` + `loop_gen`. Only applies the engine's value when the engine
- * has already processed every JS-side toggle (gen check), so an in-flight `playback_set_loop`
- * never gets clobbered by a poll response that was queued before it. */
-function applyEngineLoopFromStatus(loopOn, loopGen) {
+ * `playback_status` reports `loop`. Skips while a JS-side toggle is still settling
+ * (`LOOP_RECONCILE_QUIET_MS` window after `stampLoopAssert`) — otherwise a `playback_status`
+ * that beat the user's `set_loop` into the engine's MAIN_IPC_TX FIFO would return the
+ * pre-toggle value and we'd flip `audioLooping` back to it. After the quiet window the
+ * engine's echo is authoritative — it covers engine restarts and Rust-only toggles that
+ * JS never observed. */
+function applyEngineLoopFromStatus(loopOn) {
     if (typeof loopOn !== 'boolean') return;
-    if (typeof loopGen !== 'number' || !Number.isFinite(loopGen)) return;
-    const localGen = typeof window !== 'undefined' && typeof window._localLoopGen === 'number'
-        ? window._localLoopGen
-        : 0;
-    if (loopGen < localGen) return;
+    if (typeof performance !== 'undefined' && typeof window !== 'undefined') {
+        const stamp = typeof window._lastLoopAssertAt === 'number' ? window._lastLoopAssertAt : 0;
+        if (performance.now() - stamp < LOOP_RECONCILE_QUIET_MS) return;
+    }
     if (!!loopOn === audioLooping) return;
     audioLooping = !!loopOn;
     audioPlayer.loop = audioLooping;
