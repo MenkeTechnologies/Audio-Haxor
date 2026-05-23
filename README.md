@@ -13,19 +13,41 @@
 ░▓████▒   ▓█   ▓██▒▒██▒ ▒██▒░ ████▓▒░░██▓ ▒██▒
 ```
 
-> **// SYSTEM ONLINE -- AUDIO_HAXOR v1.18.26 // by MenkeTechnologies**
+[![CI](https://github.com/MenkeTechnologies/Audio-Haxor/actions/workflows/ci.yml/badge.svg)](https://github.com/MenkeTechnologies/Audio-Haxor/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/MenkeTechnologies/Audio-Haxor.svg)](https://github.com/MenkeTechnologies/Audio-Haxor/releases)
+ [![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://menketechnologies.github.io/Audio-Haxor/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A high-voltage **Tauri v2/JUCE** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU/CLAP module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan -- so nothing slips through the cracks. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
+### `[AUDIO PLUGIN HAXOR // TAURI v2 + JUCE // CYBERPUNK CRT INTERFACE]`
 
-### [`Read the Docs`](https://menketechnologies.github.io/Audio-Haxor)
+> *"SYSTEM ONLINE — nothing slips through the cracks."*
 
+A high-voltage **Tauri v2/JUCE** desktop app that jacks into your system's audio plugin directories, maps every VST2/VST3/AU/CLAP module it finds, scans audio sample libraries, discovers DAW project files, checks the web for the latest plugin versions, and maintains a full changelog of every scan. Rust backend with a cyberpunk CRT interface featuring neon glow, scanline overlays, glitch effects, and multiple color schemes.
+
+### [`Read the Docs`](https://menketechnologies.github.io/Audio-Haxor/) &middot; [`Engineering Report`](https://menketechnologies.github.io/Audio-Haxor/report.html) · [`GitHub Releases`](https://github.com/MenkeTechnologies/Audio-Haxor/releases) · [`strykelang`](https://github.com/MenkeTechnologies/strykelang) · [`zshrs`](https://github.com/MenkeTechnologies/zshrs)
 
 ---
 
-[![CI](https://github.com/MenkeTechnologies/Audio-Haxor/actions/workflows/ci.yml/badge.svg)](https://github.com/MenkeTechnologies/Audio-Haxor/actions/workflows/ci.yml)
+## Table of Contents
 
+- [\[0x00\] Visual Interface](#0x00-visual-interface)
+- [\[0x01\] Core Modules](#0x01-core-modules)
+- [\[0x02\] Quick Start](#0x02-quick-start)
+- [\[0x03\] Dev vs Build](#0x03-dev-vs-build)
+- [\[0x04\] Testing](#0x04-testing)
+- [\[0x05\] API Documentation](#0x05-api-documentation)
+- [\[0x06\] Benchmarks](#0x06-benchmarks)
+- [\[0x07\] Build & Distribute](#0x07-build--distribute)
+- [\[0x08\] How It Works](#0x08-how-it-works)
+- [\[0x09\] KVR Audio Rate Limiting](#0x09-kvr-audio-rate-limiting)
+- [\[0x0A\] Project Architecture](#0x0a-project-architecture)
+- [\[0x0B\] Supported Directories](#0x0b-supported-directories)
+- [\[0x0C\] License](#0x0c-license)
+- [\[0xFF\] Author](#0xff-author)
 
-## // VISUAL INTERFACE //
+---
+
+## [0x00] VISUAL INTERFACE
 
 ### `> PLUGIN GRID`
 
@@ -171,7 +193,7 @@ A high-voltage **Tauri v2/JUCE** desktop app that jacks into your system's audio
 
 ---
 
-## // CORE MODULES //
+## [0x01] CORE MODULES
 
 | Module | Function |
 |--------|----------|
@@ -273,7 +295,7 @@ A high-voltage **Tauri v2/JUCE** desktop app that jacks into your system's audio
 
 ---
 
-## // QUICK START //
+## [0x02] QUICK START
 
 ```bash
 # Clone the repo
@@ -294,7 +316,7 @@ Requires [Node.js](https://nodejs.org/), [pnpm](https://pnpm.io/), [Rust](https:
 
 ---
 
-## // DEV vs BUILD — IMPORTANT //
+## [0x03] DEV VS BUILD
 
 **Dev (`pnpm tauri dev`) and Build (`pnpm tauri build`) behave differently.** Always verify in the build before shipping.
 
@@ -387,7 +409,7 @@ pnpm run doc:sync   # Regenerate rustdoc and copy to docs/api/ + use docs/index.
 
 ---
 
-## // TESTING //
+## [0x04] TESTING
 
 `pnpm test` runs **`scripts/test.sh`**: JS (`run-js-tests.mjs` runs `node --test` with **`--test-timeout=300000`** per test so a stuck case cannot block CI), optional AudioEngine IPC tests if the binary exists, then **`cargo test --manifest-path src-tauri/Cargo.toml`** (unit tests under `src-tauri/src/` plus all integration test crates in `src-tauri/tests/`). Multiple `test result:` lines are summed for the pass total.
 
@@ -405,7 +427,7 @@ The **`pnpm run test:js`** suite is limited to tests that **read or execute repo
 
 ---
 
-## // API DOCUMENTATION (RUST — HTML) //
+## [0x05] API DOCUMENTATION
 
 Rust API docs (rustdoc) are generated for the `app_lib` crate:
 
@@ -423,7 +445,7 @@ A full **18-step end-user walkthrough** is published as a multi-page tour under 
 
 ---
 
-## // BENCHMARKS //
+## [0x06] BENCHMARKS
 
 Criterion micro-benchmarks on Apple M5 Max (18 cores, 64 GB):
 
@@ -449,7 +471,7 @@ cargo bench --manifest-path src-tauri/Cargo.toml
 
 ---
 
-## // BUILD & DISTRIBUTE //
+## [0x07] BUILD & DISTRIBUTE
 
 ```bash
 # Build optimized release bundle
@@ -471,7 +493,7 @@ Built packages land in `src-tauri/target/release/bundle/`:
 
 ---
 
-## // HOW IT WORKS //
+## [0x08] HOW IT WORKS
 
 ```
 [1] SCAN -----> Rust backend crawls platform-specific plugin directories
@@ -506,7 +528,7 @@ Built packages land in `src-tauri/target/release/bundle/`:
 
 ---
 
-## // KVR AUDIO RATE LIMITING //
+## [0x09] KVR AUDIO RATE LIMITING
 
 This app queries [KVR Audio](https://www.kvraudio.com) to find plugin versions and
 download links. To avoid overloading KVR's servers, strict rate limiting is enforced:
@@ -528,7 +550,7 @@ between plugins. You can stop it anytime with the Stop button.
 
 ---
 
-## // PROJECT ARCHITECTURE //
+## [0x0A] PROJECT ARCHITECTURE
 
 **i18n (CI):** Top-level keys in every `i18n/app_i18n_*.json` must stay lexicographically sorted (`test/i18n-catalog-files.test.js`). The workflow runs `pnpm run i18n:sort:check` right after install so unsorted catalogs fail fast with a clear message; run `pnpm run i18n:sort` locally to rewrite files. User-visible toasts in `frontend/js` must go through `toastFmt('toast.*')`, not a raw English string as the first argument to `showToast` (`test/i18n-no-raw-showtoast.test.js`).
 
@@ -610,7 +632,7 @@ frontend/
 
 ---
 
-## // SUPPORTED DIRECTORIES //
+## [0x0B] SUPPORTED DIRECTORIES
 
 ```
 macOS
@@ -647,10 +669,10 @@ Linux
 
 ---
 
-## // LICENSE //
+## [0x0C] LICENSE
 
 ISC
 
-## // AUTHOR //
+## [0xFF] AUTHOR
 
 Created by [MenkeTechnologies](https://github.com/MenkeTechnologies)
