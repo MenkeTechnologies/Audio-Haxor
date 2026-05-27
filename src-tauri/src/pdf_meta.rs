@@ -16,11 +16,7 @@ pub struct PdfMetaFields {
 
 fn norm_info_date(s: Option<String>) -> Option<String> {
     let s = s?.trim().to_owned();
-    if s.is_empty() {
-        None
-    } else {
-        Some(s)
-    }
+    if s.is_empty() { None } else { Some(s) }
 }
 
 /// Page count, PDF CreationDate, and ModDate from the Info dictionary.
@@ -178,7 +174,7 @@ mod tests {
     #[test]
     fn extract_pdf_meta_reads_info_dates() {
         use lopdf::content::Content;
-        use lopdf::{dictionary, Document, Object, Stream};
+        use lopdf::{Document, Object, Stream, dictionary};
 
         let mut doc = Document::with_version("1.5");
         let pages_id = doc.new_object_id();
@@ -211,7 +207,8 @@ mod tests {
         doc.trailer.set("Root", catalog_id);
         doc.trailer.set("Info", info_id);
 
-        let tmp = std::env::temp_dir().join(format!("ah_pdf_info_dates_{}.pdf", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("ah_pdf_info_dates_{}.pdf", std::process::id()));
         doc.save(&tmp).expect("save test pdf");
 
         let m = extract_pdf_meta(tmp.to_str().unwrap()).expect("meta");

@@ -191,7 +191,13 @@ mod tests {
 
     #[test]
     fn missing_file_returns_none() {
-        assert!(compute_peaks("/tmp/absolutely_not_a_real_file_12345.wav", WAVEFORM_WIDTH_PX).is_none());
+        assert!(
+            compute_peaks(
+                "/tmp/absolutely_not_a_real_file_12345.wav",
+                WAVEFORM_WIDTH_PX
+            )
+            .is_none()
+        );
     }
 
     #[test]

@@ -26,16 +26,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use block2::RcBlock;
+use objc2::msg_send;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
-use objc2::msg_send;
 use objc2_app_kit::{
     NSAutoresizingMaskOptions, NSImage, NSImageScaling, NSImageView, NSView, NSWindow,
     NSWindowOcclusionState, NSWindowOrderingMode,
 };
-use objc2_foundation::{
-    MainThreadMarker, NSNotification, NSNotificationCenter, NSString,
-};
+use objc2_foundation::{MainThreadMarker, NSNotification, NSNotificationCenter, NSString};
 use objc2_web_kit::{WKSnapshotConfiguration, WKWebView};
 use tauri::Manager;
 
@@ -83,7 +81,9 @@ pub fn install(app: tauri::AppHandle) {
                         .as_ref()
                         .map(|e| format!("{e:?}"))
                         .unwrap_or_else(|| "<no exception object>".to_string());
-                    crate::write_app_log(format!("SPACE PREVIEW install threw ObjC exception: {desc}"));
+                    crate::write_app_log(format!(
+                        "SPACE PREVIEW install threw ObjC exception: {desc}"
+                    ));
                 }
             });
         })
@@ -154,20 +154,22 @@ fn install_main(app: tauri::AppHandle) {
         let app_for_loop = app.clone();
         std::thread::Builder::new()
             .name("ah-space-preview-refresh".to_string())
-            .spawn(move || loop {
-                std::thread::sleep(Duration::from_millis(SNAPSHOT_REFRESH_MS));
-                let _ = app_for_loop.run_on_main_thread(|| {
-                    let mtm = match MainThreadMarker::new() {
-                        Some(m) => m,
-                        None => return,
-                    };
-                    if let Some((wv, ov)) = main_window_views(mtm) {
-                        if !ov.isHidden() {
-                            return;
+            .spawn(move || {
+                loop {
+                    std::thread::sleep(Duration::from_millis(SNAPSHOT_REFRESH_MS));
+                    let _ = app_for_loop.run_on_main_thread(|| {
+                        let mtm = match MainThreadMarker::new() {
+                            Some(m) => m,
+                            None => return,
+                        };
+                        if let Some((wv, ov)) = main_window_views(mtm) {
+                            if !ov.isHidden() {
+                                return;
+                            }
+                            capture_snapshot_into(&wv, &ov);
                         }
-                        capture_snapshot_into(&wv, &ov);
-                    }
-                });
+                    });
+                }
             })
             .ok();
     }
@@ -253,15 +255,13 @@ fn capture_snapshot_into(webview: &WKWebView, overlay: &NSImageView) {
     let overlay_for_block: Retained<NSImageView> =
         unsafe { Retained::retain(overlay as *const NSImageView as *mut NSImageView) }
             .expect("overlay retain");
-    let block = RcBlock::new(
-        move |image: *mut NSImage, _error: *mut AnyObject| {
-            if image.is_null() {
-                return;
-            }
-            let img: &NSImage = unsafe { &*image };
-            overlay_for_block.setImage(Some(img));
-        },
-    );
+    let block = RcBlock::new(move |image: *mut NSImage, _error: *mut AnyObject| {
+        if image.is_null() {
+            return;
+        }
+        let img: &NSImage = unsafe { &*image };
+        overlay_for_block.setImage(Some(img));
+    });
     let block_ref: &block2::DynBlock<dyn Fn(*mut NSImage, *mut AnyObject)> = &block;
     unsafe {
         let nil_cfg: *mut WKSnapshotConfiguration = std::ptr::null_mut();

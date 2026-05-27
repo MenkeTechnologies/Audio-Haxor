@@ -278,8 +278,8 @@ mod macos {
                         ));
                     }
                     // length includes trailing NUL byte.
-                    let cstr = CStr::from_bytes_until_nul(&buf[name_start..name_end])
-                        .unwrap_or(c"");
+                    let cstr =
+                        CStr::from_bytes_until_nul(&buf[name_start..name_end]).unwrap_or(c"");
                     name = cstr.to_string_lossy().into_owned();
                 }
 

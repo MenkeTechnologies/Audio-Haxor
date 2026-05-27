@@ -236,7 +236,6 @@ fn take_next_track_hint() -> Option<String> {
     NEXT_TRACK_HINT.lock().ok().and_then(|mut g| g.take())
 }
 
-
 #[inline]
 fn record_engine_pid(child: &Child) {
     ENGINE_CHILD_PID.store(child.id(), Ordering::SeqCst);
@@ -514,12 +513,9 @@ fn child_dead(child: &mut Child) -> bool {
 }
 
 fn spawn_engine_child(path: &Path, preview_only_process: bool) -> Result<EngineChild, String> {
-    let identity = std::fs::metadata(path).ok().map(|m| {
-        (
-            m.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-            m.len(),
-        )
-    });
+    let identity = std::fs::metadata(path)
+        .ok()
+        .map(|m| (m.modified().unwrap_or(SystemTime::UNIX_EPOCH), m.len()));
     let data_dir = crate::history::get_data_dir();
     let engine_log = data_dir.join("engine.log");
     let app_log = data_dir.join("app.log");
@@ -624,12 +620,9 @@ fn ensure_engine_child(path: &Path) -> Result<(), String> {
     let mut guard = ENGINE_CHILD
         .lock()
         .map_err(|_| "audio-engine child mutex poisoned")?;
-    let disk_identity = std::fs::metadata(path).ok().map(|m| {
-        (
-            m.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-            m.len(),
-        )
-    });
+    let disk_identity = std::fs::metadata(path)
+        .ok()
+        .map(|m| (m.modified().unwrap_or(SystemTime::UNIX_EPOCH), m.len()));
     let need_spawn = match guard.as_mut() {
         None => true,
         Some(eng) => {
@@ -651,12 +644,9 @@ fn ensure_preview_engine_child(path: &Path) -> Result<(), String> {
     let mut guard = PREVIEW_ENGINE_CHILD
         .lock()
         .map_err(|_| "audio-engine preview child mutex poisoned")?;
-    let disk_identity = std::fs::metadata(path).ok().map(|m| {
-        (
-            m.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-            m.len(),
-        )
-    });
+    let disk_identity = std::fs::metadata(path)
+        .ok()
+        .map(|m| (m.modified().unwrap_or(SystemTime::UNIX_EPOCH), m.len()));
     let need_spawn = match guard.as_mut() {
         None => true,
         Some(eng) => {
@@ -695,7 +685,8 @@ pub fn restart_audio_engine_child() -> Result<(), String> {
         let reaped_prev = clear_preview_engine_slot_after_os_kill();
         if reaped_main && reaped_prev {
             crate::write_app_log(
-                "audio-engine: AudioEngine + preview processes restarted (user request)".to_string(),
+                "audio-engine: AudioEngine + preview processes restarted (user request)"
+                    .to_string(),
             );
         } else {
             log_ipc_failure(
@@ -764,7 +755,9 @@ pub fn shutdown_audio_engine_child() -> Result<(), String> {
     }
     let _ = clear_engine_slot_after_os_kill();
     let _ = clear_preview_engine_slot_after_os_kill();
-    crate::write_app_log("audio-engine: AudioEngine + preview processes terminated (app shutdown)".to_string());
+    crate::write_app_log(
+        "audio-engine: AudioEngine + preview processes terminated (app shutdown)".to_string(),
+    );
     Ok(())
 }
 
@@ -884,7 +877,9 @@ fn read_engine_json_line<R: Read>(stdout: &mut BufReader<R>) -> Result<String, S
 
 /// Visual decode IPC on a **dedicated** `audio-engine` child so a slow `waveform_preview` /
 /// `spectrogram_preview` never blocks the main child's stdin (playback, devices, `ping`, …).
-fn spawn_preview_engine_request_at(request: &serde_json::Value) -> Result<serde_json::Value, String> {
+fn spawn_preview_engine_request_at(
+    request: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
     let payload = serde_json::to_string(request).map_err(|e| e.to_string())?;
 
     for attempt in 0..2 {
@@ -933,7 +928,9 @@ fn spawn_preview_engine_request_at(request: &serde_json::Value) -> Result<serde_
                     Err(e) => {
                         let stderr_tail = Arc::clone(&eng.stderr_tail);
                         log_ipc_failure(
-                            format!("preview engine invalid JSON on stdout: {e}; line={json_line:?}"),
+                            format!(
+                                "preview engine invalid JSON on stdout: {e}; line={json_line:?}"
+                            ),
                             Some(&stderr_tail),
                         );
                         return Err(format!("audio-engine preview JSON: {e}: {json_line}"));
@@ -941,11 +938,12 @@ fn spawn_preview_engine_request_at(request: &serde_json::Value) -> Result<serde_
                 };
                 if attempt == 0
                     && let Some(err) = v.get("error").and_then(|e| e.as_str())
-                        && err.to_ascii_lowercase().contains("unknown cmd") {
-                            clear_preview_engine_pid();
-                            *guard = None;
-                            continue;
-                        }
+                    && err.to_ascii_lowercase().contains("unknown cmd")
+                {
+                    clear_preview_engine_pid();
+                    *guard = None;
+                    continue;
+                }
                 return Ok(v);
             }
             Err(e) => {
@@ -960,7 +958,10 @@ fn spawn_preview_engine_request_at(request: &serde_json::Value) -> Result<serde_
                             Some(&stderr_tail),
                         );
                     } else {
-                        log_ipc_failure(format!("preview engine stdout read: {e}"), Some(&stderr_tail));
+                        log_ipc_failure(
+                            format!("preview engine stdout read: {e}"),
+                            Some(&stderr_tail),
+                        );
                     }
                     return Err(e);
                 }
@@ -1031,11 +1032,12 @@ fn do_main_engine_request(request: &serde_json::Value) -> Result<serde_json::Val
                 };
                 if attempt == 0
                     && let Some(err) = v.get("error").and_then(|e| e.as_str())
-                        && err.to_ascii_lowercase().contains("unknown cmd") {
-                            clear_engine_pid();
-                            *guard = None;
-                            continue;
-                        }
+                    && err.to_ascii_lowercase().contains("unknown cmd")
+                {
+                    clear_engine_pid();
+                    *guard = None;
+                    continue;
+                }
                 return Ok(v);
             }
             Err(e) => {
@@ -1132,11 +1134,12 @@ fn spawn_audio_engine_request_at(request: &serde_json::Value) -> Result<serde_js
                 // older builds only set `error`.
                 if attempt == 0
                     && let Some(err) = v.get("error").and_then(|e| e.as_str())
-                        && err.to_ascii_lowercase().contains("unknown cmd") {
-                            clear_engine_pid();
-                            *guard = None;
-                            continue;
-                        }
+                    && err.to_ascii_lowercase().contains("unknown cmd")
+                {
+                    clear_engine_pid();
+                    *guard = None;
+                    continue;
+                }
                 return Ok(v);
             }
             Err(e) => {

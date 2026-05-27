@@ -54,10 +54,7 @@ mod tests {
 
     #[test]
     fn path_strings_json_normalized_preserves_order_and_valid_json() {
-        let paths = vec![
-            "/first/a.wav".into(),
-            "/second/b.wav".into(),
-        ];
+        let paths = vec!["/first/a.wav".into(), "/second/b.wav".into()];
         let j = path_strings_json_normalized(&paths);
         let parsed: Vec<String> = serde_json::from_str(&j).expect("valid JSON array");
         assert_eq!(parsed, paths);

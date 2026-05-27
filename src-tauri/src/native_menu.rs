@@ -770,10 +770,7 @@ pub fn build_native_menu_bar<R: Runtime>(
     let stop_content_dup_scan = MenuItem::with_id(
         handle,
         "stop_content_dup_scan",
-        t(
-            "menu.stop_content_dup_scan",
-            "Stop byte-duplicate scan",
-        ),
+        t("menu.stop_content_dup_scan", "Stop byte-duplicate scan"),
         true,
         Some("CmdOrCtrl+Shift+Period"),
     )?;
@@ -794,7 +791,10 @@ pub fn build_native_menu_bar<R: Runtime>(
     let start_all_background_jobs = MenuItem::with_id(
         handle,
         "start_all_background_jobs",
-        t("menu.start_all_background_jobs", "Start all background jobs"),
+        t(
+            "menu.start_all_background_jobs",
+            "Start all background jobs",
+        ),
         true,
         Some("CmdOrCtrl+Shift+F5"),
     )?;

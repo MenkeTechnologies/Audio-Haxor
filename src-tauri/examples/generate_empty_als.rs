@@ -5,7 +5,7 @@ use std::path::Path;
 
 fn main() {
     let output_path = Path::new("/Users/wizard/Desktop/Empty_Project.als");
-    
+
     match generate_empty_als(output_path) {
         Ok(()) => {
             println!("Generated: {}", output_path.display());

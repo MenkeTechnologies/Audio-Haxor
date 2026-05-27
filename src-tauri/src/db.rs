@@ -452,7 +452,11 @@ fn read_token_value(chars: &[char], i: &mut usize) -> String {
     while *i < n && !chars[*i].is_whitespace() {
         *i += 1;
     }
-    chars[start..*i].iter().collect::<String>().trim().to_string()
+    chars[start..*i]
+        .iter()
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 /// Build a `LIKE` pattern (`%escaped%`) for a `name:` / `path:` prefix value.
@@ -1035,8 +1039,7 @@ pub struct TopFolderRow {
 
 /// Filtered aggregate stats — count + size + per-type breakdown reflecting
 /// the active search/filter. One round-trip: COUNT + SUM + GROUP BY in SQL.
-#[derive(Debug, Serialize)]
-#[derive(Default)]
+#[derive(Debug, Serialize, Default)]
 pub struct FilterStatsResult {
     pub count: u64,
     /// True when `count` is a floor — per-type breakdown and bytes were skipped.
@@ -1073,7 +1076,6 @@ pub struct FilterStatsResult {
     #[serde(default, rename = "topFolders")]
     pub top_folders: Vec<TopFolderRow>,
 }
-
 
 /// One row persisted for the last unified home-tree scan (SQLite `unified_scan_run.id` is always 1).
 #[derive(Debug, Clone, Serialize)]
@@ -1271,9 +1273,10 @@ impl Database {
 
     fn midi_library_total_rows(&self, conn: &Connection) -> Result<u64, String> {
         if let Ok(g) = self.midi_library_total_cache.lock()
-            && let Some(n) = *g {
-                return Ok(n);
-            }
+            && let Some(n) = *g
+        {
+            return Ok(n);
+        }
         let n: u64 = conn
             .query_row("SELECT COUNT(*) FROM midi_library", [], |r| {
                 r.get::<_, i64>(0).map(|v| v as u64)
@@ -1331,9 +1334,10 @@ impl Database {
     fn video_library_total_rows(&self, conn: &Connection) -> Result<u64, String> {
         self.ensure_video_library_aligned(conn)?;
         if let Ok(g) = self.video_library_total_cache.lock()
-            && let Some(n) = *g {
-                return Ok(n);
-            }
+            && let Some(n) = *g
+        {
+            return Ok(n);
+        }
         let n: u64 = conn
             .query_row("SELECT COUNT(*) FROM video_library", [], |r| {
                 r.get::<_, i64>(0).map(|v| v as u64)
@@ -1353,9 +1357,10 @@ impl Database {
 
     fn pdf_library_total_rows(&self, conn: &Connection) -> Result<u64, String> {
         if let Ok(g) = self.pdf_library_total_cache.lock()
-            && let Some(n) = *g {
-                return Ok(n);
-            }
+            && let Some(n) = *g
+        {
+            return Ok(n);
+        }
         let n: u64 = conn
             .query_row("SELECT COUNT(*) FROM pdf_library", [], |r| {
                 r.get::<_, i64>(0).map(|v| v as u64)
@@ -1375,9 +1380,10 @@ impl Database {
 
     fn audio_library_total_rows(&self, conn: &Connection) -> Result<u64, String> {
         if let Ok(g) = self.audio_library_total_cache.lock()
-            && let Some(n) = *g {
-                return Ok(n);
-            }
+            && let Some(n) = *g
+        {
+            return Ok(n);
+        }
         let n: u64 = conn
             .query_row("SELECT COUNT(*) FROM audio_library", [], |r| {
                 r.get::<_, i64>(0).map(|v| v as u64)
@@ -1397,9 +1403,10 @@ impl Database {
 
     fn preset_inventory_total_rows(&self, conn: &Connection) -> Result<u64, String> {
         if let Ok(g) = self.preset_inventory_total_cache.lock()
-            && let Some(n) = *g {
-                return Ok(n);
-            }
+            && let Some(n) = *g
+        {
+            return Ok(n);
+        }
         let n: u64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM presets WHERE id IN (SELECT preset_id FROM preset_library) AND format NOT IN ('MID','MIDI')",
@@ -1421,9 +1428,10 @@ impl Database {
 
     fn daw_library_total_rows(&self, conn: &Connection) -> Result<u64, String> {
         if let Ok(g) = self.daw_library_total_cache.lock()
-            && let Some(n) = *g {
-                return Ok(n);
-            }
+            && let Some(n) = *g
+        {
+            return Ok(n);
+        }
         let n: u64 = conn
             .query_row("SELECT COUNT(*) FROM daw_library", [], |r| {
                 r.get::<_, i64>(0).map(|v| v as u64)
@@ -1443,9 +1451,10 @@ impl Database {
 
     fn plugin_library_total_rows(&self, conn: &Connection) -> Result<u64, String> {
         if let Ok(g) = self.plugin_library_total_cache.lock()
-            && let Some(n) = *g {
-                return Ok(n);
-            }
+            && let Some(n) = *g
+        {
+            return Ok(n);
+        }
         let n: u64 = conn
             .query_row("SELECT COUNT(*) FROM plugin_library", [], |r| {
                 r.get::<_, i64>(0).map(|v| v as u64)
@@ -2548,7 +2557,7 @@ DROP TABLE _pl_refresh_paths;"#;
                 )
                 .unwrap_or(false);
             if !has_pdf_mod {
-                conn.execute("ALTER TABLE pdf_metadata ADD COLUMN pdf_mod_date TEXT", [],)
+                conn.execute("ALTER TABLE pdf_metadata ADD COLUMN pdf_mod_date TEXT", [])
                     .map_err(|e| format!("Migration v19 (pdf_mod_date) failed: {e}"))?;
             }
             conn.execute("INSERT INTO schema_version (version) VALUES (19)", [])
@@ -3037,7 +3046,9 @@ DROP TABLE _pl_refresh_paths;"#;
         let categories = self.crate_category_counts()?;
 
         let analyzed: u64 = conn
-            .query_row("SELECT COUNT(*) FROM sample_analysis", [], |r| r.get::<_, i64>(0))
+            .query_row("SELECT COUNT(*) FROM sample_analysis", [], |r| {
+                r.get::<_, i64>(0)
+            })
             .unwrap_or(0) as u64;
         let total_audio: u64 = conn
             .query_row("SELECT COUNT(*) FROM audio_samples WHERE id IN (SELECT sample_id FROM audio_library)", [], |r| r.get::<_, i64>(0))
@@ -3104,9 +3115,12 @@ DROP TABLE _pl_refresh_paths;"#;
             .collect();
 
         let keys: Vec<String> = vec![
-            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
-            "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
-        ].into_iter().map(String::from).collect();
+            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm",
+            "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
 
         Ok(CrateFacets {
             packs,
@@ -3169,7 +3183,9 @@ DROP TABLE _pl_refresh_paths;"#;
             } else {
                 let like = format!(
                     "%{}%",
-                    q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+                    q.replace('\\', "\\\\")
+                        .replace('%', "\\%")
+                        .replace('_', "\\_")
                 );
                 where_parts.push("(s.name LIKE ? ESCAPE '\\' OR s.path LIKE ? ESCAPE '\\')".into());
                 binds.push(Box::new(like.clone()));
@@ -3194,10 +3210,8 @@ DROP TABLE _pl_refresh_paths;"#;
         let total: u64 = {
             let mut stmt = conn.prepare(&count_sql).map_err(|e| e.to_string())?;
             let refs: Vec<&dyn rusqlite::ToSql> = binds.iter().map(|b| b.as_ref()).collect();
-            stmt.query_row(rusqlite::params_from_iter(refs), |row| {
-                row.get::<_, i64>(0)
-            })
-            .map_err(|e| e.to_string())? as u64
+            stmt.query_row(rusqlite::params_from_iter(refs), |row| row.get::<_, i64>(0))
+                .map_err(|e| e.to_string())? as u64
         };
 
         let sql = format!(
@@ -3354,7 +3368,11 @@ DROP TABLE _pl_refresh_paths;"#;
     /// Candidate paths for "More like this" similarity: same category as reference sample.
     /// Uses the `sample_analysis` category link so the similarity scorer runs over a
     /// pre-narrowed set (kick→other kicks, not the whole library).
-    pub fn crate_similar_candidates(&self, sample_id: i64, limit: u64) -> Result<Vec<String>, String> {
+    pub fn crate_similar_candidates(
+        &self,
+        sample_id: i64,
+        limit: u64,
+    ) -> Result<Vec<String>, String> {
         let conn = self.read_conn();
         let mut stmt = conn
             .prepare(
@@ -3415,7 +3433,11 @@ DROP TABLE _pl_refresh_paths;"#;
     ) -> Result<bool, String> {
         let conn = self.write_conn();
         let min_order: i64 = conn
-            .query_row("SELECT COALESCE(MIN(sort_order), 0) FROM favorites", [], |r| r.get(0))
+            .query_row(
+                "SELECT COALESCE(MIN(sort_order), 0) FROM favorites",
+                [],
+                |r| r.get(0),
+            )
             .unwrap_or(0);
         let res = conn.execute(
             "INSERT OR IGNORE INTO favorites (type, path, name, format, daw, added_at, sort_order) VALUES (?1,?2,?3,?4,?5,?6,?7)",
@@ -3469,8 +3491,10 @@ DROP TABLE _pl_refresh_paths;"#;
             if path.is_empty() {
                 continue;
             }
-            stmt.execute(params![fav_type, path, name, format, daw, added_at, i as i64])
-                .map_err(|e| e.to_string())?;
+            stmt.execute(params![
+                fav_type, path, name, format, daw, added_at, i as i64
+            ])
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -3541,13 +3565,21 @@ DROP TABLE _pl_refresh_paths;"#;
         let size = resolved_size.as_str();
         let sort_order: i64 = if skip_reorder {
             // Existing rows keep their current sort_order; new rows append at the end.
-            conn.query_row("SELECT COALESCE(MAX(sort_order), 0) FROM player_history", [], |r| r.get(0))
-                .unwrap_or(0)
+            conn.query_row(
+                "SELECT COALESCE(MAX(sort_order), 0) FROM player_history",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0)
                 + 1
         } else {
             // Move to top (lowest sort_order).
-            conn.query_row("SELECT COALESCE(MIN(sort_order), 0) FROM player_history", [], |r| r.get(0))
-                .unwrap_or(0)
+            conn.query_row(
+                "SELECT COALESCE(MIN(sort_order), 0) FROM player_history",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0)
                 - 1
         };
         // UPSERT preserves play_count across reorders (DELETE+INSERT would lose it).
@@ -3635,7 +3667,10 @@ DROP TABLE _pl_refresh_paths;"#;
             if path.is_empty() {
                 continue;
             }
-            if stmt.execute(params![path, name, format, size, i as i64, play_count]).is_ok() {
+            if stmt
+                .execute(params![path, name, format, size, i as i64, play_count])
+                .is_ok()
+            {
                 count += 1;
             }
         }
@@ -4421,8 +4456,7 @@ DROP TABLE _pl_refresh_paths;"#;
             .map_err(|e| e.to_string())?;
         idx += 1;
         for v in &np_binds {
-            stmt.raw_bind_parameter(idx, v)
-                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(idx, v).map_err(|e| e.to_string())?;
             idx += 1;
         }
         stmt.raw_bind_parameter(idx, cap)
@@ -4493,14 +4527,12 @@ DROP TABLE _pl_refresh_paths;"#;
         if let Some(ph) = format_eq_ph {
             debug_assert_eq!(idx, ph);
             if let Some(f) = format_filter {
-                stmt.raw_bind_parameter(idx, f)
-                    .map_err(|e| e.to_string())?;
+                stmt.raw_bind_parameter(idx, f).map_err(|e| e.to_string())?;
                 idx += 1;
             }
         }
         for v in &np_binds {
-            stmt.raw_bind_parameter(idx, v)
-                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(idx, v).map_err(|e| e.to_string())?;
             idx += 1;
         }
         stmt.raw_bind_parameter(idx, cap)
@@ -4569,14 +4601,12 @@ DROP TABLE _pl_refresh_paths;"#;
         if let Some(ph) = format_eq_ph {
             debug_assert_eq!(idx, ph);
             if let Some(f) = format_filter {
-                stmt.raw_bind_parameter(idx, f)
-                    .map_err(|e| e.to_string())?;
+                stmt.raw_bind_parameter(idx, f).map_err(|e| e.to_string())?;
                 idx += 1;
             }
         }
         for v in &np_binds {
-            stmt.raw_bind_parameter(idx, v)
-                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(idx, v).map_err(|e| e.to_string())?;
             idx += 1;
         }
         stmt.raw_bind_parameter(idx, cap)
@@ -4606,8 +4636,8 @@ DROP TABLE _pl_refresh_paths;"#;
         let cap = FTS_INVENTORY_MATCH_COUNT_CAP + 1;
         let mut next_ph = 2usize;
         let mut format_eq_ph: Option<usize> = None;
-        let needs_join =
-            !np_plan.is_empty() || matches!(format_filter, Some(f) if !f.trim().is_empty() && f != "all");
+        let needs_join = !np_plan.is_empty()
+            || matches!(format_filter, Some(f) if !f.trim().is_empty() && f != "all");
         let format_extra: String = match format_filter {
             None => String::new(),
             Some(f) if f.trim().is_empty() || f == "all" => String::new(),
@@ -4656,14 +4686,12 @@ DROP TABLE _pl_refresh_paths;"#;
         if let Some(ph) = format_eq_ph {
             debug_assert_eq!(idx, ph);
             if let Some(f) = format_filter {
-                stmt.raw_bind_parameter(idx, f)
-                    .map_err(|e| e.to_string())?;
+                stmt.raw_bind_parameter(idx, f).map_err(|e| e.to_string())?;
                 idx += 1;
             }
         }
         for v in &np_binds {
-            stmt.raw_bind_parameter(idx, v)
-                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(idx, v).map_err(|e| e.to_string())?;
             idx += 1;
         }
         stmt.raw_bind_parameter(idx, cap)
@@ -4693,8 +4721,8 @@ DROP TABLE _pl_refresh_paths;"#;
         let cap = FTS_INVENTORY_MATCH_COUNT_CAP + 1;
         let mut next_ph = 2usize;
         let mut format_eq_ph: Option<usize> = None;
-        let needs_join =
-            !np_plan.is_empty() || matches!(format_filter, Some(f) if !f.trim().is_empty() && f != "all");
+        let needs_join = !np_plan.is_empty()
+            || matches!(format_filter, Some(f) if !f.trim().is_empty() && f != "all");
         let format_extra: String = match format_filter {
             None => String::new(),
             Some(f) if f.trim().is_empty() || f == "all" => String::new(),
@@ -4743,14 +4771,12 @@ DROP TABLE _pl_refresh_paths;"#;
         if let Some(ph) = format_eq_ph {
             debug_assert_eq!(idx, ph);
             if let Some(f) = format_filter {
-                stmt.raw_bind_parameter(idx, f)
-                    .map_err(|e| e.to_string())?;
+                stmt.raw_bind_parameter(idx, f).map_err(|e| e.to_string())?;
                 idx += 1;
             }
         }
         for v in &np_binds {
-            stmt.raw_bind_parameter(idx, v)
-                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(idx, v).map_err(|e| e.to_string())?;
             idx += 1;
         }
         stmt.raw_bind_parameter(idx, cap)
@@ -4806,8 +4832,7 @@ DROP TABLE _pl_refresh_paths;"#;
             .map_err(|e| e.to_string())?;
         idx += 1;
         for v in &np_binds {
-            stmt.raw_bind_parameter(idx, v)
-                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(idx, v).map_err(|e| e.to_string())?;
             idx += 1;
         }
         stmt.raw_bind_parameter(idx, cap)
@@ -4875,14 +4900,12 @@ DROP TABLE _pl_refresh_paths;"#;
         if let Some(ph) = daw_eq_ph {
             debug_assert_eq!(idx, ph);
             if let Some(f) = daw_filter {
-                stmt.raw_bind_parameter(idx, f)
-                    .map_err(|e| e.to_string())?;
+                stmt.raw_bind_parameter(idx, f).map_err(|e| e.to_string())?;
                 idx += 1;
             }
         }
         for v in &np_binds {
-            stmt.raw_bind_parameter(idx, v)
-                .map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(idx, v).map_err(|e| e.to_string())?;
             idx += 1;
         }
         stmt.raw_bind_parameter(idx, cap)
@@ -4931,10 +4954,13 @@ DROP TABLE _pl_refresh_paths;"#;
             bi += 1;
         }
         if let Some(tf) = type_filter
-            && !tf.is_empty() && tf != "all" && !tf.contains(',') {
-                stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
-                bi += 1;
-            }
+            && !tf.is_empty()
+            && tf != "all"
+            && !tf.contains(',')
+        {
+            stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
+            bi += 1;
+        }
         stmt.raw_bind_parameter(bi, cap)
             .map_err(|e| e.to_string())?;
         let mut rows = stmt.raw_query();
@@ -5039,18 +5065,20 @@ DROP TABLE _pl_refresh_paths;"#;
         }
 
         if let Some(fmt) = &params.format_filter
-            && !fmt.is_empty() && fmt != "all" {
-                if fmt.contains(',') {
-                    let vals: Vec<String> = fmt
-                        .split(',')
-                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                        .collect();
-                    conditions.push(format!("format IN ({})", vals.join(",")));
-                } else {
-                    conditions.push(format!("format = ?{bind_idx}"));
-                    bind_idx += 1;
-                }
+            && !fmt.is_empty()
+            && fmt != "all"
+        {
+            if fmt.contains(',') {
+                let vals: Vec<String> = fmt
+                    .split(',')
+                    .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                    .collect();
+                conditions.push(format!("format IN ({})", vals.join(",")));
+            } else {
+                conditions.push(format!("format = ?{bind_idx}"));
+                bind_idx += 1;
             }
+        }
 
         let where_clause = conditions.join(" AND ");
 
@@ -5132,11 +5160,14 @@ DROP TABLE _pl_refresh_paths;"#;
                 idx += 1;
             }
             if let Some(ref fmt) = params.format_filter
-                && !fmt.is_empty() && fmt != "all" && !fmt.contains(',') {
-                    count_stmt
-                        .raw_bind_parameter(idx, fmt)
-                        .map_err(|e| e.to_string())?;
-                }
+                && !fmt.is_empty()
+                && fmt != "all"
+                && !fmt.contains(',')
+            {
+                count_stmt
+                    .raw_bind_parameter(idx, fmt)
+                    .map_err(|e| e.to_string())?;
+            }
             let mut count_rows = count_stmt.raw_query();
             let row = count_rows
                 .next()
@@ -5183,18 +5214,20 @@ DROP TABLE _pl_refresh_paths;"#;
                 w.push_str(c);
             }
             if let Some(fmt) = &params.format_filter
-                && !fmt.is_empty() && fmt != "all" {
-                    if fmt.contains(',') {
-                        let vals: Vec<String> = fmt
-                            .split(',')
-                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                            .collect();
-                        w.push_str(&format!(" AND s.format IN ({})", vals.join(",")));
-                    } else {
-                        w.push_str(&format!(" AND s.format = ?{next_ph}"));
-                        next_ph += 1;
-                    }
+                && !fmt.is_empty()
+                && fmt != "all"
+            {
+                if fmt.contains(',') {
+                    let vals: Vec<String> = fmt
+                        .split(',')
+                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                        .collect();
+                    w.push_str(&format!(" AND s.format IN ({})", vals.join(",")));
+                } else {
+                    w.push_str(&format!(" AND s.format = ?{next_ph}"));
+                    next_ph += 1;
                 }
+            }
             let plim = next_ph;
             let poff = next_ph + 1;
             w.push_str(&format!(
@@ -5226,16 +5259,18 @@ DROP TABLE _pl_refresh_paths;"#;
                 idx += 1;
             }
             for v in &np_binds {
-                stmt.raw_bind_parameter(idx, v)
-                    .map_err(|e| e.to_string())?;
+                stmt.raw_bind_parameter(idx, v).map_err(|e| e.to_string())?;
                 idx += 1;
             }
             if let Some(ref fmt) = params.format_filter
-                && !fmt.is_empty() && fmt != "all" && !fmt.contains(',') {
-                    stmt.raw_bind_parameter(idx, fmt)
-                        .map_err(|e| e.to_string())?;
-                    idx += 1;
-                }
+                && !fmt.is_empty()
+                && fmt != "all"
+                && !fmt.contains(',')
+            {
+                stmt.raw_bind_parameter(idx, fmt)
+                    .map_err(|e| e.to_string())?;
+                idx += 1;
+            }
             stmt.raw_bind_parameter(idx, params.limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(idx + 1, params.offset as i64)
@@ -5255,16 +5290,18 @@ DROP TABLE _pl_refresh_paths;"#;
                 idx += 1;
             }
             for v in &np_binds {
-                stmt.raw_bind_parameter(idx, v)
-                    .map_err(|e| e.to_string())?;
+                stmt.raw_bind_parameter(idx, v).map_err(|e| e.to_string())?;
                 idx += 1;
             }
             if let Some(ref fmt) = params.format_filter
-                && !fmt.is_empty() && fmt != "all" && !fmt.contains(',') {
-                    stmt.raw_bind_parameter(idx, fmt)
-                        .map_err(|e| e.to_string())?;
-                    idx += 1;
-                }
+                && !fmt.is_empty()
+                && fmt != "all"
+                && !fmt.contains(',')
+            {
+                stmt.raw_bind_parameter(idx, fmt)
+                    .map_err(|e| e.to_string())?;
+                idx += 1;
+            }
             stmt.raw_bind_parameter(idx, params.limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(idx + 1, params.offset as i64)
@@ -5816,17 +5853,19 @@ DROP TABLE _pl_refresh_paths;"#;
             bind_idx += 1;
         }
         if let Some(tf) = type_filter
-            && !tf.is_empty() && tf != "all" {
-                if tf.contains(',') {
-                    let vals: Vec<String> = tf
-                        .split(',')
-                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                        .collect();
-                    where_parts.push(format!("{q}plugin_type IN ({})", vals.join(",")));
-                } else {
-                    where_parts.push(format!("{q}plugin_type = ?{bind_idx}"));
-                }
+            && !tf.is_empty()
+            && tf != "all"
+        {
+            if tf.contains(',') {
+                let vals: Vec<String> = tf
+                    .split(',')
+                    .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                    .collect();
+                where_parts.push(format!("{q}plugin_type IN ({})", vals.join(",")));
+            } else {
+                where_parts.push(format!("{q}plugin_type = ?{bind_idx}"));
             }
+        }
         if let Some(ref st) = statuses {
             let parts: Vec<String> = st
                 .iter()
@@ -5876,9 +5915,12 @@ DROP TABLE _pl_refresh_paths;"#;
                     bi += 1;
                 }
                 if let Some(tf) = type_filter
-                    && !tf.is_empty() && tf != "all" && !tf.contains(',') {
-                        stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
-                    }
+                    && !tf.is_empty()
+                    && tf != "all"
+                    && !tf.contains(',')
+                {
+                    stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
+                }
                 let _ = bi;
                 let mut rows = stmt.raw_query();
                 rows.next()
@@ -5910,10 +5952,13 @@ DROP TABLE _pl_refresh_paths;"#;
             bi += 1;
         }
         if let Some(tf) = type_filter
-            && !tf.is_empty() && tf != "all" && !tf.contains(',') {
-                stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
-                bi += 1;
-            }
+            && !tf.is_empty()
+            && tf != "all"
+            && !tf.contains(',')
+        {
+            stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
+            bi += 1;
+        }
         stmt.raw_bind_parameter(bi, limit as i64)
             .map_err(|e| e.to_string())?;
         bi += 1;
@@ -6002,18 +6047,20 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push(c.clone());
         }
         if let Some(f) = daw_filter
-            && !f.is_empty() && f != "all" {
-                if f.contains(',') {
-                    let vals: Vec<String> = f
-                        .split(',')
-                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                        .collect();
-                    where_parts.push(format!("daw IN ({})", vals.join(",")));
-                } else {
-                    where_parts.push(format!("daw = ?{bind_idx}"));
-                    bind_idx += 1;
-                }
+            && !f.is_empty()
+            && f != "all"
+        {
+            if f.contains(',') {
+                let vals: Vec<String> = f
+                    .split(',')
+                    .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                    .collect();
+                where_parts.push(format!("daw IN ({})", vals.join(",")));
+            } else {
+                where_parts.push(format!("daw = ?{bind_idx}"));
+                bind_idx += 1;
             }
+        }
         let where_cl = where_parts.join(" AND ");
 
         let sort_col = match sort_key {
@@ -6052,9 +6099,12 @@ DROP TABLE _pl_refresh_paths;"#;
                     bi += 1;
                 }
                 if let Some(f) = daw_filter
-                    && !f.is_empty() && f != "all" && !f.contains(',') {
-                        stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    }
+                    && !f.is_empty()
+                    && f != "all"
+                    && !f.contains(',')
+                {
+                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                }
                 let mut rows = stmt.raw_query();
                 rows.next()
                     .map_err(|e| e.to_string())?
@@ -6080,18 +6130,20 @@ DROP TABLE _pl_refresh_paths;"#;
                 w.push_str(c);
             }
             if let Some(f) = daw_filter
-                && !f.is_empty() && f != "all" {
-                    if f.contains(',') {
-                        let vals: Vec<String> = f
-                            .split(',')
-                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                            .collect();
-                        w.push_str(&format!(" AND d.daw IN ({})", vals.join(",")));
-                    } else {
-                        w.push_str(&format!(" AND d.daw = ?{next_ph}"));
-                        next_ph += 1;
-                    }
+                && !f.is_empty()
+                && f != "all"
+            {
+                if f.contains(',') {
+                    let vals: Vec<String> = f
+                        .split(',')
+                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                        .collect();
+                    w.push_str(&format!(" AND d.daw IN ({})", vals.join(",")));
+                } else {
+                    w.push_str(&format!(" AND d.daw = ?{next_ph}"));
+                    next_ph += 1;
                 }
+            }
             let li = next_ph;
             let oi = next_ph + 1;
             w.push_str(&format!(
@@ -6115,10 +6167,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = daw_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -6131,10 +6186,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = daw_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -6148,10 +6206,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = daw_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -6162,10 +6223,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = daw_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -6253,18 +6317,20 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push(c.clone());
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" {
-                if f.contains(',') {
-                    let vals: Vec<String> = f
-                        .split(',')
-                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                        .collect();
-                    where_parts.push(format!("format IN ({})", vals.join(",")));
-                } else {
-                    where_parts.push(format!("format = ?{bind_idx}"));
-                    bind_idx += 1;
-                }
+            && !f.is_empty()
+            && f != "all"
+        {
+            if f.contains(',') {
+                let vals: Vec<String> = f
+                    .split(',')
+                    .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                    .collect();
+                where_parts.push(format!("format IN ({})", vals.join(",")));
+            } else {
+                where_parts.push(format!("format = ?{bind_idx}"));
+                bind_idx += 1;
             }
+        }
         let where_cl = where_parts.join(" AND ");
 
         let sort_col = match sort_key {
@@ -6296,9 +6362,12 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+            }
             let mut rows = stmt.raw_query();
             let n = rows
                 .next()
@@ -6329,18 +6398,20 @@ DROP TABLE _pl_refresh_paths;"#;
                 w.push_str(c);
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" {
-                    if f.contains(',') {
-                        let vals: Vec<String> = f
-                            .split(',')
-                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                            .collect();
-                        w.push_str(&format!(" AND p.format IN ({})", vals.join(",")));
-                    } else {
-                        w.push_str(&format!(" AND p.format = ?{next_ph}"));
-                        next_ph += 1;
-                    }
+                && !f.is_empty()
+                && f != "all"
+            {
+                if f.contains(',') {
+                    let vals: Vec<String> = f
+                        .split(',')
+                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                        .collect();
+                    w.push_str(&format!(" AND p.format IN ({})", vals.join(",")));
+                } else {
+                    w.push_str(&format!(" AND p.format = ?{next_ph}"));
+                    next_ph += 1;
                 }
+            }
             let plim = next_ph;
             let poff = next_ph + 1;
             w.push_str(&format!(
@@ -6364,10 +6435,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -6380,10 +6454,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -6397,10 +6474,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -6411,10 +6491,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -7896,20 +7979,22 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push(c.clone());
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" {
-                if f.contains(',') {
-                    where_parts.push(format!(
-                        "format IN ({})",
-                        f.split(',')
-                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                            .collect::<Vec<_>>()
-                            .join(",")
-                    ));
-                } else {
-                    where_parts.push(format!("format = ?{bind_idx}"));
-                    bind_idx += 1;
-                }
+            && !f.is_empty()
+            && f != "all"
+        {
+            if f.contains(',') {
+                where_parts.push(format!(
+                    "format IN ({})",
+                    f.split(',')
+                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ));
+            } else {
+                where_parts.push(format!("format = ?{bind_idx}"));
+                bind_idx += 1;
             }
+        }
         let where_cl = where_parts.join(" AND ");
 
         let sort_col = match sort_key {
@@ -7946,9 +8031,12 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+            }
             let mut rows = stmt.raw_query();
             let n = rows
                 .next()
@@ -7974,18 +8062,20 @@ DROP TABLE _pl_refresh_paths;"#;
                 w.push_str(c);
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" {
-                    if f.contains(',') {
-                        let vals: Vec<String> = f
-                            .split(',')
-                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                            .collect();
-                        w.push_str(&format!(" AND m.format IN ({})", vals.join(",")));
-                    } else {
-                        w.push_str(&format!(" AND m.format = ?{next_ph}"));
-                        next_ph += 1;
-                    }
+                && !f.is_empty()
+                && f != "all"
+            {
+                if f.contains(',') {
+                    let vals: Vec<String> = f
+                        .split(',')
+                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                        .collect();
+                    w.push_str(&format!(" AND m.format IN ({})", vals.join(",")));
+                } else {
+                    w.push_str(&format!(" AND m.format = ?{next_ph}"));
+                    next_ph += 1;
                 }
+            }
             let li = next_ph;
             let oi = next_ph + 1;
             w.push_str(&format!(
@@ -8012,10 +8102,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -8037,10 +8130,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -8109,13 +8205,15 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push(c.clone());
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" {
-                if f.contains(',') {
-                    where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
-                } else {
-                    where_parts.push(format!("format = ?{bind_idx}"));
-                }
+            && !f.is_empty()
+            && f != "all"
+        {
+            if f.contains(',') {
+                where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
+            } else {
+                where_parts.push(format!("format = ?{bind_idx}"));
             }
+        }
         let where_cl = where_parts.join(" AND ");
         if let Some(m) = fts_match.as_ref() {
             let (bc, capped) =
@@ -8166,9 +8264,12 @@ DROP TABLE _pl_refresh_paths;"#;
             bi += 1;
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-            }
+            && !f.is_empty()
+            && f != "all"
+            && !f.contains(',')
+        {
+            stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+        }
         let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
@@ -8222,8 +8323,11 @@ DROP TABLE _pl_refresh_paths;"#;
         .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM video_files WHERE scan_id = ?1", params![id])
             .map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM video_files_fts WHERE scan_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM video_files_fts WHERE scan_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         Self::sync_video_library_after_paths_refresh(&conn)?;
         self.invalidate_video_library_total_cache();
         Ok(())
@@ -8272,7 +8376,11 @@ DROP TABLE _pl_refresh_paths;"#;
         Ok(())
     }
 
-    pub fn insert_video_batch(&self, scan_id: &str, video_files: &[VideoFile]) -> Result<(), String> {
+    pub fn insert_video_batch(
+        &self,
+        scan_id: &str,
+        video_files: &[VideoFile],
+    ) -> Result<(), String> {
         let conn = self.read_conn();
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
         let mut inserted: u64 = 0;
@@ -8386,20 +8494,22 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push(c.clone());
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" {
-                if f.contains(',') {
-                    where_parts.push(format!(
-                        "format IN ({})",
-                        f.split(',')
-                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                            .collect::<Vec<_>>()
-                            .join(",")
-                    ));
-                } else {
-                    where_parts.push(format!("format = ?{bind_idx}"));
-                    bind_idx += 1;
-                }
+            && !f.is_empty()
+            && f != "all"
+        {
+            if f.contains(',') {
+                where_parts.push(format!(
+                    "format IN ({})",
+                    f.split(',')
+                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ));
+            } else {
+                where_parts.push(format!("format = ?{bind_idx}"));
+                bind_idx += 1;
             }
+        }
         let where_cl = where_parts.join(" AND ");
 
         let sort_col = match sort_key {
@@ -8433,9 +8543,12 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+            }
             let mut rows = stmt.raw_query();
             let n = rows
                 .next()
@@ -8461,18 +8574,20 @@ DROP TABLE _pl_refresh_paths;"#;
                 w.push_str(c);
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" {
-                    if f.contains(',') {
-                        let vals: Vec<String> = f
-                            .split(',')
-                            .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
-                            .collect();
-                        w.push_str(&format!(" AND v.format IN ({})", vals.join(",")));
-                    } else {
-                        w.push_str(&format!(" AND v.format = ?{next_ph}"));
-                        next_ph += 1;
-                    }
+                && !f.is_empty()
+                && f != "all"
+            {
+                if f.contains(',') {
+                    let vals: Vec<String> = f
+                        .split(',')
+                        .map(|s| format!("'{}'", s.trim().replace('\'', "''")))
+                        .collect();
+                    w.push_str(&format!(" AND v.format IN ({})", vals.join(",")));
+                } else {
+                    w.push_str(&format!(" AND v.format = ?{next_ph}"));
+                    next_ph += 1;
                 }
+            }
             let li = next_ph;
             let oi = next_ph + 1;
             w.push_str(&format!(
@@ -8499,10 +8614,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -8524,10 +8642,13 @@ DROP TABLE _pl_refresh_paths;"#;
                 bi += 1;
             }
             if let Some(f) = format_filter
-                && !f.is_empty() && f != "all" && !f.contains(',') {
-                    stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-                    bi += 1;
-                }
+                && !f.is_empty()
+                && f != "all"
+                && !f.contains(',')
+            {
+                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+                bi += 1;
+            }
             stmt.raw_bind_parameter(bi, limit as i64)
                 .map_err(|e| e.to_string())?;
             stmt.raw_bind_parameter(bi + 1, offset as i64)
@@ -8594,13 +8715,15 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push(c.clone());
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" {
-                if f.contains(',') {
-                    where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
-                } else {
-                    where_parts.push(format!("format = ?{bind_idx}"));
-                }
+            && !f.is_empty()
+            && f != "all"
+        {
+            if f.contains(',') {
+                where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
+            } else {
+                where_parts.push(format!("format = ?{bind_idx}"));
             }
+        }
         let where_cl = where_parts.join(" AND ");
         if let Some(m) = fts_match.as_ref() {
             let (bc, capped) =
@@ -8651,9 +8774,12 @@ DROP TABLE _pl_refresh_paths;"#;
             bi += 1;
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-            }
+            && !f.is_empty()
+            && f != "all"
+            && !f.contains(',')
+        {
+            stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+        }
         let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
@@ -9507,10 +9633,7 @@ DROP TABLE _pl_refresh_paths;"#;
 
     /// First three path segments of `directory`, matching `heatmap-dashboard.js` `buildFolderCard`.
     fn heatmap_audio_folder_key(dir: &str) -> String {
-        let parts: Vec<&str> = dir
-            .split(['/', '\\'])
-            .filter(|s| !s.is_empty())
-            .collect();
+        let parts: Vec<&str> = dir.split(['/', '\\']).filter(|s| !s.is_empty()).collect();
         let n = parts.len().min(3);
         if n == 0 {
             return "/".to_string();
@@ -9556,9 +9679,12 @@ DROP TABLE _pl_refresh_paths;"#;
             bi += 1;
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-            }
+            && !f.is_empty()
+            && f != "all"
+            && !f.contains(',')
+        {
+            stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+        }
         let mut rows = stmt.raw_query();
         if let Some(row) = rows.next().map_err(|e| e.to_string())? {
             bpm_analyzed_count = row.get::<_, i64>(0).unwrap_or(0).max(0) as u64;
@@ -9592,11 +9718,14 @@ DROP TABLE _pl_refresh_paths;"#;
             bi_k += 1;
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt_k
-                    .raw_bind_parameter(bi_k, f)
-                    .map_err(|e| e.to_string())?;
-            }
+            && !f.is_empty()
+            && f != "all"
+            && !f.contains(',')
+        {
+            stmt_k
+                .raw_bind_parameter(bi_k, f)
+                .map_err(|e| e.to_string())?;
+        }
         let mut rows_k = stmt_k.raw_query();
         while let Some(row) = rows_k.next().map_err(|e| e.to_string())? {
             let k: String = row.get(0).unwrap_or_default();
@@ -9631,11 +9760,14 @@ DROP TABLE _pl_refresh_paths;"#;
             bi_d += 1;
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt_d
-                    .raw_bind_parameter(bi_d, f)
-                    .map_err(|e| e.to_string())?;
-            }
+            && !f.is_empty()
+            && f != "all"
+            && !f.contains(',')
+        {
+            stmt_d
+                .raw_bind_parameter(bi_d, f)
+                .map_err(|e| e.to_string())?;
+        }
         let mut rows_d = stmt_d.raw_query();
         while let Some(row) = rows_d.next().map_err(|e| e.to_string())? {
             let dir: String = row.get(0).unwrap_or_default();
@@ -9699,13 +9831,15 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push(c.clone());
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" {
-                if f.contains(',') {
-                    where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
-                } else {
-                    where_parts.push(format!("format = ?{bind_idx}"));
-                }
+            && !f.is_empty()
+            && f != "all"
+        {
+            if f.contains(',') {
+                where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
+            } else {
+                where_parts.push(format!("format = ?{bind_idx}"));
             }
+        }
         let where_cl = where_parts.join(" AND ");
         if let Some(m) = fts_match.as_ref() {
             let (bc, capped) =
@@ -9756,9 +9890,12 @@ DROP TABLE _pl_refresh_paths;"#;
             bi += 1;
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-            }
+            && !f.is_empty()
+            && f != "all"
+            && !f.contains(',')
+        {
+            stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+        }
         let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
@@ -9804,11 +9941,14 @@ DROP TABLE _pl_refresh_paths;"#;
             bi_b += 1;
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt_b
-                    .raw_bind_parameter(bi_b, f)
-                    .map_err(|e| e.to_string())?;
-            }
+            && !f.is_empty()
+            && f != "all"
+            && !f.contains(',')
+        {
+            stmt_b
+                .raw_bind_parameter(bi_b, f)
+                .map_err(|e| e.to_string())?;
+        }
         let size_buckets: Vec<u64> = {
             let mut rows_b = stmt_b.raw_query();
             if let Some(row) = rows_b.next().map_err(|e| e.to_string())? {
@@ -9886,17 +10026,18 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push(c.clone());
         }
         if let Some(f) = daw_filter
-            && !f.is_empty() && f != "all" {
-                if f.contains(',') {
-                    where_parts.push(format!("daw IN ({})", Self::in_list_sql(f)));
-                } else {
-                    where_parts.push(format!("daw = ?{bind_idx}"));
-                }
+            && !f.is_empty()
+            && f != "all"
+        {
+            if f.contains(',') {
+                where_parts.push(format!("daw IN ({})", Self::in_list_sql(f)));
+            } else {
+                where_parts.push(format!("daw = ?{bind_idx}"));
             }
+        }
         let where_cl = where_parts.join(" AND ");
         if let Some(m) = fts_match.as_ref() {
-            let (bc, capped) =
-                Self::daw_fts_bounded_count_library(&conn, m, daw_filter, &np_plan)?;
+            let (bc, capped) = Self::daw_fts_bounded_count_library(&conn, m, daw_filter, &np_plan)?;
             if bc == 0 {
                 return Ok(FilterStatsResult {
                     count: 0,
@@ -9943,9 +10084,12 @@ DROP TABLE _pl_refresh_paths;"#;
             bi += 1;
         }
         if let Some(f) = daw_filter
-            && !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-            }
+            && !f.is_empty()
+            && f != "all"
+            && !f.contains(',')
+        {
+            stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+        }
         let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
@@ -10018,13 +10162,15 @@ DROP TABLE _pl_refresh_paths;"#;
             where_parts.push(c.clone());
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" {
-                if f.contains(',') {
-                    where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
-                } else {
-                    where_parts.push(format!("format = ?{bind_idx}"));
-                }
+            && !f.is_empty()
+            && f != "all"
+        {
+            if f.contains(',') {
+                where_parts.push(format!("format IN ({})", Self::in_list_sql(f)));
+            } else {
+                where_parts.push(format!("format = ?{bind_idx}"));
             }
+        }
         let where_cl = where_parts.join(" AND ");
         if let Some(m) = fts_match.as_ref() {
             let (bc, capped) =
@@ -10075,9 +10221,12 @@ DROP TABLE _pl_refresh_paths;"#;
             bi += 1;
         }
         if let Some(f) = format_filter
-            && !f.is_empty() && f != "all" && !f.contains(',') {
-                stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
-            }
+            && !f.is_empty()
+            && f != "all"
+            && !f.contains(',')
+        {
+            stmt.raw_bind_parameter(bi, f).map_err(|e| e.to_string())?;
+        }
         let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
@@ -10124,13 +10273,15 @@ DROP TABLE _pl_refresh_paths;"#;
             bind_idx += 1;
         }
         if let Some(tf) = type_filter
-            && !tf.is_empty() && tf != "all" {
-                if tf.contains(',') {
-                    where_parts.push(format!("plugin_type IN ({})", Self::in_list_sql(tf)));
-                } else {
-                    where_parts.push(format!("plugin_type = ?{bind_idx}"));
-                }
+            && !tf.is_empty()
+            && tf != "all"
+        {
+            if tf.contains(',') {
+                where_parts.push(format!("plugin_type IN ({})", Self::in_list_sql(tf)));
+            } else {
+                where_parts.push(format!("plugin_type = ?{bind_idx}"));
             }
+        }
         let where_cl = where_parts.join(" AND ");
         if regex_pat.is_some() || like_pat.is_some() {
             let (bc, capped) = Self::plugin_search_bounded_count_library(
@@ -10176,9 +10327,12 @@ DROP TABLE _pl_refresh_paths;"#;
             bi += 1;
         }
         if let Some(tf) = type_filter
-            && !tf.is_empty() && tf != "all" && !tf.contains(',') {
-                stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
-            }
+            && !tf.is_empty()
+            && tf != "all"
+            && !tf.contains(',')
+        {
+            stmt.raw_bind_parameter(bi, tf).map_err(|e| e.to_string())?;
+        }
         let _ = bi;
         let mut rows = stmt.raw_query();
         let mut count = 0u64;
@@ -10253,7 +10407,8 @@ DROP TABLE _pl_refresh_paths;"#;
         // search-mode predicate then any np-plan predicates.
         let mut bind_idx = 1usize;
         let search_extra: String = if fts_match.is_some() {
-            let p = format!(" AND id IN (SELECT rowid FROM pdfs_fts WHERE pdfs_fts MATCH ?{bind_idx})");
+            let p =
+                format!(" AND id IN (SELECT rowid FROM pdfs_fts WHERE pdfs_fts MATCH ?{bind_idx})");
             bind_idx += 1;
             p
         } else if regex_pat.is_some() {
@@ -10261,7 +10416,9 @@ DROP TABLE _pl_refresh_paths;"#;
             bind_idx += 1;
             p
         } else if like_pat.is_some() {
-            let p = format!(" AND (name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')");
+            let p = format!(
+                " AND (name LIKE ?{bind_idx} ESCAPE '\\' OR path LIKE ?{bind_idx} ESCAPE '\\')"
+            );
             bind_idx += 1;
             p
         } else {
@@ -10286,7 +10443,8 @@ DROP TABLE _pl_refresh_paths;"#;
             stmt.raw_bind_parameter(bi, r).map_err(|e| e.to_string())?;
             bi += 1;
         } else if let Some(ref pat) = like_pat {
-            stmt.raw_bind_parameter(bi, pat).map_err(|e| e.to_string())?;
+            stmt.raw_bind_parameter(bi, pat)
+                .map_err(|e| e.to_string())?;
             bi += 1;
         }
         for v in &np_binds {
@@ -10492,7 +10650,11 @@ DROP TABLE _pl_refresh_paths;"#;
     }
 
     /// Single-row upsert so decoded waveform / spectrogram data hits SQLite immediately (not only on debounced full `write_cache_file`).
-    pub fn upsert_waveform_cache_row(&self, path: &str, data: &serde_json::Value) -> Result<(), String> {
+    pub fn upsert_waveform_cache_row(
+        &self,
+        path: &str,
+        data: &serde_json::Value,
+    ) -> Result<(), String> {
         let conn = self.write_conn();
         let k = normalize_path_for_db(path);
         let val_str = data.to_string();
@@ -10521,7 +10683,11 @@ DROP TABLE _pl_refresh_paths;"#;
         }
     }
 
-    pub fn upsert_spectrogram_cache_row(&self, path: &str, data: &serde_json::Value) -> Result<(), String> {
+    pub fn upsert_spectrogram_cache_row(
+        &self,
+        path: &str,
+        data: &serde_json::Value,
+    ) -> Result<(), String> {
         let conn = self.write_conn();
         let k = normalize_path_for_db(path);
         let val_str = data.to_string();
@@ -10995,7 +11161,13 @@ DROP TABLE _pl_refresh_paths;"#;
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map(rusqlite::params![limit as i64], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
             })
             .map_err(|e| e.to_string())?;
         rows.collect::<Result<Vec<_>, _>>()
@@ -11579,10 +11751,7 @@ mod tests {
     fn parse_name_path_prefixes_multiple_tokens_and_together() {
         let plan = parse_name_path_prefixes(Some("name:foo name:bar path:beats baz"), false);
         assert_eq!(plan.residual, "baz");
-        assert_eq!(
-            plan.name_likes,
-            vec!["foo".to_string(), "bar".to_string()]
-        );
+        assert_eq!(plan.name_likes, vec!["foo".to_string(), "bar".to_string()]);
         assert_eq!(plan.path_likes, vec!["beats".to_string()]);
     }
 
@@ -15032,8 +15201,12 @@ mod tests {
     fn test_get_waveform_cache_row_single() {
         let db = test_db();
         let peaks = serde_json::json!([{"min": -0.5, "max": 0.5}]);
-        db.upsert_waveform_cache_row("/videos/movie.mp4", &peaks).unwrap();
-        assert_eq!(db.get_waveform_cache_row("/videos/movie.mp4").unwrap(), Some(peaks));
+        db.upsert_waveform_cache_row("/videos/movie.mp4", &peaks)
+            .unwrap();
+        assert_eq!(
+            db.get_waveform_cache_row("/videos/movie.mp4").unwrap(),
+            Some(peaks)
+        );
         assert!(db.get_waveform_cache_row("/nosuch.mp4").unwrap().is_none());
     }
 

@@ -19,6 +19,8 @@
 
 pub mod als_generator;
 pub mod als_project;
+#[cfg(target_os = "macos")]
+mod app_activity_macos;
 pub mod app_i18n;
 pub mod audio_engine;
 pub mod audio_extensions;
@@ -37,9 +39,6 @@ pub mod midi;
 pub mod midi_generator;
 pub mod midi_scanner;
 pub mod native_menu;
-pub mod video_scanner;
-mod waveform_container_extract;
-pub mod waveform_prefetch;
 mod open_with_app;
 pub mod path_norm;
 pub mod pdf_meta;
@@ -50,17 +49,18 @@ pub mod sample_filters;
 pub mod scanner;
 pub mod scanner_skip_dirs;
 pub mod similarity;
-pub mod track_generator;
-pub mod trance_generator;
-pub mod terminal;
-pub mod trance_starter;
-pub mod tray_menu;
-#[cfg(target_os = "macos")]
-mod app_activity_macos;
 #[cfg(target_os = "macos")]
 mod space_preview_macos;
+pub mod terminal;
+pub mod track_generator;
+pub mod trance_generator;
+pub mod trance_starter;
+pub mod tray_menu;
 mod tray_popover_escape_macos;
 pub mod unified_walker;
+pub mod video_scanner;
+mod waveform_container_extract;
+pub mod waveform_prefetch;
 pub mod webview_keepalive;
 pub mod xref;
 
@@ -87,8 +87,8 @@ use path_norm::normalize_path_for_db;
 use scanner::PluginInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Lower the current thread's CPU and I/O priority. Cross-platform.
@@ -171,7 +171,9 @@ pub fn build_low_priority_thread_pool(num_threads: usize) -> rayon::ThreadPool {
         })
         .build()
         .unwrap_or_else(|e| {
-            append_log(format!("Low-priority thread pool failed ({e}), retrying with 2 threads"));
+            append_log(format!(
+                "Low-priority thread pool failed ({e}), retrying with 2 threads"
+            ));
             rayon::ThreadPoolBuilder::new()
                 .num_threads(2)
                 .build()
@@ -2613,7 +2615,8 @@ async fn scan_unified(
                                 for p in chunk {
                                     pdf_bytes += p.size;
                                 }
-                                let inserted = db.insert_pdf_batch(&pdf_scan_id, chunk).unwrap_or(0);
+                                let inserted =
+                                    db.insert_pdf_batch(&pdf_scan_id, chunk).unwrap_or(0);
                                 pdf_count += inserted;
                                 let _ = app_handle.emit(
                                     "pdf-scan-progress",
@@ -3070,20 +3073,21 @@ async fn extract_project_plugins(file_path: String) -> Result<Vec<xref::PluginRe
     if result.iter().any(|p| p.manufacturer.is_empty())
         && let Ok(all) =
             db::global().query_plugins(None, None, None, "name", true, false, 0, 100000)
-        {
-            let mfg_map: std::collections::HashMap<String, String> = all
-                .plugins
-                .iter()
-                .filter(|p| !p.manufacturer.is_empty())
-                .map(|p| (p.name.to_lowercase(), p.manufacturer.clone()))
-                .collect();
-            for p in &mut result {
-                if p.manufacturer.is_empty()
-                    && let Some(mfg) = mfg_map.get(&p.name.to_lowercase()) {
-                        p.manufacturer = mfg.clone();
-                    }
+    {
+        let mfg_map: std::collections::HashMap<String, String> = all
+            .plugins
+            .iter()
+            .filter(|p| !p.manufacturer.is_empty())
+            .map(|p| (p.name.to_lowercase(), p.manufacturer.clone()))
+            .collect();
+        for p in &mut result {
+            if p.manufacturer.is_empty()
+                && let Some(mfg) = mfg_map.get(&p.name.to_lowercase())
+            {
+                p.manufacturer = mfg.clone();
             }
         }
+    }
     #[cfg(not(test))]
     append_log(format!(
         "XREF EXTRACT — {} | {} plugins found",
@@ -3159,7 +3163,7 @@ async fn batch_analyze(paths: Vec<String>) -> Result<serde_json::Value, String> 
                     .and_then(|s| s.parse::<usize>().ok())
                     .or_else(|| v.as_u64().map(|n| n as usize))
             })
-            .unwrap_or(2)  // Reduced from 4 to leave CPU headroom for audio playback
+            .unwrap_or(2) // Reduced from 4 to leave CPU headroom for audio playback
             .clamp(1, 8);
         let num_threads = std::cmp::min(paths.len(), max_batch_threads).max(1);
         let pool = build_low_priority_thread_pool(num_threads);
@@ -3198,10 +3202,7 @@ async fn batch_analyze(paths: Vec<String>) -> Result<serde_json::Value, String> 
         Ok(Ok(json)) => {
             if n > 0 {
                 crate::app_log_verbose(|| {
-                    let c = json
-                        .get("count")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
+                    let c = json.get("count").and_then(|v| v.as_u64()).unwrap_or(0);
                     format!("BPM/LUFS BATCH — end | {n} files | {c} rows updated")
                 });
             }
@@ -3328,7 +3329,11 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                 } else if analysis.parsed_key.is_some() {
                     // Filename had a key like "Am" or "C#" - use it
                     analysis.parsed_key.clone()
-                } else if analysis.category.as_ref().is_some_and(|c| c.is_key_sensitive) {
+                } else if analysis
+                    .category
+                    .as_ref()
+                    .is_some_and(|c| c.is_key_sensitive)
+                {
                     // Run audio key detection for key-sensitive categories without filename key
                     let detected = key_detect::detect_key(path);
                     if detected.is_some() {
@@ -3351,9 +3356,16 @@ async fn sample_analysis_start(app: tauri::AppHandle) -> Result<serde_json::Valu
                     analysis.parsed_bpm,
                     resolved_key,
                     analysis.category.as_ref().map(|c| c.name.clone()),
-                    analysis.manufacturer.as_ref().map(|m| m.manufacturer_pattern.clone()),
+                    analysis
+                        .manufacturer
+                        .as_ref()
+                        .map(|m| m.manufacturer_pattern.clone()),
                     analysis.pack_name.clone(),
-                    analysis.category.as_ref().map(|c| c.confidence).unwrap_or(0.0),
+                    analysis
+                        .category
+                        .as_ref()
+                        .map(|c| c.confidence)
+                        .unwrap_or(0.0),
                     analysis.is_loop,
                 ));
             }
@@ -3701,11 +3713,10 @@ async fn generate_trance_starter(
 async fn find_trance_samples(
     config: trance_starter::TranceStarterConfig,
 ) -> Result<serde_json::Value, String> {
-    let result = tokio::task::spawn_blocking(move || {
-        trance_starter::find_matching_samples(&config)
-    })
-    .await
-    .map_err(|e| e.to_string())??;
+    let result =
+        tokio::task::spawn_blocking(move || trance_starter::find_matching_samples(&config))
+            .await
+            .map_err(|e| e.to_string())??;
     serde_json::to_value(&result).map_err(|e| e.to_string())
 }
 
@@ -3785,11 +3796,9 @@ async fn als_query_samples(
     config: als_project::ProjectConfig,
     limit: u32,
 ) -> Result<Vec<als_project::SelectedSample>, String> {
-    tokio::task::spawn_blocking(move || {
-        als_project::query_samples(&category, &config, true, limit)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || als_project::query_samples(&category, &config, true, limit))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ── Crate Tab IPC — the sample-browser surface driven by sample_analysis + favorite_sample_packs ──
@@ -4265,7 +4274,7 @@ async fn find_content_duplicates(app: AppHandle) -> Result<serde_json::Value, St
                     .and_then(|s| s.parse::<usize>().ok())
                     .or_else(|| v.as_u64().map(|n| n as usize))
             })
-            .unwrap_or(2)  // Reduced from 8 to leave headroom for audio playback
+            .unwrap_or(2) // Reduced from 8 to leave headroom for audio playback
             .clamp(1, 8);
         let r = content_hash::find_byte_duplicate_groups(
             entries,
@@ -4398,12 +4407,13 @@ async fn open_plugin_folder(plugin_path: String) -> Result<(), String> {
             } else if target.is_dir() {
                 let _ = std::process::Command::new("open").arg(&target).spawn();
             } else if let Some(parent) = p.parent()
-                && !parent.as_os_str().is_empty() {
-                    let pp = parent
-                        .canonicalize()
-                        .unwrap_or_else(|_| parent.to_path_buf());
-                    let _ = std::process::Command::new("open").arg(&pp).spawn();
-                }
+                && !parent.as_os_str().is_empty()
+            {
+                let pp = parent
+                    .canonicalize()
+                    .unwrap_or_else(|_| parent.to_path_buf());
+                let _ = std::process::Command::new("open").arg(&pp).spawn();
+            }
         });
     }
     #[cfg(target_os = "windows")]
@@ -4504,7 +4514,14 @@ async fn favorites_add(
 ) -> Result<bool, String> {
     blocking_res(move || {
         let at = added_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
-        db::global().favorites_add(&fav_type, &path, &name, &format.unwrap_or_default(), &daw.unwrap_or_default(), &at)
+        db::global().favorites_add(
+            &fav_type,
+            &path,
+            &name,
+            &format.unwrap_or_default(),
+            &daw.unwrap_or_default(),
+            &at,
+        )
     })
     .await
 }
@@ -4544,7 +4561,10 @@ async fn player_history_add(
     size: String,
     skip_reorder: bool,
 ) -> Result<(), String> {
-    blocking_res(move || db::global().player_history_add(&path, &name, &format, &size, skip_reorder)).await
+    blocking_res(move || {
+        db::global().player_history_add(&path, &name, &format, &size, skip_reorder)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -4690,7 +4710,10 @@ async fn read_waveform_cache_entry(path: String) -> Result<Option<serde_json::Va
 }
 
 #[tauri::command]
-async fn upsert_spectrogram_cache_entry(path: String, data: serde_json::Value) -> Result<(), String> {
+async fn upsert_spectrogram_cache_entry(
+    path: String,
+    data: serde_json::Value,
+) -> Result<(), String> {
     blocking_res(move || db::global().upsert_spectrogram_cache_row(&path, &data)).await
 }
 
@@ -4776,13 +4799,14 @@ fn write_app_log_line(msg: &str) {
     // Rotate if > 5MB — rename to app.log.1 (drop prior backup); if rename fails, truncate in place
     const MAX_LOG_SIZE: u64 = 5 * 1024 * 1024;
     if let Ok(meta) = std::fs::metadata(&path)
-        && meta.len() > MAX_LOG_SIZE {
-            let backup = path.with_extension("log.1");
-            let _ = std::fs::remove_file(&backup);
-            if std::fs::rename(&path, &backup).is_err() {
-                let _ = std::fs::write(&path, "");
-            }
+        && meta.len() > MAX_LOG_SIZE
+    {
+        let backup = path.with_extension("log.1");
+        let _ = std::fs::remove_file(&backup);
+        if std::fs::rename(&path, &backup).is_err() {
+            let _ = std::fs::write(&path, "");
         }
+    }
     let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let line = format!("[{}] {}\n", timestamp, msg);
     let _ = std::fs::OpenOptions::new()
@@ -4895,10 +4919,11 @@ fn read_zip_xml(file_path: &str, names: &[&str]) -> Result<String, String> {
     let mut xml_name = None;
     for i in 0..archive.len() {
         if let Ok(entry) = archive.by_index(i)
-            && entry.name().ends_with(".xml") {
-                xml_name = Some(entry.name().to_string());
-                break;
-            }
+            && entry.name().ends_with(".xml")
+        {
+            xml_name = Some(entry.name().to_string());
+            break;
+        }
     }
     if let Some(name) = xml_name {
         let mut entry = archive.by_name(&name).map_err(|e| e.to_string())?;
@@ -5346,15 +5371,17 @@ fn cached_slow_stats(data_dir: &std::path::Path) -> (u64, u64, u64, u64, serde_j
     let dir_key = data_dir.to_string_lossy().to_string();
     if let Ok(guard) = SLOW_STATS_CACHE.lock()
         && let Some(s) = guard.as_ref()
-            && s.dir_key == dir_key && now.saturating_duration_since(s.at) < SLOW_STATS_TTL {
-                return (
-                    s.disk_total,
-                    s.disk_free,
-                    s.db_bytes,
-                    s.prefs_bytes,
-                    s.table_counts.clone(),
-                );
-            }
+        && s.dir_key == dir_key
+        && now.saturating_duration_since(s.at) < SLOW_STATS_TTL
+    {
+        return (
+            s.disk_total,
+            s.disk_free,
+            s.db_bytes,
+            s.prefs_bytes,
+            s.table_counts.clone(),
+        );
+    }
     let (disk_total, disk_free, db_bytes, prefs_bytes, table_counts) = compute_slow_stats(data_dir);
     if let Ok(mut guard) = SLOW_STATS_CACHE.lock() {
         *guard = Some(SlowStatsSnapshot {
@@ -6271,10 +6298,7 @@ async fn export_pdfs_dsv(pdfs: Vec<PdfFile>, file_path: String) -> Result<(), St
             s = sep
         );
         for p in &pdfs {
-            let pages_str = p
-                .pages
-                .map(|n| n.to_string())
-                .unwrap_or_default();
+            let pages_str = p.pages.map(|n| n.to_string()).unwrap_or_default();
             out.push_str(&format!(
                 "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
                 dsv_escape(&p.name, sep),
@@ -7000,7 +7024,10 @@ async fn export_videos_json(videos: Vec<VideoFile>, file_path: String) -> Result
 async fn export_videos_dsv(videos: Vec<VideoFile>, file_path: String) -> Result<(), String> {
     blocking_res(move || {
         let sep = detect_separator(&file_path);
-        let mut out = format!("Name{s}Path{s}Directory{s}Format{s}Size{s}Modified\n", s = sep);
+        let mut out = format!(
+            "Name{s}Path{s}Directory{s}Format{s}Size{s}Modified\n",
+            s = sep
+        );
         for v in &videos {
             out.push_str(&format!(
                 "{}{sep}{}{sep}{}{sep}{}{sep}{}{sep}{}\n",
@@ -9106,7 +9133,7 @@ pub fn run() {
                 .get("threadMultiplier")
                 .and_then(|v| v.as_u64().map(|n| n as usize))
         })
-        .unwrap_or(2)  // Reduced from 8x to leave headroom for audio playback
+        .unwrap_or(2) // Reduced from 8x to leave headroom for audio playback
         .clamp(1, 4);
     let pool_size = num_cpus::get() * multiplier;
     append_log(format!(
@@ -9833,13 +9860,13 @@ mod log_verbosity_tests {
         {
             let _guard = BgIoGuard::new();
             assert_eq!(BG_WORKERS_ACTIVE.load(Ordering::Relaxed), 1);
-            
+
             // wait_for_bg_workers_drain should respect timeout
             let waited = wait_for_bg_workers_drain(50);
             assert!(waited >= 50);
         }
         assert_eq!(BG_WORKERS_ACTIVE.load(Ordering::Relaxed), 0);
-        
+
         // Now it should drain immediately
         let waited = wait_for_bg_workers_drain(500);
         assert!(waited < 50);

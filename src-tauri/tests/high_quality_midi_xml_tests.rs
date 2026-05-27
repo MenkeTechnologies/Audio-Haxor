@@ -1,17 +1,19 @@
-use app_lib::als_generator::{generate_midi_track, MidiClipPlacement, MidiTrackInfo, IdAllocatorPub};
-use app_lib::midi_generator::{NoteEvent};
+use app_lib::als_generator::{
+    IdAllocatorPub, MidiClipPlacement, MidiTrackInfo, generate_midi_track,
+};
+use app_lib::midi_generator::NoteEvent;
 
 #[test]
 fn test_midi_track_xml_generation_basic() {
     let mut ids = IdAllocatorPub::new(500);
-    
+
     let event = NoteEvent {
         pitch: 60, // C3
         vel: 100,
         tick: 0,
         dur: 96,
     };
-    
+
     let clip = MidiClipPlacement {
         events: vec![event],
         start_bar: 0, // 0 bars offset = beat 0
@@ -27,26 +29,29 @@ fn test_midi_track_xml_generation_basic() {
     };
 
     let xml = generate_midi_track("", &info, &mut ids);
-    
+
     assert!(xml.contains("EffectiveName Value=\"Piano\""));
     assert!(xml.contains("<MidiClip"));
     assert!(xml.contains("<Name Value=\"Test MIDI\" />"));
-    
+
     // Check note data
-    assert!(xml.contains("<MidiKey Value=\"60\" />"), "Should contain the correct MIDI note number in MidiKey tag");
+    assert!(
+        xml.contains("<MidiKey Value=\"60\" />"),
+        "Should contain the correct MIDI note number in MidiKey tag"
+    );
 }
 
 #[test]
 fn test_midi_track_xml_timing_conversion() {
     let mut ids = IdAllocatorPub::new(1000);
-    
+
     let event = NoteEvent {
         pitch: 72,
         vel: 127,
         tick: 192,
         dur: 48,
     };
-    
+
     let clip = MidiClipPlacement {
         events: vec![event],
         start_bar: 1, // 1 bar offset = 4 beats offset
@@ -62,13 +67,22 @@ fn test_midi_track_xml_timing_conversion() {
     };
 
     let xml = generate_midi_track("", &info, &mut ids);
-    
+
     // 1 bar * 4 beats/bar = 4 beats.
-    assert!(xml.contains("Time=\"4\""), "Clip starting at bar 1 should be at beat 4");
-    
+    assert!(
+        xml.contains("Time=\"4\""),
+        "Clip starting at bar 1 should be at beat 4"
+    );
+
     // Note time 2.0 relative to clip start.
-    assert!(xml.contains("Time=\"2\""), "Note at tick 192 should be at relative time 2.0");
-    assert!(xml.contains("Duration=\"0.5\""), "48 ticks should be 0.5 beats");
+    assert!(
+        xml.contains("Time=\"2\""),
+        "Note at tick 192 should be at relative time 2.0"
+    );
+    assert!(
+        xml.contains("Duration=\"0.5\""),
+        "48 ticks should be 0.5 beats"
+    );
 }
 
 #[test]
@@ -89,7 +103,7 @@ fn test_midi_track_xml_escaping() {
     };
 
     let xml = generate_midi_track("", &info, &mut ids);
-    
+
     assert!(xml.contains("Value=\"A &amp; B\""));
     assert!(xml.contains("Value=\"Midi &amp; Logic &lt; 1\""));
 }

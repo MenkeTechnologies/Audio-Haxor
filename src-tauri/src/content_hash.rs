@@ -156,16 +156,17 @@ pub fn find_byte_duplicate_groups(
 
         // Emit only here (never from Rayon workers): `done` is strictly increasing.
         if let Some((app, every)) = progress.as_ref()
-            && *every > 0 {
-                let n = processed_ctr.load(Ordering::Relaxed);
-                if n > last_emitted_done {
-                    last_emitted_done = n;
-                    let _ = app.emit(
-                        "content-dup-progress",
-                        serde_json::json!({ "done": n, "total": candidates_total }),
-                    );
-                }
+            && *every > 0
+        {
+            let n = processed_ctr.load(Ordering::Relaxed);
+            if n > last_emitted_done {
+                last_emitted_done = n;
+                let _ = app.emit(
+                    "content-dup-progress",
+                    serde_json::json!({ "done": n, "total": candidates_total }),
+                );
             }
+        }
     }
 
     let mut groups: Vec<ContentDupGroup> = by_hash
@@ -324,12 +325,7 @@ mod tests {
             assert_eq!(g.paths.len(), 2);
             let p0 = &g.paths[0].path;
             let p1 = &g.paths[1].path;
-            assert!(
-                p0 < p1,
-                "paths should be sorted: {:?} before {:?}",
-                p0,
-                p1
-            );
+            assert!(p0 < p1, "paths should be sorted: {:?} before {:?}", p0, p1);
         }
         let mut hashes: Vec<_> = r.groups.iter().map(|g| g.hash_hex.as_str()).collect();
         hashes.sort();

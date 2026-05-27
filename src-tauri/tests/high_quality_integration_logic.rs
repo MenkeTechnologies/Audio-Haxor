@@ -1,19 +1,40 @@
-use app_lib::als_project::{ProjectConfig, get_compatible_keys, Genre, generate_project_name};
+use app_lib::als_project::{Genre, ProjectConfig, generate_project_name, get_compatible_keys};
 
 // ── Integrated Test: Key Sensitivity ──────────────────────────────────
 
 #[test]
 fn test_category_key_sensitivity_integration() {
-    let tonal = ["sub_bass", "mid_bass", "lead", "pad", "arp", "pluck", "stab", "acid", "atmos", "vocal", "vocal_phrase"];
-    let atonal = ["kick", "clap", "snare", "hat", "perc", "fx_riser", "fx_impact", "schranz_drive"];
-    
+    let tonal = [
+        "sub_bass",
+        "mid_bass",
+        "lead",
+        "pad",
+        "arp",
+        "pluck",
+        "stab",
+        "acid",
+        "atmos",
+        "vocal",
+        "vocal_phrase",
+    ];
+    let atonal = [
+        "kick",
+        "clap",
+        "snare",
+        "hat",
+        "perc",
+        "fx_riser",
+        "fx_impact",
+        "schranz_drive",
+    ];
+
     use app_lib::sample_analysis::match_category;
-    
+
     for cat in tonal {
         let m = match_category("test.wav", &format!("/Samples/{}/", cat)).unwrap();
         assert!(m.is_key_sensitive, "{} must be key sensitive", cat);
     }
-    
+
     for cat in atonal {
         let m = match_category("test.wav", &format!("/Samples/{}/", cat)).unwrap();
         assert!(!m.is_key_sensitive, "{} must NOT be key sensitive", cat);
@@ -54,7 +75,7 @@ fn test_complex_project_config_mapping() {
         "output_path": "/tmp/schranz",
         "num_songs": 3
     }"#;
-    
+
     let cfg: ProjectConfig = serde_json::from_str(json).expect("valid complex config");
     assert_eq!(cfg.genre, Genre::Schranz);
     assert_eq!(cfg.bpm, 160);
@@ -68,10 +89,10 @@ fn test_complex_project_config_mapping() {
 #[test]
 fn test_deep_path_classification() {
     use app_lib::sample_analysis::match_category;
-    
+
     let m = match_category("Snare_01.wav", "/Samples/Kicks").unwrap();
     assert_eq!(m.name, "snare");
-    
+
     let m2 = match_category("01.wav", "/Samples/Hard_Techno_Kicks").unwrap();
     assert_eq!(m2.name, "schranz_kick");
 }
@@ -99,8 +120,11 @@ fn test_deterministic_project_naming() {
         "num_songs": 1
     }"#;
     let cfg: ProjectConfig = serde_json::from_str(json).unwrap();
-    
+
     let name1 = generate_project_name(&cfg, 12345);
     let name2 = generate_project_name(&cfg, 12345);
-    assert_eq!(name1, name2, "Naming must be deterministic with identical seeds");
+    assert_eq!(
+        name1, name2,
+        "Naming must be deterministic with identical seeds"
+    );
 }

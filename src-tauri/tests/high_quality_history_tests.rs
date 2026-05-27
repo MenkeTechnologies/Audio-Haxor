@@ -1,6 +1,6 @@
-use serde_json::json;
 use app_lib::history::{ScanDiff, ScanSummary, VersionChangedPlugin as VCP};
 use app_lib::scanner::PluginInfo;
+use serde_json::json;
 
 fn create_plugin(name: &str, version: &str) -> PluginInfo {
     PluginInfo {
@@ -19,9 +19,19 @@ fn create_plugin(name: &str, version: &str) -> PluginInfo {
 
 #[test]
 fn test_scan_diff_version_logic() {
-    let old_summary = ScanSummary { id: "1".into(), timestamp: "1".into(), plugin_count: 1, roots: vec![] };
-    let new_summary = ScanSummary { id: "2".into(), timestamp: "2".into(), plugin_count: 1, roots: vec![] };
-    
+    let old_summary = ScanSummary {
+        id: "1".into(),
+        timestamp: "1".into(),
+        plugin_count: 1,
+        roots: vec![],
+    };
+    let new_summary = ScanSummary {
+        id: "2".into(),
+        timestamp: "2".into(),
+        plugin_count: 1,
+        roots: vec![],
+    };
+
     let p_v2 = create_plugin("Serum", "1.1");
 
     let diff = ScanDiff {
@@ -85,16 +95,21 @@ fn test_daw_project_struct() {
     assert_eq!(p.size_formatted, "1.0 KB");
 }
 
-#[test] fn test_history_roots_default() {
+#[test]
+fn test_history_roots_default() {
     use app_lib::history::ScanSnapshot;
     let j = json!({"id":"x","timestamp":"x","pluginCount":0,"plugins":[],"directories":[]});
     let s: ScanSnapshot = serde_json::from_value(j).unwrap();
     assert!(s.roots.is_empty());
 }
 
-#[test] fn test_vcp_flatten() {
+#[test]
+fn test_vcp_flatten() {
     let p = create_plugin("x", "2");
-    let vcp = VCP { plugin: p, previous_version: "1".into() };
+    let vcp = VCP {
+        plugin: p,
+        previous_version: "1".into(),
+    };
     let j = serde_json::to_value(&vcp).unwrap();
     assert_eq!(j["name"], "x");
     assert_eq!(j["previousVersion"], "1");

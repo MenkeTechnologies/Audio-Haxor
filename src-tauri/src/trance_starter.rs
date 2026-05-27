@@ -5,7 +5,7 @@
 //! Uses key compatibility (relative major/minor + circle-of-fifths neighbors),
 //! genre scoring, and category classification from the existing analysis pipeline.
 
-use crate::als_project::{get_compatible_keys, SelectedSample};
+use crate::als_project::{SelectedSample, get_compatible_keys};
 use crate::db;
 use crate::midi_generator::MidiGenConfig;
 use serde::{Deserialize, Serialize};
@@ -50,40 +50,66 @@ impl TranceLayer {
     fn query(self) -> LayerQuery {
         match self {
             Self::Kick => LayerQuery {
-                category: "kick", tonal: false, prefer_loop: false,
-                extra_where: "", extra_order: "",
+                category: "kick",
+                tonal: false,
+                prefer_loop: false,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Bass => LayerQuery {
-                category: "mid_bass", tonal: true, prefer_loop: true,
-                extra_where: "", extra_order: "",
+                category: "mid_bass",
+                tonal: true,
+                prefer_loop: true,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Pad => LayerQuery {
-                category: "pad", tonal: true, prefer_loop: true,
-                extra_where: "", extra_order: "",
+                category: "pad",
+                tonal: true,
+                prefer_loop: true,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Arp => LayerQuery {
-                category: "arp", tonal: true, prefer_loop: true,
-                extra_where: "", extra_order: "",
+                category: "arp",
+                tonal: true,
+                prefer_loop: true,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Pluck => LayerQuery {
-                category: "pluck", tonal: true, prefer_loop: false,
-                extra_where: "", extra_order: "",
+                category: "pluck",
+                tonal: true,
+                prefer_loop: false,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Lead => LayerQuery {
-                category: "lead", tonal: true, prefer_loop: true,
-                extra_where: "", extra_order: "",
+                category: "lead",
+                tonal: true,
+                prefer_loop: true,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Vocal => LayerQuery {
-                category: "vocal", tonal: true, prefer_loop: false,
-                extra_where: "", extra_order: "",
+                category: "vocal",
+                tonal: true,
+                prefer_loop: false,
+                extra_where: "",
+                extra_order: "",
             },
             Self::VocalChop => LayerQuery {
-                category: "vocal_chop", tonal: false, prefer_loop: false,
-                extra_where: "", extra_order: "",
+                category: "vocal_chop",
+                tonal: false,
+                prefer_loop: false,
+                extra_where: "",
+                extra_order: "",
             },
             Self::VocalAtmosphere => LayerQuery {
                 // Ethereal vocals: long duration (>3s), keywords in name/path
-                category: "vocal", tonal: true, prefer_loop: false,
+                category: "vocal",
+                tonal: true,
+                prefer_loop: false,
                 extra_where: "AND s.duration > 3.0 \
                     AND (LOWER(s.name) LIKE '%atmosphere%' \
                       OR LOWER(s.name) LIKE '%ethereal%' \
@@ -105,28 +131,46 @@ impl TranceLayer {
                 extra_order: "s.duration DESC,", // prefer longer samples
             },
             Self::VocalPhrase => LayerQuery {
-                category: "vocal_phrase", tonal: true, prefer_loop: false,
-                extra_where: "", extra_order: "",
+                category: "vocal_phrase",
+                tonal: true,
+                prefer_loop: false,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Riser => LayerQuery {
-                category: "fx_riser", tonal: false, prefer_loop: false,
-                extra_where: "", extra_order: "",
+                category: "fx_riser",
+                tonal: false,
+                prefer_loop: false,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Downlifter => LayerQuery {
-                category: "fx_downer", tonal: false, prefer_loop: false,
-                extra_where: "", extra_order: "",
+                category: "fx_downer",
+                tonal: false,
+                prefer_loop: false,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Impact => LayerQuery {
-                category: "fx_impact", tonal: false, prefer_loop: false,
-                extra_where: "", extra_order: "",
+                category: "fx_impact",
+                tonal: false,
+                prefer_loop: false,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Crash => LayerQuery {
-                category: "fx_crash", tonal: false, prefer_loop: false,
-                extra_where: "", extra_order: "",
+                category: "fx_crash",
+                tonal: false,
+                prefer_loop: false,
+                extra_where: "",
+                extra_order: "",
             },
             Self::Atmos => LayerQuery {
-                category: "atmos", tonal: true, prefer_loop: true,
-                extra_where: "", extra_order: "",
+                category: "atmos",
+                tonal: true,
+                prefer_loop: true,
+                extra_where: "",
+                extra_order: "",
             },
         }
     }
@@ -225,11 +269,7 @@ pub fn find_matching_samples(config: &TranceStarterConfig) -> Result<TranceStart
     let root = root_to_name(config.key_root);
     let mode = mode_name(config.minor);
     let compatible = get_compatible_keys(root, mode);
-    let key_display = format!(
-        "{} {}",
-        root,
-        if config.minor { "Minor" } else { "Major" }
-    );
+    let key_display = format!("{} {}", root, if config.minor { "Minor" } else { "Major" });
 
     // Circle-of-fifths neighbors: one step each direction
     let fifth_up = NOTES[((config.key_root + 7) % 12) as usize];

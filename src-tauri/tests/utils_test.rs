@@ -17,8 +17,14 @@ fn test_format_size_edge_cases() {
 #[test]
 fn test_path_normalization_basic() {
     // Should be no-op for normal paths
-    assert_eq!(normalize_path_for_db("/Users/test/file.wav"), "/Users/test/file.wav");
-    assert_eq!(normalize_path_for_db("C:\\Users\\test\\file.wav"), "C:\\Users\\test\\file.wav");
+    assert_eq!(
+        normalize_path_for_db("/Users/test/file.wav"),
+        "/Users/test/file.wav"
+    );
+    assert_eq!(
+        normalize_path_for_db("C:\\Users\\test\\file.wav"),
+        "C:\\Users\\test\\file.wav"
+    );
 }
 
 #[test]
@@ -37,10 +43,7 @@ fn test_path_normalization_macos_data_prefix() {
 
 #[test]
 fn test_path_strings_json_normalized() {
-    let paths = vec![
-        "/a/b.wav".to_string(),
-        "/c/d.wav".to_string(),
-    ];
+    let paths = vec!["/a/b.wav".to_string(), "/c/d.wav".to_string()];
     let json = path_strings_json_normalized(&paths);
     let parsed: Vec<String> = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed.len(), 2);

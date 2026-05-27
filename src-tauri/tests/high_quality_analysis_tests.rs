@@ -1,5 +1,5 @@
-use app_lib::sample_analysis::{match_category, detect_manufacturer, extract_pack_name};
-use app_lib::sample_filters::{is_excluded_genre, BAD_GENRES, BAD_GENRES_TRANCE};
+use app_lib::sample_analysis::{detect_manufacturer, extract_pack_name, match_category};
+use app_lib::sample_filters::{BAD_GENRES, BAD_GENRES_TRANCE, is_excluded_genre};
 
 #[test]
 fn test_category_matching_normalization_edge_cases() {
@@ -18,16 +18,25 @@ fn test_manufacturer_detection_prioritization() {
     assert_eq!(m.manufacturer_pattern, "Hard Techno");
     assert!(m.hardness_score > 0.5);
 
-    let path2 = "/Samples/ Riemann / Techno"; 
+    let path2 = "/Samples/ Riemann / Techno";
     let m2 = detect_manufacturer(path2).unwrap();
     assert_eq!(m2.manufacturer_pattern, "Riemann");
 }
 
 #[test]
 fn test_pack_name_extraction_heuristics() {
-    assert_eq!(extract_pack_name("/Samples/My-Epic-Pack/Kicks"), Some("My-Epic-Pack".into()));
-    assert_eq!(extract_pack_name("/Samples/Riemann Kollektion/Techno/Drums"), Some("Riemann Kollektion".into()));
-    assert_eq!(extract_pack_name("/Samples/Vengeance Essential House/Claps"), Some("Vengeance Essential House".into()));
+    assert_eq!(
+        extract_pack_name("/Samples/My-Epic-Pack/Kicks"),
+        Some("My-Epic-Pack".into())
+    );
+    assert_eq!(
+        extract_pack_name("/Samples/Riemann Kollektion/Techno/Drums"),
+        Some("Riemann Kollektion".into())
+    );
+    assert_eq!(
+        extract_pack_name("/Samples/Vengeance Essential House/Claps"),
+        Some("Vengeance Essential House".into())
+    );
     assert!(extract_pack_name("/Samples/Kicks").is_none());
 }
 
@@ -42,7 +51,10 @@ fn test_negation_in_filename_matching() {
 #[test]
 fn test_category_is_oneshot_property() {
     let m1 = match_category("Kick.wav", "/").unwrap();
-    assert!(!m1.is_oneshot, "Kick currently is_oneshot=false in production patterns");
+    assert!(
+        !m1.is_oneshot,
+        "Kick currently is_oneshot=false in production patterns"
+    );
     let m2 = match_category("SubBass.wav", "/").unwrap();
     assert!(m2.is_oneshot);
 }
@@ -57,19 +69,28 @@ fn test_is_excluded_genre_robustness() {
 
 #[test]
 fn test_is_excluded_genre_label_trust() {
-    // "Riemann" is a trusted electronic label. Even if "Afro" (bad genre) 
+    // "Riemann" is a trusted electronic label. Even if "Afro" (bad genre)
     // is in the path, we don't exclude if the label is recognized.
     // "Riemann" signal has genre -0.8 (Techno), so it's non-neutral.
-    assert!(!is_excluded_genre("/Samples/Riemann Afro Techno/Kicks", BAD_GENRES));
-    
+    assert!(!is_excluded_genre(
+        "/Samples/Riemann Afro Techno/Kicks",
+        BAD_GENRES
+    ));
+
     // Non-neutral manufacturer wins
-    assert!(!is_excluded_genre("/Samples/Freshly Squeezed Samba/Trance", BAD_GENRES));
+    assert!(!is_excluded_genre(
+        "/Samples/Freshly Squeezed Samba/Trance",
+        BAD_GENRES
+    ));
 }
 
 #[test]
 fn test_bad_genres_trance_uplifting_exception() {
     // In BAD_GENRES_TRANCE, we don't have "uplifting" or "euphoric"
-    assert!(!is_excluded_genre("/Samples/Uplifting Trance/Lead", BAD_GENRES_TRANCE));
+    assert!(!is_excluded_genre(
+        "/Samples/Uplifting Trance/Lead",
+        BAD_GENRES_TRANCE
+    ));
 }
 
 #[test]

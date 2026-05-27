@@ -6,7 +6,7 @@
 //! - `terminal_resize` — notify the PTY of a new viewport size
 //! - `terminal_kill`   — tear down the session
 
-use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use std::io::{Read, Write};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -71,16 +71,10 @@ pub async fn terminal_spawn(
     }
 
     // Writer half — frontend sends keystrokes here.
-    let writer = pair
-        .master
-        .take_writer()
-        .map_err(|e| e.to_string())?;
+    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
 
     // Reader half — stream PTY output to the frontend.
-    let mut reader = pair
-        .master
-        .try_clone_reader()
-        .map_err(|e| e.to_string())?;
+    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
 
     *state.writer.lock().unwrap_or_else(|e| e.into_inner()) = Some(writer);
     *state.master.lock().unwrap_or_else(|e| e.into_inner()) = Some(pair.master);
@@ -187,7 +181,12 @@ fn kill_inner(state: &TerminalState) {
     *state.writer.lock().unwrap_or_else(|e| e.into_inner()) = None;
 
     // Kill child process if still alive.
-    if let Some(pid) = state.child_pid.lock().unwrap_or_else(|e| e.into_inner()).take() {
+    if let Some(pid) = state
+        .child_pid
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take()
+    {
         #[cfg(unix)]
         unsafe {
             libc::kill(pid as i32, libc::SIGKILL);

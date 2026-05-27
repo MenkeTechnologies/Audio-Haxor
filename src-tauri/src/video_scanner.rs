@@ -151,14 +151,15 @@ fn walk_dir_parallel(
             Ok(m) => {
                 let d = m.dev();
                 if let Some(pd) = parent_dev
-                    && pd != d {
-                        crate::write_app_log_verbose(format!(
-                            "SCAN MOUNT — video | {} | parent_dev={} current_dev={}",
-                            dir.display(),
-                            pd,
-                            d
-                        ));
-                    }
+                    && pd != d
+                {
+                    crate::write_app_log_verbose(format!(
+                        "SCAN MOUNT — video | {} | parent_dev={} current_dev={}",
+                        dir.display(),
+                        pd,
+                        d
+                    ));
+                }
                 Some(d)
             }
             Err(_) => None,
@@ -195,9 +196,10 @@ fn walk_dir_parallel(
     }
 
     if let Some(ref inc) = incremental
-        && inc.should_skip(dir) {
-            return;
-        }
+        && inc.should_skip(dir)
+    {
+        return;
+    }
 
     let dir_str = dir.to_string_lossy().to_string();
     {

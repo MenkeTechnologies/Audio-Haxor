@@ -8,9 +8,9 @@ use std::thread;
 use std::time::Duration;
 use tauri::image::Image;
 use tauri::menu::MenuBuilder;
-use tauri::tray::{TrayIcon, TrayIconBuilder};
 #[cfg(not(target_os = "linux"))]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
+use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{
     App, AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Rect, Size, State,
     Wry,
@@ -98,7 +98,9 @@ fn emit_tray_popover_favorite(app: &AppHandle<Wry>, favorite_on: bool) {
     match app.emit_to("tray-popover", "tray-popover-favorite", payload) {
         Ok(()) => {
             if std::env::var_os("AUDIO_HAXOR_TRAY_DEBUG").is_some() {
-                eprintln!("[tray-popover-host] emit tray-popover-favorite ok favorite_on={favorite_on}");
+                eprintln!(
+                    "[tray-popover-host] emit tray-popover-favorite ok favorite_on={favorite_on}"
+                );
             }
         }
         Err(e) => {
@@ -290,7 +292,6 @@ pub struct TrayStateInner {
     pub last_popover_emit: Option<TrayPopoverEmit>,
     pub last_tray_appearance: Option<HashMap<String, String>>,
 }
-
 
 impl Default for TrayState {
     fn default() -> Self {
@@ -668,7 +669,14 @@ fn tray_prefs_toggle_favorite(path: &str) -> Option<(bool, Vec<serde_json::Value
             .and_then(|s| s.to_str())
             .unwrap_or(key.as_str())
             .to_string();
-        let _ = db.favorites_add("sample", &key, &name, "", "", &chrono::Utc::now().to_rfc3339());
+        let _ = db.favorites_add(
+            "sample",
+            &key,
+            &name,
+            "",
+            "",
+            &chrono::Utc::now().to_rfc3339(),
+        );
         true
     };
     let arr = db.favorites_list().unwrap_or_default();
@@ -886,18 +894,20 @@ pub fn tray_popover_action(app: AppHandle<Wry>, action: String) -> Result<(), St
     if let Some(rest) = action.strip_prefix("volume:") {
         if let Ok(n) = rest.parse::<f64>()
             && let Some(tray_state) = app.try_state::<TrayState>()
-                && let Ok(mut guard) = tray_state.inner.lock()
-                    && let Some(emit) = guard.last_popover_emit.as_mut() {
-                        emit.volume_pct = n.clamp(0.0, 100.0).round() as u8;
-                    }
+            && let Ok(mut guard) = tray_state.inner.lock()
+            && let Some(emit) = guard.last_popover_emit.as_mut()
+        {
+            emit.volume_pct = n.clamp(0.0, 100.0).round() as u8;
+        }
     } else if let Some(rest) = action.strip_prefix("speed:") {
         if let Ok(s) = rest.parse::<f64>()
             && s.is_finite()
-                && let Some(tray_state) = app.try_state::<TrayState>()
-                    && let Ok(mut guard) = tray_state.inner.lock()
-                        && let Some(emit) = guard.last_popover_emit.as_mut() {
-                            emit.playback_speed = s.clamp(0.25, 4.0);
-                        }
+            && let Some(tray_state) = app.try_state::<TrayState>()
+            && let Ok(mut guard) = tray_state.inner.lock()
+            && let Some(emit) = guard.last_popover_emit.as_mut()
+        {
+            emit.playback_speed = s.clamp(0.25, 4.0);
+        }
     } else if let Some(rest) = action.strip_prefix("seek:") {
         /* Seek directly to the audio-engine from Rust rather than round-tripping through the
          * main window's `listen('menu-action')` → `seekPlaybackToPercent` path. The main webview
@@ -909,27 +919,28 @@ pub fn tray_popover_action(app: AppHandle<Wry>, action: String) -> Result<(), St
          * waveform / now-playing UI picks up the new position on the next poll tick OR as soon
          * as it resumes. */
         if let Ok(frac) = rest.parse::<f64>()
-            && frac.is_finite() {
-                let frac = frac.clamp(0.0, 1.0);
-                let total_sec = app.try_state::<TrayState>().and_then(|s| {
-                    s.inner
-                        .lock()
-                        .ok()
-                        .and_then(|g| g.last_popover_emit.as_ref().and_then(|e| e.total_sec))
+            && frac.is_finite()
+        {
+            let frac = frac.clamp(0.0, 1.0);
+            let total_sec = app.try_state::<TrayState>().and_then(|s| {
+                s.inner
+                    .lock()
+                    .ok()
+                    .and_then(|g| g.last_popover_emit.as_ref().and_then(|e| e.total_sec))
+            });
+            if let Some(dur) = total_sec
+                && dur > 0.0
+            {
+                let position_sec = frac * dur;
+                std::thread::spawn(move || {
+                    let _ =
+                        crate::audio_engine::dedicated_audio_engine_request(&serde_json::json!({
+                            "cmd": "playback_seek",
+                            "position_sec": position_sec,
+                        }));
                 });
-                if let Some(dur) = total_sec
-                    && dur > 0.0 {
-                        let position_sec = frac * dur;
-                        std::thread::spawn(move || {
-                            let _ = crate::audio_engine::dedicated_audio_engine_request(
-                                &serde_json::json!({
-                                    "cmd": "playback_seek",
-                                    "position_sec": position_sec,
-                                }),
-                            );
-                        });
-                    }
             }
+        }
     } else if action == "toggle_shuffle" {
         return tray_popover_toggle_shuffle(&app);
     } else if action == "toggle_loop" {
@@ -989,9 +1000,10 @@ pub fn update_tray_now_playing(
     guard.now_playing_menu_line.clone_from(&np_line);
 
     if let Some(ref map) = payload.appearance
-        && !map.is_empty() {
-            guard.last_tray_appearance = Some(map.clone());
-        }
+        && !map.is_empty()
+    {
+        guard.last_tray_appearance = Some(map.clone());
+    }
 
     let theme = tray_emit_ui_theme(&payload);
     let appearance = guard.last_tray_appearance.clone();
@@ -1120,18 +1132,20 @@ pub fn update_tray_now_playing(
      * with zero benefit. */
     let new_reveal_path = emit.reveal_path.clone();
     if new_reveal_path != prev_reveal_path
-        && let Some(rp) = new_reveal_path {
-            std::thread::spawn(move || {
-                let p = std::path::Path::new(&rp);
-                if let Some(parent) = p.parent()
-                    && !parent.as_os_str().is_empty()
-                        && let Ok(entries) = std::fs::read_dir(parent) {
-                            for entry in entries.flatten() {
-                                let _ = entry.metadata();
-                            }
-                        }
-            });
-        }
+        && let Some(rp) = new_reveal_path
+    {
+        std::thread::spawn(move || {
+            let p = std::path::Path::new(&rp);
+            if let Some(parent) = p.parent()
+                && !parent.as_os_str().is_empty()
+                && let Ok(entries) = std::fs::read_dir(parent)
+            {
+                for entry in entries.flatten() {
+                    let _ = entry.metadata();
+                }
+            }
+        });
+    }
     Ok(())
 }
 

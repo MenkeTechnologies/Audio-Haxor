@@ -1,4 +1,4 @@
-use app_lib::als_generator::{TechnoConfig, SampleInfo};
+use app_lib::als_generator::{SampleInfo, TechnoConfig};
 
 fn dummy_sample(name: &str) -> SampleInfo {
     SampleInfo {
@@ -21,9 +21,9 @@ fn test_techno_arrangement_generation_structure() {
     };
 
     let tracks = cfg.generate_arrangement();
-    
+
     assert!(tracks.len() >= 3);
-    
+
     let track_names: Vec<_> = tracks.iter().map(|t| t.name.as_str()).collect();
     assert!(track_names.contains(&"Kick"));
     assert!(track_names.contains(&"Clap"));
@@ -40,10 +40,13 @@ fn test_techno_arrangement_clip_offsets() {
     };
 
     let tracks = cfg.generate_arrangement();
-    
+
     for track in tracks {
         if track.name == "Kick" {
-            let has_drop_clip = track.clips.iter().any(|c| c.start_beat >= 128.0 && c.start_beat < 256.0);
+            let has_drop_clip = track
+                .clips
+                .iter()
+                .any(|c| c.start_beat >= 128.0 && c.start_beat < 256.0);
             assert!(has_drop_clip);
             let has_outro_clip = track.clips.iter().any(|c| c.start_beat >= 448.0);
             assert!(has_outro_clip);
@@ -54,7 +57,10 @@ fn test_techno_arrangement_clip_offsets() {
 #[test]
 fn test_techno_arrangement_colors() {
     let cfg = TechnoConfig {
-        bpm: 130.0, kick: dummy_sample("k"), clap: dummy_sample("c"), hat: dummy_sample("h"),
+        bpm: 130.0,
+        kick: dummy_sample("k"),
+        clap: dummy_sample("c"),
+        hat: dummy_sample("h"),
     };
     let tracks = cfg.generate_arrangement();
     for track in tracks {

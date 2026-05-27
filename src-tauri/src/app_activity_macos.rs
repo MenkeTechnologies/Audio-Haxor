@@ -33,9 +33,9 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use block2::RcBlock;
+use objc2::msg_send;
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
-use objc2::msg_send;
 use objc2_foundation::{
     NSActivityOptions, NSNotification, NSNotificationCenter, NSProcessInfo, NSString,
 };
@@ -60,9 +60,7 @@ pub fn install_on_main() {
             .unwrap_or_else(|| "<no exception object>".to_string());
         crate::write_app_log(format!("APP NAP install threw ObjC exception: {desc}"));
     }
-    if let Err(exc) =
-        objc2::exception::catch(std::panic::AssertUnwindSafe(install_bg_observers))
-    {
+    if let Err(exc) = objc2::exception::catch(std::panic::AssertUnwindSafe(install_bg_observers)) {
         let desc = exc
             .as_ref()
             .map(|e| format!("{e:?}"))

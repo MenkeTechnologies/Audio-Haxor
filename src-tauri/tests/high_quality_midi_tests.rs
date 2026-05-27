@@ -1,4 +1,6 @@
-use app_lib::midi_generator::{MidiGenConfig, LeadType, resolve_chords, build_base_name, build_filename};
+use app_lib::midi_generator::{
+    LeadType, MidiGenConfig, build_base_name, build_filename, resolve_chords,
+};
 
 #[test]
 fn test_chord_resolution_to_pitch_classes() {
@@ -16,7 +18,7 @@ fn test_chord_resolution_to_pitch_classes() {
         name: None,
         variations: None,
     };
-    
+
     let resolved = resolve_chords(&config);
     assert_eq!(resolved, vec![0, 3, 7]);
 
@@ -44,23 +46,42 @@ fn test_filename_construction_invariants() {
     };
 
     let base = build_base_name(&config);
-    assert!(base.contains("Am"), "Base name '{}' should contain key", base);
+    assert!(
+        base.contains("Am"),
+        "Base name '{}' should contain key",
+        base
+    );
     assert!(base.contains("138bpm"), "Base name should contain BPM");
-    assert!(base.contains("8bars"), "Base name should contain total bars");
+    assert!(
+        base.contains("8bars"),
+        "Base name should contain total bars"
+    );
     assert!(base.contains("seed42"), "Base name should contain seed");
 
     let f1 = build_filename(&config, 0, 3);
-    assert!(f1.ends_with("_01.mid"), "First variation should have _01 suffix");
+    assert!(
+        f1.ends_with("_01.mid"),
+        "First variation should have _01 suffix"
+    );
 }
 
 #[test]
 fn test_chord_resolution_case_insensitivity() {
     let config = MidiGenConfig {
-        key_root: 0, minor: true, lead_type: LeadType::TwoLayer, 
-        chords: vec![], progression: vec!["c".into(), "f".into()], // trim_end_matches is case sensitive
-        bpm: 140, bars_per_chord: 1, length_bars: None, chromaticism: 0, seed: 1, name: None, variations: None
+        key_root: 0,
+        minor: true,
+        lead_type: LeadType::TwoLayer,
+        chords: vec![],
+        progression: vec!["c".into(), "f".into()], // trim_end_matches is case sensitive
+        bpm: 140,
+        bars_per_chord: 1,
+        length_bars: None,
+        chromaticism: 0,
+        seed: 1,
+        name: None,
+        variations: None,
     };
-    
+
     let resolved = resolve_chords(&config);
     assert_eq!(resolved, vec![0, 5]);
 }
@@ -68,16 +89,25 @@ fn test_chord_resolution_case_insensitivity() {
 #[test]
 fn test_lead_type_base_names() {
     let mut config = MidiGenConfig {
-        key_root: 0, minor: true, lead_type: LeadType::TwoLayer, 
-        chords: vec![0], progression: vec![],
-        bpm: 140, bars_per_chord: 1, length_bars: None, chromaticism: 0, seed: 1, name: None, variations: None
+        key_root: 0,
+        minor: true,
+        lead_type: LeadType::TwoLayer,
+        chords: vec![0],
+        progression: vec![],
+        bpm: 140,
+        bars_per_chord: 1,
+        length_bars: None,
+        chromaticism: 0,
+        seed: 1,
+        name: None,
+        variations: None,
     };
 
     assert!(build_base_name(&config).contains("TwoLayer"));
-    
+
     config.lead_type = LeadType::ChordArp;
     assert!(build_base_name(&config).contains("ChordArp"));
-    
+
     config.lead_type = LeadType::DeepBass;
     assert!(build_base_name(&config).contains("DeepBass"));
 }
@@ -95,7 +125,7 @@ fn test_midi_gen_config_deserialization_full() {
         "chromaticism": 25,
         "seed": 999
     }"#;
-    
+
     let c: MidiGenConfig = serde_json::from_str(json).expect("valid json");
     assert_eq!(c.key_root, 2);
     assert_eq!(c.bpm, 125);

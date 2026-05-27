@@ -139,16 +139,7 @@ fn mux_test_clip(path: &Path, ext_trim: &str) -> bool {
         }
         "3gp" => {
             c.args([
-                "-c:v",
-                "h263",
-                "-s",
-                "176x144",
-                "-c:a",
-                "aac",
-                "-ar",
-                "44100",
-                "-ac",
-                "1",
+                "-c:v", "h263", "-s", "176x144", "-c:a", "aac", "-ar", "44100", "-ac", "1",
             ]);
         }
         "mts" | "m2ts" => {

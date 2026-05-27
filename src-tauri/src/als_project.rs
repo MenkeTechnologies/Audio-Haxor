@@ -63,12 +63,30 @@ pub struct TrackConfig {
 impl Default for TrackConfig {
     fn default() -> Self {
         Self {
-            drums: ElementConfig { count: 3, character: 0.5 },
-            bass: ElementConfig { count: 2, character: 0.5 },
-            leads: ElementConfig { count: 2, character: 0.5 },
-            pads: ElementConfig { count: 2, character: 0.5 },
-            fx: ElementConfig { count: 6, character: 0.5 },
-            vocals: ElementConfig { count: 0, character: 0.5 },
+            drums: ElementConfig {
+                count: 3,
+                character: 0.5,
+            },
+            bass: ElementConfig {
+                count: 2,
+                character: 0.5,
+            },
+            leads: ElementConfig {
+                count: 2,
+                character: 0.5,
+            },
+            pads: ElementConfig {
+                count: 2,
+                character: 0.5,
+            },
+            fx: ElementConfig {
+                count: 6,
+                character: 0.5,
+            },
+            vocals: ElementConfig {
+                count: 0,
+                character: 0.5,
+            },
         }
     }
 }
@@ -90,8 +108,12 @@ pub struct MidiSettings {
     #[serde(default)]
     pub length_bars: Option<u32>,
 }
-fn default_bpc() -> u8 { 2 }
-fn default_chrom() -> u8 { 15 }
+fn default_bpc() -> u8 {
+    2
+}
+fn default_chrom() -> u8 {
+    15
+}
 
 /// Full project configuration from the wizard.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -208,48 +230,95 @@ where
 /// Per-type track counts from frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrackCountsConfig {
-    #[serde(default = "default_1")] pub kick: u32,
-    #[serde(default)] pub kick_rumble: Option<u32>,
-    #[serde(default)] pub kick_noise: Option<u32>,
-    #[serde(default)] pub hardcore_kick: Option<u32>,
-    #[serde(default = "default_1")] pub clap: u32,
-    #[serde(default = "default_1")] pub snare: u32,
-    #[serde(default = "default_2")] pub hat: u32,
-    #[serde(default = "default_2")] pub perc: u32,
-    #[serde(default = "default_1")] pub ride: u32,
-    #[serde(default = "default_4")] pub fill: u32,
-    #[serde(default = "default_1")] pub breakbeat: u32,
-    #[serde(default = "default_1")] pub bass: u32,
-    #[serde(default = "default_1")] pub sub: u32,
-    #[serde(default = "default_1")] pub lead: u32,
-    #[serde(default = "default_3")] pub synth: u32,
-    #[serde(default = "default_2")] pub pad: u32,
-    #[serde(default = "default_2")] pub arp: u32,
-    #[serde(default)] pub keys: Option<u32>,
-    #[serde(default = "default_3")] pub riser: u32,
-    #[serde(default = "default_1")] pub downlifter: u32,
-    #[serde(default = "default_2")] pub crash: u32,
-    #[serde(default = "default_2")] pub impact: u32,
-    #[serde(default = "default_2")] pub hit: u32,
-    #[serde(default = "default_4")] pub sweep_up: u32,
-    #[serde(default = "default_4")] pub sweep_down: u32,
-    #[serde(default = "default_1")] pub snare_roll: u32,
-    #[serde(default = "default_2")] pub reverse: u32,
-    #[serde(default = "default_2")] pub sub_drop: u32,
-    #[serde(default = "default_2")] pub boom_kick: u32,
-    #[serde(default = "default_2")] pub atmos: u32,
-    #[serde(default = "default_2")] pub glitch: u32,
-    #[serde(default = "default_4")] pub scatter: u32,
-    #[serde(default = "default_1")] pub vox: u32,
+    #[serde(default = "default_1")]
+    pub kick: u32,
+    #[serde(default)]
+    pub kick_rumble: Option<u32>,
+    #[serde(default)]
+    pub kick_noise: Option<u32>,
+    #[serde(default)]
+    pub hardcore_kick: Option<u32>,
+    #[serde(default = "default_1")]
+    pub clap: u32,
+    #[serde(default = "default_1")]
+    pub snare: u32,
+    #[serde(default = "default_2")]
+    pub hat: u32,
+    #[serde(default = "default_2")]
+    pub perc: u32,
+    #[serde(default = "default_1")]
+    pub ride: u32,
+    #[serde(default = "default_4")]
+    pub fill: u32,
+    #[serde(default = "default_1")]
+    pub breakbeat: u32,
+    #[serde(default = "default_1")]
+    pub bass: u32,
+    #[serde(default = "default_1")]
+    pub sub: u32,
+    #[serde(default = "default_1")]
+    pub lead: u32,
+    #[serde(default = "default_3")]
+    pub synth: u32,
+    #[serde(default = "default_2")]
+    pub pad: u32,
+    #[serde(default = "default_2")]
+    pub arp: u32,
+    #[serde(default)]
+    pub keys: Option<u32>,
+    #[serde(default = "default_3")]
+    pub riser: u32,
+    #[serde(default = "default_1")]
+    pub downlifter: u32,
+    #[serde(default = "default_2")]
+    pub crash: u32,
+    #[serde(default = "default_2")]
+    pub impact: u32,
+    #[serde(default = "default_2")]
+    pub hit: u32,
+    #[serde(default = "default_4")]
+    pub sweep_up: u32,
+    #[serde(default = "default_4")]
+    pub sweep_down: u32,
+    #[serde(default = "default_1")]
+    pub snare_roll: u32,
+    #[serde(default = "default_2")]
+    pub reverse: u32,
+    #[serde(default = "default_2")]
+    pub sub_drop: u32,
+    #[serde(default = "default_2")]
+    pub boom_kick: u32,
+    #[serde(default = "default_2")]
+    pub atmos: u32,
+    #[serde(default = "default_2")]
+    pub glitch: u32,
+    #[serde(default = "default_4")]
+    pub scatter: u32,
+    #[serde(default = "default_1")]
+    pub vox: u32,
 }
 
-fn default_true() -> bool { true }
-fn default_1() -> u32 { 1 }
-fn default_2() -> u32 { 2 }
-fn default_3() -> u32 { 3 }
-fn default_4() -> u32 { 4 }
-fn default_chaos() -> f32 { 0.3 }
-fn default_parallelism() -> f32 { 0.4 }
+fn default_true() -> bool {
+    true
+}
+fn default_1() -> u32 {
+    1
+}
+fn default_2() -> u32 {
+    2
+}
+fn default_3() -> u32 {
+    3
+}
+fn default_4() -> u32 {
+    4
+}
+fn default_chaos() -> f32 {
+    0.3
+}
+fn default_parallelism() -> f32 {
+    0.4
+}
 
 /// Per-8-bar-block overrides for a single dynamics parameter.
 ///
@@ -330,17 +399,41 @@ impl SectionLengths {
     /// Canonical Techno layout: 32 × 7 = 224 bars. Also the serde default and
     /// the reference layout that arrangement templates are written against.
     pub const fn techno_default() -> Self {
-        Self { intro: 32, build: 32, breakdown: 32, drop1: 32, drop2: 32, fadedown: 32, outro: 32 }
+        Self {
+            intro: 32,
+            build: 32,
+            breakdown: 32,
+            drop1: 32,
+            drop2: 32,
+            fadedown: 32,
+            outro: 32,
+        }
     }
     /// Trance: 48-bar breakdown (emotional development) and 48-bar outro
     /// (DJ-friendly mix-out). 32 / 32 / 48 / 32 / 32 / 32 / 48 = 256 bars.
     pub const fn trance_default() -> Self {
-        Self { intro: 32, build: 32, breakdown: 48, drop1: 32, drop2: 32, fadedown: 32, outro: 48 }
+        Self {
+            intro: 32,
+            build: 32,
+            breakdown: 48,
+            drop1: 32,
+            drop2: 32,
+            fadedown: 32,
+            outro: 48,
+        }
     }
     /// Schranz: brief breakdown (16), extended Drop 2 (48), short outro (16).
     /// 32 / 32 / 16 / 32 / 48 / 32 / 16 = 208 bars.
     pub const fn schranz_default() -> Self {
-        Self { intro: 32, build: 32, breakdown: 16, drop1: 32, drop2: 48, fadedown: 32, outro: 16 }
+        Self {
+            intro: 32,
+            build: 32,
+            breakdown: 16,
+            drop1: 32,
+            drop2: 48,
+            fadedown: 32,
+            outro: 16,
+        }
     }
 
     pub fn for_genre(g: Genre) -> Self {
@@ -352,21 +445,41 @@ impl SectionLengths {
     }
 
     pub fn total_bars(&self) -> u32 {
-        self.intro + self.build + self.breakdown + self.drop1 + self.drop2 + self.fadedown + self.outro
+        self.intro
+            + self.build
+            + self.breakdown
+            + self.drop1
+            + self.drop2
+            + self.fadedown
+            + self.outro
     }
 
     /// Expand to absolute (start, end_exclusive) tuples for each section.
     /// Section 1 is always bars 1.. since bars are 1-indexed in Ableton.
     pub fn starts(&self) -> SectionStarts {
         let mut s = 1u32;
-        let intro = (s, s + self.intro); s += self.intro;
-        let build = (s, s + self.build); s += self.build;
-        let breakdown = (s, s + self.breakdown); s += self.breakdown;
-        let drop1 = (s, s + self.drop1); s += self.drop1;
-        let drop2 = (s, s + self.drop2); s += self.drop2;
-        let fadedown = (s, s + self.fadedown); s += self.fadedown;
+        let intro = (s, s + self.intro);
+        s += self.intro;
+        let build = (s, s + self.build);
+        s += self.build;
+        let breakdown = (s, s + self.breakdown);
+        s += self.breakdown;
+        let drop1 = (s, s + self.drop1);
+        s += self.drop1;
+        let drop2 = (s, s + self.drop2);
+        s += self.drop2;
+        let fadedown = (s, s + self.fadedown);
+        s += self.fadedown;
         let outro = (s, s + self.outro);
-        SectionStarts { intro, build, breakdown, drop1, drop2, fadedown, outro }
+        SectionStarts {
+            intro,
+            build,
+            breakdown,
+            drop1,
+            drop2,
+            fadedown,
+            outro,
+        }
     }
 
     /// Clamp every field to ≥ 8 bars and snap to an 8-bar multiple. Protects
@@ -389,7 +502,9 @@ impl SectionLengths {
 }
 
 impl Default for SectionLengths {
-    fn default() -> Self { Self::techno_default() }
+    fn default() -> Self {
+        Self::techno_default()
+    }
 }
 
 /// Concrete (start_bar, end_bar_exclusive) pairs per section, computed from
@@ -435,11 +550,38 @@ pub struct SectionOverridesConfig {
 impl Default for TrackCountsConfig {
     fn default() -> Self {
         Self {
-            kick: 1, kick_rumble: None, kick_noise: None, hardcore_kick: None,
-            clap: 1, snare: 1, hat: 2, perc: 2, ride: 1, fill: 4, breakbeat: 1,
-            bass: 1, sub: 1,
-            lead: 1, synth: 3, pad: 2, arp: 2, keys: None,
-            riser: 3, downlifter: 1, crash: 2, impact: 2, hit: 2, sweep_up: 4, sweep_down: 4, snare_roll: 1, reverse: 2, sub_drop: 2, boom_kick: 2, atmos: 2, glitch: 2, scatter: 4,
+            kick: 1,
+            kick_rumble: None,
+            kick_noise: None,
+            hardcore_kick: None,
+            clap: 1,
+            snare: 1,
+            hat: 2,
+            perc: 2,
+            ride: 1,
+            fill: 4,
+            breakbeat: 1,
+            bass: 1,
+            sub: 1,
+            lead: 1,
+            synth: 3,
+            pad: 2,
+            arp: 2,
+            keys: None,
+            riser: 3,
+            downlifter: 1,
+            crash: 2,
+            impact: 2,
+            hit: 2,
+            sweep_up: 4,
+            sweep_down: 4,
+            snare_roll: 1,
+            reverse: 2,
+            sub_drop: 2,
+            boom_kick: 2,
+            atmos: 2,
+            glitch: 2,
+            scatter: 4,
             vox: 1,
         }
     }
@@ -448,46 +590,81 @@ impl Default for TrackCountsConfig {
 /// Per-type atonal configuration from frontend
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TypeAtonalConfig {
-    #[serde(default)] pub kick: bool,
-    #[serde(default)] pub kick_rumble: Option<bool>,
-    #[serde(default)] pub kick_noise: Option<bool>,
-    #[serde(default)] pub hardcore_kick: Option<bool>,
-    #[serde(default)] pub clap: bool,
-    #[serde(default)] pub snare: bool,
-    #[serde(default)] pub hat: bool,
-    #[serde(default)] pub perc: bool,
-    #[serde(default)] pub ride: bool,
-    #[serde(default)] pub fill: bool,
-    #[serde(default)] pub breakbeat: Option<bool>,
-    #[serde(default)] pub bass: bool,
-    #[serde(default)] pub sub: bool,
-    #[serde(default)] pub lead: bool,
-    #[serde(default)] pub synth: bool,
-    #[serde(default)] pub pad: bool,
-    #[serde(default)] pub arp: bool,
-    #[serde(default)] pub keys: Option<bool>,
-    #[serde(default)] pub riser: bool,
-    #[serde(default)] pub downlifter: bool,
-    #[serde(default)] pub crash: bool,
-    #[serde(default)] pub impact: bool,
-    #[serde(default)] pub hit: bool,
-    #[serde(default)] pub sweep_up: bool,
-    #[serde(default)] pub sweep_down: bool,
-    #[serde(default)] pub snare_roll: bool,
-    #[serde(default)] pub reverse: bool,
-    #[serde(default)] pub sub_drop: bool,
-    #[serde(default)] pub boom_kick: bool,
-    #[serde(default)] pub atmos: bool,
-    #[serde(default)] pub glitch: bool,
-    #[serde(default)] pub scatter: bool,
-    #[serde(default)] pub vox: bool,
+    #[serde(default)]
+    pub kick: bool,
+    #[serde(default)]
+    pub kick_rumble: Option<bool>,
+    #[serde(default)]
+    pub kick_noise: Option<bool>,
+    #[serde(default)]
+    pub hardcore_kick: Option<bool>,
+    #[serde(default)]
+    pub clap: bool,
+    #[serde(default)]
+    pub snare: bool,
+    #[serde(default)]
+    pub hat: bool,
+    #[serde(default)]
+    pub perc: bool,
+    #[serde(default)]
+    pub ride: bool,
+    #[serde(default)]
+    pub fill: bool,
+    #[serde(default)]
+    pub breakbeat: Option<bool>,
+    #[serde(default)]
+    pub bass: bool,
+    #[serde(default)]
+    pub sub: bool,
+    #[serde(default)]
+    pub lead: bool,
+    #[serde(default)]
+    pub synth: bool,
+    #[serde(default)]
+    pub pad: bool,
+    #[serde(default)]
+    pub arp: bool,
+    #[serde(default)]
+    pub keys: Option<bool>,
+    #[serde(default)]
+    pub riser: bool,
+    #[serde(default)]
+    pub downlifter: bool,
+    #[serde(default)]
+    pub crash: bool,
+    #[serde(default)]
+    pub impact: bool,
+    #[serde(default)]
+    pub hit: bool,
+    #[serde(default)]
+    pub sweep_up: bool,
+    #[serde(default)]
+    pub sweep_down: bool,
+    #[serde(default)]
+    pub snare_roll: bool,
+    #[serde(default)]
+    pub reverse: bool,
+    #[serde(default)]
+    pub sub_drop: bool,
+    #[serde(default)]
+    pub boom_kick: bool,
+    #[serde(default)]
+    pub atmos: bool,
+    #[serde(default)]
+    pub glitch: bool,
+    #[serde(default)]
+    pub scatter: bool,
+    #[serde(default)]
+    pub vox: bool,
 }
 
 // ---------------------------------------------------------------------------
 // Key / mode utilities
 // ---------------------------------------------------------------------------
 
-const NOTES: &[&str] = &["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTES: &[&str] = &[
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+];
 
 /// Semitone offsets from mode root to relative major root.
 const MODE_TO_RELATIVE_MAJOR: &[(&str, i32)] = &[
@@ -562,9 +739,10 @@ pub fn query_samples(
     // Try analyzed path first
     let results = query_samples_analyzed(category, config, require_loop, limit);
     if let Ok(ref r) = results
-        && !r.is_empty() {
-            return results;
-        }
+        && !r.is_empty()
+    {
+        return results;
+    }
 
     // Fallback: direct query against audio_samples (before analysis runs)
     query_samples_direct(category, config, require_loop, limit)
@@ -587,7 +765,11 @@ fn query_samples_analyzed(
         Genre::Techno | Genre::Schranz => "ASC",
         Genre::Trance => "DESC",
     };
-    let hardness_direction = if config.hardness >= 0.5 { "DESC" } else { "ASC" };
+    let hardness_direction = if config.hardness >= 0.5 {
+        "DESC"
+    } else {
+        "ASC"
+    };
 
     // Key filter: hard WHERE when not atonal AND key-sensitive
     let key_where = if key_sensitive && !target_keys.is_empty() {
@@ -602,9 +784,16 @@ fn query_samples_analyzed(
         String::new()
     };
 
-    let loop_clause = if require_loop { "AND a.is_loop = 1" } else { "" };
+    let loop_clause = if require_loop {
+        "AND a.is_loop = 1"
+    } else {
+        ""
+    };
     let bpm_clause = if require_loop {
-        format!("AND (a.parsed_bpm IS NULL OR a.parsed_bpm BETWEEN {} AND {})", bpm_lo, bpm_hi)
+        format!(
+            "AND (a.parsed_bpm IS NULL OR a.parsed_bpm BETWEEN {} AND {})",
+            bpm_lo, bpm_hi
+        )
     } else {
         String::new()
     };
@@ -657,9 +846,32 @@ fn query_samples_direct(
 
     // Genre keyword patterns for scoring
     let genre_keywords: &[&str] = match config.genre {
-        Genre::Techno => &["techno", "warehouse", "berlin", "underground", "minimal", "industrial"],
-        Genre::Schranz => &["schranz", "hardtechno", "hard techno", "industrial", "distorted", "aggressive", "rave"],
-        Genre::Trance => &["trance", "uplifting", "progressive", "euphoric", "psy", "melodic", "epic"],
+        Genre::Techno => &[
+            "techno",
+            "warehouse",
+            "berlin",
+            "underground",
+            "minimal",
+            "industrial",
+        ],
+        Genre::Schranz => &[
+            "schranz",
+            "hardtechno",
+            "hard techno",
+            "industrial",
+            "distorted",
+            "aggressive",
+            "rave",
+        ],
+        Genre::Trance => &[
+            "trance",
+            "uplifting",
+            "progressive",
+            "euphoric",
+            "psy",
+            "melodic",
+            "epic",
+        ],
     };
 
     // Key filter using audio_samples.key_name
@@ -681,7 +893,10 @@ fn query_samples_direct(
     };
 
     let bpm_clause = if require_loop {
-        format!("AND (s.bpm IS NULL OR s.bpm BETWEEN {} AND {})", bpm_lo, bpm_hi)
+        format!(
+            "AND (s.bpm IS NULL OR s.bpm BETWEEN {} AND {})",
+            bpm_lo, bpm_hi
+        )
     } else {
         String::new()
     };
@@ -689,14 +904,21 @@ fn query_samples_direct(
     // Genre scoring in ORDER BY (cloned because used in fallback query too)
     let genre_score: String = genre_keywords
         .iter()
-        .map(|kw| format!("(CASE WHEN LOWER(s.path) LIKE '%{}%' THEN 1 ELSE 0 END)", kw))
+        .map(|kw| {
+            format!(
+                "(CASE WHEN LOWER(s.path) LIKE '%{}%' THEN 1 ELSE 0 END)",
+                kw
+            )
+        })
         .collect::<Vec<_>>()
         .join(" + ");
 
     // Penalize wrong subgenres to prevent them ranking above the target genre
     let genre_penalty: &str = match config.genre {
         Genre::Techno => " + (CASE WHEN LOWER(s.path) LIKE '%tech house%' THEN -2 ELSE 0 END)",
-        Genre::Schranz => " + (CASE WHEN LOWER(s.path) LIKE '%tech house%' OR LOWER(s.path) LIKE '%melodic%' THEN -2 ELSE 0 END)",
+        Genre::Schranz => {
+            " + (CASE WHEN LOWER(s.path) LIKE '%tech house%' OR LOWER(s.path) LIKE '%melodic%' THEN -2 ELSE 0 END)"
+        }
         Genre::Trance => "",
     };
 
@@ -716,7 +938,11 @@ fn query_samples_direct(
            RANDOM()
          LIMIT {limit}",
         name_pattern = name_pattern,
-        genre_score = if genre_score.is_empty() { "0" } else { &genre_score },
+        genre_score = if genre_score.is_empty() {
+            "0"
+        } else {
+            &genre_score
+        },
         genre_penalty = genre_penalty,
     );
 
@@ -744,8 +970,18 @@ fn build_target_keys(config: &ProjectConfig) -> Vec<String> {
 fn is_key_sensitive(category: &str) -> bool {
     matches!(
         category,
-        "sub_bass" | "mid_bass" | "lead" | "pad" | "arp" | "pluck" | "stab" | "acid"
-            | "atmos" | "vocal" | "vocal_phrase" | "schranz_drive"
+        "sub_bass"
+            | "mid_bass"
+            | "lead"
+            | "pad"
+            | "arp"
+            | "pluck"
+            | "stab"
+            | "acid"
+            | "atmos"
+            | "vocal"
+            | "vocal_phrase"
+            | "schranz_drive"
     )
 }
 
@@ -794,7 +1030,6 @@ fn category_to_like_pattern(category: &str) -> String {
         .join(" OR ")
 }
 
-
 // ---------------------------------------------------------------------------
 // Project name generation
 // ---------------------------------------------------------------------------
@@ -811,54 +1046,208 @@ pub fn generate_project_name(config: &ProjectConfig, seed: u64) -> String {
 
     let genre_words: &[&str] = match config.genre {
         Genre::Techno => &[
-            "Industrial", "Warehouse", "Underground", "Dark", "Driving", "Hypnotic", "Pulse", "Nocturnal",
-            "Bunker", "Concrete", "Steel", "Machine", "Circuit", "Reactor", "Turbine", "Generator",
-            "Voltage", "Current", "Analog", "Digital", "Binary", "Cipher", "Protocol", "Sector",
-            "Terminal", "Module", "Sequence", "Pattern", "Loop", "Grid", "Mesh", "Core",
+            "Industrial",
+            "Warehouse",
+            "Underground",
+            "Dark",
+            "Driving",
+            "Hypnotic",
+            "Pulse",
+            "Nocturnal",
+            "Bunker",
+            "Concrete",
+            "Steel",
+            "Machine",
+            "Circuit",
+            "Reactor",
+            "Turbine",
+            "Generator",
+            "Voltage",
+            "Current",
+            "Analog",
+            "Digital",
+            "Binary",
+            "Cipher",
+            "Protocol",
+            "Sector",
+            "Terminal",
+            "Module",
+            "Sequence",
+            "Pattern",
+            "Loop",
+            "Grid",
+            "Mesh",
+            "Core",
         ],
         Genre::Schranz => &[
-            "Relentless", "Pounding", "Crushing", "Raw", "Abrasive", "Grain", "Distortion", "Assault",
-            "Havoc", "Fracture", "Shatter", "Grind", "Pummel", "Smash", "Wreck", "Demolish",
-            "Savage", "Brutal", "Fierce", "Vicious", "Ruthless", "Merciless", "Punish", "Torment",
-            "Rampage", "Onslaught", "Barrage", "Storm", "Blitz", "Chaos", "Mayhem", "Carnage",
+            "Relentless",
+            "Pounding",
+            "Crushing",
+            "Raw",
+            "Abrasive",
+            "Grain",
+            "Distortion",
+            "Assault",
+            "Havoc",
+            "Fracture",
+            "Shatter",
+            "Grind",
+            "Pummel",
+            "Smash",
+            "Wreck",
+            "Demolish",
+            "Savage",
+            "Brutal",
+            "Fierce",
+            "Vicious",
+            "Ruthless",
+            "Merciless",
+            "Punish",
+            "Torment",
+            "Rampage",
+            "Onslaught",
+            "Barrage",
+            "Storm",
+            "Blitz",
+            "Chaos",
+            "Mayhem",
+            "Carnage",
         ],
         Genre::Trance => &[
-            "Euphoria", "Aurora", "Celestial", "Ascend", "Ethereal", "Eclipse", "Horizon", "Nebula",
-            "Cosmos", "Galaxy", "Stellar", "Astral", "Lunar", "Solar", "Radiant", "Luminous",
-            "Serenity", "Tranquil", "Bliss", "Nirvana", "Paradise", "Utopia", "Elysium", "Zenith",
-            "Cascade", "Crystal", "Prism", "Shimmer", "Glow", "Aura", "Spirit", "Essence",
+            "Euphoria",
+            "Aurora",
+            "Celestial",
+            "Ascend",
+            "Ethereal",
+            "Eclipse",
+            "Horizon",
+            "Nebula",
+            "Cosmos",
+            "Galaxy",
+            "Stellar",
+            "Astral",
+            "Lunar",
+            "Solar",
+            "Radiant",
+            "Luminous",
+            "Serenity",
+            "Tranquil",
+            "Bliss",
+            "Nirvana",
+            "Paradise",
+            "Utopia",
+            "Elysium",
+            "Zenith",
+            "Cascade",
+            "Crystal",
+            "Prism",
+            "Shimmer",
+            "Glow",
+            "Aura",
+            "Spirit",
+            "Essence",
         ],
     };
 
     let mood_words: &[&str] = if config.hardness >= 0.5 {
         &[
-            "Acid", "Rave", "Peak", "Intense", "Raw", "Fury", "Void",
-            "Frenzy", "Surge", "Blast", "Burn", "Ignite", "Explode", "Detonate",
-            "Warp", "Twist", "Distort", "Corrupt", "Infect", "Mutate", "Override",
-            "Annihilate", "Obliterate", "Decimate", "Eradicate", "Purge", "Cleanse", "Reset",
+            "Acid",
+            "Rave",
+            "Peak",
+            "Intense",
+            "Raw",
+            "Fury",
+            "Void",
+            "Frenzy",
+            "Surge",
+            "Blast",
+            "Burn",
+            "Ignite",
+            "Explode",
+            "Detonate",
+            "Warp",
+            "Twist",
+            "Distort",
+            "Corrupt",
+            "Infect",
+            "Mutate",
+            "Override",
+            "Annihilate",
+            "Obliterate",
+            "Decimate",
+            "Eradicate",
+            "Purge",
+            "Cleanse",
+            "Reset",
         ]
     } else {
         &[
-            "Deep", "Smooth", "Flow", "Drift", "Wave", "Dream", "Signal",
-            "Glide", "Float", "Hover", "Suspend", "Linger", "Breathe", "Exhale",
-            "Ripple", "Tide", "Current", "Stream", "River", "Ocean", "Abyss",
-            "Whisper", "Echo", "Murmur", "Hum", "Pulse", "Throb", "Heartbeat",
+            "Deep",
+            "Smooth",
+            "Flow",
+            "Drift",
+            "Wave",
+            "Dream",
+            "Signal",
+            "Glide",
+            "Float",
+            "Hover",
+            "Suspend",
+            "Linger",
+            "Breathe",
+            "Exhale",
+            "Ripple",
+            "Tide",
+            "Current",
+            "Stream",
+            "River",
+            "Ocean",
+            "Abyss",
+            "Whisper",
+            "Echo",
+            "Murmur",
+            "Hum",
+            "Pulse",
+            "Throb",
+            "Heartbeat",
         ]
     };
 
     let key_words: &[&str] = if config.atonal {
         &[
-            "Abstract", "System", "Code", "Matrix", "Grid",
-            "Algorithm", "Function", "Vector", "Scalar", "Tensor", "Quantum", "Entropy",
-            "Fractal", "Recursion", "Iteration", "Parallel", "Serial", "Async", "Sync",
-            "Node", "Edge", "Graph", "Tree", "Stack", "Queue", "Buffer",
+            "Abstract",
+            "System",
+            "Code",
+            "Matrix",
+            "Grid",
+            "Algorithm",
+            "Function",
+            "Vector",
+            "Scalar",
+            "Tensor",
+            "Quantum",
+            "Entropy",
+            "Fractal",
+            "Recursion",
+            "Iteration",
+            "Parallel",
+            "Serial",
+            "Async",
+            "Sync",
+            "Node",
+            "Edge",
+            "Graph",
+            "Tree",
+            "Stack",
+            "Queue",
+            "Buffer",
         ]
     } else {
         &[
-            "Shadow", "Descent", "Abyss", "Night", "Rise", "Dawn", "Horizon",
-            "Twilight", "Dusk", "Midnight", "Daybreak", "Sunrise", "Sunset", "Equinox",
-            "Solstice", "Crescent", "Waning", "Waxing", "Zenith", "Nadir", "Apex",
-            "Depth", "Height", "Summit", "Peak", "Valley", "Chasm", "Ravine",
+            "Shadow", "Descent", "Abyss", "Night", "Rise", "Dawn", "Horizon", "Twilight", "Dusk",
+            "Midnight", "Daybreak", "Sunrise", "Sunset", "Equinox", "Solstice", "Crescent",
+            "Waning", "Waxing", "Zenith", "Nadir", "Apex", "Depth", "Height", "Summit", "Peak",
+            "Valley", "Chasm", "Ravine",
         ]
     };
 
@@ -912,7 +1301,6 @@ mod tests {
         assert!(keys.contains(&"B Minor".to_string()));
     }
 
-
     #[test]
     fn test_project_name_generation() {
         let config = ProjectConfig {
@@ -945,7 +1333,11 @@ mod tests {
         };
         let name = generate_project_name(&config, 0x4242_4242);
         assert!(!name.is_empty());
-        assert!(name.contains(" - "), "Name should contain timestamp separator: {}", name);
+        assert!(
+            name.contains(" - "),
+            "Name should contain timestamp separator: {}",
+            name
+        );
     }
 
     #[test]
@@ -953,7 +1345,7 @@ mod tests {
         assert_eq!(Genre::Techno.default_bpm(), 132);
         assert_eq!(Genre::Schranz.default_bpm(), 155);
         assert_eq!(Genre::Trance.default_bpm(), 140);
-        
+
         assert_eq!(Genre::Techno.bpm_range(), (120, 140));
         assert_eq!(Genre::Schranz.bpm_range(), (145, 165));
         assert_eq!(Genre::Trance.bpm_range(), (130, 160));
@@ -963,10 +1355,10 @@ mod tests {
     fn test_section_values_any() {
         let mut sv = SectionValues::default();
         assert!(!sv.any());
-        
+
         sv.set(1, 0.5);
         assert!(sv.any());
-        
+
         sv.blocks.clear();
         sv.set(193, 0.1);
         assert!(sv.any());
@@ -987,7 +1379,7 @@ mod tests {
         assert!(is_key_sensitive("vocal"));
         assert!(is_key_sensitive("vocal_phrase"));
         assert!(is_key_sensitive("schranz_drive"));
-        
+
         // Atonal categories
         assert!(!is_key_sensitive("kick"));
         assert!(!is_key_sensitive("clap"));
@@ -1008,11 +1400,11 @@ mod tests {
         assert!(kick_pattern.contains("kick"));
         assert!(kick_pattern.contains("kik"));
         assert!(kick_pattern.contains("bd"));
-        
+
         let sub_pattern = category_to_like_pattern("sub_bass");
         assert!(sub_pattern.contains("sub"));
         assert!(sub_pattern.contains("808"));
-        
+
         let unknown_pattern = category_to_like_pattern("some_unknown_cat");
         assert!(unknown_pattern.contains("fx"));
     }
@@ -1051,7 +1443,7 @@ mod tests {
         let keys = build_target_keys(&config);
         assert!(!keys.is_empty());
         assert!(keys.contains(&"D# Major".to_string()));
-        
+
         config.atonal = true;
         let keys_atonal = build_target_keys(&config);
         assert!(keys_atonal.is_empty());
@@ -1062,12 +1454,12 @@ mod tests {
         // Unknown root or mode should return a safe fallback
         let keys = get_compatible_keys("Z", "Aeolian");
         assert_eq!(keys, vec!["Z Minor".to_string()]);
-        
+
         let keys2 = get_compatible_keys("C", "UnknownMode");
         // C Aeolian (offset -9) -> major_idx 3 (D#), minor_idx 0 (C)
         assert!(keys2.contains(&"D# Major".to_string()));
         assert!(keys2.contains(&"C Minor".to_string()));
-        
+
         // Case insensitivity
         let keys3 = get_compatible_keys("c", "aeolian");
         assert!(keys3.contains(&"D# Major".to_string()));
@@ -1147,15 +1539,24 @@ mod tests {
             seed: None,
         };
         let prefix = |s: u64| -> String {
-            generate_project_name(&config, s).split(" - ").next().unwrap().to_string()
+            generate_project_name(&config, s)
+                .split(" - ")
+                .next()
+                .unwrap()
+                .to_string()
         };
         // Scan a handful of well-separated seeds and assert we see at least two
         // distinct prefixes. Using 10 seeds keeps the test fast and the chance
         // of a false negative astronomically small (given 32 genre × 28 mood
         // × 28 key words + 12 patterns).
-        let names: std::collections::HashSet<String> =
-            (0u64..10).map(|i| prefix(i.wrapping_mul(0x9E37_79B9_7F4A_7C15))).collect();
-        assert!(names.len() >= 2, "10 distinct seeds should produce ≥2 distinct names, got {:?}", names);
+        let names: std::collections::HashSet<String> = (0u64..10)
+            .map(|i| prefix(i.wrapping_mul(0x9E37_79B9_7F4A_7C15)))
+            .collect();
+        assert!(
+            names.len() >= 2,
+            "10 distinct seeds should produce ≥2 distinct names, got {:?}",
+            names
+        );
     }
 
     /// The wizard sends `seed` as a string (to avoid JS Number precision loss
@@ -1163,8 +1564,9 @@ mod tests {
     /// plus treat empty / whitespace-only strings as `None`.
     #[test]
     fn test_project_config_seed_accepts_string_and_number() {
-        let make_json = |seed_val: &str| format!(
-            r#"{{
+        let make_json = |seed_val: &str| {
+            format!(
+                r#"{{
                 "genre": "techno", "hardness": 0.5, "bpm": 130, "atonal": false,
                 "keywords": [], "element_keywords": {{}},
                 "tracks": {{
@@ -1178,18 +1580,21 @@ mod tests {
                 "output_path": "/tmp/x.als", "project_name": null, "num_songs": 1,
                 "seed": {}
             }}"#,
-            seed_val
-        );
-        let parse = |json: String| -> ProjectConfig {
-            serde_json::from_str(&json).expect("deserialize")
+                seed_val
+            )
         };
+        let parse =
+            |json: String| -> ProjectConfig { serde_json::from_str(&json).expect("deserialize") };
 
         // JSON number
         assert_eq!(parse(make_json("12345")).seed, Some(12345));
         // JSON string (what the wizard actually sends)
         assert_eq!(parse(make_json("\"12345\"")).seed, Some(12345));
         // Large u64 — exceeds Number.MAX_SAFE_INTEGER (2^53 - 1)
-        assert_eq!(parse(make_json("\"18446744073709551615\"")).seed, Some(u64::MAX));
+        assert_eq!(
+            parse(make_json("\"18446744073709551615\"")).seed,
+            Some(u64::MAX)
+        );
         // Empty string → treat as unset
         assert_eq!(parse(make_json("\"\"")).seed, None);
         // Whitespace-only string → treat as unset
@@ -1224,7 +1629,10 @@ mod tests {
             "num_songs": 1
         }"#;
         let cfg: ProjectConfig = serde_json::from_str(json).expect("deserialize");
-        assert!(cfg.seed.is_none(), "missing `seed` field must default to None");
+        assert!(
+            cfg.seed.is_none(),
+            "missing `seed` field must default to None"
+        );
     }
 
     // ─── SectionLengths totals ────────────────────────────────────────
@@ -1249,9 +1657,18 @@ mod tests {
 
     #[test]
     fn for_genre_matches_per_genre_constructor() {
-        assert_eq!(SectionLengths::for_genre(Genre::Techno), SectionLengths::techno_default());
-        assert_eq!(SectionLengths::for_genre(Genre::Trance), SectionLengths::trance_default());
-        assert_eq!(SectionLengths::for_genre(Genre::Schranz), SectionLengths::schranz_default());
+        assert_eq!(
+            SectionLengths::for_genre(Genre::Techno),
+            SectionLengths::techno_default()
+        );
+        assert_eq!(
+            SectionLengths::for_genre(Genre::Trance),
+            SectionLengths::trance_default()
+        );
+        assert_eq!(
+            SectionLengths::for_genre(Genre::Schranz),
+            SectionLengths::schranz_default()
+        );
     }
 
     #[test]
@@ -1265,7 +1682,10 @@ mod tests {
     #[test]
     fn starts_intro_begins_at_bar_one() {
         let s = SectionLengths::techno_default().starts();
-        assert_eq!(s.intro.0, 1, "Ableton is 1-indexed; intro must start at bar 1");
+        assert_eq!(
+            s.intro.0, 1,
+            "Ableton is 1-indexed; intro must start at bar 1"
+        );
     }
 
     #[test]
@@ -1294,7 +1714,15 @@ mod tests {
 
     #[test]
     fn sanitize_clamps_below_eight_to_eight() {
-        let bad = SectionLengths { intro: 3, build: 0, breakdown: 7, drop1: 8, drop2: 8, fadedown: 8, outro: 8 };
+        let bad = SectionLengths {
+            intro: 3,
+            build: 0,
+            breakdown: 7,
+            drop1: 8,
+            drop2: 8,
+            fadedown: 8,
+            outro: 8,
+        };
         let s = bad.sanitize();
         assert_eq!(s.intro, 8);
         assert_eq!(s.build, 8);
@@ -1304,7 +1732,15 @@ mod tests {
     #[test]
     fn sanitize_snaps_to_eight_bar_multiple_floor() {
         // 15 → 8, 17 → 16, 33 → 32.
-        let bad = SectionLengths { intro: 15, build: 17, breakdown: 33, drop1: 8, drop2: 8, fadedown: 8, outro: 8 };
+        let bad = SectionLengths {
+            intro: 15,
+            build: 17,
+            breakdown: 33,
+            drop1: 8,
+            drop2: 8,
+            fadedown: 8,
+            outro: 8,
+        };
         let s = bad.sanitize();
         assert_eq!(s.intro, 8);
         assert_eq!(s.build, 16);
@@ -1319,14 +1755,30 @@ mod tests {
 
     #[test]
     fn sanitize_all_zeros_becomes_all_eights() {
-        let zeros = SectionLengths { intro: 0, build: 0, breakdown: 0, drop1: 0, drop2: 0, fadedown: 0, outro: 0 };
+        let zeros = SectionLengths {
+            intro: 0,
+            build: 0,
+            breakdown: 0,
+            drop1: 0,
+            drop2: 0,
+            fadedown: 0,
+            outro: 0,
+        };
         let s = zeros.sanitize();
         assert_eq!(s.total_bars(), 8 * 7);
     }
 
     #[test]
     fn sanitize_large_values_snap_down() {
-        let huge = SectionLengths { intro: 1000, build: 1001, breakdown: 1007, drop1: 1008, drop2: 1009, fadedown: 100, outro: 100 };
+        let huge = SectionLengths {
+            intro: 1000,
+            build: 1001,
+            breakdown: 1007,
+            drop1: 1008,
+            drop2: 1009,
+            fadedown: 100,
+            outro: 100,
+        };
         let s = huge.sanitize();
         // 1000/8 = 125; 125*8 = 1000. 1001/8 = 125; 125*8 = 1000. 1008/8 = 126; 126*8 = 1008.
         assert_eq!(s.intro, 1000);

@@ -186,9 +186,10 @@ fn read_plist_info(plugin_path: &Path) -> (Option<String>, Option<String>, Optio
         && let Some(copyright) = dict
             .get("NSHumanReadableCopyright")
             .and_then(|v| v.as_string())
-            && let Some(m) = crate::kvr::URL_RE.find(copyright) {
-                manufacturer_url = Some(m.as_str().to_string());
-            }
+        && let Some(m) = crate::kvr::URL_RE.find(copyright)
+    {
+        manufacturer_url = Some(m.as_str().to_string());
+    }
 
     (version, manufacturer, manufacturer_url)
 }
@@ -426,9 +427,10 @@ pub fn discover_plugins(
     for dir in directories {
         let root = Path::new(dir);
         if let Some(inc) = incremental
-            && inc.should_skip(root) {
-                continue;
-            }
+            && inc.should_skip(root)
+        {
+            continue;
+        }
         if let Ok(entries) = fs::read_dir(root) {
             for entry in entries.flatten() {
                 let path = entry.path();

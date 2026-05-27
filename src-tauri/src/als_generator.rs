@@ -4,9 +4,9 @@
 //! Uses an embedded reference template from Live 12.3.7 for guaranteed compatibility.
 //! Uses samples from the indexed library to create full arrangements.
 
+use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use flate2::Compression;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -22,7 +22,9 @@ fn xml_escape(s: &str) -> String {
 }
 
 /// Public wrapper for xml_escape (used by trance_generator).
-pub fn xml_escape_pub(s: &str) -> String { xml_escape(s) }
+pub fn xml_escape_pub(s: &str) -> String {
+    xml_escape(s)
+}
 
 /// Embedded empty project template (gzipped) from Ableton Live 12.3.7
 /// This is a valid minimal project that Ableton will open without errors.
@@ -106,10 +108,7 @@ impl AbletonVersion {
                 format!("{major}.0_{schema}"),
             )
         } else {
-            (
-                "Ableton Live 11.0".to_string(),
-                "11.0_433".to_string(),
-            )
+            ("Ableton Live 11.0".to_string(), "11.0_433".to_string())
         };
 
         Some(Self {
@@ -146,10 +145,16 @@ pub struct IdAllocatorPub {
 
 impl IdAllocatorPub {
     pub fn new(start: u64) -> Self {
-        Self { inner: IdAllocator::new(start) }
+        Self {
+            inner: IdAllocator::new(start),
+        }
     }
-    pub fn next(&mut self) -> u64 { self.inner.next() }
-    pub fn max_val(&self) -> u64 { self.inner.next_id }
+    pub fn next(&mut self) -> u64 {
+        self.inner.next()
+    }
+    pub fn max_val(&self) -> u64 {
+        self.inner.next_id
+    }
 }
 
 /// Public wrapper for generate_audio_clip.
@@ -186,7 +191,7 @@ pub struct TrackInfo {
 
 impl SampleInfo {
     /// Calculate the loop length in bars based on the sample's actual duration and BPM.
-    /// 
+    ///
     /// Uses the sample's original BPM to determine how many bars the sample represents.
     /// Quantizes to standard loop lengths: 1, 2, 4, 8, 16, 32.
     fn loop_bars(&self, project_bpm: f64) -> u32 {
@@ -196,14 +201,23 @@ impl SampleInfo {
         } else {
             self.duration_secs
         };
-        if sample_bpm <= 0.0 { return 4; }
+        if sample_bpm <= 0.0 {
+            return 4;
+        }
         let bars = (duration * sample_bpm) / (60.0 * 4.0);
-        if bars <= 1.5 { 1 }
-        else if bars <= 3.0 { 2 }
-        else if bars <= 6.0 { 4 }
-        else if bars <= 12.0 { 8 }
-        else if bars <= 24.0 { 16 }
-        else { 32 }
+        if bars <= 1.5 {
+            1
+        } else if bars <= 3.0 {
+            2
+        } else if bars <= 6.0 {
+            4
+        } else if bars <= 12.0 {
+            8
+        } else if bars <= 24.0 {
+            16
+        } else {
+            32
+        }
     }
 }
 
@@ -393,11 +407,7 @@ impl TechnoConfig {
 }
 
 /// Generate an Ableton Live Set file
-pub fn generate_als(
-    output_path: &Path,
-    tracks: &[TrackInfo],
-    bpm: f64,
-) -> Result<(), String> {
+pub fn generate_als(output_path: &Path, tracks: &[TrackInfo], bpm: f64) -> Result<(), String> {
     generate_als_with_version(output_path, tracks, bpm, &AbletonVersion::detect())
 }
 
@@ -578,8 +588,7 @@ pub fn generate_als_with_version(
     );
 
     // Compress with gzip
-    let file = File::create(output_path)
-        .map_err(|e| format!("Failed to create file: {}", e))?;
+    let file = File::create(output_path).map_err(|e| format!("Failed to create file: {}", e))?;
     let mut encoder = GzEncoder::new(file, Compression::default());
     encoder
         .write_all(xml.as_bytes())
@@ -1369,12 +1378,14 @@ fn generate_midi_track_inner(
     // Set name
     let name_re = regex::Regex::new(r#"<EffectiveName Value="[^"]*" />"#).unwrap();
     t = name_re
-        .replace(&t, format!(r#"<EffectiveName Value="{}" />"#, xml_escape(&track.name)))
+        .replace(
+            &t,
+            format!(r#"<EffectiveName Value="{}" />"#, xml_escape(&track.name)),
+        )
         .to_string();
-    let username_re = regex::Regex::new(
-        r#"(<EffectiveName Value="[^"]*" />\s*<UserName Value=")[^"]*(" />)"#,
-    )
-    .unwrap();
+    let username_re =
+        regex::Regex::new(r#"(<EffectiveName Value="[^"]*" />\s*<UserName Value=")[^"]*(" />)"#)
+            .unwrap();
     t = username_re
         .replace(&t, format!(r#"${{1}}{}${{2}}"#, xml_escape(&track.name)))
         .to_string();
@@ -1413,10 +1424,12 @@ fn generate_midi_track_inner(
 
     // Also clear the session clip slot (the "pd" clip in slot 0)
     // Replace the ClipSlot's MidiClip with empty Value
-    let clip_slot_re = regex::Regex::new(
-        r#"(?s)<ClipSlot>\s*<Value>\s*<MidiClip.*?</MidiClip>\s*</Value>"#
-    ).unwrap();
-    t = clip_slot_re.replace(&t, "<ClipSlot>\n\t\t\t\t\t\t\t\t\t<Value />").to_string();
+    let clip_slot_re =
+        regex::Regex::new(r#"(?s)<ClipSlot>\s*<Value>\s*<MidiClip.*?</MidiClip>\s*</Value>"#)
+            .unwrap();
+    t = clip_slot_re
+        .replace(&t, "<ClipSlot>\n\t\t\t\t\t\t\t\t\t<Value />")
+        .to_string();
 
     t
 }
@@ -1978,7 +1991,6 @@ pub fn generate_techno_als(
     generate_als(output_path, &tracks, bpm)
 }
 
-
 /// Generate an empty Ableton project using the embedded template.
 /// This is guaranteed to open in Ableton Live 12.x without errors.
 pub fn generate_empty_als(output_path: &Path) -> Result<(), String> {
@@ -1990,8 +2002,7 @@ pub fn generate_empty_als(output_path: &Path) -> Result<(), String> {
         .map_err(|e| format!("Failed to decompress template: {}", e))?;
 
     // Re-compress and write to output
-    let file = File::create(output_path)
-        .map_err(|e| format!("Failed to create file: {}", e))?;
+    let file = File::create(output_path).map_err(|e| format!("Failed to create file: {}", e))?;
     let mut encoder = GzEncoder::new(file, Compression::default());
     encoder
         .write_all(xml.as_bytes())
@@ -2020,7 +2031,10 @@ pub fn generate_als_from_template(
     }
     impl Ids {
         fn new(start: u32) -> Self {
-            Self { next_id: AtomicU32::new(start), used: std::sync::Mutex::new(HashSet::new()) }
+            Self {
+                next_id: AtomicU32::new(start),
+                used: std::sync::Mutex::new(HashSet::new()),
+            }
         }
         fn alloc(&self) -> u32 {
             loop {
@@ -2047,7 +2061,9 @@ pub fn generate_als_from_template(
     let file = File::open(output_path).map_err(|e| format!("Failed to open template: {}", e))?;
     let mut decoder = GzDecoder::new(file);
     let mut xml = String::new();
-    decoder.read_to_string(&mut xml).map_err(|e| format!("Failed to decompress: {}", e))?;
+    decoder
+        .read_to_string(&mut xml)
+        .map_err(|e| format!("Failed to decompress: {}", e))?;
 
     let ids = Ids::new(1_000_000);
 
@@ -2061,13 +2077,17 @@ pub fn generate_als_from_template(
 
     // Step 3: Extract the audio track template from the valid ALS
     let track_start = xml.find("<AudioTrack").ok_or("No AudioTrack in template")?;
-    let track_end = xml.find("</AudioTrack>").ok_or("No AudioTrack end in template")? + "</AudioTrack>".len();
+    let track_end = xml
+        .find("</AudioTrack>")
+        .ok_or("No AudioTrack end in template")?
+        + "</AudioTrack>".len();
     let audio_track_template = xml[track_start..track_end].to_string();
 
     // Step 4: Create tracks by cloning the template
     let mut all_tracks_xml = Vec::new();
     let name_re = Regex::new(r#"<EffectiveName Value="[^"]*" />"#).unwrap();
-    let username_re = Regex::new(r#"(<EffectiveName Value="[^"]*" />\s*<UserName Value=")[^"]*(" />)"#).unwrap();
+    let username_re =
+        Regex::new(r#"(<EffectiveName Value="[^"]*" />\s*<UserName Value=")[^"]*(" />)"#).unwrap();
     let color_re = Regex::new(r#"<Color Value="\d+" />"#).unwrap();
     for track in tracks {
         let mut t = audio_track_template.clone();
@@ -2084,11 +2104,20 @@ pub fn generate_als_from_template(
         }
 
         // Set name
-        t = name_re.replace(&t, format!(r#"<EffectiveName Value="{}" />"#, xml_escape(&track.name))).to_string();
-        t = username_re.replace(&t, format!(r#"${{1}}{}${{2}}"#, xml_escape(&track.name))).to_string();
+        t = name_re
+            .replace(
+                &t,
+                format!(r#"<EffectiveName Value="{}" />"#, xml_escape(&track.name)),
+            )
+            .to_string();
+        t = username_re
+            .replace(&t, format!(r#"${{1}}{}${{2}}"#, xml_escape(&track.name)))
+            .to_string();
 
         // Set color
-        t = color_re.replace_all(&t, format!(r#"<Color Value="{}" />"#, track.color)).to_string();
+        t = color_re
+            .replace_all(&t, format!(r#"<Color Value="{}" />"#, track.color))
+            .to_string();
 
         // Create clips
         let mut clips_xml = Vec::new();
@@ -2099,7 +2128,11 @@ pub fn generate_als_from_template(
             let end_beat = clip.start_beat + clip.duration_beats;
             let loop_bars = sample.loop_bars(bpm);
             let loop_beats = (loop_bars as f64) * 4.0;
-            let loop_beats = if clip.duration_beats < loop_beats { clip.duration_beats } else { loop_beats };
+            let loop_beats = if clip.duration_beats < loop_beats {
+                clip.duration_beats
+            } else {
+                loop_beats
+            };
             // WarpMarker SecTime should use the sample's actual BPM if known,
             // otherwise fall back to actual duration to avoid incorrect stretching
             let warp_sec = if let Some(sample_bpm) = sample.bpm.filter(|&b| b > 0.0) {
@@ -2272,7 +2305,10 @@ pub fn generate_als_from_template(
         let clips_joined = clips_xml.join("\n");
         t = t.replacen(
             "<Events />",
-            &format!("<Events>\n{}\n\t\t\t\t\t\t\t\t\t\t\t\t\t</Events>", clips_joined),
+            &format!(
+                "<Events>\n{}\n\t\t\t\t\t\t\t\t\t\t\t\t\t</Events>",
+                clips_joined
+            ),
             1,
         );
 
@@ -2288,22 +2324,44 @@ pub fn generate_als_from_template(
     // Update NextPointeeId
     let next_id = ids.max_id() + 1000;
     let next_id_re = Regex::new(r#"<NextPointeeId Value="\d+" />"#).unwrap();
-    xml = next_id_re.replace(&xml, format!(r#"<NextPointeeId Value="{}" />"#, next_id)).to_string();
+    xml = next_id_re
+        .replace(&xml, format!(r#"<NextPointeeId Value="{}" />"#, next_id))
+        .to_string();
 
     // Set tempo
-    let tempo_re = Regex::new(r#"<Tempo>\s*<LomId Value="0" />\s*<Manual Value="[^"]+" />"#).unwrap();
-    xml = tempo_re.replace(&xml, format!(r#"<Tempo>
+    let tempo_re =
+        Regex::new(r#"<Tempo>\s*<LomId Value="0" />\s*<Manual Value="[^"]+" />"#).unwrap();
+    xml = tempo_re
+        .replace(
+            &xml,
+            format!(
+                r#"<Tempo>
 							<LomId Value="0" />
-							<Manual Value="{}" />"#, bpm)).to_string();
+							<Manual Value="{}" />"#,
+                bpm
+            ),
+        )
+        .to_string();
 
-    let tempo_event_re = Regex::new(r#"<FloatEvent Id="\d+" Time="-63072000" Value="[^"]+" />"#).unwrap();
-    xml = tempo_event_re.replace(&xml, format!(r#"<FloatEvent Id="0" Time="-63072000" Value="{}" />"#, bpm)).to_string();
+    let tempo_event_re =
+        Regex::new(r#"<FloatEvent Id="\d+" Time="-63072000" Value="[^"]+" />"#).unwrap();
+    xml = tempo_event_re
+        .replace(
+            &xml,
+            format!(r#"<FloatEvent Id="0" Time="-63072000" Value="{}" />"#, bpm),
+        )
+        .to_string();
 
     // Step 6: Write compressed output
-    let output_file = File::create(output_path).map_err(|e| format!("Failed to create file: {}", e))?;
+    let output_file =
+        File::create(output_path).map_err(|e| format!("Failed to create file: {}", e))?;
     let mut encoder = GzEncoder::new(output_file, Compression::default());
-    encoder.write_all(xml.as_bytes()).map_err(|e| format!("Failed to write: {}", e))?;
-    encoder.finish().map_err(|e| format!("Failed to compress: {}", e))?;
+    encoder
+        .write_all(xml.as_bytes())
+        .map_err(|e| format!("Failed to write: {}", e))?;
+    encoder
+        .finish()
+        .map_err(|e| format!("Failed to compress: {}", e))?;
 
     Ok(())
 }
@@ -2318,23 +2376,32 @@ pub fn generate_empty_als_with_bpm(output_path: &Path, bpm: f64) -> Result<(), S
         .map_err(|e| format!("Failed to decompress template: {}", e))?;
 
     // Replace the tempo in the Tempo section (regex to handle any default BPM)
-    let tempo_re = regex::Regex::new(
-        r#"(?s)<Tempo>\s*<LomId Value="0" />\s*<Manual Value="[^"]*" />"#
-    ).unwrap();
-    let xml = tempo_re.replace(&xml, format!(
-        r#"<Tempo>
+    let tempo_re =
+        regex::Regex::new(r#"(?s)<Tempo>\s*<LomId Value="0" />\s*<Manual Value="[^"]*" />"#)
+            .unwrap();
+    let xml = tempo_re
+        .replace(
+            &xml,
+            format!(
+                r#"<Tempo>
 						<LomId Value="0" />
-						<Manual Value="{}" />"#, bpm
-    )).to_string();
+						<Manual Value="{}" />"#,
+                bpm
+            ),
+        )
+        .to_string();
     // Also set PhaseNudgeTempo and SessionTempo
     let pnt_re = regex::Regex::new(r#"<PhaseNudgeTempo Value="[^"]+" />"#).unwrap();
-    let xml = pnt_re.replace_all(&xml, format!(r#"<PhaseNudgeTempo Value="{}" />"#, bpm)).to_string();
+    let xml = pnt_re
+        .replace_all(&xml, format!(r#"<PhaseNudgeTempo Value="{}" />"#, bpm))
+        .to_string();
     let st_re = regex::Regex::new(r#"<SessionTempo Value="[^"]+" />"#).unwrap();
-    let xml = st_re.replace_all(&xml, format!(r#"<SessionTempo Value="{}" />"#, bpm)).to_string();
+    let xml = st_re
+        .replace_all(&xml, format!(r#"<SessionTempo Value="{}" />"#, bpm))
+        .to_string();
 
     // Re-compress and write to output
-    let file = File::create(output_path)
-        .map_err(|e| format!("Failed to create file: {}", e))?;
+    let file = File::create(output_path).map_err(|e| format!("Failed to create file: {}", e))?;
     let mut encoder = GzEncoder::new(file, Compression::default());
     encoder
         .write_all(xml.as_bytes())
@@ -2349,9 +2416,9 @@ pub fn generate_empty_als_with_bpm(output_path: &Path, bpm: f64) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use flate2::read::GzDecoder;
     use std::fs;
     use std::io::Read;
-    use flate2::read::GzDecoder;
 
     #[test]
     fn test_ableton_version_default() {
@@ -2374,7 +2441,10 @@ mod tests {
         assert_eq!(xml_escape("single '"), "single &apos;");
         assert_eq!(xml_escape("tag <br>"), "tag &lt;br&gt;");
         assert_eq!(xml_escape("multiple &&"), "multiple &amp;&amp;");
-        assert_eq!(xml_escape("mixed <\"&'>"), "mixed &lt;&quot;&amp;&apos;&gt;");
+        assert_eq!(
+            xml_escape("mixed <\"&'>"),
+            "mixed &lt;&quot;&amp;&apos;&gt;"
+        );
     }
 
     #[test]
@@ -2391,7 +2461,7 @@ mod tests {
         assert_eq!(v.major, 12);
         assert_eq!(v.minor, 3);
         assert_eq!(v.patch, 7);
-        
+
         let v2 = AbletonVersion::parse_version_string("11.0.12").unwrap();
         assert_eq!(v2.major, 11);
         assert_eq!(v2.minor, 0);
@@ -2401,7 +2471,7 @@ mod tests {
         assert_eq!(v3.major, 12);
         assert_eq!(v3.minor, 1);
         assert_eq!(v3.patch, 0);
-        
+
         assert!(AbletonVersion::parse_version_string("invalid").is_none());
         assert!(AbletonVersion::parse_version_string("").is_none());
     }
@@ -2412,12 +2482,12 @@ mod tests {
         let v = AbletonVersion::parse_version_string("11").unwrap();
         assert_eq!(v.major, 11);
         assert_eq!(v.minor, 0);
-        
+
         // Live 10 style
         let v2 = AbletonVersion::parse_version_string("10.1.42").unwrap();
         assert_eq!(v2.major, 10);
         assert_eq!(v2.patch, 42);
-        
+
         // Leading/trailing whitespace
         let v3 = AbletonVersion::parse_version_string("  12.0.1  ").unwrap();
         assert_eq!(v3.major, 12);
@@ -2462,7 +2532,7 @@ mod tests {
         let mut sample4 = sample.clone();
         sample4.duration_secs = 16.0;
         assert_eq!(sample4.loop_bars(120.0), 8);
-        
+
         // Very short sample
         let mut sample_short = sample.clone();
         sample_short.duration_secs = 0.1;
@@ -2472,7 +2542,7 @@ mod tests {
         let mut sample_long = sample.clone();
         sample_long.duration_secs = 120.0;
         assert_eq!(sample_long.loop_bars(120.0), 32);
-        
+
         // No BPM provided, use project BPM
         let mut sample_no_bpm = sample.clone();
         sample_no_bpm.bpm = None;
@@ -2535,7 +2605,11 @@ mod tests {
         // Buildup: bars 16-32 (beats 64-128)
         // Kick on every beat
         for b in 64..128 {
-            assert!(kick_clips.iter().any(|c| c.start_beat == b as f64), "Missing buildup kick at beat {}", b);
+            assert!(
+                kick_clips.iter().any(|c| c.start_beat == b as f64),
+                "Missing buildup kick at beat {}",
+                b
+            );
         }
         // Clap on 2 and 4 (beats 65, 67, 69, 71...)
         assert!(clap_clips.iter().any(|c| c.start_beat == 65.0));
@@ -2550,7 +2624,11 @@ mod tests {
 
         // Breakdown: bars 64-80 (beats 256-320)
         // No kick
-        assert!(!kick_clips.iter().any(|c| c.start_beat >= 256.0 && c.start_beat < 320.0));
+        assert!(
+            !kick_clips
+                .iter()
+                .any(|c| c.start_beat >= 256.0 && c.start_beat < 320.0)
+        );
         // Sparse clap at end of 4-bar phrases (bar 67, 71, 75, 79)
         // Bar 67 is beats 268-272. Sparse clap on beat 3 of the bar = beat 271.
         assert!(clap_clips.iter().any(|c| c.start_beat == 271.0));
@@ -2567,9 +2645,11 @@ mod tests {
         let file = File::open(&output).unwrap();
         let mut decoder = GzDecoder::new(file);
         let mut xml = String::new();
-        decoder.read_to_string(&mut xml).expect("Failed to decompress");
+        decoder
+            .read_to_string(&mut xml)
+            .expect("Failed to decompress");
         assert!(xml.contains("<Ableton"));
-        
+
         fs::remove_file(output).ok();
     }
 
@@ -2583,10 +2663,10 @@ mod tests {
         let mut decoder = GzDecoder::new(file);
         let mut xml = String::new();
         decoder.read_to_string(&mut xml).unwrap();
-        
+
         assert!(xml.contains("145"));
         assert!(xml.contains("<Tempo"));
-        
+
         fs::remove_file(output).ok();
     }
 
@@ -2667,14 +2747,14 @@ mod tests {
 
         let metadata = fs::metadata(&output).unwrap();
         assert!(metadata.len() > 0, "Output file is empty");
-        
+
         fs::remove_file(output).ok();
     }
 
     #[test]
     fn test_generate_techno_als() {
         let output = std::env::temp_dir().join("techno_test.als");
-        
+
         // Use mock paths - the generator doesn't check if they exist during generation
         // as it only embeds them in the XML.
         let result = generate_techno_als(
@@ -2682,20 +2762,20 @@ mod tests {
             "mock_kick.wav",
             "mock_clap.wav",
             "mock_hat.wav",
-            128.0
+            128.0,
         );
-        
+
         assert!(result.is_ok());
         assert!(output.exists());
-        
+
         let file = File::open(&output).unwrap();
         let mut decoder = GzDecoder::new(file);
         let mut xml = String::new();
         decoder.read_to_string(&mut xml).unwrap();
-        
+
         assert!(xml.contains("mock_kick.wav"));
         assert!(xml.contains("128"));
-        
+
         fs::remove_file(output).ok();
     }
 }

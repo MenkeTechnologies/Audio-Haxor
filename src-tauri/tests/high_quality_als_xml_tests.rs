@@ -1,4 +1,4 @@
-use app_lib::als_generator::{generate_audio_clip_pub, ClipPlacement, SampleInfo, IdAllocatorPub};
+use app_lib::als_generator::{ClipPlacement, IdAllocatorPub, SampleInfo, generate_audio_clip_pub};
 
 #[test]
 fn test_audio_clip_xml_generation_basic() {
@@ -18,11 +18,17 @@ fn test_audio_clip_xml_generation_basic() {
     };
 
     let xml = generate_audio_clip_pub(&clip, &mut ids);
-    
+
     // Check key elements based on actual implementation
     assert!(xml.contains("<AudioClip"), "Should contain AudioClip tag");
-    assert!(xml.contains("<Name Value=\"Kick 01\" />"), "Should contain correct clip name in Value attribute");
-    assert!(xml.contains("Id=\"100\""), "Should use the first allocated ID");
+    assert!(
+        xml.contains("<Name Value=\"Kick 01\" />"),
+        "Should contain correct clip name in Value attribute"
+    );
+    assert!(
+        xml.contains("Id=\"100\""),
+        "Should use the first allocated ID"
+    );
 }
 
 #[test]
@@ -43,8 +49,14 @@ fn test_audio_clip_xml_escaping() {
     };
 
     let xml = generate_audio_clip_pub(&clip, &mut ids);
-    
+
     // Escaped entities should be present in Value attributes
-    assert!(xml.contains("<Name Value=\"Clip &amp; Tag\" />"), "Clip name should be escaped");
-    assert!(xml.contains("Value=\"/Samples/A &amp; B &lt; C &gt; D.wav\""), "Path should be escaped in the XML");
+    assert!(
+        xml.contains("<Name Value=\"Clip &amp; Tag\" />"),
+        "Clip name should be escaped"
+    );
+    assert!(
+        xml.contains("Value=\"/Samples/A &amp; B &lt; C &gt; D.wav\""),
+        "Path should be escaped in the XML"
+    );
 }

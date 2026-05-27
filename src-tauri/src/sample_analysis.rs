@@ -47,7 +47,7 @@ static BPM_RE: LazyLock<Regex> = LazyLock::new(|| {
 pub fn extract_bpm(name: &str) -> Option<u32> {
     let name_lower = name.to_ascii_lowercase();
     let has_loop_context = name_lower.contains("loop");
-    
+
     let mut best: Option<(u32, u8)> = None; // (bpm, priority) — lower priority wins
 
     for caps in BPM_RE.captures_iter(name) {
@@ -61,32 +61,35 @@ pub fn extract_bpm(name: &str) -> Option<u32> {
             // like "Clap_140.wav" where 140 is a variant number
             let match_end = caps.get(0).map(|m| m.end()).unwrap_or(0);
             let after_match = &name[match_end..];
-            
+
             // Check for context that indicates this is actually BPM:
             // 1. Filename contains "loop"
             // 2. Number is followed by a key indicator (A-G, with optional # or b)
             // 3. Number is at start and followed by key (e.g., "120_C_HousyBass")
-            let has_key_after = after_match.chars().next()
+            let has_key_after = after_match
+                .chars()
+                .next()
                 .map(|c| c.is_ascii_alphabetic() && "ABCDEFG".contains(c.to_ascii_uppercase()))
                 .unwrap_or(false);
-            
+
             if !has_loop_context && !has_key_after {
                 continue; // Skip this match - likely a variant number
             }
-            
+
             (m.as_str(), 2) // delimiter "_138_"
         } else {
             continue;
         };
 
         if let Ok(bpm) = val_str.parse::<u32>()
-            && (80..=180).contains(&bpm) {
-                match best {
-                    Some((_, p)) if priority < p => best = Some((bpm, priority)),
-                    None => best = Some((bpm, priority)),
-                    _ => {}
-                }
+            && (80..=180).contains(&bpm)
+        {
+            match best {
+                Some((_, p)) if priority < p => best = Some((bpm, priority)),
+                None => best = Some((bpm, priority)),
+                _ => {}
             }
+        }
     }
 
     best.map(|(bpm, _)| bpm)
@@ -129,12 +132,8 @@ static MAJOR_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// Regex for bare note names delimited by underscores, spaces, dashes, or brackets.
 /// These default to MINOR in electronic music.
 /// Must NOT match inside words like "Crash", "Drive", "Bass", "Fade", "Gold", etc.
-static BARE_NOTE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?:^|[_\s\-\[(/])([A-G][#b]?)(?:[_\s\-\])/.,]|$)",
-    )
-    .unwrap()
-});
+static BARE_NOTE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:^|[_\s\-\[(/])([A-G][#b]?)(?:[_\s\-\])/.,]|$)").unwrap());
 
 /// Normalize a note name: resolve flats to sharps, validate against NOTES.
 fn normalize_note(raw: &str) -> Option<&'static str> {
@@ -165,12 +164,10 @@ fn normalize_note(raw: &str) -> Option<&'static str> {
 }
 
 /// Static regexes for sharp/flat word normalization - compiled once
-static SHARP_WORD_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)([A-G])[ _\-]?sharp").unwrap()
-});
-static FLAT_WORD_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)([A-G])[ _\-]?flat").unwrap()
-});
+static SHARP_WORD_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)([A-G])[ _\-]?sharp").unwrap());
+static FLAT_WORD_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)([A-G])[ _\-]?flat").unwrap());
 
 /// Normalize "G Sharp" → "G#", "B Flat" → "Bb", etc. before regex matching.
 /// This allows standard regexes to handle word-form accidentals.
@@ -194,18 +191,20 @@ fn normalize_sharp_flat_words(name: &str) -> String {
 pub fn extract_key(name: &str) -> Option<String> {
     // Preprocess: convert "G Sharp" → "G#", "B Flat" → "Bb"
     let normalized_name = normalize_sharp_flat_words(name);
-    
+
     // 1. Try explicit minor
     if let Some(caps) = MINOR_RE.captures(&normalized_name)
-        && let Some(note) = normalize_note(caps.get(1)?.as_str()) {
-            return Some(format!("{} Minor", note));
-        }
+        && let Some(note) = normalize_note(caps.get(1)?.as_str())
+    {
+        return Some(format!("{} Minor", note));
+    }
 
     // 2. Try explicit major
     if let Some(caps) = MAJOR_RE.captures(&normalized_name)
-        && let Some(note) = normalize_note(caps.get(1)?.as_str()) {
-            return Some(format!("{} Major", note));
-        }
+        && let Some(note) = normalize_note(caps.get(1)?.as_str())
+    {
+        return Some(format!("{} Major", note));
+    }
 
     // 3. Bare note → minor
     if let Some(caps) = BARE_NOTE_RE.captures(&normalized_name) {
@@ -255,8 +254,9 @@ pub fn short_key_to_db(short: &str) -> String {
 /// Regex to strip minor key indicators, capturing surrounding delimiters
 static STRIP_MINOR_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?i)([_\s\-\[(/])[A-G][#b]?(?:m(?:in(?:or)?)?|[_\-\s]min(?:or)?)(?:\d+)?([_\s\-\])/.,])"
-    ).unwrap()
+        r"(?i)([_\s\-\[(/])[A-G][#b]?(?:m(?:in(?:or)?)?|[_\-\s]min(?:or)?)(?:\d+)?([_\s\-\])/.,])",
+    )
+    .unwrap()
 });
 
 /// Regex to strip major key indicators, capturing surrounding delimiters
@@ -267,25 +267,16 @@ static STRIP_MAJOR_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// Regex to strip bare note at end of filename before extension: Loop-121-C.wav → Loop-121-.wav
-static STRIP_BARE_NOTE_END_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"([_\s\-\[(/])[A-G][#b]?(\.[^.]+$)"
-    ).unwrap()
-});
+static STRIP_BARE_NOTE_END_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"([_\s\-\[(/])[A-G][#b]?(\.[^.]+$)").unwrap());
 
 /// Regex to strip bare note followed by variant: _C-02 → _-02
-static STRIP_BARE_NOTE_VARIANT_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"([_\s\[(/])[A-G][#b]?(\-\d)"
-    ).unwrap()
-});
+static STRIP_BARE_NOTE_VARIANT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"([_\s\[(/])[A-G][#b]?(\-\d)").unwrap());
 
 /// Regex to strip bare note names between delimiters: _A_, [C#], -F#-
-static STRIP_BARE_NOTE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"([_\s\-\[(/])[A-G][#b]?([_\s\-\])/.,])"
-    ).unwrap()
-});
+static STRIP_BARE_NOTE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"([_\s\-\[(/])[A-G][#b]?([_\s\-\])/.,])").unwrap());
 
 /// Strip key indicators from a sample path to create a key-agnostic identifier.
 /// This allows blacklisting samples regardless of their key variant.
@@ -299,7 +290,7 @@ static STRIP_BARE_NOTE_RE: LazyLock<Regex> = LazyLock::new(|| {
 pub fn strip_key_from_path(path: &str) -> String {
     // Normalize sharp/flat words first: "G Sharp" → "G#"
     let normalized = normalize_sharp_flat_words(path);
-    
+
     // Strip keys in order of specificity
     let result = STRIP_MINOR_RE.replace_all(&normalized, "$1$2");
     let result = STRIP_MAJOR_RE.replace_all(&result, "$1$2");
@@ -309,7 +300,7 @@ pub fn strip_key_from_path(path: &str) -> String {
     let result = STRIP_BARE_NOTE_VARIANT_RE.replace_all(&result, "$1$2");
     // Handle note between delimiters: _A_
     let result = STRIP_BARE_NOTE_RE.replace_all(&result, "$1$2");
-    
+
     result.into_owned()
 }
 
@@ -340,87 +331,467 @@ pub static CATEGORY_PATTERNS: &[(&str, &str, Option<&str>, bool, bool, bool)] = 
     // (name, regex_pattern, parent, is_oneshot, is_key_sensitive, is_loop_preferred)
 
     // === DRUMS (specific first) ===
-    ("kick",        r"(?i)(?:^|[\s_\-./])(?:kicks?|kik|bd|kck)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
+    (
+        "kick",
+        r"(?i)(?:^|[\s_\-./])(?:kicks?|kik|bd|kck)(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
     // Snare before clap so "snare.wav" doesn't get captured by the clap regex.
-    ("snare",       r"(?i)(?:^|[\s_\-./])(?:snares?|snr|sd)(?:[\s_\-./]|$)|rimshot|rim[\s_]*shot", Some("drums"), false, false, true),
-    ("clap",        r"(?i)(?:^|[\s_\-./])(?:claps?|clp|cp)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("closed_hat",  r"(?i)closed.?hats?|closed.?hh|(?:^|[\s_\-./])chh(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("open_hat",    r"(?i)open.?hats?|open.?hh|(?:^|[\s_\-./])ohh(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("hat",         r"(?i)(?:^|[\s_\-./])(?:hats?|hh|hihats?|hi[\s_\-]hats?)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("cymbal",      r"(?i)(?:^|[\s_\-./])(?:cymbals?|cym|crash)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("tom",         r"(?i)(?:^|[\s_\-./])(?:toms?|floor[\s_\-]*toms?|rack[\s_\-]*toms?)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("ride",        r"(?i)(?:^|[\s_\-./])rides?(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("shaker",      r"(?i)(?:^|[\s_\-./])(?:shakers?|maracas?|tambourines?|tamb)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("perc",        r"(?i)(?:^|[\s_\-./])(?:percs?|congas?|bongos?|rim|woodblock|cowbell)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-    ("drum_loop",   r"(?i)(?:^|[\s_\-./])(?:drum[\s_]*loops?|full[\s_]*(?:drum|beat)[\s_]*loops?|top[\s_]*loops?|drum[\s_]*(?:tops?|beats?)|break[\s_]*beats?)(?:[\s_\-./]|$)", Some("drums"), false, false, true),
-
+    (
+        "snare",
+        r"(?i)(?:^|[\s_\-./])(?:snares?|snr|sd)(?:[\s_\-./]|$)|rimshot|rim[\s_]*shot",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "clap",
+        r"(?i)(?:^|[\s_\-./])(?:claps?|clp|cp)(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "closed_hat",
+        r"(?i)closed.?hats?|closed.?hh|(?:^|[\s_\-./])chh(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "open_hat",
+        r"(?i)open.?hats?|open.?hh|(?:^|[\s_\-./])ohh(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "hat",
+        r"(?i)(?:^|[\s_\-./])(?:hats?|hh|hihats?|hi[\s_\-]hats?)(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "cymbal",
+        r"(?i)(?:^|[\s_\-./])(?:cymbals?|cym|crash)(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "tom",
+        r"(?i)(?:^|[\s_\-./])(?:toms?|floor[\s_\-]*toms?|rack[\s_\-]*toms?)(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "ride",
+        r"(?i)(?:^|[\s_\-./])rides?(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "shaker",
+        r"(?i)(?:^|[\s_\-./])(?:shakers?|maracas?|tambourines?|tamb)(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "perc",
+        r"(?i)(?:^|[\s_\-./])(?:percs?|congas?|bongos?|rim|woodblock|cowbell)(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "drum_loop",
+        r"(?i)(?:^|[\s_\-./])(?:drum[\s_]*loops?|full[\s_]*(?:drum|beat)[\s_]*loops?|top[\s_]*loops?|drum[\s_]*(?:tops?|beats?)|break[\s_]*beats?)(?:[\s_\-./]|$)",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
     // === SCHRANZ-SPECIFIC ===
-    ("schranz_kick",  r"(?i)schranz.*kick|kick.*schranz|hard[\s_]*techno.*kick", Some("drums"), false, false, true),
-    ("schranz_drive", r"(?i)schranz.*drive|drive.*schranz|hard[\s_]*techno.*drive|rumble[\s_]*(?:bass|loop)|schranz.*bass", Some("bass"), false, false, true),
-    ("schranz_roll",  r"(?i)kick[\s_]*roll|roll[\s_]*kick|schranz[\s_]*roll", Some("drums"), false, false, true),
-
+    (
+        "schranz_kick",
+        r"(?i)schranz.*kick|kick.*schranz|hard[\s_]*techno.*kick",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "schranz_drive",
+        r"(?i)schranz.*drive|drive.*schranz|hard[\s_]*techno.*drive|rumble[\s_]*(?:bass|loop)|schranz.*bass",
+        Some("bass"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "schranz_roll",
+        r"(?i)kick[\s_]*roll|roll[\s_]*kick|schranz[\s_]*roll",
+        Some("drums"),
+        false,
+        false,
+        true,
+    ),
     // === BASS ===
-    ("acid_bass",   r"(?i)acid[\s_]*bass|303[\s_]*bass|303[\s_]*line|tb[\s_\-]*303|acid[\s_]*line", Some("bass"), false, true, true),
-    ("sub_bass",    r"(?i)(?:^|[\s_\-./])(?:sub|808)(?:[\s_\-./]|$)|bass[\s_]*sub|low[\s_]*end", Some("bass"), true, true, false),
-    ("mid_bass",    r"(?i)(?:^|[\s_\-./])(?:bass|reese|hoover|wobble)(?:[\s_\-./]|$)", Some("bass"), false, true, true),
-
+    (
+        "acid_bass",
+        r"(?i)acid[\s_]*bass|303[\s_]*bass|303[\s_]*line|tb[\s_\-]*303|acid[\s_]*line",
+        Some("bass"),
+        false,
+        true,
+        true,
+    ),
+    (
+        "sub_bass",
+        r"(?i)(?:^|[\s_\-./])(?:sub|808)(?:[\s_\-./]|$)|bass[\s_]*sub|low[\s_]*end",
+        Some("bass"),
+        true,
+        true,
+        false,
+    ),
+    (
+        "mid_bass",
+        r"(?i)(?:^|[\s_\-./])(?:bass|reese|hoover|wobble)(?:[\s_\-./]|$)",
+        Some("bass"),
+        false,
+        true,
+        true,
+    ),
     // === MELODIC ===
-    ("supersaw",    r"(?i)(?:^|[\s_\-./])(?:supersaws?|super[\s_]*saws?|unison[\s_]*saw|trance[\s_]*lead|anthem)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
-    ("lead",        r"(?i)(?:^|[\s_\-./])(?:leads?|riffs?)(?:[\s_\-./]|$)|(?:^|[\s_\-])ld[_\-]|synth[\s_]*lead", Some("melodic"), false, true, true),
-    ("pad",         r"(?i)(?:^|[\s_\-./])(?:pads?|strings?|chords?|evolve)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
-    ("keys",        r"(?i)(?:^|[\s_\-./])(?:keys|piano|rhodes|wurlitzer|organ|electric[\s_]*piano|epiano|e[\s_]*piano|clav(?:inet)?)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
-    ("bell",        r"(?i)(?:^|[\s_\-./])(?:bells?|glock(?:enspiel)?|celesta|chimes?|tubular[\s_]*bells?|music[\s_]*box|kalimba|thumb[\s_]*piano)(?:[\s_\-./]|$)", Some("melodic"), true, true, false),
-    ("flute",       r"(?i)(?:^|[\s_\-./])(?:flutes?|whistle|pan[\s_]*flute|piccolo|recorder|fife|ocarina)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
-    ("arp",         r"(?i)(?:^|[\s_\-./])(?:arps?|sequences?)(?:[\s_\-./]|$)|(?:^|[\s_\-])seq[_\-]", Some("melodic"), false, true, true),
-    ("pluck",       r"(?i)(?:^|[\s_\-./])(?:plucks?|pizz|picked|marimba)(?:[\s_\-./]|$)", Some("melodic"), true, true, false),
-    ("stab",        r"(?i)(?:^|[\s_\-./])(?:stabs?|brass)(?:[\s_\-./]|$)", Some("melodic"), true, true, false),
-    ("acid",        r"(?i)(?:^|[\s_\-./])(?:acid|303|squelch)(?:[\s_\-./]|$)", Some("melodic"), false, true, true),
-
+    (
+        "supersaw",
+        r"(?i)(?:^|[\s_\-./])(?:supersaws?|super[\s_]*saws?|unison[\s_]*saw|trance[\s_]*lead|anthem)(?:[\s_\-./]|$)",
+        Some("melodic"),
+        false,
+        true,
+        true,
+    ),
+    (
+        "lead",
+        r"(?i)(?:^|[\s_\-./])(?:leads?|riffs?)(?:[\s_\-./]|$)|(?:^|[\s_\-])ld[_\-]|synth[\s_]*lead",
+        Some("melodic"),
+        false,
+        true,
+        true,
+    ),
+    (
+        "pad",
+        r"(?i)(?:^|[\s_\-./])(?:pads?|strings?|chords?|evolve)(?:[\s_\-./]|$)",
+        Some("melodic"),
+        false,
+        true,
+        true,
+    ),
+    (
+        "keys",
+        r"(?i)(?:^|[\s_\-./])(?:keys|piano|rhodes|wurlitzer|organ|electric[\s_]*piano|epiano|e[\s_]*piano|clav(?:inet)?)(?:[\s_\-./]|$)",
+        Some("melodic"),
+        false,
+        true,
+        true,
+    ),
+    (
+        "bell",
+        r"(?i)(?:^|[\s_\-./])(?:bells?|glock(?:enspiel)?|celesta|chimes?|tubular[\s_]*bells?|music[\s_]*box|kalimba|thumb[\s_]*piano)(?:[\s_\-./]|$)",
+        Some("melodic"),
+        true,
+        true,
+        false,
+    ),
+    (
+        "flute",
+        r"(?i)(?:^|[\s_\-./])(?:flutes?|whistle|pan[\s_]*flute|piccolo|recorder|fife|ocarina)(?:[\s_\-./]|$)",
+        Some("melodic"),
+        false,
+        true,
+        true,
+    ),
+    (
+        "arp",
+        r"(?i)(?:^|[\s_\-./])(?:arps?|sequences?)(?:[\s_\-./]|$)|(?:^|[\s_\-])seq[_\-]",
+        Some("melodic"),
+        false,
+        true,
+        true,
+    ),
+    (
+        "pluck",
+        r"(?i)(?:^|[\s_\-./])(?:plucks?|pizz|picked|marimba)(?:[\s_\-./]|$)",
+        Some("melodic"),
+        true,
+        true,
+        false,
+    ),
+    (
+        "stab",
+        r"(?i)(?:^|[\s_\-./])(?:stabs?|brass)(?:[\s_\-./]|$)",
+        Some("melodic"),
+        true,
+        true,
+        false,
+    ),
+    (
+        "acid",
+        r"(?i)(?:^|[\s_\-./])(?:acid|303|squelch)(?:[\s_\-./]|$)",
+        Some("melodic"),
+        false,
+        true,
+        true,
+    ),
     // === ATMOS ===
-    ("atmos",       r"(?i)(?:^|[\s_\-./])(?:atmos(?:phere)?|ambient|drone|soundscape|background)(?:[\s_\-./]|$)", Some("atmos"), false, true, false),
-    ("texture",     r"(?i)(?:^|[\s_\-./])(?:texture|foley)(?:[\s_\-./]|$)|field[\s_]*rec", Some("atmos"), false, false, false),
-    ("noise",       r"(?i)(?:^|[\s_\-./])(?:noise|static|hiss|crackle)(?:[\s_\-./]|$)", Some("atmos"), false, false, false),
-    ("tape",        r"(?i)(?:^|[\s_\-./])(?:tape|vinyl|lo-?fi|cassette)(?:[\s_\-./]|$)", Some("atmos"), false, false, false),
-
+    (
+        "atmos",
+        r"(?i)(?:^|[\s_\-./])(?:atmos(?:phere)?|ambient|drone|soundscape|background)(?:[\s_\-./]|$)",
+        Some("atmos"),
+        false,
+        true,
+        false,
+    ),
+    (
+        "texture",
+        r"(?i)(?:^|[\s_\-./])(?:texture|foley)(?:[\s_\-./]|$)|field[\s_]*rec",
+        Some("atmos"),
+        false,
+        false,
+        false,
+    ),
+    (
+        "noise",
+        r"(?i)(?:^|[\s_\-./])(?:noise|static|hiss|crackle)(?:[\s_\-./]|$)",
+        Some("atmos"),
+        false,
+        false,
+        false,
+    ),
+    (
+        "tape",
+        r"(?i)(?:^|[\s_\-./])(?:tape|vinyl|lo-?fi|cassette)(?:[\s_\-./]|$)",
+        Some("atmos"),
+        false,
+        false,
+        false,
+    ),
     // === FX — Transitions ===
-    ("fx_riser",    r"(?i)(?:^|[\s_\-./])(?:riser|rise|tension|ascend)(?:[\s_\-./]|$)|sweep[\s_]*up|uplifter|build[\s_]*up", Some("fx"), false, false, false),
-    ("fx_downer",   r"(?i)(?:^|[\s_\-./])(?:downer|downlifter|descend)(?:[\s_\-./]|$)|sweep[\s_]*down|down[\s_]*sweep", Some("fx"), false, false, false),
-    ("fx_swell",    r"(?i)(?:^|[\s_\-./])(?:swell|bloom|expand)(?:[\s_\-./]|$)", Some("fx"), false, false, false),
-
+    (
+        "fx_riser",
+        r"(?i)(?:^|[\s_\-./])(?:riser|rise|tension|ascend)(?:[\s_\-./]|$)|sweep[\s_]*up|uplifter|build[\s_]*up",
+        Some("fx"),
+        false,
+        false,
+        false,
+    ),
+    (
+        "fx_downer",
+        r"(?i)(?:^|[\s_\-./])(?:downer|downlifter|descend)(?:[\s_\-./]|$)|sweep[\s_]*down|down[\s_]*sweep",
+        Some("fx"),
+        false,
+        false,
+        false,
+    ),
+    (
+        "fx_swell",
+        r"(?i)(?:^|[\s_\-./])(?:swell|bloom|expand)(?:[\s_\-./]|$)",
+        Some("fx"),
+        false,
+        false,
+        false,
+    ),
     // === FX — Impacts ===
-    ("fx_crash",    r"(?i)(?:^|[\s_\-./])(?:crash|china|splash)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
-    ("fx_impact",   r"(?i)(?:^|[\s_\-./])(?:impact|slam|boom|thud)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
-    ("fx_explosion",r"(?i)(?:^|[\s_\-./])(?:explo|burst|detonate|blast)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
-
+    (
+        "fx_crash",
+        r"(?i)(?:^|[\s_\-./])(?:crash|china|splash)(?:[\s_\-./]|$)",
+        Some("fx"),
+        true,
+        false,
+        false,
+    ),
+    (
+        "fx_impact",
+        r"(?i)(?:^|[\s_\-./])(?:impact|slam|boom|thud)(?:[\s_\-./]|$)",
+        Some("fx"),
+        true,
+        false,
+        false,
+    ),
+    (
+        "fx_explosion",
+        r"(?i)(?:^|[\s_\-./])(?:explo|burst|detonate|blast)(?:[\s_\-./]|$)",
+        Some("fx"),
+        true,
+        false,
+        false,
+    ),
     // === FX — Industrial / Schranz ===
-    ("fx_industrial", r"(?i)(?:^|[\s_\-./])(?:industrial|metallic|machine|factory|mechanical)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
-    ("fx_distortion", r"(?i)(?:^|[\s_\-./])(?:distort(?:ion|ed)?|overdrive|saturate[d]?|bitcrush|waveshape[dr]?|fuzz)(?:[\s_\-./]|$)", Some("fx"), false, false, false),
-    ("fx_feedback",   r"(?i)(?:^|[\s_\-./])(?:feedback|resonance|self[\s_]*osc|screech|squeal)(?:[\s_\-./]|$)", Some("fx"), false, false, false),
-
+    (
+        "fx_industrial",
+        r"(?i)(?:^|[\s_\-./])(?:industrial|metallic|machine|factory|mechanical)(?:[\s_\-./]|$)",
+        Some("fx"),
+        true,
+        false,
+        false,
+    ),
+    (
+        "fx_distortion",
+        r"(?i)(?:^|[\s_\-./])(?:distort(?:ion|ed)?|overdrive|saturate[d]?|bitcrush|waveshape[dr]?|fuzz)(?:[\s_\-./]|$)",
+        Some("fx"),
+        false,
+        false,
+        false,
+    ),
+    (
+        "fx_feedback",
+        r"(?i)(?:^|[\s_\-./])(?:feedback|resonance|self[\s_]*osc|screech|squeal)(?:[\s_\-./]|$)",
+        Some("fx"),
+        false,
+        false,
+        false,
+    ),
     // === FX — Rhythmic ===
-    ("fx_fill",     r"(?i)(?:^|[\s_\-./])(?:fill|buildup|pre[\s_]*drop|drop[\s_]*fill)(?:[\s_\-./]|$)|snare[\s_]*roll|drum[\s_]*break", Some("fx"), false, false, true),
-    ("fx_glitch",   r"(?i)(?:^|[\s_\-./])(?:glitch|stutter|slice|granular|buffer)(?:[\s_\-./]|$)", Some("fx"), false, false, true),
-
+    (
+        "fx_fill",
+        r"(?i)(?:^|[\s_\-./])(?:fill|buildup|pre[\s_]*drop|drop[\s_]*fill)(?:[\s_\-./]|$)|snare[\s_]*roll|drum[\s_]*break",
+        Some("fx"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "fx_glitch",
+        r"(?i)(?:^|[\s_\-./])(?:glitch|stutter|slice|granular|buffer)(?:[\s_\-./]|$)",
+        Some("fx"),
+        false,
+        false,
+        true,
+    ),
     // === FX — Tonal ===
-    ("fx_whoosh",   r"(?i)(?:^|[\s_\-./])(?:whoosh|swish|swoosh)(?:[\s_\-./]|$)", Some("fx"), true, false, false),
-    ("fx_laser",    r"(?i)(?:^|[\s_\-./])(?:laser|zap|beam|blaster)(?:[\s_\-./]|$)|sci-?fi", Some("fx"), true, false, false),
-    ("fx_reverse",  r"(?i)(?:^|[\s_\-./])(?:reverse|reversed|backwards)(?:[\s_\-./]|$)|(?:^|[\s_\-])rev[_\-]", Some("fx"), true, false, false),
-
+    (
+        "fx_whoosh",
+        r"(?i)(?:^|[\s_\-./])(?:whoosh|swish|swoosh)(?:[\s_\-./]|$)",
+        Some("fx"),
+        true,
+        false,
+        false,
+    ),
+    (
+        "fx_laser",
+        r"(?i)(?:^|[\s_\-./])(?:laser|zap|beam|blaster)(?:[\s_\-./]|$)|sci-?fi",
+        Some("fx"),
+        true,
+        false,
+        false,
+    ),
+    (
+        "fx_reverse",
+        r"(?i)(?:^|[\s_\-./])(?:reverse|reversed|backwards)(?:[\s_\-./]|$)|(?:^|[\s_\-])rev[_\-]",
+        Some("fx"),
+        true,
+        false,
+        false,
+    ),
     // === FX — Sweep / Gate ===
-    ("fx_sweep",    r"(?i)(?:^|[\s_\-./])(?:sweeps?|filter[\s_]*sweep|freq[\s_]*sweep)(?:[\s_\-./]|$)", Some("fx"), false, false, false),
-    ("fx_gate",     r"(?i)(?:^|[\s_\-./])(?:gates?|gated|trance[\s_]*gates?|side[\s_]*chain)(?:[\s_\-./]|$)", Some("fx"), false, false, true),
-
+    (
+        "fx_sweep",
+        r"(?i)(?:^|[\s_\-./])(?:sweeps?|filter[\s_]*sweep|freq[\s_]*sweep)(?:[\s_\-./]|$)",
+        Some("fx"),
+        false,
+        false,
+        false,
+    ),
+    (
+        "fx_gate",
+        r"(?i)(?:^|[\s_\-./])(?:gates?|gated|trance[\s_]*gates?|side[\s_]*chain)(?:[\s_\-./]|$)",
+        Some("fx"),
+        false,
+        false,
+        true,
+    ),
     // === FX — Misc ===
-    ("fx_sub_drop", r"(?i)sub[\s_]*drop|808[\s_]*drop|bass[\s_]*drop", Some("fx"), true, false, false),
-    ("fx_white_noise", r"(?i)white[\s_]*noise|noise[\s_]*sweep|filtered[\s_]*noise", Some("fx"), false, false, false),
-    ("fx_vocal",    r"(?i)fx[\s_]*vox|vocal[\s_]*fx|processed[\s_]*vocal", Some("fx"), false, false, true),
-    ("fx_misc",     r"(?i)(?:^|[\s_\-./])(?:fx|sfx|transition|cinematic)(?:[\s_\-./]|$)", Some("fx"), false, false, false),
-
+    (
+        "fx_sub_drop",
+        r"(?i)sub[\s_]*drop|808[\s_]*drop|bass[\s_]*drop",
+        Some("fx"),
+        true,
+        false,
+        false,
+    ),
+    (
+        "fx_white_noise",
+        r"(?i)white[\s_]*noise|noise[\s_]*sweep|filtered[\s_]*noise",
+        Some("fx"),
+        false,
+        false,
+        false,
+    ),
+    (
+        "fx_vocal",
+        r"(?i)fx[\s_]*vox|vocal[\s_]*fx|processed[\s_]*vocal",
+        Some("fx"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "fx_misc",
+        r"(?i)(?:^|[\s_\-./])(?:fx|sfx|transition|cinematic)(?:[\s_\-./]|$)",
+        Some("fx"),
+        false,
+        false,
+        false,
+    ),
     // === VOCAL ===
-    ("vocal_chop",  r"(?i)vocal[\s_]*chop|chop[\s_]*vocal|vox[\s_]*chop|(?:^|[\s_\-./])chop(?:[\s_\-./]|$)", Some("vocal"), false, false, true),
-    ("vocal_phrase", r"(?i)vocal[\s_]*phrase|(?:^|[\s_\-./])(?:phrase|spoken|speech)(?:[\s_\-./]|$)", Some("vocal"), false, true, false),
-    ("vocal_adlib", r"(?i)(?:^|[\s_\-./])(?:adlib|shout|scream)(?:[\s_\-./]|$)", Some("vocal"), true, false, false),
-    ("vocal",       r"(?i)(?:^|[\s_\-./])(?:vox|vocals?|voices?|chants?|acapella)(?:[\s_\-./]|$)", Some("vocal"), false, true, false),
+    (
+        "vocal_chop",
+        r"(?i)vocal[\s_]*chop|chop[\s_]*vocal|vox[\s_]*chop|(?:^|[\s_\-./])chop(?:[\s_\-./]|$)",
+        Some("vocal"),
+        false,
+        false,
+        true,
+    ),
+    (
+        "vocal_phrase",
+        r"(?i)vocal[\s_]*phrase|(?:^|[\s_\-./])(?:phrase|spoken|speech)(?:[\s_\-./]|$)",
+        Some("vocal"),
+        false,
+        true,
+        false,
+    ),
+    (
+        "vocal_adlib",
+        r"(?i)(?:^|[\s_\-./])(?:adlib|shout|scream)(?:[\s_\-./]|$)",
+        Some("vocal"),
+        true,
+        false,
+        false,
+    ),
+    (
+        "vocal",
+        r"(?i)(?:^|[\s_\-./])(?:vox|vocals?|voices?|chants?|acapella)(?:[\s_\-./]|$)",
+        Some("vocal"),
+        false,
+        true,
+        false,
+    ),
 ];
 
 /// Compiled category regex cache.
@@ -492,7 +863,9 @@ pub fn match_category(name: &str, directory: &str) -> Option<CategoryMatch> {
     // Try filename first (higher confidence)
     for (cat_name, re, parent, oneshot, key_sens, loop_pref) in COMPILED_PATTERNS.iter() {
         if let Some(m) = re.find(&norm_name) {
-            if is_negated(&norm_name, m.start()) { continue; }
+            if is_negated(&norm_name, m.start()) {
+                continue;
+            }
             return Some(CategoryMatch {
                 name: cat_name.to_string(),
                 parent: parent.map(|s| s.to_string()),
@@ -507,7 +880,9 @@ pub fn match_category(name: &str, directory: &str) -> Option<CategoryMatch> {
     // Fallback to directory (lower confidence)
     for (cat_name, re, parent, oneshot, key_sens, loop_pref) in COMPILED_PATTERNS.iter() {
         if let Some(m) = re.find(&norm_dir) {
-            if is_negated(&norm_dir, m.start()) { continue; }
+            if is_negated(&norm_dir, m.start()) {
+                continue;
+            }
             return Some(CategoryMatch {
                 name: cat_name.to_string(),
                 parent: parent.map(|s| s.to_string()),
@@ -532,529 +907,505 @@ pub fn match_category(name: &str, directory: &str) -> Option<CategoryMatch> {
 ///   hardness_score: -1.0 = soft,   +1.0 = hard,   0.0 = neutral
 pub const MANUFACTURER_SIGNALS: &[(&str, f32, f32)] = &[
     // === HARD DANCE / HARD TRANCE LABELS ===
-    ("Tidy",              0.7,  0.9),
-    ("Full On",           0.9,  0.5),
-    ("Vandit",            0.9,  0.3),
-    ("Armada",            0.7,  0.0),
-    ("Anjuna",            0.8,  0.0),
-    ("FSOE",              0.9,  0.3),
-    ("Blackhole",         0.8,  0.2),
-    ("Grotesque",         0.8,  0.4),
-    ("WAO138",            0.9,  0.6),
-    ("Kearnage",          0.9,  0.7),
-    ("Subculture",        0.8,  0.5),
-    ("Outburst",          0.8,  0.6),
-    ("VII",               0.8,  0.4),
-    ("Pure Trance",       0.9,  0.3),
-    ("Damaged",           0.7,  0.8),
-
+    ("Tidy", 0.7, 0.9),
+    ("Full On", 0.9, 0.5),
+    ("Vandit", 0.9, 0.3),
+    ("Armada", 0.7, 0.0),
+    ("Anjuna", 0.8, 0.0),
+    ("FSOE", 0.9, 0.3),
+    ("Blackhole", 0.8, 0.2),
+    ("Grotesque", 0.8, 0.4),
+    ("WAO138", 0.9, 0.6),
+    ("Kearnage", 0.9, 0.7),
+    ("Subculture", 0.8, 0.5),
+    ("Outburst", 0.8, 0.6),
+    ("VII", 0.8, 0.4),
+    ("Pure Trance", 0.9, 0.3),
+    ("Damaged", 0.7, 0.8),
     // === SCHRANZ / HARD TECHNO LABELS ===
     ("Definition of Hard Techno", -1.0, 1.0),
-    ("definitionofhardtechno",    -1.0, 1.0),
-    ("Chris Liebing",    -1.0,  0.95),
-    ("Stigmata",         -1.0,  0.95),
-    ("Arkus P",          -1.0,  1.0),
-    ("Robert Natus",     -1.0,  1.0),
-    ("Viper XXL",        -1.0,  1.0),
-    ("Leo Laker",        -1.0,  1.0),
-    ("Sven Wittekind",   -1.0,  1.0),
-    ("DJ Rush",          -1.0,  0.9),
-    ("Boris S",          -1.0,  1.0),
-    ("Frank Kvitta",     -1.0,  1.0),
-    ("O.B.I.",           -1.0,  1.0),
-    ("Noise Not War",    -1.0,  1.0),
-    ("Klangkuenstler",   -1.0,  0.95),
-    ("Pet Duo",          -1.0,  0.95),
-    ("A.N.I",            -1.0,  1.0),
-    ("Nikolina",         -1.0,  0.95),
-    ("TRIPTYKH",         -1.0,  1.0),
-    ("Elektrabel",       -1.0,  1.0),
-    ("Schranz Total",    -1.0,  1.0),
-    ("Schranz",          -1.0,  1.0),
-    ("Hardtechno",       -1.0,  1.0),
-    ("Hard Techno",      -1.0,  1.0),
-    ("Amok",             -1.0,  1.0),
-    ("Nachtstrom",       -1.0,  0.95),
-    ("MB Elektronics",   -1.0,  0.9),
-
+    ("definitionofhardtechno", -1.0, 1.0),
+    ("Chris Liebing", -1.0, 0.95),
+    ("Stigmata", -1.0, 0.95),
+    ("Arkus P", -1.0, 1.0),
+    ("Robert Natus", -1.0, 1.0),
+    ("Viper XXL", -1.0, 1.0),
+    ("Leo Laker", -1.0, 1.0),
+    ("Sven Wittekind", -1.0, 1.0),
+    ("DJ Rush", -1.0, 0.9),
+    ("Boris S", -1.0, 1.0),
+    ("Frank Kvitta", -1.0, 1.0),
+    ("O.B.I.", -1.0, 1.0),
+    ("Noise Not War", -1.0, 1.0),
+    ("Klangkuenstler", -1.0, 0.95),
+    ("Pet Duo", -1.0, 0.95),
+    ("A.N.I", -1.0, 1.0),
+    ("Nikolina", -1.0, 0.95),
+    ("TRIPTYKH", -1.0, 1.0),
+    ("Elektrabel", -1.0, 1.0),
+    ("Schranz Total", -1.0, 1.0),
+    ("Schranz", -1.0, 1.0),
+    ("Hardtechno", -1.0, 1.0),
+    ("Hard Techno", -1.0, 1.0),
+    ("Amok", -1.0, 1.0),
+    ("Nachtstrom", -1.0, 0.95),
+    ("MB Elektronics", -1.0, 0.9),
     // === TECHNO LABELS ===
-    ("Drumcode",         -0.9,  0.5),
-    ("Filth on Acid",    -0.8,  0.7),
-    ("Exhale",           -0.7,  0.7),
-    ("KNTXT",            -0.8,  0.6),
-    ("Possession",       -0.7,  0.85),
-    ("Perc Trax",        -0.8,  0.8),
-    ("Mord",             -0.9,  0.85),
-    ("Planet Rhythm",    -0.8,  0.5),
-    ("Soma",             -0.7,  0.3),
-    ("Tresor",           -0.8,  0.3),
-    ("Ostgut Ton",       -0.9,  0.4),
-    ("CLR",              -0.9,  0.7),
-    ("Tronic",           -0.7,  0.4),
-    ("Bedrock",          -0.6,  0.2),
-    ("Cocoon",           -0.7,  0.3),
-    ("Minus",            -0.8,  0.2),
-    ("M_nus",            -0.8,  0.2),
-
+    ("Drumcode", -0.9, 0.5),
+    ("Filth on Acid", -0.8, 0.7),
+    ("Exhale", -0.7, 0.7),
+    ("KNTXT", -0.8, 0.6),
+    ("Possession", -0.7, 0.85),
+    ("Perc Trax", -0.8, 0.8),
+    ("Mord", -0.9, 0.85),
+    ("Planet Rhythm", -0.8, 0.5),
+    ("Soma", -0.7, 0.3),
+    ("Tresor", -0.8, 0.3),
+    ("Ostgut Ton", -0.9, 0.4),
+    ("CLR", -0.9, 0.7),
+    ("Tronic", -0.7, 0.4),
+    ("Bedrock", -0.6, 0.2),
+    ("Cocoon", -0.7, 0.3),
+    ("Minus", -0.8, 0.2),
+    ("M_nus", -0.8, 0.2),
     // === TECHNO SAMPLE PACK LABELS ===
-    ("ZTEKNO",           -0.8,  0.5),
-    ("True Samples",     -0.3,  0.2),
-
+    ("ZTEKNO", -0.8, 0.5),
+    ("True Samples", -0.3, 0.2),
     // === SAMPLE PACK COMPANIES ===
-    ("Loopmasters",       0.0,  0.0),
-    ("Splice",            0.0,  0.0),
-    ("Sample Magic",      0.0,  0.0),
-    ("Vengeance",         0.0,  0.3),
-    ("Black Octopus",     0.0,  0.0),
-    ("Ghosthack",         0.0,  0.2),
+    ("Loopmasters", 0.0, 0.0),
+    ("Splice", 0.0, 0.0),
+    ("Sample Magic", 0.0, 0.0),
+    ("Vengeance", 0.0, 0.3),
+    ("Black Octopus", 0.0, 0.0),
+    ("Ghosthack", 0.0, 0.2),
     ("Industrial Strength", -0.5, 0.9),
-    ("Singomakers",       0.0,  0.0),
-    ("Function Loops",    0.0,  0.0),
-    ("Producer Loops",    0.0,  0.0),
-    ("Zenhiser",          0.0,  0.1),
-    ("Freshly Squeezed",  0.7,  0.3),
-    ("Mutekki",          -0.6,  0.4),
-    ("Toolroom",         -0.4,  0.2),
-    ("Revealed",          0.3,  0.4),
-    ("Spinnin",           0.2,  0.2),
-    ("Noiiz",            -0.3,  0.3),
-    ("noizz",            -0.3,  0.3),
-    ("UNDRGRND",         -0.6,  0.3),
-    ("Riemann",          -0.8,  0.5),
-    ("SINEE",            -0.9,  0.8),
-    ("Bluezone",         -0.5,  0.6),
-    ("Datacode",         -0.6,  0.4),
-    ("Sonic Academy",    -0.3,  0.3),
-    ("Glitchedtones",    -0.3,  0.5),
-    ("Glitchmachines",   -0.3,  0.5),
-    ("Ueberschall",      -0.5,  0.6),
-    ("Zero-G",            0.0,  0.0),
-    ("Resonance Sound",  -0.3,  0.3),
-    ("Samplesound",      -0.4,  0.2),
-    ("ADSR",              0.0,  0.0),
-    ("Sounds of KSHMR",   0.0,  0.3),
-    ("R-Loops",           0.0,  0.0),
-    ("Myloops",           0.7,  0.3),
-    ("Samplified",        0.0,  0.0),
-    ("Sounds.com",       -0.3,  0.3),
-    ("from Mars",        -0.5,  0.3),
-    ("Producers Choice",  0.0,  0.0),
-    ("WA Production",     0.0,  0.0),
-    ("W. A. Production",  0.0,  0.0),
-    ("WA_Prod",           0.0,  0.0),
-    ("WAProd",            0.0,  0.0),
-    ("Angry Parrot",      0.0,  0.0),
-    ("AngryParrot",       0.0,  0.0),
-    ("Soundtrack Loops",  0.0,  0.0),
-    ("soundtrack_loops",  0.0,  0.0),
-    ("glitchmach",       -0.3,  0.5),
-    ("glitchtone",       -0.3,  0.5),
-    ("Asonic",            0.0,  0.0),
-    ("Computer Music",    0.0,  0.0),
-    ("sonicacademy",     -0.3,  0.3),
-    ("functionloops",     0.0,  0.0),
-    ("from_mars",        -0.5,  0.3),
-    ("from-mars",        -0.5,  0.3),
-    ("Krotosaudio",       0.0,  0.0),
-
+    ("Singomakers", 0.0, 0.0),
+    ("Function Loops", 0.0, 0.0),
+    ("Producer Loops", 0.0, 0.0),
+    ("Zenhiser", 0.0, 0.1),
+    ("Freshly Squeezed", 0.7, 0.3),
+    ("Mutekki", -0.6, 0.4),
+    ("Toolroom", -0.4, 0.2),
+    ("Revealed", 0.3, 0.4),
+    ("Spinnin", 0.2, 0.2),
+    ("Noiiz", -0.3, 0.3),
+    ("noizz", -0.3, 0.3),
+    ("UNDRGRND", -0.6, 0.3),
+    ("Riemann", -0.8, 0.5),
+    ("SINEE", -0.9, 0.8),
+    ("Bluezone", -0.5, 0.6),
+    ("Datacode", -0.6, 0.4),
+    ("Sonic Academy", -0.3, 0.3),
+    ("Glitchedtones", -0.3, 0.5),
+    ("Glitchmachines", -0.3, 0.5),
+    ("Ueberschall", -0.5, 0.6),
+    ("Zero-G", 0.0, 0.0),
+    ("Resonance Sound", -0.3, 0.3),
+    ("Samplesound", -0.4, 0.2),
+    ("ADSR", 0.0, 0.0),
+    ("Sounds of KSHMR", 0.0, 0.3),
+    ("R-Loops", 0.0, 0.0),
+    ("Myloops", 0.7, 0.3),
+    ("Samplified", 0.0, 0.0),
+    ("Sounds.com", -0.3, 0.3),
+    ("from Mars", -0.5, 0.3),
+    ("Producers Choice", 0.0, 0.0),
+    ("WA Production", 0.0, 0.0),
+    ("W. A. Production", 0.0, 0.0),
+    ("WA_Prod", 0.0, 0.0),
+    ("WAProd", 0.0, 0.0),
+    ("Angry Parrot", 0.0, 0.0),
+    ("AngryParrot", 0.0, 0.0),
+    ("Soundtrack Loops", 0.0, 0.0),
+    ("soundtrack_loops", 0.0, 0.0),
+    ("glitchmach", -0.3, 0.5),
+    ("glitchtone", -0.3, 0.5),
+    ("Asonic", 0.0, 0.0),
+    ("Computer Music", 0.0, 0.0),
+    ("sonicacademy", -0.3, 0.3),
+    ("functionloops", 0.0, 0.0),
+    ("from_mars", -0.5, 0.3),
+    ("from-mars", -0.5, 0.3),
+    ("Krotosaudio", 0.0, 0.0),
     // === ARTIST PACKS ===
-    ("Allen Watts",       0.9,  0.5),
-    ("Bryan Kearney",     0.9,  0.7),
-    ("Simon Patterson",   0.8,  0.5),
-    ("John Askew",        0.8,  0.7),
-    ("Sean Tyas",         0.8,  0.5),
-    ("Will Atkinson",     0.8,  0.6),
-    ("Adam Ellis",        0.9,  0.4),
-    ("ReOrder",           0.9,  0.4),
-    ("Sneijder",          0.8,  0.6),
-    ("Factor B",          0.9,  0.3),
-    ("Adam Beyer",       -0.9,  0.5),
-    ("Charlotte de Witte",-0.8,  0.7),
-    ("Amelie Lens",      -0.7,  0.7),
+    ("Allen Watts", 0.9, 0.5),
+    ("Bryan Kearney", 0.9, 0.7),
+    ("Simon Patterson", 0.8, 0.5),
+    ("John Askew", 0.8, 0.7),
+    ("Sean Tyas", 0.8, 0.5),
+    ("Will Atkinson", 0.8, 0.6),
+    ("Adam Ellis", 0.9, 0.4),
+    ("ReOrder", 0.9, 0.4),
+    ("Sneijder", 0.8, 0.6),
+    ("Factor B", 0.9, 0.3),
+    ("Adam Beyer", -0.9, 0.5),
+    ("Charlotte de Witte", -0.8, 0.7),
+    ("Amelie Lens", -0.7, 0.7),
     ("Reinier Zonneveld", -0.8, 0.7),
-    ("UMEK",             -0.7,  0.5),
-    ("Enrico Sangiuliano",-0.7, 0.5),
-    ("Spartaque",        -0.8,  0.6),
-    ("Alignment",        -0.8,  0.8),
-    ("DYEN",             -0.7,  0.6),
-    ("Afterlife",        -0.5,  0.2),
-    ("Tale of Us",       -0.5,  0.1),
-    ("Metta & Glyde",     0.9,  0.5),
-    ("Metta Glyde",       0.9,  0.5),
-    ("mettaglyde",        0.9,  0.5),
-    ("Sunny Lax",         0.8,  0.2),
-    ("Activa",            0.9,  0.5),
-    ("Dave Parkinson",    0.7,  0.4),
-    ("Driftmoon",         0.8,  0.4),
-    ("Max Braiman",       0.9,  0.5),
-    ("Temple One",        0.9,  0.3),
-    ("Thrillseekers",     0.8,  0.4),
-    ("Talamanca",         0.7,  0.2),
-    ("Kobana",            0.5,  0.1),
-    ("Jerome Isma-Ae",    0.5,  0.3),
-    ("Ad Brown",          0.5,  0.2),
-    ("Vitodito",          0.6,  0.2),
-    ("Genix",             0.8,  0.5),
-    ("Sander Van Doorn",  0.6,  0.4),
-    ("Kolonie",           0.7,  0.3),
-    ("Looplicious",       0.6,  0.1),
-    ("Carl Cox",         -0.8,  0.5),
-    ("Axel Karakasis",   -0.8,  0.6),
-    ("David Moleon",     -0.9,  0.7),
-    ("Pedro Delgardo",   -0.9,  0.7),
-    ("DELGARDO",         -0.9,  0.7),
-    ("Alex Di Stefano",   0.8,  0.6),
-    ("Airbase",           0.9,  0.3),
-    ("Bart Skils",       -0.8,  0.6),
-    ("Sean Truby",        0.9,  0.4),
-    ("Ryan K",            0.8,  0.5),
-    ("Laura May",         0.0,  0.5),
-    ("Tom Exo",           0.9,  0.4),
-    ("MAG Signature",     0.9,  0.5),
-
+    ("UMEK", -0.7, 0.5),
+    ("Enrico Sangiuliano", -0.7, 0.5),
+    ("Spartaque", -0.8, 0.6),
+    ("Alignment", -0.8, 0.8),
+    ("DYEN", -0.7, 0.6),
+    ("Afterlife", -0.5, 0.2),
+    ("Tale of Us", -0.5, 0.1),
+    ("Metta & Glyde", 0.9, 0.5),
+    ("Metta Glyde", 0.9, 0.5),
+    ("mettaglyde", 0.9, 0.5),
+    ("Sunny Lax", 0.8, 0.2),
+    ("Activa", 0.9, 0.5),
+    ("Dave Parkinson", 0.7, 0.4),
+    ("Driftmoon", 0.8, 0.4),
+    ("Max Braiman", 0.9, 0.5),
+    ("Temple One", 0.9, 0.3),
+    ("Thrillseekers", 0.8, 0.4),
+    ("Talamanca", 0.7, 0.2),
+    ("Kobana", 0.5, 0.1),
+    ("Jerome Isma-Ae", 0.5, 0.3),
+    ("Ad Brown", 0.5, 0.2),
+    ("Vitodito", 0.6, 0.2),
+    ("Genix", 0.8, 0.5),
+    ("Sander Van Doorn", 0.6, 0.4),
+    ("Kolonie", 0.7, 0.3),
+    ("Looplicious", 0.6, 0.1),
+    ("Carl Cox", -0.8, 0.5),
+    ("Axel Karakasis", -0.8, 0.6),
+    ("David Moleon", -0.9, 0.7),
+    ("Pedro Delgardo", -0.9, 0.7),
+    ("DELGARDO", -0.9, 0.7),
+    ("Alex Di Stefano", 0.8, 0.6),
+    ("Airbase", 0.9, 0.3),
+    ("Bart Skils", -0.8, 0.6),
+    ("Sean Truby", 0.9, 0.4),
+    ("Ryan K", 0.8, 0.5),
+    ("Laura May", 0.0, 0.5),
+    ("Tom Exo", 0.9, 0.4),
+    ("MAG Signature", 0.9, 0.5),
     // === TRANCE SAMPLE LABELS ===
-    ("Trance Euphoria",   0.9,  0.4),
-    ("HighLife Samples",  0.7,  0.3),
-    ("Helion Samples",    0.7,  0.3),
-    ("Helion",            0.7,  0.3),
-    ("Nano Musik Loops",  0.6,  0.2),
-
+    ("Trance Euphoria", 0.9, 0.4),
+    ("HighLife Samples", 0.7, 0.3),
+    ("Helion Samples", 0.7, 0.3),
+    ("Helion", 0.7, 0.3),
+    ("Nano Musik Loops", 0.6, 0.2),
     // === TECHNO SAMPLE LABELS ===
-    ("Wave Alchemy",     -0.5,  0.3),
-    ("ModeAudio",        -0.4,  0.2),
-    ("Mind Flux",        -0.6,  0.4),
-    ("Noise Design",     -0.6,  0.5),
-    ("Element One",      -0.5,  0.3),
-    ("CONNECTD Audio",   -0.5,  0.3),
-    ("Artisan Audio",    -0.5,  0.3),
-    ("Samplestate",      -0.5,  0.3),
-    ("Push Button Bang", -0.4,  0.3),
-    ("Leitmotif",        -0.5,  0.3),
-    ("Konturi",          -0.6,  0.4),
-    ("EST Studios",      -0.5,  0.3),
-    ("Blind Audio",      -0.5,  0.3),
-    ("Form Audioworks",  -0.4,  0.2),
-    ("THICK Sounds",     -0.6,  0.5),
-    ("BFractal Music",   -0.5,  0.3),
-    ("ODD SMPLS",        -0.5,  0.4),
-    ("Rankin Audio",     -0.4,  0.3),
+    ("Wave Alchemy", -0.5, 0.3),
+    ("ModeAudio", -0.4, 0.2),
+    ("Mind Flux", -0.6, 0.4),
+    ("Noise Design", -0.6, 0.5),
+    ("Element One", -0.5, 0.3),
+    ("CONNECTD Audio", -0.5, 0.3),
+    ("Artisan Audio", -0.5, 0.3),
+    ("Samplestate", -0.5, 0.3),
+    ("Push Button Bang", -0.4, 0.3),
+    ("Leitmotif", -0.5, 0.3),
+    ("Konturi", -0.6, 0.4),
+    ("EST Studios", -0.5, 0.3),
+    ("Blind Audio", -0.5, 0.3),
+    ("Form Audioworks", -0.4, 0.2),
+    ("THICK Sounds", -0.6, 0.5),
+    ("BFractal Music", -0.5, 0.3),
+    ("ODD SMPLS", -0.5, 0.4),
+    ("Rankin Audio", -0.4, 0.3),
     ("Production Music Live", -0.5, 0.2),
-
     // === HOUSE / TECH HOUSE LABELS ===
     ("Sample Tools By Cr2", -0.3, 0.2),
-    ("Cr2 Records",      -0.3,  0.2),
-    ("Defected",         -0.2,  0.0),
-    ("Deeperfect",       -0.4,  0.3),
-    ("House Of Loop",    -0.3,  0.2),
-    ("Hot Creations",    -0.3,  0.2),
-    ("Looptone",         -0.3,  0.2),
-    ("Bass Boutique",    -0.2,  0.3),
-    ("Class A Samples",  -0.3,  0.2),
-
+    ("Cr2 Records", -0.3, 0.2),
+    ("Defected", -0.2, 0.0),
+    ("Deeperfect", -0.4, 0.3),
+    ("House Of Loop", -0.3, 0.2),
+    ("Hot Creations", -0.3, 0.2),
+    ("Looptone", -0.3, 0.2),
+    ("Bass Boutique", -0.2, 0.3),
+    ("Class A Samples", -0.3, 0.2),
     // === DnB / DUBSTEP / BASS ===
-    ("Ghost Syndicate",  -0.3,  0.5),
-    ("Production Master",-0.2,  0.4),
-    ("Renegade Audio",   -0.3,  0.4),
-    ("Soul Rush Records",-0.2,  0.3),
-    ("5Pin Media",       -0.2,  0.2),
-    ("LP24 Audio",       -0.2,  0.3),
-    ("Capsun ProAudio",  -0.1,  0.3),
-    ("IQ Samples",       -0.3,  0.3),
-
+    ("Ghost Syndicate", -0.3, 0.5),
+    ("Production Master", -0.2, 0.4),
+    ("Renegade Audio", -0.3, 0.4),
+    ("Soul Rush Records", -0.2, 0.3),
+    ("5Pin Media", -0.2, 0.2),
+    ("LP24 Audio", -0.2, 0.3),
+    ("Capsun ProAudio", -0.1, 0.3),
+    ("IQ Samples", -0.3, 0.3),
     // === HARD DANCE / HARDCORE ===
-    ("VIPZONE Samples",   0.3,  0.8),
-
+    ("VIPZONE Samples", 0.3, 0.8),
     // === GENERAL SAMPLE PACK COMPANIES ===
-    ("Cymatics",          0.0,  0.0),
-    ("Big Fish Audio",    0.0,  0.0),
-    ("Loopcloud",         0.0,  0.0),
-    ("Beatport Sounds",   0.0,  0.0),
-    ("Touch Loops",       0.0,  0.0),
-    ("Prime Loops",       0.0,  0.0),
-    ("Cinetools",         0.0,  0.0),
-    ("Audentity Records", 0.1,  0.2),
-    ("Vandalism",         0.2,  0.3),
-    ("Equinox Sounds",    0.0,  0.0),
-    ("EarthMoments",      0.0,  0.0),
-    ("Bingoshakerz",      0.0,  0.0),
+    ("Cymatics", 0.0, 0.0),
+    ("Big Fish Audio", 0.0, 0.0),
+    ("Loopcloud", 0.0, 0.0),
+    ("Beatport Sounds", 0.0, 0.0),
+    ("Touch Loops", 0.0, 0.0),
+    ("Prime Loops", 0.0, 0.0),
+    ("Cinetools", 0.0, 0.0),
+    ("Audentity Records", 0.1, 0.2),
+    ("Vandalism", 0.2, 0.3),
+    ("Equinox Sounds", 0.0, 0.0),
+    ("EarthMoments", 0.0, 0.0),
+    ("Bingoshakerz", 0.0, 0.0),
     ("Frontline Producer", 0.0, 0.0),
-    ("Apollo Sound",      0.0,  0.0),
-    ("Famous Audio",      0.0,  0.0),
-    ("Niche Audio",      -0.4,  0.2),
-    ("Sample Diggers",   -0.4,  0.2),
-    ("Raw Cutz",         -0.4,  0.3),
-    ("TeknoVault",       -1.0,  0.95),
-    ("Tekno Vault",      -1.0,  0.95),
-    ("teknovault",       -1.0,  0.95),
-    ("ASHRAM",            0.3, -0.3),
-    ("Riemann Kollektion",-0.8, 0.5),
-    ("Florian Meindl",   -0.8,  0.5),
-    ("FLASH Recordings", -0.8,  0.5),
-
+    ("Apollo Sound", 0.0, 0.0),
+    ("Famous Audio", 0.0, 0.0),
+    ("Niche Audio", -0.4, 0.2),
+    ("Sample Diggers", -0.4, 0.2),
+    ("Raw Cutz", -0.4, 0.3),
+    ("TeknoVault", -1.0, 0.95),
+    ("Tekno Vault", -1.0, 0.95),
+    ("teknovault", -1.0, 0.95),
+    ("ASHRAM", 0.3, -0.3),
+    ("Riemann Kollektion", -0.8, 0.5),
+    ("Florian Meindl", -0.8, 0.5),
+    ("FLASH Recordings", -0.8, 0.5),
     // === HARD TECHNO / INDUSTRIAL ARTISTS ===
-    ("Thomas Schumacher",-0.9,  0.75),
-    ("Torsten Kanzler",  -1.0,  0.95),
-    ("Dax J",            -0.9,  0.9),
-    ("I Hate Models",    -0.9,  0.9),
-    ("Nico Moreno",      -1.0,  0.95),
-    ("KRTM",             -1.0,  1.0),
-    ("Rebekah",          -0.9,  0.9),
-    ("Paula Temple",     -0.9,  0.9),
-    ("Surgeon",          -0.9,  0.85),
-    ("Oscar Mulero",     -0.9,  0.85),
-    ("Ancient Methods",  -0.9,  0.9),
-    ("Ansome",           -0.9,  0.9),
-    ("VTSS",             -0.9,  0.85),
-    ("Hadone",           -1.0,  0.95),
-    ("Kobosil",          -0.9,  0.9),
-    ("SNTS",             -0.9,  0.9),
-    ("AnD",              -0.9,  0.9),
-    ("BLAWAN",           -0.9,  0.85),
-    ("Phase Fatale",     -0.9,  0.85),
-    ("Headless Horseman",-0.9,  0.85),
-    ("Charlie Sparks",   -1.0,  0.95),
-    ("Airod",            -1.0,  0.95),
-    ("Remco Beekwilder", -0.9,  0.9),
-    ("Parallx",          -0.9,  0.9),
-    ("Scalameriya",      -0.9,  0.9),
-    ("Lewis Fautzi",     -0.9,  0.8),
-    ("Setaoc Mass",      -0.9,  0.85),
-    ("Kwartz",           -0.9,  0.9),
-    ("Regal",            -0.9,  0.85),
-    ("Luigi Madonna",    -0.8,  0.75),
-    ("Dustin Zahn",      -0.9,  0.85),
-    ("Pappenheimer",     -0.9,  0.85),
-    ("999999999",        -1.0,  0.95),
-    ("Manu Le Malin",    -1.0,  0.95),
-    ("Distortion Code",  -1.0,  0.95),
-
+    ("Thomas Schumacher", -0.9, 0.75),
+    ("Torsten Kanzler", -1.0, 0.95),
+    ("Dax J", -0.9, 0.9),
+    ("I Hate Models", -0.9, 0.9),
+    ("Nico Moreno", -1.0, 0.95),
+    ("KRTM", -1.0, 1.0),
+    ("Rebekah", -0.9, 0.9),
+    ("Paula Temple", -0.9, 0.9),
+    ("Surgeon", -0.9, 0.85),
+    ("Oscar Mulero", -0.9, 0.85),
+    ("Ancient Methods", -0.9, 0.9),
+    ("Ansome", -0.9, 0.9),
+    ("VTSS", -0.9, 0.85),
+    ("Hadone", -1.0, 0.95),
+    ("Kobosil", -0.9, 0.9),
+    ("SNTS", -0.9, 0.9),
+    ("AnD", -0.9, 0.9),
+    ("BLAWAN", -0.9, 0.85),
+    ("Phase Fatale", -0.9, 0.85),
+    ("Headless Horseman", -0.9, 0.85),
+    ("Charlie Sparks", -1.0, 0.95),
+    ("Airod", -1.0, 0.95),
+    ("Remco Beekwilder", -0.9, 0.9),
+    ("Parallx", -0.9, 0.9),
+    ("Scalameriya", -0.9, 0.9),
+    ("Lewis Fautzi", -0.9, 0.8),
+    ("Setaoc Mass", -0.9, 0.85),
+    ("Kwartz", -0.9, 0.9),
+    ("Regal", -0.9, 0.85),
+    ("Luigi Madonna", -0.8, 0.75),
+    ("Dustin Zahn", -0.9, 0.85),
+    ("Pappenheimer", -0.9, 0.85),
+    ("999999999", -1.0, 0.95),
+    ("Manu Le Malin", -1.0, 0.95),
+    ("Distortion Code", -1.0, 0.95),
     // === HARD TECHNO / INDUSTRIAL LABELS ===
-    ("Electric Ballroom",-0.9,  0.8),
-    ("Sleaze Records",   -0.9,  0.8),
-    ("Suara",            -0.8,  0.7),
-    ("Monnom Black",     -0.9,  0.85),
-    ("HATE",             -1.0,  1.0),
-    ("Involve Records",  -0.9,  0.85),
-    ("Enemy Records",    -0.9,  0.85),
-    ("Noise Manifesto",  -0.9,  0.9),
-    ("TOKEN",            -0.9,  0.8),
-    ("Pole Group",       -0.9,  0.8),
-    ("Set About",        -0.9,  0.8),
-    ("Kraftek",          -0.8,  0.75),
-    ("HEX Recordings",   -0.9,  0.85),
-    ("Voitax",           -0.9,  0.85),
-    ("Construct Reform", -0.9,  0.85),
-
+    ("Electric Ballroom", -0.9, 0.8),
+    ("Sleaze Records", -0.9, 0.8),
+    ("Suara", -0.8, 0.7),
+    ("Monnom Black", -0.9, 0.85),
+    ("HATE", -1.0, 1.0),
+    ("Involve Records", -0.9, 0.85),
+    ("Enemy Records", -0.9, 0.85),
+    ("Noise Manifesto", -0.9, 0.9),
+    ("TOKEN", -0.9, 0.8),
+    ("Pole Group", -0.9, 0.8),
+    ("Set About", -0.9, 0.8),
+    ("Kraftek", -0.8, 0.75),
+    ("HEX Recordings", -0.9, 0.85),
+    ("Voitax", -0.9, 0.85),
+    ("Construct Reform", -0.9, 0.85),
     // === HARD TECHNO SAMPLE PACK LABELS ===
-    ("Engineering Samples",-0.8, 0.85),
-    ("Dirty Music",      -0.8,  0.8),
-    ("Raw Loops",        -0.8,  0.85),
-    ("Hypnotic Room",    -0.8,  0.8),
-    ("Sample Genie",     -0.7,  0.7),
-    ("HY2ROGEN",         -0.8,  0.75),
-    ("BHK Samples",      -0.8,  0.8),
-    ("Alien Samples",    -0.8,  0.8),
-    ("Dark Arts",        -0.9,  0.85),
-    ("SampleTraxx",      -0.7,  0.8),
-
+    ("Engineering Samples", -0.8, 0.85),
+    ("Dirty Music", -0.8, 0.8),
+    ("Raw Loops", -0.8, 0.85),
+    ("Hypnotic Room", -0.8, 0.8),
+    ("Sample Genie", -0.7, 0.7),
+    ("HY2ROGEN", -0.8, 0.75),
+    ("BHK Samples", -0.8, 0.8),
+    ("Alien Samples", -0.8, 0.8),
+    ("Dark Arts", -0.9, 0.85),
+    ("SampleTraxx", -0.7, 0.8),
     // === TRANCE RECORD LABELS ===
-    ("Coldharbour",       0.7,  0.3),
-    ("Mental Asylum",     0.9,  0.7),
-    ("Pharmacy Music",    0.7,  0.5),
-    ("Blue Soho",         0.8,  0.3),
-    ("Digital Society",   0.9,  0.4),
-    ("AVA Recordings",    0.7,  0.3),
-    ("Always Alive",      0.9,  0.3),
-    ("Abora",             0.9,  0.2),
-    ("Enhanced",          0.7,  0.2),
-    ("Perfecto",          0.7,  0.3),
-    ("Platipus",          0.7,  0.3),
-    ("Bonzai",            0.7,  0.3),
-    ("Discover Records",  0.8,  0.4),
-    ("Magik Muzik",       0.8,  0.3),
-    ("In Trance We Trust",0.9,  0.4),
-    ("Magic Island",      0.7,  0.1),
-    ("Dreamstate",        0.8,  0.4),
-    ("Elliptical Sun",    0.6,  0.1),
-
+    ("Coldharbour", 0.7, 0.3),
+    ("Mental Asylum", 0.9, 0.7),
+    ("Pharmacy Music", 0.7, 0.5),
+    ("Blue Soho", 0.8, 0.3),
+    ("Digital Society", 0.9, 0.4),
+    ("AVA Recordings", 0.7, 0.3),
+    ("Always Alive", 0.9, 0.3),
+    ("Abora", 0.9, 0.2),
+    ("Enhanced", 0.7, 0.2),
+    ("Perfecto", 0.7, 0.3),
+    ("Platipus", 0.7, 0.3),
+    ("Bonzai", 0.7, 0.3),
+    ("Discover Records", 0.8, 0.4),
+    ("Magik Muzik", 0.8, 0.3),
+    ("In Trance We Trust", 0.9, 0.4),
+    ("Magic Island", 0.7, 0.1),
+    ("Dreamstate", 0.8, 0.4),
+    ("Elliptical Sun", 0.6, 0.1),
     // === TRANCE SAMPLE PACK LABELS ===
-    ("Lucid Samples",     0.6,  0.3),
-    ("lucidsamples",      0.6,  0.3),
-    ("Dance Midi Samples",0.5,  0.3),
-    ("DanceMidiSamples",  0.5,  0.3),
-    ("Allan Morrow",      0.9,  0.5),
-    ("Elevated Trance",   0.9,  0.4),
-    ("ProducerBox",       0.5,  0.2),
-    ("producerbox",       0.5,  0.2),
-
+    ("Lucid Samples", 0.6, 0.3),
+    ("lucidsamples", 0.6, 0.3),
+    ("Dance Midi Samples", 0.5, 0.3),
+    ("DanceMidiSamples", 0.5, 0.3),
+    ("Allan Morrow", 0.9, 0.5),
+    ("Elevated Trance", 0.9, 0.4),
+    ("ProducerBox", 0.5, 0.2),
+    ("producerbox", 0.5, 0.2),
     // === TRANCE ARTISTS ===
-    ("Greg Downey",       0.8,  0.5),
-    ("Darren Porter",     0.9,  0.4),
-    ("Protoculture",      0.7,  0.4),
-    ("Project 8",         0.8,  0.5),
-    ("Aly & Fila",        0.9,  0.4),
-    ("Aly and Fila",      0.9,  0.4),
-    ("Armin van Buuren",  0.8,  0.2),
-    ("Paul van Dyk",      0.9,  0.3),
-    ("Ferry Corsten",     0.8,  0.3),
-    ("Cosmic Gate",       0.8,  0.4),
-    ("Gareth Emery",      0.7,  0.2),
-    ("Markus Schulz",     0.7,  0.3),
-    ("Giuseppe Ottaviani",0.9,  0.4),
-    ("Roger Shah",        0.8,  0.1),
-    ("Solarstone",        0.8,  0.2),
-    ("Kai Tracid",        0.8,  0.8),
-    ("Scot Project",      0.8,  0.8),
-    ("Cold Blue",         0.9,  0.4),
-    ("Craig Connelly",    0.8,  0.3),
-    ("Stoneface & Terminal",0.8, 0.4),
-    ("Stoneface Terminal",0.8,  0.4),
-    ("Dan Stone",         0.8,  0.3),
-    ("Robert Nickson",    0.8,  0.2),
-    ("Jordan Suckley",    0.8,  0.6),
-    ("Indecent Noise",    0.8,  0.7),
-    ("Mark Sherry",       0.8,  0.6),
-    ("John O'Callaghan",  0.9,  0.5),
-    ("Standerwick",       0.8,  0.5),
-    ("Ilan Bluestone",    0.8,  0.2),
-    ("MaRLo",             0.8,  0.5),
-    ("Andrew Rayel",      0.8,  0.3),
-    ("Alessandra Roncone",0.9,  0.4),
-    ("Astrix",            0.7,  0.5),
-    ("Infected Mushroom", 0.6,  0.5),
-    ("Vini Vici",         0.7,  0.6),
-    ("Ace Ventura",       0.7,  0.5),
-    ("Omnia",             0.8,  0.3),
-    ("Bjorn Akesson",     0.9,  0.4),
-    ("Jorn van Deynhoven",0.9,  0.5),
-    ("Ciaran McAuley",    0.9,  0.3),
-    ("Above & Beyond",    0.8,  0.1),
-    ("Above and Beyond",  0.8,  0.1),
-    ("Tycoos",            0.9,  0.4),
-    ("Ronny K",           0.9,  0.4),
-    ("Stonevalley",       0.8,  0.4),
-    ("Fast Distance",     0.8,  0.3),
-    ("Anouk Miller",      0.8,  0.3),
-
+    ("Greg Downey", 0.8, 0.5),
+    ("Darren Porter", 0.9, 0.4),
+    ("Protoculture", 0.7, 0.4),
+    ("Project 8", 0.8, 0.5),
+    ("Aly & Fila", 0.9, 0.4),
+    ("Aly and Fila", 0.9, 0.4),
+    ("Armin van Buuren", 0.8, 0.2),
+    ("Paul van Dyk", 0.9, 0.3),
+    ("Ferry Corsten", 0.8, 0.3),
+    ("Cosmic Gate", 0.8, 0.4),
+    ("Gareth Emery", 0.7, 0.2),
+    ("Markus Schulz", 0.7, 0.3),
+    ("Giuseppe Ottaviani", 0.9, 0.4),
+    ("Roger Shah", 0.8, 0.1),
+    ("Solarstone", 0.8, 0.2),
+    ("Kai Tracid", 0.8, 0.8),
+    ("Scot Project", 0.8, 0.8),
+    ("Cold Blue", 0.9, 0.4),
+    ("Craig Connelly", 0.8, 0.3),
+    ("Stoneface & Terminal", 0.8, 0.4),
+    ("Stoneface Terminal", 0.8, 0.4),
+    ("Dan Stone", 0.8, 0.3),
+    ("Robert Nickson", 0.8, 0.2),
+    ("Jordan Suckley", 0.8, 0.6),
+    ("Indecent Noise", 0.8, 0.7),
+    ("Mark Sherry", 0.8, 0.6),
+    ("John O'Callaghan", 0.9, 0.5),
+    ("Standerwick", 0.8, 0.5),
+    ("Ilan Bluestone", 0.8, 0.2),
+    ("MaRLo", 0.8, 0.5),
+    ("Andrew Rayel", 0.8, 0.3),
+    ("Alessandra Roncone", 0.9, 0.4),
+    ("Astrix", 0.7, 0.5),
+    ("Infected Mushroom", 0.6, 0.5),
+    ("Vini Vici", 0.7, 0.6),
+    ("Ace Ventura", 0.7, 0.5),
+    ("Omnia", 0.8, 0.3),
+    ("Bjorn Akesson", 0.9, 0.4),
+    ("Jorn van Deynhoven", 0.9, 0.5),
+    ("Ciaran McAuley", 0.9, 0.3),
+    ("Above & Beyond", 0.8, 0.1),
+    ("Above and Beyond", 0.8, 0.1),
+    ("Tycoos", 0.9, 0.4),
+    ("Ronny K", 0.9, 0.4),
+    ("Stonevalley", 0.8, 0.4),
+    ("Fast Distance", 0.8, 0.3),
+    ("Anouk Miller", 0.8, 0.3),
     // === EDM / ELECTRONIC SAMPLE LABELS (genre-specific) ===
-    ("Audiotent",        -0.5,  0.2),
-    ("Four4",            -0.4,  0.3),
-    ("Prospect Sounds",  -0.5,  0.3),
-    ("Chop Shop Samples",-0.5,  0.4),
-    ("Unity Records",    -0.6,  0.4),
-    ("System 6 Samples", -0.5,  0.3),
-    ("RV Samplepacks",   -0.6,  0.4),
-    ("Abstract Sounds",  -0.5,  0.3),
-    ("Rewind Samples",   -0.5,  0.3),
-    ("Lost Audio",       -0.4,  0.3),
-    ("Mainground Music", -0.3,  0.3),
-    ("Mask Movement Samples",-0.5,0.3),
-    ("NITELIFE Audio",   -0.3,  0.2),
-    ("Keep It Sample",   -0.3,  0.2),
-    ("Munchies Jukebox", -0.3,  0.2),
-    ("Kittball Records", -0.3,  0.2),
-    ("Monster Sounds",   -0.3,  0.2),
-    ("Moody Recordings", -0.3,  0.2),
-    ("Delectable Records",-0.4, 0.2),
-    ("Tech House Market",-0.3,  0.2),
-    ("Multiton Bits",    -0.3,  0.3),
-    ("SHARP",            -0.3,  0.3),
-    ("Streamline Samples",-0.3, 0.2),
-
+    ("Audiotent", -0.5, 0.2),
+    ("Four4", -0.4, 0.3),
+    ("Prospect Sounds", -0.5, 0.3),
+    ("Chop Shop Samples", -0.5, 0.4),
+    ("Unity Records", -0.6, 0.4),
+    ("System 6 Samples", -0.5, 0.3),
+    ("RV Samplepacks", -0.6, 0.4),
+    ("Abstract Sounds", -0.5, 0.3),
+    ("Rewind Samples", -0.5, 0.3),
+    ("Lost Audio", -0.4, 0.3),
+    ("Mainground Music", -0.3, 0.3),
+    ("Mask Movement Samples", -0.5, 0.3),
+    ("NITELIFE Audio", -0.3, 0.2),
+    ("Keep It Sample", -0.3, 0.2),
+    ("Munchies Jukebox", -0.3, 0.2),
+    ("Kittball Records", -0.3, 0.2),
+    ("Monster Sounds", -0.3, 0.2),
+    ("Moody Recordings", -0.3, 0.2),
+    ("Delectable Records", -0.4, 0.2),
+    ("Tech House Market", -0.3, 0.2),
+    ("Multiton Bits", -0.3, 0.3),
+    ("SHARP", -0.3, 0.3),
+    ("Streamline Samples", -0.3, 0.2),
     // === BASS / DnB / DUBSTEP LABELS ===
-    ("Disciple Samples", -0.2,  0.7),
-    ("Test Press",       -0.4,  0.3),
-    ("Renraku",          -0.3,  0.4),
-    ("DABRO Music",      -0.3,  0.5),
-    ("Deep Heads",       -0.3,  0.2),
-
+    ("Disciple Samples", -0.2, 0.7),
+    ("Test Press", -0.4, 0.3),
+    ("Renraku", -0.3, 0.4),
+    ("DABRO Music", -0.3, 0.5),
+    ("Deep Heads", -0.3, 0.2),
     // === HARD DANCE / HARDSTYLE ===
-    ("Nutty Traxx",       0.4,  0.9),
-
+    ("Nutty Traxx", 0.4, 0.9),
     // === EDM / FESTIVAL ===
-    ("Dropgun Samples",   0.2,  0.3),
-    ("Dharma Studio",     0.1,  0.3),
-    ("Skifonix Sounds",   0.2,  0.3),
-    ("Echo Sound Works",  0.1,  0.1),
-    ("Catalyst Samples",  0.1,  0.2),
-    ("Standalone-Music",  0.3,  0.2),
-    ("mau5trap",         -0.3,  0.3),
-    ("Freaky Loops",      0.0,  0.2),
-    ("Unmüte",            0.0,  0.2),
-    ("Code Sounds",       0.0,  0.2),
-    ("Red Sounds",        0.0,  0.2),
-    ("Pure EDM",          0.2,  0.3),
-    ("Stickz",            0.1,  0.2),
-    ("Tunecraft Sounds",  0.0,  0.1),
-
+    ("Dropgun Samples", 0.2, 0.3),
+    ("Dharma Studio", 0.1, 0.3),
+    ("Skifonix Sounds", 0.2, 0.3),
+    ("Echo Sound Works", 0.1, 0.1),
+    ("Catalyst Samples", 0.1, 0.2),
+    ("Standalone-Music", 0.3, 0.2),
+    ("mau5trap", -0.3, 0.3),
+    ("Freaky Loops", 0.0, 0.2),
+    ("Unmüte", 0.0, 0.2),
+    ("Code Sounds", 0.0, 0.2),
+    ("Red Sounds", 0.0, 0.2),
+    ("Pure EDM", 0.2, 0.3),
+    ("Stickz", 0.1, 0.2),
+    ("Tunecraft Sounds", 0.0, 0.1),
     // === MAGAZINE SAMPLE DISCS ===
-    ("BEAT",              0.0,  0.0),  // BEAT.de German music production magazine
-
+    ("BEAT", 0.0, 0.0), // BEAT.de German music production magazine
     // === SAMPLE LIBRARY PUBLISHERS ===
-    ("Q Up Arts",         0.0,  0.0),
-    ("qspace",            0.0,  0.0),  // Q Up Arts "QSpace" series
-    ("popstrings",        0.0,  0.0),  // Q Up Arts "Pop Strings UK" series
-    ("bennyrietveld",     0.0,  0.0),  // Q Up Arts - Benny Rietveld bass grooves
-    ("gadddrumscores",    0.0,  0.0),  // Q Up Arts - Steve Gadd drum scores
-    ("Audiosample",      -0.3,  0.2),  // ASE-series tech house packs (sas folder)
-    ("BigEDM",            0.1,  0.2),  // Big EDM sample pack label (wa folder)
-    ("Giga Loops",        0.5,  0.4),  // trance/techno loop compilations
-    ("ACID RECORDS",      0.6,  0.7),  // hard trance label
-    ("Little Bit",       -0.6,  0.3),  // techno sample producer
-    ("Little_Bit",       -0.6,  0.3),
-    ("Whitenoise Records",-0.5, 0.3),  // techno percussion label
-    ("LOOP49",           -0.5,  0.3),  // techno loop label
-    ("Phrenetic",        -0.9,  0.85), // hard techno producer
-    ("TSOHT",            -1.0,  1.0),  // The Sound Of Hard Techno series
-    ("Twisted Tools",    -0.3,  0.4),  // experimental electronic sample co
-    ("DWSD",              0.6,  0.5),  // tech trance drums label
-    ("Katana Bits",       0.3,  0.8),  // hard dance sample label
-    ("katana bits",       0.3,  0.8),
-    ("General Guyble",    0.3,  0.9),  // hardstyle/frenchcore sample producer
-    ("Embreda Sounds",    0.9,  0.4),  // trance midi/sample label
-    ("F.G. Noise",        0.8,  0.5),  // trance bass/FX producer
-    ("Omnisphere",        0.0,  0.0),  // Spectrasonics Omnisphere content
-    ("Sonniss",           0.0,  0.0),  // Sonniss game audio bundles
-    ("Native Instruments",0.0,  0.0),  // NI Traktor/Maschine content
-    ("Acapella Nation",   0.0,  0.0),  // vocal sample library
-
+    ("Q Up Arts", 0.0, 0.0),
+    ("qspace", 0.0, 0.0),         // Q Up Arts "QSpace" series
+    ("popstrings", 0.0, 0.0),     // Q Up Arts "Pop Strings UK" series
+    ("bennyrietveld", 0.0, 0.0),  // Q Up Arts - Benny Rietveld bass grooves
+    ("gadddrumscores", 0.0, 0.0), // Q Up Arts - Steve Gadd drum scores
+    ("Audiosample", -0.3, 0.2),   // ASE-series tech house packs (sas folder)
+    ("BigEDM", 0.1, 0.2),         // Big EDM sample pack label (wa folder)
+    ("Giga Loops", 0.5, 0.4),     // trance/techno loop compilations
+    ("ACID RECORDS", 0.6, 0.7),   // hard trance label
+    ("Little Bit", -0.6, 0.3),    // techno sample producer
+    ("Little_Bit", -0.6, 0.3),
+    ("Whitenoise Records", -0.5, 0.3), // techno percussion label
+    ("LOOP49", -0.5, 0.3),             // techno loop label
+    ("Phrenetic", -0.9, 0.85),         // hard techno producer
+    ("TSOHT", -1.0, 1.0),              // The Sound Of Hard Techno series
+    ("Twisted Tools", -0.3, 0.4),      // experimental electronic sample co
+    ("DWSD", 0.6, 0.5),                // tech trance drums label
+    ("Katana Bits", 0.3, 0.8),         // hard dance sample label
+    ("katana bits", 0.3, 0.8),
+    ("General Guyble", 0.3, 0.9), // hardstyle/frenchcore sample producer
+    ("Embreda Sounds", 0.9, 0.4), // trance midi/sample label
+    ("F.G. Noise", 0.8, 0.5),     // trance bass/FX producer
+    ("Omnisphere", 0.0, 0.0),     // Spectrasonics Omnisphere content
+    ("Sonniss", 0.0, 0.0),        // Sonniss game audio bundles
+    ("Native Instruments", 0.0, 0.0), // NI Traktor/Maschine content
+    ("Acapella Nation", 0.0, 0.0), // vocal sample library
     // === GENERAL / NEUTRAL PLATFORMS ===
-    ("Plugin Boutique",   0.0,  0.0),
-    ("99Sounds",          0.0,  0.0),
-    ("99sounds",          0.0,  0.0),
-    ("SampleRadar",       0.0,  0.0),
-    ("MusicRadar",        0.0,  0.0),
-    ("Samplephonics",     0.0,  0.0),
-    ("LANDR",             0.0,  0.0),
-    ("Raveyard",         -0.8,  0.8),  // hard techno/rave/neorave
-    ("Vortex Samples",   -0.9,  0.9),  // hard industrial techno/rawstyle
-    ("vortexsamples",    -0.9,  0.9),
-    ("VS_Schranz",       -1.0,  1.0),  // Vortex Samples schranz packs
-    ("VS_Annihilator",   -0.9,  0.9),  // Vortex Samples pack
-    ("VS_Rustworks",     -0.9,  0.9),  // Vortex Samples pack
-    ("VS_Pandemonium",   -0.9,  0.9),  // Vortex Samples pack
-    ("VS_Hellstorm",     -0.9,  0.9),  // Vortex Samples pack
-    ("VS_Xtasis",        -0.9,  0.9),  // Vortex Samples pack
-    ("VS_Destructor",    -0.9,  0.9),  // Vortex Samples pack
-    ("VS_Eradicator",    -0.9,  0.9),  // Vortex Samples pack
-    ("VS_Voltage",       -0.9,  0.8),  // Vortex Samples analog hard techno
-    ("VS_Drumtek",       -0.8,  0.7),  // Vortex Samples hardgroove
-    ("91Vocals",          0.0,  0.0),
-    ("Vital Vocals",      0.0,  0.0),
-    ("Vocal Roads",       0.0,  0.0),
-    ("Organic Loops",     0.0, -0.2),
-    ("Drumdrops",         0.0,  0.0),
-    ("Soundiron",         0.0,  0.0),
-    ("Audio Imperia",     0.0,  0.0),
-    ("Laniakea Sounds",   0.0,  0.0),
-    ("Samplestar",        0.0,  0.0),
-    ("SFXtools",          0.0,  0.0),
-    ("Kits Kreme",        0.0,  0.0),
-    ("Diginoiz",          0.0,  0.0),
-    ("Origin Sound",     -0.2,  0.1),
-    ("Aim Audio",        -0.2, -0.2),
-    ("Osaka Sound",      -0.3,  0.1),
-    ("Axtone",            0.2,  0.3),
+    ("Plugin Boutique", 0.0, 0.0),
+    ("99Sounds", 0.0, 0.0),
+    ("99sounds", 0.0, 0.0),
+    ("SampleRadar", 0.0, 0.0),
+    ("MusicRadar", 0.0, 0.0),
+    ("Samplephonics", 0.0, 0.0),
+    ("LANDR", 0.0, 0.0),
+    ("Raveyard", -0.8, 0.8),       // hard techno/rave/neorave
+    ("Vortex Samples", -0.9, 0.9), // hard industrial techno/rawstyle
+    ("vortexsamples", -0.9, 0.9),
+    ("VS_Schranz", -1.0, 1.0),     // Vortex Samples schranz packs
+    ("VS_Annihilator", -0.9, 0.9), // Vortex Samples pack
+    ("VS_Rustworks", -0.9, 0.9),   // Vortex Samples pack
+    ("VS_Pandemonium", -0.9, 0.9), // Vortex Samples pack
+    ("VS_Hellstorm", -0.9, 0.9),   // Vortex Samples pack
+    ("VS_Xtasis", -0.9, 0.9),      // Vortex Samples pack
+    ("VS_Destructor", -0.9, 0.9),  // Vortex Samples pack
+    ("VS_Eradicator", -0.9, 0.9),  // Vortex Samples pack
+    ("VS_Voltage", -0.9, 0.8),     // Vortex Samples analog hard techno
+    ("VS_Drumtek", -0.8, 0.7),     // Vortex Samples hardgroove
+    ("91Vocals", 0.0, 0.0),
+    ("Vital Vocals", 0.0, 0.0),
+    ("Vocal Roads", 0.0, 0.0),
+    ("Organic Loops", 0.0, -0.2),
+    ("Drumdrops", 0.0, 0.0),
+    ("Soundiron", 0.0, 0.0),
+    ("Audio Imperia", 0.0, 0.0),
+    ("Laniakea Sounds", 0.0, 0.0),
+    ("Samplestar", 0.0, 0.0),
+    ("SFXtools", 0.0, 0.0),
+    ("Kits Kreme", 0.0, 0.0),
+    ("Diginoiz", 0.0, 0.0),
+    ("Origin Sound", -0.2, 0.1),
+    ("Aim Audio", -0.2, -0.2),
+    ("Osaka Sound", -0.3, 0.1),
+    ("Axtone", 0.2, 0.3),
 ];
 
 /// Result of manufacturer/pack detection from a directory path.
@@ -1096,8 +1447,7 @@ pub fn detect_manufacturer(directory: &str) -> Option<PackMatch> {
         // Non-neutral beats neutral
         a_neutral.cmp(&b_neutral).then_with(||
             // Longer match wins
-            b.0.len().cmp(&a.0.len())
-        )
+            b.0.len().cmp(&a.0.len()))
     });
 
     let (pattern, genre, hardness) = matches[0];
@@ -1199,7 +1549,11 @@ pub fn infer_category_from_audio(file_path: &str) -> Option<CategoryMatch> {
     } else if fp.rms < 0.005 || fp.low_energy_ratio > 0.70 {
         // Very quiet or mostly silence = atmosphere/texture
         ("atmos", "atmos")
-    } else if fp.mid_band_energy > 0.45 && fp.zero_crossing_rate > 0.05 && fp.zero_crossing_rate < 0.15 && fp.attack_time > 0.02 {
+    } else if fp.mid_band_energy > 0.45
+        && fp.zero_crossing_rate > 0.05
+        && fp.zero_crossing_rate < 0.15
+        && fp.attack_time > 0.02
+    {
         // Mid-band dominant + moderate ZCR + not percussive = vocal
         ("vocal", "vocal")
     } else if fp.mid_band_energy > 0.35 {
@@ -1306,13 +1660,16 @@ mod tests {
 
     #[test]
     fn bpm_dash_delimited() {
-        assert_eq!(extract_bpm("Tidy1 - Lead Loop 10 - PT3 - 140 BPM - Bm"), Some(140));
+        assert_eq!(
+            extract_bpm("Tidy1 - Lead Loop 10 - PT3 - 140 BPM - Bm"),
+            Some(140)
+        );
     }
 
     #[test]
     fn bpm_out_of_range() {
         assert_eq!(extract_bpm("Sample_44100_Hz.wav"), None); // 44100 not in 80-180
-        assert_eq!(extract_bpm("Track_01.wav"), None);        // 01 not in range
+        assert_eq!(extract_bpm("Track_01.wav"), None); // 01 not in range
     }
 
     #[test]
@@ -1325,9 +1682,18 @@ mod tests {
 
     #[test]
     fn key_explicit_minor() {
-        assert_eq!(extract_key("BassLoop_Reeeeze_142_Cm_PL"), Some("C Minor".into()));
-        assert_eq!(extract_key("Tidy1 - Lead Loop 10 - PT3 - 140 BPM - Bm"), Some("B Minor".into()));
-        assert_eq!(extract_key("Synth Chord Pad Cosmic Fmin"), Some("F Minor".into()));
+        assert_eq!(
+            extract_key("BassLoop_Reeeeze_142_Cm_PL"),
+            Some("C Minor".into())
+        );
+        assert_eq!(
+            extract_key("Tidy1 - Lead Loop 10 - PT3 - 140 BPM - Bm"),
+            Some("B Minor".into())
+        );
+        assert_eq!(
+            extract_key("Synth Chord Pad Cosmic Fmin"),
+            Some("F Minor".into())
+        );
         assert_eq!(extract_key("Loop_Am_128.wav"), Some("A Minor".into()));
     }
 
@@ -1339,27 +1705,51 @@ mod tests {
 
     #[test]
     fn key_bare_note_defaults_minor() {
-        assert_eq!(extract_key("RY_ELYSIUM_LEAD LOOP_002_F_132bpm"), Some("F Minor".into()));
-        assert_eq!(extract_key("Full On Lead Loop 8 C# 140 BPM"), Some("C# Minor".into()));
+        assert_eq!(
+            extract_key("RY_ELYSIUM_LEAD LOOP_002_F_132bpm"),
+            Some("F Minor".into())
+        );
+        assert_eq!(
+            extract_key("Full On Lead Loop 8 C# 140 BPM"),
+            Some("C# Minor".into())
+        );
     }
 
     #[test]
     fn key_sharps_and_flats() {
         assert_eq!(extract_key("Lead_F#m_140.wav"), Some("F# Minor".into()));
         assert_eq!(extract_key("Pad_Bbm_120.wav"), Some("A# Minor".into())); // Bb → A#
-        assert_eq!(extract_key("Bass_Ebmin.wav"), Some("D# Minor".into()));   // Eb → D#
+        assert_eq!(extract_key("Bass_Ebmin.wav"), Some("D# Minor".into())); // Eb → D#
     }
-    
+
     #[test]
     fn key_sharp_flat_words() {
         // "G Sharp" == "G#" (NOT folded to F#!)
-        assert_eq!(extract_key("DPTE2 Bass Loop - 001 - G Sharp - 140 BPM.wav"), Some("G# Minor".into()));
-        assert_eq!(extract_key("DPTE2 Pluck Loop - 016 - G Sharp Minor - 140 BPM.wav"), Some("G# Minor".into()));
-        assert_eq!(extract_key("Propht - C Sharp Minor.wav"), Some("C# Minor".into()));
-        assert_eq!(extract_key("DPTE2 Vocal Stab - 006 - C Sharp.wav"), Some("C# Minor".into()));
+        assert_eq!(
+            extract_key("DPTE2 Bass Loop - 001 - G Sharp - 140 BPM.wav"),
+            Some("G# Minor".into())
+        );
+        assert_eq!(
+            extract_key("DPTE2 Pluck Loop - 016 - G Sharp Minor - 140 BPM.wav"),
+            Some("G# Minor".into())
+        );
+        assert_eq!(
+            extract_key("Propht - C Sharp Minor.wav"),
+            Some("C# Minor".into())
+        );
+        assert_eq!(
+            extract_key("DPTE2 Vocal Stab - 006 - C Sharp.wav"),
+            Some("C# Minor".into())
+        );
         // "B Flat" == "Bb" == "A#"
-        assert_eq!(extract_key("Synth_B Flat Minor_120.wav"), Some("A# Minor".into()));
-        assert_eq!(extract_key("Lead - E Flat - 128 BPM.wav"), Some("D# Minor".into()));
+        assert_eq!(
+            extract_key("Synth_B Flat Minor_120.wav"),
+            Some("A# Minor".into())
+        );
+        assert_eq!(
+            extract_key("Lead - E Flat - 128 BPM.wav"),
+            Some("D# Minor".into())
+        );
         // All sharp word forms → sharp notation (stays as sharp)
         assert_eq!(extract_key("Loop_A Sharp_140.wav"), Some("A# Minor".into()));
         assert_eq!(extract_key("Loop_C Sharp_140.wav"), Some("C# Minor".into()));
@@ -1367,32 +1757,47 @@ mod tests {
         assert_eq!(extract_key("Loop_F Sharp_140.wav"), Some("F# Minor".into()));
         assert_eq!(extract_key("Loop_G Sharp_140.wav"), Some("G# Minor".into()));
     }
-    
+
     #[test]
     fn key_all_flats_fold_to_sharps() {
         // All flats must fold to their enharmonic sharp equivalent
         // Db → C#
         assert_eq!(extract_key("Loop_Dbm_140.wav"), Some("C# Minor".into()));
         assert_eq!(extract_key("Loop_D Flat_140.wav"), Some("C# Minor".into()));
-        assert_eq!(extract_key("Loop - D Flat Minor.wav"), Some("C# Minor".into()));
+        assert_eq!(
+            extract_key("Loop - D Flat Minor.wav"),
+            Some("C# Minor".into())
+        );
         // Eb → D#
         assert_eq!(extract_key("Loop_Ebm_140.wav"), Some("D# Minor".into()));
         assert_eq!(extract_key("Loop_E Flat_140.wav"), Some("D# Minor".into()));
-        assert_eq!(extract_key("Loop - E Flat Minor.wav"), Some("D# Minor".into()));
+        assert_eq!(
+            extract_key("Loop - E Flat Minor.wav"),
+            Some("D# Minor".into())
+        );
         // Gb → F#
         assert_eq!(extract_key("Loop_Gbm_140.wav"), Some("F# Minor".into()));
         assert_eq!(extract_key("Loop_G Flat_140.wav"), Some("F# Minor".into()));
-        assert_eq!(extract_key("Loop - G Flat Minor.wav"), Some("F# Minor".into()));
+        assert_eq!(
+            extract_key("Loop - G Flat Minor.wav"),
+            Some("F# Minor".into())
+        );
         // Ab → G#
         assert_eq!(extract_key("Loop_Abm_140.wav"), Some("G# Minor".into()));
         assert_eq!(extract_key("Loop_A Flat_140.wav"), Some("G# Minor".into()));
-        assert_eq!(extract_key("Loop - A Flat Minor.wav"), Some("G# Minor".into()));
+        assert_eq!(
+            extract_key("Loop - A Flat Minor.wav"),
+            Some("G# Minor".into())
+        );
         // Bb → A#
         assert_eq!(extract_key("Loop_Bbm_140.wav"), Some("A# Minor".into()));
         assert_eq!(extract_key("Loop_B Flat_140.wav"), Some("A# Minor".into()));
-        assert_eq!(extract_key("Loop - B Flat Minor.wav"), Some("A# Minor".into()));
+        assert_eq!(
+            extract_key("Loop - B Flat Minor.wav"),
+            Some("A# Minor".into())
+        );
     }
-    
+
     #[test]
     fn key_sharps_stay_as_sharps() {
         // Sharps must NOT be folded - G# stays G#, not folded to Ab or anything else
@@ -1437,11 +1842,11 @@ mod tests {
     fn manufacturer_detection() {
         let m = detect_manufacturer("/Users/wizard/Samples/Drumcode/Techno Vol 3/Kicks/").unwrap();
         assert_eq!(m.manufacturer_pattern, "Drumcode");
-        assert!(m.genre_score < 0.0);  // techno-leaning
+        assert!(m.genre_score < 0.0); // techno-leaning
 
         let m = detect_manufacturer("/Samples/Tidy - Bits & Pieces Vol 1/Leads/").unwrap();
         assert_eq!(m.manufacturer_pattern, "Tidy");
-        assert!(m.genre_score > 0.0);  // trance-leaning
+        assert!(m.genre_score > 0.0); // trance-leaning
         assert!(m.hardness_score > 0.5); // hard
     }
 
@@ -1457,7 +1862,9 @@ mod tests {
     #[test]
     fn pack_name_extraction() {
         assert_eq!(
-            extract_pack_name("/Users/wizard/Samples/Producer loops/Tidy - Bits & Pieces Vol 1/Leads/"),
+            extract_pack_name(
+                "/Users/wizard/Samples/Producer loops/Tidy - Bits & Pieces Vol 1/Leads/"
+            ),
             Some("Tidy - Bits & Pieces Vol 1".into())
         );
         assert_eq!(
@@ -1479,7 +1886,10 @@ mod tests {
         assert!(a.category.is_some());
         assert_eq!(a.category.as_ref().unwrap().name, "kick");
         assert!(a.manufacturer.is_some());
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Definition of Hard Techno");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "Definition of Hard Techno"
+        );
     }
 
     // --- Real-world filenames from the DB ---
@@ -1488,26 +1898,65 @@ mod tests {
     fn real_bpm_parsing() {
         assert_eq!(extract_bpm("DPTE2 Techno Loop - 046 - 140 BPM"), Some(140));
         assert_eq!(extract_bpm("Loop 19 (120BPM)"), Some(120));
-        assert_eq!(extract_bpm("42 Minimal_Techno_Beat 124BPM Full Layered"), Some(124));
-        assert_eq!(extract_bpm("BFM_DT1_DarkTechnoLoop_60_Ebm_125bpm"), Some(125));
+        assert_eq!(
+            extract_bpm("42 Minimal_Techno_Beat 124BPM Full Layered"),
+            Some(124)
+        );
+        assert_eq!(
+            extract_bpm("BFM_DT1_DarkTechnoLoop_60_Ebm_125bpm"),
+            Some(125)
+        );
         assert_eq!(extract_bpm("RK_MT1_Bass_Loop_19_127bpm_Bmin"), Some(127));
         assert_eq!(extract_bpm("RK_RT3_Background_Loop_04_130bpm"), Some(130));
-        assert_eq!(extract_bpm("AOG_RST_SchoolOfWisdom_Drumloop_94bpm_Em_60"), Some(94));
+        assert_eq!(
+            extract_bpm("AOG_RST_SchoolOfWisdom_Drumloop_94bpm_Em_60"),
+            Some(94)
+        );
         assert_eq!(extract_bpm("TA_TECHNO_SYNTH_25_125bpm_C"), Some(125));
     }
 
     #[test]
     fn real_key_parsing() {
-        assert_eq!(extract_key("Tidy1 - Lead Loop  06 - PT3 - 140 BPM - G#m"), Some("G# Minor".into()));
-        assert_eq!(extract_key("Tidy1 - Bass Loop 02 - PT3 - 140 BPM - Dm"), Some("D Minor".into()));
-        assert_eq!(extract_key("PLX_ELT_128_kit_always_synth_Ebmin"), Some("D# Minor".into()));
-        assert_eq!(extract_key("GH_EP_Vocal Loop_17_145_C#m_Dry"), Some("C# Minor".into()));
-        assert_eq!(extract_key("RK_MT1_Bass_Loop_19_127bpm_Bmin"), Some("B Minor".into()));
-        assert_eq!(extract_key("BFM_DT1_DarkTechnoLoop_60_Ebm_125bpm"), Some("D# Minor".into()));
-        assert_eq!(extract_key("ZTTP_126_D#_Bass_Loop_1_SC"), Some("D# Minor".into()));
-        assert_eq!(extract_key("RK_DT3_Synth_Seq_22_128bpm_Cmin"), Some("C Minor".into()));
-        assert_eq!(extract_key("BEEFE_PSY_Trance_Kick6_A#"), Some("A# Minor".into()));
-        assert_eq!(extract_key("002_a__Synth_Loop_1_128bpm_G_-_IGNITETECHNO_Zenhiser"), Some("G Minor".into()));
+        assert_eq!(
+            extract_key("Tidy1 - Lead Loop  06 - PT3 - 140 BPM - G#m"),
+            Some("G# Minor".into())
+        );
+        assert_eq!(
+            extract_key("Tidy1 - Bass Loop 02 - PT3 - 140 BPM - Dm"),
+            Some("D Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_ELT_128_kit_always_synth_Ebmin"),
+            Some("D# Minor".into())
+        );
+        assert_eq!(
+            extract_key("GH_EP_Vocal Loop_17_145_C#m_Dry"),
+            Some("C# Minor".into())
+        );
+        assert_eq!(
+            extract_key("RK_MT1_Bass_Loop_19_127bpm_Bmin"),
+            Some("B Minor".into())
+        );
+        assert_eq!(
+            extract_key("BFM_DT1_DarkTechnoLoop_60_Ebm_125bpm"),
+            Some("D# Minor".into())
+        );
+        assert_eq!(
+            extract_key("ZTTP_126_D#_Bass_Loop_1_SC"),
+            Some("D# Minor".into())
+        );
+        assert_eq!(
+            extract_key("RK_DT3_Synth_Seq_22_128bpm_Cmin"),
+            Some("C Minor".into())
+        );
+        assert_eq!(
+            extract_key("BEEFE_PSY_Trance_Kick6_A#"),
+            Some("A# Minor".into())
+        );
+        assert_eq!(
+            extract_key("002_a__Synth_Loop_1_128bpm_G_-_IGNITETECHNO_Zenhiser"),
+            Some("G Minor".into())
+        );
     }
 
     #[test]
@@ -1554,13 +2003,19 @@ mod tests {
 
         // Word boundary: "Ensnared" must NOT match snare
         let m = match_category("10_Ensnared_Loop.wav", "/Samples/Loops/");
-        assert!(m.is_none() || m.as_ref().unwrap().name != "snare",
-            "Ensnared should not categorise as snare, got {:?}", m);
+        assert!(
+            m.is_none() || m.as_ref().unwrap().name != "snare",
+            "Ensnared should not categorise as snare, got {:?}",
+            m
+        );
 
         // Negation: "No Kick" must NOT match kick
         let m = match_category("009 Drum Loop 128 No Kick - TH Zenhiser.wav", "/Samples/");
-        assert!(m.is_none() || m.as_ref().unwrap().name != "kick",
-            "'No Kick' should not categorise as kick, got {:?}", m);
+        assert!(
+            m.is_none() || m.as_ref().unwrap().name != "kick",
+            "'No Kick' should not categorise as kick, got {:?}",
+            m
+        );
     }
 
     #[test]
@@ -1576,7 +2031,7 @@ mod tests {
         assert_eq!(m.manufacturer_pattern, "Toolroom");
 
         let m = detect_manufacturer(
-            "/Users/wizard/mnt/production/MusicProduction/Samples/freshly squeezed/Sunny Lax Kick Essentials Volume 1 - Sample Content/SLKEV1 Trance Kicks"
+            "/Users/wizard/mnt/production/MusicProduction/Samples/freshly squeezed/Sunny Lax Kick Essentials Volume 1 - Sample Content/SLKEV1 Trance Kicks",
         );
         // "Freshly Squeezed" should match (case-insensitive)
         assert!(m.is_some());
@@ -1593,7 +2048,10 @@ mod tests {
         assert_eq!(a.parsed_key, Some("G# Minor".into()));
         assert!(a.is_loop);
         assert_eq!(a.category.as_ref().unwrap().name, "lead");
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Tidy");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "Tidy"
+        );
         assert!(a.manufacturer.as_ref().unwrap().genre_score > 0.0); // trance
 
         // Zenhiser techno synth — Zenhiser is in the filename, Splice in the directory
@@ -1605,7 +2063,10 @@ mod tests {
         assert_eq!(a.parsed_key, Some("G Minor".into()));
         assert!(a.is_loop);
         // detect_manufacturer only looks at directory, not filename — Splice is neutral
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Splice");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "Splice"
+        );
 
         // Dark techno bass loop
         let a = analyze_sample(
@@ -1627,38 +2088,101 @@ mod tests {
         assert_eq!(extract_bpm("PLX_ACT_140_fx_loop_distract_C.wav"), Some(140));
         assert_eq!(extract_bpm("PLX_ACT_140_fx_loop_top_Eb.wav"), Some(140));
         assert_eq!(extract_bpm("PLX_ACT_140_fx_loop_wow_Amin.wav"), Some(140));
-        assert_eq!(extract_bpm("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"), Some(127));
-        assert_eq!(extract_bpm("FF_LFT2_127_drum_loop_exit_percussion.wav"), Some(127));
-        assert_eq!(extract_bpm("PLX_NFP_126_atmosphere_reflect_Bmin.wav"), Some(126));
-        assert_eq!(extract_bpm("PLX_NFP_128_atmosphere_desert_Bbmin.wav"), Some(128));
-        assert_eq!(extract_bpm("PLX_NFP_136_atmosphere_darkstar_Bmin.wav"), Some(136));
-        assert_eq!(extract_bpm("PLX_NFP_130_atmosphere_oceans_Cmin.wav"), Some(130));
+        assert_eq!(
+            extract_bpm("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"),
+            Some(127)
+        );
+        assert_eq!(
+            extract_bpm("FF_LFT2_127_drum_loop_exit_percussion.wav"),
+            Some(127)
+        );
+        assert_eq!(
+            extract_bpm("PLX_NFP_126_atmosphere_reflect_Bmin.wav"),
+            Some(126)
+        );
+        assert_eq!(
+            extract_bpm("PLX_NFP_128_atmosphere_desert_Bbmin.wav"),
+            Some(128)
+        );
+        assert_eq!(
+            extract_bpm("PLX_NFP_136_atmosphere_darkstar_Bmin.wav"),
+            Some(136)
+        );
+        assert_eq!(
+            extract_bpm("PLX_NFP_130_atmosphere_oceans_Cmin.wav"),
+            Some(130)
+        );
     }
 
     #[test]
     fn splice_key_suffix_format() {
         // Bare note at end defaults to minor
-        assert_eq!(extract_key("PLX_ACT_140_fx_loop_distract_C.wav"), Some("C Minor".into()));
-        assert_eq!(extract_key("PLX_ACT_140_fx_loop_top_Eb.wav"), Some("D# Minor".into()));
-        assert_eq!(extract_key("PLX_ACT_140_fx_loop_mod_G.wav"), Some("G Minor".into()));
-        assert_eq!(extract_key("PLX_ACT_140_fx_loop_dog_F.wav"), Some("F Minor".into()));
-        assert_eq!(extract_key("PLX_ACT_140_fx_loop_moves_E.wav"), Some("E Minor".into()));
-        assert_eq!(extract_key("PLX_ACT_140_fx_loop_cold_D.wav"), Some("D Minor".into()));
-        
+        assert_eq!(
+            extract_key("PLX_ACT_140_fx_loop_distract_C.wav"),
+            Some("C Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_ACT_140_fx_loop_top_Eb.wav"),
+            Some("D# Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_ACT_140_fx_loop_mod_G.wav"),
+            Some("G Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_ACT_140_fx_loop_dog_F.wav"),
+            Some("F Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_ACT_140_fx_loop_moves_E.wav"),
+            Some("E Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_ACT_140_fx_loop_cold_D.wav"),
+            Some("D Minor".into())
+        );
+
         // Explicit minor suffix
-        assert_eq!(extract_key("PLX_ACT_140_fx_loop_wow_Amin.wav"), Some("A Minor".into()));
-        assert_eq!(extract_key("PLX_NFP_126_atmosphere_reflect_Bmin.wav"), Some("B Minor".into()));
-        assert_eq!(extract_key("PLX_NFP_128_atmosphere_desert_Bbmin.wav"), Some("A# Minor".into()));
-        assert_eq!(extract_key("PLX_NFP_128_atmosphere_forgot_C#min.wav"), Some("C# Minor".into()));
-        assert_eq!(extract_key("PLX_NFP_130_atmosphere_oceans_Cmin.wav"), Some("C Minor".into()));
-        assert_eq!(extract_key("PLX_NFP_136_atmosphere_rediscover_Gmin.wav"), Some("G Minor".into()));
-        
+        assert_eq!(
+            extract_key("PLX_ACT_140_fx_loop_wow_Amin.wav"),
+            Some("A Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_NFP_126_atmosphere_reflect_Bmin.wav"),
+            Some("B Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_NFP_128_atmosphere_desert_Bbmin.wav"),
+            Some("A# Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_NFP_128_atmosphere_forgot_C#min.wav"),
+            Some("C# Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_NFP_130_atmosphere_oceans_Cmin.wav"),
+            Some("C Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_NFP_136_atmosphere_rediscover_Gmin.wav"),
+            Some("G Minor".into())
+        );
+
         // 7th chord notation (should still extract root as minor)
-        assert_eq!(extract_key("PLX_NFP_130_atmosphere_primal_Emin7.wav"), Some("E Minor".into()));
-        assert_eq!(extract_key("PLX_NFP_136_atmosphere_follow_Emin7.wav"), Some("E Minor".into()));
-        
+        assert_eq!(
+            extract_key("PLX_NFP_130_atmosphere_primal_Emin7.wav"),
+            Some("E Minor".into())
+        );
+        assert_eq!(
+            extract_key("PLX_NFP_136_atmosphere_follow_Emin7.wav"),
+            Some("E Minor".into())
+        );
+
         // Explicit major
-        assert_eq!(extract_key("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"), Some("D Major".into()));
+        assert_eq!(
+            extract_key("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"),
+            Some("D Major".into())
+        );
     }
 
     #[test]
@@ -1691,29 +2215,47 @@ mod tests {
     #[test]
     fn splice_various_packs() {
         // Left Field Techno 2
-        assert_eq!(extract_bpm("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"), Some(127));
-        assert_eq!(extract_key("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"), Some("D Major".into()));
+        assert_eq!(
+            extract_bpm("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"),
+            Some(127)
+        );
+        assert_eq!(
+            extract_key("FF_LFT2_127_bass_synth_loop_how_Dmaj.wav"),
+            Some("D Major".into())
+        );
 
-        // Nightfall - Future Progressive & Trance  
-        assert_eq!(extract_bpm("PLX_NFP_126_atmosphere_reflect_Bmin.wav"), Some(126));
-        assert_eq!(extract_key("PLX_NFP_126_atmosphere_reflect_Bmin.wav"), Some("B Minor".into()));
-        
-        assert_eq!(extract_bpm("PLX_NFP_136_atmosphere_touched_Gmin.wav"), Some(136));
-        assert_eq!(extract_key("PLX_NFP_136_atmosphere_touched_Gmin.wav"), Some("G Minor".into()));
+        // Nightfall - Future Progressive & Trance
+        assert_eq!(
+            extract_bpm("PLX_NFP_126_atmosphere_reflect_Bmin.wav"),
+            Some(126)
+        );
+        assert_eq!(
+            extract_key("PLX_NFP_126_atmosphere_reflect_Bmin.wav"),
+            Some("B Minor".into())
+        );
+
+        assert_eq!(
+            extract_bpm("PLX_NFP_136_atmosphere_touched_Gmin.wav"),
+            Some(136)
+        );
+        assert_eq!(
+            extract_key("PLX_NFP_136_atmosphere_touched_Gmin.wav"),
+            Some("G Minor".into())
+        );
     }
 
     #[test]
     fn bpm_edge_cases() {
         // BPM at start of filename
         assert_eq!(extract_bpm("120_C_HousyBass_SP_01.wav"), Some(120));
-        
+
         // BPM with underscore delimiters
         assert_eq!(extract_bpm("Loop_128_Am.wav"), Some(128));
         assert_eq!(extract_bpm("Bass_140_Fm.wav"), Some(140));
-        
+
         // BPM in middle of complex filename
         assert_eq!(extract_bpm("SYNTH_LOOPS_125BPM"), Some(125));
-        
+
         // Should NOT match version numbers, sample rates, etc.
         assert_eq!(extract_bpm("Sample_v2_44100hz.wav"), None);
         assert_eq!(extract_bpm("Track_01_Final.wav"), None);
@@ -1723,7 +2265,10 @@ mod tests {
     #[test]
     fn bpm_ableton_format() {
         // Ableton uses "NNN bpm" with space and lowercase
-        assert_eq!(extract_bpm("Electric Guitar Funky Wah G# Minor 115 bpm.wav"), Some(115));
+        assert_eq!(
+            extract_bpm("Electric Guitar Funky Wah G# Minor 115 bpm.wav"),
+            Some(115)
+        );
         assert_eq!(extract_bpm("Chugged Arp Fmin 130 bpm.wav"), Some(130));
         assert_eq!(extract_bpm("Space Paddy C 140 bpm.wav"), Some(140));
     }
@@ -1739,18 +2284,39 @@ mod tests {
     #[test]
     fn key_splice_suffix_formats() {
         // Splice uses Cmin, D#min, Am, Bm at end of filename
-        assert_eq!(extract_key("SLS_SS2_70_songstarter_C#min.wav"), Some("C# Minor".into()));
-        assert_eq!(extract_key("DBM_NYM2_87_piano_loop_C#min.wav"), Some("C# Minor".into()));
-        assert_eq!(extract_key("OS_MEM_145_melodic_stack_Em.wav"), Some("E Minor".into()));
-        assert_eq!(extract_key("VOX_SWL_94_vocal_hook_Cm.wav"), Some("C Minor".into()));
-        assert_eq!(extract_key("SOUTHSIDE_130_synth_melody_D#min.wav"), Some("D# Minor".into()));
+        assert_eq!(
+            extract_key("SLS_SS2_70_songstarter_C#min.wav"),
+            Some("C# Minor".into())
+        );
+        assert_eq!(
+            extract_key("DBM_NYM2_87_piano_loop_C#min.wav"),
+            Some("C# Minor".into())
+        );
+        assert_eq!(
+            extract_key("OS_MEM_145_melodic_stack_Em.wav"),
+            Some("E Minor".into())
+        );
+        assert_eq!(
+            extract_key("VOX_SWL_94_vocal_hook_Cm.wav"),
+            Some("C Minor".into())
+        );
+        assert_eq!(
+            extract_key("SOUTHSIDE_130_synth_melody_D#min.wav"),
+            Some("D# Minor".into())
+        );
     }
 
     #[test]
     fn key_ableton_verbose() {
         // Ableton uses verbose "G# Minor", "Bb Minor" format
-        assert_eq!(extract_key("Electric Guitar Funky Wah G# Minor 115 bpm.wav"), Some("G# Minor".into()));
-        assert_eq!(extract_key("Underwater Synth Progression Bb Minor 85 bpm.wav"), Some("A# Minor".into()));
+        assert_eq!(
+            extract_key("Electric Guitar Funky Wah G# Minor 115 bpm.wav"),
+            Some("G# Minor".into())
+        );
+        assert_eq!(
+            extract_key("Underwater Synth Progression Bb Minor 85 bpm.wav"),
+            Some("A# Minor".into())
+        );
     }
 
     #[test]
@@ -1766,8 +2332,8 @@ mod tests {
 
         // Key should NOT match inside words
         assert_eq!(extract_key("Crash_Big_01.wav"), None); // "C" inside "Crash"
-        assert_eq!(extract_key("Fade_Out.wav"), None);     // "F" and "A" inside words
-        assert_eq!(extract_key("Drum_Loop.wav"), None);    // "D" inside "Drum"
+        assert_eq!(extract_key("Fade_Out.wav"), None); // "F" and "A" inside words
+        assert_eq!(extract_key("Drum_Loop.wav"), None); // "D" inside "Drum"
     }
 
     #[test]
@@ -1795,45 +2361,87 @@ mod tests {
         // Format: PREFIX_BPM_KEY_Type_Loop_N.wav
         // DRIVING TECHNO pack
         assert_eq!(extract_bpm("ZDT_132_A#_Bass_Loop_1.wav"), Some(132));
-        assert_eq!(extract_key("ZDT_132_A#_Bass_Loop_1.wav"), Some("A# Minor".into()));
-        
+        assert_eq!(
+            extract_key("ZDT_132_A#_Bass_Loop_1.wav"),
+            Some("A# Minor".into())
+        );
+
         assert_eq!(extract_bpm("ZDT_132_C#_Bass_Loop_2.wav"), Some(132));
-        assert_eq!(extract_key("ZDT_132_C#_Bass_Loop_2.wav"), Some("C# Minor".into()));
-        
+        assert_eq!(
+            extract_key("ZDT_132_C#_Bass_Loop_2.wav"),
+            Some("C# Minor".into())
+        );
+
         assert_eq!(extract_bpm("ZDT_132_D#_Bass_Loop_3.wav"), Some(132));
-        assert_eq!(extract_key("ZDT_132_D#_Bass_Loop_3.wav"), Some("D# Minor".into()));
-        
+        assert_eq!(
+            extract_key("ZDT_132_D#_Bass_Loop_3.wav"),
+            Some("D# Minor".into())
+        );
+
         assert_eq!(extract_bpm("ZDT_132_F#_Bass_Loop_1.wav"), Some(132));
-        assert_eq!(extract_key("ZDT_132_F#_Bass_Loop_1.wav"), Some("F# Minor".into()));
-        
+        assert_eq!(
+            extract_key("ZDT_132_F#_Bass_Loop_1.wav"),
+            Some("F# Minor".into())
+        );
+
         assert_eq!(extract_bpm("ZDT_132_G#_Bass_Loop_2.wav"), Some(132));
-        assert_eq!(extract_key("ZDT_132_G#_Bass_Loop_2.wav"), Some("G# Minor".into()));
-        
+        assert_eq!(
+            extract_key("ZDT_132_G#_Bass_Loop_2.wav"),
+            Some("G# Minor".into())
+        );
+
         // Natural notes
         assert_eq!(extract_bpm("ZDT_132_A_Bass_Loop_1.wav"), Some(132));
-        assert_eq!(extract_key("ZDT_132_A_Bass_Loop_1.wav"), Some("A Minor".into()));
-        
+        assert_eq!(
+            extract_key("ZDT_132_A_Bass_Loop_1.wav"),
+            Some("A Minor".into())
+        );
+
         assert_eq!(extract_bpm("ZDT_132_E_Bass_Loop_3.wav"), Some(132));
-        assert_eq!(extract_key("ZDT_132_E_Bass_Loop_3.wav"), Some("E Minor".into()));
+        assert_eq!(
+            extract_key("ZDT_132_E_Bass_Loop_3.wav"),
+            Some("E Minor".into())
+        );
     }
 
     #[test]
     fn ztekno_techno_freaks_format() {
         // TECHNO FREAKS pack - Format: PREFIX_Kit_N_BPM_Bpm_KEY_Type_Loop.wav
         assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_A_Bass_Loop.wav"), Some(126));
-        assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_A_Bass_Loop.wav"), Some("A Minor".into()));
-        
-        assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_F#_Melodic_Synth_Loop.wav"), Some(126));
-        assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_F#_Melodic_Synth_Loop.wav"), Some("F# Minor".into()));
-        
+        assert_eq!(
+            extract_key("ZTTF_Kit_1_126_Bpm_A_Bass_Loop.wav"),
+            Some("A Minor".into())
+        );
+
+        assert_eq!(
+            extract_bpm("ZTTF_Kit_1_126_Bpm_F#_Melodic_Synth_Loop.wav"),
+            Some(126)
+        );
+        assert_eq!(
+            extract_key("ZTTF_Kit_1_126_Bpm_F#_Melodic_Synth_Loop.wav"),
+            Some("F# Minor".into())
+        );
+
         assert_eq!(extract_bpm("ZTTF_Kit_2_126_Bpm_C_Bass_Loop.wav"), Some(126));
-        assert_eq!(extract_key("ZTTF_Kit_2_126_Bpm_C_Bass_Loop.wav"), Some("C Minor".into()));
-        
-        assert_eq!(extract_bpm("ZTTF_Kit_4_126_Bpm_D#_Bass_Loop.wav"), Some(126));
-        assert_eq!(extract_key("ZTTF_Kit_4_126_Bpm_D#_Bass_Loop.wav"), Some("D# Minor".into()));
-        
+        assert_eq!(
+            extract_key("ZTTF_Kit_2_126_Bpm_C_Bass_Loop.wav"),
+            Some("C Minor".into())
+        );
+
+        assert_eq!(
+            extract_bpm("ZTTF_Kit_4_126_Bpm_D#_Bass_Loop.wav"),
+            Some(126)
+        );
+        assert_eq!(
+            extract_key("ZTTF_Kit_4_126_Bpm_D#_Bass_Loop.wav"),
+            Some("D# Minor".into())
+        );
+
         assert_eq!(extract_bpm("ZTTF_Kit_5_126_Bpm_F_Acid_Loop.wav"), Some(126));
-        assert_eq!(extract_key("ZTTF_Kit_5_126_Bpm_F_Acid_Loop.wav"), Some("F Minor".into()));
+        assert_eq!(
+            extract_key("ZTTF_Kit_5_126_Bpm_F_Acid_Loop.wav"),
+            Some("F Minor".into())
+        );
     }
 
     #[test]
@@ -1841,13 +2449,13 @@ mod tests {
         // Samples without key info - BPM only
         assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_Kick_Loop.wav"), Some(126));
         assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_Kick_Loop.wav"), None);
-        
+
         assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_Top_Loop.wav"), Some(126));
         assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_Top_Loop.wav"), None);
-        
+
         assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_Fx.wav"), Some(126));
         assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_Fx.wav"), None);
-        
+
         assert_eq!(extract_bpm("ZTTF_Kit_1_126_Bpm_Vox.wav"), Some(126));
         assert_eq!(extract_key("ZTTF_Kit_1_126_Bpm_Vox.wav"), None);
     }
@@ -1857,14 +2465,14 @@ mod tests {
         // One-shot samples - no BPM expected (numbers are variant IDs, not BPM)
         assert_eq!(extract_bpm("ZAT_Clap_1.wav"), None);
         assert_eq!(extract_bpm("ZAT_Clap_22.wav"), None);
-        assert_eq!(extract_bpm("ZAT_Clap_140.wav"), None);  // 140 is variant, not BPM
-        assert_eq!(extract_bpm("ZAT_Kick_128.wav"), None);  // 128 is variant, not BPM
+        assert_eq!(extract_bpm("ZAT_Clap_140.wav"), None); // 140 is variant, not BPM
+        assert_eq!(extract_bpm("ZAT_Kick_128.wav"), None); // 128 is variant, not BPM
         assert_eq!(extract_key("ZAT_Clap_1.wav"), None);
-        
+
         // "Kick 23 G.wav" - 23 is variant, G is key
-        assert_eq!(extract_bpm("Kick 23 G.wav"), None);     // 23 is variant, not BPM
+        assert_eq!(extract_bpm("Kick 23 G.wav"), None); // 23 is variant, not BPM
         assert_eq!(extract_key("Kick 23 G.wav"), Some("G Minor".into()));
-        
+
         // "FL_RNB_Clap.wav" - no BPM, no key (RNB is not a note)
         assert_eq!(extract_bpm("FL_RNB_Clap.wav"), None);
         assert_eq!(extract_key("FL_RNB_Clap.wav"), None);
@@ -1874,10 +2482,16 @@ mod tests {
     fn ztekno_sc_suffix() {
         // Sidechain versions (_SC suffix)
         assert_eq!(extract_bpm("ZDT_132_A#_Bass_Loop_1_SC.wav"), Some(132));
-        assert_eq!(extract_key("ZDT_132_A#_Bass_Loop_1_SC.wav"), Some("A# Minor".into()));
-        
+        assert_eq!(
+            extract_key("ZDT_132_A#_Bass_Loop_1_SC.wav"),
+            Some("A# Minor".into())
+        );
+
         assert_eq!(extract_bpm("ZDT_132_C_Bass_Loop_3_SC.wav"), Some(132));
-        assert_eq!(extract_key("ZDT_132_C_Bass_Loop_3_SC.wav"), Some("C Minor".into()));
+        assert_eq!(
+            extract_key("ZDT_132_C_Bass_Loop_3_SC.wav"),
+            Some("C Minor".into())
+        );
     }
 
     #[test]
@@ -1896,8 +2510,9 @@ mod tests {
         // "Sunny Lax" (9) vs "Freshly Squeezed" (16) — both non-neutral, Freshly Squeezed wins (longer)
         // But both are trance-positive so either is fine
         let m = detect_manufacturer(
-            "/Samples/freshly squeezed/Sunny Lax Kick Essentials Volume 1/Kicks/"
-        ).unwrap();
+            "/Samples/freshly squeezed/Sunny Lax Kick Essentials Volume 1/Kicks/",
+        )
+        .unwrap();
         assert!(m.genre_score > 0.0, "should be trance-leaning");
     }
 
@@ -1907,16 +2522,21 @@ mod tests {
             "/Users/wizard/mnt/production/MusicProduction/Samples/ztekno/ZTEKNO - TECHNO BLAST (WAVS)/Kicks/"
         ).unwrap();
         assert_eq!(m.manufacturer_pattern, "ZTEKNO");
-        assert!(m.genre_score < 0.0, "ZTEKNO should be techno-leaning (negative)");
-        assert!(m.hardness_score > 0.0, "ZTEKNO should have positive hardness");
+        assert!(
+            m.genre_score < 0.0,
+            "ZTEKNO should be techno-leaning (negative)"
+        );
+        assert!(
+            m.hardness_score > 0.0,
+            "ZTEKNO should have positive hardness"
+        );
     }
 
     #[test]
     fn detect_manufacturer_true_samples_under_ztekno() {
         // Both "ZTEKNO" and "True Samples" match; "True Samples" wins (longer, both non-neutral)
-        let m = detect_manufacturer(
-            "/Samples/ztekno/True Samples - Techno Moonwalkers/Loops/"
-        ).unwrap();
+        let m = detect_manufacturer("/Samples/ztekno/True Samples - Techno Moonwalkers/Loops/")
+            .unwrap();
         assert_eq!(m.manufacturer_pattern, "True Samples");
         assert!(m.genre_score < 0.0, "True Samples should lean electronic");
     }
@@ -1924,9 +2544,7 @@ mod tests {
     #[test]
     fn detect_manufacturer_ztekno_ambiguous_name() {
         // Packs with no genre in name still get ZTEKNO's score
-        let m = detect_manufacturer(
-            "/Samples/ztekno/ZTEKNO - VIRGO (WAVS)/Synths/"
-        ).unwrap();
+        let m = detect_manufacturer("/Samples/ztekno/ZTEKNO - VIRGO (WAVS)/Synths/").unwrap();
         assert_eq!(m.manufacturer_pattern, "ZTEKNO");
     }
 
@@ -1940,7 +2558,7 @@ mod tests {
         assert_eq!(a.parsed_bpm, Some(132));
         assert_eq!(a.parsed_key, Some("A# Minor".into()));
         assert!(a.is_loop);
-        
+
         let a = analyze_sample(
             "ZTTF_Kit_1_126_Bpm_F#_Melodic_Synth_Loop.wav",
             "/Samples/ztekno/ZTEKNO - TECHNO FREAKS/ZTTF_LIVE_KITS/",
@@ -1959,31 +2577,88 @@ mod tests {
         let cases: &[(&str, &str, bool)] = &[
             // (path_fragment, expected_pattern, is_techno_leaning)
             // --- Techno labels ---
-            ("/Samples/riemann/Riemann Techno Starter/Loops/", "Riemann", true),
-            ("/Samples/sinee/SINEE - Industrial Acid Techno/Kicks/", "SINEE", true),
+            (
+                "/Samples/riemann/Riemann Techno Starter/Loops/",
+                "Riemann",
+                true,
+            ),
+            (
+                "/Samples/sinee/SINEE - Industrial Acid Techno/Kicks/",
+                "SINEE",
+                true,
+            ),
             // "Hard Techno" (11 chars) is longer than "Bluezone" (8), both non-neutral → Hard Techno wins
-            ("/Samples/Bluezone/Bluezone Corporation - Hard Techno Core/loops/", "Hard Techno", true),
-            ("/Samples/undrgrnd/UNDRGRND Sounds - Deep Dub Techno/Loops/", "UNDRGRND", true),
-            ("/Samples/sounds.com/Dark Techno by Marco Ginelli/Kicks/", "Sounds.com", true),
-            ("/Samples/datacode/DATSND-002-Datacode-FOCUS-Techno-Drums/", "Datacode", true),
-            ("/Samples/mutekki/Mutekki Media - Techno/Loops/", "Mutekki", true),
+            (
+                "/Samples/Bluezone/Bluezone Corporation - Hard Techno Core/loops/",
+                "Hard Techno",
+                true,
+            ),
+            (
+                "/Samples/undrgrnd/UNDRGRND Sounds - Deep Dub Techno/Loops/",
+                "UNDRGRND",
+                true,
+            ),
+            (
+                "/Samples/sounds.com/Dark Techno by Marco Ginelli/Kicks/",
+                "Sounds.com",
+                true,
+            ),
+            (
+                "/Samples/datacode/DATSND-002-Datacode-FOCUS-Techno-Drums/",
+                "Datacode",
+                true,
+            ),
+            (
+                "/Samples/mutekki/Mutekki Media - Techno/Loops/",
+                "Mutekki",
+                true,
+            ),
             // --- Trance labels ---
-            ("/Samples/freshly squeezed/Activa Trance Essentials/Loops/", "Freshly Squeezed", false),
+            (
+                "/Samples/freshly squeezed/Activa Trance Essentials/Loops/",
+                "Freshly Squeezed",
+                false,
+            ),
             // "Allen Watts" (11) > "Myloops" (7), both non-neutral → artist wins
-            ("/Samples/myloops/Allen Watts High Voltage Sample Pack/Kicks/", "Allen Watts", false),
+            (
+                "/Samples/myloops/Allen Watts High Voltage Sample Pack/Kicks/",
+                "Allen Watts",
+                false,
+            ),
             // "Alex Di Stefano" (15 chars) > "mettaglyde" (10) → artist wins
-            ("/Samples/mettaglyde/Alex Di Stefano - Acid Bass Attack/Bass/", "Alex Di Stefano", false),
+            (
+                "/Samples/mettaglyde/Alex Di Stefano - Acid Bass Attack/Bass/",
+                "Alex Di Stefano",
+                false,
+            ),
             // --- Neutral marketplaces ---
-            ("/Samples/Splice/sounds/packs/Raw Techno/Kicks/", "Splice", false),
-            ("/Samples/loopmasters/Techno Intoxication/Loops/", "Loopmasters", false),
+            (
+                "/Samples/Splice/sounds/packs/Raw Techno/Kicks/",
+                "Splice",
+                false,
+            ),
+            (
+                "/Samples/loopmasters/Techno Intoxication/Loops/",
+                "Loopmasters",
+                false,
+            ),
         ];
         for &(path, expected, is_techno) in cases {
             let m = detect_manufacturer(path);
             assert!(m.is_some(), "no manufacturer for path: {}", path);
             let m = m.unwrap();
-            assert_eq!(m.manufacturer_pattern, expected, "wrong pattern for path: {}", path);
+            assert_eq!(
+                m.manufacturer_pattern, expected,
+                "wrong pattern for path: {}",
+                path
+            );
             if is_techno {
-                assert!(m.genre_score < 0.0, "{} should be techno-leaning, got {}", expected, m.genre_score);
+                assert!(
+                    m.genre_score < 0.0,
+                    "{} should be techno-leaning, got {}",
+                    expected,
+                    m.genre_score
+                );
             }
         }
     }
@@ -1991,17 +2666,34 @@ mod tests {
     #[test]
     fn detect_manufacturer_new_artists() {
         let cases: &[(&str, &str)] = &[
-            ("/Samples/Techno/Axel Karakasis - Essentials/Kicks/", "Axel Karakasis"),
+            (
+                "/Samples/Techno/Axel Karakasis - Essentials/Kicks/",
+                "Axel Karakasis",
+            ),
             ("/Samples/new/Carl Cox/Loops/", "Carl Cox"),
-            ("/Samples/Techno/David Moleon - Sample Pack/Kicks/", "David Moleon"),
-            ("/Samples/mettaglyde/Alex Di Stefano - Acid Bass Attack/Bass/", "Alex Di Stefano"),
-            ("/Samples/Splice/Alignment - Left Field & Tech Trance/Loops/", "Alignment"),
+            (
+                "/Samples/Techno/David Moleon - Sample Pack/Kicks/",
+                "David Moleon",
+            ),
+            (
+                "/Samples/mettaglyde/Alex Di Stefano - Acid Bass Attack/Bass/",
+                "Alex Di Stefano",
+            ),
+            (
+                "/Samples/Splice/Alignment - Left Field & Tech Trance/Loops/",
+                "Alignment",
+            ),
             ("/Samples/Splice/Genix - Tech Trance/Kicks/", "Genix"),
         ];
         for &(path, expected) in cases {
             let m = detect_manufacturer(path);
             assert!(m.is_some(), "no manufacturer for: {}", path);
-            assert_eq!(m.unwrap().manufacturer_pattern, expected, "wrong for: {}", path);
+            assert_eq!(
+                m.unwrap().manufacturer_pattern,
+                expected,
+                "wrong for: {}",
+                path
+            );
         }
     }
 
@@ -2020,17 +2712,15 @@ mod tests {
     #[test]
     fn detect_manufacturer_glitchtone_folder() {
         // "glitchtone" is the folder name; "Glitchedtones" is the full label in subfolder names
-        let m = detect_manufacturer(
-            "/Samples/glitchtone/Glitchedtones_Drones/sample.wav"
-        ).unwrap();
+        let m = detect_manufacturer("/Samples/glitchtone/Glitchedtones_Drones/sample.wav").unwrap();
         // "Glitchedtones" (13 chars) > "glitchtone" (10), both non-neutral → Glitchedtones wins
-        assert!(m.genre_score < 0.0 || m.hardness_score > 0.0,
-            "glitchtone/Glitchedtones should be non-neutral");
+        assert!(
+            m.genre_score < 0.0 || m.hardness_score > 0.0,
+            "glitchtone/Glitchedtones should be non-neutral"
+        );
 
         // Folder name alone (no "Glitchedtones" in subpath) should still match
-        let m = detect_manufacturer(
-            "/Samples/glitchtone/Custom Pack/Loops/"
-        ).unwrap();
+        let m = detect_manufacturer("/Samples/glitchtone/Custom Pack/Loops/").unwrap();
         assert_eq!(m.manufacturer_pattern, "glitchtone");
     }
 
@@ -2055,11 +2745,16 @@ mod tests {
 
         // sonicacademy (no space)
         let m = detect_manufacturer("/Samples/sonicacademy/Sonic Academy 1.5GB/Loops/").unwrap();
-        assert!(m.manufacturer_pattern == "Sonic Academy" || m.manufacturer_pattern == "sonicacademy");
+        assert!(
+            m.manufacturer_pattern == "Sonic Academy" || m.manufacturer_pattern == "sonicacademy"
+        );
 
         // functionloops (no space)
-        let m = detect_manufacturer("/Samples/functionloops/Function Loops - Progressive/Loops/").unwrap();
-        assert!(m.manufacturer_pattern == "Function Loops" || m.manufacturer_pattern == "functionloops");
+        let m = detect_manufacturer("/Samples/functionloops/Function Loops - Progressive/Loops/")
+            .unwrap();
+        assert!(
+            m.manufacturer_pattern == "Function Loops" || m.manufacturer_pattern == "functionloops"
+        );
 
         // glitchmach
         let m = detect_manufacturer("/Samples/glitchmach/1918_Idiom-Full/Loops/").unwrap();
@@ -2083,9 +2778,21 @@ mod tests {
         let cases: &[(&str, &str, &str)] = &[
             // (filename, directory, expected_category)
             // "Acid" matches before "Kick" in the filename (acid pattern fires first on leftmost match)
-            ("SINEE - Industrial Acid Techno Kick.wav", "/sinee/SINEE - Industrial Acid Techno/", "acid"),
-            ("ZAT_Clap_1.wav", "/ztekno/ZTEKNO - TECHNO ATOM/Claps/", "clap"),
-            ("HiHat_Straight_01.wav", "/sinee/SINEE - Industrial Acid Techno/HiHats/", "hat"),
+            (
+                "SINEE - Industrial Acid Techno Kick.wav",
+                "/sinee/SINEE - Industrial Acid Techno/",
+                "acid",
+            ),
+            (
+                "ZAT_Clap_1.wav",
+                "/ztekno/ZTEKNO - TECHNO ATOM/Claps/",
+                "clap",
+            ),
+            (
+                "HiHat_Straight_01.wav",
+                "/sinee/SINEE - Industrial Acid Techno/HiHats/",
+                "hat",
+            ),
             ("Tr8 Closed Hat 03.wav", "/Drums/Hats/", "closed_hat"),
             ("Open_HH_Vintage_02.wav", "/Drums/", "open_hat"),
             ("Snare_Tight_01.wav", "/Drums/Snares/", "snare"),
@@ -2335,20 +3042,32 @@ mod tests {
         let a = analyze_sample("RK_DUBT2_Fx_Loop_04_127bpm.wav", "/riemann/Fx Loops/");
         assert!(a.is_loop);
 
-        let a = analyze_sample("ZDT_132_A#_Bass_Loop_1.wav", "/ztekno/ZTEKNO - DRIVING TECHNO/BASS_LOOPS/");
+        let a = analyze_sample(
+            "ZDT_132_A#_Bass_Loop_1.wav",
+            "/ztekno/ZTEKNO - DRIVING TECHNO/BASS_LOOPS/",
+        );
         assert!(a.is_loop);
 
-        let a = analyze_sample("DRESP_Kick_Loops_01_E_130bpm.wav", "/sounds.com/Dark Techno/Kick Loops/");
+        let a = analyze_sample(
+            "DRESP_Kick_Loops_01_E_130bpm.wav",
+            "/sounds.com/Dark Techno/Kick Loops/",
+        );
         assert!(a.is_loop);
 
         // One-shots: no "loop" in filename
         let a = analyze_sample("ZAT_Clap_1.wav", "/ztekno/ZTEKNO - TECHNO ATOM/Claps/");
         assert!(!a.is_loop);
 
-        let a = analyze_sample("SINEE - Industrial Acid Techno Kick.wav", "/sinee/SINEE - Industrial Acid Techno/");
+        let a = analyze_sample(
+            "SINEE - Industrial Acid Techno Kick.wav",
+            "/sinee/SINEE - Industrial Acid Techno/",
+        );
         assert!(!a.is_loop);
 
-        let a = analyze_sample("PLX_ACT_kick_mid_short.wav", "/Splice/Acid Trance/one-shots/kick/");
+        let a = analyze_sample(
+            "PLX_ACT_kick_mid_short.wav",
+            "/Splice/Acid Trance/one-shots/kick/",
+        );
         assert!(!a.is_loop);
     }
 
@@ -2415,7 +3134,10 @@ mod tests {
         assert_eq!(a.parsed_bpm, Some(127));
         assert!(a.is_loop);
         assert!(a.manufacturer.is_some());
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Riemann");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "Riemann"
+        );
         assert!(a.manufacturer.as_ref().unwrap().genre_score < 0.0);
     }
 
@@ -2428,7 +3150,10 @@ mod tests {
         assert!(!a.is_loop);
         assert_eq!(a.category.as_ref().unwrap().name, "kick");
         assert!(a.manufacturer.is_some());
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "SINEE");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "SINEE"
+        );
         assert!(a.manufacturer.as_ref().unwrap().genre_score < -0.5);
     }
 
@@ -2441,7 +3166,10 @@ mod tests {
         assert!(a.is_loop);
         assert!(a.manufacturer.is_some());
         // "Hard Techno" (11 chars) is longer than "Bluezone" (8), both non-neutral → Hard Techno wins
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Hard Techno");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "Hard Techno"
+        );
         assert!(a.manufacturer.as_ref().unwrap().genre_score < 0.0);
     }
 
@@ -2465,7 +3193,10 @@ mod tests {
         );
         assert_eq!(a.parsed_bpm, Some(128));
         assert!(a.manufacturer.is_some());
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Vengeance");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "Vengeance"
+        );
     }
 
     #[test]
@@ -2478,7 +3209,10 @@ mod tests {
         assert_eq!(a.parsed_key, Some("A# Minor".into()));
         assert_eq!(a.category.as_ref().unwrap().name, "mid_bass");
         assert!(a.manufacturer.is_some());
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "UNDRGRND");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "UNDRGRND"
+        );
     }
 
     #[test]
@@ -2489,8 +3223,14 @@ mod tests {
         );
         assert!(a.manufacturer.is_some());
         // "Alex Di Stefano" (15) > "mettaglyde" (10), both non-neutral → artist wins
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Alex Di Stefano");
-        assert!(a.manufacturer.as_ref().unwrap().genre_score > 0.0, "Alex Di Stefano should be trance-leaning");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "Alex Di Stefano"
+        );
+        assert!(
+            a.manufacturer.as_ref().unwrap().genre_score > 0.0,
+            "Alex Di Stefano should be trance-leaning"
+        );
     }
 
     #[test]
@@ -2500,7 +3240,13 @@ mod tests {
             "/Samples/myloops/Myloops+Reloaded+FX+Sample+Pack/MRFX Breakdown FX - 138BPM/",
         );
         assert!(a.manufacturer.is_some());
-        assert_eq!(a.manufacturer.as_ref().unwrap().manufacturer_pattern, "Myloops");
-        assert!(a.manufacturer.as_ref().unwrap().genre_score > 0.0, "Myloops should be trance-leaning");
+        assert_eq!(
+            a.manufacturer.as_ref().unwrap().manufacturer_pattern,
+            "Myloops"
+        );
+        assert!(
+            a.manufacturer.as_ref().unwrap().genre_score > 0.0,
+            "Myloops should be trance-leaning"
+        );
     }
 }

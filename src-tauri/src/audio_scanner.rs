@@ -183,9 +183,10 @@ fn walk_dir_parallel(
     }
 
     if let Some(ref inc) = incremental
-        && inc.should_skip(dir) {
-            return;
-        }
+        && inc.should_skip(dir)
+    {
+        return;
+    }
 
     // Track active directory (rolling window of last 30 visited)
     let dir_str = dir.to_string_lossy().to_string();
@@ -498,9 +499,9 @@ fn probe_with_symphonia(path: &Path, meta: &mut AudioMetadata) {
             // clamp to format max as workaround until symphonia fixes parsing.
             let ext = path.extension().and_then(|e| e.to_str());
             let max_ch = match ext {
-                Some("mp3") => 2,  // MPEG-1 Layer III: stereo max
-                Some("wma") => 8,  // WMA Pro: 7.1 max
-                _ => 8,            // AAC/Opus/Vorbis support more, but 7.1 is practical max
+                Some("mp3") => 2, // MPEG-1 Layer III: stereo max
+                Some("wma") => 8, // WMA Pro: 7.1 max
+                _ => 8,           // AAC/Opus/Vorbis support more, but 7.1 is practical max
             };
             meta.channels = Some(count.min(max_ch));
         }
@@ -520,7 +521,7 @@ fn parse_wav(path: &Path, meta: &mut AudioMetadata) {
         Ok(f) => f,
         Err(_) => return,
     };
-    
+
     // Read enough to find the data chunk (most WAV files have it within first 4KB)
     let mut buf = [0u8; 4096];
     let bytes_read = match file.read(&mut buf) {
@@ -538,12 +539,12 @@ fn parse_wav(path: &Path, meta: &mut AudioMetadata) {
         meta.sample_rate = Some(u32::from_le_bytes([buf[24], buf[25], buf[26], buf[27]]));
         meta.bits_per_sample = Some(u16::from_le_bytes([buf[34], buf[35]]));
     }
-    
+
     // Scan for the "data" chunk - it may not be at offset 36 if there are extra chunks
     // (LIST, bext, JUNK, etc. can appear between fmt and data)
     let mut offset = 12usize;
     let mut data_size: Option<u32> = None;
-    
+
     while offset + 8 < bytes_read {
         let chunk_id = &buf[offset..offset + 4];
         let chunk_size = u32::from_le_bytes([
@@ -552,21 +553,24 @@ fn parse_wav(path: &Path, meta: &mut AudioMetadata) {
             buf[offset + 6],
             buf[offset + 7],
         ]);
-        
+
         if chunk_id == b"data" {
             data_size = Some(chunk_size);
             break;
         }
-        
+
         // Move to next chunk (8 byte header + chunk size, padded to even)
         let padded_size = ((chunk_size + 1) & !1) as usize;
         offset += 8 + padded_size;
     }
-    
+
     // Calculate duration from data size and format info
-    if let (Some(sr), Some(ch), Some(bits), Some(ds)) = 
-        (meta.sample_rate, meta.channels, meta.bits_per_sample, data_size) 
-    {
+    if let (Some(sr), Some(ch), Some(bits), Some(ds)) = (
+        meta.sample_rate,
+        meta.channels,
+        meta.bits_per_sample,
+        data_size,
+    ) {
         if sr > 0 && ch > 0 && bits > 0 {
             let bytes_per_sample = ((bits + 7) / 8) as u32;
             let bytes_per_second = sr * ch as u32 * bytes_per_sample;

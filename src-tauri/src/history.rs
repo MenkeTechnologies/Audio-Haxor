@@ -337,8 +337,7 @@ pub struct MidiScanDiff {
 }
 
 // PDF scan types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PdfFile {
     pub name: String,
     pub path: String,
@@ -357,7 +356,6 @@ pub struct PdfFile {
     #[serde(default, rename = "pdfModDate")]
     pub pdf_mod_date: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PdfScanSnapshot {
@@ -428,9 +426,10 @@ pub fn get_data_dir() -> PathBuf {
     #[cfg(test)]
     {
         if let Ok(g) = TEST_DATA_DIR_GLOBAL.lock()
-            && let Some(ref dir) = *g {
-                return dir.clone();
-            }
+            && let Some(ref dir) = *g
+        {
+            return dir.clone();
+        }
         if let Some(dir) = TEST_DATA_DIR.with(|d| d.borrow().clone()) {
             return dir;
         }
@@ -579,7 +578,10 @@ const SECTION_MAP: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
     ("logging", &[("logVerbosity", "verbosity")]),
-    ("player", &[("playerDock", "dock"), ("audioSpeed", "audioSpeed")]),
+    (
+        "player",
+        &[("playerDock", "dock"), ("audioSpeed", "audioSpeed")],
+    ),
     (
         "audioEngine",
         &[
@@ -628,9 +630,10 @@ fn migrate_json_string(val: serde_json::Value) -> serde_json::Value {
         let trimmed = s.trim();
         if ((trimmed.starts_with('[') && trimmed.ends_with(']'))
             || (trimmed.starts_with('{') && trimmed.ends_with('}')))
-            && let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed) {
-                return parsed;
-            }
+            && let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed)
+        {
+            return parsed;
+        }
     }
     val
 }
@@ -763,13 +766,14 @@ fn load_preferences_from_disk() -> PrefsMap {
         let legacy = legacy_preferences_file();
         if legacy.exists()
             && let Ok(data) = fs::read_to_string(&legacy)
-                && let Ok(serde_json::Value::Object(user)) = serde_json::from_str(&data) {
-                    let defaults = default_config();
-                    let merged = merge_prefs(&defaults, &user);
-                    save_preferences(&merged);
-                    let _ = fs::remove_file(&legacy);
-                    return merged;
-                }
+            && let Ok(serde_json::Value::Object(user)) = serde_json::from_str(&data)
+        {
+            let defaults = default_config();
+            let merged = merge_prefs(&defaults, &user);
+            save_preferences(&merged);
+            let _ = fs::remove_file(&legacy);
+            return merged;
+        }
     }
 
     if path.exists() {
@@ -800,9 +804,11 @@ pub fn load_preferences() -> PrefsMap {
     {
         if let Ok(guard) = PREF_CACHE.lock()
             && let Some((t, cached_path, p)) = guard.as_ref()
-                && now.saturating_sub(*t) < PREF_CACHE_TTL_MS && *cached_path == path {
-                    return p.clone();
-                }
+            && now.saturating_sub(*t) < PREF_CACHE_TTL_MS
+            && *cached_path == path
+        {
+            return p.clone();
+        }
     }
     let loaded = load_preferences_from_disk();
     if let Ok(mut guard) = PREF_CACHE.lock() {
@@ -887,9 +893,10 @@ fn load_history() -> ScanHistory {
     let path = history_file();
     if path.exists()
         && let Ok(data) = fs::read_to_string(&path)
-            && let Ok(h) = serde_json::from_str(&data) {
-                return h;
-            }
+        && let Ok(h) = serde_json::from_str(&data)
+    {
+        return h;
+    }
     ScanHistory { scans: vec![] }
 }
 
@@ -1096,9 +1103,10 @@ pub fn load_kvr_cache() -> std::collections::HashMap<String, KvrCacheEntry> {
     let path = kvr_cache_file();
     if path.exists()
         && let Ok(data) = fs::read_to_string(&path)
-            && let Ok(cache) = serde_json::from_str(&data) {
-                return cache;
-            }
+        && let Ok(cache) = serde_json::from_str(&data)
+    {
+        return cache;
+    }
     std::collections::HashMap::new()
 }
 
@@ -1133,9 +1141,10 @@ fn load_audio_history() -> AudioHistory {
     let path = audio_history_file();
     if path.exists()
         && let Ok(data) = fs::read_to_string(&path)
-            && let Ok(h) = serde_json::from_str(&data) {
-                return h;
-            }
+        && let Ok(h) = serde_json::from_str(&data)
+    {
+        return h;
+    }
     AudioHistory { scans: vec![] }
 }
 
@@ -1275,9 +1284,10 @@ fn load_daw_history() -> DawHistory {
     let path = daw_history_file();
     if path.exists()
         && let Ok(data) = fs::read_to_string(&path)
-            && let Ok(h) = serde_json::from_str(&data) {
-                return h;
-            }
+        && let Ok(h) = serde_json::from_str(&data)
+    {
+        return h;
+    }
     DawHistory { scans: vec![] }
 }
 
@@ -1508,9 +1518,10 @@ fn load_preset_history() -> PresetHistory {
     let path = preset_history_file();
     if path.exists()
         && let Ok(data) = fs::read_to_string(&path)
-            && let Ok(h) = serde_json::from_str(&data) {
-                return h;
-            }
+        && let Ok(h) = serde_json::from_str(&data)
+    {
+        return h;
+    }
     PresetHistory { scans: vec![] }
 }
 

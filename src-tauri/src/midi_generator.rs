@@ -79,8 +79,12 @@ impl LeadType {
     }
 }
 
-const NOTE_NAMES: [&str; 12] = ["C","Cs","D","Ds","E","F","Fs","G","Gs","A","As","B"];
-const NOTE_DISPLAY: [&str; 12] = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const NOTE_NAMES: [&str; 12] = [
+    "C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B",
+];
+const NOTE_DISPLAY: [&str; 12] = [
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+];
 
 /// Build a descriptive filename like `Am_TwoLayer_4chords_8bars_140bpm_seed42`.
 /// Does NOT include the `.mid` extension or variation number.
@@ -95,8 +99,11 @@ pub fn build_base_name(config: &MidiGenConfig) -> String {
     let key = NOTE_NAMES[config.key_root as usize % 12];
     let scale = if config.minor { "m" } else { "" };
     let lt = config.lead_type.short_name();
-    format!("{key}{scale}_{lt}_{total_bars}bars_{bpm}bpm_seed{seed}",
-        bpm = config.bpm, seed = config.seed)
+    format!(
+        "{key}{scale}_{lt}_{total_bars}bars_{bpm}bpm_seed{seed}",
+        bpm = config.bpm,
+        seed = config.seed
+    )
 }
 
 /// Build the full filename for variation `i` of `n` total.
@@ -167,9 +174,24 @@ fn parse_chord_name(s: &str) -> Option<u8> {
         .trim_end_matches('m')
         .trim();
     const NAMES: &[(&str, u8)] = &[
-        ("C", 0), ("C#", 1), ("Db", 1), ("D", 2), ("D#", 3), ("Eb", 3),
-        ("E", 4), ("F", 5), ("F#", 6), ("Gb", 6), ("G", 7), ("G#", 8),
-        ("Ab", 8), ("A", 9), ("A#", 10), ("Bb", 10), ("B", 11), ("Cb", 11),
+        ("C", 0),
+        ("C#", 1),
+        ("Db", 1),
+        ("D", 2),
+        ("D#", 3),
+        ("Eb", 3),
+        ("E", 4),
+        ("F", 5),
+        ("F#", 6),
+        ("Gb", 6),
+        ("G", 7),
+        ("G#", 8),
+        ("Ab", 8),
+        ("A", 9),
+        ("A#", 10),
+        ("Bb", 10),
+        ("B", 11),
+        ("Cb", 11),
     ];
     // Try longest match first (C# before C)
     for &(name, pc) in NAMES.iter().rev() {
@@ -187,9 +209,8 @@ pub fn resolve_chords(config: &MidiGenConfig) -> Vec<i8> {
             .progression
             .iter()
             .filter_map(|name| {
-                parse_chord_name(name).map(|pc| {
-                    ((pc as i16 - config.key_root as i16).rem_euclid(12)) as i8
-                })
+                parse_chord_name(name)
+                    .map(|pc| ((pc as i16 - config.key_root as i16).rem_euclid(12)) as i8)
             })
             .collect()
     } else {
@@ -513,15 +534,17 @@ fn build_scale_pcs(root: u8, minor: bool) -> Vec<u8> {
 
 /// All MIDI notes whose pitch class is in `pcs`, between `lo` and `hi` inclusive.
 fn scale_notes_in_range(pcs: &[u8], lo: u8, hi: u8) -> Vec<u8> {
-    (lo..=hi)
-        .filter(|&n| pcs.contains(&(n % 12)))
-        .collect()
+    (lo..=hi).filter(|&n| pcs.contains(&(n % 12))).collect()
 }
 
 /// Chord tones (root + diatonic 3rd + 5th) in a MIDI range.
 fn chord_tones_in_range(pcs: &[u8], chord_pc: u8, lo: u8, hi: u8) -> Vec<u8> {
     let triad_pcs: Vec<u8> = if let Some(ri) = pcs.iter().position(|&p| p == chord_pc) {
-        vec![pcs[ri], pcs[(ri + 2) % pcs.len()], pcs[(ri + 4) % pcs.len()]]
+        vec![
+            pcs[ri],
+            pcs[(ri + 2) % pcs.len()],
+            pcs[(ri + 4) % pcs.len()],
+        ]
     } else {
         // Root outside scale — allow root, m3, M3, P5.
         vec![
@@ -617,11 +640,11 @@ fn key_sig_sf(root: u8, minor: bool) -> i8 {
 /// Pick a bass octave pattern — varies per variation via RNG.
 fn random_bass_pattern(rng: &mut StdRng) -> [u8; 16] {
     const PATTERNS: [[u8; 16]; 5] = [
-        [0,12,24,0, 12,0,12,24, 0,12,0,12, 0,12,24,0],
-        [0,12,0,24, 12,24,0,12, 0,12,0,24, 12,0,12,24],
-        [0,24,12,0, 12,0,24,12, 0,24,12,0, 12,0,24,0],
-        [0,12,0,12, 24,0,12,0, 12,24,0,12, 0,12,0,24],
-        [0,12,24,12, 0,12,0,24, 12,0,12,24, 0,24,12,0],
+        [0, 12, 24, 0, 12, 0, 12, 24, 0, 12, 0, 12, 0, 12, 24, 0],
+        [0, 12, 0, 24, 12, 24, 0, 12, 0, 12, 0, 24, 12, 0, 12, 24],
+        [0, 24, 12, 0, 12, 0, 24, 12, 0, 24, 12, 0, 12, 0, 24, 0],
+        [0, 12, 0, 12, 24, 0, 12, 0, 12, 24, 0, 12, 0, 12, 0, 24],
+        [0, 12, 24, 12, 0, 12, 0, 24, 12, 0, 12, 24, 0, 24, 12, 0],
     ];
     PATTERNS[rng.random_range(0..PATTERNS.len())]
 }
@@ -717,9 +740,9 @@ fn two_layer_melody(
     for i in 0..5 {
         // Vary direction within the run
         let step = match rng.random_range(0..10_u8) {
-            0..=4 => dir,           // 50% continue in main direction
-            5..=7 => -dir,          // 30% reverse
-            _ => dir * 2,           // 20% leap in main direction
+            0..=4 => dir,  // 50% continue in main direction
+            5..=7 => -dir, // 30% reverse
+            _ => dir * 2,  // 20% leap in main direction
         };
         p = step_in_scale(scale, p, step);
         if chromaticism > 0 && rng.random_ratio(chromaticism as u32, 100) {
@@ -736,19 +759,66 @@ fn two_layer_melody(
     // and which durations they use
     let templates: &[&[(u8, u32)]] = &[
         // Original: 3 long + 5 short
-        &[(0,DE),(3,DE),(6,E),(8,S),(9,S),(10,S),(11,S),(13,S)],
+        &[
+            (0, DE),
+            (3, DE),
+            (6, E),
+            (8, S),
+            (9, S),
+            (10, S),
+            (11, S),
+            (13, S),
+        ],
         // Variant: 2 long + 4 short, different positions
-        &[(0,DE),(4,DE),(8,S),(9,S),(10,S),(11,S),(13,S),(14,S)],
+        &[
+            (0, DE),
+            (4, DE),
+            (8, S),
+            (9, S),
+            (10, S),
+            (11, S),
+            (13, S),
+            (14, S),
+        ],
         // Variant: syncopated longs
-        &[(1,DE),(3,E),(6,DE),(9,S),(10,S),(11,S),(12,S),(14,S)],
+        &[
+            (1, DE),
+            (3, E),
+            (6, DE),
+            (9, S),
+            (10, S),
+            (11, S),
+            (12, S),
+            (14, S),
+        ],
         // Variant: more short notes, punchier
-        &[(0,E),(2,S),(3,S),(5,E),(8,S),(9,S),(10,S),(12,S)],
+        &[
+            (0, E),
+            (2, S),
+            (3, S),
+            (5, E),
+            (8, S),
+            (9, S),
+            (10, S),
+            (12, S),
+        ],
         // Variant: heavy on beat 3-4
-        &[(0,DE),(3,DE),(8,S),(9,S),(10,S),(11,S),(12,S),(13,S)],
+        &[
+            (0, DE),
+            (3, DE),
+            (8, S),
+            (9, S),
+            (10, S),
+            (11, S),
+            (12, S),
+            (13, S),
+        ],
     ];
     let tmpl = templates[rng.random_range(0..templates.len())];
 
-    let pitches = [p0, p1, p2, shorts[0], shorts[1], shorts[2], shorts[3], shorts[4]];
+    let pitches = [
+        p0, p1, p2, shorts[0], shorts[1], shorts[2], shorts[3], shorts[4],
+    ];
 
     tmpl.iter()
         .enumerate()
@@ -801,10 +871,30 @@ fn gen_zigzag(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEven
             for cell in 0..4u32 {
                 let (m1, m2) = pairs[cell as usize];
                 let base = t + cell * 4 * S;
-                events.push(NoteEvent { tick: base, pitch: root_lo + lo_oct, vel, dur: S });
-                events.push(NoteEvent { tick: base + S, pitch: root_lo + hi_oct, vel, dur: S });
-                events.push(NoteEvent { tick: base + 2 * S, pitch: m1, vel, dur: S });
-                events.push(NoteEvent { tick: base + 3 * S, pitch: m2, vel, dur: S });
+                events.push(NoteEvent {
+                    tick: base,
+                    pitch: root_lo + lo_oct,
+                    vel,
+                    dur: S,
+                });
+                events.push(NoteEvent {
+                    tick: base + S,
+                    pitch: root_lo + hi_oct,
+                    vel,
+                    dur: S,
+                });
+                events.push(NoteEvent {
+                    tick: base + 2 * S,
+                    pitch: m1,
+                    vel,
+                    dur: S,
+                });
+                events.push(NoteEvent {
+                    tick: base + 3 * S,
+                    pitch: m2,
+                    vel,
+                    dur: S,
+                });
             }
         }
     }
@@ -831,7 +921,10 @@ fn gen_bounce(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEven
         let ma = if !ct.is_empty() {
             ct[rng.random_range(0..ct.len())]
         } else {
-            scale_mel.get(rng.random_range(0..scale_mel.len().max(1))).copied().unwrap_or(mel_lo + 6)
+            scale_mel
+                .get(rng.random_range(0..scale_mel.len().max(1)))
+                .copied()
+                .unwrap_or(mel_lo + 6)
         };
         let mb = step_in_scale(&scale_mel, ma, rng.random_range(-3..=-1_i8));
         let mc = step_in_scale(&scale_mel, ma, rng.random_range(2..=6_i8));
@@ -840,18 +933,78 @@ fn gen_bounce(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEven
 
         for bar in 0..bpc {
             let t = (ci as u32 * bpc + bar) * BAR;
-            events.push(NoteEvent { tick: t, pitch: b3, vel, dur: E });
-            events.push(NoteEvent { tick: t, pitch: ma, vel, dur: E });
-            events.push(NoteEvent { tick: t + 2 * S, pitch: mb, vel, dur: S });
-            events.push(NoteEvent { tick: t + 3 * S, pitch: b3, vel, dur: E });
-            events.push(NoteEvent { tick: t + 5 * S, pitch: if rng.random_ratio(60, 100) { ma } else { md }, vel, dur: S });
-            events.push(NoteEvent { tick: t + 6 * S, pitch: b2, vel, dur: E });
-            events.push(NoteEvent { tick: t + 7 * S, pitch: if rng.random_ratio(70, 100) { mb } else { ma }, vel, dur: S });
-            events.push(NoteEvent { tick: t + 8 * S, pitch: b3, vel, dur: E });
-            events.push(NoteEvent { tick: t + 10 * S, pitch: mc, vel, dur: S });
-            events.push(NoteEvent { tick: t + 11 * S, pitch: b3, vel, dur: E });
-            events.push(NoteEvent { tick: t + 14 * S, pitch: b2, vel, dur: E });
-            events.push(NoteEvent { tick: t + 14 * S, pitch: if rng.random_ratio(50, 100) { mc } else { md }, vel, dur: S });
+            events.push(NoteEvent {
+                tick: t,
+                pitch: b3,
+                vel,
+                dur: E,
+            });
+            events.push(NoteEvent {
+                tick: t,
+                pitch: ma,
+                vel,
+                dur: E,
+            });
+            events.push(NoteEvent {
+                tick: t + 2 * S,
+                pitch: mb,
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 3 * S,
+                pitch: b3,
+                vel,
+                dur: E,
+            });
+            events.push(NoteEvent {
+                tick: t + 5 * S,
+                pitch: if rng.random_ratio(60, 100) { ma } else { md },
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 6 * S,
+                pitch: b2,
+                vel,
+                dur: E,
+            });
+            events.push(NoteEvent {
+                tick: t + 7 * S,
+                pitch: if rng.random_ratio(70, 100) { mb } else { ma },
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 8 * S,
+                pitch: b3,
+                vel,
+                dur: E,
+            });
+            events.push(NoteEvent {
+                tick: t + 10 * S,
+                pitch: mc,
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 11 * S,
+                pitch: b3,
+                vel,
+                dur: E,
+            });
+            events.push(NoteEvent {
+                tick: t + 14 * S,
+                pitch: b2,
+                vel,
+                dur: E,
+            });
+            events.push(NoteEvent {
+                tick: t + 14 * S,
+                pitch: if rng.random_ratio(50, 100) { mc } else { md },
+                vel,
+                dur: S,
+            });
         }
     }
     events
@@ -900,20 +1053,60 @@ fn gen_cell(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEvent>
             for cell in 0..2u32 {
                 let t = t_bar + cell * 8 * S;
                 let mi = (cell * 4) as usize;
-                events.push(NoteEvent { tick: t, pitch: mel[mi], vel, dur: E });
-                events.push(NoteEvent { tick: t + S, pitch: r3, vel, dur: S });
-                events.push(NoteEvent { tick: t + 2 * S, pitch: r2, vel, dur: S });
-                events.push(NoteEvent { tick: t + 3 * S, pitch: mel[mi + 1], vel, dur: E });
-                events.push(NoteEvent { tick: t + 4 * S, pitch: r3, vel, dur: S });
-                events.push(NoteEvent { tick: t + 5 * S, pitch: mel[mi + 2], vel, dur: S });
-                events.push(NoteEvent { tick: t + 6 * S, pitch: mel[mi + 3], vel, dur: S });
+                events.push(NoteEvent {
+                    tick: t,
+                    pitch: mel[mi],
+                    vel,
+                    dur: E,
+                });
+                events.push(NoteEvent {
+                    tick: t + S,
+                    pitch: r3,
+                    vel,
+                    dur: S,
+                });
+                events.push(NoteEvent {
+                    tick: t + 2 * S,
+                    pitch: r2,
+                    vel,
+                    dur: S,
+                });
+                events.push(NoteEvent {
+                    tick: t + 3 * S,
+                    pitch: mel[mi + 1],
+                    vel,
+                    dur: E,
+                });
+                events.push(NoteEvent {
+                    tick: t + 4 * S,
+                    pitch: r3,
+                    vel,
+                    dur: S,
+                });
+                events.push(NoteEvent {
+                    tick: t + 5 * S,
+                    pitch: mel[mi + 2],
+                    vel,
+                    dur: S,
+                });
+                events.push(NoteEvent {
+                    tick: t + 6 * S,
+                    pitch: mel[mi + 3],
+                    vel,
+                    dur: S,
+                });
                 // Vary last note on repeats
                 let last = if rep > 0 {
                     step_in_scale(&scale_mel, mel[mi + 2], rng.random_range(1..=3_i8))
                 } else {
                     mel[mi + 2]
                 };
-                events.push(NoteEvent { tick: t + 7 * S, pitch: last, vel, dur: S });
+                events.push(NoteEvent {
+                    tick: t + 7 * S,
+                    pitch: last,
+                    vel,
+                    dur: S,
+                });
             }
         }
     }
@@ -936,34 +1129,142 @@ fn gen_shuffle(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEve
         let b1 = bass_midi(cpc);
         let b2 = b1 + 12;
         let ct = chord_tones_in_range(pcs, cpc, mel_lo, mel_hi);
-        let ma = nearest_in_set(ct.get(ct.len() / 2).copied().unwrap_or(mel_lo + 6), &scale_mel);
+        let ma = nearest_in_set(
+            ct.get(ct.len() / 2).copied().unwrap_or(mel_lo + 6),
+            &scale_mel,
+        );
         let mb = step_in_scale(&scale_mel, ma, rng.random_range(1..=2_i8));
         let ml = step_in_scale(&scale_mel, ma, rng.random_range(-3..=-1_i8));
 
         for bar in 0..bpc {
             let t = (ci as u32 * bpc + bar) * BAR;
             // 16 sixteenth positions, bass alternating b1/b2, melody overlays
-            events.push(NoteEvent { tick: t, pitch: b1, vel, dur: LONG });
-            events.push(NoteEvent { tick: t, pitch: ma, vel, dur: E });
-            events.push(NoteEvent { tick: t + S, pitch: b2, vel, dur: SHORT });
-            events.push(NoteEvent { tick: t + 2 * S, pitch: b1, vel, dur: SHORT });
-            events.push(NoteEvent { tick: t + 2 * S, pitch: mb, vel, dur: S });
-            events.push(NoteEvent { tick: t + 3 * S, pitch: b2, vel, dur: LONG });
-            events.push(NoteEvent { tick: t + 4 * S, pitch: ma, vel, dur: S });
-            events.push(NoteEvent { tick: t + 5 * S, pitch: b1, vel, dur: SHORT });
-            events.push(NoteEvent { tick: t + 5 * S, pitch: ml, vel, dur: S });
-            events.push(NoteEvent { tick: t + 6 * S, pitch: b2, vel, dur: LONG });
-            events.push(NoteEvent { tick: t + 7 * S, pitch: ml, vel, dur: S });
-            events.push(NoteEvent { tick: t + 8 * S, pitch: b1, vel, dur: LONG });
-            events.push(NoteEvent { tick: t + 9 * S, pitch: b2, vel, dur: SHORT });
-            events.push(NoteEvent { tick: t + 9 * S, pitch: ma, vel, dur: S });
-            events.push(NoteEvent { tick: t + 10 * S, pitch: b1, vel, dur: SHORT });
-            events.push(NoteEvent { tick: t + 10 * S, pitch: mb, vel, dur: S });
-            events.push(NoteEvent { tick: t + 11 * S, pitch: b2, vel, dur: LONG });
-            events.push(NoteEvent { tick: t + 12 * S, pitch: ma, vel, dur: S });
-            events.push(NoteEvent { tick: t + 13 * S, pitch: b1, vel, dur: SHORT });
-            events.push(NoteEvent { tick: t + 14 * S, pitch: b2, vel, dur: LONG });
-            events.push(NoteEvent { tick: t + 15 * S, pitch: ml, vel, dur: S });
+            events.push(NoteEvent {
+                tick: t,
+                pitch: b1,
+                vel,
+                dur: LONG,
+            });
+            events.push(NoteEvent {
+                tick: t,
+                pitch: ma,
+                vel,
+                dur: E,
+            });
+            events.push(NoteEvent {
+                tick: t + S,
+                pitch: b2,
+                vel,
+                dur: SHORT,
+            });
+            events.push(NoteEvent {
+                tick: t + 2 * S,
+                pitch: b1,
+                vel,
+                dur: SHORT,
+            });
+            events.push(NoteEvent {
+                tick: t + 2 * S,
+                pitch: mb,
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 3 * S,
+                pitch: b2,
+                vel,
+                dur: LONG,
+            });
+            events.push(NoteEvent {
+                tick: t + 4 * S,
+                pitch: ma,
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 5 * S,
+                pitch: b1,
+                vel,
+                dur: SHORT,
+            });
+            events.push(NoteEvent {
+                tick: t + 5 * S,
+                pitch: ml,
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 6 * S,
+                pitch: b2,
+                vel,
+                dur: LONG,
+            });
+            events.push(NoteEvent {
+                tick: t + 7 * S,
+                pitch: ml,
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 8 * S,
+                pitch: b1,
+                vel,
+                dur: LONG,
+            });
+            events.push(NoteEvent {
+                tick: t + 9 * S,
+                pitch: b2,
+                vel,
+                dur: SHORT,
+            });
+            events.push(NoteEvent {
+                tick: t + 9 * S,
+                pitch: ma,
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 10 * S,
+                pitch: b1,
+                vel,
+                dur: SHORT,
+            });
+            events.push(NoteEvent {
+                tick: t + 10 * S,
+                pitch: mb,
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 11 * S,
+                pitch: b2,
+                vel,
+                dur: LONG,
+            });
+            events.push(NoteEvent {
+                tick: t + 12 * S,
+                pitch: ma,
+                vel,
+                dur: S,
+            });
+            events.push(NoteEvent {
+                tick: t + 13 * S,
+                pitch: b1,
+                vel,
+                dur: SHORT,
+            });
+            events.push(NoteEvent {
+                tick: t + 14 * S,
+                pitch: b2,
+                vel,
+                dur: LONG,
+            });
+            events.push(NoteEvent {
+                tick: t + 15 * S,
+                pitch: ml,
+                vel,
+                dur: S,
+            });
         }
     }
     events
@@ -1019,7 +1320,10 @@ fn gen_chord_arp(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteE
                     _ => root2,
                 };
                 // Occasional melody variation
-                let pitch = if i >= 12 && cfg.chromaticism > 0 && rng.random_ratio(cfg.chromaticism as u32, 100) {
+                let pitch = if i >= 12
+                    && cfg.chromaticism > 0
+                    && rng.random_ratio(cfg.chromaticism as u32, 100)
+                {
                     step_in_scale(
                         &scale_notes_in_range(pcs, 55, 81),
                         pitch,
@@ -1028,7 +1332,12 @@ fn gen_chord_arp(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteE
                 } else {
                     pitch
                 };
-                events.push(NoteEvent { tick, pitch, vel, dur });
+                events.push(NoteEvent {
+                    tick,
+                    pitch,
+                    vel,
+                    dur,
+                });
             }
         }
     }
@@ -1101,7 +1410,12 @@ fn gen_gated_stab(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Note
                     let tick = base + pos as u32 * S;
                     // All chord notes hit simultaneously
                     for &pitch in &voicing {
-                        events.push(NoteEvent { tick, pitch, vel, dur });
+                        events.push(NoteEvent {
+                            tick,
+                            pitch,
+                            vel,
+                            dur,
+                        });
                     }
                 }
             }
@@ -1166,9 +1480,9 @@ fn gen_pad_chord(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteE
                 let dur = if use_long {
                     // Long mode: some notes sustain 2-4 bars, some just 1
                     match rng.random_range(0..4_u8) {
-                        0 => BAR * 2, // double-whole (sustain across next bar)
+                        0 => BAR * 2,          // double-whole (sustain across next bar)
                         1 => BAR * bpc.min(4), // sustain the whole chord section
-                        _ => BAR, // whole note
+                        _ => BAR,              // whole note
                     }
                 } else {
                     // Short mode: clean whole notes, one per bar
@@ -1177,7 +1491,12 @@ fn gen_pad_chord(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteE
                 // Clamp duration so it doesn't extend past the end of this chord's section
                 let remaining = (bpc - bar) * BAR;
                 let dur = dur.min(remaining);
-                events.push(NoteEvent { tick: t, pitch, vel, dur });
+                events.push(NoteEvent {
+                    tick: t,
+                    pitch,
+                    vel,
+                    dur,
+                });
             }
 
             // In short mode, only emit one bar of notes per chord
@@ -1250,11 +1569,11 @@ fn gen_sub_bass(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEv
     // Pick a rhythmic pattern for this variation
     // Each pattern is 16 entries: 0=root, 1=root+oct, 2=5th, 3=rest
     const PATTERNS: [[u8; 16]; 5] = [
-        [0,0,1,0, 0,1,0,0, 1,0,0,1, 0,0,1,0],   // standard octave bounce
-        [0,0,0,1, 0,0,1,0, 0,0,0,1, 0,1,0,0],   // sparse octave
-        [0,1,0,1, 0,0,1,0, 1,0,1,0, 0,1,0,1],   // heavy octave
-        [0,0,2,0, 0,0,1,0, 0,2,0,0, 1,0,0,2],   // with 5th
-        [0,3,0,0, 1,3,0,0, 0,3,1,0, 0,3,0,1],   // gated (rests)
+        [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], // standard octave bounce
+        [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0], // sparse octave
+        [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1], // heavy octave
+        [0, 0, 2, 0, 0, 0, 1, 0, 0, 2, 0, 0, 1, 0, 0, 2], // with 5th
+        [0, 3, 0, 0, 1, 3, 0, 0, 0, 3, 1, 0, 0, 3, 0, 1], // gated (rests)
     ];
     let pat = PATTERNS[rng.random_range(0..PATTERNS.len())];
 
@@ -1269,7 +1588,9 @@ fn gen_sub_bass(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEv
             let t = (ci as u32 * bpc + bar) * BAR;
             for i in 0..16u32 {
                 let voice = pat[i as usize];
-                if voice == 3 { continue; } // rest
+                if voice == 3 {
+                    continue;
+                } // rest
                 let pitch = match voice {
                     0 => root,
                     1 => root_hi,
@@ -1311,10 +1632,14 @@ fn gen_progressive(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Not
         // Add 5th in octave 3
         let scale = scale_notes_in_range(pcs, 48, 72);
         let fifth = step_in_scale(&scale, root3, 4);
-        if !voicing.contains(&fifth) { voicing.push(fifth); }
+        if !voicing.contains(&fifth) {
+            voicing.push(fifth);
+        }
         // Add remaining chord tones
         for &p in ct_mid.iter().chain(ct_hi.iter()) {
-            if !voicing.contains(&p) && voicing.len() < 6 { voicing.push(p); }
+            if !voicing.contains(&p) && voicing.len() < 6 {
+                voicing.push(p);
+            }
         }
         // Sometimes add a color tone for variation
         if rng.random_ratio(25, 100) {
@@ -1334,7 +1659,12 @@ fn gen_progressive(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Not
             for beat in 0..8u32 {
                 let tick = t + beat * E;
                 for &pitch in &voicing {
-                    events.push(NoteEvent { tick, pitch, vel, dur: E });
+                    events.push(NoteEvent {
+                        tick,
+                        pitch,
+                        vel,
+                        dur: E,
+                    });
                 }
             }
         }
@@ -1366,7 +1696,13 @@ fn gen_trill(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEvent
 
         let start = match prev_pitch {
             Some(p) => step_in_scale(&scale_mel, p, rng.random_range(-2..=2_i8)),
-            None => if !ct.is_empty() { ct[rng.random_range(0..ct.len())] } else { 72 },
+            None => {
+                if !ct.is_empty() {
+                    ct[rng.random_range(0..ct.len())]
+                } else {
+                    72
+                }
+            }
         };
 
         for bar in 0..bpc {
@@ -1379,7 +1715,12 @@ fn gen_trill(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEvent
                     for i in 0..32u32 {
                         let step = if i < 16 { 1i8 } else { -1 };
                         p = step_in_scale(&scale_mel, p, step);
-                        events.push(NoteEvent { tick: t_bar + i * T, pitch: p, vel, dur: T });
+                        events.push(NoteEvent {
+                            tick: t_bar + i * T,
+                            pitch: p,
+                            vel,
+                            dur: T,
+                        });
                     }
                 }
                 1 => {
@@ -1387,7 +1728,12 @@ fn gen_trill(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEvent
                     let p2 = step_in_scale(&scale_mel, p, 1);
                     for i in 0..32u32 {
                         let pitch = if i % 2 == 0 { p } else { p2 };
-                        events.push(NoteEvent { tick: t_bar + i * T, pitch, vel, dur: T });
+                        events.push(NoteEvent {
+                            tick: t_bar + i * T,
+                            pitch,
+                            vel,
+                            dur: T,
+                        });
                     }
                     p = step_in_scale(&scale_mel, p, rng.random_range(1..=3_i8));
                 }
@@ -1397,10 +1743,21 @@ fn gen_trill(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEvent
                         let base = t_bar + group * 4 * T;
                         for j in 0..3u32 {
                             p = step_in_scale(&scale_mel, p, 1);
-                            events.push(NoteEvent { tick: base + j * T, pitch: p, vel, dur: T });
+                            events.push(NoteEvent {
+                                tick: base + j * T,
+                                pitch: p,
+                                vel,
+                                dur: T,
+                            });
                         }
-                        let tp = step_in_scale(&scale_mel, p, if rng.random_bool(0.5) { -1 } else { 0 });
-                        events.push(NoteEvent { tick: base + 3 * T, pitch: tp, vel, dur: T });
+                        let tp =
+                            step_in_scale(&scale_mel, p, if rng.random_bool(0.5) { -1 } else { 0 });
+                        events.push(NoteEvent {
+                            tick: base + 3 * T,
+                            pitch: tp,
+                            vel,
+                            dur: T,
+                        });
                     }
                 }
             }
@@ -1441,7 +1798,13 @@ fn gen_slow_melody(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Not
                 let near = nearest_in_set(p, if ct.is_empty() { &scale_mel } else { &ct });
                 step_in_scale(&scale_mel, near, rng.random_range(-1..=1_i8))
             }
-            None => if !ct.is_empty() { ct[rng.random_range(0..ct.len())] } else { 69 },
+            None => {
+                if !ct.is_empty() {
+                    ct[rng.random_range(0..ct.len())]
+                } else {
+                    69
+                }
+            }
         };
 
         let tmpl = RHYTHM_TEMPLATES[rng.random_range(0..RHYTHM_TEMPLATES.len())];
@@ -1449,13 +1812,24 @@ fn gen_slow_melody(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Not
 
         for bar in 0..bpc {
             let t_bar = (ci as u32 * bpc + bar) * BAR;
-            let mut p = if bar == 0 { start } else { prev.unwrap_or(start) };
+            let mut p = if bar == 0 {
+                start
+            } else {
+                prev.unwrap_or(start)
+            };
             let mut tick_offset = 0u32;
 
             for &dur_q in &tmpl {
                 let dur = dur_q * Q;
-                if tick_offset + dur > BAR { break; }
-                events.push(NoteEvent { tick: t_bar + tick_offset, pitch: p, vel, dur });
+                if tick_offset + dur > BAR {
+                    break;
+                }
+                events.push(NoteEvent {
+                    tick: t_bar + tick_offset,
+                    pitch: p,
+                    vel,
+                    dur,
+                });
                 let step = match rng.random_range(0..10_u8) {
                     0..=4 => dir,
                     5..=7 => dir * 2,
@@ -1495,15 +1869,21 @@ fn gen_chord_pluck(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Not
 
         let mut voicing: Vec<u8> = vec![root2, root3];
         for &p in ct_lo.iter().chain(ct_mid.iter()).chain(ct_hi.iter()) {
-            if !voicing.contains(&p) { voicing.push(p); }
+            if !voicing.contains(&p) {
+                voicing.push(p);
+            }
         }
         let scale = scale_notes_in_range(pcs, 36, 79);
         let fifth = step_in_scale(&scale, root3, 4);
-        if !voicing.contains(&fifth) { voicing.push(fifth); }
+        if !voicing.contains(&fifth) {
+            voicing.push(fifth);
+        }
         for _ in 0..2 {
             if rng.random_ratio(30, 100) && !scale.is_empty() {
                 let c = scale[rng.random_range(0..scale.len())];
-                if !voicing.contains(&c) { voicing.push(c); }
+                if !voicing.contains(&c) {
+                    voicing.push(c);
+                }
             }
         }
         voicing.sort();
@@ -1513,7 +1893,12 @@ fn gen_chord_pluck(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Not
             for i in 0..16u32 {
                 let tick = t + i * S;
                 for &pitch in &voicing {
-                    events.push(NoteEvent { tick, pitch, vel, dur: S });
+                    events.push(NoteEvent {
+                        tick,
+                        pitch,
+                        vel,
+                        dur: S,
+                    });
                 }
             }
         }
@@ -1539,7 +1924,9 @@ fn gen_piano_chord(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Not
 
         let mut chord: Vec<u8> = vec![root3];
         for &p in &ct {
-            if !chord.contains(&p) && chord.len() < 6 { chord.push(p); }
+            if !chord.contains(&p) && chord.len() < 6 {
+                chord.push(p);
+            }
         }
         chord.sort();
 
@@ -1547,40 +1934,85 @@ fn gen_piano_chord(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Not
             let t = (ci as u32 * bpc + bar) * BAR;
 
             // Sustained bass root
-            events.push(NoteEvent { tick: t, pitch: cpc + 36, vel, dur: BAR });
+            events.push(NoteEvent {
+                tick: t,
+                pitch: cpc + 36,
+                vel,
+                dur: BAR,
+            });
 
             match rng.random_range(0..4_u8) {
                 0 => {
                     // Two half-note chord hits
                     for &p in &chord {
-                        events.push(NoteEvent { tick: t, pitch: p, vel, dur: H });
-                        events.push(NoteEvent { tick: t + H, pitch: p, vel: vel - 5, dur: H });
+                        events.push(NoteEvent {
+                            tick: t,
+                            pitch: p,
+                            vel,
+                            dur: H,
+                        });
+                        events.push(NoteEvent {
+                            tick: t + H,
+                            pitch: p,
+                            vel: vel - 5,
+                            dur: H,
+                        });
                     }
                 }
                 1 => {
                     // Syncopated chord hits
                     for &p in &chord {
-                        events.push(NoteEvent { tick: t, pitch: p, vel, dur: Q });
+                        events.push(NoteEvent {
+                            tick: t,
+                            pitch: p,
+                            vel,
+                            dur: Q,
+                        });
                     }
                     for &p in &chord {
-                        events.push(NoteEvent { tick: t + Q + E, pitch: p, vel: vel - 8, dur: E });
+                        events.push(NoteEvent {
+                            tick: t + Q + E,
+                            pitch: p,
+                            vel: vel - 8,
+                            dur: E,
+                        });
                     }
                     for &p in &chord {
-                        events.push(NoteEvent { tick: t + 2*Q, pitch: p, vel: vel - 3, dur: Q });
+                        events.push(NoteEvent {
+                            tick: t + 2 * Q,
+                            pitch: p,
+                            vel: vel - 3,
+                            dur: Q,
+                        });
                     }
                     for &p in &chord {
-                        events.push(NoteEvent { tick: t + 3*Q, pitch: p, vel: vel - 5, dur: Q });
+                        events.push(NoteEvent {
+                            tick: t + 3 * Q,
+                            pitch: p,
+                            vel: vel - 5,
+                            dur: Q,
+                        });
                     }
                 }
                 2 => {
                     // Whole chord + melodic fragment on top
                     for &p in &chord {
-                        events.push(NoteEvent { tick: t, pitch: p, vel, dur: W });
+                        events.push(NoteEvent {
+                            tick: t,
+                            pitch: p,
+                            vel,
+                            dur: W,
+                        });
                     }
                     let mut mp = chord.last().copied().unwrap_or(72);
                     for beat in 0..4u32 {
                         mp = step_in_scale(&scale, mp, rng.random_range(-2..=2_i8));
-                        events.push(NoteEvent { tick: t + beat * Q, pitch: mp, vel: vel + 5, dur: Q });
+                        events.push(NoteEvent {
+                            tick: t + beat * Q,
+                            pitch: mp,
+                            vel: vel + 5,
+                            dur: Q,
+                        });
                     }
                 }
                 _ => {
@@ -1588,7 +2020,12 @@ fn gen_piano_chord(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<Not
                     for beat in 0..8u32 {
                         let v = if beat % 2 == 0 { vel } else { vel - 10 };
                         for &p in &chord {
-                            events.push(NoteEvent { tick: t + beat * E, pitch: p, vel: v, dur: E });
+                            events.push(NoteEvent {
+                                tick: t + beat * E,
+                                pitch: p,
+                                vel: v,
+                                dur: E,
+                            });
                         }
                     }
                 }
@@ -1638,12 +2075,27 @@ fn gen_unison(cfg: &MidiGenConfig, pcs: &[u8], rng: &mut StdRng) -> Vec<NoteEven
 
             for &(pos, pitch, dur) in &melody {
                 let tick = t + pos as u32 * S;
-                events.push(NoteEvent { tick, pitch, vel, dur });
+                events.push(NoteEvent {
+                    tick,
+                    pitch,
+                    vel,
+                    dur,
+                });
                 if pitch + 12 <= 127 {
-                    events.push(NoteEvent { tick, pitch: pitch + 12, vel: vel - 5, dur });
+                    events.push(NoteEvent {
+                        tick,
+                        pitch: pitch + 12,
+                        vel: vel - 5,
+                        dur,
+                    });
                 }
                 if double_24 && pitch + 24 <= 127 {
-                    events.push(NoteEvent { tick, pitch: pitch + 24, vel: vel - 10, dur });
+                    events.push(NoteEvent {
+                        tick,
+                        pitch: pitch + 24,
+                        vel: vel - 10,
+                        dur,
+                    });
                 }
             }
         }
@@ -1754,8 +2206,8 @@ mod tests {
 
     fn cfg(lead_type: LeadType) -> MidiGenConfig {
         MidiGenConfig {
-            key_root: 9,  // A
-            minor: true,  // A minor
+            key_root: 9, // A
+            minor: true, // A minor
             lead_type,
             chords: vec![0, 5, 7, 3], // Am Dm Em C
             progression: vec![],
@@ -2022,7 +2474,10 @@ mod tests {
                     variations: None,
                 };
                 let bytes = generate(&c).unwrap();
-                assert!(bytes.len() > 14, "key {root} minor={minor} produced too few bytes");
+                assert!(
+                    bytes.len() > 14,
+                    "key {root} minor={minor} produced too few bytes"
+                );
             }
         }
     }
@@ -2145,8 +2600,11 @@ mod tests {
         std::fs::write(&tmp, &bytes).unwrap();
         let info = crate::midi::parse_midi(&tmp).unwrap();
         // 8 bars at 120 BPM, ppqn=96 → 8 × 4 beats × 0.5s/beat = 16s
-        assert!(info.duration > 10.0 && info.duration < 20.0,
-            "expected ~16s duration, got {}", info.duration);
+        assert!(
+            info.duration > 10.0 && info.duration < 20.0,
+            "expected ~16s duration, got {}",
+            info.duration
+        );
         let _ = std::fs::remove_file(&tmp);
     }
 
@@ -2176,7 +2634,11 @@ mod tests {
             assert!(kit.name.contains("Am"), "kit name should contain key");
             assert!(kit.name.contains("140 BPM"), "kit name should contain BPM");
             assert!(kit.name.starts_with(&format!("Kit {}", i + 1)));
-            assert_eq!(kit.files.len(), KIT_LAYERS.len(), "kit should have all default layers");
+            assert_eq!(
+                kit.files.len(),
+                KIT_LAYERS.len(),
+                "kit should have all default layers"
+            );
 
             // Verify each file exists on disk
             for f in &kit.files {
@@ -2229,7 +2691,15 @@ mod tests {
 
     #[test]
     fn parse_chord_name_naturals() {
-        for (s, pc) in [("C", 0), ("D", 2), ("E", 4), ("F", 5), ("G", 7), ("A", 9), ("B", 11)] {
+        for (s, pc) in [
+            ("C", 0),
+            ("D", 2),
+            ("E", 4),
+            ("F", 5),
+            ("G", 7),
+            ("A", 9),
+            ("B", 11),
+        ] {
             assert_eq!(parse_chord_name(s), Some(pc), "natural {s}");
         }
     }
@@ -2294,7 +2764,11 @@ mod tests {
     #[test]
     fn parse_chord_name_garbage_returns_none() {
         assert_eq!(parse_chord_name("XYZ"), None);
-        assert_eq!(parse_chord_name("H"), None, "H is not a valid Anglo-American chord root");
+        assert_eq!(
+            parse_chord_name("H"),
+            None,
+            "H is not a valid Anglo-American chord root"
+        );
         assert_eq!(parse_chord_name("?"), None);
     }
 
@@ -2344,7 +2818,10 @@ mod tests {
         let name = build_filename(&c, 0, 1);
         // n==1 → no _NN suffix.
         assert!(name.ends_with(".mid"));
-        assert!(!name.contains("_01.mid"), "single variation must not include index suffix");
+        assert!(
+            !name.contains("_01.mid"),
+            "single variation must not include index suffix"
+        );
     }
 
     #[test]
@@ -2379,7 +2856,10 @@ mod tests {
         let name = build_base_name(&c);
         // C key (key_root=0) major: starts with "A_..." since cfg sets key_root=9.
         // Verify the "m" is NOT immediately after the key letter when minor=false.
-        assert!(!name.starts_with("Am_"), "major must not produce Am, got {name}");
+        assert!(
+            !name.starts_with("Am_"),
+            "major must not produce Am, got {name}"
+        );
         assert!(name.starts_with("A_"));
     }
 
@@ -2388,7 +2868,10 @@ mod tests {
         let mut c = cfg(LeadType::TwoLayer);
         c.length_bars = Some(64);
         let name = build_base_name(&c);
-        assert!(name.contains("64bars"), "explicit length_bars must win, got {name}");
+        assert!(
+            name.contains("64bars"),
+            "explicit length_bars must win, got {name}"
+        );
     }
 
     #[test]

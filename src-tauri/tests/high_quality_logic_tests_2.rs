@@ -1,6 +1,6 @@
-use app_lib::als_project::{ProjectConfig, Genre, SectionLengths, TrackConfig};
-use app_lib::als_generator::{xml_escape_pub, IdAllocatorPub};
-use app_lib::sample_analysis::{match_category, detect_manufacturer};
+use app_lib::als_generator::{IdAllocatorPub, xml_escape_pub};
+use app_lib::als_project::{Genre, ProjectConfig, SectionLengths, TrackConfig};
+use app_lib::sample_analysis::{detect_manufacturer, match_category};
 
 // ── Invariant: ProjectConfig JSON Schema Stability ───────────────────
 
@@ -26,7 +26,7 @@ fn test_project_config_full_json_deserialization() {
         "output_path": "/tmp/test",
         "num_songs": 1
     }"#;
-    
+
     let c: ProjectConfig = serde_json::from_str(json).expect("should parse full json");
     assert_eq!(c.genre, Genre::Trance);
     assert_eq!(c.root_note, Some("A#".into()));
@@ -52,7 +52,7 @@ fn test_project_config_minimal_json_deserialization() {
         "output_path": "/tmp/test",
         "num_songs": 1
     }"#;
-    
+
     let c: ProjectConfig = serde_json::from_str(json).expect("should parse minimal json");
     assert_eq!(c.genre, Genre::Techno);
     assert!(c.atonal);
@@ -89,7 +89,7 @@ fn test_xml_escape_all_entities() {
 fn test_category_match_confidence_stability() {
     let m1 = match_category("Kick_01.wav", "/").unwrap();
     assert_eq!(m1.confidence, 1.0);
-    
+
     let m2 = match_category("01.wav", "/Samples/Kicks/").unwrap();
     assert_eq!(m2.confidence, 0.6);
 }
@@ -128,7 +128,7 @@ fn test_short_key_to_db_comprehensive() {
     assert_eq!(short_key_to_db("Am"), "A Minor");
     // "Gb" is not currently folded in short_key_to_db, but it is in extract_key.
     // We test the direct mapping here.
-    assert_eq!(short_key_to_db("Gb"), "Gb Minor"); 
+    assert_eq!(short_key_to_db("Gb"), "Gb Minor");
     assert_eq!(short_key_to_db("F#"), "F# Minor");
 }
 

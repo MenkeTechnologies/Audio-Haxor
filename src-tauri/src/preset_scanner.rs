@@ -181,9 +181,10 @@ fn walk_dir_parallel(
     }
 
     if let Some(ref inc) = incremental
-        && inc.should_skip(dir) {
-            return;
-        }
+        && inc.should_skip(dir)
+    {
+        return;
+    }
 
     let dir_str = dir.to_string_lossy().to_string();
     {

@@ -1,4 +1,4 @@
-use app_lib::als_project::{get_compatible_keys, SectionLengths, Genre};
+use app_lib::als_project::{Genre, SectionLengths, get_compatible_keys};
 
 #[test]
 fn test_circle_of_fifths_harmonic_compat() {
@@ -32,16 +32,26 @@ fn test_all_modes_relative_keys() {
 
     for (root, mode, expected_maj, expected_min) in cases {
         let compat = get_compatible_keys(root, mode);
-        assert!(compat.contains(&expected_maj.to_string()), "Mode {} should match relative major {}", mode, expected_maj);
-        assert!(compat.contains(&expected_min.to_string()), "Mode {} should match relative minor {}", mode, expected_min);
+        assert!(
+            compat.contains(&expected_maj.to_string()),
+            "Mode {} should match relative major {}",
+            mode,
+            expected_maj
+        );
+        assert!(
+            compat.contains(&expected_min.to_string()),
+            "Mode {} should match relative minor {}",
+            mode,
+            expected_min
+        );
     }
 }
 
 #[test]
 fn test_enharmonic_normalization_compat() {
-    // Our system uses sharps internally for NOTES. 
+    // Our system uses sharps internally for NOTES.
     // Roots not in NOTES get a fallback "X Minor" result.
-    
+
     let db_maj = get_compatible_keys("C#", "Ionian");
     assert!(db_maj.contains(&"C# Major".to_string()));
     assert!(db_maj.contains(&"A# Minor".to_string()));
@@ -50,7 +60,7 @@ fn test_enharmonic_normalization_compat() {
     let eb_min = get_compatible_keys("D#", "Aeolian");
     assert!(eb_min.contains(&"F# Major".to_string()));
     assert!(eb_min.contains(&"D# Minor".to_string()));
-    
+
     // Check fallback for flat which is not in NOTES
     let flat_fallback = get_compatible_keys("Db", "Ionian");
     assert_eq!(flat_fallback, vec!["Db Minor".to_string()]);

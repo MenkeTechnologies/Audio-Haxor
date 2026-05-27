@@ -3,9 +3,9 @@
 //! Schranz characteristics: layered kicks, rumble bass, drive loops, minimal melodic
 
 use app_lib::als_generator::generate_empty_als;
+use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use flate2::Compression;
 use regex::Regex;
 use rusqlite::Connection;
 use std::collections::HashSet;
@@ -14,43 +14,49 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-const DB_PATH: &str = "/Users/wizard/Library/Application Support/com.menketechnologies.audio-haxor/audio_haxor.db";
+const DB_PATH: &str =
+    "/Users/wizard/Library/Application Support/com.menketechnologies.audio-haxor/audio_haxor.db";
 const PROJECT_BPM: f64 = 155.0;
 
 /// Read WAV file duration directly from file header
 fn read_wav_duration(path: &str) -> Option<f64> {
     use std::io::{Read, Seek, SeekFrom};
-    
+
     let mut file = File::open(path).ok()?;
     let mut header = [0u8; 44];
     file.read_exact(&mut header).ok()?;
-    
+
     // Check RIFF header
     if &header[0..4] != b"RIFF" || &header[8..12] != b"WAVE" {
         return None;
     }
-    
+
     // Find fmt chunk - it might not be at offset 12
     file.seek(SeekFrom::Start(12)).ok()?;
-    
+
     let mut chunk_header = [0u8; 8];
     let mut sample_rate: u32 = 0;
     let mut bits_per_sample: u16 = 0;
     let mut channels: u16 = 0;
     let mut data_size: u32 = 0;
-    
+
     loop {
         if file.read_exact(&mut chunk_header).is_err() {
             break;
         }
-        
+
         let chunk_id = &chunk_header[0..4];
-        let chunk_size = u32::from_le_bytes([chunk_header[4], chunk_header[5], chunk_header[6], chunk_header[7]]);
-        
+        let chunk_size = u32::from_le_bytes([
+            chunk_header[4],
+            chunk_header[5],
+            chunk_header[6],
+            chunk_header[7],
+        ]);
+
         if chunk_id == b"fmt " {
             let mut fmt_data = vec![0u8; chunk_size as usize];
             file.read_exact(&mut fmt_data).ok()?;
-            
+
             channels = u16::from_le_bytes([fmt_data[2], fmt_data[3]]);
             sample_rate = u32::from_le_bytes([fmt_data[4], fmt_data[5], fmt_data[6], fmt_data[7]]);
             bits_per_sample = u16::from_le_bytes([fmt_data[14], fmt_data[15]]);
@@ -62,15 +68,15 @@ fn read_wav_duration(path: &str) -> Option<f64> {
             file.seek(SeekFrom::Current(chunk_size as i64)).ok()?;
         }
     }
-    
+
     if sample_rate == 0 || channels == 0 || bits_per_sample == 0 || data_size == 0 {
         return None;
     }
-    
+
     let bytes_per_sample = (bits_per_sample / 8) as u32;
     let total_samples = data_size / (bytes_per_sample * channels as u32);
     let duration = total_samples as f64 / sample_rate as f64;
-    
+
     Some(duration)
 }
 
@@ -214,7 +220,10 @@ fn main() {
             println!("Generated: {}", output_path.display());
             println!("\nSchranz Structure (155 BPM):");
             println!("├── DRUMS (Group)");
-            println!("│   ├── KICK ({} clips) - includes drive/rumble patterns", CLIPS_PER_TRACK);
+            println!(
+                "│   ├── KICK ({} clips) - includes drive/rumble patterns",
+                CLIPS_PER_TRACK
+            );
             println!("│   ├── CLAP ({} clips)", CLIPS_PER_TRACK);
             println!("│   ├── HAT ({} clips)", CLIPS_PER_TRACK);
             println!("│   └── PERC ({} clips)", CLIPS_PER_TRACK);
@@ -247,16 +256,17 @@ struct SampleInfo {
 
 impl SampleInfo {
     fn from_path(path: &str) -> Result<Self, String> {
-        let metadata = std::fs::metadata(path).map_err(|e| format!("Cannot read {}: {}", path, e))?;
+        let metadata =
+            std::fs::metadata(path).map_err(|e| format!("Cannot read {}: {}", path, e))?;
         let name = Path::new(path)
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("sample")
             .to_string();
-        
+
         // Read actual duration from WAV file
         let duration_secs = read_wav_duration(path).unwrap_or(0.0);
-        
+
         Ok(Self {
             path: path.to_string(),
             name,
@@ -265,18 +275,19 @@ impl SampleInfo {
             bpm: None,
         })
     }
-    
+
     fn from_db(path: &str, db_duration: f64, bpm: Option<f64>) -> Result<Self, String> {
-        let metadata = std::fs::metadata(path).map_err(|e| format!("Cannot read {}: {}", path, e))?;
+        let metadata =
+            std::fs::metadata(path).map_err(|e| format!("Cannot read {}: {}", path, e))?;
         let name = Path::new(path)
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("sample")
             .to_string();
-        
+
         // Read actual duration from WAV file - don't trust DB duration
         let duration_secs = read_wav_duration(path).unwrap_or(db_duration);
-        
+
         Ok(Self {
             path: path.to_string(),
             name,
@@ -285,7 +296,7 @@ impl SampleInfo {
             bpm,
         })
     }
-    
+
     /// Calculate loop length in bars based on duration and BPM
     /// Falls back to project BPM (128) if sample BPM unknown
     fn loop_bars(&self, project_bpm: f64) -> u32 {
@@ -297,22 +308,29 @@ impl SampleInfo {
         } else {
             self.duration_secs
         };
-        
+
         if bpm <= 0.0 {
             return 4; // fallback
         }
         // bars = (duration_secs * bpm) / (60 * beats_per_bar)
         let bars = (duration * bpm) / (60.0 * 4.0);
         // Round to nearest power of 2 or common bar length (1, 2, 4, 8, 16)
-        let bars_rounded = if bars <= 0.75 { 1 }
-            else if bars <= 1.5 { 1 }
-            else if bars <= 3.0 { 2 }
-            else if bars <= 6.0 { 4 }
-            else if bars <= 12.0 { 8 }
-            else { 16 };
+        let bars_rounded = if bars <= 0.75 {
+            1
+        } else if bars <= 1.5 {
+            1
+        } else if bars <= 3.0 {
+            2
+        } else if bars <= 6.0 {
+            4
+        } else if bars <= 12.0 {
+            8
+        } else {
+            16
+        };
         bars_rounded
     }
-    
+
     fn xml_path(&self) -> String {
         self.path
             .replace('&', "&amp;")
@@ -321,7 +339,7 @@ impl SampleInfo {
             .replace('"', "&quot;")
             .replace('\'', "&apos;")
     }
-    
+
     fn xml_name(&self) -> String {
         self.name
             .replace('&', "&amp;")
@@ -337,39 +355,57 @@ fn load_samples_from_db(paths: &[&str]) -> Vec<SampleInfo> {
     let conn = match Connection::open(DB_PATH) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("Warning: Cannot open DB: {}, falling back to file metadata", e);
-            return paths.iter().filter_map(|p| SampleInfo::from_path(p).ok()).collect();
+            eprintln!(
+                "Warning: Cannot open DB: {}, falling back to file metadata",
+                e
+            );
+            return paths
+                .iter()
+                .filter_map(|p| SampleInfo::from_path(p).ok())
+                .collect();
         }
     };
-    
-    paths.iter().filter_map(|path| {
-        // Query via audio_library which has the full paths
-        let result: Result<(f64, Option<f64>), _> = conn.query_row(
-            "SELECT COALESCE(s.duration, 0), s.bpm 
+
+    paths
+        .iter()
+        .filter_map(|path| {
+            // Query via audio_library which has the full paths
+            let result: Result<(f64, Option<f64>), _> = conn.query_row(
+                "SELECT COALESCE(s.duration, 0), s.bpm 
              FROM audio_library al 
              JOIN audio_samples s ON al.sample_id = s.id 
              WHERE al.path = ?",
-            [path],
-            |row| Ok((row.get(0)?, row.get(1)?))
-        );
-        
-        match result {
-            Ok((duration, bpm)) => {
-                match SampleInfo::from_db(path, duration, bpm) {
+                [path],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            );
+
+            match result {
+                Ok((duration, bpm)) => match SampleInfo::from_db(path, duration, bpm) {
                     Ok(info) => {
-                        eprintln!("  {} - {:.2}s, {:?} BPM -> {} bars", 
-                            info.name, info.duration_secs, info.bpm, info.loop_bars(PROJECT_BPM));
+                        eprintln!(
+                            "  {} - {:.2}s, {:?} BPM -> {} bars",
+                            info.name,
+                            info.duration_secs,
+                            info.bpm,
+                            info.loop_bars(PROJECT_BPM)
+                        );
                         Some(info)
-                    },
-                    Err(_) => None
+                    }
+                    Err(_) => None,
+                },
+                Err(_) => {
+                    eprintln!(
+                        "  {} - not in DB, using file metadata",
+                        Path::new(path)
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                    );
+                    SampleInfo::from_path(path).ok()
                 }
-            },
-            Err(_) => {
-                eprintln!("  {} - not in DB, using file metadata", Path::new(path).file_name().unwrap_or_default().to_string_lossy());
-                SampleInfo::from_path(path).ok()
             }
-        }
-    }).collect()
+        })
+        .collect()
 }
 
 /// Query DB for N unique random samples matching patterns
@@ -389,26 +425,38 @@ fn query_unique_samples_v2(
             return vec![];
         }
     };
-    
+
     // Build include clause: (path LIKE '%kick%' OR path LIKE '%Kick%' OR ...)
     let include_clause: String = include_patterns
         .iter()
-        .flat_map(|p| vec![
-            format!("al.path LIKE '%{}%'", p.to_lowercase()),
-            format!("al.path LIKE '%{}%'", p),
-        ])
+        .flat_map(|p| {
+            vec![
+                format!("al.path LIKE '%{}%'", p.to_lowercase()),
+                format!("al.path LIKE '%{}%'", p),
+            ]
+        })
         .collect::<Vec<_>>()
         .join(" OR ");
-    
+
     // Build exclude clause: AND path NOT LIKE '%impact%' AND ...
     let exclude_clause: String = exclude_patterns
         .iter()
-        .map(|p| format!("AND al.path NOT LIKE '%{}%' AND al.path NOT LIKE '%{}%'", p.to_lowercase(), p))
+        .map(|p| {
+            format!(
+                "AND al.path NOT LIKE '%{}%' AND al.path NOT LIKE '%{}%'",
+                p.to_lowercase(),
+                p
+            )
+        })
         .collect::<Vec<_>>()
         .join(" ");
-    
-    let loop_clause = if require_loop { "AND al.path LIKE '%loop%'" } else { "" };
-    
+
+    let loop_clause = if require_loop {
+        "AND al.path LIKE '%loop%'"
+    } else {
+        ""
+    };
+
     let query = format!(
         "SELECT al.path, COALESCE(s.duration, 0), s.bpm 
          FROM audio_library al 
@@ -421,9 +469,12 @@ fn query_unique_samples_v2(
          {}
          ORDER BY RANDOM() 
          LIMIT {}",
-        include_clause, loop_clause, exclude_clause, count * 2
+        include_clause,
+        loop_clause,
+        exclude_clause,
+        count * 2
     );
-    
+
     let mut stmt = match conn.prepare(&query) {
         Ok(s) => s,
         Err(e) => {
@@ -431,33 +482,43 @@ fn query_unique_samples_v2(
             return vec![];
         }
     };
-    
-    let samples: Vec<SampleInfo> = stmt.query_map([], |row| {
-        let path: String = row.get(0)?;
-        let duration: f64 = row.get(1)?;
-        let bpm: Option<f64> = row.get(2)?;
-        Ok((path, duration, bpm))
-    })
-    .ok()
-    .map(|rows| {
-        rows.filter_map(|r| r.ok())
-            .filter_map(|(path, duration, bpm)| {
-                if !Path::new(&path).exists() {
-                    return None;
-                }
-                SampleInfo::from_db(&path, duration, bpm).ok()
-            })
-            .take(count)
-            .collect()
-    })
-    .unwrap_or_default();
-    
-    eprintln!("  Found {} unique samples for {:?}", samples.len(), include_patterns);
+
+    let samples: Vec<SampleInfo> = stmt
+        .query_map([], |row| {
+            let path: String = row.get(0)?;
+            let duration: f64 = row.get(1)?;
+            let bpm: Option<f64> = row.get(2)?;
+            Ok((path, duration, bpm))
+        })
+        .ok()
+        .map(|rows| {
+            rows.filter_map(|r| r.ok())
+                .filter_map(|(path, duration, bpm)| {
+                    if !Path::new(&path).exists() {
+                        return None;
+                    }
+                    SampleInfo::from_db(&path, duration, bpm).ok()
+                })
+                .take(count)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    eprintln!(
+        "  Found {} unique samples for {:?}",
+        samples.len(),
+        include_patterns
+    );
     samples
 }
 
 /// Legacy wrapper for simple queries
-fn query_unique_samples(pattern_name: &str, pattern_path: &str, exclude_pattern: Option<&str>, count: usize) -> Vec<SampleInfo> {
+fn query_unique_samples(
+    pattern_name: &str,
+    pattern_path: &str,
+    exclude_pattern: Option<&str>,
+    count: usize,
+) -> Vec<SampleInfo> {
     let includes = if pattern_path.is_empty() {
         vec![pattern_name]
     } else {
@@ -472,78 +533,95 @@ fn generate_schranz_project(output_path: &Path) -> Result<(), String> {
 
     // SCHRANZ sample loading - same group hierarchy as techno, different samples
     // Schranz: aggressive/distorted, 155 BPM, rumble bass, drive patterns
-    
-    eprintln!("Loading {} unique KICK samples (including drive/rumble patterns):", CLIPS_PER_TRACK);
+
+    eprintln!(
+        "Loading {} unique KICK samples (including drive/rumble patterns):",
+        CLIPS_PER_TRACK
+    );
     let kick_samples = query_unique_samples_v2(
         &["kick", "kick_loop", "drive"],
         &["hat", "snare"],
-        true, CLIPS_PER_TRACK
+        true,
+        CLIPS_PER_TRACK,
     );
-    
+
     eprintln!("Loading {} unique CLAP/SNARE samples:", CLIPS_PER_TRACK);
     let clap_samples = query_unique_samples_v2(
         &["clap", "snare"],
         &["kick", "build"],
-        true, CLIPS_PER_TRACK
+        true,
+        CLIPS_PER_TRACK,
     );
-    
+
     eprintln!("Loading {} unique HAT/RIDE samples:", CLIPS_PER_TRACK);
     let hihat_samples = query_unique_samples_v2(
         &["hat", "ride", "top_loop"],
         &["kick", "snare"],
-        true, CLIPS_PER_TRACK
+        true,
+        CLIPS_PER_TRACK,
     );
-    
+
     eprintln!("Loading {} unique PERC samples:", CLIPS_PER_TRACK);
     let perc_samples = query_unique_samples_v2(
         &["perc", "percussion"],
         &["kick", "snare", "hat"],
-        true, CLIPS_PER_TRACK
+        true,
+        CLIPS_PER_TRACK,
     );
-    
-    eprintln!("Loading {} unique BASS samples (rumble/sub):", CLIPS_PER_TRACK);
+
+    eprintln!(
+        "Loading {} unique BASS samples (rumble/sub):",
+        CLIPS_PER_TRACK
+    );
     let bass_samples = query_unique_samples_v2(
         &["bass", "rumble", "sub"],
         &["kick_punch", "drum"],
-        false, CLIPS_PER_TRACK
+        false,
+        CLIPS_PER_TRACK,
     );
-    
+
     eprintln!("Loading {} unique SYNTH samples (stabs):", CLIPS_PER_TRACK);
     let synth1_samples = query_unique_samples_v2(
         &["stab", "synth_shot", "synth"],
         &["pad"],
-        false, CLIPS_PER_TRACK
+        false,
+        CLIPS_PER_TRACK,
     );
-    
+
     eprintln!("Loading {} unique LEAD samples:", CLIPS_PER_TRACK);
     let synth2_samples = query_unique_samples_v2(
         &["lead", "acid", "synth_loop"],
         &["pad", "stab"],
-        true, CLIPS_PER_TRACK
+        true,
+        CLIPS_PER_TRACK,
     );
-    
+
     eprintln!("Loading {} unique PAD samples (minimal):", CLIPS_PER_TRACK);
     let pad_samples = query_unique_samples_v2(
         &["pad", "atmos", "drone"],
         &["drum", "kick"],
-        false, CLIPS_PER_TRACK
+        false,
+        CLIPS_PER_TRACK,
     );
-    
+
     eprintln!("Loading {} unique FX samples:", CLIPS_PER_TRACK);
     let riser_samples = query_unique_samples_v2(
         &["riser", "sweep", "build", "whoosh"],
         &["impact", "crash", "hit"],
-        false, CLIPS_PER_TRACK
+        false,
+        CLIPS_PER_TRACK,
     );
     let hits_samples = query_unique_samples_v2(
         &["impact", "crash", "hit", "downlifter"],
         &["loop", "riser", "sweep"],
-        false, CLIPS_PER_TRACK
+        false,
+        CLIPS_PER_TRACK,
     );
     let atmos_samples = query_unique_samples_v2(
         &["atmos", "texture", "ambient", "background"],
         &["drum", "kick", "snare"],
-        false, CLIPS_PER_TRACK
+        false,
+        CLIPS_PER_TRACK,
     );
 
     generate_empty_als(output_path)?;
@@ -551,7 +629,9 @@ fn generate_schranz_project(output_path: &Path) -> Result<(), String> {
     let file = File::open(output_path).map_err(|e| e.to_string())?;
     let mut decoder = GzDecoder::new(file);
     let mut xml = String::new();
-    decoder.read_to_string(&mut xml).map_err(|e| e.to_string())?;
+    decoder
+        .read_to_string(&mut xml)
+        .map_err(|e| e.to_string())?;
 
     // Reserve all IDs already in the template
     let id_re = Regex::new(r#"Id="(\d+)""#).unwrap();
@@ -563,7 +643,8 @@ fn generate_schranz_project(output_path: &Path) -> Result<(), String> {
 
     // Extract original AudioTrack as template
     let track_start = xml.find("<AudioTrack").ok_or("No AudioTrack found")?;
-    let track_end = xml.find("</AudioTrack>").ok_or("No AudioTrack end found")? + "</AudioTrack>".len();
+    let track_end =
+        xml.find("</AudioTrack>").ok_or("No AudioTrack end found")? + "</AudioTrack>".len();
     let original_audio_track = xml[track_start..track_end].to_string();
 
     // Allocate group IDs
@@ -590,36 +671,125 @@ fn generate_schranz_project(output_path: &Path) -> Result<(), String> {
     let atmos_refs: Vec<&SampleInfo> = atmos_samples.iter().collect();
 
     // Create tracks - loop_bars now calculated per-sample from duration/BPM
-    let kick_track = create_audio_track(&original_audio_track, "KICK", DRUMS_COLOR, drums_group_id as i32, &kick_refs, &ids)?;
-    let clap_track = create_audio_track(&original_audio_track, "CLAP", DRUMS_COLOR, drums_group_id as i32, &clap_refs, &ids)?;
-    let hat_track = create_audio_track(&original_audio_track, "HAT", DRUMS_COLOR, drums_group_id as i32, &hat_refs, &ids)?;
-    let perc_track = create_audio_track(&original_audio_track, "PERC", DRUMS_COLOR, drums_group_id as i32, &perc_refs, &ids)?;
-    let bass_track = create_audio_track(&original_audio_track, "BASS", BASS_COLOR, -1, &bass_refs, &ids)?;
-    let synth1_track = create_audio_track(&original_audio_track, "SYNTH 1", MELODICS_COLOR, melodics_group_id as i32, &synth1_refs, &ids)?;
-    let synth2_track = create_audio_track(&original_audio_track, "SYNTH 2", MELODICS_COLOR, melodics_group_id as i32, &synth2_refs, &ids)?;
-    let pad_track = create_audio_track(&original_audio_track, "PAD", MELODICS_COLOR, melodics_group_id as i32, &pad_refs, &ids)?;
-    let riser_track = create_audio_track(&original_audio_track, "RISER", FX_COLOR, fx_group_id as i32, &riser_refs, &ids)?;
-    let hits_track = create_audio_track(&original_audio_track, "HITS", FX_COLOR, fx_group_id as i32, &hits_refs, &ids)?;
-    let atmos_track = create_audio_track(&original_audio_track, "ATMOS", FX_COLOR, fx_group_id as i32, &atmos_refs, &ids)?;
+    let kick_track = create_audio_track(
+        &original_audio_track,
+        "KICK",
+        DRUMS_COLOR,
+        drums_group_id as i32,
+        &kick_refs,
+        &ids,
+    )?;
+    let clap_track = create_audio_track(
+        &original_audio_track,
+        "CLAP",
+        DRUMS_COLOR,
+        drums_group_id as i32,
+        &clap_refs,
+        &ids,
+    )?;
+    let hat_track = create_audio_track(
+        &original_audio_track,
+        "HAT",
+        DRUMS_COLOR,
+        drums_group_id as i32,
+        &hat_refs,
+        &ids,
+    )?;
+    let perc_track = create_audio_track(
+        &original_audio_track,
+        "PERC",
+        DRUMS_COLOR,
+        drums_group_id as i32,
+        &perc_refs,
+        &ids,
+    )?;
+    let bass_track = create_audio_track(
+        &original_audio_track,
+        "BASS",
+        BASS_COLOR,
+        -1,
+        &bass_refs,
+        &ids,
+    )?;
+    let synth1_track = create_audio_track(
+        &original_audio_track,
+        "SYNTH 1",
+        MELODICS_COLOR,
+        melodics_group_id as i32,
+        &synth1_refs,
+        &ids,
+    )?;
+    let synth2_track = create_audio_track(
+        &original_audio_track,
+        "SYNTH 2",
+        MELODICS_COLOR,
+        melodics_group_id as i32,
+        &synth2_refs,
+        &ids,
+    )?;
+    let pad_track = create_audio_track(
+        &original_audio_track,
+        "PAD",
+        MELODICS_COLOR,
+        melodics_group_id as i32,
+        &pad_refs,
+        &ids,
+    )?;
+    let riser_track = create_audio_track(
+        &original_audio_track,
+        "RISER",
+        FX_COLOR,
+        fx_group_id as i32,
+        &riser_refs,
+        &ids,
+    )?;
+    let hits_track = create_audio_track(
+        &original_audio_track,
+        "HITS",
+        FX_COLOR,
+        fx_group_id as i32,
+        &hits_refs,
+        &ids,
+    )?;
+    let atmos_track = create_audio_track(
+        &original_audio_track,
+        "ATMOS",
+        FX_COLOR,
+        fx_group_id as i32,
+        &atmos_refs,
+        &ids,
+    )?;
 
     // Build final XML
     let before_track = &xml[..track_start];
     let after_track = &xml[track_end..];
-    
+
     let all_tracks = format!(
         "{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}\n\t\t\t{}",
-        drums_group, kick_track, clap_track, hat_track, perc_track,
+        drums_group,
+        kick_track,
+        clap_track,
+        hat_track,
+        perc_track,
         bass_track,
-        melodics_group, synth1_track, synth2_track, pad_track,
-        fx_group, riser_track, hits_track, atmos_track
+        melodics_group,
+        synth1_track,
+        synth2_track,
+        pad_track,
+        fx_group,
+        riser_track,
+        hits_track,
+        atmos_track
     );
-    
+
     let mut xml = format!("{}{}{}", before_track, all_tracks, after_track);
 
     // Update NextPointeeId
     let next_id = ids.max_id() + 1000;
     let next_id_re = Regex::new(r#"<NextPointeeId Value="\d+" />"#).unwrap();
-    xml = next_id_re.replace(&xml, format!(r#"<NextPointeeId Value="{}" />"#, next_id)).to_string();
+    xml = next_id_re
+        .replace(&xml, format!(r#"<NextPointeeId Value="{}" />"#, next_id))
+        .to_string();
 
     // Hide mixer in arrangement view
     xml = xml.replace(
@@ -628,19 +798,33 @@ fn generate_schranz_project(output_path: &Path) -> Result<(), String> {
     );
 
     // Set project tempo to 155 BPM (schranz)
-    let tempo_re = Regex::new(r#"<Tempo>\s*<LomId Value="0" />\s*<Manual Value="[^"]+" />"#).unwrap();
-    xml = tempo_re.replace(&xml, r#"<Tempo>
+    let tempo_re =
+        Regex::new(r#"<Tempo>\s*<LomId Value="0" />\s*<Manual Value="[^"]+" />"#).unwrap();
+    xml = tempo_re
+        .replace(
+            &xml,
+            r#"<Tempo>
 						<LomId Value="0" />
-						<Manual Value="155" />"#).to_string();
-    
+						<Manual Value="155" />"#,
+        )
+        .to_string();
+
     // Set tempo automation to 155
-    let tempo_event_re = Regex::new(r#"<FloatEvent Id="\d+" Time="-63072000" Value="[^"]+" />"#).unwrap();
-    xml = tempo_event_re.replace(&xml, r#"<FloatEvent Id="0" Time="-63072000" Value="155" />"#).to_string();
+    let tempo_event_re =
+        Regex::new(r#"<FloatEvent Id="\d+" Time="-63072000" Value="[^"]+" />"#).unwrap();
+    xml = tempo_event_re
+        .replace(
+            &xml,
+            r#"<FloatEvent Id="0" Time="-63072000" Value="155" />"#,
+        )
+        .to_string();
 
     // Write output
     let output_file = File::create(output_path).map_err(|e| e.to_string())?;
     let mut encoder = GzEncoder::new(output_file, Compression::default());
-    encoder.write_all(xml.as_bytes()).map_err(|e| e.to_string())?;
+    encoder
+        .write_all(xml.as_bytes())
+        .map_err(|e| e.to_string())?;
     encoder.finish().map_err(|e| e.to_string())?;
 
     eprintln!("Max ID used: {}", ids.max_id());
@@ -651,13 +835,20 @@ fn generate_schranz_project(output_path: &Path) -> Result<(), String> {
 /// - start_bar: 1-indexed bar position
 /// - length_bars: total clip length in arrangement
 /// - loop_bars: actual sample/loop length (for proper looping)
-fn create_audio_clip(sample: &SampleInfo, color: u32, clip_id: u32, start_bar: u32, length_bars: u32, loop_bars: u32) -> String {
+fn create_audio_clip(
+    sample: &SampleInfo,
+    color: u32,
+    clip_id: u32,
+    start_bar: u32,
+    length_bars: u32,
+    loop_bars: u32,
+) -> String {
     let beats_per_bar = 4;
     let start_beat = (start_bar - 1) * beats_per_bar;
     let length_beats = length_bars * beats_per_bar;
     let loop_beats = loop_bars * beats_per_bar;
     let end_beat = start_beat + length_beats;
-    
+
     // Calculate warp marker SecTime based on sample duration
     // If we know the duration, use it; otherwise estimate from loop_bars at project BPM
     let sample_duration = if sample.duration_secs > 0.0 && sample.duration_secs < 300.0 {
@@ -666,13 +857,14 @@ fn create_audio_clip(sample: &SampleInfo, color: u32, clip_id: u32, start_bar: u
         // Estimate: loop_bars at 128 BPM = (loop_bars * 4 beats) / (128 BPM / 60) seconds
         (loop_bars as f64 * 4.0 * 60.0) / PROJECT_BPM
     };
-    
+
     // WarpMarker: map sample's full duration to loop_beats
     // This tells Ableton to stretch/compress the sample to fit the beat grid
     let warp_sec_time = sample_duration;
     let warp_beat_time = loop_beats;
-    
-    format!(r#"<AudioClip Id="{clip_id}" Time="{start_beat}">
+
+    format!(
+        r#"<AudioClip Id="{clip_id}" Time="{start_beat}">
 										<LomId Value="0" />
 										<LomIdView Value="0" />
 										<CurrentStart Value="{start_beat}" />
@@ -830,27 +1022,34 @@ fn create_audio_clip(sample: &SampleInfo, color: u32, clip_id: u32, start_bar: u
     )
 }
 
-fn create_group_track(name: &str, color: u32, group_id: u32, ids: &IdAllocator) -> Result<String, String> {
+fn create_group_track(
+    name: &str,
+    color: u32,
+    group_id: u32,
+    ids: &IdAllocator,
+) -> Result<String, String> {
     let mut track = GROUP_TRACK_TEMPLATE.to_string();
 
     // Replace all IDs with fresh unique ones (except the main group ID which we set explicitly)
     let id_re = Regex::new(r#"Id="(\d+)""#).unwrap();
     let mut replacements: Vec<(String, String)> = Vec::new();
-    
+
     for cap in id_re.captures_iter(&track) {
         let old = format!(r#"Id="{}""#, &cap[1]);
         let new_id = ids.alloc();
         let new = format!(r#"Id="{}""#, new_id);
         replacements.push((old, new));
     }
-    
+
     for (old, new) in replacements {
         track = track.replacen(&old, &new, 1);
     }
 
     // Now set the main GroupTrack ID
     let track_id_re = Regex::new(r#"<GroupTrack Id="\d+""#).unwrap();
-    track = track_id_re.replace(&track, format!(r#"<GroupTrack Id="{}""#, group_id)).to_string();
+    track = track_id_re
+        .replace(&track, format!(r#"<GroupTrack Id="{}""#, group_id))
+        .to_string();
 
     // Set name
     track = track.replace(
@@ -864,7 +1063,9 @@ fn create_group_track(name: &str, color: u32, group_id: u32, ids: &IdAllocator) 
 
     // Set color
     let color_re = Regex::new(r#"<Color Value="\d+" />"#).unwrap();
-    track = color_re.replace_all(&track, format!(r#"<Color Value="{}" />"#, color)).to_string();
+    track = color_re
+        .replace_all(&track, format!(r#"<Color Value="{}" />"#, color))
+        .to_string();
 
     eprintln!("GroupTrack {}: ID={}", name, group_id);
     Ok(track)
@@ -883,28 +1084,35 @@ fn create_audio_track(
     // Replace all IDs with fresh unique ones
     let id_re = Regex::new(r#"Id="(\d+)""#).unwrap();
     let mut replacements: Vec<(String, String)> = Vec::new();
-    
+
     for cap in id_re.captures_iter(&track) {
         let old = format!(r#"Id="{}""#, &cap[1]);
         let new_id = ids.alloc();
         let new = format!(r#"Id="{}""#, new_id);
         replacements.push((old, new));
     }
-    
+
     for (old, new) in replacements {
         track = track.replacen(&old, &new, 1);
     }
 
     // Set name
     let name_re = Regex::new(r#"<EffectiveName Value="[^"]*" />"#).unwrap();
-    track = name_re.replace(&track, format!(r#"<EffectiveName Value="{}" />"#, name)).to_string();
-    
-    let username_re = Regex::new(r#"(<EffectiveName Value="[^"]*" />\s*<UserName Value=")[^"]*(" />)"#).unwrap();
-    track = username_re.replace(&track, format!(r#"${{1}}{}${{2}}"#, name)).to_string();
+    track = name_re
+        .replace(&track, format!(r#"<EffectiveName Value="{}" />"#, name))
+        .to_string();
+
+    let username_re =
+        Regex::new(r#"(<EffectiveName Value="[^"]*" />\s*<UserName Value=")[^"]*(" />)"#).unwrap();
+    track = username_re
+        .replace(&track, format!(r#"${{1}}{}${{2}}"#, name))
+        .to_string();
 
     // Set color
     let color_re = Regex::new(r#"<Color Value="\d+" />"#).unwrap();
-    track = color_re.replace_all(&track, format!(r#"<Color Value="{}" />"#, color)).to_string();
+    track = color_re
+        .replace_all(&track, format!(r#"<Color Value="{}" />"#, color))
+        .to_string();
 
     // Set group
     track = track.replacen(
@@ -928,24 +1136,39 @@ fn create_audio_track(
     }
 
     // Set track volume to -12dB (linear: 10^(-12/20) ≈ 0.251188643)
-    let volume_re = Regex::new(r#"(<Volume>\s*<LomId Value="0" />\s*<Manual Value=")[^"]+(" />)"#).unwrap();
-    track = volume_re.replace(&track, r#"${1}0.251188643${2}"#).to_string();
+    let volume_re =
+        Regex::new(r#"(<Volume>\s*<LomId Value="0" />\s*<Manual Value=")[^"]+(" />)"#).unwrap();
+    track = volume_re
+        .replace(&track, r#"${1}0.251188643${2}"#)
+        .to_string();
 
     // Create clips - each 4 bars in arrangement, loop_bars calculated per-sample
-    let clips: Vec<String> = samples.iter().enumerate().map(|(i, s)| {
-        let clip_id = ids.alloc();
-        let start_bar = (i * 4 + 1) as u32;
-        let loop_bars = s.loop_bars(PROJECT_BPM);
-        create_audio_clip(s, color, clip_id, start_bar, 4, loop_bars)
-    }).collect();
-    
+    let clips: Vec<String> = samples
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let clip_id = ids.alloc();
+            let start_bar = (i * 4 + 1) as u32;
+            let loop_bars = s.loop_bars(PROJECT_BPM);
+            create_audio_clip(s, color, clip_id, start_bar, 4, loop_bars)
+        })
+        .collect();
+
     let clips_xml = clips.join("\n");
     track = track.replacen(
         "<Events />",
-        &format!("<Events>\n{}\n\t\t\t\t\t\t\t\t\t\t\t\t\t</Events>", clips_xml),
+        &format!(
+            "<Events>\n{}\n\t\t\t\t\t\t\t\t\t\t\t\t\t</Events>",
+            clips_xml
+        ),
         1,
     );
 
-    eprintln!("AudioTrack {}: group={}, {} clips", name, group_id, samples.len());
+    eprintln!(
+        "AudioTrack {}: group={}, {} clips",
+        name,
+        group_id,
+        samples.len()
+    );
     Ok(track)
 }

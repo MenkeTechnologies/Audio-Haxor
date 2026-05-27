@@ -78,9 +78,10 @@ impl IncrementalDirState {
         }
         let map = self.mtimes.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(&stored) = map.get(&key)
-            && cur <= stored {
-                return true;
-            }
+            && cur <= stored
+        {
+            return true;
+        }
         false
     }
 
@@ -541,13 +542,14 @@ fn walk_dir_parallel(
         let orig = normalize_macos_path(dir.to_path_buf());
         let canon_result = fs::canonicalize(dir);
         if is_network_path(dir)
-            && let Err(ref e) = canon_result {
-                crate::write_app_log_verbose(format!(
-                    "SCAN NETWORK CANONICALIZE FAIL — unified | {} | {} (using original path as dedup key)",
-                    dir.display(),
-                    e,
-                ));
-            }
+            && let Err(ref e) = canon_result
+        {
+            crate::write_app_log_verbose(format!(
+                "SCAN NETWORK CANONICALIZE FAIL — unified | {} | {} (using original path as dedup key)",
+                dir.display(),
+                e,
+            ));
+        }
         let canon = canon_result.ok().map(normalize_macos_path);
         let key = canon.clone().unwrap_or_else(|| orig.clone());
         if !visited.insert(key.clone()) {
@@ -568,23 +570,25 @@ fn walk_dir_parallel(
     }
 
     if let Some(ref inc) = incremental
-        && inc.should_skip(dir) {
-            return;
-        }
+        && inc.should_skip(dir)
+    {
+        return;
+    }
 
     let dir_str = dir.to_string_lossy().to_string();
 
     // Log when entering a network share root (depth 0-2) so the user can
     // verify their mounts are actually being traversed.
     if depth <= 2
-        && let Some(fstype) = network_fs_type(dir) {
-            crate::write_app_log_verbose(format!(
-                "SCAN NETWORK ENTER — unified | {} | fs={} | depth={}",
-                dir.display(),
-                fstype,
-                depth,
-            ));
-        }
+        && let Some(fstype) = network_fs_type(dir)
+    {
+        crate::write_app_log_verbose(format!(
+            "SCAN NETWORK ENTER — unified | {} | fs={} | depth={}",
+            dir.display(),
+            fstype,
+            depth,
+        ));
+    }
     {
         // Fan out the dir-status push to every sink (walker-status tiles).
         for sink in active_dirs {
@@ -754,51 +758,53 @@ fn walk_dir_parallel(
                 .iter()
                 .any(|ext| name_lower.ends_with(ext));
 
-            if is_daw_pkg && under_any_root(&path, &spec.daw_roots)
-                && let Some(ext_with_dot) = ext_match(&name_lower, DAW_EXTENSIONS) {
-                    let format = ext_with_dot.strip_prefix('.').unwrap_or("").to_uppercase();
-                    if format != "BAND" || is_valid_band_package(&path) {
-                        let path_str = path.to_string_lossy().to_string();
-                        if !spec.daw_exclude.contains(&path_str) {
-                            if stops.any() {
-                                return;
-                            }
-                            // Package size still needs recursive directory
-                            // walk — that's inherent to the data model.
-                            let size = get_directory_size(&path);
-                            // Dir mtime comes free on macOS bulk path. On the
-                            // portable fallback (Linux/Windows) entry.mtime_secs
-                            // is 0 for dirs, so stat lazily here — only for
-                            // packages we actually emit, not every dir.
-                            let modified = if mtime_secs > 0 {
-                                fmt_mtime_ymd(mtime_secs)
-                            } else {
-                                fs::metadata(&path)
-                                    .ok()
-                                    .and_then(|m| m.modified().ok())
-                                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                                    .map(|d| fmt_mtime_ymd(d.as_secs() as i64))
-                                    .unwrap_or_default()
-                            };
-                            let project_name = path
-                                .file_stem()
-                                .map(|s| s.to_string_lossy().to_string())
-                                .unwrap_or_default();
-                            let daw = daw_name_for_format(&format).to_string();
-                            daw_batch.push(DawProject {
-                                name: project_name,
-                                path: path_str,
-                                directory: dir.to_string_lossy().to_string(),
-                                format,
-                                daw,
-                                size,
-                                size_formatted: format_size(size),
-                                modified,
-                            });
-                            daw_found.fetch_add(1, Ordering::Relaxed);
+            if is_daw_pkg
+                && under_any_root(&path, &spec.daw_roots)
+                && let Some(ext_with_dot) = ext_match(&name_lower, DAW_EXTENSIONS)
+            {
+                let format = ext_with_dot.strip_prefix('.').unwrap_or("").to_uppercase();
+                if format != "BAND" || is_valid_band_package(&path) {
+                    let path_str = path.to_string_lossy().to_string();
+                    if !spec.daw_exclude.contains(&path_str) {
+                        if stops.any() {
+                            return;
                         }
+                        // Package size still needs recursive directory
+                        // walk — that's inherent to the data model.
+                        let size = get_directory_size(&path);
+                        // Dir mtime comes free on macOS bulk path. On the
+                        // portable fallback (Linux/Windows) entry.mtime_secs
+                        // is 0 for dirs, so stat lazily here — only for
+                        // packages we actually emit, not every dir.
+                        let modified = if mtime_secs > 0 {
+                            fmt_mtime_ymd(mtime_secs)
+                        } else {
+                            fs::metadata(&path)
+                                .ok()
+                                .and_then(|m| m.modified().ok())
+                                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                                .map(|d| fmt_mtime_ymd(d.as_secs() as i64))
+                                .unwrap_or_default()
+                        };
+                        let project_name = path
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_default();
+                        let daw = daw_name_for_format(&format).to_string();
+                        daw_batch.push(DawProject {
+                            name: project_name,
+                            path: path_str,
+                            directory: dir.to_string_lossy().to_string(),
+                            format,
+                            daw,
+                            size,
+                            size_formatted: format_size(size),
+                            modified,
+                        });
+                        daw_found.fetch_add(1, Ordering::Relaxed);
                     }
                 }
+            }
 
             if is_plugin_bundle {
                 // Plugin bundles: DAW skips entirely. Others may still want to
