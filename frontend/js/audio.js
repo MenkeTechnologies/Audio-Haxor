@@ -1998,9 +1998,17 @@ function handleEngineRustAdvanced(nextPath) {
     if (typeof window !== 'undefined') {
         window._enginePlaybackResumePath = nextPath;
     }
-    /* History (`addToRecentlyPlayed`) needs a `sample` object we do not have here;
-     * the next `playback_status` poll picks up the new path and the existing UI
-     * synchronizers reconcile state from there. */
+    /* Mirror the JS-driven autoplay path: record the played track in history and bump the
+     * persisted play_count. `addToRecentlyPlayed` already falls back to `findByPath` against
+     * `allAudioSamples` when no `sample` is provided, so the historical "no sample object →
+     * skip" guard here was unnecessary — and meant background-advanced tracks never got their
+     * play counter incremented in SQLite. `skipRecentReorder: true` matches the autoplay
+     * branch in `tryPreviewAutoplayNextOnFailureAsync` / `nextTrack({autoplay:true})` so the
+     * entry doesn't bounce to the top of the recently-played list mid-queue. */
+    audioPlayerPath = nextPath;
+    if (typeof addToRecentlyPlayed === 'function') {
+        try { addToRecentlyPlayed(nextPath, null, { skipRecentReorder: true }); } catch { /* noop */ }
+    }
     if (typeof syncTrayNowPlayingFromPlayback === 'function') {
         syncTrayNowPlayingFromPlayback();
     }

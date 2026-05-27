@@ -4158,6 +4158,46 @@ async function runEnginePlaybackStatusTick() {
                 ) {
                     window.handleEnginePlaybackEofFromPoll();
                 }
+                /* Loop-iteration play-count bump. Engine reports `loop_iteration` =
+                 * `readCount / total` since the last `setNextReadPosition` reset. Bumps once
+                 * per file-length consumed by the audio thread. We mirror that into
+                 * `addToRecentlyPlayed` so the play counter ticks up per loop wrap, not just
+                 * at initial track start. Gated on `st.loop` so non-looping playback (where
+                 * EOF would also push iteration to 1 via post-EOF silence reads) doesn't
+                 * double-bump on top of the track-start increment / next-track autoplay. */
+                if (
+                    st.loop === true &&
+                    typeof st.loop_iteration === 'number' &&
+                    typeof audioPlayerPath === 'string' &&
+                    audioPlayerPath.length > 0 &&
+                    typeof addToRecentlyPlayed === 'function'
+                ) {
+                    const path = audioPlayerPath;
+                    const iter = st.loop_iteration | 0;
+                    const last = window._lastLoopIterCount;
+                    if (last == null || last.path !== path) {
+                        // eslint-disable-next-line no-console
+                        console.log('[loop-iter] init', { path, iter });
+                        window._lastLoopIterCount = { path, iter };
+                    } else {
+                        const diff = iter - last.iter;
+                        if (diff > 0) {
+                            // eslint-disable-next-line no-console
+                            console.log('[loop-iter] bump', { path, prev: last.iter, iter, diff });
+                            for (let i = 0; i < diff; ++i) {
+                                try { addToRecentlyPlayed(path, null, { skipRecentReorder: true }); } catch (e) { console.warn('[loop-iter] addToRecentlyPlayed threw', e); }
+                            }
+                        }
+                        // Always store the latest seen value (handles seek-back / wrap-down too).
+                        last.iter = iter;
+                    }
+                } else if (st && st.loop === true && typeof st.loop_iteration !== 'number') {
+                    // eslint-disable-next-line no-console
+                    if (!window._loopIterMissingLogged) {
+                        window._loopIterMissingLogged = true;
+                        console.warn('[loop-iter] engine response missing loop_iteration field', st);
+                    }
+                }
             }
         }
         if (typeof window.ensureEnginePlaybackFftRaf === 'function') {

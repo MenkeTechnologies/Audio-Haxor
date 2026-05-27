@@ -1130,6 +1130,8 @@ public:
             basePos = 0;
             ++generation;
         }
+        virtualEofThreshold.store(-1, std::memory_order_release);
+        wrapsCompleted.store(0, std::memory_order_release);
         ring.clear();
         bgThread.addTimeSliceClient(this);
     }
@@ -1172,12 +1174,13 @@ public:
     /// no file I/O, no kernel calls, just memcpy from pre-filled data.
     void getNextAudioBlock(const juce::AudioSourceChannelInfo& info) override
     {
-        int64_t rc, wc;
+        int64_t rc, wc, bp;
         uint32_t gen;
         {
             const juce::SpinLock::ScopedLockType sl(posLock);
             rc = readCount;
             wc = writeCount;
+            bp = basePos;
             gen = generation;
         }
 
@@ -1193,21 +1196,75 @@ public:
                 info.buffer->clear(c, info.startSample + have, needed - have);
         }
 
+        bool readAccepted = false;
         {
             const juce::SpinLock::ScopedLockType sl(posLock);
             if (generation == gen)
+            {
                 readCount = rc + have;
+                readAccepted = true;
+            }
+        }
+        /* Wrap detection on the audio thread. `wrapsCompleted` is the authoritative
+         * iteration counter — it only ever increments and is independent of
+         * `basePos`/`readCount` (which can be reset by `setNextReadPosition` mid-playback,
+         * making `readCount / total` an unreliable iteration measure). When the per-block
+         * raw position crosses one or more multiples of `total`, we add the delta. Only
+         * the audio thread runs this; useTimeSlice (writer) doesn't, so the count reflects
+         * what was *actually played*, not what was prefetched.
+         *
+         * Gated on `readAccepted` so a `setNextReadPosition` racing with this block (which
+         * bumps `generation` and causes the spinlock-guarded `readCount` update above to be
+         * skipped — samples were copied to the output buffer but the LFSS counters are
+         * about to be reset, treating those samples as never-consumed) doesn't credit a
+         * phantom wrap. */
+        if (readAccepted && have > 0)
+        {
+            auto* src = sourcePtr.load(std::memory_order_acquire);
+            if (src != nullptr && src->isLooping())
+            {
+                const int64_t total = (int64_t) src->getTotalLength();
+                if (total > 0)
+                {
+                    const int64_t prevIter = (bp + rc) / total;
+                    const int64_t newIter = (bp + rc + have) / total;
+                    if (newIter > prevIter)
+                        wrapsCompleted.fetch_add(newIter - prevIter, std::memory_order_relaxed);
+                }
+            }
         }
     }
 
     void setNextReadPosition(juce::int64 newPos) override
     {
         pendingSeek.store((int64_t) newPos, std::memory_order_release);
-        const juce::SpinLock::ScopedLockType sl(posLock);
-        basePos = (int64_t) newPos;
-        readCount = 0;
-        writeCount = 0;
-        ++generation;
+        {
+            const juce::SpinLock::ScopedLockType sl(posLock);
+            basePos = (int64_t) newPos;
+            readCount = 0;
+            writeCount = 0;
+            ++generation;
+        }
+        /* Re-anchor the virtual-EOF threshold (if active) to the new seek point: a user seek
+         * during the "play out current iteration after loop-off" window should mean "play out
+         * to the natural EOF *from where I'm seeking to*", not the now-stale absolute target
+         * computed against the pre-seek `raw`. Stale absolute target → user seeks past it →
+         * instant EOF on the next block. */
+        const int64_t threshold_prev = virtualEofThreshold.load(std::memory_order_acquire);
+        if (threshold_prev >= 0)
+        {
+            auto* src = sourcePtr.load(std::memory_order_acquire);
+            if (src != nullptr)
+            {
+                const int64_t total = (int64_t) src->getTotalLength();
+                if (total > 0)
+                {
+                    const int64_t posInIter = ((newPos % total) + total) % total;
+                    const int64_t newThreshold = newPos + (total - posInIter);
+                    virtualEofThreshold.store(newThreshold, std::memory_order_release);
+                }
+            }
+        }
     }
 
     juce::int64 getNextReadPosition() const override
@@ -1222,34 +1279,35 @@ public:
         /* When the underlying source is looping, JUCE's `AudioFormatReaderSource`
          * wraps `nextPlayPos` to 0 inside its `getNextAudioBlock` *without* calling
          * back into our `setNextReadPosition` — so our `readCount` keeps growing past
-         * `lengthInSamples`.  Without this modulo the engine's `playback_status`
-         * reports `elapsed_sec` larger than `total_sec` after the first loop wrap;
-         * the floating-player playhead clamps at the end and never resets, even
-         * though audio loops correctly (the ring buffer is fed wrapped samples by
-         * the underlying source — we just weren't reporting the wrapped position).
-         * `basePos + readCount` still drives the buffered-data math (the swap path
-         * passes `getNextReadPosition()` to the new source's `setNextReadPosition`,
-         * which expects a position the source itself can seek to — the wrapped
-         * value satisfies that too).
+         * `lengthInSamples`. The modulo here reports the wrapped position to transport
+         * / `playback_status` so the visible playhead cycles 0..duration..0 instead of
+         * walking off the end.
          *
-         * `loopOffPending` keeps wrapping in effect across the looping→non-looping
-         * transition so the audio thread's `inputStreamEOF` check (which queries
-         * `isLooping()` + `getNextReadPosition()` non-atomically) can't observe the
-         * "not looping but raw far past total" state and trip a premature EOF before
-         * the rebase has reset `basePos`/`readCount`. */
-        const bool effectiveLooping = wantedLooping.load(std::memory_order_acquire)
-                                      || loopOffPending.load(std::memory_order_acquire);
-        if (effectiveLooping)
+         * Threshold-gated EOF: when `virtualEofThreshold >= 0` and `raw >= threshold`,
+         * report unwrapped `raw` so `transport.hasStreamFinished()` (which checks
+         * `raw > total + 1 && !isLooping`) trips. Paired with `isLooping()` returning
+         * false in the same condition, this gives the user-perceived "play to natural
+         * iteration end then advance" without ever flushing the ring. */
+        const int64_t threshold = virtualEofThreshold.load(std::memory_order_acquire);
+        const bool pastThreshold = (threshold >= 0 && raw >= threshold);
+        if (!pastThreshold)
         {
             auto* src = sourcePtr.load(std::memory_order_acquire);
-            const int64_t total = src != nullptr ? (int64_t) src->getTotalLength() : 0;
-            if (total > 0)
-                return (juce::int64)(((raw % total) + total) % total);
+            if (src != nullptr && src->isLooping())
+            {
+                const int64_t total = (int64_t) src->getTotalLength();
+                if (total > 0)
+                    return (juce::int64)(((raw % total) + total) % total);
+            }
         }
         return (juce::int64) raw;
     }
 
     juce::int64 getTotalLength() const override { return sourcePtr.load(std::memory_order_acquire)->getTotalLength(); }
+    /** Audio-thread-side iteration counter (see `wrapsCompleted` declaration). Use this for
+     *  `loop_iteration` in `playback_status` so JS bumps the play counter exactly once per
+     *  audio-thread wrap, regardless of any internal `setNextReadPosition` resets. */
+    int64_t getWrapsCompleted() const { return wrapsCompleted.load(std::memory_order_acquire); }
     /* Diagnostic accessors — used by `playbackStatusLocked`'s EOF-edge debug log so we can
      * dump the exact `basePos`/`readCount`/`writeCount`/`wantedLooping`/`loopOffPending` that
      * tripped `hasStreamFinished` and correlate it against the most recent `setLooping` /
@@ -1259,8 +1317,7 @@ public:
         int64_t basePos;
         int64_t readCount;
         int64_t writeCount;
-        bool wantedLooping;
-        bool loopOffPending;
+        int64_t virtualEofThreshold;
         bool sourceIsLooping;
         int64_t sourceTotal;
         int64_t sourceNextReadPos;
@@ -1274,38 +1331,40 @@ public:
             s.readCount = readCount;
             s.writeCount = writeCount;
         }
-        s.wantedLooping = wantedLooping.load(std::memory_order_acquire);
-        s.loopOffPending = loopOffPending.load(std::memory_order_acquire);
+        s.virtualEofThreshold = virtualEofThreshold.load(std::memory_order_acquire);
         auto* src = sourcePtr.load(std::memory_order_acquire);
         s.sourceIsLooping = src != nullptr && src->isLooping();
         s.sourceTotal = src != nullptr ? (int64_t) src->getTotalLength() : 0;
         s.sourceNextReadPos = src != nullptr ? (int64_t) src->getNextReadPosition() : 0;
         return s;
     }
-    /* Use the authoritative `wantedLooping` (plus `loopOffPending` for the transition
-     * window). Reading `sourcePtr->isLooping()` directly would expose the gap where a
-     * RAM swap landed between `setLooping`'s `sourcePtr.load()` and `src->setLooping(b)` —
-     * the toggle would mutate the orphaned old source while the live source kept its
-     * prior loop state. */
+    /* `virtualEofThreshold` gates the answer: while `raw < threshold` we still report whatever
+     * the source actually says (true if it's looping, false otherwise) so audio keeps streaming
+     * uninterrupted out of the prefetch ring. Past `threshold`, we report false so
+     * `transport.hasStreamFinished()` trips at the next iteration boundary. */
     bool isLooping() const override
     {
-        if (loopOffPending.load(std::memory_order_acquire))
-            return true;
-        return wantedLooping.load(std::memory_order_acquire);
+        const int64_t threshold = virtualEofThreshold.load(std::memory_order_acquire);
+        auto* src = sourcePtr.load(std::memory_order_acquire);
+        if (threshold >= 0)
+        {
+            int64_t rc, bp;
+            {
+                const juce::SpinLock::ScopedLockType sl(posLock);
+                rc = readCount;
+                bp = basePos;
+            }
+            if ((bp + rc) >= threshold) return false;
+            return true;        // still inside the iteration we said "play out to" — report looping
+        }
+        return src != nullptr && src->isLooping();
     }
     void setLooping(bool b) override
     {
-        const bool wasLooping = wantedLooping.load(std::memory_order_acquire);
-        /* CRITICAL ordering: on the looping→non-looping edge, `loopOffPending` MUST be armed
-         * BEFORE `wantedLooping` flips to false — otherwise the audio thread's snapshot of
-         * `isLooping()` (which returns `loopOffPending || wantedLooping`) and
-         * `getNextReadPosition()` (whose wrap gate is the same expression) can observe
-         * `loopOffPending=false, wantedLooping=false, basePos+rc=huge` for the few instructions
-         * between the two stores, instantly tripping `hasStreamFinished()`. That's the
-         * "sometimes premature skip" race. */
         auto* src = sourcePtr.load(std::memory_order_acquire);
+        const bool srcLooping = (src != nullptr && src->isLooping());
         /* Diagnostic — every entry logged so we can correlate against EOF-trip log lines and
-         * audibly-observed track skips. Captures the LFSS state BEFORE we mutate anything. */
+         * audibly-observed track behavior. Captures LFSS state BEFORE we mutate anything. */
         {
             int64_t bp_log, rc_log, wc_log;
             {
@@ -1316,45 +1375,52 @@ public:
             }
             const int64_t total_log = src != nullptr ? (int64_t) src->getTotalLength() : 0;
             const int64_t srcPos_log = src != nullptr ? (int64_t) src->getNextReadPosition() : 0;
+            const int64_t threshold_log = virtualEofThreshold.load(std::memory_order_acquire);
             juce::String line = "loop-debug: setLooping enter";
             line << " b=" << (int) b
-                 << " wasLooping=" << (int) wasLooping
+                 << " srcLooping=" << (int) srcLooping
                  << " bp=" << (juce::int64) bp_log
                  << " rc=" << (juce::int64) rc_log
                  << " wc=" << (juce::int64) wc_log
                  << " raw=" << (juce::int64)(bp_log + rc_log)
                  << " total=" << (juce::int64) total_log
                  << " srcPos=" << (juce::int64) srcPos_log
+                 << " threshold=" << (juce::int64) threshold_log
                  << " srcPtr=0x" << juce::String::toHexString((juce::pointer_sized_int)(void*) src);
             appLogLine(line);
         }
-        if (src == nullptr) {
-            wantedLooping.store(b, std::memory_order_release);
+        if (src == nullptr) return;
+        if (b)
+        {
+            /* Loop ON. Clear any pending virtual-EOF threshold (user changed their mind), and
+             * make sure the source itself is looping. */
+            virtualEofThreshold.store(-1, std::memory_order_release);
+            src->setLooping(true);
+            appLogLine(juce::String("loop-debug: setLooping on (threshold cleared)"));
             return;
         }
-        if (!wasLooping || b) {
-            wantedLooping.store(b, std::memory_order_release);
-            src->setLooping(b);
+        /* Loop OFF. Only set a threshold if the source was actually looping — otherwise this is
+         * a no-op idempotent call from a "loop was already off" state and we mustn't synthesize
+         * a fake EOF point. Critically: we do NOT call `src->setLooping(false)` and we do NOT
+         * touch `basePos`/`readCount`. The source keeps wrapping reads, the prefetch ring keeps
+         * filling with valid wrapped audio, the audio thread plays it continuously — no flush,
+         * no stutter, no SMB re-read. EOF is triggered later when `raw` crosses `threshold`. */
+        if (!srcLooping)
+        {
+            virtualEofThreshold.store(-1, std::memory_order_release);
+            src->setLooping(false);
+            appLogLine(juce::String("loop-debug: setLooping off (source already non-looping)"));
             return;
         }
         const int64_t total = (int64_t) src->getTotalLength();
-        if (total <= 0) {
-            wantedLooping.store(b, std::memory_order_release);
-            src->setLooping(b);
+        if (total <= 0)
+        {
+            // Can't compute a threshold without a length. Fall through to a plain non-loop.
+            virtualEofThreshold.store(-1, std::memory_order_release);
+            src->setLooping(false);
+            appLogLine(juce::String("loop-debug: setLooping off (no total length, plain non-loop)"));
             return;
         }
-        /* Looping → non-looping rebase. Ordering: arm guard → flip wantedLooping → flush ring +
-         * seek source → release guard. Throughout the entire span the audio thread observes
-         * `isLooping()==true` (via `loopOffPending`) and `getNextReadPosition()` returns
-         * `raw % total` (small) — `hasStreamFinished()` cannot trip. After the guard releases,
-         * LFSS state is `basePos=wrapped, rc=0`, so `raw` starts small and grows linearly until
-         * the natural EOF at `total`. The 22 s prefetch ring (`kReadAheadSamples`) means
-         * `writeCount` can be many file-lengths past `readCount` while looping, so the flush
-         * also discards prefetched loop-2/3/… content; `DspStereoFileSource`'s seek-fade covers
-         * the one-tick refill window. */
-        loopOffPending.store(true, std::memory_order_release);
-        wantedLooping.store(b, std::memory_order_release);
-        src->setLooping(b);
         int64_t rc, bp;
         {
             const juce::SpinLock::ScopedLockType sl(posLock);
@@ -1362,17 +1428,17 @@ public:
             bp = basePos;
         }
         const int64_t raw = bp + rc;
-        const int64_t wrapped = ((raw % total) + total) % total;
+        const int64_t posInIter = ((raw % total) + total) % total;
+        const int64_t threshold = raw + (total - posInIter);
+        virtualEofThreshold.store(threshold, std::memory_order_release);
         {
-            juce::String line = "loop-debug: setLooping rebase";
+            juce::String line = "loop-debug: setLooping off (threshold set)";
             line << " raw=" << (juce::int64) raw
                  << " total=" << (juce::int64) total
-                 << " wrapped=" << (juce::int64) wrapped;
+                 << " posInIter=" << (juce::int64) posInIter
+                 << " threshold=" << (juce::int64) threshold;
             appLogLine(line);
         }
-        setNextReadPosition((juce::int64) wrapped);
-        loopOffPending.store(false, std::memory_order_release);
-        appLogLine(juce::String("loop-debug: setLooping done (loopOffPending released)"));
     }
 
 private:
@@ -1412,10 +1478,11 @@ private:
              *      identical to JUCE's internal behavior. */
             const int64_t total = old != nullptr ? (int64_t) old->getTotalLength() : 0;
             const int64_t pendingPos = pendingSeek.load(std::memory_order_acquire);
-            /* `wantsLoop` is `wantedLooping` (user intent) — the new live source's eventual
-             * loop flag, applied once `loopOffPending` clears. Not `loopOffPending || …` here:
-             * incoming must end up matching user intent, not the transition state. */
-            const bool wantsLoop = wantedLooping.load(std::memory_order_acquire);
+            /* `wantsLoop` matches the source's current loop flag — that's the right state to
+             * carry across the swap so `incoming` stays byte-continuous with the prefetch ring.
+             * The virtual-EOF threshold mechanism in this class is independent: it gates the
+             * LFSS-level `isLooping()` regardless of what the underlying source is doing. */
+            const bool wantsLoop = old != nullptr && old->isLooping();
             juce::int64 currentPos;
             if (pendingPos >= 0)
                 currentPos = (juce::int64) pendingPos;
@@ -1446,7 +1513,7 @@ private:
                      << " wc=" << (juce::int64) wc_log
                      << " total=" << (juce::int64) total
                      << " wantsLoop=" << (int) wantsLoop
-                     << " loopOffPending=" << (int) loopOffPending.load(std::memory_order_acquire)
+                     << " threshold=" << (juce::int64) virtualEofThreshold.load(std::memory_order_acquire)
                      << " oldPtr=0x" << juce::String::toHexString((juce::pointer_sized_int)(void*) old);
                 appLogLine(line);
             }
@@ -1539,20 +1606,25 @@ private:
      *  read-only accessors (`getTotalLength`, `isLooping`, …); written only by the
      *  TimeSliceThread inside `useTimeSlice`. */
     std::atomic<juce::PositionableAudioSource*> sourcePtr;
-    /** Set while `setLooping(false)` is in the middle of flipping the underlying source
-     *  to non-loop AND rebasing `basePos`/`readCount`. While true, `isLooping()` reports
-     *  true and `getNextReadPosition()` keeps wrapping — prevents the audio thread's
-     *  `inputStreamEOF` snapshot from observing the inconsistent intermediate state
-     *  (`!isLooping && raw >> total`) and tripping a permanent phantom EOF. */
-    std::atomic<bool> loopOffPending{false};
-    /** Authoritative user-intent for loop state. Set by `setLooping`; consumed by
-     *  `isLooping()`/`getNextReadPosition()` AND by the swap path when configuring
-     *  `incoming`. Decouples the answer from `sourcePtr->isLooping()` so a RAM-swap
-     *  that lands between `sourcePtr.load()` and `src->setLooping(b)` inside this
-     *  class can't strand a user toggle on the retired source — the swap reads
-     *  `wantedLooping` to configure the new source, and a subsequent toggle re-applies
-     *  to the (now-current) `sourcePtr`. */
-    std::atomic<bool> wantedLooping{false};
+    /** Virtual EOF marker in `raw` (= `basePos + readCount`) coordinates, or `-1` when
+     *  disabled. Set on the looping→non-looping transition to the next iteration boundary
+     *  (`raw + (total - raw % total)`). While `raw < threshold`, `isLooping()` reports the
+     *  source's actual loop flag (true if still looping) so transport doesn't trip EOF and
+     *  audio keeps streaming continuously from the ring; once `raw >= threshold`,
+     *  `isLooping()` reports false and `getNextReadPosition()` returns unwrapped `raw`, so
+     *  `transport.hasStreamFinished()` trips and the autoplay-advance fires at the natural
+     *  iteration boundary. The underlying source is left in `setLooping(true)` mode for the
+     *  entire wait window — no ring flush, no re-seek, no SMB re-read, no audio stutter. */
+    std::atomic<int64_t> virtualEofThreshold{-1};
+    /** Audio-thread-side counter of iteration wraps the AUDIO THREAD has consumed since
+     *  `prepareToPlay`. Increments inside `getNextAudioBlock` whenever the per-block raw
+     *  position (`basePos + readCount`) crosses a multiple of `total`. SURVIVES any
+     *  `setNextReadPosition` call (which resets `basePos`/`readCount` but not this counter)
+     *  so a brief mid-load seek-to-position doesn't lose the loop-iteration tally. Reset
+     *  only by `prepareToPlay` (new track). Reported as `loop_iteration` in playback_status
+     *  so JS can bump `play_count` per actual audio-thread wrap, robust against the various
+     *  internal seeks that can otherwise reset `readCount` mid-playback. */
+    std::atomic<int64_t> wrapsCompleted{0};
     /** When non-null, ownership of the swapped-in source.  Set inside `useTimeSlice`
      *  when a pending swap is picked up. */
     std::unique_ptr<juce::PositionableAudioSource> ownedActive;
@@ -1735,18 +1807,14 @@ public:
          * `MemoryInputStream`-backed reader inside `LockFreeStreamSource`, writing to
          * `readerSource` directly mutates a source no longer in the chain — that left
          * `playback_set_loop` silently broken once the swap landed and forced the user to skip
-         * to the next track to re-engage looping. */
-        juce::PositionableAudioSource* active = bufferedReader != nullptr
-                                                    ? static_cast<juce::PositionableAudioSource*>(bufferedReader.get())
-                                                    : static_cast<juce::PositionableAudioSource*>(readerSource.get());
-        const bool wasLooping = active != nullptr && active->isLooping();
-        /* Looping → non-looping rebases inside `LockFreeStreamSource::setLooping` (ring flush +
-         * seek to wrapped position so AFRS keeps reading actual audio instead of post-EOF silence,
-         * and transport doesn't instantly trip `hasStreamFinished` on the unwrapped raw position).
-         * Pre-arm the seek fade so the one-tick refill window after the flush is muted/ramped
-         * instead of clicking. */
-        if (wasLooping && !shouldLoop)
-            seekFadeRemaining.store(kSeekTotalSamples, std::memory_order_relaxed);
+         * to the next track to re-engage looping.
+         *
+         * No seek-fade is armed here: the threshold-based loop-off design in
+         * `LockFreeStreamSource::setLooping` doesn't flush the ring or re-seek the source —
+         * the source keeps looping into the prefetch buffer, the audio thread keeps draining
+         * it continuously, and EOF is gated by `virtualEofThreshold` once `raw` crosses the
+         * next iteration boundary. Triggering a mute-then-ramp on every loop click would just
+         * insert a stutter for no reason. */
         if (bufferedReader != nullptr)
             bufferedReader->setLooping(shouldLoop);
         else if (readerSource != nullptr)
@@ -2346,6 +2414,9 @@ struct Engine::Impl
      *  EOF (transport stays finished) doesn't spam the log. Reset when `eof` returns to
      *  false (e.g. new playback_load, new seek). */
     bool loopDebugEofPrevReported = false;
+    /** Last `loop_iteration` value logged — used to log just the transitions so we can
+     *  trace whether the JS side is seeing each iteration boundary the engine sees. */
+    juce::int64 loopDebugIterLast = 0;
     bool paused = false;
 
     juce::VST3PluginFormat vst3;
@@ -3812,6 +3883,34 @@ struct Engine::Impl
         o->setProperty("position_sec", pos);
         o->setProperty("peak", playbackPeak.load());
         o->setProperty("paused", paused);
+        /* `loop_iteration` = monotonic count of iteration wraps the AUDIO THREAD has consumed
+         * since `prepareToPlay` (new track). Maintained by `wrapsCompleted` inside
+         * `LockFreeStreamSource::getNextAudioBlock` — that's the audio-thread side of the
+         * playback chain, so it counts wraps that were actually heard, and is independent of
+         * `basePos`/`readCount` resets from internal `setNextReadPosition` calls (which
+         * otherwise made `readCount / total` permanently stuck at 0 on every track). */
+        juce::int64 loopIter = 0;
+        juce::int64 loopIterRc = 0;
+        juce::int64 loopIterTotal = 0;
+        if (fileSource != nullptr && fileSource->bufferedReader != nullptr)
+        {
+            loopIter = (juce::int64) fileSource->bufferedReader->getWrapsCompleted();
+            const auto snap = fileSource->bufferedReader->debugSnapshot();
+            loopIterRc = (juce::int64) snap.readCount;
+            loopIterTotal = (juce::int64) snap.sourceTotal;
+        }
+        o->setProperty("loop_iteration", loopIter);
+        if (loopIter != loopDebugIterLast)
+        {
+            juce::String line = "loop-debug: iter delta";
+            line << " prev=" << (juce::int64) loopDebugIterLast
+                 << " new=" << (juce::int64) loopIter
+                 << " readCount=" << (juce::int64) loopIterRc
+                 << " sourceTotal=" << (juce::int64) loopIterTotal
+                 << " loopWanted=" << (int) playbackLoopWanted.load();
+            appLogLine(line);
+            loopDebugIterLast = loopIter;
+        }
         const bool eofNow = transport.hasStreamFinished();
         o->setProperty("eof", eofNow);
         /* Edge-triggered diagnostic: when EOF first goes true, dump the LFSS/source state.
@@ -3837,8 +3936,7 @@ struct Engine::Impl
                     line << " lfss.bp=" << (juce::int64) s.basePos
                          << " lfss.rc=" << (juce::int64) s.readCount
                          << " lfss.wc=" << (juce::int64) s.writeCount
-                         << " lfss.wanted=" << (int) s.wantedLooping
-                         << " lfss.pending=" << (int) s.loopOffPending
+                         << " lfss.threshold=" << (juce::int64) s.virtualEofThreshold
                          << " lfss.srcLooping=" << (int) s.sourceIsLooping
                          << " lfss.srcTotal=" << (juce::int64) s.sourceTotal
                          << " lfss.srcPos=" << (juce::int64) s.sourceNextReadPos;
