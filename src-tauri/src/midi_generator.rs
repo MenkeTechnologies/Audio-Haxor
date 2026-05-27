@@ -2224,4 +2224,176 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
     }
+
+    // ─── parse_chord_name: chord-name → pitch-class ───────────────────
+
+    #[test]
+    fn parse_chord_name_naturals() {
+        for (s, pc) in [("C", 0), ("D", 2), ("E", 4), ("F", 5), ("G", 7), ("A", 9), ("B", 11)] {
+            assert_eq!(parse_chord_name(s), Some(pc), "natural {s}");
+        }
+    }
+
+    #[test]
+    fn parse_chord_name_sharps() {
+        assert_eq!(parse_chord_name("C#"), Some(1));
+        assert_eq!(parse_chord_name("D#"), Some(3));
+        assert_eq!(parse_chord_name("F#"), Some(6));
+        assert_eq!(parse_chord_name("G#"), Some(8));
+        assert_eq!(parse_chord_name("A#"), Some(10));
+    }
+
+    #[test]
+    fn parse_chord_name_flats_map_to_enharmonic() {
+        // Db == C#, Eb == D#, Gb == F#, Ab == G#, Bb == A#, Cb == B.
+        assert_eq!(parse_chord_name("Db"), Some(1));
+        assert_eq!(parse_chord_name("Eb"), Some(3));
+        assert_eq!(parse_chord_name("Gb"), Some(6));
+        assert_eq!(parse_chord_name("Ab"), Some(8));
+        assert_eq!(parse_chord_name("Bb"), Some(10));
+        assert_eq!(parse_chord_name("Cb"), Some(11));
+    }
+
+    #[test]
+    fn parse_chord_name_minor_quality_stripped() {
+        // The "m" suffix (and longer "min"/"minor") is stripped; only the
+        // root determines pitch class.
+        assert_eq!(parse_chord_name("Am"), Some(9));
+        assert_eq!(parse_chord_name("Dm"), Some(2));
+        assert_eq!(parse_chord_name("F#m"), Some(6));
+        assert_eq!(parse_chord_name("Bbm"), Some(10));
+    }
+
+    #[test]
+    fn parse_chord_name_long_quality_suffixes() {
+        assert_eq!(parse_chord_name("Aminor"), Some(9));
+        assert_eq!(parse_chord_name("Cmajor"), Some(0));
+        assert_eq!(parse_chord_name("Dmin"), Some(2));
+        assert_eq!(parse_chord_name("Gmaj"), Some(7));
+    }
+
+    #[test]
+    fn parse_chord_name_case_insensitive() {
+        assert_eq!(parse_chord_name("am"), Some(9));
+        assert_eq!(parse_chord_name("c#"), Some(1));
+        assert_eq!(parse_chord_name("BB"), Some(10));
+    }
+
+    #[test]
+    fn parse_chord_name_whitespace_trimmed() {
+        assert_eq!(parse_chord_name("  Dm  "), Some(2));
+        assert_eq!(parse_chord_name("\tC#\n"), Some(1));
+    }
+
+    #[test]
+    fn parse_chord_name_empty_returns_none() {
+        assert_eq!(parse_chord_name(""), None);
+        assert_eq!(parse_chord_name("   "), None);
+    }
+
+    #[test]
+    fn parse_chord_name_garbage_returns_none() {
+        assert_eq!(parse_chord_name("XYZ"), None);
+        assert_eq!(parse_chord_name("H"), None, "H is not a valid Anglo-American chord root");
+        assert_eq!(parse_chord_name("?"), None);
+    }
+
+    // ─── resolve_chords: progression → semitone offsets ──────────────
+
+    #[test]
+    fn resolve_chords_uses_progression_when_present() {
+        let mut c = cfg(LeadType::TwoLayer);
+        c.progression = vec!["Am".into(), "Dm".into(), "Em".into(), "C".into()];
+        c.chords = vec![]; // ensure progression wins
+        let out = resolve_chords(&c);
+        // Key root = 9 (A). Am → A-A = 0, Dm → D-A = (2-9) mod 12 = 5,
+        // Em → E-A = (4-9) mod 12 = 7, C → C-A = (0-9) mod 12 = 3.
+        assert_eq!(out, vec![0, 5, 7, 3]);
+    }
+
+    #[test]
+    fn resolve_chords_falls_back_to_raw_chords_when_progression_empty() {
+        let mut c = cfg(LeadType::TwoLayer);
+        c.progression = vec![];
+        c.chords = vec![1, 2, 3];
+        assert_eq!(resolve_chords(&c), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn resolve_chords_skips_unparseable_names() {
+        let mut c = cfg(LeadType::TwoLayer);
+        c.progression = vec!["Am".into(), "GARBAGE".into(), "Dm".into()];
+        let out = resolve_chords(&c);
+        // Only Am and Dm should resolve.
+        assert_eq!(out, vec![0, 5]);
+    }
+
+    #[test]
+    fn resolve_chords_empty_progression_with_empty_chords_is_empty() {
+        let mut c = cfg(LeadType::TwoLayer);
+        c.progression = vec![];
+        c.chords = vec![];
+        assert!(resolve_chords(&c).is_empty());
+    }
+
+    // ─── build_base_name + build_filename ────────────────────────────
+
+    #[test]
+    fn build_filename_single_variation_no_index() {
+        let c = cfg(LeadType::TwoLayer);
+        let name = build_filename(&c, 0, 1);
+        // n==1 → no _NN suffix.
+        assert!(name.ends_with(".mid"));
+        assert!(!name.contains("_01.mid"), "single variation must not include index suffix");
+    }
+
+    #[test]
+    fn build_filename_multi_variation_includes_2digit_index() {
+        let c = cfg(LeadType::TwoLayer);
+        let name = build_filename(&c, 0, 3);
+        // index 0, n=3 → "_01.mid" (1-indexed, zero-padded).
+        assert!(name.ends_with("_01.mid"));
+    }
+
+    #[test]
+    fn build_filename_index_9_pads_to_10() {
+        let c = cfg(LeadType::TwoLayer);
+        let name = build_filename(&c, 9, 10);
+        assert!(name.ends_with("_10.mid"), "got {name}");
+    }
+
+    #[test]
+    fn build_base_name_contains_key_scale_and_tempo() {
+        let c = cfg(LeadType::TwoLayer);
+        let name = build_base_name(&c);
+        // key = A, minor = "m", bpm = 120, seed = 42, lead = TwoLayer's short_name.
+        assert!(name.starts_with("Am_"));
+        assert!(name.contains("120bpm"));
+        assert!(name.contains("seed42"));
+    }
+
+    #[test]
+    fn build_base_name_major_omits_m_suffix() {
+        let mut c = cfg(LeadType::TwoLayer);
+        c.minor = false;
+        let name = build_base_name(&c);
+        // C key (key_root=0) major: starts with "A_..." since cfg sets key_root=9.
+        // Verify the "m" is NOT immediately after the key letter when minor=false.
+        assert!(!name.starts_with("Am_"), "major must not produce Am, got {name}");
+        assert!(name.starts_with("A_"));
+    }
+
+    #[test]
+    fn build_base_name_length_bars_overrides_computed_total() {
+        let mut c = cfg(LeadType::TwoLayer);
+        c.length_bars = Some(64);
+        let name = build_base_name(&c);
+        assert!(name.contains("64bars"), "explicit length_bars must win, got {name}");
+    }
+
+    #[test]
+    fn default_chromaticism_is_15() {
+        // Used as serde default.
+        assert_eq!(default_chromaticism(), 15);
+    }
 }
