@@ -1226,4 +1226,113 @@ mod tests {
         let cfg: ProjectConfig = serde_json::from_str(json).expect("deserialize");
         assert!(cfg.seed.is_none(), "missing `seed` field must default to None");
     }
+
+    // ─── SectionLengths totals ────────────────────────────────────────
+
+    #[test]
+    fn techno_default_totals_224_bars() {
+        // 32 × 7 = 224 per canonical layout.
+        assert_eq!(SectionLengths::techno_default().total_bars(), 32 * 7);
+    }
+
+    #[test]
+    fn trance_default_totals_256_bars() {
+        // 32+32+48+32+32+32+48 = 256.
+        assert_eq!(SectionLengths::trance_default().total_bars(), 256);
+    }
+
+    #[test]
+    fn schranz_default_totals_208_bars() {
+        // 32+32+16+32+48+32+16 = 208.
+        assert_eq!(SectionLengths::schranz_default().total_bars(), 208);
+    }
+
+    #[test]
+    fn for_genre_matches_per_genre_constructor() {
+        assert_eq!(SectionLengths::for_genre(Genre::Techno), SectionLengths::techno_default());
+        assert_eq!(SectionLengths::for_genre(Genre::Trance), SectionLengths::trance_default());
+        assert_eq!(SectionLengths::for_genre(Genre::Schranz), SectionLengths::schranz_default());
+    }
+
+    #[test]
+    fn default_impl_returns_techno_layout() {
+        // Default = techno per the impl Default block.
+        assert_eq!(SectionLengths::default(), SectionLengths::techno_default());
+    }
+
+    // ─── starts: absolute 1-indexed ranges ────────────────────────────
+
+    #[test]
+    fn starts_intro_begins_at_bar_one() {
+        let s = SectionLengths::techno_default().starts();
+        assert_eq!(s.intro.0, 1, "Ableton is 1-indexed; intro must start at bar 1");
+    }
+
+    #[test]
+    fn starts_each_section_chains_after_previous() {
+        let sl = SectionLengths::techno_default();
+        let s = sl.starts();
+        // intro spans bars [1, 33); build [33, 65); etc.
+        assert_eq!(s.intro, (1, 33));
+        assert_eq!(s.build, (33, 65));
+        assert_eq!(s.breakdown, (65, 97));
+        assert_eq!(s.drop1, (97, 129));
+        assert_eq!(s.drop2, (129, 161));
+        assert_eq!(s.fadedown, (161, 193));
+        assert_eq!(s.outro, (193, 225));
+    }
+
+    #[test]
+    fn starts_outro_end_minus_one_equals_total_bars() {
+        // outro.1 is exclusive; outro.1 == 1 + total_bars.
+        let sl = SectionLengths::trance_default();
+        let s = sl.starts();
+        assert_eq!(s.outro.1, 1 + sl.total_bars());
+    }
+
+    // ─── sanitize: clamp ≥ 8 + snap to 8-bar multiple ────────────────
+
+    #[test]
+    fn sanitize_clamps_below_eight_to_eight() {
+        let bad = SectionLengths { intro: 3, build: 0, breakdown: 7, drop1: 8, drop2: 8, fadedown: 8, outro: 8 };
+        let s = bad.sanitize();
+        assert_eq!(s.intro, 8);
+        assert_eq!(s.build, 8);
+        assert_eq!(s.breakdown, 8);
+    }
+
+    #[test]
+    fn sanitize_snaps_to_eight_bar_multiple_floor() {
+        // 15 → 8, 17 → 16, 33 → 32.
+        let bad = SectionLengths { intro: 15, build: 17, breakdown: 33, drop1: 8, drop2: 8, fadedown: 8, outro: 8 };
+        let s = bad.sanitize();
+        assert_eq!(s.intro, 8);
+        assert_eq!(s.build, 16);
+        assert_eq!(s.breakdown, 32);
+    }
+
+    #[test]
+    fn sanitize_already_valid_unchanged() {
+        let good = SectionLengths::techno_default();
+        assert_eq!(good.sanitize(), good);
+    }
+
+    #[test]
+    fn sanitize_all_zeros_becomes_all_eights() {
+        let zeros = SectionLengths { intro: 0, build: 0, breakdown: 0, drop1: 0, drop2: 0, fadedown: 0, outro: 0 };
+        let s = zeros.sanitize();
+        assert_eq!(s.total_bars(), 8 * 7);
+    }
+
+    #[test]
+    fn sanitize_large_values_snap_down() {
+        let huge = SectionLengths { intro: 1000, build: 1001, breakdown: 1007, drop1: 1008, drop2: 1009, fadedown: 100, outro: 100 };
+        let s = huge.sanitize();
+        // 1000/8 = 125; 125*8 = 1000. 1001/8 = 125; 125*8 = 1000. 1008/8 = 126; 126*8 = 1008.
+        assert_eq!(s.intro, 1000);
+        assert_eq!(s.build, 1000);
+        assert_eq!(s.breakdown, 1000);
+        assert_eq!(s.drop1, 1008);
+        assert_eq!(s.drop2, 1008);
+    }
 }
