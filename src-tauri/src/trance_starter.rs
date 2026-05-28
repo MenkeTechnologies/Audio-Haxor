@@ -497,4 +497,147 @@ mod tests {
     fn test_all_layers_covered() {
         assert_eq!(TranceLayer::all().len(), 15);
     }
+
+    // ─── mode_name ─────────────────────────────────────────────────────
+
+    #[test]
+    fn mode_name_returns_aeolian_for_minor_ionian_for_major() {
+        // The mode_name → Aeolian/Ionian mapping feeds into the key compatibility
+        // lookup in als_project; a bug here would silently return wrong keys.
+        assert_eq!(mode_name(true), "Aeolian");
+        assert_eq!(mode_name(false), "Ionian");
+    }
+
+    // ─── root_to_name edge cases ───────────────────────────────────────
+
+    #[test]
+    fn root_to_name_falls_back_to_c_for_out_of_range_input() {
+        // Caller layer (find_matching_samples) already validates key_root <= 11
+        // and returns Err. But the helper itself must not panic on bad input —
+        // it falls back to "C" so any code path that bypasses the validator stays safe.
+        assert_eq!(root_to_name(12), "C");
+        assert_eq!(root_to_name(255), "C");
+    }
+
+    #[test]
+    fn root_to_name_covers_all_twelve_pitch_classes() {
+        // Pin the full 0..=11 → note name table. A reorder bug would shift
+        // every generated MIDI off by N semitones.
+        let expected = [
+            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+        ];
+        for (i, &name) in expected.iter().enumerate() {
+            assert_eq!(root_to_name(i as u8), name, "root_to_name({})", i);
+        }
+    }
+
+    // ─── default_per_layer ─────────────────────────────────────────────
+
+    #[test]
+    fn default_per_layer_returns_ten() {
+        // The serde default for missing `per_layer` is 10. Frontend payloads
+        // that omit the field rely on this exact value.
+        assert_eq!(default_per_layer(), 10);
+    }
+
+    // ─── TranceLayer::query exhaustive coverage ────────────────────────
+
+    #[test]
+    fn every_layer_maps_to_distinct_or_documented_category() {
+        // 15 layers map to 12 categories (vocal is shared by Vocal/VocalAtmosphere;
+        // others are 1:1). Pin the exact category strings so a typo bug
+        // (e.g. "mid_bas") would fail this test loudly.
+        assert_eq!(TranceLayer::Kick.query().category, "kick");
+        assert_eq!(TranceLayer::Bass.query().category, "mid_bass");
+        assert_eq!(TranceLayer::Pad.query().category, "pad");
+        assert_eq!(TranceLayer::Arp.query().category, "arp");
+        assert_eq!(TranceLayer::Pluck.query().category, "pluck");
+        assert_eq!(TranceLayer::Lead.query().category, "lead");
+        assert_eq!(TranceLayer::Vocal.query().category, "vocal");
+        assert_eq!(TranceLayer::VocalChop.query().category, "vocal_chop");
+        assert_eq!(TranceLayer::VocalAtmosphere.query().category, "vocal");
+        assert_eq!(TranceLayer::VocalPhrase.query().category, "vocal_phrase");
+        assert_eq!(TranceLayer::Riser.query().category, "fx_riser");
+        assert_eq!(TranceLayer::Downlifter.query().category, "fx_downer");
+        assert_eq!(TranceLayer::Impact.query().category, "fx_impact");
+        assert_eq!(TranceLayer::Crash.query().category, "fx_crash");
+        assert_eq!(TranceLayer::Atmos.query().category, "atmos");
+    }
+
+    #[test]
+    fn loop_preference_matches_intended_layer_role() {
+        // Layers we want to find LOOPED samples for (the ones that sustain
+        // across many bars in a drop). Non-loop layers want one-shot hits.
+        assert!(TranceLayer::Bass.query().prefer_loop);
+        assert!(TranceLayer::Pad.query().prefer_loop);
+        assert!(TranceLayer::Arp.query().prefer_loop);
+        assert!(TranceLayer::Lead.query().prefer_loop);
+        assert!(TranceLayer::Atmos.query().prefer_loop);
+        // One-shots:
+        assert!(!TranceLayer::Kick.query().prefer_loop);
+        assert!(!TranceLayer::Pluck.query().prefer_loop);
+        assert!(!TranceLayer::Vocal.query().prefer_loop);
+        assert!(!TranceLayer::Riser.query().prefer_loop);
+        assert!(!TranceLayer::Impact.query().prefer_loop);
+        assert!(!TranceLayer::Crash.query().prefer_loop);
+    }
+
+    #[test]
+    fn non_atmosphere_layers_have_empty_extra_clauses() {
+        // VocalAtmosphere is the one exception (covered separately).
+        // Every other layer must use the default category-only query.
+        for layer in TranceLayer::all() {
+            if *layer == TranceLayer::VocalAtmosphere {
+                continue;
+            }
+            let lq = layer.query();
+            assert!(
+                lq.extra_where.is_empty(),
+                "layer {:?} should have empty extra_where, got: {}",
+                layer,
+                lq.extra_where
+            );
+            assert!(
+                lq.extra_order.is_empty(),
+                "layer {:?} should have empty extra_order, got: {}",
+                layer,
+                lq.extra_order
+            );
+        }
+    }
+
+    #[test]
+    fn fx_layers_are_atonal() {
+        // All fx_* and percussion layers ignore key. Without this, key filter
+        // would discard most kick/crash/riser samples.
+        for layer in [
+            TranceLayer::Kick,
+            TranceLayer::Riser,
+            TranceLayer::Downlifter,
+            TranceLayer::Impact,
+            TranceLayer::Crash,
+            TranceLayer::VocalChop,
+        ] {
+            assert!(!layer.query().tonal, "{:?} should be atonal", layer);
+        }
+    }
+
+    // ─── TranceStarterConfig.key_root validation ───────────────────────
+
+    #[test]
+    fn find_matching_samples_rejects_out_of_range_key_root() {
+        // The DB-bound code path isn't reachable in unit tests, but the
+        // validator returns Err for bad key_root BEFORE any query runs —
+        // verify that contract holds.
+        let config = TranceStarterConfig {
+            key_root: 12,
+            minor: true,
+            per_layer: 5,
+            midi_config: None,
+        };
+        let result = find_matching_samples(&config);
+        assert!(result.is_err(), "key_root=12 must be rejected");
+        let err = result.unwrap_err();
+        assert!(err.contains("0–11"), "error mentions valid range: {}", err);
+    }
 }
