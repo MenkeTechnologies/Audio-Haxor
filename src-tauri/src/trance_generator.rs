@@ -1155,3 +1155,200 @@ fn generate_trance_als(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::als_project::SectionLengths;
+
+    // ─── SectionBars::from_lengths ─────────────────────────────────────
+
+    #[test]
+    fn from_lengths_uses_zero_based_offsets() {
+        // Pure-compute layout: intro starts at bar 0, not 1.
+        // (als_project::SectionLengths::starts is 1-based; this module is 0-based.)
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        assert_eq!(sb.intro.0, 0);
+        assert_eq!(sb.intro.1, sl.intro);
+    }
+
+    #[test]
+    fn from_lengths_sections_are_contiguous() {
+        // Each section's end must equal the next section's start — no gaps,
+        // no overlaps. Pin every transition for the trance preset.
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        assert_eq!(sb.intro.1, sb.build.0);
+        assert_eq!(sb.build.1, sb.breakdown.0);
+        assert_eq!(sb.breakdown.1, sb.drop1.0);
+        assert_eq!(sb.drop1.1, sb.drop2.0);
+        assert_eq!(sb.drop2.1, sb.fadedown.0);
+        assert_eq!(sb.fadedown.1, sb.outro.0);
+    }
+
+    #[test]
+    fn from_lengths_total_equals_sum_of_section_lengths() {
+        // Last section's end == total bars. Sum check ensures the running
+        // cursor logic is correct under non-uniform layouts (trance: 48-bar
+        // breakdown + outro vs uniform 32-bar techno).
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        assert_eq!(sb.outro.1, sl.total_bars());
+        // Trance: 32+32+48+32+32+32+48 = 256 bars.
+        assert_eq!(sb.outro.1, 256);
+    }
+
+    #[test]
+    fn from_lengths_handles_techno_uniform_layout() {
+        let sl = SectionLengths::techno_default();
+        let sb = SectionBars::from_lengths(&sl);
+        // Techno: every section is 32 bars.
+        assert_eq!(sb.intro, (0, 32));
+        assert_eq!(sb.build, (32, 64));
+        assert_eq!(sb.breakdown, (64, 96));
+        assert_eq!(sb.drop1, (96, 128));
+        assert_eq!(sb.drop2, (128, 160));
+        assert_eq!(sb.fadedown, (160, 192));
+        assert_eq!(sb.outro, (192, 224));
+    }
+
+    #[test]
+    fn from_lengths_handles_asymmetric_schranz_layout() {
+        // Schranz has 16-bar breakdown and 16-bar outro (shorter than other
+        // sections). Verifies non-uniform offsets don't drift.
+        let sl = SectionLengths::schranz_default();
+        let sb = SectionBars::from_lengths(&sl);
+        assert_eq!(sb.breakdown.1 - sb.breakdown.0, 16);
+        assert_eq!(sb.drop2.1 - sb.drop2.0, 48);
+        assert_eq!(sb.outro.1 - sb.outro.0, 16);
+        assert_eq!(sb.outro.1, sl.total_bars());
+    }
+
+    // ─── SectionMask constants ────────────────────────────────────────
+
+    #[test]
+    fn section_mask_full_enables_every_section() {
+        let m = SectionMask::FULL;
+        assert!(m.intro);
+        assert!(m.build);
+        assert!(m.breakdown);
+        assert!(m.drop1);
+        assert!(m.drop2);
+        assert!(m.fadedown);
+        assert!(m.outro);
+    }
+
+    #[test]
+    fn section_mask_drops_only_drop1_and_drop2() {
+        let m = SectionMask::DROPS;
+        assert!(!m.intro);
+        assert!(!m.build);
+        assert!(!m.breakdown);
+        assert!(m.drop1);
+        assert!(m.drop2);
+        assert!(!m.fadedown);
+        assert!(!m.outro);
+    }
+
+    #[test]
+    fn section_mask_no_breakdown_excludes_breakdown_only() {
+        // Every section except the breakdown. Validates that arp/deep-bass
+        // layers (which use NO_BREAKDOWN) won't generate clips in the breakdown.
+        let m = SectionMask::NO_BREAKDOWN;
+        assert!(m.intro);
+        assert!(m.build);
+        assert!(!m.breakdown);
+        assert!(m.drop1);
+        assert!(m.drop2);
+        assert!(m.fadedown);
+        assert!(m.outro);
+    }
+
+    // ─── SectionBars::active_ranges ───────────────────────────────────
+
+    #[test]
+    fn active_ranges_for_full_mask_returns_seven_ranges() {
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        let ranges = sb.active_ranges(&SectionMask::FULL);
+        assert_eq!(ranges.len(), 7);
+        // Order: intro, build, breakdown, drop1, drop2, fadedown, outro.
+        assert_eq!(ranges[0], sb.intro);
+        assert_eq!(ranges[6], sb.outro);
+    }
+
+    #[test]
+    fn active_ranges_for_drops_returns_only_drop1_drop2() {
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        let ranges = sb.active_ranges(&SectionMask::DROPS);
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(ranges[0], sb.drop1);
+        assert_eq!(ranges[1], sb.drop2);
+    }
+
+    #[test]
+    fn active_ranges_for_intro_outro_mask_returns_exactly_those_two() {
+        // PIANO layer uses a custom mask covering breakdown+fadedown; INTRO_OUTRO
+        // covers just intro + outro. Verify each is two ranges and in order.
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        let ranges = sb.active_ranges(&SectionMask::INTRO_OUTRO);
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(ranges[0], sb.intro);
+        assert_eq!(ranges[1], sb.outro);
+    }
+
+    #[test]
+    fn active_ranges_for_all_false_mask_is_empty() {
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        let m = SectionMask {
+            intro: false,
+            build: false,
+            breakdown: false,
+            drop1: false,
+            drop2: false,
+            fadedown: false,
+            outro: false,
+        };
+        assert_eq!(sb.active_ranges(&m).len(), 0);
+    }
+
+    // ─── SectionBars::is_intro_or_outro ───────────────────────────────
+
+    #[test]
+    fn is_intro_or_outro_true_for_intro_and_outro_ranges() {
+        // Critical for the root-chord-only rule: intro and outro clips must
+        // use the root chord, never the progression.
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        assert!(sb.is_intro_or_outro(sb.intro.0, sb.intro.1));
+        assert!(sb.is_intro_or_outro(sb.outro.0, sb.outro.1));
+        // Sub-range inside intro also qualifies.
+        assert!(sb.is_intro_or_outro(sb.intro.0, sb.intro.0 + 8));
+    }
+
+    #[test]
+    fn is_intro_or_outro_false_for_body_sections() {
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        assert!(!sb.is_intro_or_outro(sb.build.0, sb.build.1));
+        assert!(!sb.is_intro_or_outro(sb.breakdown.0, sb.breakdown.1));
+        assert!(!sb.is_intro_or_outro(sb.drop1.0, sb.drop1.1));
+        assert!(!sb.is_intro_or_outro(sb.fadedown.0, sb.fadedown.1));
+    }
+
+    #[test]
+    fn is_intro_or_outro_false_for_range_spanning_boundary() {
+        // A range that starts in intro but extends past it is NOT considered
+        // intro_or_outro — end must be ≤ section end. Prevents accidental
+        // "root chord only" for clips that straddle intro→build.
+        let sl = SectionLengths::trance_default();
+        let sb = SectionBars::from_lengths(&sl);
+        assert!(!sb.is_intro_or_outro(sb.intro.0, sb.intro.1 + 4));
+        // Same for an outro-straddling range starting in fadedown.
+        assert!(!sb.is_intro_or_outro(sb.fadedown.1 - 4, sb.outro.1));
+    }
+}
