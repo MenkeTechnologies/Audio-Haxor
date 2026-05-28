@@ -2778,4 +2778,150 @@ mod tests {
 
         fs::remove_file(output).ok();
     }
+
+    // ─── AbletonVersion::parse_version_string edge cases ──────────────
+
+    #[test]
+    fn parse_version_string_encodes_live_12_minor_schema() {
+        // Schema string is "major.0_{major*1000+minor*100}". A wrong formula
+        // would make Live refuse to open the generated .als with "incompatible
+        // schema version" — a load-bearing format check.
+        let v = AbletonVersion::parse_version_string("12.3.7").unwrap();
+        assert_eq!(v.minor_version_string, "12.0_12300");
+        let v2 = AbletonVersion::parse_version_string("12.1.0").unwrap();
+        assert_eq!(v2.minor_version_string, "12.0_12100");
+        let v3 = AbletonVersion::parse_version_string("12.0.0").unwrap();
+        assert_eq!(v3.minor_version_string, "12.0_12000");
+    }
+
+    #[test]
+    fn parse_version_string_falls_back_to_live_11_for_older_majors() {
+        // Anything < 12 maps to the static Live 11 schema, not the major*1000 formula.
+        let v10 = AbletonVersion::parse_version_string("10.1.42").unwrap();
+        assert_eq!(v10.creator, "Ableton Live 11.0");
+        assert_eq!(v10.minor_version_string, "11.0_433");
+        let v11 = AbletonVersion::parse_version_string("11.3.8").unwrap();
+        assert_eq!(v11.creator, "Ableton Live 11.0");
+        assert_eq!(v11.minor_version_string, "11.0_433");
+    }
+
+    #[test]
+    fn parse_version_string_encodes_full_semver_in_creator_for_live_12() {
+        // Live 12+ creator string includes the full patch version.
+        let v = AbletonVersion::parse_version_string("12.3.7").unwrap();
+        assert_eq!(v.creator, "Ableton Live 12.3.7");
+    }
+
+    #[test]
+    fn parse_version_string_ignores_build_suffix_after_whitespace() {
+        // Real-world input: `defaults read … CFBundleShortVersionString` returns
+        // "12.3.7 (2026-03-30_c92a51f028)". Suffix must be stripped.
+        let v = AbletonVersion::parse_version_string("12.3.7 (2026-03-30_c92a51f028)").unwrap();
+        assert_eq!(v.major, 12);
+        assert_eq!(v.minor, 3);
+        assert_eq!(v.patch, 7);
+        assert_eq!(v.creator, "Ableton Live 12.3.7");
+    }
+
+    // ─── IdAllocator monotonic increment ──────────────────────────────
+
+    #[test]
+    fn id_allocator_returns_strictly_increasing_unique_ids() {
+        // Sub-tracks each consume IDs; collision would corrupt the LomId pointer
+        // graph in Ableton's project model.
+        let mut ids = IdAllocator::new(0);
+        let n: u64 = 1000;
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..n {
+            assert!(seen.insert(ids.next()));
+        }
+        assert_eq!(seen.len(), n as usize);
+        // After N nexts, the next ID equals start + N.
+        assert_eq!(ids.next(), n);
+    }
+
+    // ─── SampleInfo::loop_bars boundary behavior ──────────────────────
+
+    fn sample_with(duration_secs: f64, bpm: Option<f64>) -> SampleInfo {
+        SampleInfo {
+            path: "x.wav".into(),
+            name: "x".into(),
+            duration_secs,
+            sample_rate: 44100,
+            file_size: 1,
+            bpm,
+        }
+    }
+
+    #[test]
+    fn loop_bars_returns_4_when_sample_bpm_is_zero() {
+        // Division-by-zero guard: explicit Some(0.0) must short-circuit to 4 bars.
+        let s = sample_with(2.0, Some(0.0));
+        assert_eq!(s.loop_bars(120.0), 4);
+    }
+
+    #[test]
+    fn loop_bars_treats_nonpositive_duration_as_default_length() {
+        // duration<=0 or duration>300s triggers the fallback: 4 bars at project bpm.
+        // At 120 BPM that's exactly (4*60*4)/120 = 8s → 4 bars. Verify both edges.
+        let s_zero = sample_with(0.0, Some(120.0));
+        assert_eq!(s_zero.loop_bars(120.0), 4);
+        let s_neg = sample_with(-1.0, Some(120.0));
+        assert_eq!(s_neg.loop_bars(120.0), 4);
+        let s_huge = sample_with(301.0, Some(120.0));
+        assert_eq!(s_huge.loop_bars(120.0), 4);
+    }
+
+    #[test]
+    fn loop_bars_quantizes_at_each_boundary() {
+        // Quantization steps: <=1.5 → 1, <=3 → 2, <=6 → 4, <=12 → 8,
+        // <=24 → 16, else 32. Sample BPM == project BPM means duration in
+        // seconds equals bars * 2 (at 120bpm 1 bar = 2s).
+        // Just below and just above each cutoff.
+        let cases = [
+            (2.99, 1), // 2.99s * 120 / 240 = 1.495 bars → 1
+            (3.00, 1), // 1.5 bars → 1 (boundary is inclusive)
+            (3.01, 2), // 1.505 bars → 2
+            (5.99, 2), // 2.995 bars → 2
+            (6.00, 2), // 3.0 bars → 2
+            (6.01, 4), // 3.005 bars → 4
+            (12.0, 4), // 6.0 bars → 4
+            (12.01, 8),
+            (24.0, 8), // 12.0 bars → 8
+            (24.01, 16),
+            (48.0, 16), // 24.0 bars → 16
+            (48.01, 32),
+        ];
+        for (secs, want) in cases {
+            let s = sample_with(secs, Some(120.0));
+            assert_eq!(
+                s.loop_bars(120.0),
+                want,
+                "duration={}s should map to {} bars",
+                secs,
+                want
+            );
+        }
+    }
+
+    // ─── Section::bars total length ───────────────────────────────────
+
+    #[test]
+    fn techno_section_bars_sum_to_128() {
+        // The fixed-layout techno arrangement is 128 bars total. A regression
+        // here (e.g. someone changing Drop to 16 bars) would silently truncate
+        // every generated ALS.
+        let total: u32 = [
+            Section::Intro,
+            Section::Buildup,
+            Section::Drop,
+            Section::Breakdown,
+            Section::Drop2,
+            Section::Outro,
+        ]
+        .iter()
+        .map(|s| s.bars())
+        .sum();
+        assert_eq!(total, 128);
+    }
 }
