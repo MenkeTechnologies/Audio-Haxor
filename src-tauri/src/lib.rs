@@ -7220,6 +7220,27 @@ async fn write_text_file(file_path: String, contents: String) -> Result<(), Stri
     blocking_res(move || std::fs::write(&file_path, &contents).map_err(|e| e.to_string())).await
 }
 
+/// Create a zero-byte file at `file_path`. Uses `create_new` semantics —
+/// fails (rather than truncating) if anything already exists at the path.
+/// Used by the file-browser empty-space context-menu's "New File" action.
+#[tauri::command]
+async fn fs_create_file(file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        if std::path::Path::new(&file_path).exists() {
+            return Err(format!("Path already exists: {file_path}"));
+        }
+        #[cfg(not(test))]
+        append_log(format!("FILE CREATE — {}", file_path));
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&file_path)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    })
+    .await
+}
+
 #[tauri::command]
 async fn write_binary_file(file_path: String, contents: Vec<u8>) -> Result<(), String> {
     blocking_res(move || std::fs::write(&file_path, &contents).map_err(|e| e.to_string())).await
@@ -9821,6 +9842,7 @@ pub fn run() {
             delete_inventory_item,
             rename_file,
             fs_create_dir,
+            fs_create_file,
             fs_open_terminal,
             fs_read_file_base64,
             fs_read_head,

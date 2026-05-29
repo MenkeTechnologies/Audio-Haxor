@@ -791,6 +791,26 @@ async function fileBrowserNewFolder() {
     }
 }
 
+// ── New File (empty-space right-click → New File) ──
+// Mirrors `fileBrowserNewFolder` but creates a zero-byte file via
+// `fs_create_file` (uses `create_new` so an existing path errors instead
+// of being silently truncated).
+async function fileBrowserNewFile() {
+    if (!_fileBrowserPath) return;
+    const name = window.prompt('New file name:', 'untitled.txt');
+    if (!name) return;
+    const cleaned = name.trim();
+    if (!cleaned) return;
+    const newPath = `${_fileBrowserPath}/${cleaned}`;
+    try {
+        await window.vstUpdater.fsCreateFile(newPath);
+        if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `created ${cleaned}`}));
+        loadDirectory(_fileBrowserPath);
+    } catch (err) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
+    }
+}
+
 // ── Move-to-bookmark (right-click → Move to → <bookmark>) ──
 // Returns an array of context-menu items, one per saved favorite dir, each
 // of which moves the path to that bookmark when clicked. Empty array when
@@ -2570,6 +2590,70 @@ registerFilter('filterFiles', {
         renderFileList();
     },
     debounceMs: 150,
+});
+
+// Empty-space context menu — fires when the user right-clicks INSIDE the
+// file list but NOT on a `.file-row`. Provides folder-level ops (New
+// Folder, New File, Refresh, Open in Terminal, Reveal in Finder, Copy
+// path) that the row-context-menu can't host because there's no
+// path-of-interest. Registered BEFORE the row handler so it returns
+// early when a row IS hit, leaving the row branch to fire.
+document.addEventListener('contextmenu', (e) => {
+    // Skip if click landed on a row — the row handler below will handle it.
+    if (e.target.closest('.file-row')) return;
+    // Only fire inside the file list container.
+    if (!e.target.closest('#fileList')) return;
+    if (!_fileBrowserPath) return;
+    const dir = _fileBrowserPath;
+    const dirName = dir.split('/').filter(Boolean).pop() || dir;
+    const items = [
+        {
+            icon: '&#128193;',
+            label: 'New Folder', ..._ctxMenuNoEcho,
+            action: () => fileBrowserNewFolder(),
+        },
+        {
+            icon: '&#128196;',
+            label: 'New File', ..._ctxMenuNoEcho,
+            action: () => fileBrowserNewFile(),
+        },
+        '---',
+        {
+            icon: '&#128260;',
+            label: 'Refresh', ..._ctxMenuNoEcho,
+            action: () => loadDirectory(dir),
+        },
+        {
+            icon: '&#9000;',
+            label: 'Open in Terminal', ..._ctxMenuNoEcho,
+            action: () => {
+                if (window.vstUpdater && typeof window.vstUpdater.fsOpenTerminal === 'function') {
+                    showToast(toastFmt('toast.opening_in_app', {app: 'Terminal'}));
+                    window.vstUpdater.fsOpenTerminal(dir).catch((err) =>
+                        showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error')
+                    );
+                }
+            },
+        },
+        {
+            icon: '&#128193;',
+            label: appFmt('menu.reveal_in_finder'), ..._ctxMenuNoEcho,
+            action: () => {
+                showToast(toastFmt('toast.revealing_file'));
+                window.vstUpdater.openPresetFolder(dir)
+                    .then(() => showToast(toastFmt('toast.revealed_in_finder')))
+                    .catch((err) => showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error'));
+            },
+        },
+        '---',
+        {
+            icon: '&#128203;',
+            label: `${appFmt('menu.copy_path')}: ${dirName}`, ..._ctxMenuNoEcho,
+            action: () => copyToClipboard(dir),
+        },
+    ];
+    showContextMenu(e, items);
+    e.preventDefault();
 });
 
 // Right-click context menu

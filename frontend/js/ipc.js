@@ -1851,6 +1851,8 @@ window.vstUpdater = {
     renameFile: (oldPath, newPath) => invoke('rename_file', {oldPath, newPath}),
     /** Create a new directory. Fails if path already exists. Parent must exist. */
     fsCreateDir: (dirPath) => invoke('fs_create_dir', {dirPath}),
+    /** Create a zero-byte file. Fails if the path exists (no truncate). */
+    fsCreateFile: (filePath) => invoke('fs_create_file', {filePath}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),
