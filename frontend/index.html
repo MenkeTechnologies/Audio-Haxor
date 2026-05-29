@@ -4461,6 +4461,25 @@
             box-shadow: 0 0 6px var(--cyan-dim);
         }
 
+        /* Get Info / Properties modal — two-column key/value grid. */
+        .fb-info-grid {
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            gap: 8px 16px;
+            margin-top: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .fb-info-key {
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .fb-info-val {
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+
         .modal-resize {
             position: absolute;
             z-index: 10;

@@ -7004,6 +7004,236 @@ async fn delete_file(file_path: String) -> Result<(), String> {
     .await
 }
 
+/// Filesystem metadata snapshot for the Get Info / Properties modal.
+/// All fields are best-effort: `None` (rendered as "—" in JS) where the
+/// OS doesn't expose the value (Linux atime under noatime mount, macOS
+/// btime on older FS, etc.). Permissions emitted both as the raw octal
+/// integer and a Unix-style `drwxr-xr-x` string for human reading.
+/// `item_count` + `total_size` walk the tree for directories; capped at
+/// 100k entries to keep "Get Info on /" from hanging the IPC thread.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FsInfo {
+    path: String,
+    name: String,
+    kind: String,           // "file" | "dir" | "symlink" | "other"
+    size: u64,              // file size, or recursive total for dirs (capped)
+    item_count: Option<u64>, // recursive file count for dirs; None for files
+    mtime_ms: Option<i64>,
+    ctime_ms: Option<i64>,
+    atime_ms: Option<i64>,
+    mode_octal: Option<String>,    // e.g. "0644"
+    mode_string: Option<String>,   // e.g. "-rw-r--r--"
+    is_readonly: bool,
+    is_symlink: bool,
+    symlink_target: Option<String>,
+}
+
+#[tauri::command]
+async fn fs_get_info(path: String) -> Result<FsInfo, String> {
+    blocking_res(move || {
+        let p = std::path::PathBuf::from(&path);
+        let symlink_meta = std::fs::symlink_metadata(&p).map_err(|e| e.to_string())?;
+        let is_symlink = symlink_meta.file_type().is_symlink();
+        let symlink_target = if is_symlink {
+            std::fs::read_link(&p).ok().map(|t| t.to_string_lossy().to_string())
+        } else {
+            None
+        };
+        // Follow symlinks for the "actual content" stats; fall back to
+        // symlink_meta if the target's gone (broken symlink).
+        let meta = std::fs::metadata(&p).unwrap_or(symlink_meta.clone());
+        let kind = if is_symlink {
+            "symlink"
+        } else if meta.is_dir() {
+            "dir"
+        } else if meta.is_file() {
+            "file"
+        } else {
+            "other"
+        };
+        let to_ms = |t: std::time::SystemTime| -> Option<i64> {
+            t.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_millis() as i64)
+        };
+        let mtime_ms = meta.modified().ok().and_then(to_ms);
+        let ctime_ms = meta.created().ok().and_then(to_ms);
+        let atime_ms = meta.accessed().ok().and_then(to_ms);
+        let (mode_octal, mode_string, is_readonly) = {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = meta.permissions().mode();
+                let octal = format!("{:04o}", mode & 0o7777);
+                let mut s = String::with_capacity(10);
+                s.push(match kind {
+                    "dir" => 'd',
+                    "symlink" => 'l',
+                    _ => '-',
+                });
+                let bit = |on: bool, ch: char| if on { ch } else { '-' };
+                s.push(bit(mode & 0o400 != 0, 'r'));
+                s.push(bit(mode & 0o200 != 0, 'w'));
+                s.push(bit(mode & 0o100 != 0, 'x'));
+                s.push(bit(mode & 0o040 != 0, 'r'));
+                s.push(bit(mode & 0o020 != 0, 'w'));
+                s.push(bit(mode & 0o010 != 0, 'x'));
+                s.push(bit(mode & 0o004 != 0, 'r'));
+                s.push(bit(mode & 0o002 != 0, 'w'));
+                s.push(bit(mode & 0o001 != 0, 'x'));
+                (Some(octal), Some(s), meta.permissions().readonly())
+            }
+            #[cfg(not(unix))]
+            {
+                (None, None, meta.permissions().readonly())
+            }
+        };
+        // Recursive size + count for dirs. Bounded walk so /'s and friends
+        // don't pin the IPC thread; partial result is acceptable here —
+        // user can re-run if they care about an exact number for huge trees.
+        let (size, item_count) = if meta.is_dir() && !is_symlink {
+            const MAX_ENTRIES: u64 = 100_000;
+            let mut total_size: u64 = 0;
+            let mut count: u64 = 0;
+            let mut stack = vec![p.clone()];
+            while let Some(dir) = stack.pop() {
+                if count >= MAX_ENTRIES {
+                    break;
+                }
+                let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+                for entry in rd.flatten() {
+                    if count >= MAX_ENTRIES {
+                        break;
+                    }
+                    count += 1;
+                    let Ok(em) = entry.metadata() else { continue };
+                    if em.is_dir() && !em.file_type().is_symlink() {
+                        stack.push(entry.path());
+                    } else if em.is_file() {
+                        total_size = total_size.saturating_add(em.len());
+                    }
+                }
+            }
+            (total_size, Some(count))
+        } else {
+            (meta.len(), None)
+        };
+        Ok(FsInfo {
+            name: p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| path.clone()),
+            path: path.clone(),
+            kind: kind.to_string(),
+            size,
+            item_count,
+            mtime_ms,
+            ctime_ms,
+            atime_ms,
+            mode_octal,
+            mode_string,
+            is_readonly,
+            is_symlink,
+            symlink_target,
+        })
+    })
+    .await
+}
+
+/// Create a symlink (`{stem} alias[.ext]`) next to the source, with the
+/// usual incrementing-suffix collision dance. macOS Finder uses opaque
+/// `.alias` files, but a plain Unix symlink Just Works across both Finder
+/// and the CLI — and is what every other modern file manager does.
+#[tauri::command]
+async fn fs_make_alias(path: String) -> Result<String, String> {
+    blocking_res(move || {
+        let src = std::path::PathBuf::from(&path);
+        if !src.exists() {
+            return Err(format!("Path does not exist: {path}"));
+        }
+        let parent = src.parent().ok_or_else(|| format!("No parent: {path}"))?;
+        let file_name = src
+            .file_name()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| format!("Invalid file name: {path}"))?;
+        let (stem, ext) = match file_name.rsplit_once('.') {
+            Some((s, e)) if !s.is_empty() => (s, Some(e)),
+            _ => (file_name, None),
+        };
+        let make_name = |n: u32| match ext {
+            None if n == 1 => format!("{stem} alias"),
+            None => format!("{stem} alias {n}"),
+            Some(e) if n == 1 => format!("{stem} alias.{e}"),
+            Some(e) => format!("{stem} alias {n}.{e}"),
+        };
+        let mut dest = None;
+        for n in 1..=1000 {
+            let c = parent.join(make_name(n));
+            if !c.exists() {
+                dest = Some(c);
+                break;
+            }
+        }
+        let dest = dest.ok_or_else(|| "Too many aliases (1000+)".to_string())?;
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&src, &dest).map_err(|e| e.to_string())?;
+        #[cfg(windows)]
+        {
+            if src.is_dir() {
+                std::os::windows::fs::symlink_dir(&src, &dest).map_err(|e| e.to_string())?;
+            } else {
+                std::os::windows::fs::symlink_file(&src, &dest).map_err(|e| e.to_string())?;
+            }
+        }
+        #[cfg(not(any(unix, windows)))]
+        return Err("Symlinks not supported on this platform".to_string());
+        #[cfg(not(test))]
+        append_log(format!("ALIAS — {} → {}", path, dest.display()));
+        Ok(dest.to_string_lossy().to_string())
+    })
+    .await
+}
+
+/// Recursively copy a file or directory to `dest`. Errors if `dest`
+/// already exists (caller picks a non-colliding name; same contract as
+/// `fs_duplicate` but with a caller-controlled target instead of an
+/// auto-suffixed sibling). Backs the Copy / Paste action.
+#[tauri::command]
+async fn fs_copy_path(src: String, dest: String) -> Result<(), String> {
+    blocking_res(move || {
+        let s = std::path::PathBuf::from(&src);
+        let d = std::path::PathBuf::from(&dest);
+        if !s.exists() {
+            return Err(format!("Source does not exist: {src}"));
+        }
+        if d.exists() {
+            return Err(format!("Destination already exists: {dest}"));
+        }
+        if s.is_dir() {
+            fn copy_dir_recursive(
+                src: &std::path::Path,
+                dst: &std::path::Path,
+            ) -> std::io::Result<()> {
+                std::fs::create_dir(dst)?;
+                for entry in std::fs::read_dir(src)? {
+                    let entry = entry?;
+                    let ty = entry.file_type()?;
+                    let dst_path = dst.join(entry.file_name());
+                    if ty.is_dir() {
+                        copy_dir_recursive(&entry.path(), &dst_path)?;
+                    } else {
+                        std::fs::copy(entry.path(), dst_path)?;
+                    }
+                }
+                Ok(())
+            }
+            copy_dir_recursive(&s, &d).map_err(|e| e.to_string())?;
+        } else {
+            std::fs::copy(&s, &d).map_err(|e| e.to_string())?;
+        }
+        #[cfg(not(test))]
+        append_log(format!("COPY — {} → {}", src, dest));
+        Ok(())
+    })
+    .await
+}
+
 /// Move a file or directory to the OS trash (NSFileManager trashItemAtURL
 /// on macOS, XDG Trash on Linux, Recycle Bin on Windows) — recoverable,
 /// unlike `delete_file` which is a permanent unlink. Use this for every
@@ -10009,6 +10239,9 @@ pub fn run() {
             fs_folder_size,
             delete_file,
             move_to_trash,
+            fs_get_info,
+            fs_make_alias,
+            fs_copy_path,
             delete_inventory_item,
             rename_file,
             fs_create_dir,

@@ -2421,6 +2421,51 @@ document.addEventListener('contextmenu', (e) => {
                     if (typeof showQuickLook === 'function') showQuickLook(path);
                 },
             });
+            // Get Info — properties modal (size, dates, permissions,
+            // recursive count for dirs). Reuses cyan-modal theme.
+            items.push({
+                icon: '&#8505;',
+                label: 'Get Info', ..._noEcho,
+                action: () => {
+                    if (typeof window.fileBrowserShowInfo === 'function') {
+                        window.fileBrowserShowInfo(path);
+                    }
+                },
+            });
+            // Copy / Cut — mark for later Paste in another folder.
+            // Pure JS clipboard (Tauri WebView clipboard API is text-only).
+            items.push({
+                icon: '&#128203;',
+                label: 'Copy File', ..._noEcho,
+                action: () => {
+                    if (typeof window.fileBrowserMarkClipboard === 'function') {
+                        window.fileBrowserMarkClipboard('copy', [path]);
+                    }
+                },
+            });
+            items.push({
+                icon: '&#9986;',
+                label: 'Cut File', ..._noEcho,
+                action: () => {
+                    if (typeof window.fileBrowserMarkClipboard === 'function') {
+                        window.fileBrowserMarkClipboard('cut', [path]);
+                    }
+                },
+            });
+            // Make Alias — `{stem} alias[.ext]` symlink next to source.
+            items.push({
+                icon: '&#128279;',
+                label: 'Make Alias', ..._noEcho,
+                action: async () => {
+                    try {
+                        const dest = await window.vstUpdater.fsMakeAlias(path);
+                        const destName = (dest || '').split('/').pop() || 'alias';
+                        showToast(toastFmt('toast.deleted_name', {name: `aliased → ${destName}`}));
+                    } catch (err) {
+                        showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
+                    }
+                },
+            });
             // Duplicate — `{stem} copy.{ext}` inside the same folder.
             // Recursive for dirs. Server picks an incrementing suffix if
             // the first candidate already exists.

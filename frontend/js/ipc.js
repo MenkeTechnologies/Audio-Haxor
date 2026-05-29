@@ -1863,6 +1863,13 @@ window.vstUpdater = {
     /** Compress one or more source paths into a single .zip archive.
      *  Archive path must not already exist. Returns the archive path. */
     fsCompress: (paths, archivePath) => invoke('fs_compress', {paths, archivePath}),
+    /** Get Info: size + dates + permissions + (recursive count for dirs).
+     *  Returned object is camelCase (mtimeMs, modeOctal, itemCount, …). */
+    fsGetInfo: (path) => invoke('fs_get_info', {path}),
+    /** Create a `{stem} alias[.ext]` Unix symlink next to source. */
+    fsMakeAlias: (path) => invoke('fs_make_alias', {path}),
+    /** Recursive copy. Dest must not exist (caller handles collisions). */
+    fsCopyPath: (src, dest) => invoke('fs_copy_path', {src, dest}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),

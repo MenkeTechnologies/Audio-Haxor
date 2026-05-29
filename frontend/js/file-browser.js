@@ -818,6 +818,178 @@ async function fileBrowserNewFile() {
     }
 }
 
+// ── File clipboard (Cmd+C / Cmd+X mark, Cmd+V paste) ──
+// Pure JS state — Finder-style file ops without OS-clipboard plumbing
+// (Tauri's WebView clipboard API is text-only). Each marked file
+// preserves its full path; paste resolves relative to current dir and
+// errors on name collision (caller can rename + retry).
+//   _fbClipboard.mode: 'copy' (preserves source) | 'cut' (moves)
+//   _fbClipboard.paths: array of absolute paths
+window._fbClipboard = window._fbClipboard || {mode: null, paths: []};
+
+function fileBrowserMarkClipboard(mode, paths) {
+    if (!Array.isArray(paths) || paths.length === 0) return;
+    window._fbClipboard = {mode, paths: paths.slice()};
+    if (typeof showToast === 'function') {
+        const verb = mode === 'cut' ? 'cut' : 'copied';
+        const target = paths.length === 1 ? paths[0].split('/').pop() : `${paths.length} items`;
+        showToast(toastFmt('toast.deleted_name', {name: `${verb} ${target} — paste in target folder`}));
+    }
+}
+
+async function fileBrowserPasteClipboard() {
+    if (!_fileBrowserPath) return;
+    const clip = window._fbClipboard;
+    if (!clip || !clip.paths || clip.paths.length === 0) return;
+    let ok = 0, fail = 0;
+    for (const src of clip.paths) {
+        const base = src.split('/').pop();
+        // Same dir + copy → auto-suffix via fsDuplicate would be ideal,
+        // but `fs_copy_path` errors on collision — derive a non-colliding
+        // dest here. Cut into the same dir is a no-op (Finder behavior).
+        let dest = `${_fileBrowserPath}/${base}`;
+        if (src === dest) continue;
+        try {
+            if (clip.mode === 'cut') {
+                await window.vstUpdater.renameFile(src, dest);
+            } else {
+                // Probe up to 10 numbered suffixes for copies into the
+                // same parent (matches `fs_duplicate` behavior).
+                let i = 0;
+                while (true) {
+                    try {
+                        await window.vstUpdater.fsCopyPath(src, dest);
+                        break;
+                    } catch (err) {
+                        const m = String(err && err.message ? err.message : err);
+                        if (!m.includes('already exists') || i >= 10) throw err;
+                        i++;
+                        const dot = base.lastIndexOf('.');
+                        const stem = dot > 0 ? base.slice(0, dot) : base;
+                        const ext = dot > 0 ? base.slice(dot) : '';
+                        dest = `${_fileBrowserPath}/${stem} ${i + 1}${ext}`;
+                    }
+                }
+            }
+            ok++;
+        } catch (_) {
+            fail++;
+        }
+    }
+    if (clip.mode === 'cut') {
+        // Cut empties the clipboard once pasted — Finder-equivalent.
+        window._fbClipboard = {mode: null, paths: []};
+    }
+    if (typeof showToast === 'function') {
+        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `pasted ${ok} item${ok === 1 ? '' : 's'}`}));
+        if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} item${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+    }
+    loadDirectory(_fileBrowserPath);
+}
+
+// ── Get Info / Properties modal ──
+// Themed two-column grid (matches `.fb-info-grid` CSS). Built lazily on
+// open, removed on close — single instance, no state to leak.
+function _fmtBytes(n) {
+    if (!n && n !== 0) return '—';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0, v = n;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+function _fmtTs(ms) {
+    if (!ms) return '—';
+    try { return new Date(ms).toLocaleString(); }
+    catch (_) { return String(ms); }
+}
+async function fileBrowserShowInfo(path) {
+    document.getElementById('appFileInfoModal')?.remove();
+    let info = null, errMsg = null;
+    try { info = await window.vstUpdater.fsGetInfo(path); }
+    catch (err) { errMsg = String(err && err.message ? err.message : err); }
+    const name = info ? info.name : (path.split('/').pop() || path);
+    const rows = info
+        ? [
+            ['Path', info.path],
+            ['Kind', info.kind + (info.isSymlink ? ' (symlink)' : '')],
+            ...(info.symlinkTarget ? [['Target', info.symlinkTarget]] : []),
+            ['Size', info.kind === 'dir' ? `${_fmtBytes(info.size)} (recursive)` : _fmtBytes(info.size)],
+            ...(info.itemCount != null ? [['Items', `${info.itemCount}${info.itemCount >= 100000 ? '+ (cap)' : ''}`]] : []),
+            ['Modified', _fmtTs(info.mtimeMs)],
+            ['Created', _fmtTs(info.ctimeMs)],
+            ['Accessed', _fmtTs(info.atimeMs)],
+            ['Permissions', info.modeString ? `${info.modeString}  (${info.modeOctal})` : (info.isReadonly ? 'read-only' : 'read-write')],
+        ]
+        : [];
+    const gridHtml = info
+        ? `<div class="fb-info-grid">${rows.map(([k, v]) => `<div class="fb-info-key">${escapeHtml(k)}</div><div class="fb-info-val">${escapeHtml(String(v))}</div>`).join('')}</div>`
+        : `<p class="app-confirm-message">${escapeHtml(errMsg || 'Unable to read file info')}</p>`;
+    const html = `<div class="modal-overlay modal-visible" id="appFileInfoModal" role="dialog" aria-modal="true">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>Get Info — ${escapeHtml(name)}</h2>
+        <button type="button" class="modal-close" data-app-info="close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        ${gridHtml}
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-info="close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appFileInfoModal');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', (e) => {
+        if (e.target.closest('[data-app-info="close"]') || e.target === modal) close();
+    });
+}
+
+// ── New Folder with Selection (Finder: bundle selected → subfolder) ──
+async function fileBrowserNewFolderWithSelection(paths) {
+    if (!_fileBrowserPath || !Array.isArray(paths) || paths.length === 0) return;
+    const dflt = paths.length === 1 ? 'New Folder With Item' : `New Folder With ${paths.length} Items`;
+    const name = typeof promptAction === 'function'
+        ? await promptAction('Folder name:', dflt)
+        : window.prompt('Folder name:', dflt);
+    if (!name) return;
+    const cleaned = name.trim();
+    if (!cleaned) return;
+    const newDir = `${_fileBrowserPath}/${cleaned}`;
+    try {
+        await window.vstUpdater.fsCreateDir(newDir);
+    } catch (err) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
+        return;
+    }
+    let ok = 0, fail = 0;
+    for (const p of paths) {
+        const base = p.split('/').pop();
+        try {
+            await window.vstUpdater.renameFile(p, `${newDir}/${base}`);
+            ok++;
+        } catch (_) {
+            fail++;
+        }
+    }
+    if (typeof showToast === 'function') {
+        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `moved ${ok} item${ok === 1 ? '' : 's'} into ${cleaned}`}));
+        if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} move${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+    }
+    loadDirectory(_fileBrowserPath);
+}
+
+// Expose helpers to context-menu.js (separate file, separate scope).
+if (typeof window !== 'undefined') {
+    window.fileBrowserMarkClipboard = fileBrowserMarkClipboard;
+    window.fileBrowserPasteClipboard = fileBrowserPasteClipboard;
+    window.fileBrowserShowInfo = fileBrowserShowInfo;
+    window.fileBrowserNewFolderWithSelection = fileBrowserNewFolderWithSelection;
+}
+
 // ── Move-to-bookmark (right-click → Move to → <bookmark>) ──
 // Returns an array of context-menu items, one per saved favorite dir, each
 // of which moves the path to that bookmark when clicked. Empty array when
@@ -2626,6 +2798,33 @@ document.addEventListener('contextmenu', (e) => {
             label: 'New File', ..._ctxMenuNoEcho,
             action: () => fileBrowserNewFile(),
         },
+    ];
+    // Paste — only visible when there's something on the file clipboard
+    // (Cmd+C / Cmd+X earlier). Cut clipboard empties itself on paste;
+    // copy clipboard persists for further pastes (Finder behavior).
+    const clip = window._fbClipboard;
+    if (clip && clip.paths && clip.paths.length > 0) {
+        const verb = clip.mode === 'cut' ? 'Move' : 'Paste';
+        const count = clip.paths.length;
+        items.push({
+            icon: '&#128203;',
+            label: `${verb} ${count} item${count === 1 ? '' : 's'} here`, ..._ctxMenuNoEcho,
+            action: () => fileBrowserPasteClipboard(),
+        });
+    }
+    // New Folder with Selection — only when there are selected rows.
+    const selected = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set)
+        ? [..._fileSelected]
+        : [];
+    if (selected.length > 0) {
+        items.push({
+            icon: '&#128193;',
+            label: `New Folder with ${selected.length} Item${selected.length === 1 ? '' : 's'}`,
+            ..._ctxMenuNoEcho,
+            action: () => fileBrowserNewFolderWithSelection(selected),
+        });
+    }
+    items.push(...[
         '---',
         {
             icon: '&#128260;',
@@ -2660,7 +2859,7 @@ document.addEventListener('contextmenu', (e) => {
             label: `${appFmt('menu.copy_path')}: ${dirName}`, ..._ctxMenuNoEcho,
             action: () => copyToClipboard(dir),
         },
-    ];
+    ]);
     showContextMenu(e, items);
     e.preventDefault();
     // file-browser.js loads BEFORE context-menu.js (per index.html script
