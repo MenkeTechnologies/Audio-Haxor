@@ -985,6 +985,12 @@ function _pdfTabFocusedPath() {
 }
 
 if (typeof document !== 'undefined') {
+    // Capture phase + stopImmediatePropagation — `shortcuts.js` binds Cmd+I to
+    // `importTab` globally (line 154), which on the PDFs tab opens the Import
+    // file picker. Both listeners are on `document`, both bound to keydown;
+    // without capture+stopImmediate the import dialog wins. Capture fires
+    // first, stopImmediate halts both this listener's later peers AND the
+    // bubble-phase shortcuts.js handler.
     document.addEventListener('keydown', (e) => {
         const tab = document.querySelector('.tab-content.active');
         if (!tab || tab.id !== 'tabPdf') return;
@@ -993,6 +999,7 @@ if (typeof document !== 'undefined') {
         // Cmd+I → toggle Quick-look for the focused row.
         if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'i' || e.key === 'I')) {
             e.preventDefault();
+            e.stopImmediatePropagation();
             if (typeof window.isQuickLookVisible === 'function' && window.isQuickLookVisible()) {
                 window.hideQuickLook();
                 return;
@@ -1005,15 +1012,17 @@ if (typeof document !== 'undefined') {
         if (e.key === ' ') {
             if (typeof window.isQuickLookVisible === 'function' && window.isQuickLookVisible()) {
                 e.preventDefault();
+                e.stopImmediatePropagation();
                 window.hideQuickLook();
                 return;
             }
             const path = _pdfTabFocusedPath();
             if (!path) return;
             e.preventDefault();
+            e.stopImmediatePropagation();
             if (typeof window.showQuickLook === 'function') window.showQuickLook(path);
         }
-    });
+    }, true);
 }
 
 // ── PDF inventory thumbnails (lazy, cached in SQLite) ──
@@ -1066,7 +1075,7 @@ async function _renderPdfThumb(canvas, filePath) {
     try {
         if (typeof window.loadPdfJs !== 'function'
             || typeof window.vstUpdater?.fsReadFileBytes !== 'function') return;
-        const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 32 * 1024 * 1024);
+        const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 128 * 1024 * 1024);
         const pdfjs = await window.loadPdfJs();
         const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
         const pdf = await pdfjs.getDocument({data: u8}).promise;

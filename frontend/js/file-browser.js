@@ -511,7 +511,7 @@ async function populatePreviewPane(filePath) {
 
         // 2) Cache miss → render via PDF.js, paint canvas, persist to cache.
         try {
-            const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 32 * 1024 * 1024);
+            const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 128 * 1024 * 1024);
             if (seq !== _fbPreviewSeq) return;
             const pdfjs = await loadPdfJs();
             if (seq !== _fbPreviewSeq) return;
@@ -629,7 +629,7 @@ async function showQuickLook(filePath) {
             }
         } catch (_) { /* fall through */ }
         try {
-            const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 32 * 1024 * 1024);
+            const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 128 * 1024 * 1024);
             const pdfjs = await loadPdfJs();
             const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
             const pdf = await pdfjs.getDocument({data: u8}).promise;

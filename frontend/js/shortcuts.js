@@ -151,7 +151,10 @@ const DEFAULT_SHORTCUT_DEFS = {
     selectAll: {key: 'a', mod: true, shift: false},
     escape: {key: 'Escape', mod: false},
     exportTab: {key: 'e', mod: true, shift: false},
-    importTab: {key: 'i', mod: true, shift: false},
+    // Cmd+I was previously bound to `importTab`; removed because it
+    // conflicted with the file-browser preview-pane toggle + the PDFs-tab
+    // Quick-look shortcut. Import-current-tab is still reachable via the
+    // tab's toolbar buttons; rebind here if a keyboard route is wanted.
     toggleShuffle: {key: 's', mod: false},
     findDuplicates: {key: 'd', mod: true, shift: false},
     depGraph: {key: 'g', mod: true, shift: false},

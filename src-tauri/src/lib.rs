@@ -7163,15 +7163,16 @@ async fn pdf_preview_set(
 /// Used by the file browser preview pane to feed PDF bytes into PDF.js
 /// without the base64 encode/decode round-trip.
 ///
-/// Cap defaults 32 MiB; clamped 64 KiB..128 MiB. PDFs larger than the cap
-/// are not previewed — the cap exists so a misclick on a huge file doesn't
-/// blow IPC memory.
+/// Cap defaults 128 MiB; clamped 64 KiB..256 MiB. A 32 MiB default was too
+/// restrictive for the PDF use case — real-world docs (manuals, scans)
+/// commonly run 50–80 MiB. The cap still exists so a misclick on a
+/// truly-huge file (DVD ISO, etc.) doesn't blow IPC memory.
 #[tauri::command]
 async fn fs_read_file_bytes(
     file_path: String,
     max_bytes: Option<u64>,
 ) -> Result<Vec<u8>, String> {
-    let cap = max_bytes.unwrap_or(32 * 1024 * 1024).clamp(64 * 1024, 128 * 1024 * 1024);
+    let cap = max_bytes.unwrap_or(128 * 1024 * 1024).clamp(64 * 1024, 256 * 1024 * 1024);
     blocking_res(move || {
         let meta = std::fs::metadata(&file_path).map_err(|e| e.to_string())?;
         if !meta.is_file() {
