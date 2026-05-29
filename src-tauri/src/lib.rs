@@ -7130,6 +7130,33 @@ async fn fs_read_head(file_path: String, max_bytes: Option<u64>) -> Result<Strin
     .await
 }
 
+/// Returns cached PDF page render bytes (PNG) when fresh. JS calls this
+/// before invoking PDF.js — a hit means we skip the lazy module load + the
+/// page render entirely. Returns `null` on miss (no entry, or file mtime
+/// changed since cache write).
+#[tauri::command]
+async fn pdf_preview_get(
+    file_path: String,
+    page: i64,
+    width: i64,
+) -> Result<Option<Vec<u8>>, String> {
+    blocking_res(move || db::global().pdf_preview_get(&file_path, page, width)).await
+}
+
+/// Stores a freshly-rendered PDF page (PNG bytes from `canvas.toBlob`) in
+/// the cache. `mtime_ms` is captured server-side at write time from the
+/// file itself, so subsequent `pdf_preview_get` calls can dedupe + detect
+/// staleness without re-stating the file every read.
+#[tauri::command]
+async fn pdf_preview_set(
+    file_path: String,
+    page: i64,
+    width: i64,
+    png_bytes: Vec<u8>,
+) -> Result<(), String> {
+    blocking_res(move || db::global().pdf_preview_set(&file_path, page, width, &png_bytes)).await
+}
+
 /// Reads up to `max_bytes` of a file and returns the raw bytes (as a u8
 /// array — serde serializes Vec<u8> as a JSON array of numbers, which JS
 /// receives natively as a regular array; the caller wraps in Uint8Array).
@@ -9753,6 +9780,8 @@ pub fn run() {
             fs_read_file_base64,
             fs_read_head,
             fs_read_file_bytes,
+            pdf_preview_get,
+            pdf_preview_set,
             write_text_file,
             write_binary_file,
             ensure_snapshot_export_dir,

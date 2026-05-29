@@ -287,6 +287,56 @@ async function applyFileBulkRename() {
     if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
 }
 
+// ── PDF preview cache helpers (canvas ↔ PNG bytes) ──
+// `canvas.toBlob` is async; wrap in a Promise that resolves to a Uint8Array
+// of the PNG bytes (suitable for `pdf_preview_set` which expects Vec<u8>).
+// Used after PDF.js renders a page so the result can be cached in SQLite.
+async function _fbCanvasToPngBytes(canvas) {
+    return new Promise((resolve, reject) => {
+        try {
+            canvas.toBlob(async (blob) => {
+                if (!blob) { resolve(null); return; }
+                try {
+                    const buf = await blob.arrayBuffer();
+                    resolve(new Uint8Array(buf));
+                } catch (e) { reject(e); }
+            }, 'image/png');
+        } catch (e) { reject(e); }
+    });
+}
+
+/** Paints raw PNG bytes (returned by `pdf_preview_get`) into a canvas.
+ *  Used on cache HIT — avoids the PDF.js module load + render entirely. */
+async function _fbPaintPngBytesIntoCanvas(canvas, bytes) {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    // Construct a Blob with the right MIME → object URL → Image → drawImage.
+    // ObjectURL revoked after draw to free memory.
+    return new Promise((resolve, reject) => {
+        let url = null;
+        try {
+            const blob = new Blob([u8], {type: 'image/png'});
+            url = URL.createObjectURL(blob);
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(url);
+                resolve();
+            };
+            img.onerror = (e) => {
+                if (url) URL.revokeObjectURL(url);
+                reject(e);
+            };
+            img.src = url;
+        } catch (e) {
+            if (url) URL.revokeObjectURL(url);
+            reject(e);
+        }
+    });
+}
+
 // ── PDF.js lazy-loader (for preview pane) ──
 // Module-level promise so concurrent calls share the same load. PDF.js is
 // ~350 KB (main) + ~1.4 MB (worker); deferring until the first PDF preview
@@ -430,34 +480,57 @@ async function populatePreviewPane(filePath) {
     }
 
     if (ext === 'pdf') {
+        const FB_PDF_PREVIEW_WIDTH = 320;
+        const FB_PDF_PREVIEW_PAGE = 1;
         body.innerHTML = `
             <canvas class="fb-preview-pdf-canvas" id="fbPreviewPdfCanvas"></canvas>
             ${metaHtml}
         `;
+        const canvas = document.getElementById('fbPreviewPdfCanvas');
+        if (!canvas) return;
+
+        // 1) Try SQLite cache first — a fresh hit skips both the PDF.js
+        //    lazy module load (~50-200 ms) and the page render (~tens-of-ms
+        //    for typical pages, seconds for complex ones).
+        try {
+            const cached = await window.vstUpdater.pdfPreviewGet(filePath, FB_PDF_PREVIEW_PAGE, FB_PDF_PREVIEW_WIDTH);
+            if (seq !== _fbPreviewSeq) return;
+            if (cached && cached.length > 0) {
+                await _fbPaintPngBytesIntoCanvas(canvas, cached);
+                if (seq !== _fbPreviewSeq) return;
+                return;
+            }
+        } catch (_) { /* cache miss / IPC error → fall through to render */ }
+
+        // 2) Cache miss → render via PDF.js, paint canvas, persist to cache.
         try {
             const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 32 * 1024 * 1024);
             if (seq !== _fbPreviewSeq) return;
             const pdfjs = await _loadPdfJs();
             if (seq !== _fbPreviewSeq) return;
-            // `bytes` arrives from Tauri as a regular JS array of u8 numbers.
-            // PDF.js wants a Uint8Array.
             const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
             const pdf = await pdfjs.getDocument({data: u8}).promise;
             if (seq !== _fbPreviewSeq) return;
-            const page = await pdf.getPage(1);
+            const page = await pdf.getPage(FB_PDF_PREVIEW_PAGE);
             if (seq !== _fbPreviewSeq) return;
-            const canvas = document.getElementById('fbPreviewPdfCanvas');
-            if (!canvas) return;
-            // Scale page to fit the pane width (pane is 360px, body has ~24px
-            // of padding). Cap at 1.0 so tiny pages don't upscale and blur.
             const baseViewport = page.getViewport({scale: 1.0});
-            const targetWidth = 320;
-            const scale = Math.min(1.0, targetWidth / baseViewport.width);
+            const scale = Math.min(1.0, FB_PDF_PREVIEW_WIDTH / baseViewport.width);
             const viewport = page.getViewport({scale});
             canvas.width = Math.round(viewport.width);
             canvas.height = Math.round(viewport.height);
             const ctx = canvas.getContext('2d');
             await page.render({canvasContext: ctx, viewport}).promise;
+            if (seq !== _fbPreviewSeq) return;
+            // 3) Persist render to cache for next time. Fire-and-forget —
+            //    a write failure shouldn't surface to the user.
+            try {
+                const pngBytes = await _fbCanvasToPngBytes(canvas);
+                if (pngBytes) {
+                    window.vstUpdater.pdfPreviewSet(
+                        filePath, FB_PDF_PREVIEW_PAGE, FB_PDF_PREVIEW_WIDTH, pngBytes,
+                    ).catch(() => {});
+                }
+            } catch (_) { /* ignore cache-write errors */ }
         } catch (err) {
             if (seq !== _fbPreviewSeq) return;
             const msg = (err && (err.message || err)) ? String(err.message || err) : 'PDF preview unavailable';

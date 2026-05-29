@@ -2932,6 +2932,34 @@ DROP TABLE _pl_refresh_paths;"#;
                 .map_err(|e| format!("Migration v28 schema_version failed: {e}"))?;
         }
 
+        // Migration v29: pdf_preview_cache. Stores PDF.js-rendered page PNGs
+        // keyed on `(path, page, width)` with `mtime_ms` for staleness check.
+        // PNG bytes are a `BLOB` (not base64 TEXT like waveform_cache) — PNGs
+        // are inherently binary, base64'ing for storage would waste ~33 %.
+        let has_v29 = conn
+            .query_row(
+                "SELECT 1 FROM schema_version WHERE version = 29",
+                [],
+                |_| Ok(()),
+            )
+            .is_ok();
+        if !has_v29 {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS pdf_preview_cache (
+                    path        TEXT NOT NULL,
+                    page        INTEGER NOT NULL DEFAULT 1,
+                    width       INTEGER NOT NULL,
+                    mtime_ms    INTEGER NOT NULL,
+                    png_bytes   BLOB NOT NULL,
+                    created_at  INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                    PRIMARY KEY (path, page, width)
+                );",
+            )
+            .map_err(|e| format!("Migration v29 (pdf_preview_cache) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (29)", [])
+                .map_err(|e| format!("Migration v29 schema_version failed: {e}"))?;
+        }
+
         if conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_i18n'",
@@ -10842,6 +10870,86 @@ DROP TABLE _pl_refresh_paths;"#;
         tx.commit().map_err(|e| e.to_string())
     }
 
+    // ── PDF preview cache (page rendered by PDF.js, stored as PNG) ──
+    // Cache key is `(path, page, width)`; staleness is decided by comparing
+    // the on-disk file's current mtime to the stored `mtime_ms`. On miss
+    // (file modified, or row not present), the JS layer re-renders via
+    // PDF.js and writes the result back via `pdf_preview_set`.
+
+    /// Returns the cached PNG bytes for a PDF page render if a fresh entry
+    /// exists, else `None`. Freshness = current file mtime matches stored
+    /// `mtime_ms`. Caller uses `None` as the trigger to re-render via PDF.js.
+    pub fn pdf_preview_get(
+        &self,
+        path: &str,
+        page: i64,
+        width: i64,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let canon = normalize_path_for_db(path);
+        // Read current file mtime first — if file is gone, no cache hit
+        // (and the preview pane will surface the read error from the bytes
+        // IPC anyway, so silent miss is fine here).
+        let cur_mtime_ms = match std::fs::metadata(&canon) {
+            Ok(m) => m
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0),
+            Err(_) => return Ok(None),
+        };
+        let conn = self.read_conn();
+        let mut stmt = conn
+            .prepare(
+                "SELECT mtime_ms, png_bytes FROM pdf_preview_cache
+                 WHERE path = ?1 AND page = ?2 AND width = ?3 LIMIT 1",
+            )
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt
+            .query(params![canon, page, width])
+            .map_err(|e| e.to_string())?;
+        if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let stored_mtime: i64 = row.get(0).map_err(|e| e.to_string())?;
+            if stored_mtime == cur_mtime_ms {
+                let bytes: Vec<u8> = row.get(1).map_err(|e| e.to_string())?;
+                return Ok(Some(bytes));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Upsert a fresh PDF page render into the cache. `png_bytes` is the
+    /// PNG-encoded canvas snapshot from the frontend (`canvas.toBlob`).
+    /// `mtime_ms` is read from the file at insert time so subsequent
+    /// `pdf_preview_get` calls can compare without re-stating.
+    pub fn pdf_preview_set(
+        &self,
+        path: &str,
+        page: i64,
+        width: i64,
+        png_bytes: &[u8],
+    ) -> Result<(), String> {
+        let canon = normalize_path_for_db(path);
+        let mtime_ms = std::fs::metadata(&canon)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        let conn = self.write_conn();
+        conn.execute(
+            "INSERT INTO pdf_preview_cache (path, page, width, mtime_ms, png_bytes)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(path, page, width) DO UPDATE SET
+                 mtime_ms = excluded.mtime_ms,
+                 png_bytes = excluded.png_bytes,
+                 created_at = strftime('%s', 'now')",
+            params![canon, page, width, mtime_ms, png_bytes],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Single-row upsert so decoded waveform / spectrogram data hits SQLite immediately (not only on debounced full `write_cache_file`).
     pub fn upsert_waveform_cache_row(
         &self,
@@ -15482,6 +15590,47 @@ mod tests {
         let db = test_db();
         let result = db.folder_scan_status(&[]).unwrap();
         assert!(result.is_empty());
+    }
+
+    /// PDF preview cache round-trip: set → get returns bytes; get on a
+    /// missing entry returns None; mtime-bump invalidates the cache.
+    #[test]
+    fn test_pdf_preview_cache_round_trip_and_mtime_invalidation() {
+        use std::io::Write;
+        let db = test_db();
+        let tmp = std::env::temp_dir().join(format!("upum_pdfcache_{}.pdf", std::process::id()));
+        let _ = std::fs::remove_file(&tmp);
+        {
+            let mut f = std::fs::File::create(&tmp).unwrap();
+            f.write_all(b"%PDF-1.4 fake").unwrap();
+        }
+        let png = vec![0u8, 1, 2, 3, 4, 5, 6, 7]; // dummy bytes — table doesn't validate
+        // Miss before set.
+        let path_s = tmp.to_string_lossy().to_string();
+        let none = db.pdf_preview_get(&path_s, 1, 320).unwrap();
+        assert!(none.is_none(), "no entry yet → None");
+        // Set + get hits.
+        db.pdf_preview_set(&path_s, 1, 320, &png).unwrap();
+        let got = db.pdf_preview_get(&path_s, 1, 320).unwrap();
+        assert_eq!(got.as_deref(), Some(png.as_slice()), "fresh get must return bytes");
+        // Different (page, width) → miss for the same path.
+        let other = db.pdf_preview_get(&path_s, 2, 320).unwrap();
+        assert!(other.is_none(), "different page → miss");
+        let wider = db.pdf_preview_get(&path_s, 1, 480).unwrap();
+        assert!(wider.is_none(), "different width → miss");
+        // Bump file mtime by rewriting → cache must invalidate.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        {
+            let mut f = std::fs::File::create(&tmp).unwrap();
+            f.write_all(b"%PDF-1.4 modified").unwrap();
+        }
+        let after = db.pdf_preview_get(&path_s, 1, 320).unwrap();
+        assert!(after.is_none(), "mtime change → cache treated as stale");
+        // Re-setting after the file change re-validates.
+        db.pdf_preview_set(&path_s, 1, 320, &png).unwrap();
+        let fresh = db.pdf_preview_get(&path_s, 1, 320).unwrap();
+        assert_eq!(fresh.as_deref(), Some(png.as_slice()), "re-set freshens the entry");
+        let _ = std::fs::remove_file(&tmp);
     }
 
     #[test]

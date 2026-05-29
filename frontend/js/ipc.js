@@ -1864,6 +1864,12 @@ window.vstUpdater = {
      *  Default cap 32 MiB; clamped 64 KiB..128 MiB. Used to feed PDF bytes
      *  into PDF.js without the base64 encode/decode round-trip. */
     fsReadFileBytes: (filePath, maxBytes) => invoke('fs_read_file_bytes', {filePath, maxBytes}),
+    /** Look up a cached PDF-page render (PNG bytes). Returns `null` on miss
+     *  or when the file's mtime has changed since the cache write. */
+    pdfPreviewGet: (filePath, page, width) => invoke('pdf_preview_get', {filePath, page, width}),
+    /** Store a freshly-rendered PDF page (PNG bytes) in the cache. Server
+     *  captures the file's current mtime at write time. */
+    pdfPreviewSet: (filePath, page, width, pngBytes) => invoke('pdf_preview_set', {filePath, page, width, pngBytes}),
     getHomeDir: () => invoke('get_home_dir'),
     // Similarity
     findSimilarSamples: (filePath, candidatePaths, maxResults) => invoke('find_similar_samples', {
