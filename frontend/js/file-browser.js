@@ -487,7 +487,13 @@ async function populatePreviewPane(filePath) {
     }
 
     if (ext === 'pdf') {
-        const FB_PDF_PREVIEW_WIDTH = 320;
+        // Single canonical render width shared across preview pane, Quick-
+        // look, and the PDF inventory thumbnail. Cache key is just
+        // (path, page, 600) — viewing a thumb pre-populates the Cmd+I
+        // cache and vice versa. Display canvas CSS-resizes to whatever
+        // each consumer wants (thumb shrinks to 80px, pane to ~320px,
+        // quicklook stays at 600). One render per PDF, ever.
+        const FB_PDF_PREVIEW_WIDTH = 600;
         const FB_PDF_PREVIEW_PAGE = 1;
         body.innerHTML = `
             <canvas class="fb-preview-pdf-canvas" id="fbPreviewPdfCanvas"></canvas>
@@ -528,22 +534,18 @@ async function populatePreviewPane(filePath) {
             const ctx = canvas.getContext('2d');
             await page.render({canvasContext: ctx, viewport}).promise;
             if (seq !== _fbPreviewSeq) return;
-            // 3) Persist render to cache RIGHT NOW. Awaited (not
-            //    fire-and-forget) so the write commits before this function
-            //    returns — guarantees the next preview of the same PDF hits
-            //    the cache even if the user closes the pane / quits the app
-            //    immediately after seeing the render. Errors are logged so
-            //    silent serialization / IPC failures surface in the console.
-            try {
-                const pngBytes = await _fbCanvasToPngBytes(canvas);
-                if (pngBytes) {
-                    await window.vstUpdater.pdfPreviewSet(
-                        filePath, FB_PDF_PREVIEW_PAGE, FB_PDF_PREVIEW_WIDTH, pngBytes,
-                    );
-                }
-            } catch (err) {
-                console.warn('pdf preview cache write failed:', err);
-            }
+            // 3) Persist render to cache — kicked off immediately on a
+            //    background path (Rust side runs SQLite write on the
+            //    blocking pool). Not awaited, so this function returns as
+            //    soon as the visible canvas is painted; the user never
+            //    waits on the cache write. Failures route to console.warn
+            //    (not silent) so future serialization bugs surface.
+            _fbCanvasToPngBytes(canvas).then((pngBytes) => {
+                if (!pngBytes) return;
+                return window.vstUpdater.pdfPreviewSet(
+                    filePath, FB_PDF_PREVIEW_PAGE, FB_PDF_PREVIEW_WIDTH, pngBytes,
+                );
+            }).catch((err) => console.warn('pdf preview cache write failed:', err));
         } catch (err) {
             if (seq !== _fbPreviewSeq) return;
             const msg = (err && (err.message || err)) ? String(err.message || err) : 'PDF preview unavailable';
@@ -631,6 +633,9 @@ async function showQuickLook(filePath) {
         const canvas = document.getElementById('fbQuickLookPdf');
         const wrap = document.getElementById('fbQuickLookPdfWrap');
         if (!canvas) return;
+        // Same canonical width as the preview pane + thumb — one cache
+        // row per PDF, ever. Cache hit here means no render even if
+        // the user has never opened Quick-look before (thumb populated it).
         const QL_WIDTH = 600;
         // Loading class on the WRAPPER div (not the canvas) so the spinner
         // `::after` pseudo-element renders — pseudo-elements don't work on
@@ -658,15 +663,15 @@ async function showQuickLook(filePath) {
             canvas.height = Math.round(viewport.height);
             await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
             setLoading(false);
-            // Persist immediately — await so the write commits before
-            // returning, surfacing any failure in console rather than
-            // silently leaving the cache empty.
-            try {
-                const png = await _fbCanvasToPngBytes(canvas);
-                if (png) await window.vstUpdater.pdfPreviewSet(filePath, 1, QL_WIDTH, png);
-            } catch (err) {
-                console.warn('quicklook pdf cache write failed:', err);
-            }
+            // Fire-and-forget cache write — the modal's visible content
+            // doesn't depend on the write, so don't block the JS thread
+            // waiting on the IPC roundtrip. Rust writes SQLite on its
+            // blocking pool; we just kick it off and surface any failure
+            // via console.warn.
+            _fbCanvasToPngBytes(canvas).then((png) => {
+                if (!png) return;
+                return window.vstUpdater.pdfPreviewSet(filePath, 1, QL_WIDTH, png);
+            }).catch((err) => console.warn('quicklook pdf cache write failed:', err));
         } catch (_) {
             setLoading(false);
             // Leave canvas blank on failure; the metadata + path are still

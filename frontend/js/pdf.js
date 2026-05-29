@@ -1033,7 +1033,13 @@ if (typeof document !== 'undefined') {
 //      render page 1 at width=80, paint, then `pdfPreviewSet` to cache
 // Concurrency capped to 3 simultaneous renders so a fast scroll through 50+
 // rows doesn't fan out into 50 parallel PDF.js page renders.
-const PDF_THUMB_WIDTH = 80;
+// Canonical render width — same value used by the file-browser preview
+// pane + Quick-look overlay so all three consumers share one cache row
+// per PDF. Thumb canvas is rendered at 600w then CSS-displayed at 80w
+// (browser bilinear-scales the bitmap). One render per PDF total, no
+// re-render when user expands from thumb → pane → Cmd+I.
+const PDF_THUMB_WIDTH = 600;
+const PDF_THUMB_DISPLAY_WIDTH = 80;
 const PDF_THUMB_PAGE = 1;
 // Reduced from 3 → 2 to give the main thread more breathing room. PDF.js's
 // worker handles parsing, but the actual canvas paint + cache PNG-encode
@@ -1109,22 +1115,18 @@ async function _renderPdfThumb(canvas, filePath) {
         const ctx = canvas.getContext('2d');
         await page.render({canvasContext: ctx, viewport}).promise;
         canvas.classList.add('pdf-thumb-loaded');
-        // Persist render to cache RIGHT NOW. Awaited so the write commits
-        // before this function returns — guarantees the thumb is cached on
-        // every render, no fire-and-forget races. Failures logged to
-        // console (silent swallow was hiding the Uint8Array-serialization
-        // bug for too long).
+        // Fire-and-forget cache write — the visible thumb is already
+        // painted, the JS thread shouldn't block on the IPC roundtrip.
+        // Rust runs the SQLite write on its blocking pool. Errors surface
+        // via console.warn (not silent — last batch's silent swallow hid
+        // a Uint8Array-serialization bug for too long).
         if (typeof window.canvasToPngBytes === 'function') {
-            try {
-                const png = await window.canvasToPngBytes(canvas);
-                if (png) {
-                    await window.vstUpdater.pdfPreviewSet(
-                        filePath, PDF_THUMB_PAGE, PDF_THUMB_WIDTH, png,
-                    );
-                }
-            } catch (err) {
-                console.warn('pdf thumb cache write failed:', err);
-            }
+            window.canvasToPngBytes(canvas).then((png) => {
+                if (!png) return;
+                return window.vstUpdater.pdfPreviewSet(
+                    filePath, PDF_THUMB_PAGE, PDF_THUMB_WIDTH, png,
+                );
+            }).catch((err) => console.warn('pdf thumb cache write failed:', err));
         }
     } catch (_) {
         // Render failed (file gone, corrupt PDF, etc.) — leave canvas blank.

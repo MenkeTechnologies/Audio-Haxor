@@ -10876,9 +10876,17 @@ DROP TABLE _pl_refresh_paths;"#;
     // (file modified, or row not present), the JS layer re-renders via
     // PDF.js and writes the result back via `pdf_preview_set`.
 
-    /// Returns the cached PNG bytes for a PDF page render if a fresh entry
-    /// exists, else `None`. Freshness = current file mtime matches stored
-    /// `mtime_ms`. Caller uses `None` as the trigger to re-render via PDF.js.
+    /// Returns the cached PNG bytes for a PDF page render if a fresh
+    /// entry exists, else `None`. Freshness rule: current file mtime
+    /// (truncated to whole seconds — APFS/HFS+ nanosecond drift between
+    /// app launches can otherwise look like a change) matches stored
+    /// `mtime_ms`. If the file is gone, treat the row as still valid
+    /// (the rendered bytes don't depend on the file's continued
+    /// existence; useful when a PDF is moved/unmounted between launches).
+    ///
+    /// Cache miss → caller (JS) re-renders via PDF.js and persists via
+    /// `pdf_preview_set`. Cache hit → caller paints the bytes directly,
+    /// skipping the PDF.js module load AND the page render entirely.
     pub fn pdf_preview_get(
         &self,
         path: &str,
@@ -10886,18 +10894,14 @@ DROP TABLE _pl_refresh_paths;"#;
         width: i64,
     ) -> Result<Option<Vec<u8>>, String> {
         let canon = normalize_path_for_db(path);
-        // Read current file mtime first — if file is gone, no cache hit
-        // (and the preview pane will surface the read error from the bytes
-        // IPC anyway, so silent miss is fine here).
-        let cur_mtime_ms = match std::fs::metadata(&canon) {
-            Ok(m) => m
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_millis() as i64)
-                .unwrap_or(0),
-            Err(_) => return Ok(None),
-        };
+        // Current file mtime (whole seconds). `None` when file is unreachable —
+        // treat as "no mtime to compare against" → hit the cache anyway
+        // (works around SMB shares being temporarily offline, etc.).
+        let cur_mtime_s: Option<i64> = std::fs::metadata(&canon)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64);
         let conn = self.read_conn();
         let mut stmt = conn
             .prepare(
@@ -10909,8 +10913,16 @@ DROP TABLE _pl_refresh_paths;"#;
             .query(params![canon, page, width])
             .map_err(|e| e.to_string())?;
         if let Some(row) = rows.next().map_err(|e| e.to_string())? {
-            let stored_mtime: i64 = row.get(0).map_err(|e| e.to_string())?;
-            if stored_mtime == cur_mtime_ms {
+            let stored_mtime_ms: i64 = row.get(0).map_err(|e| e.to_string())?;
+            let stored_mtime_s = stored_mtime_ms / 1000;
+            // Hit IFF (file is gone) OR (mtime in seconds matches).
+            // Whole-second compare avoids cross-launch nanosecond drift
+            // on APFS/HFS+.
+            let fresh = match cur_mtime_s {
+                None => true,
+                Some(cur) => cur == stored_mtime_s,
+            };
+            if fresh {
                 let bytes: Vec<u8> = row.get(1).map_err(|e| e.to_string())?;
                 return Ok(Some(bytes));
             }
@@ -15592,45 +15604,70 @@ mod tests {
         assert!(result.is_empty());
     }
 
-    /// PDF preview cache round-trip: set → get returns bytes; get on a
-    /// missing entry returns None; mtime-bump invalidates the cache.
+    /// PDF preview cache round-trip:
+    /// - Miss before set.
+    /// - Set → get returns bytes.
+    /// - Per-(page,width) isolation (different page or width → miss).
+    /// - Re-set with the **same** mtime-second → still hits (no cross-launch
+    ///   nanosecond drift can knock a row out).
+    /// - mtime change at whole-second granularity → cache miss (file
+    ///   genuinely changed; JS re-renders + re-persists).
+    /// - File deleted after a hit was stored → cache stays valid (unmount /
+    ///   move shouldn't invalidate the rendered bytes).
     #[test]
-    fn test_pdf_preview_cache_round_trip_and_mtime_invalidation() {
+    fn test_pdf_preview_cache_mtime_seconds_invalidation() {
         use std::io::Write;
         let db = test_db();
-        let tmp = std::env::temp_dir().join(format!("upum_pdfcache_{}.pdf", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!(
+            "upum_pdfcache_{}_{}.pdf",
+            std::process::id(),
+            rand::random::<u32>()
+        ));
         let _ = std::fs::remove_file(&tmp);
         {
             let mut f = std::fs::File::create(&tmp).unwrap();
             f.write_all(b"%PDF-1.4 fake").unwrap();
         }
         let png = vec![0u8, 1, 2, 3, 4, 5, 6, 7]; // dummy bytes — table doesn't validate
-        // Miss before set.
         let path_s = tmp.to_string_lossy().to_string();
-        let none = db.pdf_preview_get(&path_s, 1, 320).unwrap();
-        assert!(none.is_none(), "no entry yet → None");
+        // Miss before set.
+        assert!(db.pdf_preview_get(&path_s, 1, 600).unwrap().is_none(), "no entry yet → None");
         // Set + get hits.
-        db.pdf_preview_set(&path_s, 1, 320, &png).unwrap();
-        let got = db.pdf_preview_get(&path_s, 1, 320).unwrap();
+        db.pdf_preview_set(&path_s, 1, 600, &png).unwrap();
+        let got = db.pdf_preview_get(&path_s, 1, 600).unwrap();
         assert_eq!(got.as_deref(), Some(png.as_slice()), "fresh get must return bytes");
+        // Sub-second writes preserve the same whole-second mtime → still hits.
+        // (This is the cross-launch nanosecond-drift case: stat returns the
+        // same int seconds across app launches, so the cache must survive.)
+        let got2 = db.pdf_preview_get(&path_s, 1, 600).unwrap();
+        assert_eq!(got2.as_deref(), Some(png.as_slice()), "same mtime → still hits");
         // Different (page, width) → miss for the same path.
-        let other = db.pdf_preview_get(&path_s, 2, 320).unwrap();
-        assert!(other.is_none(), "different page → miss");
-        let wider = db.pdf_preview_get(&path_s, 1, 480).unwrap();
-        assert!(wider.is_none(), "different width → miss");
-        // Bump file mtime by rewriting → cache must invalidate.
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert!(db.pdf_preview_get(&path_s, 2, 600).unwrap().is_none(), "different page → miss");
+        assert!(db.pdf_preview_get(&path_s, 1, 320).unwrap().is_none(), "different width → miss");
+        // Bump file mtime by ≥ 1 full second → cache MUST miss.
+        std::thread::sleep(std::time::Duration::from_millis(1100));
         {
             let mut f = std::fs::File::create(&tmp).unwrap();
             f.write_all(b"%PDF-1.4 modified").unwrap();
         }
-        let after = db.pdf_preview_get(&path_s, 1, 320).unwrap();
-        assert!(after.is_none(), "mtime change → cache treated as stale");
-        // Re-setting after the file change re-validates.
-        db.pdf_preview_set(&path_s, 1, 320, &png).unwrap();
-        let fresh = db.pdf_preview_get(&path_s, 1, 320).unwrap();
-        assert_eq!(fresh.as_deref(), Some(png.as_slice()), "re-set freshens the entry");
+        let after_edit = db.pdf_preview_get(&path_s, 1, 600).unwrap();
+        assert!(
+            after_edit.is_none(),
+            "mtime advanced ≥1s → cache must invalidate so JS re-renders the new PDF content"
+        );
+        // Re-persist with the new mtime, then verify get hits again.
+        db.pdf_preview_set(&path_s, 1, 600, &png).unwrap();
+        let refreshed = db.pdf_preview_get(&path_s, 1, 600).unwrap();
+        assert_eq!(refreshed.as_deref(), Some(png.as_slice()), "after re-render+set → hit");
+        // File deleted (unmount / move) → cache stays valid: the rendered
+        // bytes don't depend on the original file's continued presence.
         let _ = std::fs::remove_file(&tmp);
+        let after_delete = db.pdf_preview_get(&path_s, 1, 600).unwrap();
+        assert_eq!(
+            after_delete.as_deref(),
+            Some(png.as_slice()),
+            "deleted/unmounted file → cache still hits (no mtime to compare → trust the row)"
+        );
     }
 
     #[test]
