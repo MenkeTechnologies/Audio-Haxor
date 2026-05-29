@@ -39,11 +39,12 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 # .tar and .tar.gz archive extraction (Nautilus / Finder both ship this).
 # Pairs with the existing `flate2` for gzip decode.
 tar = "0.4"
-# Extended attributes (Unix-only, no-op surface on Windows). Used by the
-# Get Info modal's xattr list. The `tar` crate already pulls it in
-# transitively; declaring directly so our code doesn't rely on a
-# transitive feature flag.
-xattr = "1"
+# Extended attributes (Unix-only). Used by the Get Info modal's xattr
+# list. The `tar` crate pulls it in transitively but with no platform
+# gate; declaring directly under a `cfg(unix)` target so Windows builds
+# skip it entirely — xattr 1.6.x unconditionally imports `std::os::unix`
+# in its lib.rs and won't compile on Windows even when we never call it.
+# The call sites in lib.rs are already `#[cfg(unix)]` gated.
 # Text diff for the file-browser "Diff Two Files" action. Myers / Patience
 # algorithms; we use unified-diff output.
 similar = "2"
@@ -71,6 +72,9 @@ tauri-plugin-drag = "2.1"
 base16ct = { version = "1.0.0", features = ["alloc"] }
 portable-pty = "0.9.0"
 base64 = "0.22.1"
+
+[target.'cfg(unix)'.dependencies]
+xattr = "1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = { version = "0.6", default-features = false, features = ["alloc"] }
