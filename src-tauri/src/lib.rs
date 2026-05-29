@@ -6859,12 +6859,22 @@ async fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
             let is_dir = ep.is_dir();
             let meta = std::fs::metadata(&ep).ok();
             let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+            let fmt_time = |t: std::time::SystemTime| {
+                let dt: chrono::DateTime<chrono::Utc> = t.into();
+                dt.format("%Y-%m-%d %H:%M").to_string()
+            };
             let modified = meta
+                .as_ref()
                 .and_then(|m| m.modified().ok())
-                .map(|t| {
-                    let dt: chrono::DateTime<chrono::Utc> = t.into();
-                    dt.format("%Y-%m-%d %H:%M").to_string()
-                })
+                .map(fmt_time)
+                .unwrap_or_default();
+            // `metadata.created()` returns `Err` on filesystems that don't
+            // track birth-time (some Linux ext4 mounts, older NFS, etc.).
+            // Empty string falls through to a "—" placeholder in the UI.
+            let created = meta
+                .as_ref()
+                .and_then(|m| m.created().ok())
+                .map(fmt_time)
                 .unwrap_or_default();
             let ext = ep
                 .extension()
@@ -6877,6 +6887,7 @@ async fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
                 "size": size,
                 "sizeFormatted": scanner::format_size(size),
                 "modified": modified,
+                "created": created,
                 "ext": ext,
             }));
         }
@@ -6907,26 +6918,40 @@ async fn fs_folder_scan_status(
     blocking_res(move || db::global().folder_scan_status(&folder_paths)).await
 }
 
-/// Recursively sums the byte size of all files under `folder_path`. The
-/// file browser calls this on folder-size hover to show the actual filesystem
-/// total (the inline number comes from inventory `SUM(size)` via
-/// `fs_folder_scan_status` and may undercount unscanned files).
+/// Recursive folder walk result — total bytes + total file count under the
+/// walked path. Returned by `fs_folder_size`.
+#[derive(serde::Serialize)]
+pub struct FolderWalkResult {
+    pub bytes: u64,
+    pub files: u64,
+}
+
+/// Recursively walks `folder_path` and returns total byte size + total file
+/// count. The file browser calls this in the background for every visible
+/// folder row to populate the Size and Items columns.
 ///
 /// Has a deadline-based timeout (defaults to 2000 ms; clamped 100..30000) —
 /// huge or slow trees (network mounts, deeply nested) return a timeout error
 /// rather than blocking forever. Symlinks are not followed (cycle-safe).
 /// Permission errors on subdirectories are skipped, not propagated.
 #[tauri::command]
-async fn fs_folder_size(folder_path: String, timeout_ms: Option<u64>) -> Result<u64, String> {
+async fn fs_folder_size(
+    folder_path: String,
+    timeout_ms: Option<u64>,
+) -> Result<FolderWalkResult, String> {
     let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(2000).clamp(100, 30_000));
     blocking_res(move || {
         let deadline = std::time::Instant::now() + timeout;
-        fn walk(path: &std::path::Path, deadline: std::time::Instant) -> Result<u64, String> {
+        fn walk(
+            path: &std::path::Path,
+            deadline: std::time::Instant,
+        ) -> Result<(u64, u64), String> {
             if std::time::Instant::now() > deadline {
                 return Err("timeout".into());
             }
             let entries = std::fs::read_dir(path).map_err(|e| e.to_string())?;
-            let mut total: u64 = 0;
+            let mut bytes: u64 = 0;
+            let mut files: u64 = 0;
             for entry in entries.flatten() {
                 if std::time::Instant::now() > deadline {
                     return Err("timeout".into());
@@ -6941,18 +6966,21 @@ async fn fs_folder_size(folder_path: String, timeout_ms: Option<u64>) -> Result<
                     Err(_) => continue,
                 };
                 if meta.is_file() {
-                    total = total.saturating_add(meta.len());
+                    bytes = bytes.saturating_add(meta.len());
+                    files = files.saturating_add(1);
                 } else if meta.is_dir() {
                     // Permission denied / IO errors on subdirs are common; skip
                     // them silently rather than aborting the whole walk.
-                    if let Ok(sub) = walk(&entry.path(), deadline) {
-                        total = total.saturating_add(sub);
+                    if let Ok((sub_bytes, sub_files)) = walk(&entry.path(), deadline) {
+                        bytes = bytes.saturating_add(sub_bytes);
+                        files = files.saturating_add(sub_files);
                     }
                 }
             }
-            Ok(total)
+            Ok((bytes, files))
         }
-        walk(std::path::Path::new(&folder_path), deadline)
+        let (bytes, files) = walk(std::path::Path::new(&folder_path), deadline)?;
+        Ok(FolderWalkResult { bytes, files })
     })
     .await
 }
@@ -8184,9 +8212,9 @@ mod tests {
         let _ = fs::remove_file(&tmp);
     }
 
-    /// `fs_folder_size` returns the recursive byte total under a folder.
-    /// Verifies the recursion descends into subdirectories and sums per-file
-    /// sizes correctly.
+    /// `fs_folder_size` returns the recursive byte total + file count under a
+    /// folder. Verifies the recursion descends into subdirectories and sums
+    /// per-file sizes correctly, and counts files (not folders).
     #[test]
     fn test_fs_folder_size_recursive_sum() {
         let id = std::process::id();
@@ -8199,11 +8227,12 @@ mod tests {
         fs::write(sub.join("c.bin"), vec![0u8; 4096]).unwrap();
         let result =
             rt_block_on(fs_folder_size(root.to_string_lossy().to_string(), Some(5000))).unwrap();
-        assert_eq!(result, 1024 + 2048 + 4096, "must sum all files recursively");
+        assert_eq!(result.bytes, 1024 + 2048 + 4096, "must sum all files recursively");
+        assert_eq!(result.files, 3, "must count files (not folders)");
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// Empty folder → 0 bytes (not an error).
+    /// Empty folder → 0 bytes / 0 files (not an error).
     #[test]
     fn test_fs_folder_size_empty_folder() {
         let id = std::process::id();
@@ -8212,7 +8241,8 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let result =
             rt_block_on(fs_folder_size(root.to_string_lossy().to_string(), Some(5000))).unwrap();
-        assert_eq!(result, 0);
+        assert_eq!(result.bytes, 0);
+        assert_eq!(result.files, 0);
         let _ = fs::remove_dir_all(&root);
     }
 

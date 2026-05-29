@@ -338,10 +338,19 @@ async function getFsFolderSize(folderPath) {
     if (_fsFolderSizeInFlight.has(folderPath)) return _fsFolderSizeInFlight.get(folderPath);
     if (!window.vstUpdater || typeof window.vstUpdater.fsFolderSize !== 'function') return null;
     const p = window.vstUpdater.fsFolderSize(folderPath, 2000)
-        .then((bytes) => {
-            const n = Number(bytes) || 0;
-            _fsFolderSizeCache.set(folderPath, n);
-            return n;
+        .then((result) => {
+            // Newer backend returns `{bytes, files}`; older builds returned a
+            // bare u64. Accept both so a freshly-updated JS works against a
+            // not-yet-rebuilt binary during development.
+            const bytes = (result && typeof result === 'object')
+                ? (Number(result.bytes) || 0)
+                : (Number(result) || 0);
+            const files = (result && typeof result === 'object')
+                ? (Number(result.files) || 0)
+                : 0;
+            const r = {bytes, files};
+            _fsFolderSizeCache.set(folderPath, r);
+            return r;
         })
         .catch(() => null)
         .finally(() => { _fsFolderSizeInFlight.delete(folderPath); });
@@ -355,8 +364,8 @@ function _pumpFsFolderSizeQueue() {
         if (job.seq !== _fsFolderSizeSeq) continue; // directory changed before we got to it
         _fsFolderSizeActive++;
         getFsFolderSize(job.folderPath)
-            .then((bytes) => {
-                if (job.seq === _fsFolderSizeSeq) _paintFolderSizeCell(job.folderPath, bytes);
+            .then((result) => {
+                if (job.seq === _fsFolderSizeSeq) _paintFolderSizeCell(job.folderPath, result);
             })
             .finally(() => {
                 _fsFolderSizeActive--;
@@ -365,24 +374,47 @@ function _pumpFsFolderSizeQueue() {
     }
 }
 
-function _paintFolderSizeCell(folderPath, bytes) {
+function _fbFormatItemCount(n) {
+    if (!Number.isFinite(n) || n < 0) return '';
+    if (n < 1000) return `${n}`;
+    if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
+    return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
+/** Paints both the size cell AND the items cell for a folder row from the
+ *  bg-walk result `{bytes, files}`. `null` (walk failed) → dash in both. */
+function _paintFolderSizeCell(folderPath, result) {
     if (typeof document === 'undefined' || typeof CSS === 'undefined') return;
     try {
         const row = document.querySelector(`.file-row.file-dir[data-file-path="${CSS.escape(folderPath)}"]`);
         if (!row) return;
         const sizeCell = row.querySelector('.file-size');
-        if (!sizeCell) return;
-        if (bytes === null || bytes === undefined) {
-            // Walk failed (timeout, permission denied, deleted) — show a dash
-            // rather than leave the "…" spinner forever.
-            sizeCell.textContent = '—';
-            sizeCell.classList.remove('file-size-loading');
-            sizeCell.classList.add('file-size-dash');
-            sizeCell.title = 'Folder size unavailable (timeout, permission, or unreadable)';
-        } else {
-            sizeCell.textContent = _fbFormatBytes(Number(bytes) || 0);
+        const itemsCell = row.querySelector('.file-items');
+        if (result === null || result === undefined) {
+            if (sizeCell) {
+                sizeCell.textContent = '—';
+                sizeCell.classList.remove('file-size-loading');
+                sizeCell.classList.add('file-size-dash');
+                sizeCell.title = 'Folder size unavailable (timeout, permission, or unreadable)';
+            }
+            if (itemsCell) {
+                itemsCell.textContent = '—';
+                itemsCell.classList.remove('file-items-loading');
+                itemsCell.classList.add('file-items-dash');
+            }
+            return;
+        }
+        const bytes = Number(result.bytes) || 0;
+        const files = Number(result.files) || 0;
+        if (sizeCell) {
+            sizeCell.textContent = _fbFormatBytes(bytes);
             sizeCell.classList.remove('file-size-loading', 'file-size-dash', 'file-size-inv');
-            sizeCell.title = `Filesystem total: ${sizeCell.textContent}`;
+            sizeCell.title = `Filesystem total: ${sizeCell.textContent} · ${files.toLocaleString()} files`;
+        }
+        if (itemsCell) {
+            itemsCell.textContent = _fbFormatItemCount(files);
+            itemsCell.classList.remove('file-items-loading', 'file-items-dash');
+            itemsCell.title = `${files.toLocaleString()} files (recursive)`;
         }
     } catch (_) { /* CSS.escape unavailable */ }
 }
@@ -538,6 +570,81 @@ function _fileBulkSelectionAsPaths(filterFn) {
     return out;
 }
 
+// ── File-list column resize ──
+// Column widths live in CSS custom properties on `#tabFiles` so a single
+// `style.setProperty('--fb-w-…')` write resizes header + every row together.
+// Drag handlers are wired once at module load (delegated). Saved widths are
+// keyed per column in `prefs.fileBrowserColWidths`.
+var _fbColumnResizeWired = false;
+const FB_RESIZABLE_COLS = ['ext', 'size', 'items', 'date', 'created'];
+
+function saveFileColumnWidths() {
+    if (typeof document === 'undefined') return;
+    const tab = document.getElementById('tabFiles');
+    if (!tab) return;
+    const widths = {};
+    for (const col of FB_RESIZABLE_COLS) {
+        const v = tab.style.getPropertyValue(`--fb-w-${col}`);
+        if (v) widths[col] = v.trim();
+    }
+    try { prefs.setItem('fileBrowserColWidths', widths); } catch (_) { /* ignore */ }
+}
+
+function loadFileColumnWidths() {
+    if (typeof document === 'undefined') return;
+    const tab = document.getElementById('tabFiles');
+    if (!tab) return;
+    try {
+        const widths = prefs.getObject('fileBrowserColWidths', null);
+        if (!widths || typeof widths !== 'object') return;
+        for (const [col, w] of Object.entries(widths)) {
+            if (!FB_RESIZABLE_COLS.includes(col)) continue;
+            if (typeof w !== 'string' || !w) continue;
+            tab.style.setProperty(`--fb-w-${col}`, w);
+        }
+    } catch (_) { /* ignore */ }
+}
+
+function initFileColumnResize() {
+    if (_fbColumnResizeWired || typeof document === 'undefined') return;
+    _fbColumnResizeWired = true;
+    document.addEventListener('mousedown', (e) => {
+        const handle = e.target && e.target.closest
+            ? e.target.closest('.file-list-header .fb-col-resize')
+            : null;
+        if (!handle) return;
+        const col = handle.dataset.fbResize;
+        if (!FB_RESIZABLE_COLS.includes(col)) return;
+        const tab = document.getElementById('tabFiles');
+        if (!tab) return;
+        e.preventDefault();
+        e.stopPropagation();
+        // Use the rendered px width (computed from the current CSS var) as the
+        // starting point — handles the first-drag case where the var hasn't
+        // been explicitly set yet.
+        const headerCell = handle.closest('[data-fb-col]');
+        const startWidth = headerCell ? headerCell.offsetWidth : 70;
+        const startX = e.clientX;
+        const minWidth = 40;
+        handle.classList.add('resizing');
+        document.body.classList.add('fb-col-resizing');
+        function onMove(ev) {
+            const delta = ev.clientX - startX;
+            const next = Math.max(minWidth, startWidth + delta);
+            tab.style.setProperty(`--fb-w-${col}`, `${next}px`);
+        }
+        function onUp() {
+            handle.classList.remove('resizing');
+            document.body.classList.remove('fb-col-resizing');
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            saveFileColumnWidths();
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    });
+}
+
 // ── File-list column sort ──
 // Global (not per-directory) sort state. Stored in prefs as `{key, asc}`.
 // Folders always sort first regardless of direction (standard file-browser
@@ -643,6 +750,8 @@ if (typeof document !== 'undefined') {
 async function initFileBrowser() {
     loadFileSortFromPrefs();
     updateFileSortHeaderUI();
+    loadFileColumnWidths();
+    initFileColumnResize();
     renderFavDirs();
     // Tab revisit: listing is still in the DOM (panel hidden, not destroyed) — avoid IPC + full re-render.
     if (_fileBrowserInited && _fileBrowserPath) {
@@ -758,13 +867,18 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
 
     const wfBg = isAudio ? `<canvas class="file-waveform" data-wf-path="${escapeHtml(e.path)}" height="36" title="Waveform"></canvas><span class="file-wf-cursor"></span>` : '';
     const isSelected = _fileSelected.has(e.path);
-    // Folders show a "…" placeholder until the background walk completes
-    // (see `refreshFolderFilesystemSizes` → `_paintFolderSizeCell`). Plain
-    // class differentiates the loading state for styling.
+    // Folders show "…" placeholders for Size + Items until the background
+    // walk completes (see `refreshFolderFilesystemSizes` →
+    // `_paintFolderSizeCell`). Files have known sizes from `fs_list_dir` so
+    // those cells fill on first paint; the Items cell is folder-only.
     const sizeContent = e.isDir
         ? '<span class="file-size-loading-text">…</span>'
         : e.sizeFormatted;
     const sizeCls = e.isDir ? ' file-size-loading' : '';
+    const itemsContent = e.isDir
+        ? '<span class="file-items-loading-text">…</span>'
+        : '';
+    const itemsCls = e.isDir ? ' file-items-loading' : '';
     return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}${isSelected ? ' file-selected' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
       <span class="file-cb"><input type="checkbox" class="file-row-cb" data-fb-cb="${escapeHtml(e.path)}"${isSelected ? ' checked' : ''}></span>
       ${wfBg}
@@ -772,7 +886,9 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
       <span class="file-name">${search && typeof highlightMatch === 'function' ? highlightMatch(e.name, search, mode || 'fuzzy') : escapeHtml(e.name)}${extras}${note}</span>
       <span class="file-ext">${e.isDir ? 'DIR' : e.ext}</span>
       <span class="file-size${sizeCls}">${sizeContent}</span>
+      <span class="file-items${itemsCls}">${itemsContent}</span>
       <span class="file-date">${e.modified}</span>
+      <span class="file-created">${e.created || ''}</span>
     </div>`;
 }
 

@@ -238,6 +238,58 @@ describe('frontend/js/file-browser.js (vm-loaded)', () => {
     });
   });
 
+  describe('_fbFormatItemCount', () => {
+    it('formats sub-thousand as plain integer', () => {
+      assert.strictEqual(F._fbFormatItemCount(0), '0');
+      assert.strictEqual(F._fbFormatItemCount(47), '47');
+      assert.strictEqual(F._fbFormatItemCount(999), '999');
+    });
+
+    it('formats thousands as k with one decimal under 10k, none above', () => {
+      assert.strictEqual(F._fbFormatItemCount(1000), '1.0k');
+      assert.strictEqual(F._fbFormatItemCount(9999), '10.0k');
+      assert.strictEqual(F._fbFormatItemCount(12_345), '12k');
+      assert.strictEqual(F._fbFormatItemCount(999_999), '1000k');
+    });
+
+    it('formats millions as M', () => {
+      assert.strictEqual(F._fbFormatItemCount(1_000_000), '1.0M');
+      assert.strictEqual(F._fbFormatItemCount(3_500_000), '3.5M');
+    });
+
+    it('invalid input → empty string', () => {
+      assert.strictEqual(F._fbFormatItemCount(NaN), '');
+      assert.strictEqual(F._fbFormatItemCount(-1), '');
+      assert.strictEqual(F._fbFormatItemCount(Infinity), '');
+    });
+  });
+
+  describe('saveFileColumnWidths / loadFileColumnWidths', () => {
+    it('persists known columns + ignores unknown ones on load', () => {
+      const fakeTab = {
+        style: {
+          _props: {},
+          setProperty(name, value) { this._props[name] = value; },
+          getPropertyValue(name) { return this._props[name] || ''; },
+        },
+      };
+      F.document = {
+        getElementById: (id) => (id === 'tabFiles' ? fakeTab : null),
+      };
+      fakeTab.style.setProperty('--fb-w-size', '95px');
+      fakeTab.style.setProperty('--fb-w-date', '180px');
+      F.saveFileColumnWidths();
+      // Reset and reload
+      fakeTab.style._props = {};
+      // Inject corrupt + valid entries
+      F.prefs.setItem('fileBrowserColWidths', {size: '95px', date: '180px', bogus: '100px'});
+      F.loadFileColumnWidths();
+      assert.strictEqual(fakeTab.style.getPropertyValue('--fb-w-size'), '95px');
+      assert.strictEqual(fakeTab.style.getPropertyValue('--fb-w-date'), '180px');
+      assert.strictEqual(fakeTab.style.getPropertyValue('--fb-w-bogus'), '', 'unknown col ignored');
+    });
+  });
+
   describe('saveFileSortToPrefs / loadFileSortFromPrefs round-trip', () => {
     it('persists key + direction and reloads them', () => {
       F._fileSortKey = 'size'; F._fileSortAsc = false;

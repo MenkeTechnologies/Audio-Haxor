@@ -5870,30 +5870,51 @@
             text-align: right;
         }
 
+        /* Each header cell except `.file-name-h` has `position: relative` so
+         * the `.fb-col-resize` handle can be absolutely positioned at the
+         * cell's right edge. Widths read from the same CSS vars as the rows. */
         .file-list-header .file-name-h {
             flex: 1;
             cursor: pointer;
+            position: relative;
         }
 
         .file-list-header .file-ext-h {
-            width: 50px;
+            width: var(--fb-w-ext, 50px);
             flex-shrink: 0;
             cursor: pointer;
             text-align: left;
+            position: relative;
         }
 
         .file-list-header .file-size-h {
-            width: 70px;
+            width: var(--fb-w-size, 70px);
             flex-shrink: 0;
             cursor: pointer;
             text-align: right;
+            position: relative;
+        }
+
+        .file-list-header .file-items-h {
+            width: var(--fb-w-items, 70px);
+            flex-shrink: 0;
+            text-align: right;
+            position: relative;
         }
 
         .file-list-header .file-date-h {
-            width: 120px;
+            width: var(--fb-w-date, 130px);
             flex-shrink: 0;
             cursor: pointer;
             text-align: left;
+            position: relative;
+        }
+
+        .file-list-header .file-created-h {
+            width: var(--fb-w-created, 130px);
+            flex-shrink: 0;
+            text-align: left;
+            position: relative;
         }
 
         .file-list-header [data-sort]:hover {
@@ -5918,6 +5939,32 @@
 
         .file-list-header .sort-desc .sort-arrow {
             transform: rotate(180deg);
+        }
+
+        /* Resize handle — sits at the right edge of each resizable header cell.
+         * Wider than visually shown for an easier grab target. Highlight on
+         * hover / during active drag. */
+        .file-list-header .fb-col-resize {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: -5px;
+            width: 10px;
+            cursor: col-resize;
+            z-index: 2;
+            user-select: none;
+        }
+
+        .file-list-header .fb-col-resize:hover,
+        .file-list-header .fb-col-resize.resizing {
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+            opacity: 0.5;
+        }
+
+        body.fb-col-resizing,
+        body.fb-col-resizing * {
+            cursor: col-resize !important;
+            user-select: none !important;
         }
 
         .file-row {
@@ -5968,11 +6015,25 @@
             color: var(--cyan);
         }
 
+        /* Column widths are CSS variables on `#tabFiles` (or the body when not
+         * scoped) so the resize handler can update header + every row in one
+         * write. Defaults match the pre-resize hardcoded widths. The
+         * `.fb-col-resize` drag handles in each header cell write the var
+         * back to the tab element on drag, with values persisted to
+         * `prefs.fileBrowserColWidths`. */
+        #tabFiles {
+            --fb-w-ext: 50px;
+            --fb-w-size: 70px;
+            --fb-w-items: 70px;
+            --fb-w-date: 130px;
+            --fb-w-created: 130px;
+        }
+
         .file-size {
             font-size: 11px;
             color: var(--text-muted);
             font-family: 'Courier New', monospace;
-            width: 70px;
+            width: var(--fb-w-size, 70px);
             text-align: right;
             flex-shrink: 0;
         }
@@ -5999,10 +6060,43 @@
             font-style: italic;
         }
 
+        /* Items column — folder-only recursive file count, populated by the
+         * same bg walk as Size. Same loading / dash states. */
+        .file-items {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'Courier New', monospace;
+            width: var(--fb-w-items, 70px);
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .file-items.file-items-loading {
+            color: rgba(5, 217, 232, 0.4);
+        }
+
+        .file-items.file-items-loading .file-items-loading-text {
+            animation: file-size-pulse 1.2s ease-in-out infinite;
+        }
+
+        .file-items.file-items-dash {
+            color: rgba(255, 255, 255, 0.25);
+            font-style: italic;
+        }
+
         .file-date {
             font-size: 11px;
             color: var(--text-muted);
-            width: 120px;
+            width: var(--fb-w-date, 130px);
+            flex-shrink: 0;
+        }
+
+        /* Created date — `metadata.created()` from fs_list_dir; empty when
+         * the filesystem doesn't track birth-time (some Linux mounts). */
+        .file-created {
+            font-size: 11px;
+            color: var(--text-muted);
+            width: var(--fb-w-created, 130px);
             flex-shrink: 0;
         }
 
@@ -6010,7 +6104,7 @@
             font-size: 10px;
             color: var(--text-muted);
             text-transform: uppercase;
-            width: 50px;
+            width: var(--fb-w-ext, 50px);
             flex-shrink: 0;
         }
 
@@ -11892,10 +11986,12 @@
             <div class="file-list-header" id="fileListHeader">
                 <span class="file-cb-h"><input type="checkbox" class="file-row-cb-all" id="fileRowCbAll" title="Select all visible"></span>
                 <span class="file-icon-h"></span>
-                <span class="file-name-h" data-sort="name"><span data-i18n="ui.audio.th_name">Name</span><span class="sort-arrow">&#9650;</span></span>
-                <span class="file-ext-h" data-sort="type"><span data-i18n="ui.export.col_type">Type</span><span class="sort-arrow">&#9650;</span></span>
-                <span class="file-size-h" data-sort="size"><span data-i18n="ui.audio.th_size">Size</span><span class="sort-arrow">&#9650;</span></span>
-                <span class="file-date-h" data-sort="date"><span data-i18n="ui.audio.th_modified">Modified</span><span class="sort-arrow">&#9650;</span></span>
+                <span class="file-name-h" data-sort="name" data-fb-col="name"><span data-i18n="ui.audio.th_name">Name</span><span class="sort-arrow">&#9650;</span><span class="fb-col-resize" data-fb-resize="name"></span></span>
+                <span class="file-ext-h" data-sort="type" data-fb-col="ext"><span data-i18n="ui.export.col_type">Type</span><span class="sort-arrow">&#9650;</span><span class="fb-col-resize" data-fb-resize="ext"></span></span>
+                <span class="file-size-h" data-sort="size" data-fb-col="size"><span data-i18n="ui.audio.th_size">Size</span><span class="sort-arrow">&#9650;</span><span class="fb-col-resize" data-fb-resize="size"></span></span>
+                <span class="file-items-h" data-fb-col="items" title="Recursive file count (folders only)">Items<span class="fb-col-resize" data-fb-resize="items"></span></span>
+                <span class="file-date-h" data-sort="date" data-fb-col="date"><span data-i18n="ui.audio.th_modified">Modified</span><span class="sort-arrow">&#9650;</span><span class="fb-col-resize" data-fb-resize="date"></span></span>
+                <span class="file-created-h" data-fb-col="created" title="File creation date">Created<span class="fb-col-resize" data-fb-resize="created"></span></span>
             </div>
             <div class="file-list" id="fileList">
                 <div class="state-message">
