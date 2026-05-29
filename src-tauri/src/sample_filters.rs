@@ -545,4 +545,109 @@ mod tests {
             BAD_GENRES,
         ));
     }
+
+    // ── is_ableton_project_sample: Pattern 1 ("X Project/Samples/") ──
+
+    #[test]
+    fn ableton_unix_project_samples_layout() {
+        assert!(is_ableton_project_sample(
+            "/Users/x/Music/Zforce-Alert Project/Samples/Imported/kick.wav"
+        ));
+    }
+
+    #[test]
+    fn ableton_windows_project_samples_layout() {
+        assert!(is_ableton_project_sample(
+            "C:\\Music\\MyTrack Project\\Samples\\Recorded\\loop.wav"
+        ));
+    }
+
+    #[test]
+    fn ableton_mixed_separator_unix_proj_win_samples() {
+        // Real-world cross-platform paths can drift; the matcher must
+        // handle the four separator permutations enumerated in source.
+        assert!(is_ableton_project_sample(
+            "/Music/MyTrack Project/Samples\\Imported/kick.wav"
+        ));
+        assert!(is_ableton_project_sample(
+            "/Music/MyTrack Project\\Samples/Recorded/kick.wav"
+        ));
+    }
+
+    // ── is_ableton_project_sample: Pattern 2 (".../Samples/<sub>/") ──
+
+    #[test]
+    fn ableton_samples_processed_subdir() {
+        assert!(is_ableton_project_sample(
+            "/Music/anything/Samples/Processed/Crop/clip.wav"
+        ));
+    }
+
+    #[test]
+    fn ableton_samples_consolidated_subdir() {
+        assert!(is_ableton_project_sample(
+            "/Music/anything/Samples/Consolidated/clip.wav"
+        ));
+    }
+
+    // ── Negative: non-Ableton paths must NOT be flagged ──
+
+    #[test]
+    fn non_ableton_samples_dir_no_match() {
+        // "Samples" without the Ableton-specific subdir is not a project.
+        assert!(!is_ableton_project_sample(
+            "/Samples/freshly squeezed/some_pack/Loops/kick.wav"
+        ));
+    }
+
+    #[test]
+    fn lookalike_project_word_without_samples_no_match() {
+        // " Project" alone (without /Samples/) is not enough.
+        assert!(!is_ableton_project_sample(
+            "/Music/MyTrack Project/Renders/master.wav"
+        ));
+    }
+
+    #[test]
+    fn ableton_empty_path_no_match() {
+        assert!(!is_ableton_project_sample(""));
+    }
+
+    // ── Static config sanity ──
+
+    #[test]
+    fn reversed_suffixes_cover_both_extensions() {
+        // Both .wav and .aif must be represented since reversed sources
+        // appear in both formats across known sample packs.
+        assert!(REVERSED_SUFFIXES.iter().any(|s| s.ends_with(".wav")));
+        assert!(REVERSED_SUFFIXES.iter().any(|s| s.ends_with(".aif")));
+    }
+
+    #[test]
+    fn project_render_keywords_contain_no_blanks() {
+        // A blank keyword would match every path → catastrophic.
+        for &kw in PROJECT_RENDER_KEYWORDS {
+            assert!(!kw.trim().is_empty(), "empty render keyword smuggled in");
+        }
+    }
+
+    #[test]
+    fn construction_kit_keywords_contain_no_blanks() {
+        // Same hazard as above — a single blank entry collapses filtering.
+        for &kw in CONSTRUCTION_KIT_KEYWORDS {
+            assert!(!kw.trim().is_empty(), "empty kit keyword smuggled in");
+        }
+    }
+
+    #[test]
+    fn genre_override_keywords_subset_of_intended_techno_trance_family() {
+        // If anything outside the techno/trance umbrella sneaks in,
+        // BAD_GENRES suppression becomes meaningless (override too broad).
+        for &kw in GENRE_OVERRIDE_KEYWORDS {
+            assert!(
+                kw.contains("techno") || kw.contains("trance") || kw.contains("schranz"),
+                "unexpected override keyword: {kw}"
+            );
+        }
+    }
 }
