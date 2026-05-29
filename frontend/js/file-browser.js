@@ -563,6 +563,93 @@ function _fbSwapPanes(a, b) {
     }
 }
 
+// ── Trello-style pane drag-reorder ──
+// Reuses the global window.initDragReorder helper (same engine that
+// powers stats-bar reorder, toolbar reorder, settings-section
+// reorder, fav chips, etc.). Drag handle is restricted to the tab
+// bar so dragging into the file list doesn't fight the row-level drag.
+// After drop, the underlying `_fbPanes[]` array + flex widths +
+// active idx + persisted V3 state all permute to match the new DOM
+// order, and the resize gutters re-interleave so the layout stays
+// `pane gutter pane gutter pane gutter pane`.
+function _fbReindexPanesFromDOM() {
+    const wrap = document.querySelector('.file-list-wrap');
+    if (!wrap) return;
+    const paneEls = [...wrap.querySelectorAll('.fb-pane[data-pane-idx]')];
+    if (paneEls.length !== FB_MAX_PANES) return;
+    // Read each pane element's OLD idx (the value it carried before
+    // the drag) to build the permutation from new position → old idx.
+    const oldOrder = paneEls.map((el) => parseInt(el.dataset.paneIdx, 10));
+    // No-op if the order didn't actually change.
+    let changed = false;
+    for (let i = 0; i < oldOrder.length; i++) {
+        if (oldOrder[i] !== i) { changed = true; break; }
+    }
+    if (!changed) return;
+    _fbSaveGlobalsToActivePane();
+    // Permute the pane state arrays.
+    const newPanes = oldOrder.map((oldIdx) => _fbPanes[oldIdx]);
+    const newFlex  = oldOrder.map((oldIdx) => _fbPaneFlex[oldIdx]);
+    _fbPanes.length = 0;
+    for (const p of newPanes) _fbPanes.push(p);
+    _fbPaneFlex.length = 0;
+    for (const f of newFlex) _fbPaneFlex.push(f);
+    // Active idx follows the active pane to its new position.
+    const newActive = oldOrder.indexOf(_fbActivePaneIdx);
+    if (newActive >= 0) _fbActivePaneIdx = newActive;
+    // Re-stamp data-pane-idx + swap-button data attrs to match the
+    // new positions (other code reads paneEl.dataset.paneIdx).
+    paneEls.forEach((el, i) => { el.dataset.paneIdx = String(i); });
+    // Re-interleave resize gutters between consecutive panes so the
+    // layout stays correct. Move each `.fb-pane-resize[data-fb-pane-resize="N"]`
+    // to sit BEFORE the pane at position N+1.
+    const gutters = [...wrap.querySelectorAll('.fb-pane-resize[data-fb-pane-resize]')];
+    gutters.forEach((g, k) => {
+        const after = paneEls[k];
+        if (after && after.nextSibling !== g) {
+            after.parentNode.insertBefore(g, after.nextSibling);
+        }
+        // Each gutter k always bridges pane k ↔ pane k+1 — the dataset
+        // value matches its physical position now that the gutters are
+        // re-interleaved. Make sure the swap-button data-fb-pane-swap
+        // also matches.
+        g.dataset.fbPaneResize = String(k);
+        const swap = g.querySelector('[data-fb-pane-swap]');
+        if (swap) swap.dataset.fbPaneSwap = String(k);
+    });
+    // Persist + repaint.
+    _fbApplyPaneFlex();
+    _fbPersistPanePaths();
+    document.querySelectorAll('.fb-pane').forEach((el, i) => {
+        el.classList.toggle('fb-pane-active', i === _fbActivePaneIdx);
+    });
+    if (typeof renderFileBrowserTabs === 'function') renderFileBrowserTabs();
+    _fbLoadActivePaneIntoGlobals();
+    if (_fileBrowserPath && typeof renderBreadcrumb === 'function') renderBreadcrumb(_fileBrowserPath);
+    if (typeof showToast === 'function') {
+        showToast(toastFmt('toast.fb_action', {name: `panes reordered`}));
+    }
+}
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const wrap = document.querySelector('.file-list-wrap');
+        if (!wrap || typeof window.initDragReorder !== 'function') return;
+        window.initDragReorder(wrap, '.fb-pane[data-pane-idx]', null, {
+            direction: 'horizontal',
+            // Drag handle is the tab strip — keeps the file list + row
+            // drag (HTML5 drag for cross-pane file move) free of
+            // conflict. Mousedown anywhere else inside a pane is
+            // ignored by the reorder engine.
+            handleSelector: '.fb-tab-bar',
+            // Stable key per pane element so the engine's order-saving
+            // logic ignores DOM-level idx changes during animation.
+            getKey: (el) => el.dataset.paneIdx,
+            onReorder: _fbReindexPanesFromDOM,
+        });
+    });
+}
+
 // Click swap button (centered on each gutter, hover-revealed). Stop
 // propagation so the click doesn't also fire the pointerdown drag.
 document.addEventListener('click', (e) => {
