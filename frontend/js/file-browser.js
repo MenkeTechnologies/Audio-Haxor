@@ -125,6 +125,77 @@ function fileIcon(entry) {
     return '&#128196;';
 }
 
+// ── Quick-look overlay (Space key → big preview modal) ──
+// Builds and shows a centered modal with file metadata. Dismissed by Esc,
+// click-outside, or pressing Space again. For audio files, embeds a larger
+// waveform that reuses the existing `drawMiniWaveform` helper. For other
+// types, shows path / size / dates only — richer per-type preview
+// (image/PDF body) is the job of the dedicated preview pane task.
+function _ensureQuickLookOverlay() {
+    if (typeof document === 'undefined') return null;
+    let overlay = document.getElementById('fbQuickLook');
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'fbQuickLook';
+    overlay.className = 'fb-quicklook fb-hidden';
+    overlay.innerHTML = `
+        <div class="fb-quicklook-card">
+            <div class="fb-quicklook-header">
+                <span class="fb-quicklook-title" id="fbQuickLookTitle"></span>
+                <button class="fb-quicklook-close" data-action="fbQuickLookClose" title="Close (Esc)">&times;</button>
+            </div>
+            <div class="fb-quicklook-body" id="fbQuickLookBody"></div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay || e.target.closest('[data-action="fbQuickLookClose"]')) hideQuickLook();
+    });
+    return overlay;
+}
+
+function showQuickLook(filePath) {
+    if (typeof document === 'undefined' || !filePath) return;
+    const overlay = _ensureQuickLookOverlay();
+    if (!overlay) return;
+    const title = document.getElementById('fbQuickLookTitle');
+    const body = document.getElementById('fbQuickLookBody');
+    const name = filePath.split('/').pop();
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    if (title) title.textContent = name;
+    if (body) {
+        const isAudio = typeof AUDIO_EXTS !== 'undefined' && AUDIO_EXTS.includes(ext);
+        const wfHtml = isAudio
+            ? `<canvas class="fb-quicklook-wf" id="fbQuickLookWf" data-wf-path="${escapeHtml(filePath)}" width="800" height="120"></canvas>`
+            : '';
+        body.innerHTML = `
+            ${wfHtml}
+            <div class="fb-quicklook-meta">
+                <div class="fb-quicklook-row"><span class="fb-quicklook-label">Path</span><span class="fb-quicklook-val">${escapeHtml(filePath)}</span></div>
+                <div class="fb-quicklook-row"><span class="fb-quicklook-label">Type</span><span class="fb-quicklook-val">${escapeHtml(ext || '—')}</span></div>
+            </div>
+            <div class="fb-quicklook-hint">Press Esc or Space to close</div>
+        `;
+        if (isAudio && typeof drawMiniWaveform === 'function') {
+            const canvas = document.getElementById('fbQuickLookWf');
+            if (canvas) drawMiniWaveform(canvas, filePath);
+        }
+    }
+    overlay.classList.remove('fb-hidden');
+}
+
+function hideQuickLook() {
+    if (typeof document === 'undefined') return;
+    const overlay = document.getElementById('fbQuickLook');
+    if (overlay) overlay.classList.add('fb-hidden');
+}
+
+function isQuickLookVisible() {
+    if (typeof document === 'undefined') return false;
+    const overlay = document.getElementById('fbQuickLook');
+    return !!(overlay && !overlay.classList.contains('fb-hidden'));
+}
+
 // ── Inline rename (F2 on focused row, or via context menu) ──
 // Replaces the row's `.file-name` text node with a borderless `<input>`,
 // pre-filled and selected. Enter commits via `rename_file` IPC; Esc cancels;
@@ -1673,6 +1744,46 @@ document.addEventListener('keydown', (e) => {
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     e.preventDefault();
     selectAllVisibleFiles();
+});
+
+// Space → Quick-look overlay for the focused (or single-selected) file.
+// Folders intentionally don't get a Quick-look — Space on a folder would be
+// weird (and Enter/click already navigates into them).
+document.addEventListener('keydown', (e) => {
+    if (e.key !== ' ') return;
+    const activeTab = document.querySelector('.tab-content.active');
+    if (!activeTab || activeTab.id !== 'tabFiles') return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    // If Quick-look is already up, Space dismisses it.
+    if (isQuickLookVisible()) {
+        e.preventDefault();
+        hideQuickLook();
+        return;
+    }
+    let row = (typeof getFileRows === 'function')
+        ? getFileRows()[typeof _fileNavIdx !== 'undefined' ? _fileNavIdx : -1]
+        : null;
+    if (!row && _fileSelected && _fileSelected.size === 1) {
+        const [p] = [..._fileSelected];
+        if (typeof CSS !== 'undefined') {
+            try { row = document.querySelector(`.file-row[data-file-path="${CSS.escape(p)}"]`); } catch (_) { /* ignore */ }
+        }
+    }
+    if (!row) return;
+    if (row.dataset.fileDir === 'true') return;
+    const path = row.dataset.filePath;
+    if (!path) return;
+    e.preventDefault();
+    showQuickLook(path);
+});
+
+// Esc → dismiss Quick-look when visible (also handled by overlay click).
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!isQuickLookVisible()) return;
+    e.preventDefault();
+    hideQuickLook();
 });
 
 // F2 → inline-rename the focused row (or single selection). Esc cancels.

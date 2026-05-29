@@ -2282,6 +2282,34 @@ document.addEventListener('contextmenu', (e) => {
                     label: appFmt('menu.open_directory'), ..._noEcho,
                     action: () => typeof loadDirectory === 'function' && loadDirectory(path)
                 });
+                // Open in Terminal — system shell at this folder. Platform-
+                // specific spawn handled in `fs_open_terminal` Rust command.
+                items.push({
+                    icon: '&#9000;',
+                    label: 'Open in Terminal', ..._noEcho,
+                    action: () => {
+                        if (window.vstUpdater && typeof window.vstUpdater.fsOpenTerminal === 'function') {
+                            window.vstUpdater.fsOpenTerminal(path).catch((err) =>
+                                showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error')
+                            );
+                        }
+                    },
+                });
+            } else if (typeof DAW_EXTS !== 'undefined' && DAW_EXTS.includes(ext)) {
+                // Open in DAW — for .als / .flp / .logicx / etc. Uses the
+                // same `openDawProject` IPC that single-click on a DAW row
+                // already triggers, but as an explicit menu entry.
+                items.push({
+                    icon: '&#127911;',
+                    label: 'Open in DAW', ..._noEcho,
+                    action: () => {
+                        if (window.vstUpdater && typeof window.vstUpdater.openDawProject === 'function') {
+                            window.vstUpdater.openDawProject(path).catch((err) =>
+                                showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error')
+                            );
+                        }
+                    },
+                });
             }
             if (!isDir) {
                 // Explicit "Open in Default App" — runs the OS default handler

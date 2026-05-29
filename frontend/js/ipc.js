@@ -1851,6 +1851,9 @@ window.vstUpdater = {
     renameFile: (oldPath, newPath) => invoke('rename_file', {oldPath, newPath}),
     /** Create a new directory. Fails if path already exists. Parent must exist. */
     fsCreateDir: (dirPath) => invoke('fs_create_dir', {dirPath}),
+    /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
+     *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
+    fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),
     getHomeDir: () => invoke('get_home_dir'),
     // Similarity
     findSimilarSamples: (filePath, candidatePaths, maxResults) => invoke('find_similar_samples', {

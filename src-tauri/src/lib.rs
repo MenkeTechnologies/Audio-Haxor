@@ -7030,6 +7030,60 @@ async fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
     .await
 }
 
+/// Opens a system terminal in `folder_path`. macOS uses `open -a Terminal`;
+/// Linux probes `x-terminal-emulator` → `gnome-terminal` → `xterm`; Windows
+/// uses `cmd /C start "" /D <path> cmd`.
+#[tauri::command]
+async fn fs_open_terminal(folder_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        let path = std::path::Path::new(&folder_path);
+        if !path.exists() {
+            return Err(format!("Path not found: {folder_path}"));
+        }
+        if !path.is_dir() {
+            return Err(format!("Not a directory: {folder_path}"));
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let output = std::process::Command::new("open")
+                .arg("-a")
+                .arg("Terminal")
+                .arg(&folder_path)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("Terminal open failed: {}", stderr.trim()));
+            }
+        }
+        #[cfg(target_os = "linux")]
+        {
+            // Try the standard Debian alternative first, then common fallbacks.
+            for cmd in ["x-terminal-emulator", "gnome-terminal", "konsole", "xterm"] {
+                let r = std::process::Command::new(cmd)
+                    .arg("--working-directory")
+                    .arg(&folder_path)
+                    .spawn();
+                if r.is_ok() {
+                    return Ok(());
+                }
+            }
+            return Err("no terminal emulator found".to_string());
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // `start` is a cmd.exe builtin; pass empty title argument so the
+            // first quoted string isn't treated as the title.
+            let r = std::process::Command::new("cmd")
+                .args(["/C", "start", "", "/D", &folder_path, "cmd"])
+                .spawn();
+            r.map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    })
+    .await
+}
+
 /// Creates a directory at `dir_path`. Fails if the parent doesn't exist
 /// (use `create_dir_all`-style API explicitly if recursive is wanted).
 /// Returns an error if the path already exists.
@@ -9597,6 +9651,7 @@ pub fn run() {
             delete_inventory_item,
             rename_file,
             fs_create_dir,
+            fs_open_terminal,
             write_text_file,
             write_binary_file,
             ensure_snapshot_export_dir,
