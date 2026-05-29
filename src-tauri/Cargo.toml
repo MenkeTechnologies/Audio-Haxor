@@ -51,6 +51,10 @@ similar = "2"
 # only decode is wired for now (matches existing .tar.gz support model:
 # extract many formats, only compress to .zip).
 sevenz-rust2 = { version = "0.16", default-features = false, features = ["util"] }
+# Cross-platform atime/mtime updates (touch(1) equivalent). Comes
+# transitively via `tar` already; declaring explicitly so the touch
+# command doesn't rely on the transitive.
+filetime = "0.2"
 notify = "8"
 # Cross-platform "send to recycle bin / trash" (macOS NSFileManager
 # trashItemAtURL, Linux XDG Trash spec, Windows Recycle Bin). Used by the

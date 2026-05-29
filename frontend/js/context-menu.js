@@ -2472,6 +2472,37 @@ document.addEventListener('contextmenu', (e) => {
                     }
                 },
             });
+            // Touch — update mtime+atime to now. Useful for build-system
+            // forcing rebuilds, sorting by recency, etc.
+            items.push({
+                icon: '&#9201;',
+                label: 'Touch (set mtime to now)', ..._noEcho,
+                action: () => {
+                    if (typeof window.fileBrowserTouchPaths === 'function') {
+                        window.fileBrowserTouchPaths([path]);
+                    }
+                },
+            });
+            // Color label submenu — each label entry sets the row's
+            // color tag. Click "None" to clear. Inline as items rather
+            // than a real submenu so users see them at the top level.
+            if (typeof window.fileBrowserSetLabel === 'function' && Array.isArray(window.FB_LABEL_COLORS)) {
+                const cur = window.fileBrowserGetLabel ? window.fileBrowserGetLabel(path) : 0;
+                items.push('---');
+                for (let i = 0; i < window.FB_LABEL_COLORS.length; i++) {
+                    const color = window.FB_LABEL_COLORS[i];
+                    const name = window.FB_LABEL_NAMES[i];
+                    const swatch = color
+                        ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin-right:6px;vertical-align:middle"></span>`
+                        : '';
+                    items.push({
+                        icon: i === cur ? '&#10003;' : '&#9711;',
+                        label: `${swatch}Label: ${name}`, ..._noEcho,
+                        action: () => window.fileBrowserSetLabel(path, i),
+                    });
+                }
+                items.push('---');
+            }
             // Copy / Cut — mark for later Paste in another folder.
             // Pure JS clipboard (Tauri WebView clipboard API is text-only).
             items.push({

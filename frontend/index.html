@@ -4630,6 +4630,34 @@
         }
         .fb-bm-path:hover { color: var(--cyan); }
 
+        /* Color label ring overlays the file icon's bottom-right corner.
+         * Positioned relative to .file-icon (which is inline-flex). */
+        .file-icon { position: relative; }
+        .fb-label-ring {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 0, 0, 0.6);
+            pointer-events: none;
+        }
+
+        /* Compare-folders modal sections + per-bucket coloring. */
+        .fb-cmp-body {
+            margin-top: 12px;
+            max-height: 50vh;
+            overflow: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .fb-cmp-section { margin-bottom: 12px; }
+        .fb-cmp-only-a { color: #ff79c6; }
+        .fb-cmp-only-b { color: #50fa7b; }
+        .fb-cmp-diff   { color: #ffb86c; }
+        .fb-cmp-equal { color: var(--text-dim); padding: 12px; }
+
         .modal-resize {
             position: absolute;
             z-index: 10;

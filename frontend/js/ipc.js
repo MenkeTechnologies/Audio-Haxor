@@ -1914,6 +1914,13 @@ window.vstUpdater = {
      *  `[{tag, aLineStart, aLineEnd, bLineStart, bLineEnd, text}]`
      *  where tag ∈ equal/delete/insert. Rejects binary + >4 MiB files. */
     fsDiff: (pathA, pathB) => invoke('fs_diff', {pathA, pathB}),
+    /** Set a file's mtime + atime to now (creates the file if absent). */
+    fsTouch: (filePath) => invoke('fs_touch', {filePath}),
+    /** Recursive compare of two dir trees. Returns
+     *  `{onlyInA: [rel,...], onlyInB: [rel,...], different: [rel,...]}`.
+     *  Skips dotfiles; capped 50k entries/side; hashes files ≤ 16 MiB
+     *  to confirm content equality when sizes match. */
+    fsCompareDirs: (dirA, dirB) => invoke('fs_compare_dirs', {dirA, dirB}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),

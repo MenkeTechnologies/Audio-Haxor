@@ -7477,6 +7477,140 @@ async fn fs_image_thumbnail(
     Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// Update a file's modification + access times to now (no `-d` /
+/// `-t` flag yet — that's a bigger surface area than the typical use
+/// case warrants). Creates the file if missing, same as `touch(1)`.
+#[tauri::command]
+async fn fs_touch(file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        let p = std::path::PathBuf::from(&file_path);
+        if !p.exists() {
+            std::fs::File::create(&p).map_err(|e| e.to_string())?;
+        }
+        // Cross-platform mtime set via filetime crate (already a dep
+        // via the `tar` chain). Sets both atime + mtime to now.
+        let now = filetime::FileTime::now();
+        filetime::set_file_times(&p, now, now).map_err(|e| e.to_string())?;
+        #[cfg(not(test))]
+        append_log(format!("TOUCH — {}", file_path));
+        Ok(())
+    })
+    .await
+}
+
+/// Recursively compare two directory trees by relative path + content
+/// (size + SHA-256 hash for files; only structure for dirs). Returns
+/// three buckets:
+///   - `only_in_a`: paths present in `a` but not `b`
+///   - `only_in_b`: paths present in `b` but not `a`
+///   - `different`: paths present in both but with different content
+/// Each entry is the path RELATIVE to its tree root (e.g. `sub/foo.txt`).
+/// Skips dotfiles + capped at 50k entries per side to bound IO.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DirCompareResult {
+    only_in_a: Vec<String>,
+    only_in_b: Vec<String>,
+    different: Vec<String>,
+}
+
+#[tauri::command]
+async fn fs_compare_dirs(dir_a: String, dir_b: String) -> Result<DirCompareResult, String> {
+    blocking_res(move || {
+        use sha2::{Digest, Sha256};
+        use std::io::Read;
+        let root_a = std::path::PathBuf::from(&dir_a);
+        let root_b = std::path::PathBuf::from(&dir_b);
+        if !root_a.is_dir() { return Err(format!("Not a directory: {dir_a}")); }
+        if !root_b.is_dir() { return Err(format!("Not a directory: {dir_b}")); }
+        const MAX_ENTRIES: usize = 50_000;
+
+        fn walk(root: &std::path::Path, cap: usize) -> Result<std::collections::HashMap<String, (bool, u64)>, String> {
+            let mut out: std::collections::HashMap<String, (bool, u64)> = std::collections::HashMap::new();
+            let mut stack = vec![root.to_path_buf()];
+            while let Some(d) = stack.pop() {
+                if out.len() >= cap { break; }
+                let Ok(rd) = std::fs::read_dir(&d) else { continue };
+                for entry in rd.flatten() {
+                    if out.len() >= cap { break; }
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if name.starts_with('.') { continue; }
+                    let path = entry.path();
+                    let Ok(ty) = entry.file_type() else { continue };
+                    let rel = path.strip_prefix(root).map_err(|e| e.to_string())?
+                        .to_string_lossy().to_string();
+                    if ty.is_dir() {
+                        out.insert(rel, (true, 0));
+                        stack.push(path);
+                    } else if ty.is_file() {
+                        let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                        out.insert(rel, (false, size));
+                    }
+                }
+            }
+            Ok(out)
+        }
+
+        let map_a = walk(&root_a, MAX_ENTRIES)?;
+        let map_b = walk(&root_b, MAX_ENTRIES)?;
+
+        // Quick fingerprint of a file: SHA-256 of contents (capped at
+        // 16 MiB per file so the comparison can't pin IO threads on
+        // huge media).
+        let hash_file = |path: &std::path::Path| -> Option<String> {
+            const HASH_CAP: u64 = 16 * 1024 * 1024;
+            let meta = std::fs::metadata(path).ok()?;
+            if meta.len() > HASH_CAP { return None; } // too big — assume "different" if sizes match
+            let mut f = std::fs::File::open(path).ok()?;
+            let mut hasher = Sha256::new();
+            let mut buf = [0u8; 65536];
+            loop {
+                let n = f.read(&mut buf).ok()?;
+                if n == 0 { break; }
+                hasher.update(&buf[..n]);
+            }
+            Some(hex_encode(&hasher.finalize()))
+        };
+
+        let mut only_a: Vec<String> = Vec::new();
+        let mut only_b: Vec<String> = Vec::new();
+        let mut diff: Vec<String> = Vec::new();
+        for (rel, (is_dir, size_a)) in &map_a {
+            match map_b.get(rel) {
+                None => only_a.push(rel.clone()),
+                Some(&(b_is_dir, size_b)) => {
+                    if *is_dir != b_is_dir {
+                        diff.push(rel.clone());
+                        continue;
+                    }
+                    if *is_dir { continue; } // both dirs at same rel — no contents check
+                    if *size_a != size_b {
+                        diff.push(rel.clone());
+                        continue;
+                    }
+                    // Sizes match — hash to confirm content equality.
+                    let h_a = hash_file(&root_a.join(rel));
+                    let h_b = hash_file(&root_b.join(rel));
+                    match (h_a, h_b) {
+                        (Some(a), Some(b)) if a != b => diff.push(rel.clone()),
+                        (None, None) => { /* both too big; treat as same if sizes match */ }
+                        (None, _) | (_, None) => diff.push(rel.clone()),
+                        _ => { /* equal */ }
+                    }
+                }
+            }
+        }
+        for rel in map_b.keys() {
+            if !map_a.contains_key(rel) { only_b.push(rel.clone()); }
+        }
+        only_a.sort();
+        only_b.sort();
+        diff.sort();
+        Ok(DirCompareResult { only_in_a: only_a, only_in_b: only_b, different: diff })
+    })
+    .await
+}
+
 /// Produce a unified diff between two text files. Each side is read up
 /// to 4 MiB; binary files (NUL in first 8 KiB) are rejected with a
 /// clear error rather than returning gibberish. Returns the diff as a
@@ -11087,6 +11221,8 @@ pub fn run() {
             fs_image_thumbnail,
             fs_find_duplicates,
             fs_diff,
+            fs_touch,
+            fs_compare_dirs,
             delete_inventory_item,
             rename_file,
             fs_create_dir,

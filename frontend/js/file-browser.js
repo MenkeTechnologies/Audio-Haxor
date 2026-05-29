@@ -2373,6 +2373,142 @@ async function fileBrowserShowDiffModal(pathA, pathB) {
     }
 }
 
+// ── Color labels (Finder-style file tags 1-7) ──
+// Single-tag-per-file model: each path maps to at most one label idx
+// (0 = no label, 1-7 = colored). Persisted in prefs as
+// `fileBrowserLabels` = {path: idx}. Rendered as a colored ring on
+// the row icon cell, patched in place to avoid full re-render on label
+// changes.
+const FB_LABEL_COLORS = [
+    null,            // 0 = no label
+    '#ff5555',       // 1 red
+    '#ffb86c',       // 2 orange
+    '#f1fa8c',       // 3 yellow
+    '#50fa7b',       // 4 green
+    '#8be9fd',       // 5 cyan
+    '#bd93f9',       // 6 purple
+    '#bfbfbf',       // 7 gray
+];
+const FB_LABEL_NAMES = ['None', 'Red', 'Orange', 'Yellow', 'Green', 'Cyan', 'Purple', 'Gray'];
+let _fbLabels = (() => {
+    try {
+        const raw = typeof prefs !== 'undefined' ? prefs.getItem('fileBrowserLabels') : null;
+        return raw ? (JSON.parse(raw) || {}) : {};
+    } catch (_) { return {}; }
+})();
+function _fbLabelsPersist() {
+    try {
+        if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserLabels', JSON.stringify(_fbLabels));
+    } catch (_) { /* ignore */ }
+}
+function fileBrowserGetLabel(path) { return _fbLabels[path] || 0; }
+function fileBrowserSetLabel(path, idx) {
+    idx = parseInt(idx, 10) || 0;
+    if (idx === 0) delete _fbLabels[path];
+    else _fbLabels[path] = idx;
+    _fbLabelsPersist();
+    const row = document.querySelector(`.file-row[data-file-path="${CSS.escape(path)}"]`);
+    if (row) {
+        let ring = row.querySelector('.fb-label-ring');
+        if (idx === 0) {
+            if (ring) ring.remove();
+        } else {
+            if (!ring) {
+                ring = document.createElement('span');
+                ring.className = 'fb-label-ring';
+                const iconCell = row.querySelector('.file-icon');
+                if (iconCell) iconCell.appendChild(ring);
+            }
+            ring.style.background = FB_LABEL_COLORS[idx];
+            ring.title = `Label: ${FB_LABEL_NAMES[idx]}`;
+        }
+    }
+}
+function fileBrowserBulkSetLabel(paths, idx) {
+    for (const p of paths) fileBrowserSetLabel(p, idx);
+    if (typeof showToast === 'function') {
+        showToast(toastFmt('toast.deleted_name', {name: `labeled ${paths.length} item${paths.length === 1 ? '' : 's'} ${FB_LABEL_NAMES[idx] || 'None'}`}));
+    }
+}
+
+// ── Touch (set mtime to now) ──
+async function fileBrowserTouchPaths(paths) {
+    if (!Array.isArray(paths) || paths.length === 0) return;
+    let ok = 0, fail = 0;
+    for (const p of paths) {
+        try { await window.vstUpdater.fsTouch(p); ok++; }
+        catch (_) { fail++; }
+    }
+    if (typeof showToast === 'function') {
+        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `touched ${ok} item${ok === 1 ? '' : 's'}`}));
+        if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} touch${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+    }
+    if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+}
+
+// ── Compare folders modal ──
+// Defaults to active pane vs next pane (multi-pane required); can take
+// explicit paths from caller (e.g. selection has exactly 2 folders).
+async function fileBrowserShowCompareModal(dirA, dirB) {
+    if (!dirA || !dirB) {
+        if (_fbPaneCount < 2) {
+            if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'Need ≥ 2 panes (Cmd+\\\\ to split)'}), 4000, 'error');
+            return;
+        }
+        const a = _fbActivePane();
+        const b = _fbPanes[(_fbActivePaneIdx + 1) % _fbPaneCount];
+        if (!a || !b || !a.path || !b.path) {
+            if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'One pane has no folder loaded'}), 4000, 'error');
+            return;
+        }
+        dirA = a.path; dirB = b.path;
+    }
+    document.getElementById('appCmpModal')?.remove();
+    const html = `<div class="modal-overlay modal-visible" id="appCmpModal" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Compare Folders</h2>
+        <button type="button" class="modal-close" data-app-cmp="close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p class="app-confirm-message"><strong>A:</strong> ${escapeHtml(dirA)}<br><strong>B:</strong> ${escapeHtml(dirB)}</p>
+        <div id="appCmpBody" class="fb-cmp-body">comparing…</div>
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-primary" data-app-cmp="close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appCmpModal');
+    const body = document.getElementById('appCmpBody');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', (e) => {
+        if (e.target.closest('[data-app-cmp="close"]') || e.target === modal) close();
+    });
+    try {
+        const r = await window.vstUpdater.fsCompareDirs(dirA, dirB);
+        const sec = (label, items, cls) => {
+            if (!items || items.length === 0) return '';
+            return `<div class="fb-cmp-section"><div class="fb-info-key">${escapeHtml(label)} (${items.length})</div>`
+                + items.map((rel) => `<div class="fb-info-val ${cls}">${escapeHtml(rel)}</div>`).join('')
+                + `</div>`;
+        };
+        const total = (r.onlyInA?.length || 0) + (r.onlyInB?.length || 0) + (r.different?.length || 0);
+        if (total === 0) {
+            body.innerHTML = '<div class="fb-cmp-equal">trees are identical</div>';
+        } else {
+            body.innerHTML = sec('Only in A', r.onlyInA, 'fb-cmp-only-a')
+                + sec('Only in B', r.onlyInB, 'fb-cmp-only-b')
+                + sec('Different content (same path)', r.different, 'fb-cmp-diff');
+        }
+    } catch (err) {
+        body.innerHTML = `<div class="fb-diff-error">error: ${escapeHtml(String(err && err.message ? err.message : err))}</div>`;
+    }
+}
+
 // ── Quick file palette (Cmd+P — VSCode-style recent file/folder jumper) ──
 // Tracks every path that's been loaded via `loadDirectory` (folders)
 // or opened (files via opener_open / openFileDefault). Persisted in
@@ -2590,6 +2726,13 @@ if (typeof window !== 'undefined') {
     window.fileBrowserShowBookmarksModal = fileBrowserShowBookmarksModal;
     window.fileBrowserShowBulkChmodModal = fileBrowserShowBulkChmodModal;
     window.fileBrowserRecordRecent = fileBrowserRecordRecent;
+    window.fileBrowserGetLabel = fileBrowserGetLabel;
+    window.fileBrowserSetLabel = fileBrowserSetLabel;
+    window.fileBrowserBulkSetLabel = fileBrowserBulkSetLabel;
+    window.fileBrowserTouchPaths = fileBrowserTouchPaths;
+    window.fileBrowserShowCompareModal = fileBrowserShowCompareModal;
+    window.FB_LABEL_COLORS = FB_LABEL_COLORS;
+    window.FB_LABEL_NAMES = FB_LABEL_NAMES;
 }
 
 // ── Move-to-bookmark (right-click → Move to → <bookmark>) ──
@@ -3615,9 +3758,15 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
         ? '<span class="file-items-loading-text">…</span>'
         : '';
     const itemsCls = e.isDir ? ' file-items-loading' : '';
+    // Color label ring — Finder convention. Inserted into the icon cell
+    // as an absolutely-positioned span so it overlays the glyph corner.
+    const labelIdx = (typeof fileBrowserGetLabel === 'function') ? fileBrowserGetLabel(e.path) : 0;
+    const labelRing = labelIdx > 0
+        ? `<span class="fb-label-ring" style="background:${FB_LABEL_COLORS[labelIdx]}" title="Label: ${FB_LABEL_NAMES[labelIdx]}"></span>`
+        : '';
     const iconCell = isImageThumb
-        ? `<span class="file-icon file-icon-thumb"><canvas class="file-image-thumb" data-fb-thumb-path="${escapeHtml(e.path)}" width="32" height="32"></canvas></span>`
-        : `<span class="file-icon">${fileIcon(e)}</span>`;
+        ? `<span class="file-icon file-icon-thumb"><canvas class="file-image-thumb" data-fb-thumb-path="${escapeHtml(e.path)}" width="32" height="32"></canvas>${labelRing}</span>`
+        : `<span class="file-icon">${fileIcon(e)}${labelRing}</span>`;
     return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}${isSelected ? ' file-selected' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" draggable="true" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
       <span class="file-cb"><input type="checkbox" class="file-row-cb" data-fb-cb="${escapeHtml(e.path)}"${isSelected ? ' checked' : ''}></span>
       ${wfBg}
@@ -4600,6 +4749,12 @@ document.addEventListener('contextmenu', (e) => {
             label: `Permissions on ${selected.length} Item${selected.length === 1 ? '' : 's'}…`, ..._ctxMenuNoEcho,
             action: () => fileBrowserShowBulkChmodModal(selected),
         });
+        // Bulk touch — set mtime to now on every selected path.
+        items.push({
+            icon: '&#9201;',
+            label: `Touch ${selected.length} Item${selected.length === 1 ? '' : 's'}`, ..._ctxMenuNoEcho,
+            action: () => fileBrowserTouchPaths(selected),
+        });
         // Compress selection into one .zip.
         items.push({
             icon: '&#128230;',
@@ -4641,6 +4796,13 @@ document.addEventListener('contextmenu', (e) => {
         label: 'Manage Bookmarks…', ..._ctxMenuNoEcho,
         action: () => fileBrowserShowBookmarksModal(),
     });
+    if (_fbPaneCount >= 2) {
+        items.push({
+            icon: '&#8651;',
+            label: 'Compare with Other Pane (folder tree diff)', ..._ctxMenuNoEcho,
+            action: () => fileBrowserShowCompareModal(),
+        });
+    }
     if (selected.length === 2) {
         items.push({
             icon: '&#8651;',
