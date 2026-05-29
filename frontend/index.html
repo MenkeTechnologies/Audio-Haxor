@@ -5977,15 +5977,26 @@
             flex-shrink: 0;
         }
 
-        /* Folder rows' size cell shows the inventory-derived total (sum of
-         * `size` across all scanned rows under this folder prefix). Italic
-         * differentiates "computed from inventory" from a real file size; the
-         * cell's title tooltip carries the exact-filesystem total once the
-         * user hovers (lazy walk). */
-        .file-size.file-size-inv {
+        /* Folder rows' size cell is populated by a background recursive walk
+         * (`refreshFolderFilesystemSizes` → `_paintFolderSizeCell`). While the
+         * walk is in flight the cell shows a dim "…" placeholder; on failure
+         * (timeout / permission / unreadable) it shows a dash. */
+        .file-size.file-size-loading {
+            color: rgba(5, 217, 232, 0.4);
+        }
+
+        .file-size.file-size-loading .file-size-loading-text {
+            animation: file-size-pulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes file-size-pulse {
+            0%, 100% { opacity: 0.4; }
+            50%      { opacity: 0.9; }
+        }
+
+        .file-size.file-size-dash {
+            color: rgba(255, 255, 255, 0.25);
             font-style: italic;
-            color: rgba(5, 217, 232, 0.75);
-            cursor: help;
         }
 
         .file-date {

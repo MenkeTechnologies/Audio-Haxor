@@ -295,46 +295,43 @@ function _scanStatusBadgesHtml(status) {
     return `<span class="scan-badges">${parts.join('')}</span>`;
 }
 
-/** Inject the badge fragment into the matching folder row's name cell, and
- *  paint the inventory-derived total size into the row's `.file-size` cell.
- *  Folders default to empty `.file-size`; once scan-status returns, we replace
- *  it with the inventory bytes total (instant — no recursive walk). The raw
- *  filesystem total is layered on top via the size-cell hover handler below. */
+/** Inject the badge fragment into the matching folder row's name cell. The
+ *  size cell is owned exclusively by `refreshFolderFilesystemSizes` (the
+ *  background recursive walk) — the two paint paths must not race for the
+ *  same cell. Badges only touch `.file-name`; size only `_paintFolderSizeCell`
+ *  touches `.file-size`. */
 function _applyScanBadgesToRow(folderPath, status) {
     if (typeof document === 'undefined' || typeof CSS === 'undefined') return;
     try {
         const row = document.querySelector(`.file-row.file-dir[data-file-path="${CSS.escape(folderPath)}"]`);
         if (!row) return;
         const nameCell = row.querySelector('.file-name');
-        if (nameCell) {
-            const prior = nameCell.querySelector('.scan-badges');
-            if (prior) prior.remove();
-            const html = _scanStatusBadgesHtml(status);
-            if (html) nameCell.insertAdjacentHTML('beforeend', html);
-        }
-        const sizeCell = row.querySelector('.file-size');
-        // Reads `totalBytes` (camelCase, project convention) with a
-        // `total_bytes` fallback for backward-compat against any older
-        // binary that hasn't picked up the serde rename yet.
-        const totalBytes = status ? Number(status.totalBytes ?? status.total_bytes ?? 0) : 0;
-        if (sizeCell && totalBytes > 0) {
-            sizeCell.textContent = _fbFormatBytes(totalBytes);
-            sizeCell.classList.add('file-size-inv');
-            // Tooltip until the user hovers — at hover time we'll replace with
-            // the recursive filesystem total (see `_fbFolderSizeHoverHandler`).
-            sizeCell.title = `Inventory total: ${_fbFormatBytes(totalBytes)} · hover for filesystem total`;
-        }
+        if (!nameCell) return;
+        const prior = nameCell.querySelector('.scan-badges');
+        if (prior) prior.remove();
+        const html = _scanStatusBadgesHtml(status);
+        if (html) nameCell.insertAdjacentHTML('beforeend', html);
     } catch (_) { /* CSS.escape unavailable */ }
 }
 
-// ── Lazy filesystem-size on folder size-cell hover ──
-// Inventory total is shown inline. On first hover of a folder's size cell, we
-// kick off a recursive `fs_folder_size` walk in Rust (deadline-protected) and
-// update the cell's tooltip when it returns. Cached per-path for the session
-// since folder content rarely changes during a single browse session and the
-// walk is expensive.
+// ── Background filesystem size for every visible folder ──
+// On each directory render we kick off a recursive `fs_folder_size` walk for
+// every folder row. Results stream back and replace the per-row size cell as
+// they arrive (initial cells show "…" placeholder). Bounded concurrency so a
+// directory with 100 folders doesn't spawn 100 simultaneous walks; a
+// sequence guard prevents results from an abandoned directory from painting
+// into the new one. Session cache makes revisits instant.
 var _fsFolderSizeCache = new Map();
 var _fsFolderSizeInFlight = new Map();
+/** Bumped on each `refreshFolderFilesystemSizes` call. Painted results check
+ *  this to ensure they belong to the current render (otherwise a slow walk
+ *  from `/Music` could paint into `/Downloads` after the user navigated). */
+var _fsFolderSizeSeq = 0;
+/** Concurrent in-flight walks cap. JUCE/SMB I/O is the bottleneck — 4 keeps
+ *  thrashing bounded while still finishing typical directories in seconds. */
+const FS_FOLDER_SIZE_CONCURRENCY = 4;
+var _fsFolderSizeQueue = [];
+var _fsFolderSizeActive = 0;
 
 async function getFsFolderSize(folderPath) {
     if (_fsFolderSizeCache.has(folderPath)) return _fsFolderSizeCache.get(folderPath);
@@ -352,33 +349,64 @@ async function getFsFolderSize(folderPath) {
     return p;
 }
 
-async function _fbFolderSizeHoverHandler(cell) {
-    if (!cell || cell.dataset.fsSizeChecked === '1') return;
-    cell.dataset.fsSizeChecked = '1';
-    const row = cell.closest('.file-row.file-dir');
-    if (!row) return;
-    const folderPath = row.dataset.filePath;
-    if (!folderPath) return;
-    const priorTitle = cell.title;
-    cell.title = `${priorTitle}\nComputing filesystem total…`;
-    const bytes = await getFsFolderSize(folderPath);
-    if (bytes === null) {
-        cell.title = `${priorTitle}\nFilesystem total: unavailable (timeout or permission)`;
-        // Allow a retry on next hover.
-        delete cell.dataset.fsSizeChecked;
-    } else {
-        cell.title = `Inventory: ${cell.textContent || '0'} · Filesystem: ${_fbFormatBytes(bytes)}`;
+function _pumpFsFolderSizeQueue() {
+    while (_fsFolderSizeActive < FS_FOLDER_SIZE_CONCURRENCY && _fsFolderSizeQueue.length > 0) {
+        const job = _fsFolderSizeQueue.shift();
+        if (job.seq !== _fsFolderSizeSeq) continue; // directory changed before we got to it
+        _fsFolderSizeActive++;
+        getFsFolderSize(job.folderPath)
+            .then((bytes) => {
+                if (job.seq === _fsFolderSizeSeq) _paintFolderSizeCell(job.folderPath, bytes);
+            })
+            .finally(() => {
+                _fsFolderSizeActive--;
+                _pumpFsFolderSizeQueue();
+            });
     }
 }
 
-if (typeof document !== 'undefined') {
-    // `mouseenter` doesn't bubble, so listen in capture phase and filter.
-    document.addEventListener('mouseover', (e) => {
-        const t = e.target instanceof Element ? e.target : null;
-        if (!t) return;
-        const cell = t.closest('.file-row.file-dir .file-size');
-        if (cell) _fbFolderSizeHoverHandler(cell);
-    });
+function _paintFolderSizeCell(folderPath, bytes) {
+    if (typeof document === 'undefined' || typeof CSS === 'undefined') return;
+    try {
+        const row = document.querySelector(`.file-row.file-dir[data-file-path="${CSS.escape(folderPath)}"]`);
+        if (!row) return;
+        const sizeCell = row.querySelector('.file-size');
+        if (!sizeCell) return;
+        if (bytes === null || bytes === undefined) {
+            // Walk failed (timeout, permission denied, deleted) — show a dash
+            // rather than leave the "…" spinner forever.
+            sizeCell.textContent = '—';
+            sizeCell.classList.remove('file-size-loading');
+            sizeCell.classList.add('file-size-dash');
+            sizeCell.title = 'Folder size unavailable (timeout, permission, or unreadable)';
+        } else {
+            sizeCell.textContent = _fbFormatBytes(Number(bytes) || 0);
+            sizeCell.classList.remove('file-size-loading', 'file-size-dash', 'file-size-inv');
+            sizeCell.title = `Filesystem total: ${sizeCell.textContent}`;
+        }
+    } catch (_) { /* CSS.escape unavailable */ }
+}
+
+/** Called after `renderFileList` finishes painting. Enumerates the visible
+ *  folder rows and either replays from cache (instant) or queues a walk. */
+function refreshFolderFilesystemSizes() {
+    if (typeof document === 'undefined' || !_fileBrowserPath) return;
+    if (!window.vstUpdater || typeof window.vstUpdater.fsFolderSize !== 'function') return;
+    const folders = Array.from(document.querySelectorAll('.file-row.file-dir'))
+        .map((row) => row.dataset.filePath)
+        .filter(Boolean);
+    if (folders.length === 0) return;
+    // Bump the sequence so any queued jobs from a prior render are skipped
+    // when the pump reaches them (see check in `_pumpFsFolderSizeQueue`).
+    const seq = ++_fsFolderSizeSeq;
+    for (const folderPath of folders) {
+        if (_fsFolderSizeCache.has(folderPath)) {
+            _paintFolderSizeCell(folderPath, _fsFolderSizeCache.get(folderPath));
+            continue;
+        }
+        _fsFolderSizeQueue.push({folderPath, seq});
+    }
+    _pumpFsFolderSizeQueue();
 }
 
 /** Kick off (or replay from cache) the scan-status fetch for the currently
@@ -730,13 +758,20 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
 
     const wfBg = isAudio ? `<canvas class="file-waveform" data-wf-path="${escapeHtml(e.path)}" height="36" title="Waveform"></canvas><span class="file-wf-cursor"></span>` : '';
     const isSelected = _fileSelected.has(e.path);
+    // Folders show a "…" placeholder until the background walk completes
+    // (see `refreshFolderFilesystemSizes` → `_paintFolderSizeCell`). Plain
+    // class differentiates the loading state for styling.
+    const sizeContent = e.isDir
+        ? '<span class="file-size-loading-text">…</span>'
+        : e.sizeFormatted;
+    const sizeCls = e.isDir ? ' file-size-loading' : '';
     return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}${isSelected ? ' file-selected' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
       <span class="file-cb"><input type="checkbox" class="file-row-cb" data-fb-cb="${escapeHtml(e.path)}"${isSelected ? ' checked' : ''}></span>
       ${wfBg}
       <span class="file-icon">${fileIcon(e)}</span>
       <span class="file-name">${search && typeof highlightMatch === 'function' ? highlightMatch(e.name, search, mode || 'fuzzy') : escapeHtml(e.name)}${extras}${note}</span>
       <span class="file-ext">${e.isDir ? 'DIR' : e.ext}</span>
-      <span class="file-size">${e.isDir ? '' : e.sizeFormatted}</span>
+      <span class="file-size${sizeCls}">${sizeContent}</span>
       <span class="file-date">${e.modified}</span>
     </div>`;
 }
@@ -803,10 +838,16 @@ function renderFileList() {
             }
         } else {
             requestAnimationFrame(() => initFileBrowserWaveforms());
-            // Folder scan-status badges — fire-and-forget after the full list
-            // is painted so it can't delay the visible render.
+            // Folder scan-status badges + filesystem-size walks — fire-and-forget
+            // after the full list is painted so they can't delay the visible
+            // render. Badges paint instantly from one batched SQL query;
+            // filesystem-size walks are bounded-concurrency and stream in as
+            // each per-folder walk completes.
             if (typeof refreshFolderScanBadges === 'function') {
                 requestAnimationFrame(() => { refreshFolderScanBadges(); });
+            }
+            if (typeof refreshFolderFilesystemSizes === 'function') {
+                requestAnimationFrame(() => { refreshFolderFilesystemSizes(); });
             }
         }
     }
