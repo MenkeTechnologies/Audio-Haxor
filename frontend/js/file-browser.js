@@ -295,20 +295,86 @@ function _scanStatusBadgesHtml(status) {
     return `<span class="scan-badges">${parts.join('')}</span>`;
 }
 
-/** Inject the badge fragment into the matching folder row's name cell. */
+/** Inject the badge fragment into the matching folder row's name cell, and
+ *  paint the inventory-derived total size into the row's `.file-size` cell.
+ *  Folders default to empty `.file-size`; once scan-status returns, we replace
+ *  it with the inventory bytes total (instant — no recursive walk). The raw
+ *  filesystem total is layered on top via the size-cell hover handler below. */
 function _applyScanBadgesToRow(folderPath, status) {
     if (typeof document === 'undefined' || typeof CSS === 'undefined') return;
     try {
         const row = document.querySelector(`.file-row.file-dir[data-file-path="${CSS.escape(folderPath)}"]`);
         if (!row) return;
         const nameCell = row.querySelector('.file-name');
-        if (!nameCell) return;
-        // Remove any prior badge group from a stale render.
-        const prior = nameCell.querySelector('.scan-badges');
-        if (prior) prior.remove();
-        const html = _scanStatusBadgesHtml(status);
-        if (html) nameCell.insertAdjacentHTML('beforeend', html);
+        if (nameCell) {
+            const prior = nameCell.querySelector('.scan-badges');
+            if (prior) prior.remove();
+            const html = _scanStatusBadgesHtml(status);
+            if (html) nameCell.insertAdjacentHTML('beforeend', html);
+        }
+        const sizeCell = row.querySelector('.file-size');
+        if (sizeCell && status && Number(status.total_bytes) > 0) {
+            sizeCell.textContent = _fbFormatBytes(Number(status.total_bytes));
+            sizeCell.classList.add('file-size-inv');
+            // Tooltip until the user hovers — at hover time we'll replace with
+            // the recursive filesystem total (see `_fbFolderSizeHoverHandler`).
+            sizeCell.title = `Inventory total: ${_fbFormatBytes(Number(status.total_bytes))} · hover for filesystem total`;
+        }
     } catch (_) { /* CSS.escape unavailable */ }
+}
+
+// ── Lazy filesystem-size on folder size-cell hover ──
+// Inventory total is shown inline. On first hover of a folder's size cell, we
+// kick off a recursive `fs_folder_size` walk in Rust (deadline-protected) and
+// update the cell's tooltip when it returns. Cached per-path for the session
+// since folder content rarely changes during a single browse session and the
+// walk is expensive.
+var _fsFolderSizeCache = new Map();
+var _fsFolderSizeInFlight = new Map();
+
+async function getFsFolderSize(folderPath) {
+    if (_fsFolderSizeCache.has(folderPath)) return _fsFolderSizeCache.get(folderPath);
+    if (_fsFolderSizeInFlight.has(folderPath)) return _fsFolderSizeInFlight.get(folderPath);
+    if (!window.vstUpdater || typeof window.vstUpdater.fsFolderSize !== 'function') return null;
+    const p = window.vstUpdater.fsFolderSize(folderPath, 2000)
+        .then((bytes) => {
+            const n = Number(bytes) || 0;
+            _fsFolderSizeCache.set(folderPath, n);
+            return n;
+        })
+        .catch(() => null)
+        .finally(() => { _fsFolderSizeInFlight.delete(folderPath); });
+    _fsFolderSizeInFlight.set(folderPath, p);
+    return p;
+}
+
+async function _fbFolderSizeHoverHandler(cell) {
+    if (!cell || cell.dataset.fsSizeChecked === '1') return;
+    cell.dataset.fsSizeChecked = '1';
+    const row = cell.closest('.file-row.file-dir');
+    if (!row) return;
+    const folderPath = row.dataset.filePath;
+    if (!folderPath) return;
+    const priorTitle = cell.title;
+    cell.title = `${priorTitle}\nComputing filesystem total…`;
+    const bytes = await getFsFolderSize(folderPath);
+    if (bytes === null) {
+        cell.title = `${priorTitle}\nFilesystem total: unavailable (timeout or permission)`;
+        // Allow a retry on next hover.
+        delete cell.dataset.fsSizeChecked;
+    } else {
+        cell.title = `Inventory: ${cell.textContent || '0'} · Filesystem: ${_fbFormatBytes(bytes)}`;
+    }
+}
+
+if (typeof document !== 'undefined') {
+    // `mouseenter` doesn't bubble, so listen in capture phase and filter.
+    document.addEventListener('mouseover', (e) => {
+        const t = e.target instanceof Element ? e.target : null;
+        if (!t) return;
+        const cell = t.closest('.file-row.file-dir .file-size');
+        if (cell) _fbFolderSizeHoverHandler(cell);
+    });
 }
 
 /** Kick off (or replay from cache) the scan-status fetch for the currently

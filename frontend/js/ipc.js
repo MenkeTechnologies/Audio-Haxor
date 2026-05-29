@@ -1836,9 +1836,15 @@ window.vstUpdater = {
     openWithApp: (filePath, appName) => invoke('open_with_app', {filePath, appName}),
     // File browser
     listDirectory: (dirPath) => invoke('fs_list_dir', {dirPath}),
-    /** Per-folder inventory counts (samples / presets / DAW / MIDI / PDF / video).
-     *  Returns `{ "<folder>": { samples, presets, daw, midi, pdf, video }, ... }`. */
+    /** Per-folder inventory counts (samples / presets / DAW / MIDI / PDF / video)
+     *  plus `total_bytes` summed across all inventory rows under the folder.
+     *  Returns `{ "<folder>": { samples, presets, daw, midi, pdf, video, total_bytes }, ... }`. */
     fsFolderScanStatus: (folderPaths) => invoke('fs_folder_scan_status', {folderPaths}),
+    /** Recursive raw-filesystem byte total under `folderPath`. Deadline-based
+     *  timeout (default 2000 ms, clamped 100..30000) — returns error on timeout
+     *  or unreadable folder. Symlinks not followed. Called lazily on size-cell
+     *  hover; the inline number comes from `fsFolderScanStatus.total_bytes`. */
+    fsFolderSize: (folderPath, timeoutMs) => invoke('fs_folder_size', {folderPath, timeoutMs}),
     deleteFile: (filePath) => invoke('delete_file', {filePath}),
     /** Delete on disk + purge path from all inventory DB tables (keyboard `x` / Backspace). */
     deleteInventoryItem: (filePath) => invoke('delete_inventory_item', {filePath}),

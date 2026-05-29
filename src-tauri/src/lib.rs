@@ -6907,6 +6907,56 @@ async fn fs_folder_scan_status(
     blocking_res(move || db::global().folder_scan_status(&folder_paths)).await
 }
 
+/// Recursively sums the byte size of all files under `folder_path`. The
+/// file browser calls this on folder-size hover to show the actual filesystem
+/// total (the inline number comes from inventory `SUM(size)` via
+/// `fs_folder_scan_status` and may undercount unscanned files).
+///
+/// Has a deadline-based timeout (defaults to 2000 ms; clamped 100..30000) —
+/// huge or slow trees (network mounts, deeply nested) return a timeout error
+/// rather than blocking forever. Symlinks are not followed (cycle-safe).
+/// Permission errors on subdirectories are skipped, not propagated.
+#[tauri::command]
+async fn fs_folder_size(folder_path: String, timeout_ms: Option<u64>) -> Result<u64, String> {
+    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(2000).clamp(100, 30_000));
+    blocking_res(move || {
+        let deadline = std::time::Instant::now() + timeout;
+        fn walk(path: &std::path::Path, deadline: std::time::Instant) -> Result<u64, String> {
+            if std::time::Instant::now() > deadline {
+                return Err("timeout".into());
+            }
+            let entries = std::fs::read_dir(path).map_err(|e| e.to_string())?;
+            let mut total: u64 = 0;
+            for entry in entries.flatten() {
+                if std::time::Instant::now() > deadline {
+                    return Err("timeout".into());
+                }
+                // `entry.metadata()` uses `lstat` on Unix — does not follow
+                // symlinks. Symlinked files / dirs are seen but report neither
+                // `is_file()` nor `is_dir()`, so they're naturally skipped.
+                // This is the safe default — following symlinks could trip on
+                // cycles (`/a → /b → /a`) and inflate totals for shared content.
+                let meta = match entry.metadata() {
+                    Ok(m) => m,
+                    Err(_) => continue,
+                };
+                if meta.is_file() {
+                    total = total.saturating_add(meta.len());
+                } else if meta.is_dir() {
+                    // Permission denied / IO errors on subdirs are common; skip
+                    // them silently rather than aborting the whole walk.
+                    if let Ok(sub) = walk(&entry.path(), deadline) {
+                        total = total.saturating_add(sub);
+                    }
+                }
+            }
+            Ok(total)
+        }
+        walk(std::path::Path::new(&folder_path), deadline)
+    })
+    .await
+}
+
 #[tauri::command]
 async fn delete_file(file_path: String) -> Result<(), String> {
     blocking_res(move || {
@@ -8132,6 +8182,48 @@ mod tests {
         let result = rt_block_on(fs_list_dir(tmp.to_string_lossy().to_string()));
         assert!(result.is_err());
         let _ = fs::remove_file(&tmp);
+    }
+
+    /// `fs_folder_size` returns the recursive byte total under a folder.
+    /// Verifies the recursion descends into subdirectories and sums per-file
+    /// sizes correctly.
+    #[test]
+    fn test_fs_folder_size_recursive_sum() {
+        let id = std::process::id();
+        let root = std::env::temp_dir().join(format!("upum_fsize_{}", id));
+        let sub = root.join("sub");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&sub).unwrap();
+        fs::write(root.join("a.bin"), vec![0u8; 1024]).unwrap();
+        fs::write(root.join("b.bin"), vec![0u8; 2048]).unwrap();
+        fs::write(sub.join("c.bin"), vec![0u8; 4096]).unwrap();
+        let result =
+            rt_block_on(fs_folder_size(root.to_string_lossy().to_string(), Some(5000))).unwrap();
+        assert_eq!(result, 1024 + 2048 + 4096, "must sum all files recursively");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Empty folder → 0 bytes (not an error).
+    #[test]
+    fn test_fs_folder_size_empty_folder() {
+        let id = std::process::id();
+        let root = std::env::temp_dir().join(format!("upum_fsize_empty_{}", id));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let result =
+            rt_block_on(fs_folder_size(root.to_string_lossy().to_string(), Some(5000))).unwrap();
+        assert_eq!(result, 0);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Nonexistent path → error.
+    #[test]
+    fn test_fs_folder_size_nonexistent_errors() {
+        let result = rt_block_on(fs_folder_size(
+            format!("/nonexistent/upum_fsize_xyz_{}", std::process::id()),
+            Some(5000),
+        ));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -9438,6 +9530,7 @@ pub fn run() {
             open_with_app,
             fs_list_dir,
             fs_folder_scan_status,
+            fs_folder_size,
             delete_file,
             delete_inventory_item,
             rename_file,

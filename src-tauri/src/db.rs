@@ -305,6 +305,12 @@ fn classify_fts_name_path_search(
 /// [`Database::folder_scan_status`] and consumed by the file browser to
 /// render scan-status badges on folder rows. All counts are u64 because
 /// large libraries can plausibly exceed `i32::MAX`.
+///
+/// `total_bytes` is the sum of `size` across all inventory rows whose path
+/// is under this folder. It lets the file browser show "this folder
+/// contains 2.4 GB of scanned content" instantly (the raw filesystem total
+/// requires a recursive directory walk and is computed lazily via
+/// `fs_folder_size`).
 #[derive(Debug, Default, Clone, serde::Serialize)]
 pub struct FolderScanStatus {
     pub samples: u64,
@@ -313,6 +319,7 @@ pub struct FolderScanStatus {
     pub midi: u64,
     pub pdf: u64,
     pub video: u64,
+    pub total_bytes: u64,
 }
 
 /// `COUNT(*) FROM <table> WHERE path LIKE <like_pat> ESCAPE '\\' [AND <extra_where>]`.
@@ -339,6 +346,32 @@ fn count_path_like(
             "SELECT COUNT(*) FROM {table} WHERE path LIKE ?1 ESCAPE '\\' AND {extra}"
         ),
         None => format!("SELECT COUNT(*) FROM {table} WHERE path LIKE ?1 ESCAPE '\\'"),
+    };
+    conn.query_row(&sql, params![like_pat], |r| r.get::<_, i64>(0))
+        .map(|n| n.max(0) as u64)
+        .unwrap_or(0)
+}
+
+/// `COALESCE(SUM(size), 0) FROM <table> WHERE path LIKE <like_pat> ESCAPE '\\' [AND <extra_where>]`.
+/// Same allowlist gate as `count_path_like`. Returns 0 on any error.
+fn sum_size_path_like(
+    conn: &Connection,
+    table: &str,
+    like_pat: &str,
+    extra_where: Option<&str>,
+) -> u64 {
+    let allowed = matches!(
+        table,
+        "audio_samples" | "presets" | "daw_projects" | "midi_files" | "pdfs" | "video_files"
+    );
+    if !allowed {
+        return 0;
+    }
+    let sql = match extra_where {
+        Some(extra) => format!(
+            "SELECT COALESCE(SUM(size), 0) FROM {table} WHERE path LIKE ?1 ESCAPE '\\' AND {extra}"
+        ),
+        None => format!("SELECT COALESCE(SUM(size), 0) FROM {table} WHERE path LIKE ?1 ESCAPE '\\'"),
     };
     conn.query_row(&sql, params![like_pat], |r| r.get::<_, i64>(0))
         .map(|n| n.max(0) as u64)
@@ -3573,6 +3606,8 @@ DROP TABLE _pl_refresh_paths;"#;
                 .replace('_', "\\_");
             let like_pat = format!("{escaped}/%");
             let status = out.get_mut(raw_folder).expect("seeded above");
+            // Counts (one COUNT(*) per inventory table; each is a fast LIKE-prefix
+            // scan on the indexed `path` column).
             status.samples = count_path_like(&conn, "audio_samples", &like_pat, None);
             status.presets =
                 count_path_like(&conn, "presets", &like_pat, Some("format NOT IN ('MID','MIDI')"));
@@ -3580,6 +3615,16 @@ DROP TABLE _pl_refresh_paths;"#;
             status.midi = count_path_like(&conn, "midi_files", &like_pat, None);
             status.pdf = count_path_like(&conn, "pdfs", &like_pat, None);
             status.video = count_path_like(&conn, "video_files", &like_pat, None);
+            // Total inventory bytes under this folder — sum across all six tables.
+            // Same query shape (SUM(size) instead of COUNT(*)); piggy-backs on the
+            // same index. The file browser shows this as the folder's inline size
+            // (raw filesystem total is a separate lazy `fs_folder_size` call on hover).
+            status.total_bytes = sum_size_path_like(&conn, "audio_samples", &like_pat, None)
+                + sum_size_path_like(&conn, "presets", &like_pat, Some("format NOT IN ('MID','MIDI')"))
+                + sum_size_path_like(&conn, "daw_projects", &like_pat, None)
+                + sum_size_path_like(&conn, "midi_files", &like_pat, None)
+                + sum_size_path_like(&conn, "pdfs", &like_pat, None)
+                + sum_size_path_like(&conn, "video_files", &like_pat, None);
         }
         Ok(out)
     }
@@ -15388,6 +15433,40 @@ mod tests {
             result["/Users/x/100%_kicks"].samples, 1,
             "literal '%' and '_' in folder name must not act as wildcards"
         );
+    }
+
+    /// `total_bytes` sums `size` across all inventory rows under the prefix.
+    /// Verifies the bytes accumulator is wired correctly across multiple tables.
+    #[test]
+    fn test_folder_scan_status_total_bytes_sums_across_inventories() {
+        let db = test_db();
+        let samples = vec![
+            sample("a.wav", "/Users/x/Beats/a.wav", "WAV", 1000),
+            sample("b.wav", "/Users/x/Beats/sub/b.wav", "WAV", 2000),
+            // Sibling under a different prefix — must NOT contribute.
+            sample("c.wav", "/Users/x/Other/c.wav", "WAV", 4000),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 3, 7000, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let result = db
+            .folder_scan_status(&["/Users/x/Beats".into()])
+            .unwrap();
+        assert_eq!(
+            result["/Users/x/Beats"].total_bytes, 3000,
+            "total_bytes must sum sizes under prefix only (1000 + 2000)"
+        );
+    }
+
+    /// Empty inventory → 0 bytes, not an error.
+    #[test]
+    fn test_folder_scan_status_total_bytes_empty() {
+        let db = test_db();
+        let result = db
+            .folder_scan_status(&["/Users/x/Beats".into()])
+            .unwrap();
+        assert_eq!(result["/Users/x/Beats"].total_bytes, 0);
     }
 
     /// Empty input → empty output (no work to do, no panic).

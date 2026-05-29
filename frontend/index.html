@@ -5977,6 +5977,17 @@
             flex-shrink: 0;
         }
 
+        /* Folder rows' size cell shows the inventory-derived total (sum of
+         * `size` across all scanned rows under this folder prefix). Italic
+         * differentiates "computed from inventory" from a real file size; the
+         * cell's title tooltip carries the exact-filesystem total once the
+         * user hovers (lazy walk). */
+        .file-size.file-size-inv {
+            font-style: italic;
+            color: rgba(5, 217, 232, 0.75);
+            cursor: help;
+        }
+
         .file-date {
             font-size: 11px;
             color: var(--text-muted);
