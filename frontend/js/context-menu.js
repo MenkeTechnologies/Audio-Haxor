@@ -2292,7 +2292,7 @@ document.addEventListener('contextmenu', (e) => {
                 // routes through `toast.failed` as an error toast.
                 items.push({
                     icon: '&#9000;',
-                    label: 'Open in Terminal', ..._noEcho,
+                    label: appFmt('menu.fb_open_terminal'), ..._noEcho,
                     action: () => {
                         if (window.vstUpdater && typeof window.vstUpdater.fsOpenTerminal === 'function') {
                             showToast(toastFmt('toast.opening_in_app', {app: 'Terminal'}));
@@ -2340,7 +2340,7 @@ document.addEventListener('contextmenu', (e) => {
                 // there's always *some* editor reachable.
                 items.push({
                     icon: '&#9999;',
-                    label: 'Open in External Editor', ..._noEcho,
+                    label: appFmt('menu.fb_open_external_editor'), ..._noEcho,
                     action: async () => {
                         try {
                             const bin = await window.vstUpdater.fsOpenInEditor(path);
@@ -2431,7 +2431,7 @@ document.addEventListener('contextmenu', (e) => {
             // the overlay knows how to render (audio waveform, PDF, image).
             items.push({
                 icon: '&#128065;',
-                label: 'Quick Look', ..._noEcho,
+                label: appFmt('menu.fb_quick_look'), ..._noEcho,
                 action: () => {
                     if (typeof showQuickLook === 'function') showQuickLook(path);
                 },
@@ -2440,7 +2440,7 @@ document.addEventListener('contextmenu', (e) => {
             // recursive count for dirs). Reuses cyan-modal theme.
             items.push({
                 icon: '&#8505;',
-                label: 'Get Info', ..._noEcho,
+                label: appFmt('menu.fb_get_info'), ..._noEcho,
                 action: () => {
                     if (typeof window.fileBrowserShowInfo === 'function') {
                         window.fileBrowserShowInfo(path);
@@ -2453,7 +2453,7 @@ document.addEventListener('contextmenu', (e) => {
             if (!isDir) {
                 items.push({
                     icon: '&#128273;',
-                    label: 'Hash (SHA-256)', ..._noEcho,
+                    label: appFmt('menu.fb_hash_sha256'), ..._noEcho,
                     action: () => {
                         if (typeof window.fileBrowserShowHashModal === 'function') {
                             window.fileBrowserShowHashModal([path]);
@@ -2465,7 +2465,7 @@ document.addEventListener('contextmenu', (e) => {
             // read-only toggle). Octal-mode entry in a modal.
             items.push({
                 icon: '&#128274;',
-                label: 'Permissions…', ..._noEcho,
+                label: appFmt('menu.fb_permissions'), ..._noEcho,
                 action: () => {
                     if (typeof window.fileBrowserShowChmodModal === 'function') {
                         window.fileBrowserShowChmodModal(path);
@@ -2476,7 +2476,7 @@ document.addEventListener('contextmenu', (e) => {
             // forcing rebuilds, sorting by recency, etc.
             items.push({
                 icon: '&#9201;',
-                label: 'Touch (set mtime to now)', ..._noEcho,
+                label: appFmt('menu.fb_touch'), ..._noEcho,
                 action: () => {
                     if (typeof window.fileBrowserTouchPaths === 'function') {
                         window.fileBrowserTouchPaths([path]);
@@ -2489,7 +2489,7 @@ document.addEventListener('contextmenu', (e) => {
             // round-trip per row to gate the menu).
             items.push({
                 icon: '&#128279;',
-                label: 'Edit Symlink Target…', ..._noEcho,
+                label: appFmt('menu.fb_edit_symlink'), ..._noEcho,
                 action: () => {
                     if (typeof window.fileBrowserShowSymlinkEditor === 'function') {
                         window.fileBrowserShowSymlinkEditor(path);
@@ -2516,7 +2516,7 @@ document.addEventListener('contextmenu', (e) => {
                     const marker = (i === cur) ? ' ✓' : '';
                     items.push({
                         icon,
-                        label: `Label: ${name}${marker}`, ..._noEcho,
+                        label: appFmt('menu.fb_label_prefix') + ': ' + name + marker, ..._noEcho,
                         action: () => window.fileBrowserSetLabel(path, i),
                     });
                 }
@@ -2526,7 +2526,7 @@ document.addEventListener('contextmenu', (e) => {
             // Pure JS clipboard (Tauri WebView clipboard API is text-only).
             items.push({
                 icon: '&#128203;',
-                label: 'Copy File', ..._noEcho,
+                label: appFmt('menu.fb_copy_file'), ..._noEcho,
                 action: () => {
                     if (typeof window.fileBrowserMarkClipboard === 'function') {
                         window.fileBrowserMarkClipboard('copy', [path]);
@@ -2535,7 +2535,7 @@ document.addEventListener('contextmenu', (e) => {
             });
             items.push({
                 icon: '&#9986;',
-                label: 'Cut File', ..._noEcho,
+                label: appFmt('menu.fb_cut_file'), ..._noEcho,
                 action: () => {
                     if (typeof window.fileBrowserMarkClipboard === 'function') {
                         window.fileBrowserMarkClipboard('cut', [path]);
@@ -2545,7 +2545,7 @@ document.addEventListener('contextmenu', (e) => {
             // Make Alias — `{stem} alias[.ext]` symlink next to source.
             items.push({
                 icon: '&#128279;',
-                label: 'Make Alias', ..._noEcho,
+                label: appFmt('menu.fb_make_alias'), ..._noEcho,
                 action: async () => {
                     try {
                         const dest = await window.vstUpdater.fsMakeAlias(path);
@@ -2561,7 +2561,7 @@ document.addEventListener('contextmenu', (e) => {
             // the first candidate already exists.
             items.push({
                 icon: '&#128203;',
-                label: 'Duplicate', ..._noEcho,
+                label: appFmt('menu.fb_duplicate'), ..._noEcho,
                 action: async () => {
                     try {
                         const dest = await window.vstUpdater.fsDuplicate(path);
@@ -2579,7 +2579,7 @@ document.addEventListener('contextmenu', (e) => {
             if (!isDir) {
                 items.push({
                     icon: '&#9881;',
-                    label: 'Run as Program', ..._noEcho,
+                    label: appFmt('menu.fb_run_as_program'), ..._noEcho,
                     action: async () => {
                         try {
                             await window.vstUpdater.fsRunProgram(path);
@@ -2605,7 +2605,7 @@ document.addEventListener('contextmenu', (e) => {
             if (isArchive) {
                 items.push({
                     icon: '&#128194;',
-                    label: 'Extract Here', ..._noEcho,
+                    label: appFmt('menu.fb_extract_here'), ..._noEcho,
                     action: async () => {
                         const parent = path.replace(/\/[^/]+$/, '');
                         // Strip the longest matching suffix so `foo.tar.gz` → `foo`.
@@ -2637,7 +2637,7 @@ document.addEventListener('contextmenu', (e) => {
             // if that exists — Rust side errors, JS retries with -2, -3, …).
             items.push({
                 icon: '&#128230;',
-                label: `Compress "${name}"`, ..._noEcho,
+                label: appFmt('menu.fb_compress_name', {name}), ..._noEcho,
                 action: async () => {
                     const parent = path.replace(/\/[^/]+$/, '');
                     let archive = `${parent}/${name}.zip`;
@@ -2666,7 +2666,7 @@ document.addEventListener('contextmenu', (e) => {
             // distinct from the permanent Delete item below.
             items.push({
                 icon: '&#128465;',
-                label: 'Move to Trash', ..._noEcho, ...shortcutTip('deleteItem'),
+                label: appFmt('menu.fb_move_to_trash'), ..._noEcho, ...shortcutTip('deleteItem'),
                 action: async () => {
                     const msg = `Move "${name}" to Trash?`;
                     const ok = typeof confirmAction === 'function'
@@ -2690,7 +2690,7 @@ document.addEventListener('contextmenu', (e) => {
             // so the user knows this is the dangerous variant.
             items.push({
                 icon: '&#9760;',
-                label: 'Delete Permanently', ..._noEcho,
+                label: appFmt('menu.fb_delete_permanently'), ..._noEcho,
                 action: async () => {
                     const msg = `Permanently delete "${name}"?\n\nThis cannot be undone — the file will not be moved to Trash.`;
                     const ok = typeof confirmAction === 'function'
@@ -2725,7 +2725,7 @@ document.addEventListener('contextmenu', (e) => {
             // one across all 27 locales is heavier than the feature warrants.
             items.push({
                 icon: '&#9998;',
-                label: 'Rename (F2)', ..._noEcho,
+                label: appFmt('menu.fb_rename'), ..._noEcho,
                 action: () => {
                     if (typeof startFileRename === 'function') startFileRename(fileRow);
                 }
@@ -2739,7 +2739,7 @@ document.addEventListener('contextmenu', (e) => {
                     items.push('---');
                     items.push({
                         icon: '&#10145;',
-                        label: 'Move to →',
+                        label: appFmt('menu.fb_move_to_label'),
                         disabled: true,
                     });
                     for (const mi of moveItems) items.push(mi);
@@ -3056,7 +3056,7 @@ document.addEventListener('contextmenu', (e) => {
         if (grDash) {
             const items = [
                 {
-                    icon: '&#8634;', label: 'Refresh', action: () => {
+                    icon: '&#8634;', label: appFmt('menu.fb_refresh'), action: () => {
                         if (typeof showGenreRulesDashboard === 'function') void showGenreRulesDashboard();
                     }
                 },

@@ -5486,12 +5486,12 @@ document.addEventListener('contextmenu', (e) => {
     const items = [
         {
             icon: '&#128193;',
-            label: 'New Folder', ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_new_folder'), ..._ctxMenuNoEcho,
             action: () => fileBrowserNewFolder(),
         },
         {
             icon: '&#128196;',
-            label: 'New File', ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_new_file'), ..._ctxMenuNoEcho,
             action: () => fileBrowserNewFile(),
         },
     ];
@@ -5500,11 +5500,11 @@ document.addEventListener('contextmenu', (e) => {
     // copy clipboard persists for further pastes (Finder behavior).
     const clip = window._fbClipboard;
     if (clip && clip.paths && clip.paths.length > 0) {
-        const verb = clip.mode === 'cut' ? 'Move' : 'Paste';
         const count = clip.paths.length;
         items.push({
             icon: '&#128203;',
-            label: `${verb} ${count} item${count === 1 ? '' : 's'} here`, ..._ctxMenuNoEcho,
+            label: appFmt(clip.mode === 'cut' ? 'menu.fb_move_n_here' : 'menu.fb_paste_n_here', {n: count}),
+            ..._ctxMenuNoEcho,
             action: () => fileBrowserPasteClipboard(),
         });
     }
@@ -5515,7 +5515,7 @@ document.addEventListener('contextmenu', (e) => {
     if (selected.length > 0) {
         items.push({
             icon: '&#128193;',
-            label: `New Folder with ${selected.length} Item${selected.length === 1 ? '' : 's'}`,
+            label: appFmt('menu.fb_new_folder_with_selection', {n: selected.length}),
             ..._ctxMenuNoEcho,
             action: () => fileBrowserNewFolderWithSelection(selected),
         });
@@ -5524,14 +5524,14 @@ document.addEventListener('contextmenu', (e) => {
     if (selected.length > 0) {
         items.push({
             icon: '&#8646;',
-            label: 'Invert Selection', ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_invert_selection'), ..._ctxMenuNoEcho,
             action: () => invertFileSelection(),
         });
         // Bulk Hash — fast SHA-256 for the whole selection (modal shows
         // per-row digests + Copy All).
         items.push({
             icon: '&#128273;',
-            label: `Hash ${selected.length} Item${selected.length === 1 ? '' : 's'}`, ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_hash_n', {n: selected.length}), ..._ctxMenuNoEcho,
             action: () => {
                 // Folders aren't hashable; filter them out.
                 const files = selected.filter((p) => {
@@ -5548,19 +5548,19 @@ document.addEventListener('contextmenu', (e) => {
         // Bulk chmod — applies one octal mode to every selected path.
         items.push({
             icon: '&#128274;',
-            label: `Permissions on ${selected.length} Item${selected.length === 1 ? '' : 's'}…`, ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_chmod_n', {n: selected.length}), ..._ctxMenuNoEcho,
             action: () => fileBrowserShowBulkChmodModal(selected),
         });
         // Bulk touch — set mtime to now on every selected path.
         items.push({
             icon: '&#9201;',
-            label: `Touch ${selected.length} Item${selected.length === 1 ? '' : 's'}`, ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_touch_n', {n: selected.length}), ..._ctxMenuNoEcho,
             action: () => fileBrowserTouchPaths(selected),
         });
         // Compress selection into one .zip.
         items.push({
             icon: '&#128230;',
-            label: `Compress ${selected.length} Item${selected.length === 1 ? '' : 's'} into Archive…`, ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_compress_n', {n: selected.length}), ..._ctxMenuNoEcho,
             action: () => fileBrowserBulkCompress(selected),
         });
         // Extract every selected archive (.zip / .tar / .tar.gz).
@@ -5568,52 +5568,55 @@ document.addEventListener('contextmenu', (e) => {
         if (archives.length > 0) {
             items.push({
                 icon: '&#128194;',
-                label: `Extract ${archives.length} Archive${archives.length === 1 ? '' : 's'} Here`, ..._ctxMenuNoEcho,
+                label: appFmt('menu.fb_extract_n', {n: archives.length}), ..._ctxMenuNoEcho,
                 action: () => fileBrowserBulkExtract(archives),
             });
         }
     }
     items.push({
         icon: '&#128269;',
-        label: 'Select by Pattern…', ..._ctxMenuNoEcho,
+        label: appFmt('menu.fb_select_by_pattern'), ..._ctxMenuNoEcho,
         action: () => fileBrowserPatternSelect(),
     });
     items.push({
         icon: '&#128270;',
-        label: 'Find in Files… (grep)', ..._ctxMenuNoEcho,
+        label: appFmt('menu.fb_find_in_files'), ..._ctxMenuNoEcho,
         action: () => fileBrowserShowGrepModal(),
     });
     items.push({
         icon: '&#128269;',
-        label: 'Find Duplicates… (by content)', ..._ctxMenuNoEcho,
+        label: appFmt('menu.fb_find_duplicates'), ..._ctxMenuNoEcho,
         action: () => fileBrowserShowDuplicatesModal(),
     });
     items.push({
         icon: '&#9889;',
-        label: 'Quick Open…', ..._ctxMenuNoEcho,
+        label: appFmt('menu.fb_quick_open'), ..._ctxMenuNoEcho,
         action: () => fileBrowserShowQuickPalette(),
     });
     items.push({
         icon: '&#128269;',
-        label: 'Spotlight — search all inventory', ..._ctxMenuNoEcho,
+        label: appFmt('menu.fb_spotlight'), ..._ctxMenuNoEcho,
         action: () => fileBrowserShowSpotlight(),
     });
     items.push({
         icon: '&#9733;',
-        label: 'Manage Bookmarks…', ..._ctxMenuNoEcho,
+        label: appFmt('menu.fb_manage_bookmarks'), ..._ctxMenuNoEcho,
         action: () => fileBrowserShowBookmarksModal(),
     });
     if (_fbPaneCount >= 2) {
         items.push({
             icon: '&#8651;',
-            label: 'Compare with Other Pane (folder tree diff)', ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_compare_with_other_pane'), ..._ctxMenuNoEcho,
             action: () => fileBrowserShowCompareModal(),
         });
     }
     if (selected.length === 2) {
         items.push({
             icon: '&#8651;',
-            label: `Diff ${selected.map((p) => p.split('/').pop()).join(' ⇄ ')}`, ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_diff_pair', {
+                a: selected[0]?.split('/').pop() || '',
+                b: selected[1]?.split('/').pop() || '',
+            }), ..._ctxMenuNoEcho,
             action: () => fileBrowserShowDiffModal(),
         });
     }
@@ -5627,13 +5630,13 @@ document.addEventListener('contextmenu', (e) => {
         {
             icon: '&#128218;',
             label: (document.getElementById('fbTreeSidebar') && !document.getElementById('fbTreeSidebar').classList.contains('fb-hidden'))
-                ? 'Hide Tree Sidebar (Cmd+B)'
-                : 'Show Tree Sidebar (Cmd+B)', ..._ctxMenuNoEcho,
+                ? appFmt('menu.fb_hide_tree_sidebar')
+                : appFmt('menu.fb_show_tree_sidebar'), ..._ctxMenuNoEcho,
             action: () => fileBrowserToggleTreeSidebar(),
         },
         {
             icon: '&#9783;',
-            label: `Panes: ${_fbPaneCount}/4 (Cmd+\\\\ to cycle)`, ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_panes_n', {n: _fbPaneCount}), ..._ctxMenuNoEcho,
             action: () => _fbCyclePaneCount(),
         },
     ]);
@@ -5643,38 +5646,38 @@ document.addEventListener('contextmenu', (e) => {
     for (let k = 0; k + 1 < _fbPaneCount; k++) {
         items.push({
             icon: '&#8646;',
-            label: `Swap Pane ${k + 1} ⇄ Pane ${k + 2}`, ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_swap_panes', {a: k + 1, b: k + 2}), ..._ctxMenuNoEcho,
             action: () => _fbSwapPanes(k, k + 1),
         });
     }
     if (_fbPaneCount >= 2) {
         items.push({
             icon: '&#128279;',
-            label: `Sync Scroll: ${_fbSyncScroll ? 'ON' : 'OFF'}`, ..._ctxMenuNoEcho,
+            label: appFmt(_fbSyncScroll ? 'menu.fb_sync_scroll_on' : 'menu.fb_sync_scroll_off'), ..._ctxMenuNoEcho,
             action: () => fileBrowserToggleSyncScroll(),
         });
         // Cross-pane copy / move — was F5 / F6 but those shadowed
         // tab13/tab14 globally; menu entries are now the canonical path.
         items.push({
             icon: '&#10145;',
-            label: 'Copy Active Selection → Next Pane', ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_copy_to_next_pane'), ..._ctxMenuNoEcho,
             action: () => _fbCrossPaneOp('copy'),
         });
         items.push({
             icon: '&#10145;',
-            label: 'Move Active Selection → Next Pane', ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_move_to_next_pane'), ..._ctxMenuNoEcho,
             action: () => _fbCrossPaneOp('move'),
         });
     }
     items.push(...[
         {
             icon: '&#128260;',
-            label: 'Refresh', ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_refresh'), ..._ctxMenuNoEcho,
             action: () => loadDirectory(dir),
         },
         {
             icon: '&#9000;',
-            label: 'Open in Terminal', ..._ctxMenuNoEcho,
+            label: appFmt('menu.fb_open_terminal'), ..._ctxMenuNoEcho,
             action: () => {
                 if (window.vstUpdater && typeof window.vstUpdater.fsOpenTerminal === 'function') {
                     showToast(toastFmt('toast.opening_in_app', {app: 'Terminal'}));
