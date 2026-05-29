@@ -3523,18 +3523,52 @@ DROP TABLE _pl_refresh_paths;"#;
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |row| {
-                Ok(serde_json::json!({
-                    "path": row.get::<_, String>(0)?,
-                    "name": row.get::<_, String>(1)?,
-                    "format": row.get::<_, String>(2)?,
-                    "size": row.get::<_, String>(3)?,
-                    "playCount": row.get::<_, i64>(4)?,
-                }))
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
             })
             .map_err(|e| e.to_string())?;
+        let mut to_backfill: Vec<(String, String)> = Vec::new();
         let mut out = Vec::new();
         for r in rows {
-            out.push(r.map_err(|e| e.to_string())?);
+            let (path, name, format, mut size, play_count) = r.map_err(|e| e.to_string())?;
+            // Stat-fallback for paths the user plays from outside any scanned root
+            // (SMB mount, drag-drop, Finder reveal) — those never make it into
+            // `audio_samples`, so the JOIN above returns empty. A direct `metadata()`
+            // call resolves the size at list time. Failures (offline SMB share,
+            // deleted file) gracefully fall through to empty.
+            if size.is_empty()
+                && let Ok(meta) = std::fs::metadata(&path) {
+                    size = crate::format_size(meta.len());
+                    if !size.is_empty() {
+                        to_backfill.push((path.clone(), size.clone()));
+                    }
+                }
+            out.push(serde_json::json!({
+                "path": path,
+                "name": name,
+                "format": format,
+                "size": size,
+                "playCount": play_count,
+            }));
+        }
+        // Persist statted sizes back so the next render doesn't re-stat. Uses a
+        // write connection (WAL allows concurrent reader + writer here); failures
+        // are ignored — the worst case is repeating the stat on the next render.
+        if !to_backfill.is_empty() {
+            drop(stmt);
+            drop(conn);
+            let wconn = self.write_conn();
+            for (path, size) in &to_backfill {
+                let _ = wconn.execute(
+                    "UPDATE player_history SET size = ?2 WHERE path = ?1 AND size = ''",
+                    params![path, size],
+                );
+            }
         }
         Ok(out)
     }
@@ -3550,17 +3584,35 @@ DROP TABLE _pl_refresh_paths;"#;
         skip_reorder: bool,
     ) -> Result<(), String> {
         let conn = self.write_conn();
+        // Normalize the path so the `audio_samples` size lookup AND the
+        // `player_history_list` LEFT JOIN both match. `audio_samples.path` is stored
+        // via `normalize_path_for_db` (strips `/System/Volumes/Data/` on macOS); a raw
+        // path coming from drag-drop / SMB / Finder reveal will not JOIN otherwise,
+        // leaving the size column blank in the recently-played list.
+        let normalized_path = normalize_path_for_db(path);
+        let path = normalized_path.as_str();
         // `allAudioSamples` on the JS side is lazily populated — most callers can't
-        // supply `size`. Fall back to the latest `audio_samples` row for this path.
+        // supply `size`. Fall back to the latest `audio_samples` row for this path,
+        // then to a direct filesystem stat (covers SMB / drag-drop / Finder-reveal
+        // paths that never landed in `audio_samples`).
         let resolved_size: String = if !size.is_empty() {
             size.to_string()
         } else {
-            conn.query_row(
-                "SELECT size_formatted FROM audio_samples WHERE path = ?1 ORDER BY id DESC LIMIT 1",
-                params![path],
-                |r| r.get::<_, String>(0),
-            )
-            .unwrap_or_default()
+            let from_audio = conn
+                .query_row(
+                    "SELECT size_formatted FROM audio_samples WHERE path = ?1 ORDER BY id DESC LIMIT 1",
+                    params![path],
+                    |r| r.get::<_, String>(0),
+                )
+                .unwrap_or_default();
+            if !from_audio.is_empty() {
+                from_audio
+            } else {
+                std::fs::metadata(path)
+                    .ok()
+                    .map(|m| crate::format_size(m.len()))
+                    .unwrap_or_default()
+            }
         };
         let size = resolved_size.as_str();
         let sort_order: i64 = if skip_reorder {
@@ -3620,6 +3672,7 @@ DROP TABLE _pl_refresh_paths;"#;
 
     pub fn player_history_remove(&self, path: &str) -> Result<bool, String> {
         let conn = self.write_conn();
+        let path = normalize_path_for_db(path);
         let n = conn
             .execute("DELETE FROM player_history WHERE path = ?1", params![path])
             .map_err(|e| e.to_string())?;
@@ -3640,6 +3693,7 @@ DROP TABLE _pl_refresh_paths;"#;
             .prepare("UPDATE player_history SET sort_order = ?2 WHERE path = ?1")
             .map_err(|e| e.to_string())?;
         for (i, path) in paths.iter().enumerate() {
+            let path = normalize_path_for_db(path);
             stmt.execute(params![path, i as i64])
                 .map_err(|e| e.to_string())?;
         }
@@ -3655,7 +3709,7 @@ DROP TABLE _pl_refresh_paths;"#;
             .map_err(|e| e.to_string())?;
         let mut count = 0usize;
         for (i, item) in items.iter().enumerate() {
-            let path = item.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            let raw_path = item.get("path").and_then(|v| v.as_str()).unwrap_or("");
             let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let format = item.get("format").and_then(|v| v.as_str()).unwrap_or("");
             let size = item.get("size").and_then(|v| v.as_str()).unwrap_or("");
@@ -3664,9 +3718,10 @@ DROP TABLE _pl_refresh_paths;"#;
                 .and_then(|v| v.as_i64())
                 .filter(|n| *n > 0)
                 .unwrap_or(1);
-            if path.is_empty() {
+            if raw_path.is_empty() {
                 continue;
             }
+            let path = normalize_path_for_db(raw_path);
             if stmt
                 .execute(params![path, name, format, size, i as i64, play_count])
                 .is_ok()
@@ -3687,7 +3742,7 @@ DROP TABLE _pl_refresh_paths;"#;
             .prepare("INSERT INTO player_history (path, name, format, size, sort_order, play_count) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
             .map_err(|e| e.to_string())?;
         for (i, item) in items.iter().enumerate() {
-            let path = item.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            let raw_path = item.get("path").and_then(|v| v.as_str()).unwrap_or("");
             let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let format = item.get("format").and_then(|v| v.as_str()).unwrap_or("");
             let size = item.get("size").and_then(|v| v.as_str()).unwrap_or("");
@@ -3696,9 +3751,10 @@ DROP TABLE _pl_refresh_paths;"#;
                 .and_then(|v| v.as_i64())
                 .filter(|n| *n > 0)
                 .unwrap_or(1);
-            if path.is_empty() {
+            if raw_path.is_empty() {
                 continue;
             }
+            let path = normalize_path_for_db(raw_path);
             stmt.execute(params![path, name, format, size, i as i64, play_count])
                 .map_err(|e| e.to_string())?;
         }
@@ -15185,6 +15241,127 @@ mod tests {
         let result = db.clear_cache_table("bogus");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Unknown cache"));
+    }
+
+    /// Regression: rows added to `player_history` with empty `size` (e.g. SMB-mounted
+    /// or drag-dropped files that never landed in `audio_samples`) used to render
+    /// with a blank SIZE column in the player UI. `player_history_list` now
+    /// stat-fallbacks any row whose `ph.size` is empty AND has no matching
+    /// `audio_samples.path` entry, and persists the result back so subsequent renders
+    /// don't re-stat.
+    #[test]
+    fn test_player_history_list_stat_fallback_populates_missing_size() {
+        use std::io::Write;
+        let db = test_db();
+        // 4096-byte file → `format_size(4096) == "4.0 KB"`.
+        let tmp = std::env::temp_dir().join(format!(
+            "ah_player_history_size_{}_{}.wav",
+            std::process::id(),
+            rand::random::<u32>(),
+        ));
+        {
+            let mut f = std::fs::File::create(&tmp).expect("create tmp file");
+            f.write_all(&vec![0u8; 4096]).expect("write tmp file");
+        }
+        let path_str = tmp.to_string_lossy().to_string();
+        // Insert directly with empty `size`, mimicking a row added before the fix
+        // (or by a flow where size couldn't be resolved at add time).
+        {
+            let conn = db.write_conn();
+            conn.execute(
+                "INSERT INTO player_history (path, name, format, size, sort_order, play_count)
+                 VALUES (?1, ?2, ?3, '', 0, 1)",
+                params![path_str, "blank-size.wav", "WAV"],
+            )
+            .expect("insert empty-size row");
+        }
+
+        let listed = db.player_history_list().expect("list");
+        assert_eq!(listed.len(), 1, "exactly one history row");
+        let size = listed[0]["size"].as_str().unwrap_or("");
+        assert_eq!(
+            size, "4.0 KB",
+            "stat-fallback must populate size for unscanned files"
+        );
+
+        // Persisted back to DB so the next render avoids the stat hop.
+        let conn = db.read_conn();
+        let stored: String = conn
+            .query_row(
+                "SELECT size FROM player_history WHERE path = ?1",
+                params![path_str],
+                |r| r.get(0),
+            )
+            .expect("re-read persisted row");
+        assert_eq!(stored, "4.0 KB", "statted size must be persisted back");
+
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    /// Companion: a file that can't be statted (missing path — covers offline SMB
+    /// share, deleted file) must NOT crash and must return an empty size — same
+    /// pre-fix behavior for that row, with no new failure mode introduced.
+    #[test]
+    fn test_player_history_list_stat_fallback_missing_file_returns_empty() {
+        let db = test_db();
+        let missing_path = format!(
+            "/nonexistent/ah_missing_{}_{}.wav",
+            std::process::id(),
+            rand::random::<u32>(),
+        );
+        {
+            let conn = db.write_conn();
+            conn.execute(
+                "INSERT INTO player_history (path, name, format, size, sort_order, play_count)
+                 VALUES (?1, 'gone.wav', 'WAV', '', 0, 1)",
+                params![missing_path],
+            )
+            .unwrap();
+        }
+        let listed = db.player_history_list().expect("list must not error");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(
+            listed[0]["size"].as_str().unwrap_or(""),
+            "",
+            "unreachable file must yield empty size, not crash"
+        );
+    }
+
+    /// Verifies `player_history_add` itself uses the stat-fallback when both the
+    /// `size` arg and the `audio_samples` lookup return empty — so the FIRST list
+    /// render already shows the size, no second-render persist needed.
+    #[test]
+    fn test_player_history_add_stat_fallback_populates_size_at_insert() {
+        use std::io::Write;
+        let db = test_db();
+        let tmp = std::env::temp_dir().join(format!(
+            "ah_player_history_add_{}_{}.wav",
+            std::process::id(),
+            rand::random::<u32>(),
+        ));
+        {
+            let mut f = std::fs::File::create(&tmp).expect("create tmp file");
+            f.write_all(&vec![0u8; 2048]).expect("write tmp file");
+        }
+        let path_str = tmp.to_string_lossy().to_string();
+
+        db.player_history_add(&path_str, "fresh.wav", "WAV", "", false)
+            .expect("add");
+
+        let conn = db.read_conn();
+        let stored: String = conn
+            .query_row(
+                "SELECT size FROM player_history WHERE path = ?1",
+                params![path_str],
+                |r| r.get(0),
+            )
+            .expect("row");
+        assert_eq!(
+            stored, "2.0 KB",
+            "add-time stat-fallback must populate size on insert"
+        );
+
+        let _ = std::fs::remove_file(&tmp);
     }
 
     #[test]
