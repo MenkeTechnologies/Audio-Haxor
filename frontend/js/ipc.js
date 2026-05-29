@@ -1926,6 +1926,13 @@ window.vstUpdater = {
      *  preview pane. Cap clamped server-side to 256..65536. */
     fsReadHeadBytes: (filePath, maxBytes) =>
         invoke('fs_read_head_bytes', {filePath, maxBytes: maxBytes || null}),
+    /** Read EXIF tags from an image file. Returns `[{ifd, tag, value}]`;
+     *  empty list when no EXIF (graceful — doesn't throw). */
+    fsExif: (path) => invoke('fs_exif', {path}),
+    /** Video thumbnail (first-frame poster). macOS-only for now; on
+     *  other platforms returns an empty ArrayBuffer and the caller
+     *  falls back to a generic video icon. Cached in SQLite. */
+    fsVideoThumbnail: (filePath, width) => invoke('fs_video_thumbnail', {filePath, width}),
     /** Spotlight-style global search across all scanned inventory
      *  (FTS5 trigram on audio_samples / daw_projects / presets /
      *  midi_files / pdf_files / video_files). Returns

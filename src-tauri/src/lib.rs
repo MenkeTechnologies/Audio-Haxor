@@ -7579,6 +7579,133 @@ async fn fs_global_search(
     .await
 }
 
+/// Read EXIF metadata from an image. Returns a flat list of
+/// `{ifd, tag, value}` so the JS side can group + render however it
+/// likes. Pure Rust via the `kamadak-exif` crate — JPEG / TIFF / HEIF
+/// containers; PNG EXIF (rare) also supported. Returns an empty list
+/// when no EXIF is present rather than an error so the Get Info modal
+/// can call this unconditionally for any image.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExifTag {
+    ifd: String,
+    tag: String,
+    value: String,
+}
+
+#[tauri::command]
+async fn fs_exif(path: String) -> Result<Vec<ExifTag>, String> {
+    blocking_res(move || {
+        let p = std::path::PathBuf::from(&path);
+        if !p.is_file() {
+            return Ok(Vec::new());
+        }
+        let file = match std::fs::File::open(&p) {
+            Ok(f) => f,
+            Err(_) => return Ok(Vec::new()),
+        };
+        let mut bufreader = std::io::BufReader::new(file);
+        let exif = match exif::Reader::new().read_from_container(&mut bufreader) {
+            Ok(e) => e,
+            Err(_) => return Ok(Vec::new()),
+        };
+        let mut out: Vec<ExifTag> = Vec::new();
+        for f in exif.fields() {
+            // `display_value` strips quotes from rationals + formats
+            // dates / GPS coords / shutter speeds nicely. Truncate huge
+            // values (some thumbnails embed full binary blobs) so the
+            // modal doesn't render a megabyte of text.
+            let value = f.display_value().with_unit(&exif).to_string();
+            let value = if value.len() > 256 {
+                format!("{}… ({} chars)", &value[..256], value.len())
+            } else {
+                value
+            };
+            out.push(ExifTag {
+                ifd: format!("{:?}", f.ifd_num),
+                tag: f.tag.to_string(),
+                value,
+            });
+        }
+        Ok(out)
+    })
+    .await
+}
+
+/// Extract a thumbnail frame from a video file. macOS-only for now:
+/// shells out to the OS-provided `qlmanage` utility (the same tool
+/// Finder uses for video previews — ships with every macOS install,
+/// not a 3rd-party binary). Linux / Windows return an empty buffer;
+/// the frontend falls back to a generic video icon. The output PNG is
+/// written to a tmp file, read back, and the tmp removed. Cached in
+/// SQLite via the same `image_preview_cache` table that holds the
+/// image thumbs so repeat views are instant.
+#[tauri::command]
+async fn fs_video_thumbnail(
+    file_path: String,
+    width: i64,
+) -> Result<tauri::ipc::Response, String> {
+    let bytes = blocking_res(move || -> Result<Vec<u8>, String> {
+        // Cache hit (shares image_preview_cache namespace; video file
+        // paths don't collide with image paths because mtime + width
+        // are also keyed).
+        if let Some(cached) = db::global().image_preview_get(&file_path, width)? {
+            return Ok(cached);
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let out_dir = std::env::temp_dir().join(format!(
+                "audio_haxor_vthumb_{}_{}",
+                std::process::id(),
+                rand::random::<u32>()
+            ));
+            std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
+            let target_w = width.clamp(64, 2048) as i64;
+            let status = std::process::Command::new("/usr/bin/qlmanage")
+                .arg("-t")
+                .arg("-s")
+                .arg(target_w.to_string())
+                .arg("-o")
+                .arg(&out_dir)
+                .arg(&file_path)
+                .output();
+            let status = match status {
+                Ok(s) => s,
+                Err(e) => {
+                    let _ = std::fs::remove_dir_all(&out_dir);
+                    return Err(format!("qlmanage spawn failed: {e}"));
+                }
+            };
+            if !status.status.success() {
+                let _ = std::fs::remove_dir_all(&out_dir);
+                return Err(format!(
+                    "qlmanage failed: {}",
+                    String::from_utf8_lossy(&status.stderr).trim()
+                ));
+            }
+            // qlmanage writes `<basename>.png` into out_dir.
+            let png_name = std::path::Path::new(&file_path)
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default()
+                + ".png";
+            let png_path = out_dir.join(&png_name);
+            let bytes = std::fs::read(&png_path).map_err(|e| format!("read qlmanage output: {e}"))?;
+            let _ = std::fs::remove_dir_all(&out_dir);
+            db::global().image_preview_set(&file_path, width, &bytes)?;
+            return Ok(bytes);
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            // Linux/Windows: no built-in thumbnailer in this commit.
+            // Returning an empty Vec → JS shows the generic video icon.
+            Ok(Vec::new())
+        }
+    })
+    .await?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
 /// Update a file's modification + access times to now (no `-d` /
 /// `-t` flag yet — that's a bigger surface area than the typical use
 /// case warrants). Creates the file if missing, same as `touch(1)`.
@@ -11351,6 +11478,8 @@ pub fn run() {
             fs_touch,
             fs_compare_dirs,
             fs_global_search,
+            fs_exif,
+            fs_video_thumbnail,
             delete_inventory_item,
             rename_file,
             fs_create_dir,

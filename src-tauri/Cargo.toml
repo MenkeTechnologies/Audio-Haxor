@@ -55,6 +55,9 @@ sevenz-rust2 = { version = "0.16", default-features = false, features = ["util"]
 # transitively via `tar` already; declaring explicitly so the touch
 # command doesn't rely on the transitive.
 filetime = "0.2"
+# EXIF parsing for the Get Info modal on image rows (orientation,
+# camera, GPS, etc.). Pure Rust, no system deps.
+kamadak-exif = "0.6"
 notify = "8"
 # Cross-platform "send to recycle bin / trash" (macOS NSFileManager
 # trashItemAtURL, Linux XDG Trash spec, Windows Recycle Bin). Used by the

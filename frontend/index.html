@@ -6599,10 +6599,54 @@
             max-height: 60vh;
             height: auto;
             object-fit: contain;
-            margin: 0 auto 12px;
-            border: 1px solid var(--border);
-            border-radius: 3px;
+            margin: 0 auto;
             background: rgba(0, 0, 0, 0.4);
+        }
+
+        /* Image zoom toolbar + scrollable viewer wrap (sits inside the
+         * preview pane, above the metadata grid). */
+        .fb-preview-image-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 6px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-bottom: none;
+            border-radius: 3px 3px 0 0;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+        .fb-img-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 2px 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 2px;
+            min-width: 28px;
+        }
+        .fb-img-btn:hover { background: rgba(5, 217, 232, 0.12); border-color: var(--cyan); color: var(--cyan); }
+        .fb-img-pct {
+            color: var(--cyan);
+            min-width: 44px;
+            text-align: center;
+        }
+        .fb-preview-image-viewer {
+            border: 1px solid var(--border);
+            border-radius: 0 0 3px 3px;
+            overflow: auto;
+            max-height: 60vh;
+            margin-bottom: 12px;
+            background: rgba(0, 0, 0, 0.4);
+        }
+        .fb-preview-image-viewer.fb-img-zoomed .fb-preview-image {
+            max-width: none;
+            max-height: none;
+            margin: 0;
+            background: transparent;
         }
 
         /* PDF inventory thumbnail column — small first-page preview per row.

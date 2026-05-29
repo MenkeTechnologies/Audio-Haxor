@@ -988,6 +988,27 @@ async function populatePreviewPane(filePath) {
     }
 
     if (isImage) {
+        // Image preview always uses the same shell — a scrollable
+        // viewer with toolbar (Fit / 100% / + / − / Reset). The
+        // viewer wires zoom + pan once the image src is set, so both
+        // the server-resized raster path AND the base64 fallback for
+        // SVG/ICO get the same controls.
+        const _renderImageShell = (innerHtml) => {
+            body.innerHTML = `
+                <div class="fb-preview-image-toolbar">
+                    <button class="fb-img-btn" data-img-zoom="fit" title="Fit to pane">Fit</button>
+                    <button class="fb-img-btn" data-img-zoom="100" title="Actual size">100%</button>
+                    <button class="fb-img-btn" data-img-zoom="-" title="Zoom out">&minus;</button>
+                    <span class="fb-img-pct" id="fbImgPct">—</span>
+                    <button class="fb-img-btn" data-img-zoom="+" title="Zoom in">+</button>
+                </div>
+                <div class="fb-preview-image-viewer" id="fbImgViewer">
+                    ${innerHtml}
+                </div>
+                ${metaHtml}
+            `;
+            _fbWireImageZoom();
+        };
         // SVG + ICO go through the base64 path — they're typically tiny
         // AND the `image` crate doesn't decode SVG (no rasterizer) /
         // .ico is multi-image and the crate picks an awkward frame.
@@ -1009,20 +1030,7 @@ async function populatePreviewPane(filePath) {
                 }
                 const blob = new Blob([ab], {type: 'image/png'});
                 const url = URL.createObjectURL(blob);
-                // Revoke the object URL on next preview swap so we don't
-                // accumulate memory across thousands of previews. The
-                // `_fbPreviewSeq` bump in the next load fires onload of
-                // the new image before revoke; for the current preview
-                // we revoke when the swap happens via the seq check.
-                body.innerHTML = `<img class="fb-preview-image" data-fb-prev-blob-url="${url}" src="${url}" alt="${escapeHtml(name)}">${metaHtml}`;
-                // Best-effort cleanup — revoke when the image leaves the DOM.
-                const img = body.querySelector('.fb-preview-image');
-                if (img) img.addEventListener('load', () => {
-                    // Defer revoke so the bitmap stays decoded; once
-                    // the next preview swaps in, the old `body.innerHTML`
-                    // replace drops this `<img>` and the URL is no
-                    // longer referenced.
-                });
+                _renderImageShell(`<img class="fb-preview-image" data-fb-prev-blob-url="${url}" src="${url}" alt="${escapeHtml(name)}">`);
                 return;
             } catch (_) {
                 if (seq !== _fbPreviewSeq) return;
@@ -1034,7 +1042,7 @@ async function populatePreviewPane(filePath) {
             const b64 = await window.vstUpdater.fsReadFileBase64(filePath, FB_PREVIEW_IMAGE_CAP);
             if (seq !== _fbPreviewSeq) return;
             const mime = _fbPreviewMimeFromExt(ext);
-            body.innerHTML = `<img class="fb-preview-image" src="data:${mime};base64,${b64}" alt="${escapeHtml(name)}">${metaHtml}`;
+            _renderImageShell(`<img class="fb-preview-image" src="data:${mime};base64,${b64}" alt="${escapeHtml(name)}">`);
         } catch (err) {
             if (seq !== _fbPreviewSeq) return;
             body.innerHTML = `<div class="fb-preview-empty">Could not preview image (${escapeHtml(String(err && err.message ? err.message : err))})</div>${metaHtml}`;
@@ -1145,6 +1153,109 @@ async function populatePreviewPane(filePath) {
         if (seq !== _fbPreviewSeq) return;
         body.innerHTML = `<div class="fb-preview-empty">Could not read file (${escapeHtml(String(err && err.message ? err.message : err))})</div>${metaHtml}`;
     }
+}
+
+// ── Image zoom + pan ──
+// Fit ↔ 100% ↔ stepped + / − via toolbar buttons; mouse wheel zooms
+// while preserving the cursor's relative position in the image; click +
+// drag pans when the image overflows the viewer. State lives on the
+// viewer DOM (data attrs) so it survives the preview-pane re-render
+// when the user clicks the same file again (different file = new shell).
+function _fbWireImageZoom() {
+    const viewer = document.getElementById('fbImgViewer');
+    if (!viewer || viewer._fbZoomWired) return;
+    viewer._fbZoomWired = true;
+    const pct = document.getElementById('fbImgPct');
+    const img = viewer.querySelector('img.fb-preview-image');
+    if (!img) return;
+    // `zoom` is null = Fit (natural max-width:100%); otherwise it's a
+    // multiplier applied to the image's natural width.
+    let zoom = null;
+    const updatePct = () => {
+        if (!pct) return;
+        if (zoom == null) pct.textContent = 'Fit';
+        else pct.textContent = `${Math.round(zoom * 100)}%`;
+    };
+    const apply = () => {
+        if (zoom == null) {
+            img.style.width = '';
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '60vh';
+            img.style.cursor = '';
+            viewer.classList.remove('fb-img-zoomed');
+        } else {
+            // Use natural width so 100% means actual pixels.
+            const natW = img.naturalWidth || img.width || 800;
+            img.style.maxWidth = 'none';
+            img.style.maxHeight = 'none';
+            img.style.width = `${Math.round(natW * zoom)}px`;
+            img.style.cursor = 'grab';
+            viewer.classList.add('fb-img-zoomed');
+        }
+        updatePct();
+    };
+    const setZoom = (next, cursorX, cursorY) => {
+        const prev = zoom == null ? 1 : zoom;
+        // Compute the cursor's position in image-space so we can keep
+        // it visually anchored across the zoom change.
+        const rect = img.getBoundingClientRect();
+        const ix = (cursorX != null) ? (cursorX - rect.left) / rect.width : 0.5;
+        const iy = (cursorY != null) ? (cursorY - rect.top) / rect.height : 0.5;
+        zoom = Math.max(0.1, Math.min(8, next));
+        apply();
+        // After apply(), restore the cursor anchor by adjusting scroll.
+        if (cursorX != null) {
+            requestAnimationFrame(() => {
+                const newRect = img.getBoundingClientRect();
+                const newX = newRect.left + ix * newRect.width;
+                const newY = newRect.top + iy * newRect.height;
+                viewer.scrollLeft += (newX - cursorX);
+                viewer.scrollTop += (newY - cursorY);
+            });
+        }
+    };
+    // Toolbar
+    viewer.parentElement?.querySelector('.fb-preview-image-toolbar')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-img-zoom]');
+        if (!btn) return;
+        const act = btn.dataset.imgZoom;
+        if (act === 'fit') { zoom = null; apply(); }
+        else if (act === '100') { setZoom(1); }
+        else if (act === '+') { setZoom((zoom == null ? 1 : zoom) * 1.25); }
+        else if (act === '-') { setZoom((zoom == null ? 1 : zoom) / 1.25); }
+    });
+    // Mouse wheel zoom (anchored to cursor). Skip when no modifier on
+    // touchpad-style page scroll inside the viewer — Ctrl/Cmd flag is
+    // common UX for "zoom not scroll".
+    viewer.addEventListener('wheel', (e) => {
+        if (!(e.ctrlKey || e.metaKey)) return; // plain scroll = pan
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+        setZoom((zoom == null ? 1 : zoom) * factor, e.clientX, e.clientY);
+    }, {passive: false});
+    // Click + drag to pan when zoomed.
+    let dragStart = null;
+    img.addEventListener('mousedown', (e) => {
+        if (zoom == null) return; // fit mode = no pan
+        e.preventDefault();
+        dragStart = {x: e.clientX, y: e.clientY, sx: viewer.scrollLeft, sy: viewer.scrollTop};
+        img.style.cursor = 'grabbing';
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!dragStart) return;
+        viewer.scrollLeft = dragStart.sx - (e.clientX - dragStart.x);
+        viewer.scrollTop = dragStart.sy - (e.clientY - dragStart.y);
+    });
+    window.addEventListener('mouseup', () => {
+        if (!dragStart) return;
+        dragStart = null;
+        img.style.cursor = zoom == null ? '' : 'grab';
+    });
+    // Initial state = Fit.
+    apply();
+    // Once the image fully loads (so naturalWidth is known), refresh
+    // the "100%" calc target.
+    if (!img.complete) img.addEventListener('load', () => apply());
 }
 
 /**
@@ -1556,6 +1667,12 @@ async function fileBrowserShowInfo(path) {
             ['Permissions', info.modeString ? `${info.modeString}  (${info.modeOctal})` : (info.isReadonly ? 'read-only' : 'read-write')],
             ...(info.uid != null ? [['Owner / Group', `uid=${info.uid}  gid=${info.gid}`]] : []),
             ['xattrs', 'loading…'],
+            // EXIF only when the file looks like an image — JPEG / TIFF
+            // / HEIF / PNG (kamadak-exif decodes these). Skipping for
+            // dirs / non-images avoids a wasted IPC.
+            ...(info.kind === 'file' && /\.(jpg|jpeg|tif|tiff|heic|heif|png|webp)$/i.test(info.path)
+                ? [['EXIF', 'loading…']]
+                : []),
         ]
         : [];
     const gridHtml = info
@@ -1583,29 +1700,46 @@ async function fileBrowserShowInfo(path) {
     modal?.addEventListener('click', (e) => {
         if (e.target.closest('[data-app-info="close"]') || e.target === modal) close();
     });
-    // Lazy-load xattrs after the modal paints. We placed a "loading…"
-    // placeholder; patch the value cell in place when the IPC returns.
-    if (info) {
-        window.vstUpdater.fsXattrs(path).then((xattrs) => {
-            if (!modal || !modal.isConnected) return;
-            // The xattrs row is always the LAST .fb-info-val in the modal —
-            // safer than indexing because the row count varies (symlink
-            // target only present sometimes, etc.).
-            const cells = modal.querySelectorAll('.fb-info-val');
-            const cell = cells[cells.length - 1];
-            if (!cell) return;
-            if (!xattrs || xattrs.length === 0) {
-                cell.textContent = '(none)';
+    // Lazy-load xattrs (and EXIF when shown) after the modal paints.
+    // Patch the cells in place — indexed by their KEY text so the row
+    // order in the grid is the only source-of-truth (no fragile
+    // "last-cell" indexing).
+    const patchCell = (keyText, html) => {
+        if (!modal || !modal.isConnected) return;
+        const keys = modal.querySelectorAll('.fb-info-key');
+        for (const k of keys) {
+            if (k.textContent.trim().toLowerCase() === keyText.toLowerCase()) {
+                const v = k.nextElementSibling;
+                if (v && v.classList.contains('fb-info-val')) v.innerHTML = html;
                 return;
             }
-            cell.innerHTML = xattrs
-                .map((x) => `${escapeHtml(x.name)} <span style="color:var(--text-dim)">(${x.size} B)</span>`)
-                .join('<br>');
-        }).catch(() => {
-            const cells = modal?.querySelectorAll('.fb-info-val');
-            const cell = cells && cells[cells.length - 1];
-            if (cell) cell.textContent = '(unavailable)';
-        });
+        }
+    };
+    if (info) {
+        window.vstUpdater.fsXattrs(path).then((xattrs) => {
+            if (!xattrs || xattrs.length === 0) { patchCell('xattrs', '(none)'); return; }
+            patchCell('xattrs', xattrs.map((x) =>
+                `${escapeHtml(x.name)} <span style="color:var(--text-dim)">(${x.size} B)</span>`
+            ).join('<br>'));
+        }).catch(() => patchCell('xattrs', '(unavailable)'));
+        // EXIF — skipped for non-image rows (cell wasn't rendered).
+        if (info.kind === 'file' && /\.(jpg|jpeg|tif|tiff|heic|heif|png|webp)$/i.test(info.path)) {
+            window.vstUpdater.fsExif(path).then((tags) => {
+                if (!tags || tags.length === 0) { patchCell('exif', '(none)'); return; }
+                // Group tags by IFD (Primary / Exif / Gps / Thumbnail).
+                const groups = {};
+                for (const t of tags) {
+                    (groups[t.ifd] = groups[t.ifd] || []).push(t);
+                }
+                const html = Object.entries(groups).map(([ifd, ts]) => {
+                    const rows = ts.map((t) =>
+                        `<div style="display:flex;gap:8px"><span style="color:var(--text-dim);min-width:140px">${escapeHtml(t.tag)}</span><span>${escapeHtml(t.value)}</span></div>`
+                    ).join('');
+                    return `<div style="margin-bottom:6px"><div style="color:var(--cyan);font-weight:bold;font-size:10px;text-transform:uppercase">${escapeHtml(ifd)}</div>${rows}</div>`;
+                }).join('');
+                patchCell('exif', html);
+            }).catch(() => patchCell('exif', '(unavailable)'));
+        }
     }
 }
 
@@ -2153,7 +2287,11 @@ function _fbInitThumbObserver() {
                 canvas.dataset.loading = '1';
                 const path = canvas.dataset.fbThumbPath;
                 if (!path) continue;
-                window.vstUpdater.fsImageThumbnail(path, FB_THUMB_WIDTH).then((ab) => {
+                const kind = canvas.dataset.fbThumbKind || 'image';
+                const fetchThumb = kind === 'video'
+                    ? window.vstUpdater.fsVideoThumbnail(path, FB_THUMB_WIDTH)
+                    : window.vstUpdater.fsImageThumbnail(path, FB_THUMB_WIDTH);
+                fetchThumb.then((ab) => {
                     if (!ab || ab.byteLength === 0) return;
                     if (typeof window.paintPngBytesIntoCanvas === 'function') {
                         return window.paintPngBytesIntoCanvas(canvas, ab);
@@ -3966,6 +4104,11 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
     // bytes via `fs_image_thumbnail` (cached in SQLite). SVG is skipped
     // server-side (image crate doesn't decode SVG); .heic too.
     const isImageThumb = !e.isDir && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'tif'].includes(e.ext);
+    // Video thumbnails — same lazy canvas slot, but data-attr signals
+    // the IntersectionObserver to call `fs_video_thumbnail` instead of
+    // the image one. macOS-only (qlmanage); other platforms get the
+    // empty buffer and fall through to the glyph (CSS hides empty thumb).
+    const isVideoThumb = !e.isDir && ['mp4', 'm4v', 'mov', 'mkv', 'avi', 'webm', 'wmv', 'flv', 'mpg', 'mpeg', '3gp'].includes(e.ext);
     const isSelected = _fileSelected.has(e.path);
     // Folders show "…" placeholders for Size + Items until the background
     // walk completes (see `refreshFolderFilesystemSizes` →
@@ -3987,7 +4130,9 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
         : '';
     const iconCell = isImageThumb
         ? `<span class="file-icon file-icon-thumb"><canvas class="file-image-thumb" data-fb-thumb-path="${escapeHtml(e.path)}" width="32" height="32"></canvas>${labelRing}</span>`
-        : `<span class="file-icon">${fileIcon(e)}${labelRing}</span>`;
+        : isVideoThumb
+            ? `<span class="file-icon file-icon-thumb"><canvas class="file-image-thumb" data-fb-thumb-path="${escapeHtml(e.path)}" data-fb-thumb-kind="video" width="32" height="32"></canvas>${labelRing}</span>`
+            : `<span class="file-icon">${fileIcon(e)}${labelRing}</span>`;
     return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}${isSelected ? ' file-selected' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" draggable="true" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
       <span class="file-cb"><input type="checkbox" class="file-row-cb" data-fb-cb="${escapeHtml(e.path)}"${isSelected ? ' checked' : ''}></span>
       ${wfBg}
