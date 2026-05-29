@@ -4658,6 +4658,41 @@
         .fb-cmp-diff   { color: #ffb86c; }
         .fb-cmp-equal { color: var(--text-dim); padding: 12px; }
 
+        /* Spotlight modal — grouped sections per inventory category. */
+        .fb-spot-results {
+            margin-top: 12px;
+            max-height: 55vh;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 4px;
+        }
+        .fb-spot-section { margin-bottom: 10px; }
+        .fb-spot-section-head {
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 6px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 4px;
+        }
+        .fb-spot-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .fb-spot-row:hover { background: rgba(5, 217, 232, 0.1); }
+        .fb-spot-name { color: var(--text-primary); min-width: 160px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fb-spot-path { color: var(--text-dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fb-spot-ext { color: var(--accent); font-size: 10px; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 2px; }
+
         .modal-resize {
             position: absolute;
             z-index: 10;

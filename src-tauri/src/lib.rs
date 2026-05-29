@@ -7477,6 +7477,108 @@ async fn fs_image_thumbnail(
     Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// Global Spotlight-style search across every populated inventory
+/// table (audio_samples, daw_projects, presets, midi_files, pdf_files,
+/// video_files). Uses the existing FTS5 trigram tables for ≥ 3-char
+/// queries; falls back to LIKE for 1-2 char. Returns up to
+/// `per_category_limit` (default 20) results per category — caller
+/// renders grouped sections + lets the user jump to any result.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GlobalSearchHit {
+    name: String,
+    path: String,
+    ext: Option<String>,
+    size: Option<i64>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GlobalSearchResult {
+    audio: Vec<GlobalSearchHit>,
+    daw: Vec<GlobalSearchHit>,
+    preset: Vec<GlobalSearchHit>,
+    midi: Vec<GlobalSearchHit>,
+    pdf: Vec<GlobalSearchHit>,
+    video: Vec<GlobalSearchHit>,
+}
+
+#[tauri::command]
+async fn fs_global_search(
+    query: String,
+    per_category_limit: Option<i64>,
+) -> Result<GlobalSearchResult, String> {
+    let limit = per_category_limit.unwrap_or(20).clamp(1, 100);
+    blocking_res(move || {
+        let q = query.trim().to_string();
+        if q.is_empty() {
+            return Ok(GlobalSearchResult {
+                audio: Vec::new(), daw: Vec::new(), preset: Vec::new(),
+                midi: Vec::new(), pdf: Vec::new(), video: Vec::new(),
+            });
+        }
+        // FTS-eligible (≥ 3 chars) vs LIKE fallback.
+        let use_fts = q.chars().count() >= 3;
+        let fts_phrase = format!("\"{}\"", q.replace('"', "\"\""));
+        let like_pat = {
+            let esc = q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+            format!("%{esc}%")
+        };
+        let conn = db::global().read_conn();
+
+        // Helper to run a single search against any FTS-backed table.
+        // `base_table` is the primary; `_fts` is the trigram shadow.
+        let search_one = |
+            base: &str,
+            fts: &str,
+            select_cols: &str, // e.g. "name, path, file_format, size"
+        | -> Result<Vec<GlobalSearchHit>, String> {
+            let sql = if use_fts {
+                format!(
+                    "SELECT {select_cols} FROM {base} \
+                     WHERE id IN (SELECT rowid FROM {fts} WHERE {fts} MATCH ?1) \
+                     ORDER BY name COLLATE NOCASE LIMIT {limit}",
+                )
+            } else {
+                format!(
+                    "SELECT {select_cols} FROM {base} \
+                     WHERE name LIKE ?1 ESCAPE '\\' OR path LIKE ?1 ESCAPE '\\' \
+                     ORDER BY name COLLATE NOCASE LIMIT {limit}",
+                )
+            };
+            let mut stmt = match conn.prepare(&sql) {
+                Ok(s) => s,
+                Err(_) => return Ok(Vec::new()), // table missing, etc.
+            };
+            let bind = if use_fts { fts_phrase.as_str() } else { like_pat.as_str() };
+            let rows = stmt.query_map(rusqlite::params![bind], |row| {
+                let name: String = row.get(0)?;
+                let path: String = row.get(1)?;
+                let ext: Option<String> = row.get(2).ok();
+                let size: Option<i64> = row.get(3).ok();
+                Ok(GlobalSearchHit { name, path, ext, size })
+            });
+            match rows {
+                Ok(it) => Ok(it.flatten().collect()),
+                Err(_) => Ok(Vec::new()),
+            }
+        };
+
+        // Each inventory table picks its primary-key column variants —
+        // some store the size, some don't; the helper silently drops
+        // columns whose `row.get(N)` fails.
+        let audio = search_one("audio_samples", "audio_samples_fts", "name, path, file_format, size")?;
+        let daw   = search_one("daw_projects",  "daw_projects_fts",  "name, path, daw, NULL")?;
+        let preset = search_one("presets",      "presets_fts",       "name, path, file_format, NULL")?;
+        let midi  = search_one("midi_files",    "midi_files_fts",    "name, path, NULL, size")?;
+        let pdf   = search_one("pdf_files",     "pdfs_fts",          "name, path, NULL, size")?;
+        let video = search_one("video_files",   "video_files_fts",   "name, path, NULL, size")?;
+
+        Ok(GlobalSearchResult { audio, daw, preset, midi, pdf, video })
+    })
+    .await
+}
+
 /// Update a file's modification + access times to now (no `-d` /
 /// `-t` flag yet — that's a bigger surface area than the typical use
 /// case warrants). Creates the file if missing, same as `touch(1)`.
@@ -11223,6 +11325,7 @@ pub fn run() {
             fs_diff,
             fs_touch,
             fs_compare_dirs,
+            fs_global_search,
             delete_inventory_item,
             rename_file,
             fs_create_dir,

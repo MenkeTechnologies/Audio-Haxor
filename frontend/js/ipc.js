@@ -1921,6 +1921,14 @@ window.vstUpdater = {
      *  Skips dotfiles; capped 50k entries/side; hashes files ≤ 16 MiB
      *  to confirm content equality when sizes match. */
     fsCompareDirs: (dirA, dirB) => invoke('fs_compare_dirs', {dirA, dirB}),
+    /** Spotlight-style global search across all scanned inventory
+     *  (FTS5 trigram on audio_samples / daw_projects / presets /
+     *  midi_files / pdf_files / video_files). Returns
+     *  `{audio: [hit,...], daw: [...], preset: [...], midi: [...],
+     *  pdf: [...], video: [...]}` where each hit is
+     *  `{name, path, ext?, size?}`. */
+    fsGlobalSearch: (query, perCategoryLimit) =>
+        invoke('fs_global_search', {query, perCategoryLimit: perCategoryLimit || null}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),

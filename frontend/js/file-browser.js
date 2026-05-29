@@ -2618,6 +2618,110 @@ async function fileBrowserShowQuickPalette() {
     requestAnimationFrame(() => { input.focus(); render(); });
 }
 
+// ── Spotlight-style global search (Cmd+K) ──
+// Searches every populated inventory table at once (audio, DAW,
+// presets, MIDI, PDFs, videos) via the FTS5 trigram tables on the Rust
+// side. Modal groups results by category; click → switch tab + open or
+// open file directly. Debounced 150ms on input to avoid hammering FTS.
+let _fbSpotlightDebounce = null;
+async function fileBrowserShowSpotlight() {
+    document.getElementById('appSpotlightModal')?.remove();
+    const html = `<div class="modal-overlay modal-visible" id="appSpotlightModal" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Spotlight — search all scanned inventory</h2>
+        <button type="button" class="modal-close" data-app-spot="close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="appSpotInput" class="app-prompt-input" placeholder="search audio, DAW, presets, MIDI, PDFs, videos…" />
+        <div id="appSpotResults" class="fb-spot-results"><div class="fb-info-val">Type ≥ 3 chars for FTS, 1-2 for LIKE fallback…</div></div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appSpotlightModal');
+    const input = document.getElementById('appSpotInput');
+    const results = document.getElementById('appSpotResults');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', esc, true);
+
+    const groups = [
+        {key: 'audio',  label: 'Audio',    tab: 'samples',  icon: '&#127925;'},
+        {key: 'daw',    label: 'DAW',      tab: 'daw',      icon: '&#127911;'},
+        {key: 'preset', label: 'Presets',  tab: 'presets',  icon: '&#127924;'},
+        {key: 'midi',   label: 'MIDI',     tab: 'midi',     icon: '&#127929;'},
+        {key: 'pdf',    label: 'PDFs',     tab: 'pdf',      icon: '&#128196;'},
+        {key: 'video',  label: 'Videos',   tab: 'videos',   icon: '&#127909;'},
+    ];
+
+    const openHit = (hit, tab) => {
+        close();
+        if (tab && typeof switchTab === 'function') {
+            switchTab(tab);
+        }
+        // Best-effort: open the file in default app. The user's already
+        // on the right tab so they can find the row there too.
+        if (window.vstUpdater && typeof window.vstUpdater.openFileDefault === 'function') {
+            window.vstUpdater.openFileDefault(hit.path).catch(() => {});
+        }
+    };
+
+    const render = (data) => {
+        if (!data) { results.innerHTML = '<div class="fb-info-val">no input</div>'; return; }
+        const total = groups.reduce((s, g) => s + (data[g.key]?.length || 0), 0);
+        if (total === 0) {
+            results.innerHTML = '<div class="fb-info-val">no matches across any inventory</div>';
+            return;
+        }
+        results.innerHTML = groups.map((g) => {
+            const hits = data[g.key] || [];
+            if (hits.length === 0) return '';
+            return `<div class="fb-spot-section"><div class="fb-spot-section-head">${g.icon} ${escapeHtml(g.label)} (${hits.length})</div>`
+                + hits.map((h, hi) => {
+                    const right = h.ext ? `<span class="fb-spot-ext">${escapeHtml(String(h.ext).toUpperCase())}</span>` : '';
+                    return `<div class="fb-spot-row" data-fb-spot-key="${g.key}" data-fb-spot-idx="${hi}">`
+                        + `<span class="fb-spot-name">${escapeHtml(h.name)}</span>`
+                        + `<span class="fb-spot-path">${escapeHtml(h.path)}</span>`
+                        + right + `</div>`;
+                }).join('')
+                + `</div>`;
+        }).join('');
+        // Wire row clicks
+        let lastData = data;
+        results.querySelectorAll('[data-fb-spot-key]').forEach((el) => {
+            el.addEventListener('click', () => {
+                const k = el.dataset.fbSpotKey;
+                const i = parseInt(el.dataset.fbSpotIdx, 10);
+                const g = groups.find((g) => g.key === k);
+                const hit = lastData[k] && lastData[k][i];
+                if (g && hit) openHit(hit, g.tab);
+            });
+        });
+    };
+
+    const runSearch = async () => {
+        const q = (input.value || '').trim();
+        if (!q) { results.innerHTML = '<div class="fb-info-val">Type ≥ 3 chars for FTS, 1-2 for LIKE fallback…</div>'; return; }
+        results.innerHTML = '<div class="fb-info-val">searching…</div>';
+        try {
+            const data = await window.vstUpdater.fsGlobalSearch(q, 25);
+            render(data);
+        } catch (err) {
+            results.innerHTML = `<div class="fb-diff-error">error: ${escapeHtml(String(err && err.message ? err.message : err))}</div>`;
+        }
+    };
+
+    input.addEventListener('input', () => {
+        if (_fbSpotlightDebounce) clearTimeout(_fbSpotlightDebounce);
+        _fbSpotlightDebounce = setTimeout(runSearch, 150);
+    });
+    modal?.addEventListener('click', (e) => {
+        if (e.target.closest('[data-app-spot="close"]') || e.target === modal) close();
+    });
+    requestAnimationFrame(() => input.focus());
+}
+
 // ── Bookmarks management modal ──
 // Rename / reorder / delete favorite directories in one place. Pulls
 // from `getFavDirs()` / writes back via the existing setter.
@@ -2731,6 +2835,20 @@ if (typeof window !== 'undefined') {
     window.fileBrowserBulkSetLabel = fileBrowserBulkSetLabel;
     window.fileBrowserTouchPaths = fileBrowserTouchPaths;
     window.fileBrowserShowCompareModal = fileBrowserShowCompareModal;
+    window.fileBrowserShowSpotlight = fileBrowserShowSpotlight;
+    // Cmd+K — global Spotlight modal. Capture phase so it wins over
+    // per-tab keydown handlers; works from any inventory tab, not just
+    // Files. Skip while a text input has focus (Cmd+K could be a
+    // shortcut inside an editor).
+    document.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+        if (e.key !== 'k' && e.key !== 'K') return;
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        fileBrowserShowSpotlight();
+    }, true);
     window.FB_LABEL_COLORS = FB_LABEL_COLORS;
     window.FB_LABEL_NAMES = FB_LABEL_NAMES;
 }
@@ -4790,6 +4908,11 @@ document.addEventListener('contextmenu', (e) => {
         icon: '&#9889;',
         label: 'Quick Open… (Cmd+P)', ..._ctxMenuNoEcho,
         action: () => fileBrowserShowQuickPalette(),
+    });
+    items.push({
+        icon: '&#128269;',
+        label: 'Spotlight — search all inventory (Cmd+K)', ..._ctxMenuNoEcho,
+        action: () => fileBrowserShowSpotlight(),
     });
     items.push({
         icon: '&#9733;',
