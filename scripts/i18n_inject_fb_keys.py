@@ -42,6 +42,9 @@ NEW_KEYS: dict[str, str] = {
     "menu.fb_extract_here": "Extract Here",
     "menu.fb_move_to_trash": "Move to Trash",
     "menu.fb_delete_permanently": "Delete Permanently",
+    "menu.fb_secure_delete": "Secure Delete (overwrite with zeros + unlink)",
+    "confirm.fb_secure_delete_title": "Secure Delete",
+    "confirm.fb_secure_delete_body": "Overwrite every byte of \"{name}\" with zeros, sync to disk, then unlink? On HDD + ext4/NTFS this defeats simple undeletion. On SSDs and copy-on-write filesystems (APFS, btrfs, zfs) the guarantee is weaker — the original physical cells may survive until garbage-collection or snapshot expiry. NOT undoable.",
     "menu.fb_open_external_editor": "Open in External Editor",
     "menu.fb_run_as_program": "Run as Program",
     # ── Color labels (8 entries) ──
@@ -179,6 +182,16 @@ NEW_KEYS: dict[str, str] = {
     "menu.fb_cp_touch_selected": "File browser: Touch (set mtime) on Selection",
     "menu.fb_cp_compress_selected": "File browser: Compress Selection (zip)",
     "menu.fb_cp_extract_selected": "File browser: Extract Selected Archives Here",
+    # Current-folder actions — operate on the active pane's path.
+    "menu.fb_cp_refresh": "File browser: Refresh current folder",
+    "menu.fb_cp_open_in_terminal_current": "File browser: Open current folder in Terminal",
+    "menu.fb_cp_reveal_current": "File browser: Reveal current folder in Finder",
+    "menu.fb_cp_copy_current_path": "File browser: Copy current folder path",
+    "menu.fb_cp_bookmark_current": "File browser: Bookmark current folder",
+    "menu.fb_cp_up_one_folder": "File browser: Go up one folder",
+    "menu.fb_cp_go_home": "File browser: Go to Home folder",
+    "menu.fb_cp_select_all": "File browser: Select all visible",
+    "menu.fb_cp_clear_selection": "File browser: Clear selection",
 }
 
 

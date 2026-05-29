@@ -1857,6 +1857,11 @@ window.vstUpdater = {
      *  user-initiated delete; `deleteFile` is permanent and should be
      *  reserved for non-recoverable cleanup paths. */
     moveToTrash: (filePath) => invoke('move_to_trash', {filePath}),
+    /** Secure delete: overwrite contents with zeros, fsync, then unlink.
+     *  Defeats simple undeletion on HDD + non-CoW filesystems; SSDs +
+     *  copy-on-write filesystems weaken the guarantee — caller MUST
+     *  surface that in the confirm dialog. Rejects directories. */
+    fsSecureDelete: (filePath) => invoke('fs_secure_delete', {filePath}),
     /** Delete on disk + purge path from all inventory DB tables (keyboard `x` / Backspace). */
     deleteInventoryItem: (filePath) => invoke('delete_inventory_item', {filePath}),
     renameFile: (oldPath, newPath) => invoke('rename_file', {oldPath, newPath}),

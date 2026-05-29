@@ -8544,6 +8544,68 @@ async fn fs_copy_path(src: String, dest: String) -> Result<(), String> {
     .await
 }
 
+/// Secure delete: open the file, overwrite EVERY byte with `0x00`,
+/// fsync to flush the OS write-back cache, THEN unlink. Defeats simple
+/// undeletion tools that recover by re-reading the freed sectors.
+///
+/// **Caveats** (deliberately not abstracted away because users should
+/// know):
+/// - SSDs do wear-leveling and the controller decides which physical
+///   cell receives each write — the OS only sees the LBA. The original
+///   cell may retain the old contents until garbage-collected. Real
+///   shred on flash requires the drive's secure-erase command
+///   (`hdparm --user-master u --security-erase NULL /dev/sdX`).
+/// - APFS / btrfs / zfs are copy-on-write — overwriting "the same
+///   file" may write to a different physical block, leaving the old
+///   contents intact until snapshot expiry.
+/// - Files in Time Machine / system snapshots survive regardless.
+///
+/// On HDD + non-CoW filesystems (ext4 in default mode, NTFS without
+/// shadow copies) this is genuinely effective. Directories are
+/// rejected — recursive shred is a footgun.
+#[tauri::command]
+async fn fs_secure_delete(file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        use std::io::{Seek, SeekFrom, Write};
+        let path = std::path::PathBuf::from(&file_path);
+        let meta = std::fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        if meta.file_type().is_symlink() {
+            // Just unlink the symlink itself — don't shred the target.
+            std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+        if meta.is_dir() {
+            return Err(
+                "Secure delete on directories is disabled — pick individual files".to_string(),
+            );
+        }
+        let len = meta.len();
+        if len > 0 {
+            let mut f = std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(false)
+                .open(&path)
+                .map_err(|e| format!("open for overwrite: {e}"))?;
+            let zeros = [0u8; 64 * 1024];
+            f.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+            let mut written: u64 = 0;
+            while written < len {
+                let chunk = ((len - written) as usize).min(zeros.len());
+                f.write_all(&zeros[..chunk]).map_err(|e| e.to_string())?;
+                written += chunk as u64;
+            }
+            // Flush data out before unlinking — otherwise the kernel
+            // may discard the dirty buffer when the inode is unlinked.
+            f.sync_all().map_err(|e| format!("sync: {e}"))?;
+        }
+        std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+        #[cfg(not(test))]
+        append_log(format!("SECURE DELETE — {} ({} B zeroed)", file_path, len));
+        Ok(())
+    })
+    .await
+}
+
 /// Move a file or directory to the OS trash (NSFileManager trashItemAtURL
 /// on macOS, XDG Trash on Linux, Recycle Bin on Windows) — recoverable,
 /// unlike `delete_file` which is a permanent unlink. Use this for every
@@ -11601,6 +11663,7 @@ pub fn run() {
             fs_folder_size,
             delete_file,
             move_to_trash,
+            fs_secure_delete,
             fs_get_info,
             fs_make_alias,
             fs_copy_path,

@@ -2708,6 +2708,33 @@ document.addEventListener('contextmenu', (e) => {
                     }
                 },
             });
+            // Secure Delete — overwrite every byte with zeros + fsync +
+            // unlink. Confirm prompt spells out the SSD / CoW caveats so
+            // users don't believe the guarantee is stronger than it is
+            // on their actual filesystem.
+            if (!isDir) {
+                items.push({
+                    icon: '&#128737;',
+                    label: appFmt('menu.fb_secure_delete'), ..._noEcho,
+                    action: async () => {
+                        const msg = appFmt('confirm.fb_secure_delete_body', {name});
+                        const title = appFmt('confirm.fb_secure_delete_title');
+                        const ok = typeof confirmAction === 'function'
+                            ? await confirmAction(msg, title)
+                            : confirm(msg);
+                        if (!ok) return;
+                        try {
+                            await window.vstUpdater.fsSecureDelete(path);
+                            showToast(toastFmt('toast.deleted_name_quotes', {name}));
+                            if (typeof loadDirectory === 'function' && typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath) {
+                                loadDirectory(_fileBrowserPath);
+                            }
+                        } catch (err) {
+                            showToast(toastFmt('toast.delete_failed_msg', {err: err.message || err}), 4000, 'error');
+                        }
+                    },
+                });
+            }
             items.push('---');
             items.push({
                 icon: '&#128203;',

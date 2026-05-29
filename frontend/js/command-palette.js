@@ -321,6 +321,34 @@ function buildPaletteStaticItems() {
             if (sel.length) window.fileBrowserBulkExtract?.(sel);
             else showToast(toastFmt('toast.failed', {err: 'select archives first'}), 4000, 'error');
         }),
+        // Current-folder ops (active pane).
+        fbAction('menu.fb_cp_refresh',             '&#128260;', () => {
+            if (typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath && typeof loadDirectory === 'function') loadDirectory(_fileBrowserPath);
+        }),
+        fbAction('menu.fb_cp_open_in_terminal_current', '&#9000;', () => {
+            if (typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath && window.vstUpdater?.fsOpenTerminal) window.vstUpdater.fsOpenTerminal(_fileBrowserPath);
+        }),
+        fbAction('menu.fb_cp_reveal_current',      '&#128193;', () => {
+            if (typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath && window.vstUpdater?.openPresetFolder) window.vstUpdater.openPresetFolder(_fileBrowserPath);
+        }),
+        fbAction('menu.fb_cp_copy_current_path',   '&#128203;', () => {
+            if (typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath && typeof copyToClipboard === 'function') copyToClipboard(_fileBrowserPath);
+        }),
+        fbAction('menu.fb_cp_bookmark_current',    '&#9733;',  () => {
+            if (typeof _fileBrowserPath === 'undefined' || !_fileBrowserPath) return;
+            const name = _fileBrowserPath.split('/').filter(Boolean).pop() || _fileBrowserPath;
+            if (typeof addFavDir === 'function') addFavDir({name, path: _fileBrowserPath});
+        }),
+        fbAction('menu.fb_cp_up_one_folder',       '&#8593;',  () => {
+            if (typeof _fileBrowserPath === 'undefined' || !_fileBrowserPath) return;
+            const parent = _fileBrowserPath.replace(/\/[^/]+\/?$/, '') || '/';
+            if (typeof loadDirectory === 'function') loadDirectory(parent);
+        }),
+        fbAction('menu.fb_cp_go_home',             '&#127968;', async () => {
+            try { const home = await window.vstUpdater.getHomeDir(); if (home && typeof loadDirectory === 'function') loadDirectory(home); } catch (_) { /* ignore */ }
+        }),
+        fbAction('menu.fb_cp_select_all',          '&#9711;',  () => { if (typeof selectAllVisibleFiles === 'function') selectAllVisibleFiles(); }),
+        fbAction('menu.fb_cp_clear_selection',     '&#10005;', () => { if (typeof clearFileSelection === 'function') clearFileSelection(); }),
     );
 
     // Actions — all trigger toast confirmation
