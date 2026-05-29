@@ -6354,12 +6354,19 @@
         /* Wrapper around the Quick-look PDF canvas. Spinner overlay lives
          * here as `::after` — pseudo-elements don't render on `<canvas>`,
          * which is why the previous spinner attempt was invisible. */
+        /* Quick-look PDF: wrap is a centered box with a reserved aspect-
+         * ratio area. Canvas is hidden until paint completes — no flash of
+         * white box. Spinner is the canonical `.spinner` element (same
+         * one the ALS scan progress uses), absolute-positioned with fixed
+         * pixel margins so it stays dead-centered regardless of the
+         * `transform: rotate(...)` animation (translate would conflict
+         * with rotate — was the previous bug). */
         .fb-quicklook-pdf-wrap {
             position: relative;
             margin: 0 auto 16px;
             display: inline-block;
-            min-width: 200px;
-            min-height: 200px;
+            min-width: 360px;
+            min-height: 280px;
         }
 
         .fb-quicklook-pdf {
@@ -6371,33 +6378,16 @@
             border-radius: 3px;
         }
 
-        /* While the page is being rendered: overlay a pulsing cyan gradient +
-         * a centered spinning ring. Removed (`fb-quicklook-pdf-loading` class
-         * dropped from wrapper) when render completes — the rendered canvas
-         * replaces the overlay. */
-        .fb-quicklook-pdf-wrap.fb-quicklook-pdf-loading {
-            background:
-                radial-gradient(circle at center, rgba(5, 217, 232, 0.5) 0%, rgba(5, 217, 232, 0) 40%),
-                white;
-            min-height: 280px;
-            min-width: 360px;
-            border: 1px solid var(--cyan);
-            border-radius: 3px;
-        }
-
-        .fb-quicklook-pdf-wrap.fb-quicklook-pdf-loading::after {
-            content: '';
+        /* Spinner: canonical `.spinner` (32×32), centered via fixed pixel
+         * offsets (`margin-*: -16px`) NOT translate — `transform: rotate(...)`
+         * from the spin animation otherwise overwrites the translate and
+         * the spinner jumps to the corner mid-frame. */
+        .fb-quicklook-pdf-spinner {
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(5, 217, 232, 0.2);
-            border-top-color: var(--cyan);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            box-shadow: 0 0 12px rgba(5, 217, 232, 0.5);
+            margin-top: -16px;
+            margin-left: -16px;
         }
 
         .fb-quicklook-meta {

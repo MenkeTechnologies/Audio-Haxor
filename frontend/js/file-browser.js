@@ -606,12 +606,16 @@ async function showQuickLook(filePath) {
     const wfHtml = isAudio
         ? `<canvas class="fb-quicklook-wf" id="fbQuickLookWf" data-wf-path="${escapeHtml(filePath)}" width="800" height="120"></canvas>`
         : '';
-    // Wrap canvas in a `<div>` so the loading-spinner `::after` pseudo-element
-    // can render. CSS spec forbids pseudo-elements on `<canvas>` (a "replaced"
-    // element); without the wrapper the spinner is invisible and the user
-    // sees a blank white box during render.
+    // Wrap canvas in a `<div>` so the spinner has a positioned parent.
+    // Canvas starts hidden (`fb-hidden`) — only unhidden after paint, so
+    // there's no flash of white box before render. Spinner is the
+    // canonical `.spinner` element (same one ALS scan progress uses) so
+    // every loading state in the app looks the same.
     const pdfHtml = isPdf
-        ? `<div class="fb-quicklook-pdf-wrap" id="fbQuickLookPdfWrap"><canvas class="fb-quicklook-pdf" id="fbQuickLookPdf"></canvas></div>`
+        ? `<div class="fb-quicklook-pdf-wrap" id="fbQuickLookPdfWrap">`
+            + `<span class="spinner fb-quicklook-pdf-spinner fb-hidden" id="fbQuickLookPdfSpinner" aria-hidden="true"></span>`
+            + `<canvas class="fb-quicklook-pdf fb-hidden" id="fbQuickLookPdf"></canvas>`
+            + `</div>`
         : '';
     body.innerHTML = `
         ${wfHtml}
@@ -629,19 +633,19 @@ async function showQuickLook(filePath) {
         return;
     }
     if (isPdf) {
-        // Big render — 600 px width. Cache-first using width=600 (independent
-        // of the 320 preview-pane and 80 thumbnail caches — no collisions).
+        // Big render — 600 px width. Same canonical width as preview pane
+        // + PDF-tab thumb, so all three consumers share one cache row per
+        // PDF (a thumb render pre-populates the Quick-look cache too).
         const canvas = document.getElementById('fbQuickLookPdf');
-        const wrap = document.getElementById('fbQuickLookPdfWrap');
+        const spinner = document.getElementById('fbQuickLookPdfSpinner');
         if (!canvas) return;
-        // Same canonical width as the preview pane + thumb — one cache
-        // row per PDF, ever. Cache hit here means no render even if
-        // the user has never opened Quick-look before (thumb populated it).
         const QL_WIDTH = 600;
-        // Loading class on the WRAPPER div (not the canvas) so the spinner
-        // `::after` pseudo-element renders — pseudo-elements don't work on
-        // replaced elements like `<canvas>`.
-        const setLoading = (on) => { if (wrap) wrap.classList.toggle('fb-quicklook-pdf-loading', !!on); };
+        // Canvas starts hidden until paint completes — no flash of empty
+        // white box. Spinner starts hidden too; only unhide if the cache
+        // misses and we have to actually render.
+        const showCanvas = () => canvas.classList.remove('fb-hidden');
+        const showSpinner = () => { if (spinner) spinner.classList.remove('fb-hidden'); };
+        const hideSpinner = () => { if (spinner) spinner.classList.add('fb-hidden'); };
         // Try cache FIRST without showing the spinner — hits should be
         // invisible (no flash of loading state).
         try {
@@ -649,11 +653,12 @@ async function showQuickLook(filePath) {
             // Raw ArrayBuffer — check byteLength (truthiness is always true).
             if (cached && cached.byteLength > 0 && typeof _fbPaintPngBytesIntoCanvas === 'function') {
                 await _fbPaintPngBytesIntoCanvas(canvas, cached);
+                showCanvas();
                 return;
             }
         } catch (_) { /* fall through */ }
         // Confirmed cache miss → show spinner, now do the slow render.
-        setLoading(true);
+        showSpinner();
         try {
             const bytes = await window.vstUpdater.fsReadFileBytes(filePath);
             const pdfjs = await loadPdfJs();
@@ -666,7 +671,8 @@ async function showQuickLook(filePath) {
             canvas.width = Math.round(viewport.width);
             canvas.height = Math.round(viewport.height);
             await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
-            setLoading(false);
+            hideSpinner();
+            showCanvas();
             // Fire-and-forget cache write — the modal's visible content
             // doesn't depend on the write, so don't block the JS thread
             // waiting on the IPC roundtrip. Rust writes SQLite on its
@@ -677,8 +683,8 @@ async function showQuickLook(filePath) {
                 return window.vstUpdater.pdfPreviewSet(filePath, 1, QL_WIDTH, png);
             }).catch((err) => console.warn('quicklook pdf cache write failed:', err));
         } catch (_) {
-            setLoading(false);
-            // Leave canvas blank on failure; the metadata + path are still
+            hideSpinner();
+            // Leave canvas hidden on failure; the metadata + path are still
             // visible in the modal body so user knows what failed.
         }
     }
@@ -2535,12 +2541,20 @@ document.addEventListener('contextmenu', (e) => {
         items.push({
             icon: '&#128193;',
             label: appFmt('menu.open_folder'), ..._ctxMenuNoEcho,
-            action: () => loadDirectory(path)
+            action: () => {
+                showToast(toastFmt('toast.opening_name', {name}));
+                loadDirectory(path);
+            }
         });
         items.push({
             icon: '&#128193;',
             label: appFmt('menu.reveal_in_finder'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('revealFile'),
-            action: () => window.vstUpdater.openPresetFolder(path)
+            action: () => {
+                showToast(toastFmt('toast.revealing_file'));
+                window.vstUpdater.openPresetFolder(path)
+                    .then(() => showToast(toastFmt('toast.revealed_in_finder')))
+                    .catch((err) => showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error'));
+            }
         });
         const dirFav = isFavDir(path);
         items.push({
@@ -2556,24 +2570,39 @@ document.addEventListener('contextmenu', (e) => {
                 action: () => previewAudio(path)
             });
         }
-        items.push({icon: '&#128194;', label: appFmt('menu.open'), ..._ctxMenuNoEcho, action: () => opener_open(path)});
+        items.push({
+            icon: '&#128194;',
+            label: appFmt('menu.open'), ..._ctxMenuNoEcho,
+            action: () => {
+                showToast(toastFmt('toast.opening_name', {name}));
+                opener_open(path);
+            }
+        });
         // Explicit "Open in Default App" — bypasses the DAW-first routing in
         // `opener_open`. Useful when the user wants the OS default for a file
         // type that's also a DAW project (e.g. open .als raw in a text editor)
         // or for arbitrary files (.txt, .png, .docx) where there's no in-app
-        // viewer. Toast on failure so the user knows when no handler is
-        // registered for the extension.
+        // viewer. Optimistic toast on click; failure routes through the
+        // explicit `toast.failed_open_file` error toast.
         items.push({
             icon: '&#128194;',
             label: appFmt('menu.open_default_app'), ..._ctxMenuNoEcho,
-            action: () => window.vstUpdater.openFileDefault(path).catch((err) =>
-                showToast(toastFmt('toast.failed_open_file', {err: err && err.message ? err.message : err}), 4000, 'error')
-            ),
+            action: () => {
+                showToast(toastFmt('toast.opening_name', {name}));
+                window.vstUpdater.openFileDefault(path).catch((err) =>
+                    showToast(toastFmt('toast.failed_open_file', {err: err && err.message ? err.message : err}), 4000, 'error')
+                );
+            },
         });
         items.push({
             icon: '&#128193;',
             label: appFmt('menu.reveal_in_finder'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('revealFile'),
-            action: () => window.vstUpdater.openPresetFolder(path)
+            action: () => {
+                showToast(toastFmt('toast.revealing_file'));
+                window.vstUpdater.openPresetFolder(path)
+                    .then(() => showToast(toastFmt('toast.revealed_in_finder')))
+                    .catch((err) => showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error'));
+            }
         });
     }
     items.push('---');

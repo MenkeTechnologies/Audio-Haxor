@@ -2280,15 +2280,22 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#128193;',
                     label: appFmt('menu.open_directory'), ..._noEcho,
-                    action: () => typeof loadDirectory === 'function' && loadDirectory(path)
+                    action: () => {
+                        showToast(toastFmt('toast.opening_name', {name}));
+                        if (typeof loadDirectory === 'function') loadDirectory(path);
+                    }
                 });
                 // Open in Terminal — system shell at this folder. Platform-
                 // specific spawn handled in `fs_open_terminal` Rust command.
+                // Optimistic toast (`Opening in Terminal...`) fires before
+                // the IPC so the click feels immediate; failure path still
+                // routes through `toast.failed` as an error toast.
                 items.push({
                     icon: '&#9000;',
                     label: 'Open in Terminal', ..._noEcho,
                     action: () => {
                         if (window.vstUpdater && typeof window.vstUpdater.fsOpenTerminal === 'function') {
+                            showToast(toastFmt('toast.opening_in_app', {app: 'Terminal'}));
                             window.vstUpdater.fsOpenTerminal(path).catch((err) =>
                                 showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error')
                             );
@@ -2304,6 +2311,7 @@ document.addEventListener('contextmenu', (e) => {
                     label: 'Open in DAW', ..._noEcho,
                     action: () => {
                         if (window.vstUpdater && typeof window.vstUpdater.openDawProject === 'function') {
+                            showToast(toastFmt('toast.opening_in_daw', {name, daw: 'DAW'}));
                             window.vstUpdater.openDawProject(path).catch((err) =>
                                 showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error')
                             );
@@ -2320,14 +2328,18 @@ document.addEventListener('contextmenu', (e) => {
                 items.push({
                     icon: '&#128194;',
                     label: appFmt('menu.open_default_app'), ..._noEcho,
-                    action: () => window.vstUpdater.openFileDefault(path).catch((err) =>
-                        showToast(toastFmt('toast.failed_open_file', {err: err && err.message ? err.message : err}), 4000, 'error')
-                    ),
+                    action: () => {
+                        showToast(toastFmt('toast.opening_name', {name}));
+                        window.vstUpdater.openFileDefault(path).catch((err) =>
+                            showToast(toastFmt('toast.failed_open_file', {err: err && err.message ? err.message : err}), 4000, 'error')
+                        );
+                    },
                 });
             }
             items.push({
                 icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'), action: () => {
                     const dir = isDir ? path : path.replace(/\/[^/]+$/, '');
+                    showToast(toastFmt('toast.revealing_file'));
                     if (typeof openFolder === 'function') openFolder(dir);
                     else if (typeof openAudioFolder === 'function') openAudioFolder(path);
                 }
@@ -2337,13 +2349,15 @@ document.addEventListener('contextmenu', (e) => {
                 // samples / presets / DAW projects / MIDI / PDFs / videos).
                 // Each switches to the target tab and kicks off the scan with
                 // the right-clicked folder as the sole override root, bypassing
-                // the user's stored library roots. Reuses existing `menu.scan_*`
-                // i18n keys (shipped across all 27 locales).
+                // the user's stored library roots. Each fires its existing
+                // `toast.scanning_*` toast (already i18n'd across 27 locales)
+                // so the user sees confirmation that the scan kicked off.
                 items.push('---');
                 items.push({
                     icon: '&#128270;',
                     label: appFmt('menu.scan_samples'), ..._noEcho,
                     action: () => {
+                        showToast(toastFmt('toast.scanning_samples'));
                         if (typeof switchTab === 'function') switchTab('samples');
                         if (typeof scanAudioSamples === 'function') scanAudioSamples(false, null, [path]);
                     },
@@ -2352,6 +2366,7 @@ document.addEventListener('contextmenu', (e) => {
                     icon: '&#128270;',
                     label: appFmt('menu.scan_presets'), ..._noEcho,
                     action: () => {
+                        showToast(toastFmt('toast.scanning_presets'));
                         if (typeof switchTab === 'function') switchTab('presets');
                         if (typeof scanPresets === 'function') scanPresets(false, null, [path]);
                     },
@@ -2360,6 +2375,7 @@ document.addEventListener('contextmenu', (e) => {
                     icon: '&#128270;',
                     label: appFmt('menu.scan_daw'), ..._noEcho,
                     action: () => {
+                        showToast(toastFmt('toast.scanning_daw_projects'));
                         if (typeof switchTab === 'function') switchTab('daw');
                         if (typeof scanDawProjects === 'function') scanDawProjects(false, null, [path]);
                     },
@@ -2368,6 +2384,10 @@ document.addEventListener('contextmenu', (e) => {
                     icon: '&#128270;',
                     label: appFmt('menu.scan_midi'), ..._noEcho,
                     action: () => {
+                        // No `toast.scanning_midi` exists yet — fall back to
+                        // the menu label as the toast body so the user still
+                        // sees confirmation. Cheap, no new i18n key.
+                        showToast(appFmt('menu.scan_midi'));
                         if (typeof switchTab === 'function') switchTab('midi');
                         if (typeof scanMidi === 'function') scanMidi(false, [path]);
                     },
@@ -2376,6 +2396,7 @@ document.addEventListener('contextmenu', (e) => {
                     icon: '&#128270;',
                     label: appFmt('menu.scan_pdf'), ..._noEcho,
                     action: () => {
+                        showToast(toastFmt('toast.scanning_pdfs_progress'));
                         if (typeof switchTab === 'function') switchTab('pdf');
                         if (typeof scanPdfs === 'function') scanPdfs(false, null, [path]);
                     },
@@ -2384,6 +2405,7 @@ document.addEventListener('contextmenu', (e) => {
                     icon: '&#128270;',
                     label: appFmt('menu.scan_videos'), ..._noEcho,
                     action: () => {
+                        showToast(toastFmt('toast.scanning_videos_progress'));
                         if (typeof switchTab === 'function') switchTab('videos');
                         if (typeof scanVideos === 'function') scanVideos(false, [path]);
                     },
