@@ -1435,6 +1435,12 @@ function initTabDragReorder() {
             }
             placeholder = null;
             saveTabOrder();
+            // Toast — main tab bar has its own drag engine (not
+            // initDragReorder), so emit `toast.reordered_main_tabs` here
+            // to match every other reorder surface.
+            if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                showToast(toastFmt('toast.reordered_main_tabs'));
+            }
         }
 
         // Suppress the click that follows mouseup if we actually dragged

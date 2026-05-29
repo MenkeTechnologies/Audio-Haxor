@@ -42,6 +42,7 @@ NEW_KEYS: dict[str, str] = {
     "toast.reordered_shortcut_rows": "Shortcut rows reordered",
     "toast.reordered_np_sections": "Player sections reordered",
     "toast.reordered_heatmap": "Heatmap tiles reordered",
+    "toast.reordered_main_tabs": "Main tabs reordered",
     # OS-drop receiver (cross-pane file move/copy via native drag).
     "toast.fb_drop_copied_n": "Copied {n} item(s) → Pane {pane}",
     "toast.fb_drop_moved_n": "Moved {n} item(s) → Pane {pane}",
