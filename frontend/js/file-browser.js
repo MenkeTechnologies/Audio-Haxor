@@ -708,6 +708,61 @@ document.addEventListener('contextmenu', (e) => {
             label: dirFav ? appFmt('menu.remove_bookmark') : appFmt('menu.bookmark_directory'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('toggleFavorite'),
             action: () => dirFav ? removeFavDir(path) : addFavDir(path)
         });
+        // Scan-folder shortcuts. Each switches to the relevant tab and kicks off
+        // the corresponding scan with the right-clicked folder as the sole root
+        // (overrideRoots), bypassing the user's stored library roots. `typeof
+        // <fn> === 'function'` guards cover the case where a tab's script wasn't
+        // loaded yet (e.g. lazy-loaded tabs). All six i18n keys already shipped
+        // across all 27 locales (`menu.scan_*`).
+        items.push('---');
+        items.push({
+            icon: '&#128270;',
+            label: appFmt('menu.scan_samples'), ..._ctxMenuNoEcho,
+            action: () => {
+                if (typeof switchTab === 'function') switchTab('samples');
+                if (typeof scanAudioSamples === 'function') scanAudioSamples(false, null, [path]);
+            },
+        });
+        items.push({
+            icon: '&#128270;',
+            label: appFmt('menu.scan_presets'), ..._ctxMenuNoEcho,
+            action: () => {
+                if (typeof switchTab === 'function') switchTab('presets');
+                if (typeof scanPresets === 'function') scanPresets(false, null, [path]);
+            },
+        });
+        items.push({
+            icon: '&#128270;',
+            label: appFmt('menu.scan_daw'), ..._ctxMenuNoEcho,
+            action: () => {
+                if (typeof switchTab === 'function') switchTab('daw');
+                if (typeof scanDawProjects === 'function') scanDawProjects(false, null, [path]);
+            },
+        });
+        items.push({
+            icon: '&#128270;',
+            label: appFmt('menu.scan_midi'), ..._ctxMenuNoEcho,
+            action: () => {
+                if (typeof switchTab === 'function') switchTab('midi');
+                if (typeof scanMidi === 'function') scanMidi(false, [path]);
+            },
+        });
+        items.push({
+            icon: '&#128270;',
+            label: appFmt('menu.scan_pdf'), ..._ctxMenuNoEcho,
+            action: () => {
+                if (typeof switchTab === 'function') switchTab('pdf');
+                if (typeof scanPdfs === 'function') scanPdfs(false, null, [path]);
+            },
+        });
+        items.push({
+            icon: '&#128270;',
+            label: appFmt('menu.scan_videos'), ..._ctxMenuNoEcho,
+            action: () => {
+                if (typeof switchTab === 'function') switchTab('videos');
+                if (typeof scanVideos === 'function') scanVideos(false, [path]);
+            },
+        });
     } else {
         if (AUDIO_EXTS.includes(ext)) {
             items.push({
