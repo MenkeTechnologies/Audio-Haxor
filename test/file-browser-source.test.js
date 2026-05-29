@@ -260,6 +260,65 @@ describe('frontend/js/file-browser.js (vm-loaded)', () => {
     });
   });
 
+  describe('_fbBulkRenameComputeName', () => {
+    const audio = { name: 'kick.wav', path: '/x/kick.wav', isDir: false };
+    const folder = { name: 'beats', path: '/x/beats', isDir: true };
+
+    it('find/replace operates on basename only (extension preserved)', () => {
+      const out = F._fbBulkRenameComputeName(
+        audio,
+        { find: 'kick', replace: 'snare', regex: false, prefix: '', suffix: '', numStart: 1, numPad: 1 },
+        0,
+      );
+      assert.strictEqual(out, 'snare.wav');
+    });
+
+    it('regex find/replace supports backreferences', () => {
+      const out = F._fbBulkRenameComputeName(
+        { name: 'sample_42.wav', path: '/x/sample_42.wav', isDir: false },
+        { find: '(\\w+)_(\\d+)', replace: '$2_$1', regex: true, prefix: '', suffix: '', numStart: 1, numPad: 1 },
+        0,
+      );
+      assert.strictEqual(out, '42_sample.wav');
+    });
+
+    it('prefix prepended, suffix inserted before extension', () => {
+      const out = F._fbBulkRenameComputeName(
+        audio,
+        { find: '', replace: '', regex: false, prefix: 'MASTER_', suffix: '_v2', numStart: 1, numPad: 1 },
+        0,
+      );
+      assert.strictEqual(out, 'MASTER_kick_v2.wav');
+    });
+
+    it('{n} placeholder substituted with padded index', () => {
+      const out = F._fbBulkRenameComputeName(
+        audio,
+        { find: '', replace: '', regex: false, prefix: '{n}_', suffix: '', numStart: 1, numPad: 3 },
+        4,
+      );
+      assert.strictEqual(out, '005_kick.wav'); // numStart=1 + index=4 = 5, padded to 3 digits
+    });
+
+    it('folder names: no extension handling, suffix appended at end', () => {
+      const out = F._fbBulkRenameComputeName(
+        folder,
+        { find: '', replace: '', regex: false, prefix: 'old_', suffix: '_pack', numStart: 1, numPad: 1 },
+        0,
+      );
+      assert.strictEqual(out, 'old_beats_pack');
+    });
+
+    it('{name} and {ext} placeholders resolve to the original parts', () => {
+      const out = F._fbBulkRenameComputeName(
+        audio,
+        { find: '', replace: '', regex: false, prefix: '{name}_copy', suffix: '_{ext}', numStart: 1, numPad: 1 },
+        0,
+      );
+      assert.strictEqual(out, 'kick_copykick_wav.wav');
+    });
+  });
+
   describe('_fbFormatItemCount', () => {
     it('formats sub-thousand as plain integer', () => {
       assert.strictEqual(F._fbFormatItemCount(0), '0');

@@ -5967,6 +5967,120 @@
             user-select: none !important;
         }
 
+        /* Bulk rename modal — pattern fields grid + live preview table. */
+        .fb-bulk-rename-modal {
+            max-width: 720px;
+            width: 90%;
+        }
+
+        .fb-bulk-rename-grid {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 8px 12px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .fb-bulk-rename-grid label {
+            color: var(--text-muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .fb-bulk-rename-grid input[type="text"],
+        .fb-bulk-rename-grid input[type="number"] {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-family: inherit;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .fb-bulk-rename-grid input[type="text"]:focus,
+        .fb-bulk-rename-grid input[type="number"]:focus {
+            border-color: var(--cyan);
+        }
+
+        .fb-bulk-rename-hint {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin: 6px 0 12px;
+        }
+
+        .fb-bulk-rename-hint code {
+            background: rgba(5, 217, 232, 0.1);
+            color: var(--cyan);
+            padding: 0 4px;
+            border-radius: 2px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .fb-bulk-rename-preview {
+            max-height: 260px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .fb-bulk-rename-preview table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .fb-bulk-rename-preview th {
+            background: rgba(5, 217, 232, 0.1);
+            color: var(--cyan);
+            text-align: left;
+            padding: 4px 8px;
+            font-size: 10px;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+        }
+
+        .fb-bulk-rename-preview td {
+            padding: 3px 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            color: var(--text);
+            word-break: break-all;
+        }
+
+        .fb-bulk-rename-preview tr.unchanged td {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .fb-bulk-rename-preview tr.conflict td {
+            color: #ff2a6d;
+        }
+
+        .fb-bulk-rename-count {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: normal;
+            margin-left: 6px;
+        }
+
+        .fb-bulk-rename-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 10px 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .fb-bulk-rename-footer .modal-footer-count {
+            margin-right: auto;
+        }
+
         /* Preview pane container — flex wrapper around the file list so the
          * pane can occupy the right side as a sibling. File list stays
          * scrollable; pane is a fixed-width column when shown. */
@@ -12254,6 +12368,7 @@
                 <button class="btn btn-stop" data-action="fileBulkClear" title="Clear selection">&#10005; <span data-i18n="ui.btn.10005_clear">Clear</span></button>
                 <button class="btn btn-secondary" data-action="fileBulkFavorite" title="Add selected to favorites">&#9733; <span data-i18n="ui.btn.9733_favorite">Favorite</span></button>
                 <button class="btn btn-secondary" data-action="fileBulkOpen" title="Open selected with default app">&#128194; <span data-i18n="menu.open">Open</span></button>
+                <button class="btn btn-secondary" data-action="fileBulkRename" title="Rename selected with pattern (find/replace, prefix/suffix, numbering)">&#9998; Rename...</button>
                 <button class="btn btn-stop" data-action="fileBulkDelete" title="Delete selected"><span data-i18n="menu.delete">Delete</span></button>
                 <div class="batch-sep"></div>
                 <button class="btn btn-secondary" data-action="fileBulkScan" data-scan="samples" title="Scan selected folders for samples">&#128270; <span data-i18n="menu.scan_samples">Scan Samples</span></button>
@@ -15482,6 +15597,41 @@
 <script src="js/pdf.js?v=56057"></script>
 <script src="js/video.js?v=56057"></script>
 <!-- Blacklist Modal -->
+<!-- Bulk rename modal (file browser multi-select → Rename...) -->
+<div id="fbBulkRenameModal" class="modal-overlay">
+    <div class="modal-content fb-bulk-rename-modal">
+        <div class="modal-header">
+            <h2>Bulk Rename <span class="fb-bulk-rename-count" id="fbBulkRenameCount"></span></h2>
+            <button class="modal-close" data-action="fbBulkRenameCancel" title="Close (Esc)">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="fb-bulk-rename-grid">
+                <label>Find (regex if toggle on)</label>
+                <input type="text" id="fbBulkRenameFind" autocomplete="off" autocorrect="off" spellcheck="false" title="Substring or regex to find in each filename">
+                <label>Replace with</label>
+                <input type="text" id="fbBulkRenameReplace" autocomplete="off" autocorrect="off" spellcheck="false" title="Replacement text (can include $1, $2... when regex toggle on)">
+                <label>Use regex</label>
+                <input type="checkbox" id="fbBulkRenameRegex" title="Interpret find pattern as a regular expression">
+                <label>Prefix</label>
+                <input type="text" id="fbBulkRenamePrefix" autocomplete="off" autocorrect="off" spellcheck="false" title="Text to prepend to each filename (before extension)">
+                <label>Suffix (before ext)</label>
+                <input type="text" id="fbBulkRenameSuffix" autocomplete="off" autocorrect="off" spellcheck="false" title="Text to append before the extension">
+                <label>Number start</label>
+                <input type="number" id="fbBulkRenameNumStart" value="1" min="0" title="Starting number when {n} placeholder is used; auto-padded to NumPad digits">
+                <label>Number padding</label>
+                <input type="number" id="fbBulkRenameNumPad" value="3" min="1" max="8" title="Zero-pad numbers to this width (e.g. 3 → 001, 002)">
+            </div>
+            <p class="fb-bulk-rename-hint">Placeholders: <code>{n}</code> = padded number, <code>{name}</code> = original basename without ext, <code>{ext}</code> = extension. Empty fields are no-ops.</p>
+            <div class="fb-bulk-rename-preview" id="fbBulkRenamePreview"></div>
+        </div>
+        <div class="modal-row-footer fb-bulk-rename-footer">
+            <span class="modal-footer-count" id="fbBulkRenameStatus"></span>
+            <button class="btn btn-secondary btn-compact" data-action="fbBulkRenameCancel" title="Cancel">Cancel</button>
+            <button class="btn btn-primary btn-compact" id="fbBulkRenameApply" data-action="fbBulkRenameApply" title="Apply rename to all selected">Apply</button>
+        </div>
+    </div>
+</div>
+
 <div id="blacklistModal" class="modal-overlay">
     <div class="modal-content" style="max-width:600px;">
         <div class="modal-header">

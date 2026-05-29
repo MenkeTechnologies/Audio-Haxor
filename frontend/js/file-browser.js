@@ -125,6 +125,168 @@ function fileIcon(entry) {
     return '&#128196;';
 }
 
+// ── Bulk rename modal ──
+// Multi-select rows → toolbar Rename... → modal with pattern fields.
+// Pure JS — backend just receives per-file `rename_file` calls in a loop.
+// Live preview table updates as the user types; rows highlighted red when
+// a new name would conflict with another row's new name (would overwrite).
+
+function _fbBulkRenameSelectedEntries() {
+    if (!Array.isArray(_fileBrowserEntries) || _fileSelected.size === 0) return [];
+    const out = [];
+    for (const p of _fileSelected) {
+        const e = _fileEntryByPath ? _fileEntryByPath(p) : null;
+        if (e) out.push(e);
+    }
+    return out;
+}
+
+/** Compute the new name for a single entry given the current pattern fields. */
+function _fbBulkRenameComputeName(entry, params, index) {
+    const orig = entry.name;
+    const dot = orig.lastIndexOf('.');
+    const hasExt = !entry.isDir && dot > 0;
+    let base = hasExt ? orig.slice(0, dot) : orig;
+    const ext = hasExt ? orig.slice(dot) : '';
+    // Find/replace on the basename only — preserve extension.
+    if (params.find) {
+        try {
+            if (params.regex) {
+                const re = new RegExp(params.find, 'g');
+                base = base.replace(re, params.replace);
+            } else {
+                base = base.split(params.find).join(params.replace);
+            }
+        } catch (_) {
+            // Invalid regex — leave base unchanged; UI will surface no change.
+        }
+    }
+    // Placeholder substitution. {n} = padded number; {name}, {ext} for templates.
+    const padded = String((params.numStart || 0) + index).padStart(Math.max(1, params.numPad || 1), '0');
+    const subs = (s) => String(s || '')
+        .replace(/\{n\}/g, padded)
+        .replace(/\{name\}/g, base)
+        .replace(/\{ext\}/g, ext.replace(/^\./, ''));
+    const prefix = subs(params.prefix);
+    const suffix = subs(params.suffix);
+    return `${prefix}${base}${suffix}${ext}`;
+}
+
+function _fbBulkRenameCollectParams() {
+    const $ = (id) => document.getElementById(id);
+    return {
+        find: $('fbBulkRenameFind')?.value || '',
+        replace: $('fbBulkRenameReplace')?.value || '',
+        regex: !!$('fbBulkRenameRegex')?.checked,
+        prefix: $('fbBulkRenamePrefix')?.value || '',
+        suffix: $('fbBulkRenameSuffix')?.value || '',
+        numStart: Number($('fbBulkRenameNumStart')?.value) || 0,
+        numPad: Number($('fbBulkRenameNumPad')?.value) || 1,
+    };
+}
+
+function _fbBulkRenameRenderPreview() {
+    if (typeof document === 'undefined') return;
+    const params = _fbBulkRenameCollectParams();
+    const entries = _fbBulkRenameSelectedEntries();
+    const previewEl = document.getElementById('fbBulkRenamePreview');
+    const status = document.getElementById('fbBulkRenameStatus');
+    const apply = document.getElementById('fbBulkRenameApply');
+    if (!previewEl) return;
+    const rows = [];
+    const newNameCounts = new Map();
+    let changed = 0;
+    for (let i = 0; i < entries.length; i++) {
+        const e = entries[i];
+        const newName = _fbBulkRenameComputeName(e, params, i);
+        newNameCounts.set(newName, (newNameCounts.get(newName) || 0) + 1);
+        rows.push({orig: e.name, next: newName, path: e.path});
+        if (newName !== e.name) changed++;
+    }
+    const tbody = rows.map((r) => {
+        const conflict = newNameCounts.get(r.next) > 1;
+        const unchanged = r.next === r.orig;
+        const cls = conflict ? 'conflict' : (unchanged ? 'unchanged' : '');
+        return `<tr class="${cls}"><td>${escapeHtml(r.orig)}</td><td>${escapeHtml(r.next)}</td></tr>`;
+    }).join('');
+    previewEl.innerHTML = `<table>
+        <thead><tr><th>Current</th><th>New</th></tr></thead>
+        <tbody>${tbody}</tbody>
+    </table>`;
+    const conflicts = [...newNameCounts.values()].filter((n) => n > 1).length;
+    if (status) {
+        status.textContent = conflicts > 0
+            ? `${conflicts} conflict${conflicts === 1 ? '' : 's'} · ${changed} change${changed === 1 ? '' : 's'}`
+            : `${changed} change${changed === 1 ? '' : 's'} pending`;
+    }
+    if (apply) {
+        // Disable Apply when there are conflicts (would overwrite each other)
+        // or when nothing would change.
+        apply.disabled = conflicts > 0 || changed === 0;
+    }
+}
+
+function showFileBulkRenameModal() {
+    if (typeof document === 'undefined') return;
+    const modal = document.getElementById('fbBulkRenameModal');
+    if (!modal) return;
+    const entries = _fbBulkRenameSelectedEntries();
+    if (entries.length === 0) return;
+    const countEl = document.getElementById('fbBulkRenameCount');
+    if (countEl) countEl.textContent = `(${entries.length} selected)`;
+    // Reset fields to sensible defaults on open.
+    const reset = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    reset('fbBulkRenameFind', '');
+    reset('fbBulkRenameReplace', '');
+    reset('fbBulkRenamePrefix', '');
+    reset('fbBulkRenameSuffix', '');
+    reset('fbBulkRenameNumStart', '1');
+    reset('fbBulkRenameNumPad', '3');
+    const regex = document.getElementById('fbBulkRenameRegex');
+    if (regex) regex.checked = false;
+    modal.classList.add('modal-visible');
+    _fbBulkRenameRenderPreview();
+    // Focus the Find field for keyboard-first workflow.
+    requestAnimationFrame(() => {
+        const find = document.getElementById('fbBulkRenameFind');
+        if (find) find.focus();
+    });
+}
+
+function hideFileBulkRenameModal() {
+    if (typeof document === 'undefined') return;
+    const modal = document.getElementById('fbBulkRenameModal');
+    if (modal) modal.classList.remove('modal-visible');
+}
+
+async function applyFileBulkRename() {
+    const params = _fbBulkRenameCollectParams();
+    const entries = _fbBulkRenameSelectedEntries();
+    if (entries.length === 0) return;
+    let success = 0;
+    let fail = 0;
+    for (let i = 0; i < entries.length; i++) {
+        const e = entries[i];
+        const newName = _fbBulkRenameComputeName(e, params, i);
+        if (newName === e.name) continue;
+        const dir = e.path.replace(/\/[^/]+$/, '');
+        const newPath = `${dir}/${newName}`;
+        try {
+            await window.vstUpdater.renameFile(e.path, newPath);
+            success++;
+        } catch (_) {
+            fail++;
+        }
+    }
+    if (typeof showToast === 'function') {
+        if (fail === 0) showToast(toastFmt('toast.deleted_name', {name: `renamed ${success} file${success === 1 ? '' : 's'}`}));
+        else showToast(toastFmt('toast.failed', {err: `${fail} of ${success + fail} rename${success + fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+    }
+    hideFileBulkRenameModal();
+    if (typeof clearFileSelection === 'function') clearFileSelection();
+    if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+}
+
 // ── Inline preview pane (right side of file list) ──
 // Persistent side panel that updates whenever a file row is focused or
 // clicked. Toggled via the toolbar Preview button or Cmd+I. Per-extension
@@ -1810,6 +1972,10 @@ document.addEventListener('click', async (e) => {
         }
         return;
     }
+    if (action === 'fileBulkRename') {
+        showFileBulkRenameModal();
+        return;
+    }
     if (action === 'fileBulkOpen') {
         for (const p of paths) {
             if (window.vstUpdater && typeof window.vstUpdater.openFileDefault === 'function') {
@@ -1982,6 +2148,49 @@ document.addEventListener('click', (e) => {
         return;
     }
 });
+
+// Bulk rename modal: Cancel / Apply button delegation + live preview on input.
+document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="fbBulkRenameCancel"]')) {
+        e.stopPropagation();
+        hideFileBulkRenameModal();
+        return;
+    }
+    if (e.target.closest('[data-action="fbBulkRenameApply"]')) {
+        e.stopPropagation();
+        applyFileBulkRename();
+        return;
+    }
+    // Click on the dimmed overlay (outside the modal-content card) dismisses.
+    const overlay = document.getElementById('fbBulkRenameModal');
+    if (overlay && e.target === overlay) {
+        hideFileBulkRenameModal();
+    }
+});
+
+document.addEventListener('input', (e) => {
+    const modal = document.getElementById('fbBulkRenameModal');
+    if (!modal || !modal.classList.contains('modal-visible')) return;
+    if (!modal.contains(e.target)) return;
+    _fbBulkRenameRenderPreview();
+});
+
+document.addEventListener('change', (e) => {
+    const modal = document.getElementById('fbBulkRenameModal');
+    if (!modal || !modal.classList.contains('modal-visible')) return;
+    if (!modal.contains(e.target)) return;
+    _fbBulkRenameRenderPreview();
+});
+
+// Esc dismisses the bulk rename modal (consumed before any other Esc handler).
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('fbBulkRenameModal');
+    if (!modal || !modal.classList.contains('modal-visible')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    hideFileBulkRenameModal();
+}, true);
 
 // Restore preview-pane visibility from prefs on init (so the user's choice
 // persists across app restarts). Wire row clicks to populate the pane.
