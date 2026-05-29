@@ -1009,12 +1009,308 @@ async function fileBrowserNewFolderWithSelection(paths) {
     loadDirectory(_fileBrowserPath);
 }
 
+// ── Hash (SHA-256) — single file or selection ──
+// Streams via the Rust `fs_hash` command (64 KiB chunks; bounded RAM).
+// Multi-file shows per-row digests + a Copy All button.
+async function fileBrowserShowHashModal(paths) {
+    if (!Array.isArray(paths) || paths.length === 0) return;
+    document.getElementById('appHashModal')?.remove();
+    // Render an empty modal first so the user gets immediate visual
+    // feedback that the action kicked off (large files take seconds).
+    const rowSkel = paths.map((p) => {
+        const name = p.split('/').pop();
+        return `<div class="fb-info-grid"><div class="fb-info-key">${escapeHtml(name)}</div><div class="fb-info-val" data-hash-path="${escapeHtml(p)}">hashing…</div></div>`;
+    }).join('');
+    const html = `<div class="modal-overlay modal-visible" id="appHashModal" role="dialog" aria-modal="true">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>SHA-256 ${paths.length === 1 ? '' : `(${paths.length} files)`}</h2>
+        <button type="button" class="modal-close" data-app-hash="close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        ${rowSkel}
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-hash="copy-all">Copy All</button>
+          <button type="button" class="btn btn-primary" data-app-hash="close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appHashModal');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-app-hash]');
+        if (!btn) { if (e.target === modal) close(); return; }
+        if (btn.dataset.appHash === 'close') { close(); return; }
+        if (btn.dataset.appHash === 'copy-all') {
+            const lines = [...modal.querySelectorAll('[data-hash-path]')].map((el) => {
+                const p = el.dataset.hashPath;
+                const v = el.textContent.trim();
+                return `${v}  ${p}`;
+            }).join('\n');
+            try { await navigator.clipboard.writeText(lines); showToast(toastFmt('toast.copied_clipboard')); }
+            catch (_) { showToast(toastFmt('toast.failed', {err: 'clipboard'}), 4000, 'error'); }
+        }
+    });
+    // Hash one at a time (serial keeps disk + IPC pressure low; per-file
+    // streaming inside Rust is already chunked).
+    for (const p of paths) {
+        try {
+            const res = await window.vstUpdater.fsHash(p, ['sha256']);
+            const cell = modal?.querySelector(`[data-hash-path="${CSS.escape(p)}"]`);
+            if (cell) cell.textContent = (res.digests && res.digests.sha256) || '(no digest)';
+        } catch (err) {
+            const cell = modal?.querySelector(`[data-hash-path="${CSS.escape(p)}"]`);
+            if (cell) cell.textContent = `error: ${err && err.message ? err.message : err}`;
+        }
+        if (!document.getElementById('appHashModal')) break; // user closed
+    }
+}
+
+// ── Chmod modal (Unix) ──
+// Text entry for octal mode; checkbox grid would be nice but the modal
+// real estate is small and power users prefer typing 644 / 755 anyway.
+async function fileBrowserShowChmodModal(path) {
+    document.getElementById('appChmodModal')?.remove();
+    let curMode = '';
+    try {
+        const info = await window.vstUpdater.fsGetInfo(path);
+        curMode = info.modeOctal || '';
+    } catch (_) { /* fall through with empty */ }
+    const name = path.split('/').pop();
+    const html = `<div class="modal-overlay modal-visible" id="appChmodModal" role="dialog" aria-modal="true">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>Permissions — ${escapeHtml(name)}</h2>
+        <button type="button" class="modal-close" data-app-chmod="cancel" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p class="app-confirm-message">Octal mode (e.g. 0644, 755). Current: <code>${escapeHtml(curMode || '?')}</code></p>
+        <input type="text" id="appChmodInput" class="app-prompt-input" value="${escapeHtml(curMode)}" />
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-chmod="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" data-app-chmod="ok">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appChmodModal');
+    const input = document.getElementById('appChmodInput');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const apply = async () => {
+        const mode = (input.value || '').trim();
+        if (!mode) { close(); return; }
+        try {
+            await window.vstUpdater.fsChmod(path, mode);
+            showToast(toastFmt('toast.deleted_name', {name: `chmod ${mode} ${name}`}));
+            close();
+            if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+        } catch (err) {
+            showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
+        }
+    };
+    const esc = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(); }
+        else if (e.key === 'Enter' && document.activeElement === input) { e.preventDefault(); apply(); }
+    };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-app-chmod]');
+        if (btn) { if (btn.dataset.appChmod === 'ok') apply(); else close(); return; }
+        if (e.target === modal) close();
+    });
+    requestAnimationFrame(() => { input?.focus(); input?.select(); });
+}
+
+// ── Pattern Select (glob → check matching rows) ──
+// Glob → RegExp converter: `*` → `.*`, `?` → `.`, anything else escaped.
+function _fbGlobToRegex(glob) {
+    const re = glob
+        .split('')
+        .map((c) => (c === '*' ? '.*' : c === '?' ? '.' : c.replace(/[.+^${}()|[\]\\]/g, '\\$&')))
+        .join('');
+    return new RegExp('^' + re + '$', 'i');
+}
+async function fileBrowserPatternSelect() {
+    if (!_fileBrowserPath) return;
+    const glob = typeof promptAction === 'function'
+        ? await promptAction('Glob pattern (e.g. *.wav, song-??.mp3):', '*.*')
+        : window.prompt('Glob pattern (e.g. *.wav):', '*.*');
+    if (!glob) return;
+    const cleaned = glob.trim();
+    if (!cleaned) return;
+    let re;
+    try { re = _fbGlobToRegex(cleaned); }
+    catch (e) { showToast(toastFmt('toast.failed', {err: 'Invalid pattern'}), 4000, 'error'); return; }
+    if (typeof clearFileSelection === 'function') clearFileSelection();
+    let matched = 0;
+    document.querySelectorAll('.file-row-cb').forEach((cb) => {
+        const path = cb.dataset.fbCb;
+        if (!path) return;
+        const name = path.split('/').pop();
+        if (re.test(name)) {
+            cb.checked = true;
+            _fileSelected.add(path);
+            _setFileRowSelectedClass(path, true);
+            matched++;
+        }
+    });
+    updateFileBulkBar();
+    if (typeof showToast === 'function') {
+        showToast(toastFmt('toast.deleted_name', {name: `selected ${matched} matching ${cleaned}`}));
+    }
+}
+
+// ── Bulk archive ops ──
+// Compress selection into one .zip; Extract every selected .zip into a
+// sibling dir. Both serialize on the Rust side via fsCompress/fsExtract;
+// the JS side just orchestrates name selection + sequential awaits.
+async function fileBrowserBulkCompress(paths) {
+    if (!_fileBrowserPath || !Array.isArray(paths) || paths.length === 0) return;
+    const dflt = paths.length === 1
+        ? `${(paths[0].split('/').pop() || 'Archive')}.zip`
+        : `Archive ${new Date().toISOString().slice(0, 10)}.zip`;
+    const name = typeof promptAction === 'function'
+        ? await promptAction(`Compress ${paths.length} item${paths.length === 1 ? '' : 's'} into:`, dflt)
+        : window.prompt('Archive name:', dflt);
+    if (!name) return;
+    const cleaned = name.trim().replace(/\.zip$/i, '');
+    if (!cleaned) return;
+    let archive = `${_fileBrowserPath}/${cleaned}.zip`;
+    for (let i = 0; i < 10; i++) {
+        try {
+            await window.vstUpdater.fsCompress(paths, archive);
+            showToast(toastFmt('toast.deleted_name', {name: `compressed → ${archive.split('/').pop()}`}));
+            loadDirectory(_fileBrowserPath);
+            return;
+        } catch (err) {
+            const m = String(err && err.message ? err.message : err);
+            if (!m.includes('already exists')) {
+                showToast(toastFmt('toast.failed', {err: m}), 4000, 'error');
+                return;
+            }
+            archive = `${_fileBrowserPath}/${cleaned} ${i + 2}.zip`;
+        }
+    }
+}
+async function fileBrowserBulkExtract(paths) {
+    const zips = (paths || []).filter((p) => /\.zip$/i.test(p));
+    if (zips.length === 0) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'No .zip files selected'}), 4000, 'error');
+        return;
+    }
+    let ok = 0, fail = 0;
+    for (const p of zips) {
+        const parent = p.replace(/\/[^/]+$/, '');
+        const stem = p.split('/').pop().replace(/\.zip$/i, '');
+        let dest = `${parent}/${stem}`;
+        let placed = false;
+        for (let i = 0; i < 10; i++) {
+            try {
+                await window.vstUpdater.fsExtract(p, dest);
+                placed = true;
+                break;
+            } catch (err) {
+                const m = String(err && err.message ? err.message : err);
+                if (!m.includes('already exists')) break;
+                dest = `${parent}/${stem} ${i + 2}`;
+            }
+        }
+        if (placed) ok++; else fail++;
+    }
+    if (typeof showToast === 'function') {
+        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `extracted ${ok} archive${ok === 1 ? '' : 's'}`}));
+        if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} extraction${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+    }
+    if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+}
+
+// ── Find by Content (grep current folder) ──
+// Modal with text input + case toggle + results list. Click result →
+// navigate to its parent dir + select the row.
+async function fileBrowserShowGrepModal() {
+    if (!_fileBrowserPath) return;
+    document.getElementById('appGrepModal')?.remove();
+    const html = `<div class="modal-overlay modal-visible" id="appGrepModal" role="dialog" aria-modal="true">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>Find in Files — ${escapeHtml(_fileBrowserPath.split('/').filter(Boolean).pop() || _fileBrowserPath)}</h2>
+        <button type="button" class="modal-close" data-app-grep="close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p class="app-confirm-message">Substring search. Skips binaries, dotdirs, and files &gt; 4 MiB.</p>
+        <input type="text" id="appGrepInput" class="app-prompt-input" placeholder="search text…" />
+        <label class="app-confirm-message" style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+          <input type="checkbox" id="appGrepCase"> Case insensitive
+        </label>
+        <div id="appGrepResults" class="fb-info-grid" style="max-height:320px;overflow-y:auto;margin-top:12px;"></div>
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-grep="close">Close</button>
+          <button type="button" class="btn btn-primary" data-app-grep="run">Search</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appGrepModal');
+    const input = document.getElementById('appGrepInput');
+    const cs = document.getElementById('appGrepCase');
+    const results = document.getElementById('appGrepResults');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const run = async () => {
+        const q = (input.value || '').trim();
+        if (!q) return;
+        results.innerHTML = '<div class="fb-info-val">searching…</div>';
+        try {
+            const matches = await window.vstUpdater.fsGrep(_fileBrowserPath, q, cs.checked, 500);
+            if (!matches || matches.length === 0) {
+                results.innerHTML = '<div class="fb-info-val">no matches</div>';
+                return;
+            }
+            results.innerHTML = matches.map((m) => {
+                const name = m.path.split('/').pop();
+                return `<div class="fb-info-key">${escapeHtml(name)}:${m.line}</div><div class="fb-info-val" style="cursor:pointer;" data-grep-path="${escapeHtml(m.path)}">${escapeHtml(m.text)}</div>`;
+            }).join('');
+        } catch (err) {
+            results.innerHTML = `<div class="fb-info-val">error: ${escapeHtml(String(err && err.message ? err.message : err))}</div>`;
+        }
+    };
+    const esc = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(); }
+        else if (e.key === 'Enter' && document.activeElement === input) { e.preventDefault(); run(); }
+    };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', (e) => {
+        const path = e.target.closest('[data-grep-path]')?.dataset.grepPath;
+        if (path) {
+            const parent = path.replace(/\/[^/]+$/, '');
+            close();
+            loadDirectory(parent);
+            return;
+        }
+        const btn = e.target.closest('[data-app-grep]');
+        if (btn) { if (btn.dataset.appGrep === 'run') run(); else close(); return; }
+        if (e.target === modal) close();
+    });
+    requestAnimationFrame(() => input?.focus());
+}
+
 // Expose helpers to context-menu.js (separate file, separate scope).
 if (typeof window !== 'undefined') {
     window.fileBrowserMarkClipboard = fileBrowserMarkClipboard;
     window.fileBrowserPasteClipboard = fileBrowserPasteClipboard;
     window.fileBrowserShowInfo = fileBrowserShowInfo;
     window.fileBrowserNewFolderWithSelection = fileBrowserNewFolderWithSelection;
+    window.fileBrowserShowHashModal = fileBrowserShowHashModal;
+    window.fileBrowserShowChmodModal = fileBrowserShowChmodModal;
+    window.fileBrowserPatternSelect = fileBrowserPatternSelect;
+    window.fileBrowserBulkCompress = fileBrowserBulkCompress;
+    window.fileBrowserBulkExtract = fileBrowserBulkExtract;
+    window.fileBrowserShowGrepModal = fileBrowserShowGrepModal;
 }
 
 // ── Move-to-bookmark (right-click → Move to → <bookmark>) ──
@@ -2881,7 +3177,50 @@ document.addEventListener('contextmenu', (e) => {
             label: 'Invert Selection', ..._ctxMenuNoEcho,
             action: () => invertFileSelection(),
         });
+        // Bulk Hash — fast SHA-256 for the whole selection (modal shows
+        // per-row digests + Copy All).
+        items.push({
+            icon: '&#128273;',
+            label: `Hash ${selected.length} Item${selected.length === 1 ? '' : 's'}`, ..._ctxMenuNoEcho,
+            action: () => {
+                // Folders aren't hashable; filter them out.
+                const files = selected.filter((p) => {
+                    const entry = _fileEntryByPath(p);
+                    return entry && !entry.isDir;
+                });
+                if (files.length === 0) {
+                    showToast(toastFmt('toast.failed', {err: 'No files in selection (folders skipped)'}), 4000, 'error');
+                    return;
+                }
+                fileBrowserShowHashModal(files);
+            },
+        });
+        // Compress selection into one .zip.
+        items.push({
+            icon: '&#128230;',
+            label: `Compress ${selected.length} Item${selected.length === 1 ? '' : 's'} into Archive…`, ..._ctxMenuNoEcho,
+            action: () => fileBrowserBulkCompress(selected),
+        });
+        // Extract every selected .zip.
+        const zips = selected.filter((p) => /\.zip$/i.test(p));
+        if (zips.length > 0) {
+            items.push({
+                icon: '&#128194;',
+                label: `Extract ${zips.length} Archive${zips.length === 1 ? '' : 's'} Here`, ..._ctxMenuNoEcho,
+                action: () => fileBrowserBulkExtract(zips),
+            });
+        }
     }
+    items.push({
+        icon: '&#128269;',
+        label: 'Select by Pattern…', ..._ctxMenuNoEcho,
+        action: () => fileBrowserPatternSelect(),
+    });
+    items.push({
+        icon: '&#128270;',
+        label: 'Find in Files… (grep)', ..._ctxMenuNoEcho,
+        action: () => fileBrowserShowGrepModal(),
+    });
     items.push(...[
         '---',
         {

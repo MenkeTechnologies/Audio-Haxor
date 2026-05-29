@@ -2432,6 +2432,31 @@ document.addEventListener('contextmenu', (e) => {
                     }
                 },
             });
+            // Hash (SHA-256) — power feature for verifying downloads,
+            // matching duplicates by content, etc. Files only (folders
+            // would need a manifest-style aggregation, out of scope).
+            if (!isDir) {
+                items.push({
+                    icon: '&#128273;',
+                    label: 'Hash (SHA-256)', ..._noEcho,
+                    action: () => {
+                        if (typeof window.fileBrowserShowHashModal === 'function') {
+                            window.fileBrowserShowHashModal([path]);
+                        }
+                    },
+                });
+            }
+            // Permissions (Unix only — Windows shows a less-useful
+            // read-only toggle). Octal-mode entry in a modal.
+            items.push({
+                icon: '&#128274;',
+                label: 'Permissions…', ..._noEcho,
+                action: () => {
+                    if (typeof window.fileBrowserShowChmodModal === 'function') {
+                        window.fileBrowserShowChmodModal(path);
+                    }
+                },
+            });
             // Copy / Cut — mark for later Paste in another folder.
             // Pure JS clipboard (Tauri WebView clipboard API is text-only).
             items.push({

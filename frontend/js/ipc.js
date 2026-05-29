@@ -1878,6 +1878,15 @@ window.vstUpdater = {
     /** Spawn an executable file (chmod +x required). Unix-only.
      *  Nautilus equivalent of "Run as a Program". */
     fsRunProgram: (filePath) => invoke('fs_run_program', {filePath}),
+    /** Hash a file. `algos` is `['sha256']` by default. Returns
+     *  `{path, size, digests: {sha256: 'hex…'}}`. */
+    fsHash: (path, algos) => invoke('fs_hash', {path, algos: algos || null}),
+    /** Set Unix mode bits. `modeOctal` is a string like "0644" / "755". */
+    fsChmod: (path, modeOctal) => invoke('fs_chmod', {path, modeOctal}),
+    /** Recursive grep-style search inside `root`. Returns up to
+     *  `maxResults` matches: `[{path, line, text}]`. */
+    fsGrep: (root, needle, caseInsensitive, maxResults) =>
+        invoke('fs_grep', {root, needle, caseInsensitive: !!caseInsensitive, maxResults: maxResults || null}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),

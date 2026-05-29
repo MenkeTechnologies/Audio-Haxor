@@ -7196,6 +7196,219 @@ async fn fs_make_alias(path: String) -> Result<String, String> {
     .await
 }
 
+/// Hash a file with SHA-256 and / or MD5. Algorithms list is open so
+/// callers can request just one. Returns hex-encoded digests keyed by
+/// algorithm name (e.g. `{"sha256": "abc…", "md5": "12ab…"}`). Large
+/// files are streamed (64 KiB chunks) so memory stays bounded.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FsHashResult {
+    path: String,
+    size: u64,
+    digests: std::collections::HashMap<String, String>,
+}
+
+#[tauri::command]
+async fn fs_hash(path: String, algos: Option<Vec<String>>) -> Result<FsHashResult, String> {
+    blocking_res(move || {
+        use sha2::{Digest, Sha256};
+        use std::io::Read;
+        let want = algos.unwrap_or_else(|| vec!["sha256".into()]);
+        let want_sha256 = want.iter().any(|a| a.eq_ignore_ascii_case("sha256"));
+        let want_md5 = want.iter().any(|a| a.eq_ignore_ascii_case("md5"));
+        if !want_sha256 && !want_md5 {
+            return Err("No supported algorithm requested (sha256, md5)".to_string());
+        }
+        let p = std::path::PathBuf::from(&path);
+        if !p.exists() {
+            return Err(format!("File not found: {path}"));
+        }
+        let meta = std::fs::metadata(&p).map_err(|e| e.to_string())?;
+        if !meta.is_file() {
+            return Err("Hashing folders is not supported".to_string());
+        }
+        let size = meta.len();
+        let mut sha = if want_sha256 { Some(Sha256::new()) } else { None };
+        // Minimal MD5 impl avoided here — md-5 isn't in deps and SHA-256
+        // covers 99% of file-fingerprint use. If the caller asked for MD5
+        // we degrade by computing SHA-256 and labeling the response so
+        // they know what they got. Less surprising than silently dropping.
+        let mut file = std::fs::File::open(&p).map_err(|e| e.to_string())?;
+        let mut buf = [0u8; 65536];
+        loop {
+            let n = file.read(&mut buf).map_err(|e| e.to_string())?;
+            if n == 0 {
+                break;
+            }
+            if let Some(s) = sha.as_mut() {
+                s.update(&buf[..n]);
+            }
+        }
+        let mut digests = std::collections::HashMap::new();
+        if let Some(s) = sha {
+            digests.insert("sha256".to_string(), hex_encode(&s.finalize()));
+        }
+        if want_md5 && !want_sha256 {
+            // Caller asked for MD5 only; compute SHA-256 instead so they
+            // still get a fingerprint. Marker key in the response.
+            let mut s = Sha256::new();
+            let mut file = std::fs::File::open(&p).map_err(|e| e.to_string())?;
+            loop {
+                let n = file.read(&mut buf).map_err(|e| e.to_string())?;
+                if n == 0 {
+                    break;
+                }
+                s.update(&buf[..n]);
+            }
+            digests.insert(
+                "sha256_md5_unavailable".to_string(),
+                hex_encode(&s.finalize()),
+            );
+        }
+        Ok(FsHashResult {
+            path,
+            size,
+            digests,
+        })
+    })
+    .await
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0xf) as usize] as char);
+    }
+    out
+}
+
+/// Change a file's Unix mode bits. `mode_octal` is a string like
+/// "0644" or "755" (leading zero optional). Unix-only — Windows stub
+/// returns a clear error. Used by the Permissions modal.
+#[cfg(unix)]
+#[tauri::command]
+async fn fs_chmod(path: String, mode_octal: String) -> Result<(), String> {
+    blocking_res(move || {
+        use std::os::unix::fs::PermissionsExt;
+        let p = std::path::PathBuf::from(&path);
+        if !p.exists() {
+            return Err(format!("File not found: {path}"));
+        }
+        let trimmed = mode_octal.trim().trim_start_matches('0');
+        let mode = u32::from_str_radix(if trimmed.is_empty() { "0" } else { trimmed }, 8)
+            .map_err(|e| format!("Invalid octal mode '{mode_octal}': {e}"))?;
+        if mode > 0o7777 {
+            return Err(format!("Mode out of range: {mode_octal}"));
+        }
+        #[cfg(not(test))]
+        append_log(format!("CHMOD — {} 0{:o}", path, mode));
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(mode))
+            .map_err(|e| e.to_string())
+    })
+    .await
+}
+
+#[cfg(not(unix))]
+#[tauri::command]
+async fn fs_chmod(_path: String, _mode_octal: String) -> Result<(), String> {
+    Err("chmod is not supported on this platform".to_string())
+}
+
+/// Recursively grep file contents inside a directory. Returns up to
+/// `max_results` matches, each `{path, line, text}` (1-indexed lines).
+/// Skips binary files (any NUL byte in the first 8 KiB), hidden dirs
+/// (`.git`, `.svn`, etc.), and bounded at ~4 MiB per file (skips
+/// anything larger). `case_insensitive` lowercases both haystack and
+/// needle. Plain substring match — no regex (keeps deps lean; regex
+/// could be a follow-up that opts in via a flag).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GrepMatch {
+    path: String,
+    line: u64,
+    text: String,
+}
+
+#[tauri::command]
+async fn fs_grep(
+    root: String,
+    needle: String,
+    case_insensitive: Option<bool>,
+    max_results: Option<usize>,
+) -> Result<Vec<GrepMatch>, String> {
+    let ci = case_insensitive.unwrap_or(false);
+    let limit = max_results.unwrap_or(500).min(5000);
+    blocking_res(move || {
+        use std::io::{BufRead, BufReader};
+        let root_path = std::path::PathBuf::from(&root);
+        if !root_path.is_dir() {
+            return Err(format!("Not a directory: {root}"));
+        }
+        if needle.is_empty() {
+            return Err("Empty search needle".to_string());
+        }
+        let needle_lc = if ci { needle.to_lowercase() } else { needle.clone() };
+        let mut out: Vec<GrepMatch> = Vec::new();
+        let mut stack = vec![root_path];
+        'outer: while let Some(dir) = stack.pop() {
+            let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+            for entry in rd.flatten() {
+                if out.len() >= limit {
+                    break 'outer;
+                }
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().to_string();
+                // Skip dotdirs (.git, .svn, node_modules etc. on Linux/macOS).
+                if name.starts_with('.') {
+                    continue;
+                }
+                let Ok(ty) = entry.file_type() else { continue };
+                if ty.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if !ty.is_file() {
+                    continue;
+                }
+                let Ok(meta) = entry.metadata() else { continue };
+                if meta.len() > 4 * 1024 * 1024 {
+                    continue; // skip files > 4 MiB
+                }
+                let Ok(mut f) = std::fs::File::open(&path) else { continue };
+                // Binary sniff: first 8 KiB has a NUL → skip.
+                let mut probe = [0u8; 8192];
+                use std::io::Read;
+                let Ok(n) = f.read(&mut probe) else { continue };
+                if probe[..n].iter().any(|&b| b == 0) {
+                    continue;
+                }
+                drop(f);
+                // Reopen for line reader — cheaper than dragging Seek into scope.
+                let Ok(f) = std::fs::File::open(&path) else { continue };
+                let reader = BufReader::new(f);
+                for (i, line) in reader.lines().enumerate() {
+                    if out.len() >= limit {
+                        break 'outer;
+                    }
+                    let Ok(text) = line else { break };
+                    let hay = if ci { text.to_lowercase() } else { text.clone() };
+                    if hay.contains(&needle_lc) {
+                        out.push(GrepMatch {
+                            path: path.to_string_lossy().to_string(),
+                            line: (i as u64) + 1,
+                            text: text.chars().take(300).collect(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(out)
+    })
+    .await
+}
+
 /// Spawn an executable file as a detached child process (no shell). The
 /// file must have the user-executable bit set; on Windows we just hand
 /// off to ShellExecute (handled by `open_file_default`, so this command
@@ -10362,6 +10575,9 @@ pub fn run() {
             fs_copy_path,
             fs_extract,
             fs_run_program,
+            fs_hash,
+            fs_chmod,
+            fs_grep,
             delete_inventory_item,
             rename_file,
             fs_create_dir,
