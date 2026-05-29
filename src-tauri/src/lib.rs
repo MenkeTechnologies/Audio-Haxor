@@ -7033,6 +7033,11 @@ struct FsInfo {
     is_readonly: bool,
     is_symlink: bool,
     symlink_target: Option<String>,
+    // Numeric UID / GID on Unix; None on Windows. We don't resolve to
+    // names here — that requires libc getpwuid_r which is one more
+    // unsafe call. Users who care will recognize their own UID.
+    uid: Option<u32>,
+    gid: Option<u32>,
 }
 
 #[tauri::command]
@@ -7123,6 +7128,17 @@ async fn fs_get_info(path: String) -> Result<FsInfo, String> {
         } else {
             (meta.len(), None)
         };
+        let (uid, gid) = {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::MetadataExt;
+                (Some(meta.uid()), Some(meta.gid()))
+            }
+            #[cfg(not(unix))]
+            {
+                (None, None)
+            }
+        };
         Ok(FsInfo {
             name: p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| path.clone()),
             path: path.clone(),
@@ -7137,6 +7153,8 @@ async fn fs_get_info(path: String) -> Result<FsInfo, String> {
             is_readonly,
             is_symlink,
             symlink_target,
+            uid,
+            gid,
         })
     })
     .await
@@ -7409,6 +7427,43 @@ async fn fs_grep(
     .await
 }
 
+/// List only the subdirectories of `dir_path`. Used by the tree-view
+/// sidebar — lighter than `fs_list_dir` because it skips files +
+/// stat-formatting + sort overhead. Returns names sorted alphabetical
+/// (case-insensitive). Hidden dirs (dotfiles) included only when
+/// `include_hidden` is true; default false matches Finder/Nautilus.
+#[tauri::command]
+async fn fs_list_subdirs(
+    dir_path: String,
+    include_hidden: Option<bool>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let show_hidden = include_hidden.unwrap_or(false);
+    blocking_res(move || {
+        let path = std::path::Path::new(&dir_path);
+        if !path.is_dir() {
+            return Err(format!("Not a directory: {dir_path}"));
+        }
+        let mut out: Vec<(String, String)> = Vec::new();
+        for entry in std::fs::read_dir(path).map_err(|e| e.to_string())?.flatten() {
+            let Ok(ty) = entry.file_type() else { continue };
+            if !ty.is_dir() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !show_hidden && name.starts_with('.') {
+                continue;
+            }
+            out.push((name, entry.path().to_string_lossy().to_string()));
+        }
+        out.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+        Ok(out
+            .into_iter()
+            .map(|(name, path)| serde_json::json!({ "name": name, "path": path }))
+            .collect())
+    })
+    .await
+}
+
 /// Spawn an executable file as a detached child process (no shell). The
 /// file must have the user-executable bit set; on Windows we just hand
 /// off to ShellExecute (handled by `open_file_default`, so this command
@@ -7442,12 +7497,13 @@ async fn fs_run_program(_file_path: String) -> Result<(), String> {
     Err("Run as Program is not supported on this platform".to_string())
 }
 
-/// Extract a `.zip` archive into a target directory. `dest_dir` must
-/// not already exist (caller picks a non-colliding name; Nautilus does
-/// the same with "Extract" → `archive_stem/`). Returns the directory
-/// the archive was extracted into. Uses the `zip` crate (already a
-/// project dep). Path traversal is rejected — entries with `..` or
-/// absolute paths are skipped to prevent zip-slip writes outside dest.
+/// Extract an archive into a target directory. Supported formats are
+/// detected by extension: `.zip`, `.tar`, `.tar.gz` / `.tgz`. `dest_dir`
+/// must not already exist (caller picks a non-colliding name; Nautilus
+/// and Finder do the same with "Extract" → `archive_stem/`). Returns
+/// the directory the archive was extracted into. Path traversal is
+/// rejected for zip (enclosed_name) — the `tar` crate's `unpack`
+/// internally rejects paths with `..` components.
 #[tauri::command]
 async fn fs_extract(archive_path: String, dest_dir: String) -> Result<String, String> {
     blocking_res(move || {
@@ -7461,31 +7517,51 @@ async fn fs_extract(archive_path: String, dest_dir: String) -> Result<String, St
             return Err(format!("Destination already exists: {dest_dir}"));
         }
         std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+        // Lowercase tail so `.ZIP`, `.Tar.GZ`, etc. all match.
+        let lower = archive_path.to_lowercase();
+        let is_tar_gz = lower.ends_with(".tar.gz") || lower.ends_with(".tgz");
+        let is_tar = lower.ends_with(".tar");
+        let is_zip = lower.ends_with(".zip");
         let file = std::fs::File::open(&archive).map_err(|e| e.to_string())?;
-        let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
-        for i in 0..zip.len() {
-            let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
-            // Zip-slip guard: enclosed_name returns None for paths with
-            // `..` segments or absolute components — drop those.
-            let Some(rel) = entry.enclosed_name() else { continue };
-            let out_path = dest.join(rel);
-            if entry.is_dir() {
-                std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
-                continue;
+        if is_tar_gz {
+            let gz = flate2::read::GzDecoder::new(file);
+            let mut tar = tar::Archive::new(gz);
+            tar.set_overwrite(false);
+            tar.unpack(&dest).map_err(|e| e.to_string())?;
+        } else if is_tar {
+            let mut tar = tar::Archive::new(file);
+            tar.set_overwrite(false);
+            tar.unpack(&dest).map_err(|e| e.to_string())?;
+        } else if is_zip {
+            let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+            for i in 0..zip.len() {
+                let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
+                // Zip-slip guard: enclosed_name returns None for paths with
+                // `..` segments or absolute components — drop those.
+                let Some(rel) = entry.enclosed_name() else { continue };
+                let out_path = dest.join(rel);
+                if entry.is_dir() {
+                    std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+                    continue;
+                }
+                if let Some(parent) = out_path.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                let mut out_file = std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
+                let mut buf = Vec::new();
+                entry.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+                std::io::Write::write_all(&mut out_file, &buf).map_err(|e| e.to_string())?;
+                // Preserve mode bits on Unix where the zip recorded them.
+                #[cfg(unix)]
+                if let Some(mode) = entry.unix_mode() {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(&out_path, std::fs::Permissions::from_mode(mode));
+                }
             }
-            if let Some(parent) = out_path.parent() {
-                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            let mut out_file = std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
-            let mut buf = Vec::new();
-            entry.read_to_end(&mut buf).map_err(|e| e.to_string())?;
-            std::io::Write::write_all(&mut out_file, &buf).map_err(|e| e.to_string())?;
-            // Preserve mode bits on Unix where the zip recorded them.
-            #[cfg(unix)]
-            if let Some(mode) = entry.unix_mode() {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::set_permissions(&out_path, std::fs::Permissions::from_mode(mode));
-            }
+        } else {
+            return Err(format!(
+                "Unsupported archive format. Supported: .zip, .tar, .tar.gz, .tgz"
+            ));
         }
         #[cfg(not(test))]
         append_log(format!("EXTRACT — {} → {}", archive_path, dest_dir));
@@ -10578,6 +10654,7 @@ pub fn run() {
             fs_hash,
             fs_chmod,
             fs_grep,
+            fs_list_subdirs,
             delete_inventory_item,
             rename_file,
             fs_create_dir,

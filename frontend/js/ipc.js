@@ -1838,6 +1838,11 @@ window.vstUpdater = {
     /** List a directory. `includeHidden=true` returns dotfiles (Ctrl+H
      *  in Nautilus). Default false matches default file-browser view. */
     listDirectory: (dirPath, includeHidden) => invoke('fs_list_dir', {dirPath, includeHidden: !!includeHidden}),
+    /** List ONLY the subdirectories of `dirPath` — lighter than
+     *  listDirectory (no files, no stat formatting, no size sort).
+     *  Used by the tree-view sidebar for lazy expansion. */
+    fsListSubdirs: (dirPath, includeHidden) =>
+        invoke('fs_list_subdirs', {dirPath, includeHidden: !!includeHidden}),
     /** Per-folder inventory counts (samples / presets / DAW / MIDI / PDF / video)
      *  plus `total_bytes` summed across all inventory rows under the folder.
      *  Returns `{ "<folder>": { samples, presets, daw, midi, pdf, video, total_bytes }, ... }`. */

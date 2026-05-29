@@ -2525,17 +2525,28 @@ document.addEventListener('contextmenu', (e) => {
                     },
                 });
             }
-            // Extract Here — only for .zip files. Creates a sibling folder
-            // named after the archive stem (Nautilus / Finder behavior).
-            // Other archive formats (.tar, .gz, .7z) would need extra Rust
-            // deps; only ship .zip for now since `zip` is already a dep.
-            if (!isDir && ext === 'zip') {
+            // Extract Here — .zip, .tar, .tar.gz, .tgz. Creates a sibling
+            // folder named after the archive stem (Nautilus / Finder
+            // behavior). .7z would need sevenz-rust which would bloat
+            // deps for moderate value; not added.
+            const lname = name.toLowerCase();
+            const isArchive = !isDir && (
+                lname.endsWith('.zip')
+                || lname.endsWith('.tar')
+                || lname.endsWith('.tar.gz')
+                || lname.endsWith('.tgz')
+            );
+            if (isArchive) {
                 items.push({
                     icon: '&#128194;',
                     label: 'Extract Here', ..._noEcho,
                     action: async () => {
                         const parent = path.replace(/\/[^/]+$/, '');
-                        const stem = name.replace(/\.zip$/i, '');
+                        // Strip the longest matching suffix so `foo.tar.gz` → `foo`.
+                        let stem = name;
+                        for (const suf of ['.tar.gz', '.tgz', '.tar', '.zip']) {
+                            if (lname.endsWith(suf)) { stem = name.slice(0, name.length - suf.length); break; }
+                        }
                         let dest = `${parent}/${stem}`;
                         for (let i = 0; i < 10; i++) {
                             try {

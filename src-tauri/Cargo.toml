@@ -36,6 +36,9 @@ flate2 = "1"
 symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "ogg", "pcm", "isomp4", "mkv", "vorbis"] }
 rusqlite = { version = "0.39", features = ["bundled", "functions", "hooks"] }
 zip = { version = "8", default-features = false, features = ["deflate"] }
+# .tar and .tar.gz archive extraction (Nautilus / Finder both ship this).
+# Pairs with the existing `flate2` for gzip decode.
+tar = "0.4"
 notify = "8"
 # Cross-platform "send to recycle bin / trash" (macOS NSFileManager
 # trashItemAtURL, Linux XDG Trash spec, Windows Recycle Bin). Used by the

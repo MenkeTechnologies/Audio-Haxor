@@ -946,6 +946,7 @@ async function fileBrowserShowInfo(path) {
             ['Created', _fmtTs(info.ctimeMs)],
             ['Accessed', _fmtTs(info.atimeMs)],
             ['Permissions', info.modeString ? `${info.modeString}  (${info.modeOctal})` : (info.isReadonly ? 'read-only' : 'read-write')],
+            ...(info.uid != null ? [['Owner / Group', `uid=${info.uid}  gid=${info.gid}`]] : []),
         ]
         : [];
     const gridHtml = info
@@ -1198,15 +1199,18 @@ async function fileBrowserBulkCompress(paths) {
     }
 }
 async function fileBrowserBulkExtract(paths) {
-    const zips = (paths || []).filter((p) => /\.zip$/i.test(p));
-    if (zips.length === 0) {
-        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'No .zip files selected'}), 4000, 'error');
+    const ARCHIVE_RE = /\.(zip|tar|tar\.gz|tgz)$/i;
+    const STEM_STRIP = /\.(tar\.gz|tgz|tar|zip)$/i;
+    const archives = (paths || []).filter((p) => ARCHIVE_RE.test(p));
+    if (archives.length === 0) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'No archive files selected (.zip / .tar / .tar.gz)'}), 4000, 'error');
         return;
     }
     let ok = 0, fail = 0;
-    for (const p of zips) {
+    for (const p of archives) {
         const parent = p.replace(/\/[^/]+$/, '');
-        const stem = p.split('/').pop().replace(/\.zip$/i, '');
+        const base = p.split('/').pop();
+        const stem = base.replace(STEM_STRIP, '');
         let dest = `${parent}/${stem}`;
         let placed = false;
         for (let i = 0; i < 10; i++) {
@@ -1297,6 +1301,143 @@ async function fileBrowserShowGrepModal() {
         if (e.target === modal) close();
     });
     requestAnimationFrame(() => input?.focus());
+}
+
+// ── Tree-view sidebar (Cmd+B, persisted) ──
+// Power-user navigation: lazy-loaded collapsible folder tree.
+//   _fbTreeExpanded: Set<path>  — every path that's currently expanded.
+//   _fbTreeChildren: Map<path, [{name, path}]> — cached subdir lists.
+// Each render walks from a small set of roots (favorites + current dir
+// ancestors) and emits visible nodes via flat HTML — no virtual DOM.
+let _fbTreeExpanded = (() => {
+    try {
+        const raw = typeof prefs !== 'undefined' ? prefs.getItem('fileBrowserTreeExpanded') : null;
+        return new Set(raw ? JSON.parse(raw) : []);
+    } catch (_) { return new Set(); }
+})();
+const _fbTreeChildren = new Map();
+function _fbTreePersist() {
+    try {
+        if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserTreeExpanded', JSON.stringify([..._fbTreeExpanded]));
+    } catch (_) { /* ignore */ }
+}
+
+function fileBrowserToggleTreeSidebar(forceState) {
+    const sidebar = document.getElementById('fbTreeSidebar');
+    if (!sidebar) return;
+    const visible = !sidebar.classList.contains('fb-hidden');
+    const next = typeof forceState === 'boolean' ? forceState : !visible;
+    sidebar.classList.toggle('fb-hidden', !next);
+    try {
+        if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserTreeVisible', next ? '1' : '0');
+    } catch (_) { /* ignore */ }
+    if (next) renderFileBrowserTree();
+}
+
+async function _fbTreeFetchChildren(path) {
+    if (_fbTreeChildren.has(path)) return _fbTreeChildren.get(path);
+    try {
+        const subs = await window.vstUpdater.fsListSubdirs(path, _fbShowHidden);
+        _fbTreeChildren.set(path, subs || []);
+        return subs || [];
+    } catch (_) {
+        _fbTreeChildren.set(path, []);
+        return [];
+    }
+}
+
+// Roots shown at the top of the tree. Pulls favorite dirs + home if
+// not already a favorite. User can expand each to drill down.
+function _fbTreeRoots() {
+    const out = [];
+    const seen = new Set();
+    if (typeof getFavDirs === 'function') {
+        for (const d of getFavDirs()) {
+            if (!d || !d.path || seen.has(d.path)) continue;
+            seen.add(d.path);
+            out.push({name: d.name || d.path.split('/').pop() || d.path, path: d.path});
+        }
+    }
+    // Home + Root always available.
+    const home = (typeof _fbHomePath === 'string' && _fbHomePath) ? _fbHomePath : null;
+    if (home && !seen.has(home)) { seen.add(home); out.push({name: 'Home', path: home}); }
+    if (!seen.has('/')) out.push({name: '/', path: '/'});
+    return out;
+}
+
+let _fbHomePath = null;
+(async () => {
+    try {
+        if (window.vstUpdater && typeof window.vstUpdater.getHomeDir === 'function') {
+            _fbHomePath = await window.vstUpdater.getHomeDir();
+        }
+    } catch (_) { /* ignore */ }
+})();
+
+async function renderFileBrowserTree() {
+    const body = document.getElementById('fbTreeBody');
+    if (!body) return;
+    const roots = _fbTreeRoots();
+    // Pre-warm: for every expanded root + its expanded descendants we
+    // need children loaded. Walk depth-first, fetching as we go.
+    const cur = _fileBrowserPath || '';
+    const visible = []; // {name, path, depth}
+    async function walk(node, depth) {
+        visible.push({...node, depth, expanded: _fbTreeExpanded.has(node.path)});
+        if (!_fbTreeExpanded.has(node.path)) return;
+        const kids = await _fbTreeFetchChildren(node.path);
+        for (const k of kids) await walk(k, depth + 1);
+    }
+    for (const r of roots) await walk(r, 0);
+    body.innerHTML = visible.map((n) => {
+        const isCur = n.path === cur ? ' fb-tree-active' : '';
+        const twist = _fbTreeExpanded.has(n.path) ? '&#9660;' : '&#9658;';
+        const pad = 6 + n.depth * 14;
+        return `<div class="fb-tree-node${isCur}" style="padding-left:${pad}px" data-fb-tree-path="${escapeHtml(n.path)}">`
+            + `<span class="fb-tree-twist" data-fb-tree-twist="${escapeHtml(n.path)}">${twist}</span>`
+            + `<span class="fb-tree-icon">&#128193;</span>`
+            + `<span class="fb-tree-name" title="${escapeHtml(n.path)}">${escapeHtml(n.name)}</span>`
+            + `</div>`;
+    }).join('');
+}
+
+// Click handler: clicking the twist toggles expansion; clicking the
+// row loads the folder in the main pane.
+document.addEventListener('click', async (e) => {
+    const twist = e.target.closest('[data-fb-tree-twist]');
+    if (twist) {
+        e.stopPropagation();
+        const p = twist.dataset.fbTreeTwist;
+        if (_fbTreeExpanded.has(p)) _fbTreeExpanded.delete(p);
+        else _fbTreeExpanded.add(p);
+        _fbTreePersist();
+        renderFileBrowserTree();
+        return;
+    }
+    const node = e.target.closest('[data-fb-tree-path]');
+    if (node) {
+        e.stopPropagation();
+        loadDirectory(node.dataset.fbTreePath);
+    }
+});
+
+// Tree close button
+document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="fbTreeClose"]')) fileBrowserToggleTreeSidebar(false);
+});
+
+// Restore visibility from prefs on first load.
+(function _fbTreeInit() {
+    try {
+        if (typeof prefs !== 'undefined' && prefs.getItem('fileBrowserTreeVisible') === '1') {
+            fileBrowserToggleTreeSidebar(true);
+        }
+    } catch (_) { /* ignore */ }
+})();
+
+if (typeof window !== 'undefined') {
+    window.fileBrowserToggleTreeSidebar = fileBrowserToggleTreeSidebar;
+    window.renderFileBrowserTree = renderFileBrowserTree;
 }
 
 // Expose helpers to context-menu.js (separate file, separate scope).
@@ -2106,6 +2247,13 @@ async function loadDirectory(dirPath) {
         renderFileList();
         renderBreadcrumb(dirPath);
         updateBookmarkBtn();
+        // Refresh the tree-view sidebar's active-row highlight + expose
+        // the newly-entered folder if its parent chain happens to be
+        // already-expanded. No-op when the sidebar is hidden.
+        const sb = document.getElementById('fbTreeSidebar');
+        if (sb && !sb.classList.contains('fb-hidden') && typeof renderFileBrowserTree === 'function') {
+            renderFileBrowserTree();
+        }
         // Swap the auto-reload watcher to this directory. Fire-and-forget —
         // the listing already painted; if Rust can't watch (path gone, EACCES)
         // the worst case is no auto-reload, not a failed navigation. Canonical
@@ -3201,13 +3349,13 @@ document.addEventListener('contextmenu', (e) => {
             label: `Compress ${selected.length} Item${selected.length === 1 ? '' : 's'} into Archive…`, ..._ctxMenuNoEcho,
             action: () => fileBrowserBulkCompress(selected),
         });
-        // Extract every selected .zip.
-        const zips = selected.filter((p) => /\.zip$/i.test(p));
-        if (zips.length > 0) {
+        // Extract every selected archive (.zip / .tar / .tar.gz).
+        const archives = selected.filter((p) => /\.(zip|tar|tar\.gz|tgz)$/i.test(p));
+        if (archives.length > 0) {
             items.push({
                 icon: '&#128194;',
-                label: `Extract ${zips.length} Archive${zips.length === 1 ? '' : 's'} Here`, ..._ctxMenuNoEcho,
-                action: () => fileBrowserBulkExtract(zips),
+                label: `Extract ${archives.length} Archive${archives.length === 1 ? '' : 's'} Here`, ..._ctxMenuNoEcho,
+                action: () => fileBrowserBulkExtract(archives),
             });
         }
     }
@@ -3227,6 +3375,13 @@ document.addEventListener('contextmenu', (e) => {
             icon: _fbShowHidden ? '&#128064;' : '&#128065;',
             label: _fbShowHidden ? 'Hide Hidden Files (Ctrl+H)' : 'Show Hidden Files (Ctrl+H)', ..._ctxMenuNoEcho,
             action: () => fileBrowserToggleHidden(),
+        },
+        {
+            icon: '&#128218;',
+            label: (document.getElementById('fbTreeSidebar') && !document.getElementById('fbTreeSidebar').classList.contains('fb-hidden'))
+                ? 'Hide Tree Sidebar (Cmd+B)'
+                : 'Show Tree Sidebar (Cmd+B)', ..._ctxMenuNoEcho,
+            action: () => fileBrowserToggleTreeSidebar(),
         },
         {
             icon: '&#128260;',
@@ -3485,6 +3640,14 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
         if (typeof invertFileSelection === 'function') invertFileSelection();
+        return;
+    }
+    // Cmd+B — toggle tree-view sidebar (mirrors macOS Finder Cmd+Opt+S
+    // for sidebar, but Opt+S is taken; B = "Browser tree").
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (typeof fileBrowserToggleTreeSidebar === 'function') fileBrowserToggleTreeSidebar();
         return;
     }
     // Shift+Delete / Shift+Backspace — permanent delete (skip Trash).
