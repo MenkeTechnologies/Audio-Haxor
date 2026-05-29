@@ -61,7 +61,7 @@
       </div>
 
       <h2 class="tutorial-title"><span class="step-hash">02.</span>Configure scan roots</h2>
-      <p class="tutorial-subtitle">Six per-scanner directory lists, a shared blacklist, auto-scan / folder-watch / incremental toggles, performance tunables, and the five built-in color schemes. Most of this tour lives behind <code>Cmd+,</code>.</p>
+      <p class="tutorial-subtitle">Seven per-scanner directory lists, a shared blacklist, auto-scan / folder-watch / incremental toggles, performance tunables, the customizable shortcut editor, and the built-in color schemes. Most of this tour lives behind <code>Cmd+,</code>.</p>
 
       <figure class="tutorial-shot">
         <img src="../assets/settings.png" alt="Settings tab with scan roots, appearance, and color scheme sections" loading="lazy">
@@ -76,7 +76,7 @@
       <section class="tutorial-section">
         <h2>Per-scanner scan directories</h2>
         <p>AUDIO_HAXOR does <strong>not</strong> use a single unified root list. Each inventory scanner has its own textarea so you can target different trees — e.g. plugins live in <code>/Library/Audio/Plug-Ins/</code>, samples in <code>~/Music/Samples/</code>, DAW projects in <code>~/Music/Logic/</code>, PDFs in <code>~/Documents/Manuals/</code>. Put one absolute path per line. Each textarea has a <strong>Browse</strong> button that opens the native file dialog for quick appending, plus a <strong>Save</strong> button that persists the list.</p>
-        <h3>The six scanner root lists</h3>
+        <h3>The seven scanner root lists</h3>
         <ul>
           <li><strong>Plugin scan directories</strong> — <code>id="settingCustomDirs"</code>. Walker uses this for VST/VST3/AU/CLAP discovery via <code>scan_plugins</code>.</li>
           <li><strong>Audio scan directories</strong> — <code>id="settingAudioScanDirs"</code>. Feeds <code>scan_audio_samples</code> (WAV, MP3, AIFF, FLAC, OGG, M4A, AAC, OPUS, WMA, REX, RX2, SF2, SFZ).</li>
@@ -84,8 +84,9 @@
           <li><strong>Preset scan directories</strong> — <code>id="settingPresetScanDirs"</code>. Feeds <code>scan_presets</code> for FXP / FXB / VSTPRESET / AUPRESET / ADV / ADG / NKI / NKSN / H2P / SYX / TFX / PJUNOXL.</li>
           <li><strong>MIDI scan directories</strong> — <code>id="settingMidiScanDirs"</code>. Feeds <code>scan_midi_files</code>.</li>
           <li><strong>PDF scan directories</strong> — <code>id="settingPdfScanDirs"</code>. Feeds <code>scan_pdfs</code>.</li>
+          <li><strong>Video scan directories</strong> — <code>id="settingVideoScanDirs"</code>. Feeds <code>scan_videos</code> (MP4 / MOV / MKV / AVI / WEBM / M4V / WMV / FLV / MPG / MTS / 3GP). The Videos tab uses these roots; see step 13 for the inventory + audio-route + maximize playback flow.</li>
         </ul>
-        <p>All six are also the source of truth for the unified <code>Scan All</code> button — <code>scan_unified</code> walks the union of these lists once and fans progress events into the per-type tabs.</p>
+        <p>All seven are also the source of truth for the unified <code>Scan All</code> button — <code>scan_unified</code> walks the union of these lists once and fans progress events into the per-type tabs.</p>
       </section>
 
       <section class="tutorial-section">
@@ -173,7 +174,7 @@ node_modules
       <section class="tutorial-section">
         <h2>Appearance</h2>
         <ul>
-          <li><strong>Interface language</strong> — locale select with 27 languages (English, Chinese, Japanese, Korean, German, Czech, Greek, Polish, Spanish, LatAm Spanish, Swedish, Danish, Norwegian, Finnish, French, Hungarian, Italian, Portuguese, Brazilian Portuguese, Romanian, Russian, Dutch, Turkish, Ukrainian, Vietnamese, Indonesian, Hindi). Changes trigger <code>reloadAppStrings(locale)</code> which re-binds every translatable element and refreshes the native menu.</li>
+          <li><strong>Interface language</strong> — locale select backed by the SQLite <code>app_i18n</code> table (<code>src-tauri/src/app_i18n.rs</code>) with 27 seeded locales: English, Chinese, Japanese, Korean, German, Czech, Greek, Polish, Spanish, LatAm Spanish, Swedish, Danish, Norwegian, Finnish, French, Hungarian, Italian, Portuguese, Brazilian Portuguese, Romanian, Russian, Dutch, Turkish, Ukrainian, Vietnamese, Indonesian, Hindi. Changes trigger <code>reloadAppStrings(locale)</code> which re-binds every translatable element and refreshes the native menu without a relaunch.</li>
           <li><strong>CRT scanline effects</strong> — toggle the animated scanline + vignette overlay.</li>
           <li><strong>Neon glow animations</strong> — toggle pulsing neon borders on panels, modals, tiles.</li>
           <li><strong>Tag filter bar</strong> — show/hide the tag multi-filter widget above (or below) tables.</li>
@@ -182,8 +183,14 @@ node_modules
         </ul>
       </section>
 
+      <section class="tutorial-section">
+        <h2>Keyboard Shortcuts editor</h2>
+        <p>The <em>Keyboard Shortcuts</em> section of Settings exposes every keybinding in the app (~120 entries — tab switches, scan controls, playback, palette, exports, per-scanner stops, toggle flags) as an editable row. Click a row, press the new chord, hit save. Bindings are merged on top of <code>DEFAULT_SHORTCUT_DEFS</code> in <code>frontend/js/shortcuts.js</code> and persisted under the <code>customShortcuts</code> pref. <em>Reset Shortcuts</em> drops the custom layer and falls back to defaults.</p>
+        <p>The full list lives behind a search field — type <em>"scan"</em> to find every scanner trigger, <em>"export"</em> to find every export entry, etc. See step 18 for the catalog and pinning recipes.</p>
+      </section>
+
       <section class="tutorial-callout">
-        <strong>Tip</strong>Settings is draggable. You can reorder the whole <em>sections</em> of this page (Appearance, Scanning, Color Scheme, Playback, etc.) and the order persists. If you mess it up, use <em>Reset Settings Layout</em>.
+        <strong>Tip</strong>Settings is draggable. You can reorder the whole <em>sections</em> of this page (Appearance, Scanning, Color Scheme, Playback, Keyboard Shortcuts, etc.) and the order persists. If you mess it up, use <em>Reset Settings Layout</em>.
       </section>
 
       <nav class="tutorial-nav">

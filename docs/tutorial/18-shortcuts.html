@@ -61,7 +61,7 @@
       </div>
 
       <h2 class="tutorial-title"><span class="step-hash">18.</span>Keyboard shortcuts &amp; help overlay</h2>
-      <p class="tutorial-subtitle">The full default keymap (over ninety actions), the help overlay (press <code>?</code>), the rebinding UI, the FZF query syntax, and mouse conventions. This is the only step you should bookmark for the future.</p>
+      <p class="tutorial-subtitle">The full default keymap (~120 actions, every one rebindable), the help overlay (press <code>?</code>), the rebinding UI, the FZF query syntax, and mouse conventions. This is the only step you should bookmark for the future.</p>
 
       <section class="tutorial-section">
         <h2>Open the help overlay</h2>
@@ -127,14 +127,21 @@ Cmd+Shift+S         Scan samples only
 Cmd+Shift+`         Scan DAW projects only
 Cmd+Shift+R         Scan presets only
 Cmd+Shift+F         Scan PDFs only
+Cmd+Shift+E         Scan videos only
 Cmd+Shift+Y         Stop PDF scan
+Cmd+Shift+Q         Stop video scan
 Cmd+Shift+M         Extract PDF metadata
-Cmd+Shift+Z         Stop PDF metadata
+Cmd+Shift+K         Stop PDF metadata
+Cmd+Shift+F4        Stop fingerprint cache
 Cmd+Shift+B         Build fingerprint cache
 Cmd+Shift+U         Check plugin updates (KVR)
 Cmd+Shift+X         Build plugin xref index
 Cmd+Shift+V         Start BPM / key / LUFS analysis
 Cmd+Shift+C         Stop BPM / key / LUFS analysis
+Cmd+Shift+,         Start content-dup scan
+Cmd+Shift+.         Stop content-dup scan
+Cmd+Shift+F5        Start all background jobs
+Cmd+Shift+F6        Stop all background jobs
 Cmd+Shift+Backspace Reset all scans / clear all caches</pre>
       </section>
 
@@ -163,17 +170,20 @@ Cmd+Shift+\       Export smart playlists</pre>
         <h2>UI toggles &amp; files</h2>
         <pre>F1                    Toggle CRT scanlines
 F2                    Toggle neon glow
-Cmd+T                 Toggle theme (dark / light)
+Cmd+Y                 Toggle theme (dark / light)
 Cmd+Shift+T           Toggle tag filter bar
 Cmd+K                 Command palette
+Cmd+T                 Toggle terminal
 Cmd+,                 Settings
 Cmd+D                 Find duplicates
 Cmd+G                 Dependency graph
 D                     Heatmap dashboard
+Shift+G               Genre rules dashboard
 Cmd+P                 New smart playlist
 Cmd+Shift+O           Open app log file
 Cmd+Shift+G           Open prefs file
-Cmd+Shift+D           Open data directory</pre>
+Cmd+Shift+D           Open data directory
+V                     Video maximize toggle (Videos tab)</pre>
       </section>
 
       <section class="tutorial-section">
@@ -186,7 +196,9 @@ Cmd+Shift+?     Cycle log verbosity
 Cmd+Shift+9     Clear analysis cache
 Cmd+Shift+N     Toggle autoplay next
 Cmd+Shift+[     Autoplay source → player
-Cmd+Shift+]     Autoplay source → samples</pre>
+Cmd+Shift+]     Autoplay source → samples
+Cmd+Shift+7     Video audio route → AudioEngine
+Cmd+Shift+8     Video audio route → HTML5</pre>
       </section>
 
       <section class="tutorial-section">
@@ -227,13 +239,14 @@ a | b        OR combinator
 
       <section class="tutorial-section">
         <h2>Rebinding shortcuts</h2>
-        <p><code>frontend/js/shortcuts.js</code>. Open Settings → Shortcuts (or the command palette's <em>Help &amp; Keyboard Shortcuts</em> row). Every action in <code>SHORTCUT_LABEL_KEYS</code> is listed with its current binding. Click any binding to enter recording mode:</p>
+        <p><code>frontend/js/shortcuts.js</code> (~120 entries in <code>DEFAULT_SHORTCUT_DEFS</code>). Open <em>Settings → Keyboard Shortcuts</em> (or the command palette's <em>Help &amp; Keyboard Shortcuts</em> row). Every action in <code>SHORTCUT_LABEL_KEYS</code> is listed with its current binding. Click any binding to enter recording mode:</p>
         <ol>
           <li>The row gains the <code>.recording</code> class and shows <em>"Press key..."</em>.</li>
           <li>Press the desired combination. Modifiers (<code>Cmd</code>, <code>Shift</code>, <code>Alt</code>, <code>Ctrl</code>) are captured plus the base key.</li>
           <li>Bare modifier keys are rejected; <code>Space</code> and <code>=</code>/<code>+</code> are normalized.</li>
         </ol>
-        <p>Only non-default bindings are persisted — the serialized map stays small. <code>resetShortcuts()</code> wipes the custom map and restores defaults. A filter input (<code>shortcutsFilter</code>) lets you search through the list by action name.</p>
+        <p>Only non-default bindings are persisted — the serialized map stays small. <code>resetShortcuts()</code> wipes the custom map and restores defaults. A filter input (<code>shortcutsFilter</code>) lets you search through the list by action name. The shortcut row order itself is drag-reorderable — drops emit a <code>toast.reordered_shortcut_rows</code> toast and the order persists as <code>shortcutOrder</code>.</p>
+        <p><strong>Reserved by macOS:</strong> <code>Cmd+Tab</code> (app switcher), <code>Cmd+H</code> (hide app), <code>Cmd+M</code> (minimize), <code>Cmd+Q</code> (quit) — these never reach the WebView. Don't rebind anything to them; the shortcut editor accepts the chord but the OS swallows the keystroke.</p>
       </section>
 
       <section class="tutorial-callout">

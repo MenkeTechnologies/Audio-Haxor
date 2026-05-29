@@ -75,7 +75,7 @@
           <li><strong>Grid mode</strong> — <code>'all'</code>. All six tiles visible at once at 20 FPS.</li>
           <li><strong>Single mode</strong> — one tile fills the full viewport at 30 FPS.</li>
         </ul>
-        <p>Double-click any tile to toggle single-mode / grid-mode. Drag tiles by their handle to reorder — order persists via the shared drag-reorder utility.</p>
+        <p>Double-click any tile to toggle single-mode / grid-mode. Drag tiles by their handle to reorder — drops emit a <code>toast.reordered_viz_tiles</code> toast (<code>frontend/js/visualizer.js:1597</code>) and the order persists via the shared drag-reorder utility.</p>
       </section>
 
       <section class="tutorial-section">
@@ -92,13 +92,13 @@
 
       <section class="tutorial-section">
         <h2>Data sources — engine vs Web Audio</h2>
-        <p>The visualizer prefers the AudioEngine subprocess's optional spectrum bins and falls back to the Web Audio <code>AnalyserNode</code>.</p>
+        <p>The visualizer prefers the AudioEngine subprocess's <code>playback_status.spectrum</code> bins and falls back to the Web Audio <code>AnalyserNode</code>.</p>
         <ul>
-          <li><strong>Engine spectrum (preferred)</strong> — <code>window._engineSpectrumU8</code>, a 1024-element <code>Uint8Array</code> pushed by the engine when <code>_enginePlaybackActive || _aeOutputStreamRunning</code>. Sample rate in <code>window._engineSpectrumSrHz</code>. Optional overall peak in <code>window._enginePlaybackPeak</code>.</li>
-          <li><strong>Shim</strong> — <code>_vizEngineShim</code> wraps the engine array in an AnalyserNode-compatible façade with <code>frequencyBinCount = 1024</code>, <code>fftSize = 2048</code>, <code>getByteFrequencyData(arr)</code>, and a synthesized <code>getFloatTimeDomainData(arr)</code> for the oscilloscope tile.</li>
+          <li><strong>Engine spectrum (preferred)</strong> — <code>window._engineSpectrumU8</code>, a <code>Uint8Array</code> populated from the engine's <code>playback_status</code> response (see <code>frontend/js/audio-engine.js</code>). Sample rate in <code>window._engineSpectrumSrHz</code>. Optional overall peak in <code>window._enginePlaybackPeak</code>. FFT order is configurable (8–15 = 256–32 768 bins) via the Audio Engine tab; <em>off</em> skips the spectrum altogether for minimum CPU.</li>
+          <li><strong>Shim</strong> — <code>_vizEngineShim</code> wraps the engine array in an AnalyserNode-compatible façade with matching <code>frequencyBinCount</code>, <code>fftSize</code>, <code>getByteFrequencyData(arr)</code>, and a synthesized <code>getFloatTimeDomainData(arr)</code> for the oscilloscope tile.</li>
           <li><strong>Fallback</strong> — <code>_analyser</code> from <code>audio.js</code>, set in <code>ensureAudioGraph()</code>. 2048-point FFT = 1024 frequency bins.</li>
         </ul>
-        <p>Net result: any audio going through the app — Web Audio preview, engine playback, input-stream monitoring — lights up every tile with the same visuals.</p>
+        <p>Net result: any audio going through the app — Web Audio preview, engine playback, video audio route (engine mode), input-stream monitoring — lights up every tile with the same visuals.</p>
       </section>
 
       <section class="tutorial-section">

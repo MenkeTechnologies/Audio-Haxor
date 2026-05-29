@@ -61,7 +61,7 @@
       </div>
 
       <h2 class="tutorial-title"><span class="step-hash">11.</span>Tray popover &amp; menu bar</h2>
-      <p class="tutorial-subtitle">A separate WebView living in the macOS menu bar / Windows system tray / Linux panel. Track info, scrubber drag, volume, speed, transport, and full theme + color scheme sync from the main window.</p>
+      <p class="tutorial-subtitle">A separate WebView living in the macOS menu bar / Windows system tray / Linux panel. Track info, mini-waveform with playhead + sample-loop region overlay, scrubber drag, shift+drag paint-a-loop, volume, speed, transport, and full theme + color scheme sync from the main window.</p>
 
       <figure class="tutorial-shot">
         <img src="../assets/tray.png" alt="Tray popover showing now-playing title, scrubber, transport, volume, speed" loading="lazy">
@@ -81,7 +81,7 @@
           <li><strong>Title</strong> — <code>#trayPopoverTitle</code>. Two-line clamp with ellipsis.</li>
           <li><strong>Subtitle</strong> — <code>#subtitle</code>. Three-line clamp. Cleared when redundant with the title (basename-only path matching the displayed name).</li>
           <li><strong>Idle hint</strong> — <code>#idleHint</code>. Shows when no track is playing (falls back to the <code>tray.popover_idle</code> i18n string).</li>
-          <li><strong>Scrubber bar</strong> — <code>#trackBar</code> with child <code>#fill</code> (gradient cyan/magenta fill), <code>#trackThumb</code> (draggable 8 px cyan thumb with glow), and a bordered track background.</li>
+          <li><strong>Scrubber bar</strong> — <code>#trackBar</code> hosting the <strong>mini-waveform canvas</strong> (<code>#trayWaveformCanvas</code>), a translucent progress fill <code>#fill</code>, a vertical playhead <code>#trackThumb</code> spanning the full 28 px canvas height, and an optional <strong>sample-loop region overlay</strong> with yellow brace markers matching the main-window meta waveform.</li>
           <li><strong>Elapsed / total</strong> — <code>#elapsed</code> / <code>#total</code>. Orbitron font, <code>M:SS</code> format.</li>
           <li><strong>Volume row</strong> — label <code>#trayVolLabel</code>, slider <code>#trayVol</code> (0–100), percentage <code>#trayVolPct</code>.</li>
           <li><strong>Speed row</strong> — label <code>#traySpeedLabel</code>, select <code>#traySpeed</code> (0.25, 0.5, 0.75, 1, 1.25, 1.5, 2).</li>
@@ -99,21 +99,24 @@
           <li><code>popover_title</code>, <code>popover_subtitle</code>, <code>popover_idle_label</code>.</li>
           <li><code>elapsed_sec</code>, <code>total_sec</code>, <code>popover_playing</code>.</li>
           <li><code>playback_speed</code>, <code>volume_pct</code>.</li>
+          <li><code>waveform_peaks</code> — flat <code>[max0, min0, max1, min1, …]</code> array sent once per track load; cached in <code>_trayWaveformPeaks</code> and only re-rendered when the signature actually changes.</li>
+          <li><code>loop_region_enabled</code>, <code>loop_region_start_sec</code>, <code>loop_region_end_sec</code> — sample-loop region overlay state.</li>
           <li><code>ui_theme</code> — <em>"light"</em> or <em>"dark"</em>.</li>
           <li><code>appearance</code> — a map of CSS scheme variables (every key in <code>SCHEME_VAR_KEYS</code>) so the popover recolors to match your active color scheme instantly.</li>
         </ul>
-        <p>Rust relays the payload via <code>emit_to("tray-popover", "tray-popover-state", emit)</code>; the JS side's <code>applyState()</code> (~line 358) normalizes snake/camel keys, updates every element, and re-bases the animation model. Theme changes emit <code>tray-popover-ui-theme</code> separately.</p>
+        <p>Rust relays the payload via <code>emit_to("tray-popover", "tray-popover-state", emit)</code>; the JS side's <code>applyState()</code> normalizes snake/camel keys, updates every element, and re-bases the animation model. Theme changes emit <code>tray-popover-ui-theme</code> separately. SMB / network-share syscalls run in a separate task so they never block <code>tray_popover_action</code>; the Rust-side now-playing cache is mutated synchronously inside the action handler so the next state push reflects the latest seek/volume immediately.</p>
       </section>
 
       <section class="tutorial-section">
-        <h2>Scrubber drag</h2>
+        <h2>Scrubber drag &amp; shift-paint sample loop</h2>
         <p>The scrubber is a pointer-driven seek control:</p>
         <ol>
           <li><code>pointerdown</code> on <code>#trackBar</code> captures the pointer and sets <code>_dragging = true</code>.</li>
           <li><code>pointermove</code> updates <code>_dragFrac</code> from the mouse X coordinate.</li>
           <li><code>pointerup</code>/<code>pointercancel</code> sends <code>tray_popover_action { action: "seek:<frac>" }</code> (4 decimal places, e.g. <code>seek:0.3425</code>) and re-bases the animation model.</li>
         </ol>
-        <p>The animation loop in <code>animationTick</code> runs at 60 fps while not idle and linearly interpolates between host state pushes using <code>performance.now()</code>, so the thumb moves smoothly even though the host only pushes state every ~500 ms.</p>
+        <p><strong>Shift+drag</strong> on the trackbar paints a new sample-loop region — release fires <code>tray_popover_action { action: "loop_region_paint:<lo>:<hi>" }</code> with 4-decimal-place seconds, and the yellow brace markers appear over the canvas immediately. <strong>Shift+click</strong> a single point with no drag sends <code>loop_region_disable</code> to clear the region. The same loop region honored by the main-window player drives the tray overlay, so painting from the tray loops the running track without raising the main window.</p>
+        <p>The animation loop in <code>animationTick</code> runs at 60 fps while not idle and linearly interpolates between host state pushes using <code>performance.now()</code>, so the playhead moves smoothly even though the host only pushes state every ~500 ms.</p>
       </section>
 
       <section class="tutorial-section">
@@ -153,7 +156,12 @@
 
       <section class="tutorial-section">
         <h2>Window sizing</h2>
-        <p><code>syncWindowSize()</code> measures the rendered <code>#shell</code> content plus padding and calls <code>tray_popover_resize</code> to update the popover's window dimensions. Bounds are clamped 240 – 520 px wide and 280 – 800 px tall on the Rust side. A ResizeObserver re-syncs on font load, text changes, and locale swaps.</p>
+        <p><code>syncWindowSize()</code> measures the rendered <code>#shell</code> content plus padding and calls <code>tray_popover_resize</code> to update the popover's window dimensions. The body is allowed to <em>shrink-wrap</em> to its actual rendered shell — no min-height padding, no excess gutters — so the macOS NSPanel stays tight against the content. Bounds are clamped 240 – 520 px wide and 280 – 800 px tall on the Rust side. A ResizeObserver re-syncs on font load, text changes, locale swaps, and waveform-peaks delivery.</p>
+      </section>
+
+      <section class="tutorial-section">
+        <h2>macOS Escape-key handling</h2>
+        <p>The macOS NSPanel rarely becomes first responder, so a JS <code>keydown</code> for <code>Escape</code> never fires inside the popover. <code>src-tauri/src/tray_popover_escape_macos.rs</code> installs a local <code>NSEvent</code> monitor on app launch so pressing Escape anywhere while the popover is open closes it. On Linux / Windows, the standard <code>keydown</code> path closes the popover directly.</p>
       </section>
 
       <section class="tutorial-callout">

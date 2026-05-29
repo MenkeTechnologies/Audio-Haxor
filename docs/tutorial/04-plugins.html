@@ -81,7 +81,7 @@
 
       <section class="tutorial-section">
         <h2>The plugin list — columns &amp; status badges</h2>
-        <p>Each row is built by <code>buildPluginCardHtml()</code> in <code>frontend/js/plugins.js</code> around line 371. Fields shown:</p>
+        <p>Each row is built by <code>buildPluginCardHtml()</code> in <code>frontend/js/plugins.js:416</code>. Fields shown:</p>
         <ul>
           <li><strong>Name</strong> — with search-match highlighting.</li>
           <li><strong>Type</strong> — <code>VST2</code> / <code>VST3</code> / <code>AU</code> / <code>CLAP</code>, rendered as a colored chip (<code>type-vst2</code>, <code>type-vst3</code>, etc.).</li>
@@ -90,7 +90,7 @@
           <li><strong>Modified</strong> — mtime.</li>
           <li><strong>Architectures</strong> — one badge per slice found inside the plugin bundle (x86, x64, ARM64, etc.).</li>
         </ul>
-        <p>Three status categories drive the update badge (from <code>pluginStatusCategory()</code> around line 364):</p>
+        <p>Three status categories drive the update badge (from <code>pluginStatusCategory()</code> at <code>frontend/js/plugins.js:409</code>):</p>
         <ul>
           <li><strong>Update available</strong> — <code>badge-update</code>. KVR says a newer version exists.</li>
           <li><strong>Up to date</strong> — <code>badge-current</code>. KVR has a version string and it matches.</li>
@@ -106,7 +106,7 @@
           <li><strong>Download</strong> (<code>btn-dl-kvr</code>) — only rendered when an update is available; opens the download URL.</li>
           <li><strong>Folder</strong> (<code>btn-folder</code>) — reveals the plugin bundle in Finder / Explorer / your native file manager.</li>
         </ul>
-        <p>Right-click any row for the context menu (plus <em>Favorite</em>, <em>Add note</em>, <em>Copy path</em>, <em>Export selection</em>, etc.).</p>
+        <p>Right-click any row for the context menu (<em>Favorite</em>, <em>Add note</em>, <em>Copy path</em>, <em>Export selection</em>, etc.). The delete sub-tree comes from the shared <code>_pathDeleteItems()</code> helper at <code>frontend/js/context-menu.js:14</code> — every inventory row across the app (plugins, samples, presets, MIDI, PDF, video, files) gets the same items: <em>Move to Trash</em>, <em>Securely delete</em> (3-pass DoD 5220.22-M overwrite via the <code>fs_secure_delete</code> Tauri command at <code>src-tauri/src/lib.rs:8567</code>), and <em>Copy path</em>. Adding a new inventory tab automatically inherits the same menu.</p>
       </section>
 
       <section class="tutorial-section">

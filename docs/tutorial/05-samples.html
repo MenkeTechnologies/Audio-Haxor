@@ -81,7 +81,7 @@
 
       <section class="tutorial-section">
         <h2>Table columns</h2>
-        <p>Built by <code>buildAudioRow()</code> in <code>frontend/js/audio.js</code> around line 2568:</p>
+        <p>Built by <code>buildAudioRow()</code> in <code>frontend/js/audio.js:3516</code>:</p>
         <ul>
           <li><strong>Checkbox</strong> — batch selection for export, delete, favorite, tag.</li>
           <li><strong>Name</strong> — with highlight on search match.</li>
@@ -112,13 +112,13 @@
 
       <section class="tutorial-section">
         <h2>Waveform preview</h2>
-        <p>Expanding a row triggers <code>decodePeaksViaWorker()</code> (<code>audio.js</code> ~line 140). The decode pipeline has three fallbacks:</p>
+        <p>Expanding a row triggers <code>decodePeaksViaWorker()</code> at <code>frontend/js/audio.js:202</code>. The decode pipeline has three fallbacks:</p>
         <ol>
           <li>Worker fetch + decode — off-main-thread.</li>
           <li>Main-thread fetch → worker decode — if the worker can't fetch directly.</li>
           <li>Main-thread decode — last resort.</li>
         </ol>
-        <p>Decoded peaks are cached in <code>_waveformCache</code> (capped by the <strong>Max cached waveforms</strong> setting). <code>resolveWaveformBoxSize()</code> (~line 361) wraps <code>getBoundingClientRect()</code> in an 8-frame RAF retry loop because WKWebView release builds can return 0×0 for briefly-unattached elements.</p>
+        <p>Decoded peaks are cached in <code>_waveformCache</code> (capped by the <strong>Max cached waveforms</strong> setting). <code>resolveWaveformBoxSize()</code> at <code>frontend/js/audio.js:452</code> wraps <code>getBoundingClientRect()</code> in an 8-frame rAF retry loop because WKWebView release builds can return 0×0 for briefly-unattached elements.</p>
       </section>
 
       <section class="tutorial-section">
@@ -140,6 +140,17 @@
         <h2>Find similar — chromaprint fingerprints</h2>
         <p>Context menu → <em>Find similar to this</em> (shortcut <code>W</code>). Calls <code>find_similar_samples(filePath, candidatePaths, maxResults: 20)</code> against the fingerprint cache built by <code>build_fingerprint_cache</code>. The backend uses a chromaprint-style acoustic fingerprint so <em>different files that sound the same</em> (different formats, re-encodings, subtle edits) surface as hits, unlike byte-level duplicates.</p>
         <p>Build the cache with <code>Cmd+Shift+B</code> or the <em>Build Fingerprint Cache</em> palette action. Cache lives in SQLite and is reused across launches.</p>
+        <p>Hits land in the <strong>Similar Search</strong> floating panel — a draggable dock that snaps to any of four corners (<code>similarDock</code> pref: <code>dock-tl</code> / <code>dock-tr</code> / <code>dock-bl</code> / <code>dock-br</code>, default bottom-left). The dock emits a <code>toast.similar_panel_docked</code> toast each time you snap it to a new corner.</p>
+      </section>
+
+      <section class="tutorial-section">
+        <h2>Native drag-out to DAW / Finder</h2>
+        <p>Drag any row (or multi-selection) off the table and onto Ableton, Logic, Finder, or any other native OS target. The plumbing lives in <code>frontend/js/native-file-drag.js</code> and uses the <code>tauri-plugin-drag</code> sidecar; on a successful drag-out the app emits a <code>toast.fb_drag_started_n</code> toast so you can see exactly how many files just left the app. Single-file drag works without a checkbox selection — drag the row directly. Multi-file drag fires whenever 2+ rows are checked.</p>
+      </section>
+
+      <section class="tutorial-section">
+        <h2>Secure delete</h2>
+        <p>Right-click → <em>Securely delete</em> on any sample row runs a 3-pass DoD 5220.22-M overwrite through the <code>fs_secure_delete</code> Tauri command (<code>src-tauri/src/lib.rs:8567</code>). The same item is available from every inventory tab via the shared <code>_pathDeleteItems()</code> helper (<code>frontend/js/context-menu.js:14</code>). A confirmation dialog (<code>confirm.fb_secure_delete_title</code>) is shown before the wipe; the row is removed from the table only after the file is gone from disk.</p>
       </section>
 
       <section class="tutorial-section">

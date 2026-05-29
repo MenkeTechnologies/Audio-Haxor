@@ -61,7 +61,7 @@
       </div>
 
       <h2 class="tutorial-title"><span class="step-hash">01.</span>First launch &amp; orientation</h2>
-      <p class="tutorial-subtitle">Boot sequence, HUD header, process stats strip, tab bar with fifteen surfaces, and the welcome panel that seeds your first scan.</p>
+      <p class="tutorial-subtitle">Boot sequence, HUD header, process stats strip, tab bar with eighteen surfaces, and the welcome panel that seeds your first scan.</p>
 
       <figure class="tutorial-shot">
         <img src="../assets/plugins.png" alt="Main window on first launch — HUD header, process stats strip, tab bar, and the default Plugins landing tab" loading="lazy">
@@ -124,14 +124,16 @@
       </section>
 
       <section class="tutorial-section">
-        <h2>The tab bar — 15 surfaces</h2>
-        <p>Directly under the header, in order, with their default keyboard bindings:</p>
+        <h2>The tab bar — 18 surfaces</h2>
+        <p>Directly under the header, in declared order, with default keyboard bindings where they apply:</p>
         <pre>Plugins      Cmd+1    Samples      Cmd+2    DAW          Cmd+3
 Presets      Cmd+4    MIDI         Cmd+5    PDF          Cmd+6
-Favorites    Cmd+7    Notes        Cmd+8    Tags         Cmd+9
-Files        Cmd+0    History      F3       Visualizer   F4
-Walkers      F5       Audio Engine F6       Settings     Cmd+,</pre>
-        <p>Tabs are draggable (<code>drag-reorder.js</code>) and the order persists across launches. To reset to defaults, use Settings → <em>Reset Tab Order</em> or run <em>Reset Tab Order</em> from the command palette.</p>
+Videos       (none)   Favorites    Cmd+7    Notes        Cmd+8
+Tags         Cmd+9    Files        Cmd+0    History      F3
+Visualizer   F4       Walkers      F5       Audio Engine F6
+ALS Generator (none)  Crate        (none)   Settings     Cmd+,</pre>
+        <p>Videos, ALS Generator, and Crate are reachable from the tab bar (drag them into any slot you like) and from the command palette (<code>Cmd+K</code>); they do not ship with a default <code>Cmd+N</code> binding because the digit row is already saturated. Rebind any of them in <em>Settings → Keyboard Shortcuts</em> if you want a hotkey.</p>
+        <p>Tabs are draggable (<code>frontend/js/drag-reorder.js</code>) and the order persists across launches; a drop emits the <code>toast.reordered_main_tabs</code> toast. To reset to defaults use the command palette entry <em>Reset Tab Order</em>.</p>
         <p>Active-tab state is persisted — when you relaunch, you land back where you left off. Switching tabs is instantaneous; the per-tab data is loaded lazily via <code>db_query_*</code> calls so a 400 000-row sample library doesn't stall the boot sequence.</p>
       </section>
 
@@ -155,10 +157,11 @@ Walkers      F5       Audio Engine F6       Settings     Cmd+,</pre>
         <h2>Survival tips</h2>
         <ul>
           <li>Press <code>?</code> at any time to toggle the help overlay with the full shortcut cheat sheet.</li>
-          <li>Press <code>Cmd+K</code> for the command palette — everything in the app is reachable from there.</li>
-          <li>If you want a light theme, press <code>Cmd+T</code> or hit the <em>Theme</em> button in the HUD header.</li>
+          <li>Press <code>Cmd+K</code> for the command palette — every action in the app (including the ~150 entries added across recent releases for per-scanner stops, per-tab export/import, player track actions, and resets) is reachable from there.</li>
+          <li>If you want a light theme, press <code>Cmd+Y</code> or hit the <em>Theme</em> button in the HUD header.</li>
           <li>If the CRT scanlines distract you, press <code>F1</code> to toggle them. Neon-glow toggles with <code>F2</code>.</li>
           <li>If a scan goes sideways, <code>Cmd+.</code> stops every active walker and subprocess.</li>
+          <li>Every keybinding above is rebindable in <em>Settings → Keyboard Shortcuts</em> (~120 customizable entries — see step 18).</li>
         </ul>
       </section>
 

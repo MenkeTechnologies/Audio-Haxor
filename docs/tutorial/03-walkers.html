@@ -61,7 +61,7 @@
       </div>
 
       <h2 class="tutorial-title"><span class="step-hash">03.</span>Run Scan All &amp; watch the Walkers tab</h2>
-      <p class="tutorial-subtitle">The unified scan pipeline, per-type scanners, the Stop / Resume-All header flow, and the live four-tile Walkers HUD that shows every worker's current directory in real time.</p>
+      <p class="tutorial-subtitle">The unified scan pipeline, per-type scanners, the Stop / Resume-All header flow, and the live two-tile Walkers HUD that shows every worker's current directory in real time.</p>
 
       <figure class="tutorial-shot">
         <img src="../assets/walkers.png" alt="Walkers tab showing per-scanner live directory streams during a unified scan" loading="lazy">
@@ -96,8 +96,9 @@
           <li><strong>Presets tab → Scan Presets</strong> — <code>id="btnScanPresets"</code> → <code>scan_presets</code></li>
           <li><strong>MIDI tab → Scan MIDI</strong> — <code>id="btnScanMidi"</code> → <code>scan_midi_files</code></li>
           <li><strong>PDF tab → Scan PDFs</strong> → <code>scan_pdfs</code></li>
+          <li><strong>Videos tab → Scan Videos</strong> → <code>scan_videos</code></li>
         </ul>
-        <p>Each has its own hidden <em>Resume</em> / <em>Stop</em> buttons that appear mid-scan (e.g. <code>btnResumeScan</code>, <code>btnStopPlugins</code>). Shortcuts <code>Cmd+Shift+P/S/` /R/F</code> trigger Plugins/Samples/DAW/Presets/PDFs scans directly from the keyboard.</p>
+        <p>Each has its own hidden <em>Resume</em> / <em>Stop</em> buttons that appear mid-scan (e.g. <code>btnResumeScan</code>, <code>btnStopPlugins</code>). Shortcuts <code>Cmd+Shift+P/S/` /R/F/E</code> trigger Plugins/Samples/DAW/Presets/PDFs/Videos scans directly from the keyboard. The command palette also exposes per-scanner stop entries (<em>Stop plugin scan</em>, <em>Stop samples scan</em>, etc.) for granular abort without touching <code>Cmd+.</code> which fires every walker.</p>
       </section>
 
       <section class="tutorial-section">
@@ -107,7 +108,7 @@
           <li><code>scan-progress</code> — plugins. <code>phase: 'start' | 'scanning'</code>, includes processed/total counts and a batch of <code>plugins[]</code>.</li>
           <li><code>audio-scan-progress</code> — samples. Same shape with a <code>samples[]</code> batch.</li>
           <li><code>daw-scan-progress</code> — DAW. <code>projects[]</code> batch.</li>
-          <li>Similar events for presets, MIDI, PDF.</li>
+          <li>Similar events for presets, MIDI, PDF, videos.</li>
           <li><code>update-progress</code> — KVR update checks, with <code>plugins[]</code> whose update status just changed.</li>
           <li><code>content-dup-progress</code> — content-level duplicate scan (see step 05).</li>
         </ul>
@@ -117,14 +118,12 @@
       <section class="tutorial-section">
         <h2>The Walkers tab — F5</h2>
         <p>Switch to <strong>Walkers</strong> with <code>F5</code> (or click the tab). This is a live HUD for every active walker, polled at 500 ms cadence (<code>_walkerInterval</code> in <code>frontend/js/walker-status.js</code>) via <code>get_walker_status</code>. The payload returns an array of directories currently being visited by each scanner plus its busy flag.</p>
-        <p>The layout is a draggable four-tile grid:</p>
+        <p>The layout is a draggable two-tile grid:</p>
         <ol>
           <li><strong>Plugin tile</strong> — <code>walkerTilePlugin</code>. Streams the directory currently being visited by the plugin walker. Header text "scanning — N threads | M dirs in buffer" while busy, "idle — N threads in pool" when idle.</li>
-          <li><strong>Audio tile</strong> — streams audio scanner activity.</li>
-          <li><strong>DAW tile</strong> — streams DAW scanner activity.</li>
-          <li><strong>Unified tile</strong> — <code>walkerTileUnified</code>. Streams whichever walker under <code>scan_unified</code> is most recently active (audio / DAW / preset / MIDI / PDF). During a unified scan this is the tile that lights up first.</li>
+          <li><strong>Unified File Walker tile</strong> — <code>walkerTileUnified</code>. Streams whichever sub-walker under <code>scan_unified</code> is most recently active (audio / DAW / preset / MIDI / PDF / video). Hidden when idle; appears the moment <code>scan_unified</code> or any of the per-type tab scans fire.</li>
         </ol>
-        <p>Each tile is a scrolling ring buffer of ~200 directories — newest at the bottom, older entries scrolling up. Hovering a directory shows the full path in a native title tooltip. The grid can be drag-reordered and the order persists in the <code>walkerTileOrder</code> pref.</p>
+        <p>Each tile is a scrolling ring buffer — newest at the bottom, older entries scrolling up. Hovering a directory shows the full path in a native title tooltip. The grid is drag-reorderable (<code>initDragReorder(grid, '.walker-tile', 'walkerTileOrder', ...)</code> at <code>frontend/js/walker-status.js:129</code>) and the order persists; the drop emits a <code>toast.reordered_walker_tiles</code> toast like every other reorder surface (see step 13 for the universal toast catalog).</p>
       </section>
 
       <section class="tutorial-section">
@@ -141,13 +140,21 @@ Cmd+Shift+S         Scan samples only
 Cmd+Shift+`         Scan DAW projects only
 Cmd+Shift+R         Scan presets only
 Cmd+Shift+F         Scan PDFs only
+Cmd+Shift+E         Scan videos only
+Cmd+Shift+Y         Stop PDF scan
+Cmd+Shift+Q         Stop video scan
 Cmd+Shift+U         Check plugin updates (KVR)
 Cmd+Shift+X         Build plugin xref index
 Cmd+Shift+B         Build fingerprint cache
 Cmd+Shift+V         Start BPM/key/LUFS analysis
 Cmd+Shift+C         Stop BPM/key/LUFS analysis
+Cmd+Shift+,         Start content-dup scan
+Cmd+Shift+.         Stop content-dup scan
+Cmd+Shift+F5        Start all background jobs
+Cmd+Shift+F6        Stop all background jobs
 Cmd+Shift+Backspace Reset all scans / clear all caches
 F5                  Jump to Walkers tab</pre>
+        <p>The command palette (step 09) exposes a dedicated entry for every per-scanner stop, every background-job start/stop, and every export/import — easier to discover than memorising the Cmd+Shift table above.</p>
       </section>
 
       <section class="tutorial-callout">

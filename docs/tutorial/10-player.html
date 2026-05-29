@@ -70,7 +70,8 @@
 
       <section class="tutorial-section">
         <h2>Where the player lives</h2>
-        <p>The floating player is not a tab — it's a draggable, collapsible HUD panel owned by <code>frontend/js/audio.js</code> (6 200+ lines). It's where every preview-audio action ends up. Show or hide it with <code>P</code>. Collapse it to a compact pill with <code>E</code> (<em>expand/collapse</em>). Close it entirely with the × button (<code>npCloseBtn</code>). Drag its title bar to reposition; drag the resize handle to resize. Both position and size persist in prefs.</p>
+        <p>The floating player is not a tab — it's a draggable, collapsible HUD panel owned by <code>frontend/js/audio.js</code> (7 600+ lines). It's where every preview-audio action ends up. Show or hide it with <code>P</code>. Collapse it to a compact pill with <code>E</code> (<em>expand/collapse</em>). Close it entirely with the × button (<code>npCloseBtn</code>). Drag its title bar to reposition; drag the resize handle to resize. Both position and size persist in prefs.</p>
+        <p>The player can also <strong>snap to a dock</strong> — drag it near any of the four corners and it locks to <code>dock-tl</code> / <code>dock-tr</code> / <code>dock-bl</code> / <code>dock-br</code> (<code>playerDock</code> pref). On every successful snap the app emits a <code>toast.player_docked</code> notification. Each of the player's interior sections (<em>transport</em>, <em>waveform</em>, <em>EQ</em>, <em>history</em>, …) is itself drag-reorderable — the order persists as <code>playerSectionOrder</code> and drops emit <code>toast.reordered_np_sections</code>.</p>
       </section>
 
       <section class="tutorial-section">
@@ -130,8 +131,9 @@
 
       <section class="tutorial-section">
         <h2>History list &amp; filter</h2>
-        <p>Below the transport lives the recently-played list (<code>npHistoryList</code>), built by <code>getPlayerHistoryListItems()</code> (~line 4402) from the in-memory <code>recentlyPlayed</code> array. The array is hydrated from prefs on startup and capped by the <strong>Max recently played</strong> setting (20–500, default 50).</p>
-        <p>The list is drag-reorderable — reorder tracks to change playback order. Above it is a search input (<code>npSearchInput</code>) wired through the unified filter framework (<code>registerFilter('filterNowPlaying', …)</code>, ~line 4489) — type to filter history + live sample search. Double-click any row to jump to that track.</p>
+        <p>Below the transport lives the recently-played list (<code>npHistoryList</code>), built by <code>getPlayerHistoryListItems()</code> from the in-memory <code>recentlyPlayed</code> array. The array is hydrated from prefs on startup and capped by the <strong>Max recently played</strong> setting (20–500, default 50).</p>
+        <p>The list is drag-reorderable — reorder tracks to change playback order. Drops emit a <code>toast.reordered_recently_played</code> toast. Above it is a search input (<code>npSearchInput</code>) wired through the unified filter framework (<code>registerFilter('filterNowPlaying', …)</code>) — type to filter history + live sample search. Double-click any row to jump to that track.</p>
+        <p>The command palette (step 09) ships ready-made <em>player track actions</em>: <em>Player → Play current</em>, <em>Player → Previous / Next</em>, <em>Player → Toggle loop / mute / shuffle</em>, <em>Player → Reverse current</em>, <em>Player → Show / hide / expand / collapse</em>. Use these as a fallback when the player isn't focused (e.g. when the visualizer is active).</p>
       </section>
 
       <section class="tutorial-section">
@@ -139,6 +141,7 @@
         <p>When the current track hits EOF, the <code>'ended'</code> listener calls <code>nextTrack({ autoplay: true })</code>. Advance is gated on <code>canAutoplayAdvanceTrack()</code> — pref <code>autoplayNext</code> must be on. <code>getAutoplayNextSource()</code> chooses between <em>player history</em> and <em>samples table</em> based on pref <code>autoplayNextSource</code>.</p>
         <p>If a preview <em>fails</em> (bad file, decode error), <code>tryPreviewAutoplayNextOnFailureAsync(failedPath)</code> chains forward along the same source — you can walk through a directory of corrupt files and the player will skip past them until it finds something playable.</p>
         <p>When the WebView is hidden/minimized/unfocused, macOS throttles timers, which breaks the <code>'ended'</code> event. Rust side compensates with an EOF watchdog (<code>audio_engine_eof_watchdog_start</code>) that polls playback status at 1 Hz and emits <code>audio-engine-playback-eof</code>; the JS listener forwards that to <code>handleEnginePlaybackEofFromPoll()</code> so the chain keeps advancing even with the app minimized.</p>
+        <p>On top of the EOF watchdog, the player also pins itself against macOS's <strong>App Nap</strong>: when an idle background app gets paged out, the first sample after a long idle would otherwise lag for seconds. A <code>NSProcessInfo</code> activity assertion holds the host unthrottled (the same option set Music.app uses), the audio-engine subprocess gets a 30 s keep-alive ping, and the playhead/cursor render loop drives a parallel <code>setInterval</code> at ~100 ms so the cursor doesn't freeze even when WKWebView throttles <code>requestAnimationFrame</code> to ~1 Hz on focus loss.</p>
       </section>
 
       <section class="tutorial-section">

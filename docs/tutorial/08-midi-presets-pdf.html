@@ -60,8 +60,8 @@
         <span class="meter-count">08 / 19</span>
       </div>
 
-      <h2 class="tutorial-title"><span class="step-hash">08.</span>MIDI, presets, PDFs</h2>
-      <p class="tutorial-subtitle">Three more inventory tabs with their own streaming scanners, column sets, and history. MIDI extracts deep musical metadata; presets are a fast format-filtered catalog; PDFs lazily extract page counts.</p>
+      <h2 class="tutorial-title"><span class="step-hash">08.</span>MIDI, presets, PDFs, videos</h2>
+      <p class="tutorial-subtitle">Four more inventory tabs with their own streaming scanners, column sets, and history. MIDI extracts deep musical metadata; presets are a fast format-filtered catalog; PDFs lazily extract page counts; videos play inline with selectable audio routing.</p>
 
       <div class="tutorial-shot">
         <img src="../assets/midi.png" alt="MIDI tab with tracks, BPM, time signature, key, notes, channels, duration columns" loading="lazy">
@@ -125,7 +125,22 @@ NKI  NKSN  H2P  SYX  TFX  PJUNOXL</pre>
       </section>
 
       <section class="tutorial-section">
-        <h2>Shared behaviors across all three tabs</h2>
+        <h2>Videos tab — drag into any tab-bar slot</h2>
+        <p><code>frontend/js/video.js</code> (<code>scanVideos()</code> at line 357). Columns mirror the audio table: Name, Format (MP4 / MOV / MKV / AVI / WEBM / M4V / WMV / FLV / MPG / MTS / 3GP), Duration, Size, Modified, Path. Header carries Scan / Resume / Stop / Export / Import / fuzzy search + regex toggle.</p>
+        <h3>Inline playback &amp; maximize</h3>
+        <p>Click a row to play inline; the row expands into a <code>&lt;video&gt;</code> element. The <strong>Maximize</strong> button (<code>btnVideoMaximize</code>) toggles a true fullscreen state via <code>requestFullscreen()</code>; the <code>video_toggle_fullscreen</code> shortcut (default <code>v</code>) is a single-key trigger because <code>Cmd+Enter</code> is unreliable inside WKWebView. Press it again or <code>Esc</code> to exit. The maximize root is <code>id="videoFullscreenRoot"</code>.</p>
+        <h3>Audio route — engine vs HTML5</h3>
+        <p>The <code>videoAudioRoute</code> pref switches between two pipelines:</p>
+        <ul>
+          <li><strong>engine</strong> (default) — audio is decoded and routed through the AudioEngine subprocess. VST3/AU inserts on the engine's master chain (step 16) apply to video playback. Bypasses the WebView's audio mixer.</li>
+          <li><strong>html5</strong> — audio rides the WebView's native <code>&lt;video&gt;</code> output. Lower latency, no insert chain, no LUFS metering.</li>
+        </ul>
+        <p>Toggle with the command-palette entries <em>Video audio route → AudioEngine</em> (<code>Cmd+Shift+7</code>) / <em>Video audio route → HTML5</em> (<code>Cmd+Shift+8</code>) or rebind in Settings → Keyboard Shortcuts.</p>
+        <p>IPC: <code>scan_videos</code>, <code>stop_video_scan</code>, <code>db_query_videos</code>, <code>video_history_*</code>, <code>export_videos_json</code>, <code>export_videos_dsv</code>, <code>import_videos_json</code>. The Videos tab does not appear on the digit-row default keymap — drag the tab into your preferred slot via the main tab bar (the drop emits <code>toast.reordered_main_tabs</code>).</p>
+      </section>
+
+      <section class="tutorial-section">
+        <h2>Shared behaviors across all four tabs</h2>
         <ul>
           <li>Fuzzy search by default, regex on toggle. Full FZF query syntax supported (<code>'exact</code>, <code>^prefix</code>, <code>suffix$</code>, <code>!term</code>, <code>a | b</code>).</li>
           <li>Click any column header to sort. Sort state is persisted (<code>sort-persist.js</code>). Default sort per tab is configurable in Settings → Sorting.</li>
