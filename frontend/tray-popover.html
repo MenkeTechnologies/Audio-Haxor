@@ -516,24 +516,24 @@
     <div class="tray-extras" id="trayExtras">
       <div class="tray-row">
         <label class="tray-mini-label" for="trayVol" id="trayVolLabel">Vol</label>
-        <input type="range" class="tray-vol-slider" id="trayVol" min="0" max="100" value="100" />
+        <input type="range" class="tray-vol-slider" id="trayVol" min="0" max="100" value="100" title="Volume" />
         <span class="tray-vol-pct" id="trayVolPct">100%</span>
       </div>
       <div class="tray-row">
         <label class="tray-mini-label" for="traySpeed" id="traySpeedLabel">Speed</label>
-        <select class="tray-speed-select" id="traySpeed"></select>
+        <select class="tray-speed-select" id="traySpeed" title="Playback speed"></select>
       </div>
     </div>
     <div class="transport">
-      <button type="button" id="btnShuffle">&#128256;</button>
-      <button type="button" id="btnPrev">&#x23ee;</button>
-      <button type="button" class="play-btn" id="btnPlay">&#x23f8;</button>
-      <button type="button" id="btnNext">&#x23ed;</button>
-      <button type="button" id="btnLoop">&#8634;</button>
-      <button type="button" id="btnFav">&#9733;</button>
+      <button type="button" id="btnShuffle" title="Shuffle">&#128256;</button>
+      <button type="button" id="btnPrev" title="Previous track">&#x23ee;</button>
+      <button type="button" class="play-btn" id="btnPlay" title="Play / Pause">&#x23f8;</button>
+      <button type="button" id="btnNext" title="Next track">&#x23ed;</button>
+      <button type="button" id="btnLoop" title="Toggle loop">&#8634;</button>
+      <button type="button" id="btnFav" title="Toggle favorite">&#9733;</button>
     </div>
   </div>
   <div class="tray-ctx-menu" id="trayCtxMenu" aria-hidden="true"></div>
-  <script src="js/tray-popover.js?v=95585"></script>
+  <script src="js/tray-popover.js?v=86885"></script>
 </body>
 </html>

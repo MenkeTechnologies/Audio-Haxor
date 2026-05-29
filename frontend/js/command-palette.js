@@ -692,6 +692,129 @@ function buildPaletteStaticItems() {
             typeof stopAll === 'function' && stopAll();
         }
     });
+    // ── Per-scanner stop / start surfaced by audit (every data-action
+    // in the toolbar that wasn't already palette-reachable). Stops are
+    // common enough on aborted scans that a typed search ("stop midi"
+    // etc.) should land them — without these the user has to switch
+    // tabs and click the toolbar Stop button to abort.
+    if (typeof stopAudioScan === 'function') items.push({
+        type: 'action', name: appFmt('menu.stop_audio_scan'), icon: '&#9632;',
+        action: () => { void stopAudioScan(); }
+    });
+    if (typeof stopDawScan === 'function') items.push({
+        type: 'action', name: appFmt('menu.stop_daw_scan'), icon: '&#9632;',
+        action: () => { void stopDawScan(); }
+    });
+    if (typeof stopPluginScan === 'function') items.push({
+        type: 'action', name: appFmt('menu.stop_plugin_scan'), icon: '&#9632;',
+        action: () => { void stopPluginScan(); }
+    });
+    if (typeof stopPresetScan === 'function') items.push({
+        type: 'action', name: appFmt('menu.stop_preset_scan'), icon: '&#9632;',
+        action: () => { void stopPresetScan(); }
+    });
+    if (typeof stopMidiScan === 'function') items.push({
+        type: 'action', name: appFmt('menu.stop_midi_scan'), icon: '&#9632;',
+        action: () => { void stopMidiScan(); }
+    });
+    if (typeof scanMidi === 'function') items.push({
+        type: 'action', name: appFmt('menu.scan_midi'), icon: '&#127929;',
+        action: () => { showToast(toastFmt('toast.scanning_midi')); void scanMidi(); }
+    });
+    // Per-tab exports / imports. The generic "export_current_tab" is
+    // already in the palette, but typing the inventory name explicitly
+    // ("export plugins", "import notes") is faster than switching tabs
+    // first then triggering the generic action.
+    if (typeof exportAudio === 'function') items.push({
+        type: 'action', name: appFmt('menu.export_audio_samples'), icon: '&#8615;',
+        action: () => { if (typeof runExport === 'function') runExport(exportAudio); else void exportAudio(); }
+    });
+    if (typeof exportDaw === 'function') items.push({
+        type: 'action', name: appFmt('menu.export_daw_projects'), icon: '&#8615;',
+        action: () => { if (typeof runExport === 'function') runExport(exportDaw); else void exportDaw(); }
+    });
+    if (typeof exportPlugins === 'function') items.push({
+        type: 'action', name: appFmt('menu.export_plugins'), icon: '&#8615;',
+        action: () => { if (typeof runExport === 'function') runExport(exportPlugins); else void exportPlugins(); }
+    });
+    if (typeof exportPresets === 'function') items.push({
+        type: 'action', name: appFmt('menu.export_presets'), icon: '&#8615;',
+        action: () => { if (typeof runExport === 'function') runExport(exportPresets); else void exportPresets(); }
+    });
+    if (typeof exportFavorites === 'function') items.push({
+        type: 'action', name: appFmt('menu.export_favorites'), icon: '&#8615;',
+        action: () => { void exportFavorites(); }
+    });
+    if (typeof exportNotes === 'function') items.push({
+        type: 'action', name: appFmt('menu.export_notes'), icon: '&#8615;',
+        action: () => { void exportNotes(); }
+    });
+    if (typeof exportRecentlyPlayed === 'function') items.push({
+        type: 'action', name: appFmt('menu.export_recently_played'), icon: '&#8615;',
+        action: () => { exportRecentlyPlayed(); }
+    });
+    if (typeof importAudio === 'function') items.push({
+        type: 'action', name: appFmt('menu.import_audio_samples'), icon: '&#8613;',
+        action: () => { void importAudio(); }
+    });
+    if (typeof importDaw === 'function') items.push({
+        type: 'action', name: appFmt('menu.import_daw_projects'), icon: '&#8613;',
+        action: () => { void importDaw(); }
+    });
+    if (typeof importPlugins === 'function') items.push({
+        type: 'action', name: appFmt('menu.import_plugins'), icon: '&#8613;',
+        action: () => { void importPlugins(); }
+    });
+    if (typeof importPresets === 'function') items.push({
+        type: 'action', name: appFmt('menu.import_presets'), icon: '&#8613;',
+        action: () => { void importPresets(); }
+    });
+    if (typeof importFavorites === 'function') items.push({
+        type: 'action', name: appFmt('menu.import_favorites'), icon: '&#8613;',
+        action: () => { void importFavorites(); }
+    });
+    if (typeof importNotes === 'function') items.push({
+        type: 'action', name: appFmt('menu.import_notes'), icon: '&#8613;',
+        action: () => { void importNotes(); }
+    });
+    if (typeof importRecentlyPlayed === 'function') items.push({
+        type: 'action', name: appFmt('menu.import_recently_played'), icon: '&#8613;',
+        action: () => { void importRecentlyPlayed(); }
+    });
+    // Player track actions (act on the currently-loaded `audioPlayerPath`).
+    if (typeof favCurrentTrack === 'function') items.push({
+        type: 'action', name: appFmt('menu.favorite_current_track'), icon: '&#9733;',
+        action: () => favCurrentTrack()
+    });
+    if (typeof tagCurrentTrack === 'function') items.push({
+        type: 'action', name: appFmt('menu.tag_current_track'), icon: '&#127991;',
+        action: () => tagCurrentTrack()
+    });
+    if (typeof toggleReversePlayback === 'function') items.push({
+        type: 'action', name: appFmt('menu.toggle_reverse_playback'), icon: '&#8630;',
+        action: () => { void toggleReversePlayback(); }
+    });
+    if (typeof setAbLoopStart === 'function') items.push({
+        type: 'action', name: appFmt('menu.set_ab_loop_start'), icon: '&#9090;',
+        action: () => setAbLoopStart()
+    });
+    if (typeof setAbLoopEnd === 'function') items.push({
+        type: 'action', name: appFmt('menu.set_ab_loop_end'), icon: '&#9089;',
+        action: () => setAbLoopEnd()
+    });
+    if (typeof clearAbLoop === 'function') items.push({
+        type: 'action', name: appFmt('menu.clear_ab_loop'), icon: '&#10006;',
+        action: () => clearAbLoop()
+    });
+    // Resets surfaced by audit.
+    if (typeof resetEq === 'function') items.push({
+        type: 'action', name: appFmt('menu.reset_eq'), icon: '&#8634;',
+        action: () => resetEq()
+    });
+    if (typeof resetShortcuts === 'function') items.push({
+        type: 'action', name: appFmt('menu.reset_shortcuts'), icon: '&#8634;',
+        action: () => resetShortcuts()
+    });
     items.push({
         type: 'action', name: appFmt('menu.export_current_tab'), icon: '&#8615;', ...paletteShortcutTip('exportTab'), action: () => {
             typeof _exportCurrentTab === 'function' && _exportCurrentTab();
