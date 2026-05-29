@@ -2283,6 +2283,20 @@ document.addEventListener('contextmenu', (e) => {
                     action: () => typeof loadDirectory === 'function' && loadDirectory(path)
                 });
             }
+            if (!isDir) {
+                // Explicit "Open in Default App" — runs the OS default handler
+                // for the file's extension (.txt → TextEdit / Notepad, .png →
+                // Preview, .docx → Word, etc.). Provides one-click access to
+                // the system viewer for arbitrary types that don't have a
+                // dedicated in-app preview.
+                items.push({
+                    icon: '&#128194;',
+                    label: appFmt('menu.open_default_app'), ..._noEcho,
+                    action: () => window.vstUpdater.openFileDefault(path).catch((err) =>
+                        showToast(toastFmt('toast.failed_open_file', {err: err && err.message ? err.message : err}), 4000, 'error')
+                    ),
+                });
+            }
             items.push({
                 icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'), action: () => {
                     const dir = isDir ? path : path.replace(/\/[^/]+$/, '');
@@ -2290,6 +2304,63 @@ document.addEventListener('contextmenu', (e) => {
                     else if (typeof openAudioFolder === 'function') openAudioFolder(path);
                 }
             });
+            if (isDir) {
+                // Scan-folder shortcuts (right-click folder → scan it for
+                // samples / presets / DAW projects / MIDI / PDFs / videos).
+                // Each switches to the target tab and kicks off the scan with
+                // the right-clicked folder as the sole override root, bypassing
+                // the user's stored library roots. Reuses existing `menu.scan_*`
+                // i18n keys (shipped across all 27 locales).
+                items.push('---');
+                items.push({
+                    icon: '&#128270;',
+                    label: appFmt('menu.scan_samples'), ..._noEcho,
+                    action: () => {
+                        if (typeof switchTab === 'function') switchTab('samples');
+                        if (typeof scanAudioSamples === 'function') scanAudioSamples(false, null, [path]);
+                    },
+                });
+                items.push({
+                    icon: '&#128270;',
+                    label: appFmt('menu.scan_presets'), ..._noEcho,
+                    action: () => {
+                        if (typeof switchTab === 'function') switchTab('presets');
+                        if (typeof scanPresets === 'function') scanPresets(false, null, [path]);
+                    },
+                });
+                items.push({
+                    icon: '&#128270;',
+                    label: appFmt('menu.scan_daw'), ..._noEcho,
+                    action: () => {
+                        if (typeof switchTab === 'function') switchTab('daw');
+                        if (typeof scanDawProjects === 'function') scanDawProjects(false, null, [path]);
+                    },
+                });
+                items.push({
+                    icon: '&#128270;',
+                    label: appFmt('menu.scan_midi'), ..._noEcho,
+                    action: () => {
+                        if (typeof switchTab === 'function') switchTab('midi');
+                        if (typeof scanMidi === 'function') scanMidi(false, [path]);
+                    },
+                });
+                items.push({
+                    icon: '&#128270;',
+                    label: appFmt('menu.scan_pdf'), ..._noEcho,
+                    action: () => {
+                        if (typeof switchTab === 'function') switchTab('pdf');
+                        if (typeof scanPdfs === 'function') scanPdfs(false, null, [path]);
+                    },
+                });
+                items.push({
+                    icon: '&#128270;',
+                    label: appFmt('menu.scan_videos'), ..._noEcho,
+                    action: () => {
+                        if (typeof switchTab === 'function') switchTab('videos');
+                        if (typeof scanVideos === 'function') scanVideos(false, [path]);
+                    },
+                });
+            }
             items.push({
                 icon: '&#128203;',
                 label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'),
