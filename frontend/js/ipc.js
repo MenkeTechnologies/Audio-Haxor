@@ -1835,7 +1835,9 @@ window.vstUpdater = {
     writeTextFile: (filePath, contents) => invoke('write_text_file', {filePath, contents}),
     openWithApp: (filePath, appName) => invoke('open_with_app', {filePath, appName}),
     // File browser
-    listDirectory: (dirPath) => invoke('fs_list_dir', {dirPath}),
+    /** List a directory. `includeHidden=true` returns dotfiles (Ctrl+H
+     *  in Nautilus). Default false matches default file-browser view. */
+    listDirectory: (dirPath, includeHidden) => invoke('fs_list_dir', {dirPath, includeHidden: !!includeHidden}),
     /** Per-folder inventory counts (samples / presets / DAW / MIDI / PDF / video)
      *  plus `total_bytes` summed across all inventory rows under the folder.
      *  Returns `{ "<folder>": { samples, presets, daw, midi, pdf, video, total_bytes }, ... }`. */
@@ -1870,6 +1872,12 @@ window.vstUpdater = {
     fsMakeAlias: (path) => invoke('fs_make_alias', {path}),
     /** Recursive copy. Dest must not exist (caller handles collisions). */
     fsCopyPath: (src, dest) => invoke('fs_copy_path', {src, dest}),
+    /** Extract a .zip archive into destDir. destDir must not exist
+     *  (caller picks a non-colliding name; e.g. `{stem}/`). */
+    fsExtract: (archivePath, destDir) => invoke('fs_extract', {archivePath, destDir}),
+    /** Spawn an executable file (chmod +x required). Unix-only.
+     *  Nautilus equivalent of "Run as a Program". */
+    fsRunProgram: (filePath) => invoke('fs_run_program', {filePath}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),

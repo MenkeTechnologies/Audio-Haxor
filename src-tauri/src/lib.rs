@@ -6839,7 +6839,11 @@ async fn export_pdf(
 // ── File browser ──
 
 #[tauri::command]
-async fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
+async fn fs_list_dir(
+    dir_path: String,
+    include_hidden: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let show_hidden = include_hidden.unwrap_or(false);
     blocking_res(move || {
         let path = std::path::Path::new(&dir_path);
         if !path.exists() {
@@ -6854,7 +6858,9 @@ async fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
         for entry in read.flatten() {
             let ep = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') {
+            // Nautilus convention: dotfiles are hidden by default, toggle
+            // via Ctrl+H. `include_hidden = true` overrides the filter.
+            if !show_hidden && name.starts_with('.') {
                 continue;
             }
             let is_dir = ep.is_dir();
@@ -7186,6 +7192,91 @@ async fn fs_make_alias(path: String) -> Result<String, String> {
         #[cfg(not(test))]
         append_log(format!("ALIAS — {} → {}", path, dest.display()));
         Ok(dest.to_string_lossy().to_string())
+    })
+    .await
+}
+
+/// Spawn an executable file as a detached child process (no shell). The
+/// file must have the user-executable bit set; on Windows we just hand
+/// off to ShellExecute (handled by `open_file_default`, so this command
+/// is Unix-only). Used by the "Run as Program" Nautilus action.
+#[cfg(unix)]
+#[tauri::command]
+async fn fs_run_program(file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        use std::os::unix::fs::PermissionsExt;
+        let p = std::path::PathBuf::from(&file_path);
+        if !p.exists() {
+            return Err(format!("File not found: {file_path}"));
+        }
+        let meta = std::fs::metadata(&p).map_err(|e| e.to_string())?;
+        if meta.permissions().mode() & 0o111 == 0 {
+            return Err("File is not executable (no +x bit)".to_string());
+        }
+        #[cfg(not(test))]
+        append_log(format!("RUN — {}", file_path));
+        std::process::Command::new(&p)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    })
+    .await
+}
+
+#[cfg(not(unix))]
+#[tauri::command]
+async fn fs_run_program(_file_path: String) -> Result<(), String> {
+    Err("Run as Program is not supported on this platform".to_string())
+}
+
+/// Extract a `.zip` archive into a target directory. `dest_dir` must
+/// not already exist (caller picks a non-colliding name; Nautilus does
+/// the same with "Extract" → `archive_stem/`). Returns the directory
+/// the archive was extracted into. Uses the `zip` crate (already a
+/// project dep). Path traversal is rejected — entries with `..` or
+/// absolute paths are skipped to prevent zip-slip writes outside dest.
+#[tauri::command]
+async fn fs_extract(archive_path: String, dest_dir: String) -> Result<String, String> {
+    blocking_res(move || {
+        use std::io::Read;
+        let archive = std::path::PathBuf::from(&archive_path);
+        if !archive.exists() {
+            return Err(format!("Archive does not exist: {archive_path}"));
+        }
+        let dest = std::path::PathBuf::from(&dest_dir);
+        if dest.exists() {
+            return Err(format!("Destination already exists: {dest_dir}"));
+        }
+        std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+        let file = std::fs::File::open(&archive).map_err(|e| e.to_string())?;
+        let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+        for i in 0..zip.len() {
+            let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
+            // Zip-slip guard: enclosed_name returns None for paths with
+            // `..` segments or absolute components — drop those.
+            let Some(rel) = entry.enclosed_name() else { continue };
+            let out_path = dest.join(rel);
+            if entry.is_dir() {
+                std::fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+                continue;
+            }
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut out_file = std::fs::File::create(&out_path).map_err(|e| e.to_string())?;
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+            std::io::Write::write_all(&mut out_file, &buf).map_err(|e| e.to_string())?;
+            // Preserve mode bits on Unix where the zip recorded them.
+            #[cfg(unix)]
+            if let Some(mode) = entry.unix_mode() {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&out_path, std::fs::Permissions::from_mode(mode));
+            }
+        }
+        #[cfg(not(test))]
+        append_log(format!("EXTRACT — {} → {}", archive_path, dest_dir));
+        Ok(dest_dir)
     })
     .await
 }
@@ -8792,7 +8883,8 @@ mod tests {
         fs::create_dir(tmp.join("subdir")).unwrap();
         fs::write(tmp.join(".hidden"), "skip").unwrap();
 
-        let result = rt_block_on(fs_list_dir(tmp.to_string_lossy().to_string())).unwrap();
+        let result =
+            rt_block_on(fs_list_dir(tmp.to_string_lossy().to_string(), None)).unwrap();
         let entries = result["entries"].as_array().unwrap();
         // Should have 3 entries (subdir, file1.txt, file2.wav) — .hidden is skipped
         assert_eq!(entries.len(), 3);
@@ -8803,8 +8895,34 @@ mod tests {
     }
 
     #[test]
+    fn test_fs_list_dir_includes_hidden_when_flagged() {
+        let tmp = std::env::temp_dir().join(format!(
+            "upum_test_fs_list_hidden_{}_{}",
+            std::process::id(),
+            rand::random::<u32>()
+        ));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("plain.txt"), "x").unwrap();
+        fs::write(tmp.join(".bashrc"), "x").unwrap();
+        fs::write(tmp.join(".env"), "x").unwrap();
+        let with_hidden =
+            rt_block_on(fs_list_dir(tmp.to_string_lossy().to_string(), Some(true))).unwrap();
+        let names: Vec<&str> = with_hidden["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&".bashrc"), "hidden must appear when include_hidden=true");
+        assert!(names.contains(&".env"));
+        assert!(names.contains(&"plain.txt"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
     fn test_fs_list_dir_nonexistent() {
-        let result = rt_block_on(fs_list_dir("/nonexistent/upum_dir_xyz".into()));
+        let result = rt_block_on(fs_list_dir("/nonexistent/upum_dir_xyz".into(), None));
         assert!(result.is_err());
     }
 
@@ -8812,7 +8930,7 @@ mod tests {
     fn test_fs_list_dir_not_a_dir() {
         let tmp = std::env::temp_dir().join("upum_test_fs_notdir.txt");
         fs::write(&tmp, "data").unwrap();
-        let result = rt_block_on(fs_list_dir(tmp.to_string_lossy().to_string()));
+        let result = rt_block_on(fs_list_dir(tmp.to_string_lossy().to_string(), None));
         assert!(result.is_err());
         let _ = fs::remove_file(&tmp);
     }
@@ -10242,6 +10360,8 @@ pub fn run() {
             fs_get_info,
             fs_make_alias,
             fs_copy_path,
+            fs_extract,
+            fs_run_program,
             delete_inventory_item,
             rename_file,
             fs_create_dir,

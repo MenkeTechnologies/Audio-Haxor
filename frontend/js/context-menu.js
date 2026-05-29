@@ -2482,6 +2482,54 @@ document.addEventListener('contextmenu', (e) => {
                     }
                 },
             });
+            // Run as Program — for files with the +x bit set. Spawns the
+            // file as a detached child process (no shell). Shown for all
+            // non-dirs; the Rust side errors gracefully if the +x check
+            // fails. Nautilus shows this for any file; we mirror that.
+            if (!isDir) {
+                items.push({
+                    icon: '&#9881;',
+                    label: 'Run as Program', ..._noEcho,
+                    action: async () => {
+                        try {
+                            await window.vstUpdater.fsRunProgram(path);
+                            showToast(toastFmt('toast.deleted_name', {name: `running ${name}`}));
+                        } catch (err) {
+                            showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
+                        }
+                    },
+                });
+            }
+            // Extract Here — only for .zip files. Creates a sibling folder
+            // named after the archive stem (Nautilus / Finder behavior).
+            // Other archive formats (.tar, .gz, .7z) would need extra Rust
+            // deps; only ship .zip for now since `zip` is already a dep.
+            if (!isDir && ext === 'zip') {
+                items.push({
+                    icon: '&#128194;',
+                    label: 'Extract Here', ..._noEcho,
+                    action: async () => {
+                        const parent = path.replace(/\/[^/]+$/, '');
+                        const stem = name.replace(/\.zip$/i, '');
+                        let dest = `${parent}/${stem}`;
+                        for (let i = 0; i < 10; i++) {
+                            try {
+                                await window.vstUpdater.fsExtract(path, dest);
+                                showToast(toastFmt('toast.deleted_name', {name: `extracted → ${dest.split('/').pop()}`}));
+                                return;
+                            } catch (err) {
+                                const m = String(err && err.message ? err.message : err);
+                                if (!m.includes('already exists')) {
+                                    showToast(toastFmt('toast.failed', {err: m}), 4000, 'error');
+                                    return;
+                                }
+                                dest = `${parent}/${stem} ${i + 2}`;
+                            }
+                        }
+                        showToast(toastFmt('toast.failed', {err: 'Too many existing extractions'}), 4000, 'error');
+                    },
+                });
+            }
             // Compress to .zip — same default Finder produces. Archive lands
             // next to the source as `{name}.zip` (with incrementing suffix
             // if that exists — Rust side errors, JS retries with -2, -3, …).

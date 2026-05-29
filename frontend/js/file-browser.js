@@ -35,6 +35,23 @@ function pathFileName(p) {
 // seed `_fileBrowserEntries` (and inspect path/inited state) via globalThis.
 // Same rationale as the sort/select state below.
 var _fileBrowserPath = null;
+// Whether dotfiles (`.bashrc`, `.git`, etc.) are visible. Persisted in
+// prefs so the toggle survives across sessions. Default false matches
+// Nautilus + Finder defaults.
+var _fbShowHidden = (() => {
+    try { return typeof prefs !== 'undefined' && prefs.getItem('fileBrowserShowHidden') === '1'; }
+    catch (_) { return false; }
+})();
+function fileBrowserToggleHidden() {
+    _fbShowHidden = !_fbShowHidden;
+    try { if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserShowHidden', _fbShowHidden ? '1' : '0'); }
+    catch (_) { /* ignore */ }
+    if (typeof showToast === 'function') {
+        showToast(toastFmt('toast.deleted_name', {name: _fbShowHidden ? 'showing hidden files' : 'hiding hidden files'}));
+    }
+    if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+}
+if (typeof window !== 'undefined') window.fileBrowserToggleHidden = fileBrowserToggleHidden;
 var _fileBrowserEntries = [];
 var _fileBrowserInited = false;
 /** Invalidate in-flight chunked file list renders when directory or filter changes. */
@@ -1512,6 +1529,28 @@ function selectAllVisibleFiles() {
     updateFileBulkBar();
 }
 
+// Nautilus "Invert Selection" — every visible row that's currently
+// selected becomes unselected, and vice versa.
+function invertFileSelection() {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('.file-row-cb').forEach((cb) => {
+        const path = cb.dataset.fbCb;
+        if (!path) return;
+        const wasSelected = _fileSelected.has(path);
+        if (wasSelected) {
+            _fileSelected.delete(path);
+            cb.checked = false;
+            _setFileRowSelectedClass(path, false);
+        } else {
+            _fileSelected.add(path);
+            cb.checked = true;
+            _setFileRowSelectedClass(path, true);
+        }
+    });
+    updateFileBulkBar();
+}
+if (typeof window !== 'undefined') window.invertFileSelection = invertFileSelection;
+
 /**
  * Single source of truth for "what paths are bulk-action targets given the
  * current selection." Filters by predicate for actions that only make sense
@@ -1766,7 +1805,7 @@ async function loadDirectory(dirPath) {
     }
     showGlobalProgress();
     try {
-        const result = await window.vstUpdater.listDirectory(dirPath);
+        const result = await window.vstUpdater.listDirectory(dirPath, _fbShowHidden);
         _fileBrowserEntries = result.entries;
         renderFileList();
         renderBreadcrumb(dirPath);
@@ -2835,8 +2874,21 @@ document.addEventListener('contextmenu', (e) => {
             action: () => fileBrowserNewFolderWithSelection(selected),
         });
     }
+    // Invert Selection — only useful when something IS selected.
+    if (selected.length > 0) {
+        items.push({
+            icon: '&#8646;',
+            label: 'Invert Selection', ..._ctxMenuNoEcho,
+            action: () => invertFileSelection(),
+        });
+    }
     items.push(...[
         '---',
+        {
+            icon: _fbShowHidden ? '&#128064;' : '&#128065;',
+            label: _fbShowHidden ? 'Hide Hidden Files (Ctrl+H)' : 'Show Hidden Files (Ctrl+H)', ..._ctxMenuNoEcho,
+            action: () => fileBrowserToggleHidden(),
+        },
         {
             icon: '&#128260;',
             label: 'Refresh', ..._ctxMenuNoEcho,
@@ -3078,6 +3130,54 @@ document.addEventListener('keydown', (e) => {
     const activeTab = document.querySelector('.tab-content.active');
     if (!activeTab || activeTab.id !== 'tabFiles') return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+    // ── Nautilus-style shortcuts (must run BEFORE the rows.length guard
+    //     below — they're folder-level and shouldn't require a selection) ──
+    // Ctrl+H — toggle hidden files (`.dotfiles`).
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'h' || e.key === 'H')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        fileBrowserToggleHidden();
+        return;
+    }
+    // Cmd+Shift+I — invert selection (Nautilus Ctrl+I, but Cmd+I is
+    // Get Info here so we use Shift+I instead).
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (typeof invertFileSelection === 'function') invertFileSelection();
+        return;
+    }
+    // Shift+Delete / Shift+Backspace — permanent delete (skip Trash).
+    // Nautilus convention: holding Shift bypasses the Trash.
+    if (e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+        const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set)
+            ? [..._fileSelected]
+            : [];
+        if (sel.length === 0) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        (async () => {
+            const target = sel.length === 1 ? `"${sel[0].split('/').pop()}"` : `${sel.length} items`;
+            const msg = `Permanently delete ${target}?\n\nThis cannot be undone — files will NOT be moved to Trash.`;
+            const ok = typeof confirmAction === 'function'
+                ? await confirmAction(msg, 'Delete Permanently')
+                : confirm(msg);
+            if (!ok) return;
+            let ok_c = 0, fail = 0;
+            for (const p of sel) {
+                try { await window.vstUpdater.deleteFile(p); ok_c++; }
+                catch (_) { fail++; }
+            }
+            if (typeof clearFileSelection === 'function') clearFileSelection();
+            if (typeof showToast === 'function') {
+                if (ok_c > 0) showToast(toastFmt('toast.deleted_name', {name: `permanently deleted ${ok_c} item${ok_c === 1 ? '' : 's'}`}));
+                if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} delete${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+            }
+            if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+        })();
+        return;
+    }
 
     const rows = getFileRows();
     if (rows.length === 0) return;
