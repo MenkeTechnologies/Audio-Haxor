@@ -75,10 +75,61 @@ function _fbEnsurePanesInited() {
             selection: i === 0 ? _fileSelected : new Set(),
             scroll: 0,
             navIdx: -1,
+            // V2: per-pane tabs + nav history
+            tabs: [],
+            activeTabId: null,
+            history: [],
+            historyIdx: -1,
         };
     }
 }
 _fbEnsurePanesInited();
+
+// Restore per-pane tab/path/etc state from V2 prefs (or migrate from V1
+// global tabs into pane 0). Must run AFTER `_fbEnsurePanesInited` since
+// it mutates `_fbPanes[i].tabs`. Then sync active pane → globals so the
+// existing tab/history code sees correct initial state.
+//
+// NOTE: `_fbTabsRestoreFromPrefs` is defined later in the file — the
+// definition is hoisted (function declaration) so this call is valid.
+function _fbInitPanesFromPrefs() {
+    if (typeof _fbTabsRestoreFromPrefs === 'function') _fbTabsRestoreFromPrefs();
+    // Per-pane paths from prefs (fileBrowserPanesPaths = [path, …]) so
+    // each pane reopens to where it was last left across launches.
+    try {
+        if (typeof prefs !== 'undefined') {
+            const raw = prefs.getItem('fileBrowserPanesPaths');
+            if (raw) {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) {
+                    for (let i = 0; i < Math.min(FB_MAX_PANES, arr.length); i++) {
+                        if (_fbPanes[i] && typeof arr[i] === 'string' && arr[i]) {
+                            _fbPanes[i].path = arr[i];
+                        }
+                    }
+                }
+            }
+            const activeRaw = prefs.getItem('fileBrowserActivePaneIdx');
+            if (activeRaw != null) {
+                const n = parseInt(activeRaw, 10);
+                if (!isNaN(n) && n >= 0 && n < FB_MAX_PANES) _fbActivePaneIdx = n;
+            }
+        }
+    } catch (_) { /* ignore */ }
+    // Sync active pane → globals (the existing fbTabs / fbHistory etc.
+    // mirror).
+    _fbLoadActivePaneIntoGlobals();
+}
+_fbInitPanesFromPrefs();
+
+function _fbPersistPanePaths() {
+    try {
+        if (typeof prefs === 'undefined') return;
+        const paths = _fbPanes.map((p) => p ? (p.path || '') : '');
+        prefs.setItem('fileBrowserPanesPaths', JSON.stringify(paths));
+        prefs.setItem('fileBrowserActivePaneIdx', String(_fbActivePaneIdx));
+    } catch (_) { /* ignore */ }
+}
 
 // Save the current global state into the active pane (called before
 // switching). After this the active pane's snapshot is up-to-date.
@@ -88,9 +139,17 @@ function _fbSaveGlobalsToActivePane() {
     p.path = _fileBrowserPath;
     p.entries = _fileBrowserEntries;
     p.selection = _fileSelected;
-    p.navIdx = (typeof _fileNavIdx !== 'undefined') ? _fileNavIdx : -1;
+    // `_fileNavIdx` is `let`-declared further down in this file, so it's
+    // in the TDZ during module-load initialization. typeof on a `let` in
+    // TDZ also throws, so we use try/catch instead.
+    try { p.navIdx = _fileNavIdx; } catch (_) { p.navIdx = -1; }
     const el = _fbActiveListEl();
     if (el) p.scroll = el.scrollTop;
+    // V2: per-pane tabs + nav history
+    p.tabs = _fbTabs;
+    p.activeTabId = _fbActiveTabId;
+    try { p.history = _fbHistory; } catch (_) { /* TDZ — leave as-is */ }
+    try { p.historyIdx = _fbHistoryIdx; } catch (_) { /* TDZ */ }
 }
 
 // Pull the active pane's state into the globals (called after
@@ -102,7 +161,13 @@ function _fbLoadActivePaneIntoGlobals() {
     _fileBrowserPath = p.path;
     _fileBrowserEntries = p.entries || [];
     _fileSelected = p.selection || new Set();
-    if (typeof _fileNavIdx !== 'undefined') _fileNavIdx = p.navIdx;
+    try { _fileNavIdx = p.navIdx; } catch (_) { /* TDZ — will sync on first activation post-init */ }
+    // V2: per-pane tabs + nav history
+    _fbTabs = p.tabs || [];
+    _fbActiveTabId = p.activeTabId || null;
+    try { _fbHistory = p.history || []; } catch (_) { /* TDZ */ }
+    try { _fbHistoryIdx = (p.historyIdx == null ? -1 : p.historyIdx); } catch (_) { /* TDZ */ }
+    if (typeof _updateNavButtons === 'function') _updateNavButtons();
 }
 
 function _fbSetActivePane(idx) {
@@ -122,8 +187,9 @@ function _fbSetActivePane(idx) {
     // Restore scroll
     const el = _fbActiveListEl();
     if (el) el.scrollTop = _fbActivePane().scroll || 0;
-    // Refresh tab bar (global tabs reflect active pane's path)
+    // Refresh tab bar (per-pane in V2 — render all panes' bars).
     if (typeof renderFileBrowserTabs === 'function') renderFileBrowserTabs();
+    _fbPersistPanePaths();
 }
 
 function _fbSetPaneCount(n) {
@@ -176,6 +242,7 @@ async function loadDirectoryIntoPane(dirPath, paneIdx) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.failed_open_directory', {err: err.message || err}), 4000, 'error');
         return;
     }
+    _fbPersistPanePaths();
     renderPaneList(paneIdx);
 }
 
@@ -274,35 +341,71 @@ if (typeof window !== 'undefined') {
     window.renderPaneList = renderPaneList;
 }
 
-// ── Tabs ──
-// Each tab is just `{id, path}`. Selection / scroll / nav-history are
-// NOT per-tab in this v1 — keeps the existing global state model intact.
-// Switching tabs = loadDirectory on the new path; the rest of file-
-// browser state rebuilds naturally.
-let _fbTabs = (() => {
+// ── Tabs (per-pane in V2) ──
+// Each pane has its own `tabs[]` + `activeTabId` in `_fbPanes[paneIdx]`.
+// The globals `_fbTabs` / `_fbActiveTabId` are kept as a live mirror of
+// the active pane for code that reads them — same pattern as
+// `_fileBrowserPath` and friends.
+// `var` (not `let`) so hoisting makes these accessible to the pane-
+// init code that runs above (they're populated from per-pane snapshots).
+var _fbTabs = []; // mirror of active pane's tabs
+var _fbActiveTabId = null; // mirror of active pane's activeTabId
+
+function _fbTabsRestoreFromPrefs() {
+    // V2 prefs format: per-pane tabs as `fileBrowserPanesTabs` =
+    // [[{id,path}], …]. Falls back to the V1 `fileBrowserTabs` global
+    // single-pane list, migrating it into pane 0 on first load.
     try {
-        const raw = typeof prefs !== 'undefined' ? prefs.getItem('fileBrowserTabs') : null;
-        const parsed = raw ? JSON.parse(raw) : null;
-        if (Array.isArray(parsed) && parsed.length > 0
-            && parsed.every((t) => t && typeof t.id === 'string' && typeof t.path === 'string')) {
-            return parsed;
+        if (typeof prefs === 'undefined') return;
+        const v2raw = prefs.getItem('fileBrowserPanesTabs');
+        if (v2raw) {
+            const v2 = JSON.parse(v2raw);
+            if (Array.isArray(v2)) {
+                for (let i = 0; i < Math.min(FB_MAX_PANES, v2.length); i++) {
+                    const arr = Array.isArray(v2[i]) ? v2[i] : [];
+                    if (_fbPanes[i]) {
+                        _fbPanes[i].tabs = arr.filter((t) => t && typeof t.id === 'string' && typeof t.path === 'string');
+                    }
+                }
+                const activeRaw = prefs.getItem('fileBrowserPanesActiveTabIds');
+                if (activeRaw) {
+                    const active = JSON.parse(activeRaw);
+                    if (Array.isArray(active)) {
+                        for (let i = 0; i < Math.min(FB_MAX_PANES, active.length); i++) {
+                            if (_fbPanes[i]) _fbPanes[i].activeTabId = active[i] || null;
+                        }
+                    }
+                }
+                return;
+            }
         }
-    } catch (_) { /* fall through to default */ }
-    return [];
-})();
-let _fbActiveTabId = (() => {
-    try {
-        const v = typeof prefs !== 'undefined' ? prefs.getItem('fileBrowserActiveTabId') : null;
-        return v || null;
-    } catch (_) { return null; }
-})();
+        // V1 migration — single global tab list goes into pane 0.
+        const v1raw = prefs.getItem('fileBrowserTabs');
+        if (v1raw) {
+            const parsed = JSON.parse(v1raw);
+            if (Array.isArray(parsed) && _fbPanes[0]) {
+                _fbPanes[0].tabs = parsed.filter((t) => t && typeof t.id === 'string' && typeof t.path === 'string');
+                _fbPanes[0].activeTabId = prefs.getItem('fileBrowserActiveTabId') || null;
+            }
+        }
+    } catch (_) { /* ignore */ }
+}
+
 function _fbTabsPersist() {
     try {
         if (typeof prefs === 'undefined') return;
-        prefs.setItem('fileBrowserTabs', JSON.stringify(_fbTabs));
-        prefs.setItem('fileBrowserActiveTabId', _fbActiveTabId || '');
+        // Sync globals into active pane first so the snapshot is current.
+        if (_fbActivePane()) {
+            _fbActivePane().tabs = _fbTabs;
+            _fbActivePane().activeTabId = _fbActiveTabId;
+        }
+        const tabsByPane = _fbPanes.map((p) => p ? (p.tabs || []) : []);
+        const activeByPane = _fbPanes.map((p) => p ? (p.activeTabId || null) : null);
+        prefs.setItem('fileBrowserPanesTabs', JSON.stringify(tabsByPane));
+        prefs.setItem('fileBrowserPanesActiveTabIds', JSON.stringify(activeByPane));
     } catch (_) { /* ignore */ }
 }
+
 function _fbActiveTab() {
     return _fbTabs.find((t) => t.id === _fbActiveTabId) || _fbTabs[0] || null;
 }
@@ -314,23 +417,37 @@ function _fbTabDisplayName(path) {
     if (path === '/') return '/';
     return path.split('/').filter(Boolean).pop() || path;
 }
+
+// Render every visible pane's tab bar. Each pane has its own
+// `[data-fb-tab-list]` inside its `.fb-pane` container; we draw from
+// the per-pane state (or the global mirror for the active pane).
 function renderFileBrowserTabs() {
-    const list = document.getElementById('fbTabList');
-    if (!list) return;
-    list.innerHTML = _fbTabs.map((t) => {
-        const active = t.id === _fbActiveTabId ? ' fb-tab-active' : '';
-        return `<button class="fb-tab${active}" data-fb-tab-id="${escapeHtml(t.id)}" title="${escapeHtml(t.path)}">`
-            + `<span class="fb-tab-name">${escapeHtml(_fbTabDisplayName(t.path))}</span>`
-            + `<span class="fb-tab-close" data-fb-tab-close="${escapeHtml(t.id)}" title="Close tab (Cmd+W)">&times;</span>`
-            + `</button>`;
-    }).join('');
-    // Scroll active tab into view if it's off-screen.
-    const activeEl = list.querySelector('.fb-tab-active');
-    if (activeEl && typeof activeEl.scrollIntoView === 'function') {
-        activeEl.scrollIntoView({block: 'nearest', inline: 'nearest'});
+    for (let i = 0; i < FB_MAX_PANES; i++) {
+        const pane = _fbPanes[i];
+        if (!pane) continue;
+        // Active pane reads from globals (live state); others from snapshot.
+        const tabs = (i === _fbActivePaneIdx) ? _fbTabs : (pane.tabs || []);
+        const activeId = (i === _fbActivePaneIdx) ? _fbActiveTabId : (pane.activeTabId || null);
+        const list = document.querySelector(`.fb-pane[data-pane-idx="${i}"] [data-fb-tab-list]`);
+        if (!list) continue;
+        list.innerHTML = tabs.map((t) => {
+            const active = t.id === activeId ? ' fb-tab-active' : '';
+            return `<button class="fb-tab${active}" data-fb-tab-id="${escapeHtml(t.id)}" data-fb-tab-pane="${i}" title="${escapeHtml(t.path)}">`
+                + `<span class="fb-tab-name">${escapeHtml(_fbTabDisplayName(t.path))}</span>`
+                + `<span class="fb-tab-close" data-fb-tab-close="${escapeHtml(t.id)}" data-fb-tab-close-pane="${i}" title="Close tab (Cmd+Shift+W)">&times;</span>`
+                + `</button>`;
+        }).join('');
+        const activeEl = list.querySelector('.fb-tab-active');
+        if (activeEl && typeof activeEl.scrollIntoView === 'function') {
+            activeEl.scrollIntoView({block: 'nearest', inline: 'nearest'});
+        }
     }
 }
-function fbNewTab(path) {
+
+// New tab on active pane (default) or specific pane.
+function fbNewTab(path, paneIdx) {
+    if (paneIdx == null) paneIdx = _fbActivePaneIdx;
+    if (paneIdx !== _fbActivePaneIdx) _fbSetActivePane(paneIdx);
     const tabPath = path || (_fbActiveTab() ? _fbActiveTab().path : _fileBrowserPath) || _fbHomePath || '/';
     const tab = {id: _fbTabId(), path: tabPath};
     _fbTabs.push(tab);
@@ -339,12 +456,14 @@ function fbNewTab(path) {
     renderFileBrowserTabs();
     if (tabPath) loadDirectory(tabPath);
 }
-function fbCloseTab(id) {
+
+function fbCloseTab(id, paneIdx) {
+    if (paneIdx == null) paneIdx = _fbActivePaneIdx;
+    if (paneIdx !== _fbActivePaneIdx) _fbSetActivePane(paneIdx);
     const idx = _fbTabs.findIndex((t) => t.id === id);
     if (idx < 0) return;
     _fbTabs.splice(idx, 1);
     if (_fbTabs.length === 0) {
-        // Always keep at least one tab open — open a fresh one at home.
         const fresh = {id: _fbTabId(), path: _fbHomePath || '/'};
         _fbTabs.push(fresh);
         _fbActiveTabId = fresh.id;
@@ -354,7 +473,6 @@ function fbCloseTab(id) {
         return;
     }
     if (_fbActiveTabId === id) {
-        // Activate the nearest neighbor (right if available, else left).
         const next = _fbTabs[Math.min(idx, _fbTabs.length - 1)];
         _fbActiveTabId = next.id;
         _fbTabsPersist();
@@ -365,7 +483,10 @@ function fbCloseTab(id) {
         renderFileBrowserTabs();
     }
 }
-function fbSwitchTab(id) {
+
+function fbSwitchTab(id, paneIdx) {
+    if (paneIdx == null) paneIdx = _fbActivePaneIdx;
+    if (paneIdx !== _fbActivePaneIdx) _fbSetActivePane(paneIdx);
     const tab = _fbTabs.find((t) => t.id === id);
     if (!tab || tab.id === _fbActiveTabId) return;
     _fbActiveTabId = tab.id;
@@ -373,29 +494,37 @@ function fbSwitchTab(id) {
     renderFileBrowserTabs();
     loadDirectory(tab.path);
 }
+
 function fbCycleTab(delta) {
     if (_fbTabs.length === 0) return;
     const idx = _fbTabs.findIndex((t) => t.id === _fbActiveTabId);
     const next = (idx + delta + _fbTabs.length) % _fbTabs.length;
     fbSwitchTab(_fbTabs[next].id);
 }
-// Click handlers — registered once at module load.
+
+// Click handlers — read the pane the tab belongs to so clicking a tab
+// in pane 2 activates pane 2 AND switches its tab.
 document.addEventListener('click', (e) => {
     const close = e.target.closest('[data-fb-tab-close]');
     if (close) {
         e.stopPropagation();
-        fbCloseTab(close.dataset.fbTabClose);
+        const paneIdx = parseInt(close.dataset.fbTabClosePane, 10);
+        fbCloseTab(close.dataset.fbTabClose, Number.isInteger(paneIdx) ? paneIdx : undefined);
         return;
     }
     const tab = e.target.closest('[data-fb-tab-id]');
     if (tab) {
         e.stopPropagation();
-        fbSwitchTab(tab.dataset.fbTabId);
+        const paneIdx = parseInt(tab.dataset.fbTabPane, 10);
+        fbSwitchTab(tab.dataset.fbTabId, Number.isInteger(paneIdx) ? paneIdx : undefined);
         return;
     }
-    if (e.target.closest('#fbTabAdd')) {
+    const add = e.target.closest('[data-fb-tab-add]');
+    if (add) {
         e.stopPropagation();
-        fbNewTab();
+        const paneEl = add.closest('.fb-pane[data-pane-idx]');
+        const paneIdx = paneEl ? parseInt(paneEl.dataset.paneIdx, 10) : _fbActivePaneIdx;
+        fbNewTab(null, Number.isInteger(paneIdx) ? paneIdx : undefined);
     }
 });
 if (typeof window !== 'undefined') {
@@ -2684,6 +2813,7 @@ async function loadDirectory(dirPath) {
             activePane.selection = _fileSelected;
             activePane.scroll = 0;
         }
+        _fbPersistPanePaths();
         renderFileList();
         renderBreadcrumb(dirPath);
         updateBookmarkBtn();
@@ -4097,7 +4227,9 @@ document.addEventListener('contextmenu', (e) => {
 });
 
 // ── Ableton-style keyboard navigation ──
-let _fileNavIdx = -1;
+// `var` so module-load pane-init code (above) can sync this from prefs
+// without hitting the `let` TDZ.
+var _fileNavIdx = -1;
 
 function getFileRows() {
     return [...document.querySelectorAll('#fileList .file-row')];
