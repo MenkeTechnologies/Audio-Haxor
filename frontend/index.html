@@ -6353,9 +6353,13 @@
          * containing its own .file-list. Active pane has a cyan left
          * border indicator so the user can see which pane keyboard/menu
          * actions target. Pane 0 always exists; panes 1-3 are hidden by
-         * default and unhide as _fbPaneCount grows. */
+         * default and unhide as _fbPaneCount grows.
+         *
+         * `--fb-pane-flex` is set per-pane via inline style so the user
+         * can drag the resize handles between panes to redistribute
+         * width. Default 1 = equal share. */
         .file-list-wrap .fb-pane {
-            flex: 1;
+            flex: var(--fb-pane-flex, 1) 1 0;
             min-width: 0;
             display: flex;
             flex-direction: column;
@@ -6363,6 +6367,21 @@
             border-left: 2px solid transparent;
             transition: border-color 0.1s;
         }
+        /* Drag-resize handle injected between consecutive visible panes.
+         * 5 px wide gutter with a hairline; cursor: col-resize; cyan
+         * highlight on hover/active so the affordance is discoverable. */
+        .file-list-wrap .fb-pane-resize {
+            flex: 0 0 5px;
+            background: var(--border);
+            cursor: col-resize;
+            user-select: none;
+            transition: background 0.1s;
+        }
+        .file-list-wrap .fb-pane-resize:hover,
+        .file-list-wrap .fb-pane-resize.fb-resizing {
+            background: var(--cyan);
+        }
+        .file-list-wrap .fb-pane-resize.fb-hidden { display: none; }
         .file-list-wrap .fb-pane:first-of-type {
             border-left: none;
         }
@@ -13008,6 +13027,7 @@
                         </div>
                     </div>
                 </div>
+                <div class="fb-pane-resize fb-hidden" data-fb-pane-resize="0" title="Drag to resize"></div>
                 <div class="fb-pane fb-hidden" data-pane-idx="1">
                     <div class="fb-tab-bar" data-fb-tab-bar role="tablist" aria-label="File browser tabs">
                         <div class="fb-tab-list" data-fb-tab-list></div>
@@ -13015,6 +13035,7 @@
                     </div>
                     <div class="file-list"></div>
                 </div>
+                <div class="fb-pane-resize fb-hidden" data-fb-pane-resize="1" title="Drag to resize"></div>
                 <div class="fb-pane fb-hidden" data-pane-idx="2">
                     <div class="fb-tab-bar" data-fb-tab-bar role="tablist" aria-label="File browser tabs">
                         <div class="fb-tab-list" data-fb-tab-list></div>
@@ -13022,6 +13043,7 @@
                     </div>
                     <div class="file-list"></div>
                 </div>
+                <div class="fb-pane-resize fb-hidden" data-fb-pane-resize="2" title="Drag to resize"></div>
                 <div class="fb-pane fb-hidden" data-pane-idx="3">
                     <div class="fb-tab-bar" data-fb-tab-bar role="tablist" aria-label="File browser tabs">
                         <div class="fb-tab-list" data-fb-tab-list></div>

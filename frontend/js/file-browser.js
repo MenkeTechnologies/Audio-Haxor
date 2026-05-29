@@ -225,6 +225,15 @@ function _fbSetPaneCount(n) {
     document.querySelectorAll('.fb-pane').forEach((el, i) => {
         el.classList.toggle('fb-hidden', i >= n);
     });
+    // Show resize handles only between visible panes (handle K sits
+    // between pane K and pane K+1; hidden when either side is hidden).
+    document.querySelectorAll('[data-fb-pane-resize]').forEach((el) => {
+        const k = parseInt(el.dataset.fbPaneResize, 10);
+        el.classList.toggle('fb-hidden', !(k + 1 < n));
+    });
+    // Reset flex distribution when count changes — keeps the existing
+    // ratios when shrinking, fills neutral 1s for newly-shown panes.
+    _fbApplyPaneFlex();
     try {
         if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserPaneCount', String(n));
     } catch (_) { /* ignore */ }
@@ -368,6 +377,94 @@ document.addEventListener('click', (e) => {
         _fbSetActivePane(idx);
     }
 }, true);
+
+// ── Pane resize handles ──
+// Per-pane `flex-grow` value persisted in prefs as
+// `fileBrowserPaneFlex` = `[1, 1, 1, 1]`. Drag the gutter to move
+// width from one neighbor to the other; both flex values are adjusted
+// together so the wrap container stays full-width.
+let _fbPaneFlex = (() => {
+    try {
+        const raw = typeof prefs !== 'undefined' ? prefs.getItem('fileBrowserPaneFlex') : null;
+        const arr = raw ? JSON.parse(raw) : null;
+        if (Array.isArray(arr) && arr.length === FB_MAX_PANES) {
+            return arr.map((n) => Number.isFinite(n) && n > 0 ? n : 1);
+        }
+    } catch (_) { /* fall through */ }
+    return new Array(FB_MAX_PANES).fill(1);
+})();
+function _fbApplyPaneFlex() {
+    document.querySelectorAll('.fb-pane[data-pane-idx]').forEach((el) => {
+        const idx = parseInt(el.dataset.paneIdx, 10);
+        const v = _fbPaneFlex[idx];
+        el.style.setProperty('--fb-pane-flex', String(v != null && v > 0 ? v : 1));
+    });
+}
+function _fbPersistPaneFlex() {
+    try {
+        if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserPaneFlex', JSON.stringify(_fbPaneFlex));
+    } catch (_) { /* ignore */ }
+}
+// Apply on module load (after pane DOM exists at DOMContentLoaded).
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', _fbApplyPaneFlex);
+}
+
+// Drag handler — pointer events for unified mouse/touch/pen, captured
+// on the handle so a fast drag doesn't escape into the rest of the UI.
+document.addEventListener('pointerdown', (e) => {
+    const handle = e.target.closest('[data-fb-pane-resize]');
+    if (!handle) return;
+    const k = parseInt(handle.dataset.fbPaneResize, 10);
+    const leftPane = document.querySelector(`.fb-pane[data-pane-idx="${k}"]`);
+    const rightPane = document.querySelector(`.fb-pane[data-pane-idx="${k + 1}"]`);
+    if (!leftPane || !rightPane) return;
+    e.preventDefault();
+    handle.classList.add('fb-resizing');
+    try { handle.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+    const startX = e.clientX;
+    const leftRect = leftPane.getBoundingClientRect();
+    const rightRect = rightPane.getBoundingClientRect();
+    const totalWidth = leftRect.width + rightRect.width;
+    const startLeftFlex = _fbPaneFlex[k];
+    const startRightFlex = _fbPaneFlex[k + 1];
+    const totalFlex = startLeftFlex + startRightFlex;
+    const move = (ev) => {
+        const dx = ev.clientX - startX;
+        // Clamp so neither pane goes below ~80 px (still clickable +
+        // legible). Compute new left width in pixels, convert back to
+        // flex ratio against the shared total.
+        const newLeftPx = Math.max(80, Math.min(totalWidth - 80, leftRect.width + dx));
+        const newLeftRatio = newLeftPx / totalWidth;
+        _fbPaneFlex[k] = totalFlex * newLeftRatio;
+        _fbPaneFlex[k + 1] = totalFlex * (1 - newLeftRatio);
+        _fbApplyPaneFlex();
+    };
+    const up = (ev) => {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', up);
+        handle.removeEventListener('pointercancel', up);
+        handle.classList.remove('fb-resizing');
+        try { handle.releasePointerCapture(ev.pointerId); } catch (_) { /* ignore */ }
+        _fbPersistPaneFlex();
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
+});
+
+// Double-click handle → reset to equal split between the two neighbors
+// (their flex sum is preserved so the rest of the layout doesn't shift).
+document.addEventListener('dblclick', (e) => {
+    const handle = e.target.closest('[data-fb-pane-resize]');
+    if (!handle) return;
+    const k = parseInt(handle.dataset.fbPaneResize, 10);
+    const total = _fbPaneFlex[k] + _fbPaneFlex[k + 1];
+    _fbPaneFlex[k] = total / 2;
+    _fbPaneFlex[k + 1] = total / 2;
+    _fbApplyPaneFlex();
+    _fbPersistPaneFlex();
+});
 
 if (typeof window !== 'undefined') {
     window._fbSetPaneCount = _fbSetPaneCount;
