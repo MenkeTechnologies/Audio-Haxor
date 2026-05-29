@@ -127,6 +127,52 @@ describe('frontend/js/file-browser.js (vm-loaded)', () => {
     });
   });
 
+  describe('multi-select state helpers', () => {
+    beforeEach(() => {
+      F._fileSelected.clear();
+      F._fileSelectLastIdx = -1;
+      F._fileBrowserEntries = [
+        { name: 'a.wav', path: '/x/a.wav', isDir: false, ext: 'wav', size: 100, modified: '' },
+        { name: 'b.wav', path: '/x/b.wav', isDir: false, ext: 'wav', size: 200, modified: '' },
+        { name: 'sub', path: '/x/sub', isDir: true, ext: '', size: 0, modified: '' },
+      ];
+    });
+
+    it('toggleFileSelect adds/removes from the selection set', () => {
+      F.toggleFileSelect('/x/a.wav', true);
+      F.toggleFileSelect('/x/b.wav', true);
+      assert.strictEqual(F._fileSelected.size, 2);
+      F.toggleFileSelect('/x/a.wav', false);
+      assert.strictEqual(F._fileSelected.size, 1);
+      assert.ok(F._fileSelected.has('/x/b.wav'));
+    });
+
+    it('clearFileSelection empties the set and resets the shift-anchor', () => {
+      F.toggleFileSelect('/x/a.wav', true);
+      F.toggleFileSelect('/x/b.wav', true);
+      F._fileSelectLastIdx = 5;
+      F.clearFileSelection();
+      assert.strictEqual(F._fileSelected.size, 0);
+      assert.strictEqual(F._fileSelectLastIdx, -1);
+    });
+
+    it('_fileBulkSelectionAsPaths filters by predicate (folders-only)', () => {
+      F.toggleFileSelect('/x/a.wav', true);
+      F.toggleFileSelect('/x/sub', true);
+      const dirs = F._fileBulkSelectionAsPaths((entry) => entry.isDir);
+      assert.deepStrictEqual([...dirs], ['/x/sub']);
+      const files = F._fileBulkSelectionAsPaths((entry) => !entry.isDir);
+      assert.deepStrictEqual([...files], ['/x/a.wav']);
+    });
+
+    it('_fileBulkSelectionAsPaths skips paths no longer in the listing', () => {
+      F.toggleFileSelect('/x/a.wav', true);
+      F.toggleFileSelect('/x/gone.wav', true); // not in entries
+      const all = F._fileBulkSelectionAsPaths(null);
+      assert.deepStrictEqual([...all], ['/x/a.wav']);
+    });
+  });
+
   describe('saveFileSortToPrefs / loadFileSortFromPrefs round-trip', () => {
     it('persists key + direction and reloads them', () => {
       F._fileSortKey = 'size'; F._fileSortAsc = false;

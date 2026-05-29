@@ -5717,9 +5717,64 @@
             user-select: none;
         }
 
+        .file-list-header .file-cb-h {
+            width: 24px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .file-list-header .file-icon-h {
             width: 20px;
             flex-shrink: 0;
+        }
+
+        /* Per-row checkbox cell — matches header `.file-cb-h` width so columns
+         * align. Stops click events from bubbling into the row's
+         * navigate/preview handler. */
+        .file-row .file-cb {
+            width: 24px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-row-cb,
+        .file-row-cb-all {
+            cursor: pointer;
+            accent-color: var(--cyan);
+        }
+
+        /* Bulk-actions bar — inline above the file list header. Visible only when
+         * at least one row is selected. Wraps to multiple lines on narrow
+         * windows; that's intentional given the number of scan-as-* buttons. */
+        .file-bulk-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 8px 24px;
+            margin: 0 24px;
+            background: rgba(5, 217, 232, 0.05);
+            border: 1px solid rgba(5, 217, 232, 0.25);
+            border-radius: 4px;
+            box-shadow: 0 0 12px rgba(5, 217, 232, 0.1);
+        }
+
+        .file-bulk-bar .file-bulk-count {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            color: var(--cyan);
+            font-weight: 700;
+            letter-spacing: 1px;
+            min-width: 90px;
+        }
+
+        .file-bulk-bar .btn {
+            padding: 6px 12px;
+            font-size: 11px;
         }
 
         .file-list-header .file-name-h {
@@ -11686,7 +11741,23 @@
                     <span></span></div>
                 <div class="file-favs-grid" id="fileFavsGrid"></div>
             </div>
+            <div class="file-bulk-bar" id="fileBulkBar" style="display:none;">
+                <span class="file-bulk-count"><span id="fileBulkCount">0</span> selected</span>
+                <div class="batch-sep"></div>
+                <button class="btn btn-stop" data-action="fileBulkClear" title="Clear selection">&#10005; <span data-i18n="ui.btn.10005_clear">Clear</span></button>
+                <button class="btn btn-secondary" data-action="fileBulkFavorite" title="Add selected to favorites">&#9733; <span data-i18n="ui.btn.9733_favorite">Favorite</span></button>
+                <button class="btn btn-secondary" data-action="fileBulkOpen" title="Open selected with default app">&#128194; <span data-i18n="menu.open">Open</span></button>
+                <button class="btn btn-stop" data-action="fileBulkDelete" title="Delete selected"><span data-i18n="menu.delete">Delete</span></button>
+                <div class="batch-sep"></div>
+                <button class="btn btn-secondary" data-action="fileBulkScan" data-scan="samples" title="Scan selected folders for samples">&#128270; <span data-i18n="menu.scan_samples">Scan Samples</span></button>
+                <button class="btn btn-secondary" data-action="fileBulkScan" data-scan="presets" title="Scan selected folders for presets">&#128270; <span data-i18n="menu.scan_presets">Scan Presets</span></button>
+                <button class="btn btn-secondary" data-action="fileBulkScan" data-scan="daw" title="Scan selected folders for DAW projects">&#128270; <span data-i18n="menu.scan_daw">Scan DAW</span></button>
+                <button class="btn btn-secondary" data-action="fileBulkScan" data-scan="midi" title="Scan selected folders for MIDI">&#128270; <span data-i18n="menu.scan_midi">Scan MIDI</span></button>
+                <button class="btn btn-secondary" data-action="fileBulkScan" data-scan="pdf" title="Scan selected folders for PDFs">&#128270; <span data-i18n="menu.scan_pdf">Scan PDFs</span></button>
+                <button class="btn btn-secondary" data-action="fileBulkScan" data-scan="videos" title="Scan selected folders for videos">&#128270; <span data-i18n="menu.scan_videos">Scan Videos</span></button>
+            </div>
             <div class="file-list-header" id="fileListHeader">
+                <span class="file-cb-h"><input type="checkbox" class="file-row-cb-all" id="fileRowCbAll" title="Select all visible"></span>
                 <span class="file-icon-h"></span>
                 <span class="file-name-h" data-sort="name"><span data-i18n="ui.audio.th_name">Name</span><span class="sort-arrow">&#9650;</span></span>
                 <span class="file-ext-h" data-sort="type"><span data-i18n="ui.export.col_type">Type</span><span class="sort-arrow">&#9650;</span></span>

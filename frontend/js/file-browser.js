@@ -31,13 +31,16 @@ function pathFileName(p) {
     return segs.length ? segs[segs.length - 1] : n;
 }
 
-let _fileBrowserPath = null;
-let _fileBrowserEntries = [];
-let _fileBrowserInited = false;
+// `var` (not `let`) on the module-state binding so the VM test sandbox can
+// seed `_fileBrowserEntries` (and inspect path/inited state) via globalThis.
+// Same rationale as the sort/select state below.
+var _fileBrowserPath = null;
+var _fileBrowserEntries = [];
+var _fileBrowserInited = false;
 /** Invalidate in-flight chunked file list renders when directory or filter changes. */
-let _fileListRenderSeq = 0;
+var _fileListRenderSeq = 0;
 /** Search mode for `filterFiles` (`registerFilter`); used by `renderFileList`. */
-let _lastFilesMode = 'fuzzy';
+var _lastFilesMode = 'fuzzy';
 const FILE_LIST_CHUNK = 80;
 
 // ── Favorite Directories ──
@@ -120,6 +123,95 @@ function fileIcon(entry) {
     if (['json', 'toml', 'xml', 'yaml', 'yml'].includes(ext)) return '&#128203;';
     if (['zip', 'gz', 'tar', 'rar', '7z', 'dmg'].includes(ext)) return '&#128230;';
     return '&#128196;';
+}
+
+// ── File-list multi-select + bulk operations ──
+// Selected entry paths for the CURRENT directory. Cleared on directory change
+// (paths from the old dir would be invalid bulk-action targets). `var` for the
+// same VM-sandbox visibility reason as the sort state below.
+var _fileSelected = new Set();
+// Index of the last interacted-with checkbox row (in the post-sort visible
+// order). Used as the anchor for shift-click range select.
+var _fileSelectLastIdx = -1;
+
+function _fileEntryByPath(path) {
+    if (!Array.isArray(_fileBrowserEntries)) return null;
+    for (let i = 0; i < _fileBrowserEntries.length; i++) {
+        if (_fileBrowserEntries[i].path === path) return _fileBrowserEntries[i];
+    }
+    return null;
+}
+
+function _setFileRowSelectedClass(path, selected) {
+    if (typeof document === 'undefined' || typeof CSS === 'undefined') return;
+    try {
+        const row = document.querySelector(`.file-row[data-file-path="${CSS.escape(path)}"]`);
+        if (row) row.classList.toggle('file-selected', selected);
+    } catch (_) { /* CSS.escape unavailable in old engines or test sandbox */ }
+}
+
+function updateFileBulkBar() {
+    if (typeof document === 'undefined') return;
+    const bar = document.getElementById('fileBulkBar');
+    const count = document.getElementById('fileBulkCount');
+    if (!bar) return;
+    bar.style.display = _fileSelected.size > 0 ? 'flex' : 'none';
+    if (count) count.textContent = String(_fileSelected.size);
+    // Header `select-all` checkbox reflects current selection: checked when
+    // all visible rows are selected, otherwise unchecked.
+    const all = document.getElementById('fileRowCbAll');
+    if (all) {
+        const cbs = document.querySelectorAll('.file-row-cb');
+        all.checked = cbs.length > 0 && _fileSelected.size >= cbs.length;
+    }
+}
+
+function toggleFileSelect(path, selected) {
+    if (selected) _fileSelected.add(path);
+    else _fileSelected.delete(path);
+    _setFileRowSelectedClass(path, selected);
+    updateFileBulkBar();
+}
+
+function clearFileSelection() {
+    const prev = [..._fileSelected];
+    _fileSelected.clear();
+    for (const p of prev) _setFileRowSelectedClass(p, false);
+    if (typeof document !== 'undefined') {
+        document.querySelectorAll('.file-row-cb').forEach((cb) => { cb.checked = false; });
+    }
+    _fileSelectLastIdx = -1;
+    updateFileBulkBar();
+}
+
+function selectAllVisibleFiles() {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('.file-row-cb').forEach((cb) => {
+        cb.checked = true;
+        const path = cb.dataset.fbCb;
+        if (path) {
+            _fileSelected.add(path);
+            _setFileRowSelectedClass(path, true);
+        }
+    });
+    updateFileBulkBar();
+}
+
+/**
+ * Single source of truth for "what paths are bulk-action targets given the
+ * current selection." Filters by predicate for actions that only make sense
+ * for one kind of entry (folders for scan-as-*, files for open-in-default-app
+ * et al.).
+ */
+function _fileBulkSelectionAsPaths(filterFn) {
+    const out = [];
+    for (const path of _fileSelected) {
+        const entry = _fileEntryByPath(path);
+        if (!entry) continue;
+        if (filterFn && !filterFn(entry)) continue;
+        out.push(path);
+    }
+    return out;
 }
 
 // ── File-list column sort ──
@@ -256,6 +348,9 @@ async function loadDirectory(dirPath) {
     window._fbCursorPath = null;
     window._fbCursorEl = null;
     _wfQueue = [];
+    // Selections are scoped to the current directory — paths from the old
+    // listing would point at unrelated rows once the new listing renders.
+    if (typeof clearFileSelection === 'function') clearFileSelection();
     showGlobalProgress();
     try {
         const result = await window.vstUpdater.listDirectory(dirPath);
@@ -331,7 +426,9 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
     const extras = parts.length > 0 ? `<span class="file-meta-tags-row">${parts.join('')}</span>` : '';
 
     const wfBg = isAudio ? `<canvas class="file-waveform" data-wf-path="${escapeHtml(e.path)}" height="36" title="Waveform"></canvas><span class="file-wf-cursor"></span>` : '';
-    return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
+    const isSelected = _fileSelected.has(e.path);
+    return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}${isSelected ? ' file-selected' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
+      <span class="file-cb"><input type="checkbox" class="file-row-cb" data-fb-cb="${escapeHtml(e.path)}"${isSelected ? ' checked' : ''}></span>
       ${wfBg}
       <span class="file-icon">${fileIcon(e)}</span>
       <span class="file-name">${search && typeof highlightMatch === 'function' ? highlightMatch(e.name, search, mode || 'fuzzy') : escapeHtml(e.name)}${extras}${note}</span>
@@ -782,6 +879,141 @@ document.addEventListener('click', (e) => {
     if (chip) {
         loadDirectory(chip.dataset.favDir);
     }
+});
+
+// ── Multi-select interactions ──
+// Per-row checkbox click: toggles single row, or with Shift, range-selects from
+// the last interacted-with row to this one (inclusive). `stopPropagation` so the
+// row's open/preview click handler doesn't fire on the checkbox click itself.
+document.addEventListener('click', (e) => {
+    const cb = e.target.closest('.file-row-cb');
+    if (cb) {
+        e.stopPropagation();
+        const path = cb.dataset.fbCb;
+        if (!path) return;
+        const allRows = Array.from(document.querySelectorAll('.file-row-cb'));
+        const idx = allRows.indexOf(cb);
+        if (e.shiftKey && _fileSelectLastIdx >= 0 && idx >= 0 && idx !== _fileSelectLastIdx) {
+            const lo = Math.min(_fileSelectLastIdx, idx);
+            const hi = Math.max(_fileSelectLastIdx, idx);
+            const want = cb.checked;
+            for (let i = lo; i <= hi; i++) {
+                const c = allRows[i];
+                if (!c) continue;
+                c.checked = want;
+                const p = c.dataset.fbCb;
+                if (!p) continue;
+                if (want) _fileSelected.add(p);
+                else _fileSelected.delete(p);
+                _setFileRowSelectedClass(p, want);
+            }
+            updateFileBulkBar();
+        } else {
+            toggleFileSelect(path, cb.checked);
+        }
+        _fileSelectLastIdx = idx;
+        return;
+    }
+    const allCb = e.target.closest('.file-row-cb-all');
+    if (allCb) {
+        e.stopPropagation();
+        if (allCb.checked) selectAllVisibleFiles();
+        else clearFileSelection();
+        return;
+    }
+});
+
+// ── Bulk-action toolbar buttons ──
+document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action^="fileBulk"]');
+    if (!btn) return;
+    e.stopPropagation();
+    const action = btn.dataset.action;
+    if (action === 'fileBulkClear') {
+        clearFileSelection();
+        return;
+    }
+    const paths = [..._fileSelected];
+    if (paths.length === 0) return;
+    if (action === 'fileBulkFavorite') {
+        let count = 0;
+        for (const p of paths) {
+            const entry = _fileEntryByPath(p);
+            if (!entry) continue;
+            if (entry.isDir) {
+                if (typeof addFavDir === 'function') { addFavDir(p); count++; }
+            } else if (typeof addFavorite === 'function') {
+                const name = p.split('/').pop();
+                const ext = (name.split('.').pop() || '').toLowerCase();
+                const kind = (typeof AUDIO_EXTS !== 'undefined' && AUDIO_EXTS.includes(ext)) ? 'sample' : 'file';
+                addFavorite(kind, p, name, {format: ext.toUpperCase()});
+                count++;
+            }
+        }
+        if (typeof showToast === 'function' && count > 0) {
+            showToast(toastFmt('toast.added_favorites_batch', {n: count}));
+        }
+        return;
+    }
+    if (action === 'fileBulkOpen') {
+        for (const p of paths) {
+            if (window.vstUpdater && typeof window.vstUpdater.openFileDefault === 'function') {
+                window.vstUpdater.openFileDefault(p).catch(() => {});
+            }
+        }
+        return;
+    }
+    if (action === 'fileBulkDelete') {
+        const msg = paths.length === 1
+            ? appFmt('confirm.delete_file_browser', {name: paths[0].split('/').pop()})
+            : appFmt('confirm.delete_file_browser', {name: `${paths.length} items`});
+        if (!confirm(msg)) return;
+        let failures = 0;
+        for (const p of paths) {
+            try { await window.vstUpdater.deleteFile(p); }
+            catch (_) { failures++; }
+        }
+        clearFileSelection();
+        if (typeof showToast === 'function') {
+            // Reuse existing single-item toast key by passing a count-as-name. Avoids
+            // adding a new i18n key for a low-frequency bulk-delete-success message.
+            const survived = paths.length - failures;
+            if (survived > 0) showToast(toastFmt('toast.deleted_name', {name: `${survived} item${survived === 1 ? '' : 's'}`}));
+            if (failures > 0) showToast(toastFmt('toast.failed', {err: `${failures} delete${failures === 1 ? '' : 's'} failed`}), 4000, 'error');
+        }
+        if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+        return;
+    }
+    if (action === 'fileBulkScan') {
+        const kind = btn.dataset.scan;
+        const dirs = _fileBulkSelectionAsPaths((en) => en.isDir);
+        if (dirs.length === 0) return; // silent no-op — user clicked scan with no folder selected
+
+        const tabByKind = {samples: 'samples', presets: 'presets', daw: 'daw', midi: 'midi', pdf: 'pdf', videos: 'videos'};
+        const tab = tabByKind[kind];
+        if (tab && typeof switchTab === 'function') switchTab(tab);
+        // scanMidi / scanVideos take (resume, overrideRoots); the others take
+        // (resume, unifiedResult, overrideRoots).
+        if (kind === 'samples' && typeof scanAudioSamples === 'function') scanAudioSamples(false, null, dirs);
+        else if (kind === 'presets' && typeof scanPresets === 'function') scanPresets(false, null, dirs);
+        else if (kind === 'daw' && typeof scanDawProjects === 'function') scanDawProjects(false, null, dirs);
+        else if (kind === 'midi' && typeof scanMidi === 'function') scanMidi(false, dirs);
+        else if (kind === 'pdf' && typeof scanPdfs === 'function') scanPdfs(false, null, dirs);
+        else if (kind === 'videos' && typeof scanVideos === 'function') scanVideos(false, dirs);
+        return;
+    }
+});
+
+// Cmd/Ctrl+A while the Files tab is active and focus isn't in a text input →
+// select all visible file rows.
+document.addEventListener('keydown', (e) => {
+    if (!((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A'))) return;
+    const activeTab = document.querySelector('.tab-content.active');
+    if (!activeTab || activeTab.id !== 'tabFiles') return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    selectAllVisibleFiles();
 });
 
 // Filter — uses unified filter system
