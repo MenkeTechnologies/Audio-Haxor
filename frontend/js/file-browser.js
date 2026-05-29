@@ -621,10 +621,13 @@ async function showQuickLook(filePath) {
         const canvas = document.getElementById('fbQuickLookPdf');
         if (!canvas) return;
         const QL_WIDTH = 600;
+        const setLoading = (on) => canvas.classList.toggle('fb-quicklook-pdf-loading', !!on);
+        setLoading(true);
         try {
             const cached = await window.vstUpdater.pdfPreviewGet(filePath, 1, QL_WIDTH);
             if (cached && cached.length > 0 && typeof _fbPaintPngBytesIntoCanvas === 'function') {
                 await _fbPaintPngBytesIntoCanvas(canvas, cached);
+                setLoading(false);
                 return;
             }
         } catch (_) { /* fall through */ }
@@ -640,11 +643,16 @@ async function showQuickLook(filePath) {
             canvas.width = Math.round(viewport.width);
             canvas.height = Math.round(viewport.height);
             await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+            setLoading(false);
             try {
                 const png = await _fbCanvasToPngBytes(canvas);
                 if (png) window.vstUpdater.pdfPreviewSet(filePath, 1, QL_WIDTH, png).catch(() => {});
             } catch (_) { /* ignore cache write */ }
-        } catch (_) { /* leave canvas blank on failure */ }
+        } catch (_) {
+            setLoading(false);
+            // Leave canvas blank on failure; the metadata + path are still
+            // visible in the modal body so user knows what failed.
+        }
     }
 }
 

@@ -6196,6 +6196,22 @@
             opacity: 0.2;
         }
 
+        /* In-flight render: subtle pulsing cyan border + center dot to signal
+         * "rendering" — replaces the dim charcoal placeholder so the user
+         * knows something is happening (not just stuck). */
+        .pdf-thumb-canvas.pdf-thumb-rendering {
+            background:
+                radial-gradient(circle at center, rgba(5, 217, 232, 0.35) 0%, rgba(5, 217, 232, 0) 30%),
+                rgba(5, 217, 232, 0.06);
+            border-color: rgba(5, 217, 232, 0.5);
+            animation: pdf-thumb-pulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes pdf-thumb-pulse {
+            0%, 100% { opacity: 0.55; }
+            50%      { opacity: 1; }
+        }
+
         /* PDF preview canvas — rendered by PDF.js (pure-JS in WebView, no
          * native deps). Canvas width/height set by JS from the rendered page
          * viewport so the image is crisp at 1:1 device pixels. */
@@ -6343,6 +6359,35 @@
             background: white;
             border: 1px solid var(--cyan);
             border-radius: 3px;
+            position: relative;
+            min-height: 200px;
+        }
+
+        /* While the page is being rendered: overlay a pulsing cyan gradient +
+         * a centered spinning ring. Removed (`fb-quicklook-pdf-loading` class
+         * dropped) when render completes — the rendered page replaces the
+         * overlay. Without this the user sees a blank white box for the
+         * full render duration (1–3 s on big PDFs), which read as broken. */
+        .fb-quicklook-pdf.fb-quicklook-pdf-loading {
+            background:
+                radial-gradient(circle at center, rgba(5, 217, 232, 0.5) 0%, rgba(5, 217, 232, 0) 40%),
+                white;
+            min-height: 280px;
+        }
+
+        .fb-quicklook-pdf.fb-quicklook-pdf-loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(5, 217, 232, 0.2);
+            border-top-color: var(--cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            box-shadow: 0 0 12px rgba(5, 217, 232, 0.5);
         }
 
         .fb-quicklook-meta {

@@ -1035,11 +1035,27 @@ if (typeof document !== 'undefined') {
 // rows doesn't fan out into 50 parallel PDF.js page renders.
 const PDF_THUMB_WIDTH = 80;
 const PDF_THUMB_PAGE = 1;
-const PDF_THUMB_CONCURRENCY = 3;
+// Reduced from 3 → 2 to give the main thread more breathing room. PDF.js's
+// worker handles parsing, but the actual canvas paint + cache PNG-encode
+// run on the main thread; 2 concurrent renders is the practical sweet spot
+// where the user can still scroll/click without jank.
+const PDF_THUMB_CONCURRENCY = 2;
 var _pdfThumbObserver = null;
 var _pdfThumbQueue = [];
 var _pdfThumbActive = 0;
 var _pdfThumbInflight = new Set(); // paths currently rendering — dedup
+
+/** Yield to the browser between queue-pump iterations so the user's input
+ *  events (clicks, scrolls, keypresses) take priority over background
+ *  rendering. `requestIdleCallback` lets the browser pick when to run us;
+ *  Safari/older browsers fall back to a 50 ms setTimeout. */
+function _yieldThenPump() {
+    if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(_pumpPdfThumbQueue, {timeout: 250});
+    } else {
+        setTimeout(_pumpPdfThumbQueue, 50);
+    }
+}
 
 function _pumpPdfThumbQueue() {
     while (_pdfThumbActive < PDF_THUMB_CONCURRENCY && _pdfThumbQueue.length > 0) {
@@ -1050,10 +1066,15 @@ function _pumpPdfThumbQueue() {
         if (!path || _pdfThumbInflight.has(path)) continue;
         _pdfThumbActive++;
         _pdfThumbInflight.add(path);
+        // Flag the cell as rendering so the CSS spinner / pulse shows.
+        canvas.classList.add('pdf-thumb-rendering');
         _renderPdfThumb(canvas, path).finally(() => {
             _pdfThumbActive--;
             _pdfThumbInflight.delete(path);
-            _pumpPdfThumbQueue();
+            canvas.classList.remove('pdf-thumb-rendering');
+            // Don't immediately pump — yield to the browser so input events
+            // can run before the next render starts.
+            _yieldThenPump();
         });
     }
 }
@@ -1132,7 +1153,9 @@ function initPdfThumbObserver() {
             if (!path || _pdfThumbInflight.has(path)) continue;
             _pdfThumbQueue.push(canvas);
         }
-        _pumpPdfThumbQueue();
+        // Yield to the browser before kicking off renders — gives the user's
+        // scroll/click event handlers a chance to run first.
+        _yieldThenPump();
     }, {
         root,
         // 100 px rootMargin so thumbs start loading just before they're visible
