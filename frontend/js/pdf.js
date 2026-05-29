@@ -221,6 +221,7 @@ function buildPdfRow(p) {
     const pdfModCell = pdfMetaInfoDateDisplay(m && m.pdfModDate);
     return `<tr data-pdf-path="${hp}" data-pdf-name="${escapeHtml((p.name || '').toLowerCase())}" style="cursor: pointer;" title="${rowTt}">
     <td class="col-cb" data-action-stop><input type="checkbox" class="batch-cb"${checked}></td>
+    <td class="col-pdf-thumb"><canvas class="pdf-thumb-canvas" data-pdf-thumb-path="${hp}" width="80" height="100"></canvas></td>
     <td class="col-name" title="${escapeHtml(p.name)}">${_lastPdfSearch ? highlightMatch(p.name, _lastPdfSearch, _lastPdfMode, 'name') : escapeHtml(p.name)}${typeof rowBadges === 'function' ? rowBadges(p.path) : ''}</td>
     <td class="col-path" title="${hp}">${_lastPdfSearch ? highlightMatch(p.directory, _lastPdfSearch, _lastPdfMode, 'path') : escapeHtml(p.directory)}</td>
     <td class="col-size">${p.sizeFormatted}</td>
@@ -288,6 +289,7 @@ function buildPdfTableHtml() {
     return `<table class="audio-table" id="pdfTable">
     <thead><tr>
       <th class="col-cb"><input type="checkbox" class="batch-cb batch-cb-all" data-batch-action="toggleAll" title="${sel}"></th>
+      <th class="col-pdf-thumb" title="First page thumbnail (cached)">&#128196;<span class="col-resize"></span></th>
       <th data-action="sortPdf" data-key="name" style="width: 30%;">${tc('ui.export.col_name')} <span class="sort-arrow" id="pdfSortArrowName">&#9660;</span><span class="col-resize"></span></th>
       <th data-action="sortPdf" data-key="directory" style="width: 40%;">${tc('ui.export.col_path')} <span class="sort-arrow" id="pdfSortArrowDirectory"></span><span class="col-resize"></span></th>
       <th data-action="sortPdf" data-key="size" class="col-size" style="width: 90px;">${tc('ui.export.col_size')} <span class="sort-arrow" id="pdfSortArrowSize"></span><span class="col-resize"></span></th>
@@ -969,3 +971,141 @@ function maybeAutoStartPdfScanOnStartup() {
 // Export for menu-action handler in ipc.js
 window.buildPdfPagesCache = buildPdfPagesCache;
 window.stopPdfMetadataExtractionUser = stopPdfMetadataExtractionUser;
+
+// ── PDF inventory thumbnails (lazy, cached in SQLite) ──
+// Each row's `<canvas class="pdf-thumb-canvas">` is initially blank. An
+// IntersectionObserver watches every canvas; when one scrolls into view we:
+//   1. Try `pdfPreviewGet(path, 1, 80)` — SQLite cache hit → paint instantly
+//   2. On miss → load PDF.js (shared `window.loadPdfJs` from file-browser.js),
+//      render page 1 at width=80, paint, then `pdfPreviewSet` to cache
+// Concurrency capped to 3 simultaneous renders so a fast scroll through 50+
+// rows doesn't fan out into 50 parallel PDF.js page renders.
+const PDF_THUMB_WIDTH = 80;
+const PDF_THUMB_PAGE = 1;
+const PDF_THUMB_CONCURRENCY = 3;
+var _pdfThumbObserver = null;
+var _pdfThumbQueue = [];
+var _pdfThumbActive = 0;
+var _pdfThumbInflight = new Set(); // paths currently rendering — dedup
+
+function _pumpPdfThumbQueue() {
+    while (_pdfThumbActive < PDF_THUMB_CONCURRENCY && _pdfThumbQueue.length > 0) {
+        const canvas = _pdfThumbQueue.shift();
+        // Canvas might have been removed from DOM (table re-render); skip.
+        if (!canvas || !canvas.isConnected) continue;
+        const path = canvas.dataset.pdfThumbPath;
+        if (!path || _pdfThumbInflight.has(path)) continue;
+        _pdfThumbActive++;
+        _pdfThumbInflight.add(path);
+        _renderPdfThumb(canvas, path).finally(() => {
+            _pdfThumbActive--;
+            _pdfThumbInflight.delete(path);
+            _pumpPdfThumbQueue();
+        });
+    }
+}
+
+async function _renderPdfThumb(canvas, filePath) {
+    // 1) Try SQLite cache. Fresh hit → paint and done.
+    try {
+        const cached = await window.vstUpdater.pdfPreviewGet(filePath, PDF_THUMB_PAGE, PDF_THUMB_WIDTH);
+        if (cached && cached.length > 0) {
+            if (typeof window.paintPngBytesIntoCanvas === 'function') {
+                await window.paintPngBytesIntoCanvas(canvas, cached);
+            }
+            canvas.classList.add('pdf-thumb-loaded');
+            return;
+        }
+    } catch (_) { /* fall through to render */ }
+
+    // 2) Cache miss → render via PDF.js, write back to cache.
+    try {
+        if (typeof window.loadPdfJs !== 'function'
+            || typeof window.vstUpdater?.fsReadFileBytes !== 'function') return;
+        const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 32 * 1024 * 1024);
+        const pdfjs = await window.loadPdfJs();
+        const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        const pdf = await pdfjs.getDocument({data: u8}).promise;
+        const page = await pdf.getPage(PDF_THUMB_PAGE);
+        const baseViewport = page.getViewport({scale: 1.0});
+        const scale = Math.min(1.0, PDF_THUMB_WIDTH / baseViewport.width);
+        const viewport = page.getViewport({scale});
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        const ctx = canvas.getContext('2d');
+        await page.render({canvasContext: ctx, viewport}).promise;
+        canvas.classList.add('pdf-thumb-loaded');
+        // Persist render to cache for next time. Fire-and-forget.
+        if (typeof window.canvasToPngBytes === 'function') {
+            try {
+                const png = await window.canvasToPngBytes(canvas);
+                if (png) {
+                    window.vstUpdater.pdfPreviewSet(
+                        filePath, PDF_THUMB_PAGE, PDF_THUMB_WIDTH, png,
+                    ).catch(() => {});
+                }
+            } catch (_) { /* ignore cache-write errors */ }
+        }
+    } catch (_) {
+        // Render failed (file gone, corrupt PDF, etc.) — leave canvas blank.
+        // No toast — surfaces silently per-row; user can still open the file.
+        canvas.classList.add('pdf-thumb-failed');
+    }
+}
+
+/** Attach an IntersectionObserver to every `.pdf-thumb-canvas` in the table.
+ *  Called after the table renders / re-renders. Disconnects any prior
+ *  observer so canvases from the old render aren't kept in the watch list. */
+function initPdfThumbObserver() {
+    if (typeof document === 'undefined' || typeof IntersectionObserver === 'undefined') return;
+    if (_pdfThumbObserver) {
+        try { _pdfThumbObserver.disconnect(); } catch (_) { /* ignore */ }
+        _pdfThumbObserver = null;
+    }
+    _pdfThumbObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            const canvas = entry.target;
+            // Once enqueued / rendered, stop observing this canvas — saves
+            // observer overhead on a large table.
+            _pdfThumbObserver.unobserve(canvas);
+            const path = canvas.dataset.pdfThumbPath;
+            if (!path || _pdfThumbInflight.has(path)) continue;
+            _pdfThumbQueue.push(canvas);
+        }
+        _pumpPdfThumbQueue();
+    }, {
+        // 100 px rootMargin so thumbs start loading just before they're visible
+        // — smoother for fast scrolls.
+        rootMargin: '100px 0px',
+        threshold: 0.01,
+    });
+    document.querySelectorAll('#pdfTableBody .pdf-thumb-canvas').forEach((c) => {
+        _pdfThumbObserver.observe(c);
+    });
+}
+
+// Hook into the existing render flow. The table is rendered/re-rendered from
+// several call sites in this file; rather than touching each, observe via a
+// MutationObserver on the tbody. Cheap — fires only when rows change.
+if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const tbody = document.getElementById('pdfTableBody');
+        // tbody is created lazily on first render; poll briefly via raf.
+        const tryAttach = () => {
+            const body = document.getElementById('pdfTableBody');
+            if (!body) {
+                requestAnimationFrame(tryAttach);
+                return;
+            }
+            // Re-attach the IO every time the tbody contents change (paginated
+            // load-more, search filter, sort).
+            const mo = new MutationObserver(() => {
+                initPdfThumbObserver();
+            });
+            mo.observe(body, {childList: true});
+            initPdfThumbObserver(); // initial pass
+        };
+        tryAttach();
+    });
+}

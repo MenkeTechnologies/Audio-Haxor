@@ -337,13 +337,15 @@ async function _fbPaintPngBytesIntoCanvas(canvas, bytes) {
     });
 }
 
-// ── PDF.js lazy-loader (for preview pane) ──
+// ── PDF.js lazy-loader (shared across preview pane + PDF inventory thumbs) ──
 // Module-level promise so concurrent calls share the same load. PDF.js is
-// ~350 KB (main) + ~1.4 MB (worker); deferring until the first PDF preview
+// ~350 KB (main) + ~1.4 MB (worker); deferring until the first PDF render
 // keeps it out of the initial bundle. Absolute path from WebView root —
 // frontend is served from `frontend/` so `/lib/...` resolves correctly.
+// Exposed on `window` so `pdf.js` (PDF inventory tab) can reuse without
+// duplicating the loader / canvas-blob helpers below.
 var _pdfJsPromise = null;
-function _loadPdfJs() {
+function loadPdfJs() {
     if (_pdfJsPromise) return _pdfJsPromise;
     _pdfJsPromise = (async () => {
         const mod = await import('/lib/pdf.min.mjs');
@@ -356,6 +358,11 @@ function _loadPdfJs() {
         throw err;
     });
     return _pdfJsPromise;
+}
+if (typeof window !== 'undefined') {
+    window.loadPdfJs = loadPdfJs;
+    window.canvasToPngBytes = _fbCanvasToPngBytes;
+    window.paintPngBytesIntoCanvas = _fbPaintPngBytesIntoCanvas;
 }
 
 // ── Inline preview pane (right side of file list) ──
@@ -506,7 +513,7 @@ async function populatePreviewPane(filePath) {
         try {
             const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 32 * 1024 * 1024);
             if (seq !== _fbPreviewSeq) return;
-            const pdfjs = await _loadPdfJs();
+            const pdfjs = await loadPdfJs();
             if (seq !== _fbPreviewSeq) return;
             const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
             const pdf = await pdfjs.getDocument({data: u8}).promise;

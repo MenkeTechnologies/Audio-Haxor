@@ -6167,6 +6167,35 @@
             border-radius: 3px;
         }
 
+        /* PDF inventory thumbnail column — small first-page preview per row.
+         * 80px wide, height auto-set by JS from the rendered page viewport.
+         * Cached in SQLite, lazy-loaded via IntersectionObserver. */
+        .col-pdf-thumb {
+            width: 88px;
+            text-align: center;
+            padding: 2px 4px !important;
+        }
+
+        .pdf-thumb-canvas {
+            display: block;
+            width: 80px;
+            height: 100px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 2px;
+            margin: 0 auto;
+            image-rendering: auto;
+        }
+
+        .pdf-thumb-canvas.pdf-thumb-loaded {
+            background: white;
+            border-color: var(--cyan);
+        }
+
+        .pdf-thumb-canvas.pdf-thumb-failed {
+            opacity: 0.2;
+        }
+
         /* PDF preview canvas — rendered by PDF.js (pure-JS in WebView, no
          * native deps). Canvas width/height set by JS from the rendered page
          * viewport so the image is crisp at 1:1 device pixels. */
