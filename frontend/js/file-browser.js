@@ -359,7 +359,7 @@ async function _fbCrossPaneOp(mode) {
     }
     if (typeof showToast === 'function') {
         const verb = mode === 'move' ? 'moved' : 'copied';
-        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `${verb} ${ok} item${ok === 1 ? '' : 's'} → pane ${destIdx + 1}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `${verb} ${ok} item${ok === 1 ? '' : 's'} → pane ${destIdx + 1}`}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} ${mode}${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     // Refresh dest pane (new files appeared) and active pane (move removed them).
@@ -498,7 +498,7 @@ function _fbSwapPanes(a, b) {
     renderPaneList(b);
     _fbPersistPanePaths();
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.deleted_name', {name: `swapped panes ${a + 1} ↔ ${b + 1}`}));
+        showToast(toastFmt('toast.fb_action', {name: `swapped panes ${a + 1} ↔ ${b + 1}`}));
     }
 }
 
@@ -755,7 +755,7 @@ function fileBrowserToggleHidden() {
     try { if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserShowHidden', _fbShowHidden ? '1' : '0'); }
     catch (_) { /* ignore */ }
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.deleted_name', {name: _fbShowHidden ? 'showing hidden files in active pane' : 'hiding hidden files in active pane'}));
+        showToast(toastFmt('toast.fb_action', {name: _fbShowHidden ? 'showing hidden files in active pane' : 'hiding hidden files in active pane'}));
     }
     if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
 }
@@ -1004,7 +1004,7 @@ async function applyFileBulkRename() {
         }
     }
     if (typeof showToast === 'function') {
-        if (fail === 0) showToast(toastFmt('toast.deleted_name', {name: `renamed ${success} file${success === 1 ? '' : 's'}`}));
+        if (fail === 0) showToast(toastFmt('toast.fb_action', {name: `renamed ${success} file${success === 1 ? '' : 's'}`}));
         else showToast(toastFmt('toast.failed', {err: `${fail} of ${success + fail} rename${success + fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     hideFileBulkRenameModal();
@@ -1669,7 +1669,7 @@ async function _commitFileRename(oldPath, input, row) {
     }
     try {
         await window.vstUpdater.renameFile(oldPath, newPath);
-        if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `renamed to ${next}`}));
+        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `renamed to ${next}`}));
         if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
     } catch (err) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
@@ -1733,7 +1733,7 @@ async function fileBrowserNewFolder() {
     const newPath = `${_fileBrowserPath}/${cleaned}`;
     try {
         await window.vstUpdater.fsCreateDir(newPath);
-        if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `created ${cleaned}`}));
+        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `created ${cleaned}`}));
         loadDirectory(_fileBrowserPath);
     } catch (err) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
@@ -1755,7 +1755,7 @@ async function fileBrowserNewFile() {
     const newPath = `${_fileBrowserPath}/${cleaned}`;
     try {
         await window.vstUpdater.fsCreateFile(newPath);
-        if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `created ${cleaned}`}));
+        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `created ${cleaned}`}));
         loadDirectory(_fileBrowserPath);
     } catch (err) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
@@ -1777,7 +1777,7 @@ function fileBrowserMarkClipboard(mode, paths) {
     if (typeof showToast === 'function') {
         const verb = mode === 'cut' ? 'cut' : 'copied';
         const target = paths.length === 1 ? paths[0].split('/').pop() : `${paths.length} items`;
-        showToast(toastFmt('toast.deleted_name', {name: `${verb} ${target} — paste in target folder`}));
+        showToast(toastFmt('toast.fb_action', {name: `${verb} ${target} — paste in target folder`}));
     }
 }
 
@@ -1825,7 +1825,7 @@ async function fileBrowserPasteClipboard() {
         window._fbClipboard = {mode: null, paths: []};
     }
     if (typeof showToast === 'function') {
-        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `pasted ${ok} item${ok === 1 ? '' : 's'}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `pasted ${ok} item${ok === 1 ? '' : 's'}`}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} item${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     loadDirectory(_fileBrowserPath);
@@ -2001,7 +2001,7 @@ async function fileBrowserNewFolderWithSelection(paths) {
         }
     }
     if (typeof showToast === 'function') {
-        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `moved ${ok} item${ok === 1 ? '' : 's'} into ${cleaned}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `moved ${ok} item${ok === 1 ? '' : 's'} into ${cleaned}`}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} move${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     loadDirectory(_fileBrowserPath);
@@ -2109,7 +2109,7 @@ async function fileBrowserShowBulkChmodModal(paths) {
             catch (_) { fail++; }
         }
         if (typeof showToast === 'function') {
-            if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `chmod ${mode} on ${ok} file${ok === 1 ? '' : 's'}`}));
+            if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `chmod ${mode} on ${ok} file${ok === 1 ? '' : 's'}`}));
             if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} chmod${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
         }
         close();
@@ -2170,7 +2170,7 @@ async function fileBrowserShowSymlinkEditor(path) {
         if (!next || next === curTarget) { close(); return; }
         try {
             await window.vstUpdater.fsSymlinkRetarget(path, next);
-            if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `re-pointed → ${next}`}));
+            if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `re-pointed → ${next}`}));
             close();
             if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
         } catch (err) {
@@ -2226,7 +2226,7 @@ async function fileBrowserShowChmodModal(path) {
         if (!mode) { close(); return; }
         try {
             await window.vstUpdater.fsChmod(path, mode);
-            showToast(toastFmt('toast.deleted_name', {name: `chmod ${mode} ${name}`}));
+            showToast(toastFmt('toast.fb_action', {name: `chmod ${mode} ${name}`}));
             close();
             if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
         } catch (err) {
@@ -2281,7 +2281,7 @@ async function fileBrowserPatternSelect() {
     });
     updateFileBulkBar();
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.deleted_name', {name: `selected ${matched} matching ${cleaned}`}));
+        showToast(toastFmt('toast.fb_action', {name: `selected ${matched} matching ${cleaned}`}));
     }
 }
 
@@ -2304,7 +2304,7 @@ async function fileBrowserBulkCompress(paths) {
     for (let i = 0; i < 10; i++) {
         try {
             await window.vstUpdater.fsCompress(paths, archive);
-            showToast(toastFmt('toast.deleted_name', {name: `compressed → ${archive.split('/').pop()}`}));
+            showToast(toastFmt('toast.fb_action', {name: `compressed → ${archive.split('/').pop()}`}));
             loadDirectory(_fileBrowserPath);
             return;
         } catch (err) {
@@ -2346,7 +2346,7 @@ async function fileBrowserBulkExtract(paths) {
         if (placed) ok++; else fail++;
     }
     if (typeof showToast === 'function') {
-        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `extracted ${ok} archive${ok === 1 ? '' : 's'}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `extracted ${ok} archive${ok === 1 ? '' : 's'}`}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} extraction${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
@@ -2865,7 +2865,7 @@ document.addEventListener('drop', async (e) => {
     }
     if (typeof showToast === 'function') {
         const verb = isCopy ? 'copied' : 'moved';
-        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `${verb} ${ok} item${ok === 1 ? '' : 's'} → pane ${destPaneIdx + 1}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `${verb} ${ok} item${ok === 1 ? '' : 's'} → pane ${destPaneIdx + 1}`}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} ${verb === 'copied' ? 'copy' : 'move'}${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     // Refresh destination + source (move emptied source's selection).
@@ -2963,7 +2963,7 @@ function fileBrowserToggleSyncScroll() {
     try { if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserSyncScroll', _fbSyncScroll ? '1' : '0'); }
     catch (_) { /* ignore */ }
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.deleted_name', {name: _fbSyncScroll ? 'sync scroll ON' : 'sync scroll OFF'}));
+        showToast(toastFmt('toast.fb_action', {name: _fbSyncScroll ? 'sync scroll ON' : 'sync scroll OFF'}));
     }
 }
 document.addEventListener('scroll', (e) => {
@@ -3072,7 +3072,7 @@ function fileBrowserSetLabel(path, idx) {
 function fileBrowserBulkSetLabel(paths, idx) {
     for (const p of paths) fileBrowserSetLabel(p, idx);
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.deleted_name', {name: `labeled ${paths.length} item${paths.length === 1 ? '' : 's'} ${FB_LABEL_NAMES[idx] || 'None'}`}));
+        showToast(toastFmt('toast.fb_action', {name: `labeled ${paths.length} item${paths.length === 1 ? '' : 's'} ${FB_LABEL_NAMES[idx] || 'None'}`}));
     }
 }
 
@@ -3085,7 +3085,7 @@ async function fileBrowserTouchPaths(paths) {
         catch (_) { fail++; }
     }
     if (typeof showToast === 'function') {
-        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `touched ${ok} item${ok === 1 ? '' : 's'}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `touched ${ok} item${ok === 1 ? '' : 's'}`}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} touch${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
@@ -3419,7 +3419,7 @@ async function fileBrowserShowBookmarksModal() {
             if (typeof prefs !== 'undefined') prefs.setItem('favDirs', JSON.stringify(dirs));
         } catch (_) { /* ignore */ }
         if (typeof renderFavDirs === 'function') renderFavDirs();
-        if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `saved ${dirs.length} bookmark${dirs.length === 1 ? '' : 's'}`}));
+        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `saved ${dirs.length} bookmark${dirs.length === 1 ? '' : 's'}`}));
         close();
     };
     const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
@@ -3515,7 +3515,7 @@ function buildMoveToBookmarkMenuItems(srcPath) {
             const target = `${d.path}/${base}`;
             try {
                 await window.vstUpdater.renameFile(srcPath, target);
-                if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `moved ${base} → ${d.name}`}));
+                if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `moved ${base} → ${d.name}`}));
                 if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
             } catch (err) {
                 if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');

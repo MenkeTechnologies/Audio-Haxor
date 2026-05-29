@@ -2344,7 +2344,7 @@ document.addEventListener('contextmenu', (e) => {
                     action: async () => {
                         try {
                             const bin = await window.vstUpdater.fsOpenInEditor(path);
-                            showToast(toastFmt('toast.deleted_name', {name: `opening in ${bin}`}));
+                            showToast(toastFmt('toast.fb_action', {name: `opening in ${bin}`}));
                         } catch (err) {
                             showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
                         }
@@ -2550,7 +2550,7 @@ document.addEventListener('contextmenu', (e) => {
                     try {
                         const dest = await window.vstUpdater.fsMakeAlias(path);
                         const destName = (dest || '').split('/').pop() || 'alias';
-                        showToast(toastFmt('toast.deleted_name', {name: `aliased → ${destName}`}));
+                        showToast(toastFmt('toast.fb_action', {name: `aliased → ${destName}`}));
                     } catch (err) {
                         showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
                     }
@@ -2566,7 +2566,7 @@ document.addEventListener('contextmenu', (e) => {
                     try {
                         const dest = await window.vstUpdater.fsDuplicate(path);
                         const destName = (dest || '').split('/').pop() || 'copy';
-                        showToast(toastFmt('toast.deleted_name', {name: `duplicated → ${destName}`}));
+                        showToast(toastFmt('toast.fb_action', {name: `duplicated → ${destName}`}));
                     } catch (err) {
                         showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
                     }
@@ -2583,7 +2583,7 @@ document.addEventListener('contextmenu', (e) => {
                     action: async () => {
                         try {
                             await window.vstUpdater.fsRunProgram(path);
-                            showToast(toastFmt('toast.deleted_name', {name: `running ${name}`}));
+                            showToast(toastFmt('toast.fb_action', {name: `running ${name}`}));
                         } catch (err) {
                             showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
                         }
@@ -2617,7 +2617,7 @@ document.addEventListener('contextmenu', (e) => {
                         for (let i = 0; i < 10; i++) {
                             try {
                                 await window.vstUpdater.fsExtract(path, dest);
-                                showToast(toastFmt('toast.deleted_name', {name: `extracted → ${dest.split('/').pop()}`}));
+                                showToast(toastFmt('toast.fb_action', {name: `extracted → ${dest.split('/').pop()}`}));
                                 return;
                             } catch (err) {
                                 const m = String(err && err.message ? err.message : err);
@@ -2646,7 +2646,7 @@ document.addEventListener('contextmenu', (e) => {
                         try {
                             await window.vstUpdater.fsCompress([path], archive);
                             const arName = archive.split('/').pop();
-                            showToast(toastFmt('toast.deleted_name', {name: `compressed → ${arName}`}));
+                            showToast(toastFmt('toast.fb_action', {name: `compressed → ${arName}`}));
                             return;
                         } catch (err) {
                             const msg = String(err && err.message ? err.message : err);
