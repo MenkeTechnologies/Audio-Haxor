@@ -3263,11 +3263,14 @@ async function fileBrowserShowQuickPalette() {
     requestAnimationFrame(() => { input.focus(); render(); });
 }
 
-// ── Spotlight-style global search (Cmd+K) ──
+// ── Spotlight-style global search ──
 // Searches every populated inventory table at once (audio, DAW,
 // presets, MIDI, PDFs, videos) via the FTS5 trigram tables on the Rust
 // side. Modal groups results by category; click → switch tab + open or
 // open file directly. Debounced 150ms on input to avoid hammering FTS.
+// Reachable via the file-browser empty-space context menu — no
+// hardcoded shortcut here (Cmd+K is reserved for the global command
+// palette in shortcuts.js).
 let _fbSpotlightDebounce = null;
 async function fileBrowserShowSpotlight() {
     document.getElementById('appSpotlightModal')?.remove();
@@ -3484,19 +3487,12 @@ if (typeof window !== 'undefined') {
     window.fileBrowserShowSymlinkEditor = fileBrowserShowSymlinkEditor;
     window.fileBrowserToggleSyncScroll = fileBrowserToggleSyncScroll;
     window.fileBrowserSetLabelFilter = fileBrowserSetLabelFilter;
-    // Cmd+K — global Spotlight modal. Capture phase so it wins over
-    // per-tab keydown handlers; works from any inventory tab, not just
-    // Files. Skip while a text input has focus (Cmd+K could be a
-    // shortcut inside an editor).
-    document.addEventListener('keydown', (e) => {
-        if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
-        if (e.key !== 'k' && e.key !== 'K') return;
-        const t = e.target;
-        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        fileBrowserShowSpotlight();
-    }, true);
+    // Cmd+K was previously bound here for Spotlight — REMOVED because
+    // it conflicted with the existing global command palette
+    // (shortcuts.js:141 `commandPalette: {key: 'k', mod: true}`).
+    // Spotlight stays reachable via the empty-space context menu
+    // entry; users can bind a keyboard shortcut for it via the
+    // shortcuts UI if they want one.
     window.FB_LABEL_COLORS = FB_LABEL_COLORS;
     window.FB_LABEL_NAMES = FB_LABEL_NAMES;
 }
@@ -5593,7 +5589,7 @@ document.addEventListener('contextmenu', (e) => {
     });
     items.push({
         icon: '&#128269;',
-        label: 'Spotlight — search all inventory (Cmd+K)', ..._ctxMenuNoEcho,
+        label: 'Spotlight — search all inventory', ..._ctxMenuNoEcho,
         action: () => fileBrowserShowSpotlight(),
     });
     items.push({
