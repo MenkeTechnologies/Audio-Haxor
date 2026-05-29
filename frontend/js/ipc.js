@@ -1849,6 +1849,8 @@ window.vstUpdater = {
     /** Delete on disk + purge path from all inventory DB tables (keyboard `x` / Backspace). */
     deleteInventoryItem: (filePath) => invoke('delete_inventory_item', {filePath}),
     renameFile: (oldPath, newPath) => invoke('rename_file', {oldPath, newPath}),
+    /** Create a new directory. Fails if path already exists. Parent must exist. */
+    fsCreateDir: (dirPath) => invoke('fs_create_dir', {dirPath}),
     getHomeDir: () => invoke('get_home_dir'),
     // Similarity
     findSimilarSamples: (filePath, candidatePaths, maxResults) => invoke('find_similar_samples', {

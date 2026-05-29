@@ -5967,6 +5967,22 @@
             user-select: none !important;
         }
 
+        /* Inline rename input — replaces the row's name text node during
+         * F2 / context-menu Rename. Borderless to blend with the row;
+         * full-width so long names don't truncate during edit. */
+        .fb-rename-input {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            font-family: inherit;
+            font-size: inherit;
+            padding: 2px 4px;
+            outline: none;
+            width: 90%;
+            min-width: 120px;
+            border-radius: 2px;
+        }
+
         /* Generic show/hide toggle — replaces `style="display:none"` on
          * file-browser elements. `!important` overrides element-default
          * displays (`.file-bulk-bar { display: flex }`). Release WebKit
@@ -11946,6 +11962,9 @@
                 <button class="btn btn-secondary" data-action="fileFav" data-i18n-title="ui.tt.bookmark_current_directory"
                         id="btnFileFav" title="Bookmark current directory">&#9733;
                     <span data-i18n="ui.btn.9733_bookmark">Bookmark</span></button>
+                <button class="btn btn-secondary" data-action="fileNewFolder"
+                        id="btnFileNewFolder" title="Create new folder in current directory (Cmd+Shift+N)">&#128193;+
+                    New Folder</button>
                 <div class="file-breadcrumb" id="fileBreadcrumb"></div>
                 <input type="text" class="file-path-input fb-hidden" id="fileBrowserPathInput"
                        autocomplete="off" autocorrect="off"

@@ -7030,6 +7030,23 @@ async fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
     .await
 }
 
+/// Creates a directory at `dir_path`. Fails if the parent doesn't exist
+/// (use `create_dir_all`-style API explicitly if recursive is wanted).
+/// Returns an error if the path already exists.
+#[tauri::command]
+async fn fs_create_dir(dir_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        let p = std::path::Path::new(&dir_path);
+        if p.exists() {
+            return Err(format!("Path already exists: {dir_path}"));
+        }
+        #[cfg(not(test))]
+        append_log(format!("DIR CREATE — {}", dir_path));
+        std::fs::create_dir(p).map_err(|e| e.to_string())
+    })
+    .await
+}
+
 #[tauri::command]
 async fn write_text_file(file_path: String, contents: String) -> Result<(), String> {
     blocking_res(move || std::fs::write(&file_path, &contents).map_err(|e| e.to_string())).await
@@ -8243,6 +8260,21 @@ mod tests {
             rt_block_on(fs_folder_size(root.to_string_lossy().to_string(), Some(5000))).unwrap();
         assert_eq!(result.bytes, 0);
         assert_eq!(result.files, 0);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// `fs_create_dir` creates a new directory and rejects existing paths.
+    #[test]
+    fn test_fs_create_dir_creates_and_rejects_existing() {
+        let root = std::env::temp_dir().join(format!("upum_fsmkdir_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let result = rt_block_on(fs_create_dir(root.to_string_lossy().to_string()));
+        assert!(result.is_ok(), "fresh path must succeed");
+        assert!(root.exists() && root.is_dir());
+        // Second call must fail since the dir now exists.
+        let result2 = rt_block_on(fs_create_dir(root.to_string_lossy().to_string()));
+        assert!(result2.is_err());
+        assert!(result2.unwrap_err().contains("already exists"));
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -9564,6 +9596,7 @@ pub fn run() {
             delete_file,
             delete_inventory_item,
             rename_file,
+            fs_create_dir,
             write_text_file,
             write_binary_file,
             ensure_snapshot_export_dir,

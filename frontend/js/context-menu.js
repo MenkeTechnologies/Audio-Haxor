@@ -2371,6 +2371,32 @@ document.addEventListener('contextmenu', (e) => {
                 label: appFmt('menu.copy_name'), ..._noEcho,
                 action: () => copyToClipboard(name)
             });
+            // Rename (F2) — applies to both files and folders. Inline-edits
+            // the row's name cell, commits via `rename_file` IPC. Plain
+            // English label since no `menu.rename` key exists yet and adding
+            // one across all 27 locales is heavier than the feature warrants.
+            items.push({
+                icon: '&#9998;',
+                label: 'Rename (F2)', ..._noEcho,
+                action: () => {
+                    if (typeof startFileRename === 'function') startFileRename(fileRow);
+                }
+            });
+            // Move to <bookmark> — only shown when bookmarks exist. Each entry
+            // moves the selected path into that bookmarked folder via
+            // `rename_file` (same syscall, cross-folder).
+            if (typeof buildMoveToBookmarkMenuItems === 'function') {
+                const moveItems = buildMoveToBookmarkMenuItems(path);
+                if (moveItems.length > 0) {
+                    items.push('---');
+                    items.push({
+                        icon: '&#10145;',
+                        label: 'Move to →',
+                        disabled: true,
+                    });
+                    for (const mi of moveItems) items.push(mi);
+                }
+            }
             items.push('---');
             if (typeof isFavorite === 'function') {
                 const fav = isFavorite(path);

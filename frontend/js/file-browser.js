@@ -125,6 +125,112 @@ function fileIcon(entry) {
     return '&#128196;';
 }
 
+// ── Inline rename (F2 on focused row, or via context menu) ──
+// Replaces the row's `.file-name` text node with a borderless `<input>`,
+// pre-filled and selected. Enter commits via `rename_file` IPC; Esc cancels;
+// blur cancels (treats unintentional click-away as cancel). After successful
+// rename, reload the directory so the row's path / placement update.
+async function _commitFileRename(oldPath, input, row) {
+    const next = (input.value || '').trim();
+    const dir = oldPath.replace(/\/[^/]+$/, '');
+    const newPath = `${dir}/${next}`;
+    if (!next || next === oldPath.split('/').pop()) {
+        _cancelFileRename(input, row);
+        return;
+    }
+    try {
+        await window.vstUpdater.renameFile(oldPath, newPath);
+        if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `renamed to ${next}`}));
+        if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+    } catch (err) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
+        _cancelFileRename(input, row);
+    }
+}
+
+function _cancelFileRename(input, row) {
+    if (!row || !input) return;
+    const nameCell = row.querySelector('.file-name');
+    if (nameCell && nameCell._origHtml != null) {
+        nameCell.innerHTML = nameCell._origHtml;
+        delete nameCell._origHtml;
+    }
+}
+
+function startFileRename(row) {
+    if (!row) return;
+    const oldPath = row.dataset.filePath;
+    if (!oldPath) return;
+    const nameCell = row.querySelector('.file-name');
+    if (!nameCell || nameCell.querySelector('input.fb-rename-input')) return;
+    const baseName = oldPath.split('/').pop();
+    // Stash existing HTML so cancel can restore the highlight / badges / note pin.
+    nameCell._origHtml = nameCell.innerHTML;
+    nameCell.innerHTML = `<input class="fb-rename-input" type="text" autocomplete="off" autocorrect="off" spellcheck="false">`;
+    const input = nameCell.querySelector('input.fb-rename-input');
+    input.value = baseName;
+    input.focus();
+    // Select everything except the extension (matches Finder / Explorer UX).
+    const dot = baseName.lastIndexOf('.');
+    if (dot > 0) input.setSelectionRange(0, dot);
+    else input.select();
+    let done = false;
+    const finish = (commit) => {
+        if (done) return;
+        done = true;
+        if (commit) _commitFileRename(oldPath, input, row);
+        else _cancelFileRename(input, row);
+    };
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+        e.stopPropagation();
+    });
+    input.addEventListener('blur', () => { finish(false); });
+}
+
+// ── New Folder (button + Cmd+Shift+N) ──
+async function fileBrowserNewFolder() {
+    if (!_fileBrowserPath) return;
+    const name = window.prompt(appFmt('confirm.delete_file_browser', {name: 'new folder name'}).replace(/Delete.*/, 'New folder name:'), 'untitled folder');
+    if (!name) return;
+    const cleaned = name.trim();
+    if (!cleaned) return;
+    const newPath = `${_fileBrowserPath}/${cleaned}`;
+    try {
+        await window.vstUpdater.fsCreateDir(newPath);
+        if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `created ${cleaned}`}));
+        loadDirectory(_fileBrowserPath);
+    } catch (err) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
+    }
+}
+
+// ── Move-to-bookmark (right-click → Move to → <bookmark>) ──
+// Returns an array of context-menu items, one per saved favorite dir, each
+// of which moves the path to that bookmark when clicked. Empty array when
+// no bookmarks exist — the caller can omit the submenu in that case.
+function buildMoveToBookmarkMenuItems(srcPath) {
+    if (typeof getFavDirs !== 'function') return [];
+    const dirs = getFavDirs();
+    if (!Array.isArray(dirs) || dirs.length === 0) return [];
+    return dirs.map((d) => ({
+        icon: '&#128193;',
+        label: `${d.name}`,
+        action: async () => {
+            const base = srcPath.split('/').pop();
+            const target = `${d.path}/${base}`;
+            try {
+                await window.vstUpdater.renameFile(srcPath, target);
+                if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `moved ${base} → ${d.name}`}));
+                if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+            } catch (err) {
+                if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
+            }
+        },
+    }));
+}
+
 // ── Forward/back navigation history ──
 // Browser-style nav: each `loadDirectory` push appends to the history stack
 // unless the load was itself triggered by back/forward (which sets the skip
@@ -1569,7 +1675,41 @@ document.addEventListener('keydown', (e) => {
     selectAllVisibleFiles();
 });
 
-// ── Forward/back nav button clicks ──
+// F2 → inline-rename the focused row (or single selection). Esc cancels.
+// Active only while Files tab is active and focus isn't in a text input.
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'F2') return;
+    const activeTab = document.querySelector('.tab-content.active');
+    if (!activeTab || activeTab.id !== 'tabFiles') return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    // Prefer the keyboard-nav cursor row; fall back to the single selection.
+    let row = (typeof getFileRows === 'function')
+        ? getFileRows()[typeof _fileNavIdx !== 'undefined' ? _fileNavIdx : -1]
+        : null;
+    if (!row && _fileSelected && _fileSelected.size === 1) {
+        const [path] = [..._fileSelected];
+        if (typeof CSS !== 'undefined') {
+            try { row = document.querySelector(`.file-row[data-file-path="${CSS.escape(path)}"]`); } catch (_) { /* ignore */ }
+        }
+    }
+    if (!row) return;
+    e.preventDefault();
+    startFileRename(row);
+});
+
+// Cmd+Shift+N → create new folder in current directory.
+document.addEventListener('keydown', (e) => {
+    if (!((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'n' || e.key === 'N'))) return;
+    const activeTab = document.querySelector('.tab-content.active');
+    if (!activeTab || activeTab.id !== 'tabFiles') return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    fileBrowserNewFolder();
+});
+
+// ── Forward/back nav + New Folder button clicks ──
 document.addEventListener('click', (e) => {
     if (e.target.closest('[data-action="fileNavBack"]')) {
         e.stopPropagation();
@@ -1579,6 +1719,11 @@ document.addEventListener('click', (e) => {
     if (e.target.closest('[data-action="fileNavFwd"]')) {
         e.stopPropagation();
         fileNavForward();
+        return;
+    }
+    if (e.target.closest('[data-action="fileNewFolder"]')) {
+        e.stopPropagation();
+        fileBrowserNewFolder();
         return;
     }
 });
