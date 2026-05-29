@@ -5777,6 +5777,36 @@
             font-size: 11px;
         }
 
+        /* Scan-status badges on folder rows — small color-coded pills appended
+         * to the folder's name cell when its prefix matches inventory rows.
+         * Six categories, each gets a distinct hue so users can tell at a
+         * glance what kind of inventory a folder contains. */
+        .scan-badges {
+            display: inline-flex;
+            gap: 4px;
+            margin-left: 8px;
+            vertical-align: baseline;
+        }
+
+        .scan-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-size: 9px;
+            font-family: 'Courier New', monospace;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            border: 1px solid currentColor;
+            opacity: 0.85;
+        }
+
+        .scan-badge.sb-samples { color: #05d9e8; }
+        .scan-badge.sb-presets { color: #ff2a6d; }
+        .scan-badge.sb-daw     { color: #ffaa00; }
+        .scan-badge.sb-midi    { color: #b967ff; }
+        .scan-badge.sb-pdf     { color: #5cf76e; }
+        .scan-badge.sb-video   { color: #f7a85c; }
+
         .file-list-header .file-name-h {
             flex: 1;
             cursor: pointer;

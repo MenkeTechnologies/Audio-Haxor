@@ -1836,6 +1836,9 @@ window.vstUpdater = {
     openWithApp: (filePath, appName) => invoke('open_with_app', {filePath, appName}),
     // File browser
     listDirectory: (dirPath) => invoke('fs_list_dir', {dirPath}),
+    /** Per-folder inventory counts (samples / presets / DAW / MIDI / PDF / video).
+     *  Returns `{ "<folder>": { samples, presets, daw, midi, pdf, video }, ... }`. */
+    fsFolderScanStatus: (folderPaths) => invoke('fs_folder_scan_status', {folderPaths}),
     deleteFile: (filePath) => invoke('delete_file', {filePath}),
     /** Delete on disk + purge path from all inventory DB tables (keyboard `x` / Backspace). */
     deleteInventoryItem: (filePath) => invoke('delete_inventory_item', {filePath}),

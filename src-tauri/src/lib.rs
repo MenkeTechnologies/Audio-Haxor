@@ -6896,6 +6896,17 @@ async fn fs_list_dir(dir_path: String) -> Result<serde_json::Value, String> {
     .await
 }
 
+/// Returns per-inventory row counts for each folder path. The file browser
+/// calls this after each directory render to badge folder rows with the
+/// number of samples / presets / DAW projects / etc. already scanned under
+/// that folder. See `db::Database::folder_scan_status`.
+#[tauri::command]
+async fn fs_folder_scan_status(
+    folder_paths: Vec<String>,
+) -> Result<std::collections::HashMap<String, db::FolderScanStatus>, String> {
+    blocking_res(move || db::global().folder_scan_status(&folder_paths)).await
+}
+
 #[tauri::command]
 async fn delete_file(file_path: String) -> Result<(), String> {
     blocking_res(move || {
@@ -9426,6 +9437,7 @@ pub fn run() {
             import_daw_json,
             open_with_app,
             fs_list_dir,
+            fs_folder_scan_status,
             delete_file,
             delete_inventory_item,
             rename_file,

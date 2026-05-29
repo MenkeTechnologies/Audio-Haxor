@@ -125,6 +125,96 @@ function fileIcon(entry) {
     return '&#128196;';
 }
 
+// ── Folder scan-status badges ──
+// After each directory render, query the backend for per-folder inventory
+// counts (samples / presets / DAW / MIDI / PDF / video under the folder
+// prefix) and inject small color-coded badges into the folder row's
+// `.file-name` cell so the user can see at a glance which folders are
+// already in inventory vs need scanning.
+//
+// Per-directory cache keyed on directory path — re-entering the same
+// directory replays from cache (cheap) instead of re-querying the backend.
+// Cache is cleared on full `loadDirectory` since the listing changed.
+var _scanStatusCache = new Map(); // dirPath → Map<folderPath, status>
+
+/** Token-bumped on each call so a slow IPC from a previous render can't paint
+ *  badges into a newer render's DOM. */
+var _scanStatusSeq = 0;
+
+/** Build the badge HTML fragment for a single folder's scan-status. Returns
+ *  empty string when nothing's been scanned (no badges = uninventoried). */
+function _scanStatusBadgesHtml(status) {
+    if (!status) return '';
+    const parts = [];
+    const add = (kind, n, label) => {
+        if (n > 0) parts.push(`<span class="scan-badge sb-${kind}" title="${label}: ${n}">${kind.toUpperCase()[0]} ${n}</span>`);
+    };
+    add('samples', status.samples, 'Samples');
+    add('presets', status.presets, 'Presets');
+    add('daw', status.daw, 'DAW projects');
+    add('midi', status.midi, 'MIDI files');
+    add('pdf', status.pdf, 'PDFs');
+    add('video', status.video, 'Videos');
+    if (parts.length === 0) return '';
+    return `<span class="scan-badges">${parts.join('')}</span>`;
+}
+
+/** Inject the badge fragment into the matching folder row's name cell. */
+function _applyScanBadgesToRow(folderPath, status) {
+    if (typeof document === 'undefined' || typeof CSS === 'undefined') return;
+    try {
+        const row = document.querySelector(`.file-row.file-dir[data-file-path="${CSS.escape(folderPath)}"]`);
+        if (!row) return;
+        const nameCell = row.querySelector('.file-name');
+        if (!nameCell) return;
+        // Remove any prior badge group from a stale render.
+        const prior = nameCell.querySelector('.scan-badges');
+        if (prior) prior.remove();
+        const html = _scanStatusBadgesHtml(status);
+        if (html) nameCell.insertAdjacentHTML('beforeend', html);
+    } catch (_) { /* CSS.escape unavailable */ }
+}
+
+/** Kick off (or replay from cache) the scan-status fetch for the currently
+ *  visible folder rows. Called after `renderFileList` finishes its chunked
+ *  paint. Failure is silent — badges are a hint, not a requirement. */
+async function refreshFolderScanBadges() {
+    if (typeof document === 'undefined' || !_fileBrowserPath) return;
+    if (!window.vstUpdater || typeof window.vstUpdater.fsFolderScanStatus !== 'function') return;
+
+    const folders = Array.isArray(_fileBrowserEntries)
+        ? _fileBrowserEntries.filter((e) => e && e.isDir).map((e) => e.path)
+        : [];
+    if (folders.length === 0) return;
+
+    const dirKey = _fileBrowserPath;
+    const cached = _scanStatusCache.get(dirKey);
+    if (cached) {
+        // Replay from cache immediately — cheap, avoids backend hop on revisit.
+        for (const f of folders) {
+            const s = cached.get(f);
+            if (s) _applyScanBadgesToRow(f, s);
+        }
+        return;
+    }
+
+    const seq = ++_scanStatusSeq;
+    try {
+        const result = await window.vstUpdater.fsFolderScanStatus(folders);
+        if (seq !== _scanStatusSeq) return; // a newer render started; abandon this paint
+        if (_fileBrowserPath !== dirKey) return; // directory changed mid-flight
+        const map = new Map();
+        for (const folder of folders) {
+            const status = (result && result[folder]) || null;
+            if (status) {
+                map.set(folder, status);
+                _applyScanBadgesToRow(folder, status);
+            }
+        }
+        _scanStatusCache.set(dirKey, map);
+    } catch (_) { /* badges are non-essential */ }
+}
+
 // ── File-list multi-select + bulk operations ──
 // Selected entry paths for the CURRENT directory. Cleared on directory change
 // (paths from the old dir would be invalid bulk-action targets). `var` for the
@@ -351,6 +441,12 @@ async function loadDirectory(dirPath) {
     // Selections are scoped to the current directory — paths from the old
     // listing would point at unrelated rows once the new listing renders.
     if (typeof clearFileSelection === 'function') clearFileSelection();
+    // Drop the scan-status cache for this directory so badges re-fetch fresh
+    // counts (catches the case where the user just ran a scan from another tab
+    // and is revisiting the file browser).
+    if (typeof _scanStatusCache !== 'undefined' && _scanStatusCache instanceof Map) {
+        _scanStatusCache.delete(dirPath);
+    }
     showGlobalProgress();
     try {
         const result = await window.vstUpdater.listDirectory(dirPath);
@@ -493,6 +589,11 @@ function renderFileList() {
             }
         } else {
             requestAnimationFrame(() => initFileBrowserWaveforms());
+            // Folder scan-status badges — fire-and-forget after the full list
+            // is painted so it can't delay the visible render.
+            if (typeof refreshFolderScanBadges === 'function') {
+                requestAnimationFrame(() => { refreshFolderScanBadges(); });
+            }
         }
     }
 

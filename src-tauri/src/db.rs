@@ -301,6 +301,50 @@ fn classify_fts_name_path_search(
     }
 }
 
+/// Per-inventory row counts under a single folder prefix. Returned by
+/// [`Database::folder_scan_status`] and consumed by the file browser to
+/// render scan-status badges on folder rows. All counts are u64 because
+/// large libraries can plausibly exceed `i32::MAX`.
+#[derive(Debug, Default, Clone, serde::Serialize)]
+pub struct FolderScanStatus {
+    pub samples: u64,
+    pub presets: u64,
+    pub daw: u64,
+    pub midi: u64,
+    pub pdf: u64,
+    pub video: u64,
+}
+
+/// `COUNT(*) FROM <table> WHERE path LIKE <like_pat> ESCAPE '\\' [AND <extra_where>]`.
+/// Returns 0 on any error (missing table, prepare failure) — the file browser
+/// treats missing counts as "no rows" which is the desired UX fallback.
+fn count_path_like(
+    conn: &Connection,
+    table: &str,
+    like_pat: &str,
+    extra_where: Option<&str>,
+) -> u64 {
+    // Allowlist the table name — every caller passes a hard-coded literal, but
+    // the `format!` makes this a SQL-injection surface if the allowlist ever
+    // breaks. Belt-and-suspenders gate.
+    let allowed = matches!(
+        table,
+        "audio_samples" | "presets" | "daw_projects" | "midi_files" | "pdfs" | "video_files"
+    );
+    if !allowed {
+        return 0;
+    }
+    let sql = match extra_where {
+        Some(extra) => format!(
+            "SELECT COUNT(*) FROM {table} WHERE path LIKE ?1 ESCAPE '\\' AND {extra}"
+        ),
+        None => format!("SELECT COUNT(*) FROM {table} WHERE path LIKE ?1 ESCAPE '\\'"),
+    };
+    conn.query_row(&sql, params![like_pat], |r| r.get::<_, i64>(0))
+        .map(|n| n.max(0) as u64)
+        .unwrap_or(0)
+}
+
 /// Parsed `name:` / `path:` prefix tokens extracted from a search input.
 ///
 /// Users type `name:thuggin tomm` in any FTS-backed search field; this struct splits
@@ -3497,6 +3541,47 @@ DROP TABLE _pl_refresh_paths;"#;
             .map_err(|e| e.to_string())?;
         }
         Ok(())
+    }
+
+    // ── Folder scan status ──
+    // Per-folder, per-inventory row counts. Used by the file browser to display
+    // "S 47 / P 3 / D 1" badges on folder rows so the user can see at a glance
+    // which folders are already in inventory vs need scanning.
+    //
+    // Performance: 6 quick `COUNT(*)` queries per folder. Each is a LIKE-prefix
+    // match against the table's `path` column (e.g. `idx_samples_path_scan` for
+    // audio_samples) — sub-millisecond per query. For a typical file-browser
+    // render with ≤50 visible folders, total backend time is < 50 ms.
+    pub fn folder_scan_status(
+        &self,
+        folder_paths: &[String],
+    ) -> Result<std::collections::HashMap<String, FolderScanStatus>, String> {
+        let mut out: std::collections::HashMap<String, FolderScanStatus> =
+            folder_paths.iter().map(|f| (f.clone(), FolderScanStatus::default())).collect();
+        if folder_paths.is_empty() {
+            return Ok(out);
+        }
+        let conn = self.read_conn();
+        for raw_folder in folder_paths {
+            let folder = normalize_path_for_db(raw_folder);
+            // Inventory paths are stored with their canonical separator. Build a
+            // LIKE prefix like `/Users/x/Beats/%` with SQLite wildcards in the
+            // literal value escaped (folder names can contain `%`/`_`/`\`).
+            let escaped = folder
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            let like_pat = format!("{escaped}/%");
+            let status = out.get_mut(raw_folder).expect("seeded above");
+            status.samples = count_path_like(&conn, "audio_samples", &like_pat, None);
+            status.presets =
+                count_path_like(&conn, "presets", &like_pat, Some("format NOT IN ('MID','MIDI')"));
+            status.daw = count_path_like(&conn, "daw_projects", &like_pat, None);
+            status.midi = count_path_like(&conn, "midi_files", &like_pat, None);
+            status.pdf = count_path_like(&conn, "pdfs", &like_pat, None);
+            status.video = count_path_like(&conn, "video_files", &like_pat, None);
+        }
+        Ok(out)
     }
 
     // ── Player History ──
@@ -15233,6 +15318,84 @@ mod tests {
         db.clear_cache_table("lufs").unwrap();
         let analysis = db.get_analysis("/a.wav").unwrap();
         assert!(analysis.get("lufs").and_then(|v| v.as_f64()).is_none());
+    }
+
+    #[test]
+    fn test_folder_scan_status_counts_audio_under_prefix() {
+        let db = test_db();
+        let samples = vec![
+            sample("a.wav", "/Users/x/Beats/a.wav", "WAV", 100),
+            sample("b.wav", "/Users/x/Beats/sub/b.wav", "WAV", 200),
+            sample("c.wav", "/Users/x/Other/c.wav", "WAV", 300),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 3, 600, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+
+        let result = db
+            .folder_scan_status(&["/Users/x/Beats".into(), "/Users/x/Other".into()])
+            .unwrap();
+        // Recursive — `Beats` counts both top-level and nested files.
+        assert_eq!(result["/Users/x/Beats"].samples, 2);
+        assert_eq!(result["/Users/x/Other"].samples, 1);
+        // Non-audio counters stay zero when nothing else seeded.
+        assert_eq!(result["/Users/x/Beats"].presets, 0);
+        assert_eq!(result["/Users/x/Beats"].daw, 0);
+        assert_eq!(result["/Users/x/Beats"].midi, 0);
+        assert_eq!(result["/Users/x/Beats"].pdf, 0);
+        assert_eq!(result["/Users/x/Beats"].video, 0);
+    }
+
+    /// Folder prefix is matched as `<folder>/%` — a folder whose name is a
+    /// prefix of an unrelated path (`/x/Beat` vs `/x/Beats/a.wav`) must NOT
+    /// pick up false matches.
+    #[test]
+    fn test_folder_scan_status_prefix_does_not_match_sibling_name() {
+        let db = test_db();
+        let samples = vec![
+            sample("a.wav", "/Users/x/Beats/a.wav", "WAV", 100),
+            sample("b.wav", "/Users/x/Beatstreams/b.wav", "WAV", 200),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 2, 300, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+        let result = db
+            .folder_scan_status(&["/Users/x/Beats".into()])
+            .unwrap();
+        assert_eq!(
+            result["/Users/x/Beats"].samples, 1,
+            "must not match sibling /Users/x/Beatstreams/..."
+        );
+    }
+
+    /// Folder names containing SQL LIKE wildcards (`%`, `_`, `\`) must be
+    /// escaped so they match literally, not as wildcards.
+    #[test]
+    fn test_folder_scan_status_escapes_sql_wildcards_in_folder_name() {
+        let db = test_db();
+        let samples = vec![
+            sample("a.wav", "/Users/x/100%_kicks/a.wav", "WAV", 100),
+            sample("b.wav", "/Users/x/100Xkicks/b.wav", "WAV", 200),
+            sample("c.wav", "/Users/x/100_kicks/c.wav", "WAV", 300),
+        ];
+        db.save_scan("s1", "2024-01-01T00:00:00", 3, 600, &HashMap::new(), &[])
+            .unwrap();
+        db.insert_audio_batch("s1", &samples).unwrap();
+        let result = db
+            .folder_scan_status(&["/Users/x/100%_kicks".into()])
+            .unwrap();
+        assert_eq!(
+            result["/Users/x/100%_kicks"].samples, 1,
+            "literal '%' and '_' in folder name must not act as wildcards"
+        );
+    }
+
+    /// Empty input → empty output (no work to do, no panic).
+    #[test]
+    fn test_folder_scan_status_empty_input() {
+        let db = test_db();
+        let result = db.folder_scan_status(&[]).unwrap();
+        assert!(result.is_empty());
     }
 
     #[test]
