@@ -1860,9 +1860,11 @@ window.vstUpdater = {
     /** Read first `maxBytes` of a file as a UTF-8 string (lossy on invalid bytes).
      *  Default 4 KiB; clamped 256..64 KiB. Used for text preview. */
     fsReadHead: (filePath, maxBytes) => invoke('fs_read_head', {filePath, maxBytes}),
-    /** Read up to `maxBytes` of a file as raw bytes (Vec<u8> → JS array).
-     *  Default cap 32 MiB; clamped 64 KiB..128 MiB. Used to feed PDF bytes
-     *  into PDF.js without the base64 encode/decode round-trip. */
+    /** Read the full bytes of a file as Vec<u8> → JS array. No size cap;
+     *  the OS errors if the file genuinely doesn't fit in memory. Used to
+     *  feed PDF bytes into PDF.js without the base64 encode/decode
+     *  round-trip. `maxBytes` is retained on the signature for backward
+     *  compat with older callers but is silently ignored server-side. */
     fsReadFileBytes: (filePath, maxBytes) => invoke('fs_read_file_bytes', {filePath, maxBytes}),
     /** Look up a cached PDF-page render (PNG bytes). Returns `null` on miss
      *  or when the file's mtime has changed since the cache write. */

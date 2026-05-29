@@ -7157,29 +7157,30 @@ async fn pdf_preview_set(
     blocking_res(move || db::global().pdf_preview_set(&file_path, page, width, &png_bytes)).await
 }
 
-/// Reads up to `max_bytes` of a file and returns the raw bytes (as a u8
-/// array — serde serializes Vec<u8> as a JSON array of numbers, which JS
-/// receives natively as a regular array; the caller wraps in Uint8Array).
-/// Used by the file browser preview pane to feed PDF bytes into PDF.js
-/// without the base64 encode/decode round-trip.
+/// Reads the full bytes of a file and returns them as a `Vec<u8>` (serde
+/// serializes to a JSON array of numbers, which JS receives as a regular
+/// array; the caller wraps in `Uint8Array`). Used by the file browser
+/// preview pane and PDF inventory thumbnails to feed PDF bytes into
+/// PDF.js without the base64 encode/decode round-trip.
 ///
-/// Cap defaults 128 MiB; clamped 64 KiB..256 MiB. A 32 MiB default was too
-/// restrictive for the PDF use case — real-world docs (manuals, scans)
-/// commonly run 50–80 MiB. The cap still exists so a misclick on a
-/// truly-huge file (DVD ISO, etc.) doesn't blow IPC memory.
+/// No artificial size cap — PDF.js needs the whole file in memory anyway,
+/// and the existing `read_text_file` IPC has no cap either. If the file
+/// genuinely doesn't fit in memory, `std::fs::read` surfaces the OS error
+/// (`Os { code: ... }`) and the preview just shows the error string. The
+/// previous 128 MiB ceiling was theater — real PDFs (technical manuals,
+/// scanned books) routinely exceed it.
+///
+/// `max_bytes` is kept on the signature for backward compatibility — JS
+/// callers may pass it but it's silently ignored.
 #[tauri::command]
 async fn fs_read_file_bytes(
     file_path: String,
-    max_bytes: Option<u64>,
+    _max_bytes: Option<u64>,
 ) -> Result<Vec<u8>, String> {
-    let cap = max_bytes.unwrap_or(128 * 1024 * 1024).clamp(64 * 1024, 256 * 1024 * 1024);
     blocking_res(move || {
         let meta = std::fs::metadata(&file_path).map_err(|e| e.to_string())?;
         if !meta.is_file() {
             return Err("Not a regular file".to_string());
-        }
-        if meta.len() > cap {
-            return Err(format!("File too large: {} bytes (cap {})", meta.len(), cap));
         }
         std::fs::read(&file_path).map_err(|e| e.to_string())
     })
@@ -8419,28 +8420,42 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// `fs_read_file_bytes` returns raw bytes, rejects oversized files, and
-    /// rejects non-files.
+    /// `fs_read_file_bytes` returns raw file bytes verbatim. No size cap
+    /// is enforced — the cap was removed because (a) PDF.js needs the
+    /// whole file in memory anyway, (b) the existing `read_text_file`
+    /// IPC has no cap either, and (c) capping at any specific number was
+    /// theater. The `max_bytes` arg on the signature is retained for
+    /// backward compat but ignored.
     #[test]
-    fn test_fs_read_file_bytes_returns_bytes_and_enforces_cap() {
+    fn test_fs_read_file_bytes_returns_bytes_uncapped() {
         let tmp = std::env::temp_dir().join(format!("upum_readbytes_{}.bin", std::process::id()));
         let _ = fs::remove_file(&tmp);
         fs::write(&tmp, b"hello").unwrap();
+        // Small read: passing a tiny "cap" doesn't reject — the arg is ignored.
         let result = rt_block_on(fs_read_file_bytes(
             tmp.to_string_lossy().to_string(),
-            Some(1024 * 1024),
+            Some(1),
         ))
         .unwrap();
-        assert_eq!(&result, b"hello");
-        // Cap below file size -> error.
-        let too_small = rt_block_on(fs_read_file_bytes(
+        assert_eq!(&result, b"hello", "max_bytes is ignored; full file returned");
+        // None also works (no value passed from JS).
+        let result_none = rt_block_on(fs_read_file_bytes(
             tmp.to_string_lossy().to_string(),
-            Some(64 * 1024),
-        ));
-        // Cap is clamped to >= 64 KiB so 5-byte file fits regardless of the
-        // passed value; oversize-rejection tested with a larger fixture below.
-        assert!(too_small.is_ok());
+            None,
+        ))
+        .unwrap();
+        assert_eq!(&result_none, b"hello");
         let _ = fs::remove_file(&tmp);
+    }
+
+    /// Non-file paths (directories, missing) are rejected before the read
+    /// to surface a clean error instead of an OS-level IO error.
+    #[test]
+    fn test_fs_read_file_bytes_rejects_non_files() {
+        let dir = std::env::temp_dir();
+        let result = rt_block_on(fs_read_file_bytes(dir.to_string_lossy().to_string(), None));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Not a regular file"));
     }
 
     /// `fs_create_dir` creates a new directory and rejects existing paths.

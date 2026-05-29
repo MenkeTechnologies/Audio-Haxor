@@ -1096,7 +1096,7 @@ async function _renderPdfThumb(canvas, filePath) {
     try {
         if (typeof window.loadPdfJs !== 'function'
             || typeof window.vstUpdater?.fsReadFileBytes !== 'function') return;
-        const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 128 * 1024 * 1024);
+        const bytes = await window.vstUpdater.fsReadFileBytes(filePath);
         const pdfjs = await window.loadPdfJs();
         const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
         const pdf = await pdfjs.getDocument({data: u8}).promise;
