@@ -5967,6 +5967,139 @@
             user-select: none !important;
         }
 
+        /* Preview pane container — flex wrapper around the file list so the
+         * pane can occupy the right side as a sibling. File list stays
+         * scrollable; pane is a fixed-width column when shown. */
+        .file-list-wrap {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .file-list-wrap .file-list {
+            flex: 1;
+            min-width: 0;
+            overflow: auto;
+        }
+
+        .fb-preview-pane {
+            width: 360px;
+            flex-shrink: 0;
+            border-left: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .fb-preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(5, 217, 232, 0.05);
+        }
+
+        .fb-preview-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .fb-preview-close {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 14px;
+            padding: 1px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .fb-preview-close:hover {
+            color: var(--cyan);
+            border-color: var(--cyan);
+        }
+
+        .fb-preview-body {
+            padding: 12px;
+            overflow: auto;
+            flex: 1;
+        }
+
+        .fb-preview-empty {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-style: italic;
+            text-align: center;
+            padding: 30px 10px;
+        }
+
+        .fb-preview-image {
+            display: block;
+            max-width: 100%;
+            max-height: 240px;
+            margin: 0 auto 12px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+        }
+
+        .fb-preview-text {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: var(--text);
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow: auto;
+            margin-bottom: 12px;
+        }
+
+        .fb-preview-wf {
+            display: block;
+            width: 100%;
+            height: 80px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+
+        .fb-preview-meta {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 4px 10px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .fb-preview-meta dt {
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+            padding-top: 2px;
+        }
+
+        .fb-preview-meta dd {
+            color: var(--text);
+            word-break: break-all;
+            margin: 0;
+        }
+
         /* Quick-look overlay — full-screen dimmed backdrop with a centered
          * card. Triggered by Space in the file browser; dismissed by Esc,
          * Space again, click-outside-card, or the × button. */
@@ -12079,6 +12212,9 @@
                 <button class="btn btn-secondary" data-action="fileNewFolder"
                         id="btnFileNewFolder" title="Create new folder in current directory (Cmd+Shift+N)">&#128193;+
                     New Folder</button>
+                <button class="btn btn-secondary" data-action="fileTogglePreview"
+                        id="btnFilePreview" title="Toggle preview pane (Cmd+I)">&#128196;
+                    Preview</button>
                 <div class="file-breadcrumb" id="fileBreadcrumb"></div>
                 <input type="text" class="file-path-input fb-hidden" id="fileBrowserPathInput"
                        autocomplete="off" autocorrect="off"
@@ -12137,13 +12273,22 @@
                 <span class="file-date-h" data-sort="date" data-fb-col="date"><span data-i18n="ui.audio.th_modified">Modified</span><span class="sort-arrow">&#9650;</span><span class="fb-col-resize" data-fb-resize="date"></span></span>
                 <span class="file-created-h" data-sort="created" data-fb-col="created" title="File creation date">Created<span class="sort-arrow">&#9650;</span><span class="fb-col-resize" data-fb-resize="created"></span></span>
             </div>
-            <div class="file-list" id="fileList">
-                <div class="state-message">
-                    <div class="state-icon">&#128193;</div>
-                    <h2 data-i18n="ui.h2.file_browser">File Browser</h2>
-                    <p data-i18n="ui.p.browse_your_filesystem_configure_root_directories_">Browse your filesystem.
-                        Configure root directories in Settings > Scanning.</p>
+            <div class="file-list-wrap">
+                <div class="file-list" id="fileList">
+                    <div class="state-message">
+                        <div class="state-icon">&#128193;</div>
+                        <h2 data-i18n="ui.h2.file_browser">File Browser</h2>
+                        <p data-i18n="ui.p.browse_your_filesystem_configure_root_directories_">Browse your filesystem.
+                            Configure root directories in Settings > Scanning.</p>
+                    </div>
                 </div>
+                <aside class="fb-preview-pane fb-hidden" id="fbPreviewPane">
+                    <div class="fb-preview-header">
+                        <span class="fb-preview-title" id="fbPreviewTitle">Preview</span>
+                        <button class="fb-preview-close" data-action="fbPreviewClose" title="Hide preview pane">&times;</button>
+                    </div>
+                    <div class="fb-preview-body" id="fbPreviewBody"></div>
+                </aside>
             </div>
             <div class="file-list-footer" id="fileListFooter"></div>
         </div>

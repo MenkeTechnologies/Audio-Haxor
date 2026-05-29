@@ -7084,6 +7084,52 @@ async fn fs_open_terminal(folder_path: String) -> Result<(), String> {
     .await
 }
 
+/// Reads up to `max_bytes` of a file and returns base64. Used by the file
+/// browser preview pane to embed images as `data:` URLs without configuring
+/// Tauri's asset-protocol scope. Returns an error if the file exceeds the
+/// cap; the preview falls back to "file too large to preview".
+///
+/// Cap defaults to 2 MiB; clamped to 64 KiB..16 MiB. Images larger than the
+/// cap aren't previewed (intentional — base64 data URLs above a few MB
+/// stall the WebView).
+#[tauri::command]
+async fn fs_read_file_base64(
+    file_path: String,
+    max_bytes: Option<u64>,
+) -> Result<String, String> {
+    let cap = max_bytes.unwrap_or(2 * 1024 * 1024).clamp(64 * 1024, 16 * 1024 * 1024);
+    blocking_res(move || {
+        let meta = std::fs::metadata(&file_path).map_err(|e| e.to_string())?;
+        if !meta.is_file() {
+            return Err("Not a regular file".to_string());
+        }
+        if meta.len() > cap {
+            return Err(format!("File too large: {} bytes (cap {})", meta.len(), cap));
+        }
+        let bytes = std::fs::read(&file_path).map_err(|e| e.to_string())?;
+        use base64::Engine;
+        Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+    })
+    .await
+}
+
+/// Reads the first `max_bytes` of a file as a UTF-8 string (lossy: invalid
+/// bytes become `U+FFFD`). Used by the file browser preview pane for text
+/// files. Cap defaults to 4 KiB; clamped to 256..65536.
+#[tauri::command]
+async fn fs_read_head(file_path: String, max_bytes: Option<u64>) -> Result<String, String> {
+    use std::io::Read;
+    let cap = max_bytes.unwrap_or(4 * 1024).clamp(256, 64 * 1024);
+    blocking_res(move || {
+        let f = std::fs::File::open(&file_path).map_err(|e| e.to_string())?;
+        let mut take = f.take(cap);
+        let mut buf = Vec::with_capacity(cap as usize);
+        take.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+        Ok(String::from_utf8_lossy(&buf).into_owned())
+    })
+    .await
+}
+
 /// Creates a directory at `dir_path`. Fails if the parent doesn't exist
 /// (use `create_dir_all`-style API explicitly if recursive is wanted).
 /// Returns an error if the path already exists.
@@ -9652,6 +9698,8 @@ pub fn run() {
             rename_file,
             fs_create_dir,
             fs_open_terminal,
+            fs_read_file_base64,
+            fs_read_head,
             write_text_file,
             write_binary_file,
             ensure_snapshot_export_dir,

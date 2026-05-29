@@ -1854,6 +1854,12 @@ window.vstUpdater = {
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),
+    /** Read up to `maxBytes` of a file as base64 (for embedding into data: URLs).
+     *  Default cap 2 MiB; clamped 64 KiB..16 MiB. Errors when file exceeds cap. */
+    fsReadFileBase64: (filePath, maxBytes) => invoke('fs_read_file_base64', {filePath, maxBytes}),
+    /** Read first `maxBytes` of a file as a UTF-8 string (lossy on invalid bytes).
+     *  Default 4 KiB; clamped 256..64 KiB. Used for text preview. */
+    fsReadHead: (filePath, maxBytes) => invoke('fs_read_head', {filePath, maxBytes}),
     getHomeDir: () => invoke('get_home_dir'),
     // Similarity
     findSimilarSamples: (filePath, candidatePaths, maxResults) => invoke('find_similar_samples', {

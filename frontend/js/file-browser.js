@@ -125,6 +125,131 @@ function fileIcon(entry) {
     return '&#128196;';
 }
 
+// ── Inline preview pane (right side of file list) ──
+// Persistent side panel that updates whenever a file row is focused or
+// clicked. Toggled via the toolbar Preview button or Cmd+I. Per-extension
+// content:
+//   - audio  → 800-wide waveform + grid of audio metadata
+//   - image  → thumbnail (loaded as base64 data URL via `fs_read_file_base64`,
+//              capped at 2 MiB to prevent the WebView stalling on huge JPEGs)
+//   - text   → first 4 KiB via `fs_read_head`, in a scrollable `<pre>`
+//   - other  → just the basic metadata (size / date / path)
+const FB_PREVIEW_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico'];
+const FB_PREVIEW_TEXT_EXTS = ['txt', 'md', 'json', 'toml', 'xml', 'yaml', 'yml', 'log', 'csv', 'tsv', 'sh', 'js', 'ts', 'rs', 'py', 'rb', 'go', 'c', 'cpp', 'h', 'hpp', 'java', 'css', 'html', 'env', 'gitignore'];
+const FB_PREVIEW_IMAGE_CAP = 2 * 1024 * 1024;
+
+/** Currently-previewed path — used to skip redundant fetches when the same
+ *  row is re-clicked, and to abandon in-flight previews when selection moves. */
+var _fbPreviewPath = null;
+var _fbPreviewSeq = 0;
+
+function isPreviewPaneVisible() {
+    if (typeof document === 'undefined') return false;
+    const pane = document.getElementById('fbPreviewPane');
+    return !!(pane && !pane.classList.contains('fb-hidden'));
+}
+
+function setPreviewPaneVisible(visible) {
+    if (typeof document === 'undefined') return;
+    const pane = document.getElementById('fbPreviewPane');
+    if (!pane) return;
+    pane.classList.toggle('fb-hidden', !visible);
+    try { prefs.setItem('fileBrowserPreviewVisible', visible ? '1' : '0'); } catch (_) { /* ignore */ }
+    if (visible && _fbPreviewPath) populatePreviewPane(_fbPreviewPath);
+}
+
+function toggleFileBrowserPreviewPane() {
+    setPreviewPaneVisible(!isPreviewPaneVisible());
+}
+
+function _fbPreviewMimeFromExt(ext) {
+    switch (ext) {
+        case 'jpg': case 'jpeg': return 'image/jpeg';
+        case 'png': return 'image/png';
+        case 'gif': return 'image/gif';
+        case 'webp': return 'image/webp';
+        case 'bmp': return 'image/bmp';
+        case 'svg': return 'image/svg+xml';
+        case 'ico': return 'image/x-icon';
+        default: return 'application/octet-stream';
+    }
+}
+
+async function populatePreviewPane(filePath) {
+    if (typeof document === 'undefined' || !filePath) return;
+    if (!isPreviewPaneVisible()) {
+        _fbPreviewPath = filePath; // remember; will populate when toggled on
+        return;
+    }
+    _fbPreviewPath = filePath;
+    const seq = ++_fbPreviewSeq;
+    const title = document.getElementById('fbPreviewTitle');
+    const body = document.getElementById('fbPreviewBody');
+    if (!body) return;
+    const name = filePath.split('/').pop();
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    if (title) title.textContent = name;
+    body.innerHTML = '<div class="fb-preview-empty">Loading…</div>';
+
+    const isAudio = typeof AUDIO_EXTS !== 'undefined' && AUDIO_EXTS.includes(ext);
+    const isImage = FB_PREVIEW_IMAGE_EXTS.includes(ext);
+    const isText = FB_PREVIEW_TEXT_EXTS.includes(ext);
+
+    // Build basic metadata grid common to all types.
+    const entry = (typeof _fileEntryByPath === 'function') ? _fileEntryByPath(filePath) : null;
+    const metaRows = [
+        ['Path', escapeHtml(filePath)],
+        ['Type', escapeHtml(ext || '—')],
+    ];
+    if (entry && !entry.isDir) {
+        if (entry.sizeFormatted) metaRows.push(['Size', escapeHtml(entry.sizeFormatted)]);
+        if (entry.modified) metaRows.push(['Modified', escapeHtml(entry.modified)]);
+        if (entry.created) metaRows.push(['Created', escapeHtml(entry.created)]);
+    }
+    const metaHtml = `<dl class="fb-preview-meta">${metaRows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${v}</dd>`).join('')}</dl>`;
+
+    if (isAudio) {
+        body.innerHTML = `
+            <canvas class="fb-preview-wf" id="fbPreviewWf" data-wf-path="${escapeHtml(filePath)}" width="600" height="80"></canvas>
+            ${metaHtml}
+        `;
+        if (typeof drawMiniWaveform === 'function') {
+            const canvas = document.getElementById('fbPreviewWf');
+            if (canvas) drawMiniWaveform(canvas, filePath);
+        }
+        return;
+    }
+
+    if (isImage) {
+        try {
+            const b64 = await window.vstUpdater.fsReadFileBase64(filePath, FB_PREVIEW_IMAGE_CAP);
+            if (seq !== _fbPreviewSeq) return; // selection moved during the load
+            const mime = _fbPreviewMimeFromExt(ext);
+            body.innerHTML = `<img class="fb-preview-image" src="data:${mime};base64,${b64}" alt="${escapeHtml(name)}">${metaHtml}`;
+        } catch (err) {
+            if (seq !== _fbPreviewSeq) return;
+            // Most common failure is "File too large" (over the 2 MiB cap).
+            body.innerHTML = `<div class="fb-preview-empty">Image too large to preview</div>${metaHtml}`;
+        }
+        return;
+    }
+
+    if (isText) {
+        try {
+            const head = await window.vstUpdater.fsReadHead(filePath, 4096);
+            if (seq !== _fbPreviewSeq) return;
+            body.innerHTML = `<pre class="fb-preview-text">${escapeHtml(head)}</pre>${metaHtml}`;
+        } catch (err) {
+            if (seq !== _fbPreviewSeq) return;
+            body.innerHTML = `<div class="fb-preview-empty">Could not read file</div>${metaHtml}`;
+        }
+        return;
+    }
+
+    // No type-specific preview — show just the metadata.
+    body.innerHTML = metaHtml;
+}
+
 // ── Quick-look overlay (Space key → big preview modal) ──
 // Builds and shows a centered modal with file metadata. Dismissed by Esc,
 // click-outside, or pressing Space again. For audio files, embeds a larger
@@ -1820,6 +1945,18 @@ document.addEventListener('keydown', (e) => {
     fileBrowserNewFolder();
 });
 
+// Cmd+I → toggle preview pane visibility. Common file-browser convention
+// (Get Info / inspector on macOS).
+document.addEventListener('keydown', (e) => {
+    if (!((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'i' || e.key === 'I'))) return;
+    const activeTab = document.querySelector('.tab-content.active');
+    if (!activeTab || activeTab.id !== 'tabFiles') return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    toggleFileBrowserPreviewPane();
+});
+
 // ── Forward/back nav + New Folder button clicks ──
 document.addEventListener('click', (e) => {
     if (e.target.closest('[data-action="fileNavBack"]')) {
@@ -1837,7 +1974,34 @@ document.addEventListener('click', (e) => {
         fileBrowserNewFolder();
         return;
     }
+    if (e.target.closest('[data-action="fileTogglePreview"]')
+        || e.target.closest('[data-action="fbPreviewClose"]')) {
+        e.stopPropagation();
+        if (e.target.closest('[data-action="fbPreviewClose"]')) setPreviewPaneVisible(false);
+        else toggleFileBrowserPreviewPane();
+        return;
+    }
 });
+
+// Restore preview-pane visibility from prefs on init (so the user's choice
+// persists across app restarts). Wire row clicks to populate the pane.
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        try {
+            const wanted = prefs.getItem('fileBrowserPreviewVisible');
+            if (wanted === '1') setPreviewPaneVisible(true);
+        } catch (_) { /* ignore */ }
+    });
+    // Update pane content whenever a file row is clicked.
+    document.addEventListener('click', (e) => {
+        const row = e.target instanceof Element ? e.target.closest('.file-row') : null;
+        if (!row || row.dataset.fileDir === 'true') return;
+        // Skip clicks that are routed to interactive children (checkbox, etc.)
+        if (e.target.closest('.file-cb') || e.target.closest('.fb-rename-input')) return;
+        const path = row.dataset.filePath;
+        if (path) populatePreviewPane(path);
+    });
+}
 
 // ── Extension chip clicks ──
 document.addEventListener('click', (e) => {
