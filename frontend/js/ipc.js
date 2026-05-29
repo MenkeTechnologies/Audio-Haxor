@@ -1892,6 +1892,15 @@ window.vstUpdater = {
      *  `maxResults` matches: `[{path, line, text}]`. */
     fsGrep: (root, needle, caseInsensitive, maxResults) =>
         invoke('fs_grep', {root, needle, caseInsensitive: !!caseInsensitive, maxResults: maxResults || null}),
+    /** Git porcelain v1 status for the worktree containing `dirPath`.
+     *  Returns `{absPath: "XY"}`. Empty map outside a repo. */
+    fsGitStatus: (dirPath) => invoke('fs_git_status', {dirPath}),
+    /** Extended attributes (Unix). `[{name, size}]`. Empty on FS without xattr support. */
+    fsXattrs: (path) => invoke('fs_xattrs', {path}),
+    /** Open in external editor. Resolves $VISUAL → $EDITOR → code/subl/etc.
+     *  Returns the binary name that succeeded. */
+    fsOpenInEditor: (filePath, editorOverride) =>
+        invoke('fs_open_in_editor', {filePath, editorOverride: editorOverride || null}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),

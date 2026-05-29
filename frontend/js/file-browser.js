@@ -167,6 +167,11 @@ if (typeof window !== 'undefined') {
     window.renderFileBrowserTabs = renderFileBrowserTabs;
 }
 
+// Git porcelain status for the current folder, loaded async per
+// loadDirectory. Empty map outside a git repo. Read by
+// `buildFileListRowHtml` to render per-row M/A/?/U badges.
+var _fbGitStatus = {};
+
 // Whether dotfiles (`.bashrc`, `.git`, etc.) are visible. Persisted in
 // prefs so the toggle survives across sessions. Default false matches
 // Nautilus + Finder defaults.
@@ -1079,6 +1084,7 @@ async function fileBrowserShowInfo(path) {
             ['Accessed', _fmtTs(info.atimeMs)],
             ['Permissions', info.modeString ? `${info.modeString}  (${info.modeOctal})` : (info.isReadonly ? 'read-only' : 'read-write')],
             ...(info.uid != null ? [['Owner / Group', `uid=${info.uid}  gid=${info.gid}`]] : []),
+            ['xattrs', 'loading…'],
         ]
         : [];
     const gridHtml = info
@@ -1106,6 +1112,30 @@ async function fileBrowserShowInfo(path) {
     modal?.addEventListener('click', (e) => {
         if (e.target.closest('[data-app-info="close"]') || e.target === modal) close();
     });
+    // Lazy-load xattrs after the modal paints. We placed a "loading…"
+    // placeholder; patch the value cell in place when the IPC returns.
+    if (info) {
+        window.vstUpdater.fsXattrs(path).then((xattrs) => {
+            if (!modal || !modal.isConnected) return;
+            // The xattrs row is always the LAST .fb-info-val in the modal —
+            // safer than indexing because the row count varies (symlink
+            // target only present sometimes, etc.).
+            const cells = modal.querySelectorAll('.fb-info-val');
+            const cell = cells[cells.length - 1];
+            if (!cell) return;
+            if (!xattrs || xattrs.length === 0) {
+                cell.textContent = '(none)';
+                return;
+            }
+            cell.innerHTML = xattrs
+                .map((x) => `${escapeHtml(x.name)} <span style="color:var(--text-dim)">(${x.size} B)</span>`)
+                .join('<br>');
+        }).catch(() => {
+            const cells = modal?.querySelectorAll('.fb-info-val');
+            const cell = cells && cells[cells.length - 1];
+            if (cell) cell.textContent = '(unavailable)';
+        });
+    }
 }
 
 // ── New Folder with Selection (Finder: bundle selected → subfolder) ──
@@ -2413,6 +2443,45 @@ async function loadDirectory(dirPath) {
         if (sb && !sb.classList.contains('fb-hidden') && typeof renderFileBrowserTree === 'function') {
             renderFileBrowserTree();
         }
+        // Git status — fire-and-forget IPC; on response we patch the
+        // already-rendered rows in place instead of redrawing the whole
+        // listing (avoids a flash + preserves scroll/selection). Outside
+        // a git repo the response is an empty map and nothing changes.
+        window.vstUpdater.fsGitStatus(dirPath).then((status) => {
+            _fbGitStatus = status || {};
+            if (Object.keys(_fbGitStatus).length === 0) return;
+            // Patch in-place: for every row whose path is in the map,
+            // inject a badge into its `.file-meta-tags-row` (creating
+            // the container if needed). Keeps incremental — no full
+            // renderFileList re-run.
+            document.querySelectorAll('#fileList .file-row').forEach((row) => {
+                const p = row.dataset.filePath;
+                if (!p || !_fbGitStatus[p]) return;
+                if (row.querySelector('.fb-git-badge')) return;
+                const code = _fbGitStatus[p];
+                const t = code.trim();
+                let cls = 'fb-git-clean';
+                if (t === '??') cls = 'fb-git-untracked';
+                else if (t.startsWith('U') || t.endsWith('U') || t === 'AA' || t === 'DD') cls = 'fb-git-conflict';
+                else if (t.startsWith('A') || t.startsWith('?')) cls = 'fb-git-added';
+                else if (t.startsWith('M') || t.endsWith('M')) cls = 'fb-git-modified';
+                else if (t.startsWith('D') || t.endsWith('D')) cls = 'fb-git-deleted';
+                else if (t.startsWith('R') || t.startsWith('C')) cls = 'fb-git-renamed';
+                const nameCell = row.querySelector('.file-name');
+                if (!nameCell) return;
+                let tagsRow = nameCell.querySelector('.file-meta-tags-row');
+                if (!tagsRow) {
+                    tagsRow = document.createElement('span');
+                    tagsRow.className = 'file-meta-tags-row';
+                    nameCell.appendChild(tagsRow);
+                }
+                const badge = document.createElement('span');
+                badge.className = `file-meta-tag fb-git-badge ${cls}`;
+                badge.title = `Git status: ${code}`;
+                badge.textContent = t || code;
+                tagsRow.appendChild(badge);
+            });
+        }).catch(() => { _fbGitStatus = {}; });
         // Swap the auto-reload watcher to this directory. Fire-and-forget —
         // the listing already painted; if Rust can't watch (path gone, EACCES)
         // the worst case is no auto-reload, not a failed navigation. Canonical
@@ -2496,6 +2565,24 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
     const parts = [];
     if (typeof isFavorite === 'function' && isFavorite(e.path)) {
         parts.push('<span class="file-meta-tag file-meta-fav" title="Favorited">&#9733;</span>');
+    }
+    // Git status badge — `_fbGitStatus` is loaded asynchronously after
+    // each loadDirectory. Path keys match what git porcelain hands back
+    // (resolved via `git rev-parse --show-toplevel` in the Rust side).
+    if (typeof _fbGitStatus !== 'undefined' && _fbGitStatus && _fbGitStatus[e.path]) {
+        const code = _fbGitStatus[e.path];
+        // Color-code by status family — Nautilus / VSCode convention:
+        //   modified → orange, added/new → green, untracked → cyan,
+        //   conflict → red, anything else → grey.
+        const t = code.trim();
+        let cls = 'fb-git-clean';
+        if (t === '??') cls = 'fb-git-untracked';
+        else if (t.startsWith('U') || t.endsWith('U') || t === 'AA' || t === 'DD') cls = 'fb-git-conflict';
+        else if (t.startsWith('A') || t.startsWith('?')) cls = 'fb-git-added';
+        else if (t.startsWith('M') || t.endsWith('M')) cls = 'fb-git-modified';
+        else if (t.startsWith('D') || t.endsWith('D')) cls = 'fb-git-deleted';
+        else if (t.startsWith('R') || t.startsWith('C')) cls = 'fb-git-renamed';
+        parts.push(`<span class="file-meta-tag fb-git-badge ${cls}" title="Git status: ${escapeHtml(code)}">${escapeHtml(t || code)}</span>`);
     }
     if (typeof getNote === 'function') {
         const n = getNote(e.path);

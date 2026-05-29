@@ -4480,6 +4480,23 @@
             word-break: break-all;
         }
 
+        /* Git status badges per file-row — VSCode / Nautilus convention.
+         * Inserted into .file-meta-tags-row by buildFileListRowHtml and
+         * the in-place patch after fsGitStatus completes. */
+        .fb-git-badge {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            min-width: 18px;
+            text-align: center;
+        }
+        .fb-git-modified  { color: #ffb86c; border-color: #ffb86c; }
+        .fb-git-added     { color: #50fa7b; border-color: #50fa7b; }
+        .fb-git-untracked { color: var(--cyan); border-color: var(--cyan); }
+        .fb-git-conflict  { color: #ff5555; border-color: #ff5555; }
+        .fb-git-deleted   { color: #ff79c6; border-color: #ff79c6; }
+        .fb-git-renamed   { color: #bd93f9; border-color: #bd93f9; }
+        .fb-git-clean     { color: var(--text-dim); border-color: var(--text-dim); }
+
         .modal-resize {
             position: absolute;
             z-index: 10;

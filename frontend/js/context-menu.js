@@ -2335,6 +2335,21 @@ document.addEventListener('contextmenu', (e) => {
                         );
                     },
                 });
+                // Open in External Editor — Rust resolves $VISUAL →
+                // $EDITOR → code/subl/etc. Falls back per-platform so
+                // there's always *some* editor reachable.
+                items.push({
+                    icon: '&#9999;',
+                    label: 'Open in External Editor', ..._noEcho,
+                    action: async () => {
+                        try {
+                            const bin = await window.vstUpdater.fsOpenInEditor(path);
+                            showToast(toastFmt('toast.deleted_name', {name: `opening in ${bin}`}));
+                        } catch (err) {
+                            showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
+                        }
+                    },
+                });
             }
             items.push({
                 icon: '&#128193;', label: appFmt('menu.reveal_in_finder'), ..._noEcho, ...shortcutTip('revealFile'), action: () => {

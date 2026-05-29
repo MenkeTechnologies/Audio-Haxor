@@ -39,6 +39,11 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 # .tar and .tar.gz archive extraction (Nautilus / Finder both ship this).
 # Pairs with the existing `flate2` for gzip decode.
 tar = "0.4"
+# Extended attributes (Unix-only, no-op surface on Windows). Used by the
+# Get Info modal's xattr list. The `tar` crate already pulls it in
+# transitively; declaring directly so our code doesn't rely on a
+# transitive feature flag.
+xattr = "1"
 notify = "8"
 # Cross-platform "send to recycle bin / trash" (macOS NSFileManager
 # trashItemAtURL, Linux XDG Trash spec, Windows Recycle Bin). Used by the

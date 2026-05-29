@@ -7427,6 +7427,193 @@ async fn fs_grep(
     .await
 }
 
+/// Run `git status --porcelain=v1 -z` in `dir_path` (or the containing
+/// git repo if `dir_path` itself isn't a worktree root). Returns a map
+/// `{absolute_path → status_code}` where status_code is the 2-char
+/// porcelain code (e.g. " M", "A ", "??", "UU"). Files not in the map
+/// are clean. Returns an empty map when not inside a git repo or when
+/// `git` isn't on PATH — non-error so the file browser can call this
+/// unconditionally and just show no badges in non-repo folders.
+#[tauri::command]
+async fn fs_git_status(
+    dir_path: String,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    blocking_res(move || {
+        let path = std::path::PathBuf::from(&dir_path);
+        if !path.is_dir() {
+            return Ok(std::collections::HashMap::new());
+        }
+        // `git status --porcelain=v1 -z` outputs:
+        //   XY <path>\0[XY <orig>\0<path>\0...]
+        // -z avoids the rename arrow + quoting headache; \0 separates
+        // entries. We run with cwd=dir_path so git auto-discovers the
+        // worktree root via .git lookup.
+        let out = match std::process::Command::new("git")
+            .current_dir(&path)
+            .args(["status", "--porcelain=v1", "-z"])
+            .output()
+        {
+            Ok(o) => o,
+            Err(_) => return Ok(std::collections::HashMap::new()), // git not installed
+        };
+        if !out.status.success() {
+            return Ok(std::collections::HashMap::new()); // not a repo, etc.
+        }
+        // Find the worktree root so we can translate the porcelain's
+        // repo-relative paths into absolute paths matching what the
+        // file browser displays.
+        let toplevel = match std::process::Command::new("git")
+            .current_dir(&path)
+            .args(["rev-parse", "--show-toplevel"])
+            .output()
+        {
+            Ok(o) if o.status.success() => {
+                String::from_utf8_lossy(&o.stdout).trim().to_string()
+            }
+            _ => return Ok(std::collections::HashMap::new()),
+        };
+        let root = std::path::PathBuf::from(&toplevel);
+        let mut map = std::collections::HashMap::new();
+        let mut iter = out.stdout.split(|&b| b == 0).peekable();
+        while let Some(chunk) = iter.next() {
+            if chunk.is_empty() {
+                continue;
+            }
+            // Each chunk is "XY <relpath>" (3-byte header + path).
+            if chunk.len() < 4 {
+                continue;
+            }
+            let code = String::from_utf8_lossy(&chunk[0..2]).to_string();
+            let rel = String::from_utf8_lossy(&chunk[3..]).to_string();
+            let abs = root.join(&rel).to_string_lossy().to_string();
+            // Rename entries: porcelain emits the *original* name as a
+            // second \0-separated chunk; skip it so we don't mis-interpret
+            // it as a fresh entry on the next loop turn. Check code BEFORE
+            // moving it into the map.
+            let is_rename = code.starts_with('R') || code.starts_with('C');
+            map.insert(abs, code);
+            if is_rename {
+                let _ = iter.next();
+            }
+        }
+        Ok(map)
+    })
+    .await
+}
+
+/// Read extended attributes (xattrs) for a file. Unix-only. Returns a
+/// list of `{name, size}` (no values — values can be binary and arbitrarily
+/// large; user can copy the name and read via `xattr -p` if interested).
+/// Errors are coerced to an empty list since "no xattrs" + "fs doesn't
+/// support xattrs" both come through as errors on some systems.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct XattrEntry {
+    name: String,
+    size: u64,
+}
+
+#[cfg(unix)]
+#[tauri::command]
+async fn fs_xattrs(path: String) -> Result<Vec<XattrEntry>, String> {
+    blocking_res(move || {
+        let p = std::path::PathBuf::from(&path);
+        if !p.exists() {
+            return Err(format!("Path does not exist: {path}"));
+        }
+        let mut out = Vec::new();
+        match xattr::list(&p) {
+            Ok(iter) => {
+                for n in iter {
+                    let name = n.to_string_lossy().to_string();
+                    let size = xattr::get(&p, &n).ok().flatten().map(|v| v.len() as u64).unwrap_or(0);
+                    out.push(XattrEntry { name, size });
+                }
+            }
+            Err(_) => return Ok(Vec::new()),
+        }
+        Ok(out)
+    })
+    .await
+}
+
+#[cfg(not(unix))]
+#[tauri::command]
+async fn fs_xattrs(_path: String) -> Result<Vec<XattrEntry>, String> {
+    Ok(Vec::new())
+}
+
+/// Open a file in an external editor. Resolution order:
+///   1. `editor_override` arg (user-specified app)
+///   2. `$VISUAL` env var
+///   3. `$EDITOR` env var
+///   4. Platform default: `code` on PATH, then `subl`, then `open -t` (macOS)
+///      `xdg-open` (Linux), `notepad` (Windows)
+/// Spawned detached so the audio-haxor process doesn't wait on the editor.
+#[tauri::command]
+async fn fs_open_in_editor(file_path: String, editor_override: Option<String>) -> Result<String, String> {
+    blocking_res(move || {
+        let candidates: Vec<String> = {
+            let mut v = Vec::new();
+            if let Some(e) = editor_override {
+                if !e.trim().is_empty() {
+                    v.push(e);
+                }
+            }
+            if let Ok(v_) = std::env::var("VISUAL") {
+                if !v_.trim().is_empty() {
+                    v.push(v_);
+                }
+            }
+            if let Ok(e) = std::env::var("EDITOR") {
+                if !e.trim().is_empty() {
+                    v.push(e);
+                }
+            }
+            v
+        };
+        for cmd in &candidates {
+            // EDITOR can include args: `code --wait`, `subl -n`, …
+            let mut parts = cmd.split_whitespace();
+            let Some(bin) = parts.next() else { continue };
+            let args: Vec<&str> = parts.collect();
+            let mut c = std::process::Command::new(bin);
+            for a in &args {
+                c.arg(a);
+            }
+            c.arg(&file_path);
+            if c.spawn().is_ok() {
+                #[cfg(not(test))]
+                append_log(format!("EDITOR — {} {}", bin, file_path));
+                return Ok(bin.to_string());
+            }
+        }
+        // Fallback chain.
+        let fallbacks: &[(&str, &[&str])] = &[
+            ("code", &[]),
+            ("subl", &[]),
+            #[cfg(target_os = "macos")]
+            ("open", &["-t"]),
+            #[cfg(target_os = "linux")]
+            ("xdg-open", &[]),
+            #[cfg(target_os = "windows")]
+            ("notepad", &[]),
+        ];
+        for (bin, args) in fallbacks {
+            let mut c = std::process::Command::new(bin);
+            for a in *args {
+                c.arg(a);
+            }
+            c.arg(&file_path);
+            if c.spawn().is_ok() {
+                return Ok(bin.to_string());
+            }
+        }
+        Err("No editor available (set $EDITOR / install code / subl)".to_string())
+    })
+    .await
+}
+
 /// List only the subdirectories of `dir_path`. Used by the tree-view
 /// sidebar — lighter than `fs_list_dir` because it skips files +
 /// stat-formatting + sort overhead. Returns names sorted alphabetical
@@ -10655,6 +10842,9 @@ pub fn run() {
             fs_chmod,
             fs_grep,
             fs_list_subdirs,
+            fs_git_status,
+            fs_xattrs,
+            fs_open_in_editor,
             delete_inventory_item,
             rename_file,
             fs_create_dir,
