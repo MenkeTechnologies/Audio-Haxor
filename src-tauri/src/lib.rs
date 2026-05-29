@@ -7579,6 +7579,147 @@ async fn fs_global_search(
     .await
 }
 
+/// Re-point an existing symlink at a new target. `unlink → symlink`
+/// inside a single Rust call so JS can't race-create a file at the
+/// same path during the gap. Fails if `path` isn't a symlink.
+#[cfg(unix)]
+#[tauri::command]
+async fn fs_symlink_retarget(path: String, new_target: String) -> Result<(), String> {
+    blocking_res(move || {
+        let p = std::path::PathBuf::from(&path);
+        let meta = std::fs::symlink_metadata(&p).map_err(|e| e.to_string())?;
+        if !meta.file_type().is_symlink() {
+            return Err(format!("Not a symlink: {path}"));
+        }
+        std::fs::remove_file(&p).map_err(|e| format!("unlink: {e}"))?;
+        std::os::unix::fs::symlink(&new_target, &p).map_err(|e| format!("symlink: {e}"))?;
+        #[cfg(not(test))]
+        append_log(format!("SYMLINK RETARGET — {} → {}", path, new_target));
+        Ok(())
+    })
+    .await
+}
+
+#[cfg(not(unix))]
+#[tauri::command]
+async fn fs_symlink_retarget(_path: String, _new_target: String) -> Result<(), String> {
+    Err("Symlink retarget not supported on this platform".to_string())
+}
+
+/// Audio metadata lookup from the inventory table (already populated by
+/// the sample-scanner). Returns the fields the Get Info modal renders
+/// for audio rows: BPM, key, sample rate, channels, bits/sample,
+/// duration. None when the file isn't in `audio_samples`.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AudioMetaInfo {
+    bpm: Option<f64>,
+    key: Option<String>,
+    sample_rate: Option<i64>,
+    channels: Option<i64>,
+    bits_per_sample: Option<i64>,
+    duration_sec: Option<f64>,
+}
+
+#[tauri::command]
+async fn fs_audio_metadata(path: String) -> Result<Option<AudioMetaInfo>, String> {
+    blocking_res(move || {
+        let conn = db::global().read_conn();
+        let canon = crate::path_norm::normalize_path_for_db(&path);
+        // Columns vary across schema iterations; query each via OPTIONAL
+        // to gracefully degrade. We use one COALESCE-style query.
+        let row = conn.query_row(
+            "SELECT bpm, key, sample_rate, channels, bits_per_sample, duration
+             FROM audio_samples WHERE path = ?1 LIMIT 1",
+            rusqlite::params![canon],
+            |r| {
+                Ok(AudioMetaInfo {
+                    bpm: r.get(0).ok(),
+                    key: r.get(1).ok(),
+                    sample_rate: r.get(2).ok(),
+                    channels: r.get(3).ok(),
+                    bits_per_sample: r.get(4).ok(),
+                    duration_sec: r.get(5).ok(),
+                })
+            },
+        );
+        Ok(row.ok())
+    })
+    .await
+}
+
+/// Total + free bytes for the filesystem containing `path`. Used by
+/// the "% disk used" column. macOS / Linux / Windows via the `sysinfo`
+/// crate (already a dep). Returns None when the disk isn't enumerable
+/// (network mount, etc.).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DiskUsage {
+    total: u64,
+    available: u64,
+    used: u64,
+    used_pct: f64,
+    mount: String,
+}
+
+#[tauri::command]
+async fn fs_disk_usage(path: String) -> Result<Option<DiskUsage>, String> {
+    blocking_res(move || {
+        let abs = std::path::PathBuf::from(&path);
+        let mut disks = sysinfo::Disks::new_with_refreshed_list();
+        disks.refresh(true);
+        // Pick the longest mount-point prefix that contains `path` — the
+        // most-specific match (handles nested mounts like /home + /home/x).
+        let mut best: Option<(usize, &sysinfo::Disk)> = None;
+        for d in disks.list().iter() {
+            let mp = d.mount_point();
+            if abs.starts_with(mp) {
+                let plen = mp.as_os_str().len();
+                if best.map(|(l, _)| plen > l).unwrap_or(true) {
+                    best = Some((plen, d));
+                }
+            }
+        }
+        let Some((_, d)) = best else { return Ok(None) };
+        let total = d.total_space();
+        let avail = d.available_space();
+        let used = total.saturating_sub(avail);
+        let used_pct = if total > 0 { (used as f64 / total as f64) * 100.0 } else { 0.0 };
+        Ok(Some(DiskUsage {
+            total,
+            available: avail,
+            used,
+            used_pct,
+            mount: d.mount_point().to_string_lossy().to_string(),
+        }))
+    })
+    .await
+}
+
+/// Cheap EXIF presence probe — reads first 65 KiB of the file and
+/// looks for the `Exif\0\0` magic. Doesn't parse the IFD (that's
+/// what `fs_exif` is for); use this to decide whether to render the
+/// camera badge on a row without paying for a full EXIF parse per
+/// thousand rows.
+#[tauri::command]
+async fn fs_has_exif(path: String) -> Result<bool, String> {
+    blocking_res(move || {
+        use std::io::Read;
+        let mut f = match std::fs::File::open(&path) {
+            Ok(f) => f,
+            Err(_) => return Ok(false),
+        };
+        let mut buf = [0u8; 65536];
+        let n = match f.read(&mut buf) {
+            Ok(n) => n,
+            Err(_) => return Ok(false),
+        };
+        let needle = b"Exif\x00\x00";
+        Ok(buf[..n].windows(needle.len()).any(|w| w == needle))
+    })
+    .await
+}
+
 /// Read EXIF metadata from an image. Returns a flat list of
 /// `{ifd, tag, value}` so the JS side can group + render however it
 /// likes. Pure Rust via the `kamadak-exif` crate — JPEG / TIFF / HEIF
@@ -11480,6 +11621,10 @@ pub fn run() {
             fs_global_search,
             fs_exif,
             fs_video_thumbnail,
+            fs_symlink_retarget,
+            fs_audio_metadata,
+            fs_disk_usage,
+            fs_has_exif,
             delete_inventory_item,
             rename_file,
             fs_create_dir,

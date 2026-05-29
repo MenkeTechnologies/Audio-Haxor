@@ -1871,6 +1871,13 @@ async function fileBrowserShowInfo(path) {
             ...(info.kind === 'file' && /\.(jpg|jpeg|tif|tiff|heic|heif|png|webp)$/i.test(info.path)
                 ? [['EXIF', 'loading…']]
                 : []),
+            // Audio metadata only for likely-audio rows. AUDIO_EXTS is
+            // the global list shared with the inventory scanner.
+            ...(info.kind === 'file' && typeof AUDIO_EXTS !== 'undefined' && AUDIO_EXTS.includes((info.path.split('.').pop() || '').toLowerCase())
+                ? [['Audio', 'loading…']]
+                : []),
+            // Disk usage of the filesystem containing this row.
+            ['Disk Usage', 'loading…'],
         ]
         : [];
     const gridHtml = info
@@ -1920,6 +1927,31 @@ async function fileBrowserShowInfo(path) {
                 `${escapeHtml(x.name)} <span style="color:var(--text-dim)">(${x.size} B)</span>`
             ).join('<br>'));
         }).catch(() => patchCell('xattrs', '(unavailable)'));
+        // Audio metadata — skipped for non-audio rows (cell wasn't rendered).
+        if (info.kind === 'file' && typeof AUDIO_EXTS !== 'undefined' && AUDIO_EXTS.includes((info.path.split('.').pop() || '').toLowerCase())) {
+            window.vstUpdater.fsAudioMetadata(path).then((m) => {
+                if (!m) { patchCell('audio', '(not in samples inventory — scan to populate)'); return; }
+                const parts = [];
+                if (m.durationSec != null) parts.push(`${m.durationSec.toFixed(2)}s`);
+                if (m.sampleRate != null) parts.push(`${m.sampleRate} Hz`);
+                if (m.channels != null) parts.push(`${m.channels}ch`);
+                if (m.bitsPerSample != null) parts.push(`${m.bitsPerSample}-bit`);
+                if (m.bpm != null) parts.push(`${Math.round(m.bpm)} BPM`);
+                if (m.key != null && m.key) parts.push(`key ${escapeHtml(m.key)}`);
+                patchCell('audio', parts.length ? parts.join(' · ') : '(no fields populated)');
+            }).catch(() => patchCell('audio', '(unavailable)'));
+        }
+        // Disk usage (always loaded).
+        window.vstUpdater.fsDiskUsage(path).then((du) => {
+            if (!du) { patchCell('disk usage', '(unavailable)'); return; }
+            const fmt = (n) => {
+                const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+                let i = 0, v = n;
+                while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+                return `${v.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+            };
+            patchCell('disk usage', `${fmt(du.used)} / ${fmt(du.total)} (${du.usedPct.toFixed(1)}%) on <code>${escapeHtml(du.mount)}</code>`);
+        }).catch(() => patchCell('disk usage', '(unavailable)'));
         // EXIF — skipped for non-image rows (cell wasn't rendered).
         if (info.kind === 'file' && /\.(jpg|jpeg|tif|tiff|heic|heif|png|webp)$/i.test(info.path)) {
             window.vstUpdater.fsExif(path).then((tags) => {
@@ -2091,6 +2123,68 @@ async function fileBrowserShowBulkChmodModal(paths) {
     modal?.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-app-chmod]');
         if (btn) { if (btn.dataset.appChmod === 'ok') apply(); else close(); return; }
+        if (e.target === modal) close();
+    });
+    requestAnimationFrame(() => { input?.focus(); input?.select(); });
+}
+
+// ── Symlink target editor ──
+// Modal showing the current symlink target + new-target input. Server
+// unlinks + recreates atomically. Errors when path isn't a symlink so
+// the menu hides the entry for non-symlink rows.
+async function fileBrowserShowSymlinkEditor(path) {
+    document.getElementById('appSymlinkModal')?.remove();
+    let curTarget = '';
+    try {
+        const info = await window.vstUpdater.fsGetInfo(path);
+        if (!info.isSymlink) {
+            if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'Not a symlink'}), 4000, 'error');
+            return;
+        }
+        curTarget = info.symlinkTarget || '';
+    } catch (_) { /* ignore */ }
+    const name = path.split('/').pop();
+    const html = `<div class="modal-overlay modal-visible" id="appSymlinkModal" role="dialog" aria-modal="true">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>Edit Symlink — ${escapeHtml(name)}</h2>
+        <button type="button" class="modal-close" data-app-sym="cancel" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p class="app-confirm-message">Re-points <code>${escapeHtml(path)}</code> at a new target. Existing symlink is unlinked + recreated atomically.</p>
+        <p class="app-confirm-message">Current target:</p>
+        <input type="text" id="appSymlinkInput" class="app-prompt-input" value="${escapeHtml(curTarget)}" />
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-sym="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" data-app-sym="ok">Re-point</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appSymlinkModal');
+    const input = document.getElementById('appSymlinkInput');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const apply = async () => {
+        const next = (input.value || '').trim();
+        if (!next || next === curTarget) { close(); return; }
+        try {
+            await window.vstUpdater.fsSymlinkRetarget(path, next);
+            if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `re-pointed → ${next}`}));
+            close();
+            if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+        } catch (err) {
+            if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
+        }
+    };
+    const esc = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(); }
+        else if (e.key === 'Enter' && document.activeElement === input) { e.preventDefault(); apply(); }
+    };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-app-sym]');
+        if (btn) { if (btn.dataset.appSym === 'ok') apply(); else close(); return; }
         if (e.target === modal) close();
     });
     requestAnimationFrame(() => { input?.focus(); input?.select(); });
@@ -2516,16 +2610,58 @@ function _fbObserveThumbCanvases(rootEl) {
         _fbThumbObserver.observe(c);
     });
 }
+
+// ── EXIF row badge ──
+// Per-session in-memory cache (path → boolean). When a row scrolls into
+// view its <span class="fb-exif-badge"> probes via `fs_has_exif` (cheap
+// — 64 KiB read + magic search) and adds `.has-exif` so the badge
+// lights up cyan. No SQLite cache needed; result is cheap to recompute
+// and EXIF presence is stable for the file's lifetime.
+const _fbExifPresenceCache = new Map();
+let _fbExifObserver = null;
+function _fbInitExifObserver() {
+    if (typeof IntersectionObserver === 'undefined') return;
+    if (_fbExifObserver) return;
+    _fbExifObserver = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            const badge = e.target;
+            if (badge.dataset.loaded === '1') { _fbExifObserver.unobserve(badge); continue; }
+            const path = badge.dataset.fbExifPath;
+            if (!path) continue;
+            badge.dataset.loaded = '1';
+            const cached = _fbExifPresenceCache.get(path);
+            if (cached === true) { badge.classList.add('has-exif'); _fbExifObserver.unobserve(badge); continue; }
+            if (cached === false) { _fbExifObserver.unobserve(badge); continue; }
+            window.vstUpdater.fsHasExif(path).then((yes) => {
+                _fbExifPresenceCache.set(path, !!yes);
+                if (yes) badge.classList.add('has-exif');
+                _fbExifObserver?.unobserve(badge);
+            }).catch(() => { _fbExifObserver?.unobserve(badge); });
+        }
+    }, {root: null, rootMargin: '200px 0px', threshold: 0.01});
+}
+function _fbObserveExifBadges(rootEl) {
+    if (!_fbExifObserver) _fbInitExifObserver();
+    if (!_fbExifObserver) return;
+    (rootEl || document).querySelectorAll('.fb-exif-badge:not([data-loaded="1"])').forEach((b) => {
+        _fbExifObserver.observe(b);
+    });
+}
 if (typeof window !== 'undefined' && typeof MutationObserver !== 'undefined') {
     // Watch every pane's file-list for new rows being appended (chunked
     // renderer adds in batches). The observer kicks IntersectionObserver
-    // on the new canvases.
-    const mo = new MutationObserver(() => _fbObserveThumbCanvases());
+    // on the new canvases AND on the new EXIF badges.
+    const mo = new MutationObserver(() => {
+        _fbObserveThumbCanvases();
+        _fbObserveExifBadges();
+    });
     document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.fb-pane .file-list').forEach((el) => {
             mo.observe(el, {childList: true, subtree: true});
         });
         _fbObserveThumbCanvases();
+        _fbObserveExifBadges();
     });
 }
 
@@ -2812,6 +2948,41 @@ async function fileBrowserShowDiffModal(pathA, pathB) {
     }
 }
 
+// ── Sync scroll between panes ──
+// When enabled, scrolling one visible pane scrolls every other visible
+// pane by the same ratio (scrollTop / scrollHeight). Useful for
+// comparing two folders side-by-side. Toggled via empty-space menu;
+// persisted in prefs.
+let _fbSyncScroll = (() => {
+    try { return typeof prefs !== 'undefined' && prefs.getItem('fileBrowserSyncScroll') === '1'; }
+    catch (_) { return false; }
+})();
+let _fbSyncScrollGuard = false; // re-entrancy guard
+function fileBrowserToggleSyncScroll() {
+    _fbSyncScroll = !_fbSyncScroll;
+    try { if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserSyncScroll', _fbSyncScroll ? '1' : '0'); }
+    catch (_) { /* ignore */ }
+    if (typeof showToast === 'function') {
+        showToast(toastFmt('toast.deleted_name', {name: _fbSyncScroll ? 'sync scroll ON' : 'sync scroll OFF'}));
+    }
+}
+document.addEventListener('scroll', (e) => {
+    if (!_fbSyncScroll || _fbSyncScrollGuard) return;
+    const src = e.target.closest && e.target.closest('.fb-pane[data-pane-idx] .file-list');
+    if (!src) return;
+    const range = Math.max(1, src.scrollHeight - src.clientHeight);
+    const ratio = src.scrollTop / range;
+    _fbSyncScrollGuard = true;
+    document.querySelectorAll('.fb-pane:not(.fb-hidden) .file-list').forEach((el) => {
+        if (el === src) return;
+        const r2 = Math.max(1, el.scrollHeight - el.clientHeight);
+        el.scrollTop = Math.round(ratio * r2);
+    });
+    // Release the guard on the next animation frame so the programmatic
+    // scrollTop assignments above don't loop back through this handler.
+    requestAnimationFrame(() => { _fbSyncScrollGuard = false; });
+}, true);
+
 // ── Color labels (Finder-style file tags 1-7) ──
 // Single-tag-per-file model: each path maps to at most one label idx
 // (0 = no label, 1-7 = colored). Persisted in prefs as
@@ -2839,6 +3010,41 @@ function _fbLabelsPersist() {
     try {
         if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserLabels', JSON.stringify(_fbLabels));
     } catch (_) { /* ignore */ }
+}
+// Label filter: null = show all, 0 = only unlabeled, 1-7 = only that color.
+let _fbLabelFilter = (() => {
+    try {
+        const raw = typeof prefs !== 'undefined' ? prefs.getItem('fileBrowserLabelFilter') : null;
+        const v = raw == null || raw === '' ? null : parseInt(raw, 10);
+        return Number.isInteger(v) ? v : null;
+    } catch (_) { return null; }
+})();
+function fileBrowserSetLabelFilter(idx) {
+    _fbLabelFilter = (idx === null || idx === undefined) ? null : parseInt(idx, 10);
+    try {
+        if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserLabelFilter', _fbLabelFilter == null ? '' : String(_fbLabelFilter));
+    } catch (_) { /* ignore */ }
+    _fbRepaintLabelChips();
+    if (typeof renderFileList === 'function') renderFileList();
+}
+function _fbRepaintLabelChips() {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('.fb-label-chips .label-chip').forEach((c) => {
+        const v = c.dataset.labelChip;
+        const match = (_fbLabelFilter == null && v === 'all') || (String(_fbLabelFilter) === v);
+        c.classList.toggle('active', match);
+    });
+}
+// Click handler — registered once at module load. Capture not needed
+// (no other listener competes for these chip clicks).
+if (typeof document !== 'undefined') {
+    document.addEventListener('click', (e) => {
+        const chip = e.target.closest('.fb-label-chips .label-chip');
+        if (!chip) return;
+        e.stopPropagation();
+        const v = chip.dataset.labelChip;
+        fileBrowserSetLabelFilter(v === 'all' ? null : parseInt(v, 10));
+    });
 }
 function fileBrowserGetLabel(path) { return _fbLabels[path] || 0; }
 function fileBrowserSetLabel(path, idx) {
@@ -3275,6 +3481,9 @@ if (typeof window !== 'undefined') {
     window.fileBrowserTouchPaths = fileBrowserTouchPaths;
     window.fileBrowserShowCompareModal = fileBrowserShowCompareModal;
     window.fileBrowserShowSpotlight = fileBrowserShowSpotlight;
+    window.fileBrowserShowSymlinkEditor = fileBrowserShowSymlinkEditor;
+    window.fileBrowserToggleSyncScroll = fileBrowserToggleSyncScroll;
+    window.fileBrowserSetLabelFilter = fileBrowserSetLabelFilter;
     // Cmd+K — global Spotlight modal. Capture phase so it wins over
     // per-tab keydown handlers; works from any inventory tab, not just
     // Files. Skip while a text input has focus (Cmd+K could be a
@@ -3614,9 +3823,12 @@ function _reorderVisibleRowsInPlace() {
     const hasSearch = !!(searchInput && searchInput.value && searchInput.value.trim());
     if (hasSearch) return;
     if (!Array.isArray(_fileBrowserEntries)) return;
-    const preFiltered = (_fbExtFilter && _fbExtFilter !== 'all')
+    let preFiltered = (_fbExtFilter && _fbExtFilter !== 'all')
         ? _fileBrowserEntries.filter((e) => _fbExtMatches(e, _fbExtFilter))
         : _fileBrowserEntries;
+    if (_fbLabelFilter != null) {
+        preFiltered = preFiltered.filter((e) => fileBrowserGetLabel(e.path) === _fbLabelFilter);
+    }
     const sorted = applyFileSort(preFiltered);
     const rowByPath = new Map();
     for (const row of list.querySelectorAll('.file-row')) {
@@ -4270,6 +4482,12 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
     if (typeof isFavorite === 'function' && isFavorite(e.path)) {
         parts.push('<span class="file-meta-tag file-meta-fav" title="Favorited">&#9733;</span>');
     }
+    // EXIF camera badge — shown only on image rows; lazy probes
+    // `fs_has_exif` via _fbExifObserver. Cyan when present, dim when
+    // absent (initial state until the probe resolves).
+    if (!e.isDir && /\.(jpg|jpeg|tif|tiff|heic|heif|png|webp)$/i.test(e.path)) {
+        parts.push(`<span class="file-meta-tag fb-exif-badge" data-fb-exif-path="${escapeHtml(e.path)}" title="EXIF presence">&#128247;</span>`);
+    }
     // Git status badge — `_fbGitStatus` is loaded asynchronously after
     // each loadDirectory. Path keys match what git porcelain hands back
     // (resolved via `git rev-parse --show-toplevel` in the Rust side).
@@ -4372,9 +4590,13 @@ function renderFileList() {
     // Extension chip filter applies BEFORE search/sort — chips narrow the
     // candidate pool, then search ranks within that pool. Folders are always
     // kept regardless of chip (see `_fbExtMatches`) so the user can navigate.
-    const preFiltered = (_fbExtFilter && _fbExtFilter !== 'all')
+    // Label filter chains in after ext-filter.
+    let preFiltered = (_fbExtFilter && _fbExtFilter !== 'all')
         ? _fileBrowserEntries.filter((e) => _fbExtMatches(e, _fbExtFilter))
         : _fileBrowserEntries;
+    if (_fbLabelFilter != null) {
+        preFiltered = preFiltered.filter((e) => fileBrowserGetLabel(e.path) === _fbLabelFilter);
+    }
     let filtered;
     if (search) {
         const scored = preFiltered.map(e => {
@@ -5421,6 +5643,13 @@ document.addEventListener('contextmenu', (e) => {
             icon: '&#8646;',
             label: `Swap Pane ${k + 1} ⇄ Pane ${k + 2}`, ..._ctxMenuNoEcho,
             action: () => _fbSwapPanes(k, k + 1),
+        });
+    }
+    if (_fbPaneCount >= 2) {
+        items.push({
+            icon: '&#128279;',
+            label: `Sync Scroll: ${_fbSyncScroll ? 'ON' : 'OFF'}`, ..._ctxMenuNoEcho,
+            action: () => fileBrowserToggleSyncScroll(),
         });
     }
     items.push(...[

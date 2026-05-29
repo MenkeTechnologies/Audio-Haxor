@@ -2483,6 +2483,19 @@ document.addEventListener('contextmenu', (e) => {
                     }
                 },
             });
+            // Edit Symlink Target — fs_get_info checks isSymlink first
+            // and bails with a toast for non-symlinks, so it's safe to
+            // offer the entry unconditionally (cheaper than a server
+            // round-trip per row to gate the menu).
+            items.push({
+                icon: '&#128279;',
+                label: 'Edit Symlink Target…', ..._noEcho,
+                action: () => {
+                    if (typeof window.fileBrowserShowSymlinkEditor === 'function') {
+                        window.fileBrowserShowSymlinkEditor(path);
+                    }
+                },
+            });
             // Color label submenu — each label entry sets the row's
             // color tag. Click "None" to clear. Inline as items rather
             // than a real submenu so users see them at the top level.

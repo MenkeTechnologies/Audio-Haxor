@@ -4644,6 +4644,58 @@
             pointer-events: none;
         }
 
+        /* Label-filter chip strip — sits below the ext-filter chips.
+         * Each chip is a 16×16 colored dot; "All" + "None" are text. */
+        .fb-label-chips {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            background: rgba(0, 0, 0, 0.18);
+            border-bottom: 1px solid var(--border);
+        }
+        .label-chip {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            padding: 0;
+            cursor: pointer;
+            opacity: 0.55;
+            transition: opacity 0.1s, border-color 0.1s, transform 0.1s;
+        }
+        .label-chip:hover { opacity: 1; }
+        .label-chip.active {
+            opacity: 1;
+            border-color: var(--cyan);
+            transform: scale(1.15);
+        }
+        /* "All" + "None" are wider text chips, not just dots. */
+        .label-chip[data-label-chip="all"], .label-chip-none {
+            width: auto;
+            min-width: 28px;
+            height: 18px;
+            border-radius: 9px;
+            padding: 0 8px;
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 10px;
+            font-family: 'Courier New', monospace;
+            line-height: 16px;
+        }
+        .label-chip[data-label-chip="all"].active,
+        .label-chip-none.active { color: var(--cyan); background: rgba(5, 217, 232, 0.1); }
+
+        /* EXIF camera badge on file row — small glyph next to git badge.
+         * Set/cleared in-place by `_fbObserveExif` lazy IPC. */
+        .fb-exif-badge {
+            display: inline-block;
+            color: var(--text-dim);
+            font-size: 11px;
+            margin-left: 4px;
+        }
+        .fb-exif-badge.has-exif { color: var(--cyan); }
+
         /* Compare-folders modal sections + per-bucket coloring. */
         .fb-cmp-body {
             margin-top: 12px;
@@ -13009,6 +13061,17 @@
                 <button class="ext-chip" data-ext-filter="video" title="Video files only">Video</button>
                 <button class="ext-chip" data-ext-filter="image" title="Images only">Image</button>
                 <button class="ext-chip" data-ext-filter="other" title="Files not in any other category">Other</button>
+            </div>
+            <div class="fb-label-chips" id="fileLabelChips" aria-label="Filter rows by color label">
+                <button class="label-chip active" data-label-chip="all" title="Show all (any label)">All</button>
+                <button class="label-chip label-chip-none" data-label-chip="0" title="Only unlabeled rows">○</button>
+                <button class="label-chip" data-label-chip="1" style="background:#ff5555" title="Red"></button>
+                <button class="label-chip" data-label-chip="2" style="background:#ffb86c" title="Orange"></button>
+                <button class="label-chip" data-label-chip="3" style="background:#f1fa8c" title="Yellow"></button>
+                <button class="label-chip" data-label-chip="4" style="background:#50fa7b" title="Green"></button>
+                <button class="label-chip" data-label-chip="5" style="background:#8be9fd" title="Cyan"></button>
+                <button class="label-chip" data-label-chip="6" style="background:#bd93f9" title="Purple"></button>
+                <button class="label-chip" data-label-chip="7" style="background:#bfbfbf" title="Gray"></button>
             </div>
             <div class="file-bulk-bar fb-hidden" id="fileBulkBar">
                 <span class="file-bulk-count"><span id="fileBulkCount">0</span> selected</span>

@@ -1933,6 +1933,19 @@ window.vstUpdater = {
      *  other platforms returns an empty ArrayBuffer and the caller
      *  falls back to a generic video icon. Cached in SQLite. */
     fsVideoThumbnail: (filePath, width) => invoke('fs_video_thumbnail', {filePath, width}),
+    /** Re-point an existing symlink at a new target (Unix only). */
+    fsSymlinkRetarget: (path, newTarget) =>
+        invoke('fs_symlink_retarget', {path, newTarget}),
+    /** Audio metadata (BPM/key/SR/channels/bits/duration) from the
+     *  inventory table. Returns `null` when the file isn't in
+     *  `audio_samples`. */
+    fsAudioMetadata: (path) => invoke('fs_audio_metadata', {path}),
+    /** Disk usage for the filesystem containing `path`. Returns
+     *  `{total, available, used, usedPct, mount}` or null. */
+    fsDiskUsage: (path) => invoke('fs_disk_usage', {path}),
+    /** Cheap EXIF-presence probe (no IFD parse). Used by the row
+     *  badge so we don't run the full `fsExif` per visible image row. */
+    fsHasExif: (path) => invoke('fs_has_exif', {path}),
     /** Spotlight-style global search across all scanned inventory
      *  (FTS5 trigram on audio_samples / daw_projects / presets /
      *  midi_files / pdf_files / video_files). Returns
