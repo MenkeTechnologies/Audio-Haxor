@@ -94,6 +94,12 @@ function _fbEnsurePanesInited() {
 }
 _fbEnsurePanesInited();
 
+// One-shot flags — TRUE for each pane until its first `loadDirectory`
+// completes. While true, loadDirectory restores the V3-prefs scroll
+// position instead of resetting to 0 (boot-up resumes where the user
+// left off; subsequent navigations always start at the top).
+const _fbBootScrollPending = [true, true, true, true];
+
 // Restore per-pane tab/path/etc state from V2 prefs (or migrate from V1
 // global tabs into pane 0). Must run AFTER `_fbEnsurePanesInited` since
 // it mutates `_fbPanes[i].tabs`. Then sync active pane → globals so the
@@ -123,6 +129,30 @@ function _fbInitPanesFromPrefs() {
                 const n = parseInt(activeRaw, 10);
                 if (!isNaN(n) && n >= 0 && n < FB_MAX_PANES) _fbActivePaneIdx = n;
             }
+            // V3 per-pane state blob: [{sortKey, sortAsc, extFilter,
+            // showHidden, searchMode, scroll, history, historyIdx}, …]
+            // Each pane's INDEPENDENT sort / filter / hidden / search
+            // mode / scroll position / back-forward stack. Missing
+            // fields fall back to neutral defaults so a partial save
+            // (e.g. older client) restores gracefully.
+            const v3raw = prefs.getItem('fileBrowserPanesV3State');
+            if (v3raw) {
+                const v3 = JSON.parse(v3raw);
+                if (Array.isArray(v3)) {
+                    for (let i = 0; i < Math.min(FB_MAX_PANES, v3.length); i++) {
+                        const s = v3[i];
+                        if (!_fbPanes[i] || !s || typeof s !== 'object') continue;
+                        if (typeof s.sortKey === 'string') _fbPanes[i].sortKey = s.sortKey;
+                        if (typeof s.sortAsc === 'boolean') _fbPanes[i].sortAsc = s.sortAsc;
+                        if (typeof s.extFilter === 'string') _fbPanes[i].extFilter = s.extFilter;
+                        if (typeof s.showHidden === 'boolean') _fbPanes[i].showHidden = s.showHidden;
+                        if (typeof s.searchMode === 'string') _fbPanes[i].searchMode = s.searchMode;
+                        if (typeof s.scroll === 'number') _fbPanes[i].scroll = s.scroll;
+                        if (Array.isArray(s.history)) _fbPanes[i].history = s.history;
+                        if (typeof s.historyIdx === 'number') _fbPanes[i].historyIdx = s.historyIdx;
+                    }
+                }
+            }
         }
     } catch (_) { /* ignore */ }
     // Sync active pane → globals (the existing fbTabs / fbHistory etc.
@@ -137,6 +167,37 @@ function _fbPersistPanePaths() {
         const paths = _fbPanes.map((p) => p ? (p.path || '') : '');
         prefs.setItem('fileBrowserPanesPaths', JSON.stringify(paths));
         prefs.setItem('fileBrowserActivePaneIdx', String(_fbActivePaneIdx));
+        // V3 per-pane sort / extFilter / showHidden / searchMode /
+        // scroll / nav-history blob — coalesced into the same call so
+        // callers don't need to remember two save functions.
+        _fbPersistPanesV3State();
+    } catch (_) { /* ignore */ }
+}
+
+// V3 per-pane state blob — written by sort/extFilter/hidden toggles,
+// by pane switches (via _fbSaveGlobalsToActivePane), and by
+// _navHistoryRecord. Called from the existing _fbPersistPanePaths
+// hot path so we don't double the syscall count — one prefs write
+// covers both keys.
+function _fbPersistPanesV3State() {
+    try {
+        if (typeof prefs === 'undefined') return;
+        const blob = _fbPanes.map((p) => p ? {
+            sortKey:    p.sortKey,
+            sortAsc:    p.sortAsc,
+            extFilter:  p.extFilter,
+            showHidden: !!p.showHidden,
+            searchMode: p.searchMode,
+            scroll:     p.scroll || 0,
+            // Cap history to last 50 entries — avoids unbounded growth
+            // when a user opens 1000s of folders. Forward stack is
+            // typically empty after a new push so this rarely truncates.
+            history:    Array.isArray(p.history) ? p.history.slice(-50) : [],
+            historyIdx: (p.historyIdx != null && p.historyIdx >= 0)
+                ? Math.min(p.historyIdx, (p.history || []).slice(-50).length - 1)
+                : -1,
+        } : null);
+        prefs.setItem('fileBrowserPanesV3State', JSON.stringify(blob));
     } catch (_) { /* ignore */ }
 }
 
@@ -754,6 +815,9 @@ function fileBrowserToggleHidden() {
     if (ap) ap.showHidden = _fbShowHidden;
     try { if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserShowHidden', _fbShowHidden ? '1' : '0'); }
     catch (_) { /* ignore */ }
+    // V3 per-pane state snapshot — captures the new showHidden value
+    // alongside the rest of the pane's independent state.
+    if (typeof _fbPersistPanesV3State === 'function') _fbPersistPanesV3State();
     if (typeof showToast === 'function') {
         showToast(toastFmt('toast.fb_action', {name: _fbShowHidden ? 'showing hidden files in active pane' : 'hiding hidden files in active pane'}));
     }
@@ -2970,6 +3034,24 @@ function fileBrowserToggleSyncScroll() {
         showToast(toastFmt('toast.fb_action', {name: _fbSyncScroll ? 'sync scroll ON' : 'sync scroll OFF'}));
     }
 }
+// Debounced scroll persistence — write the active pane's scrollTop
+// into its snapshot 250 ms after the user stops scrolling. Reusable
+// for sync-scroll too (the next handler runs in addition to this one).
+let _fbScrollPersistTimer = null;
+document.addEventListener('scroll', (e) => {
+    const src = e.target.closest && e.target.closest('.fb-pane[data-pane-idx] .file-list');
+    if (!src) return;
+    if (_fbScrollPersistTimer) clearTimeout(_fbScrollPersistTimer);
+    _fbScrollPersistTimer = setTimeout(() => {
+        const paneEl = src.closest('.fb-pane[data-pane-idx]');
+        if (!paneEl) return;
+        const idx = parseInt(paneEl.dataset.paneIdx, 10);
+        if (!_fbPanes[idx]) return;
+        _fbPanes[idx].scroll = src.scrollTop;
+        if (typeof _fbPersistPanesV3State === 'function') _fbPersistPanesV3State();
+    }, 250);
+}, true);
+
 document.addEventListener('scroll', (e) => {
     if (!_fbSyncScroll || _fbSyncScrollGuard) return;
     const src = e.target.closest && e.target.closest('.fb-pane[data-pane-idx] .file-list');
@@ -3546,6 +3628,11 @@ function _navHistoryRecord(path) {
     _fbHistory = _fbHistory.slice(0, _fbHistoryIdx + 1);
     _fbHistory.push(path);
     _fbHistoryIdx = _fbHistory.length - 1;
+    // Mirror into active pane snapshot + persist so back/forward
+    // history survives across launches.
+    const ap = (typeof _fbActivePane === 'function') ? _fbActivePane() : null;
+    if (ap) { ap.history = _fbHistory; ap.historyIdx = _fbHistoryIdx; }
+    if (typeof _fbPersistPanesV3State === 'function') _fbPersistPanesV3State();
     _updateNavButtons();
 }
 
@@ -3637,6 +3724,8 @@ function setFileExtFilter(category) {
     if (ap) ap.extFilter = _fbExtFilter;
     _fbRepaintExtChips();
     if (typeof renderFileList === 'function') renderFileList();
+    // V3: persist the per-pane filter choice across sessions.
+    if (typeof _fbPersistPanesV3State === 'function') _fbPersistPanesV3State();
 }
 
 // Sync chip-active class to the current `_fbExtFilter`. Pulled out so
@@ -4251,6 +4340,8 @@ function _onFileSortHeaderClick(e) {
     const ap = (typeof _fbActivePane === 'function') ? _fbActivePane() : null;
     if (ap) { ap.sortKey = _fileSortKey; ap.sortAsc = _fileSortAsc; }
     saveFileSortToPrefs();
+    // V3: persist the per-pane sort choice across sessions.
+    if (typeof _fbPersistPanesV3State === 'function') _fbPersistPanesV3State();
     updateFileSortHeaderUI();
     if (typeof renderFileList === 'function') renderFileList();
 }
@@ -4343,15 +4434,32 @@ async function loadDirectory(dirPath) {
         // are the source of truth for the active pane; this is a write-
         // through cache so a pane switch later reads correct data.
         const activePane = _fbActivePane();
+        // Restore scroll position from V3 prefs ON THE FIRST load after
+        // boot (the saved value reflects where the user left off). On
+        // subsequent navigations within the same session, scroll resets
+        // to 0 — entering a new folder always starts at the top.
+        const restoreScroll = activePane && _fbBootScrollPending[_fbActivePaneIdx]
+            ? (activePane.scroll || 0)
+            : 0;
         if (activePane) {
             activePane.path = dirPath;
             activePane.entries = _fileBrowserEntries;
             activePane.selection = _fileSelected;
-            activePane.scroll = 0;
+            activePane.scroll = restoreScroll;
         }
+        _fbBootScrollPending[_fbActivePaneIdx] = false;
         _fbPersistPanePaths();
         if (typeof fileBrowserRecordRecent === 'function') fileBrowserRecordRecent(dirPath, true);
         renderFileList();
+        // Apply the restored scroll after the list paints. rAF so the
+        // DOM has actually rendered the rows the scroll position points
+        // into — otherwise scrollTop clamps to maxScroll which may be 0.
+        if (restoreScroll > 0) {
+            requestAnimationFrame(() => {
+                const el = _fbActiveListEl();
+                if (el) el.scrollTop = restoreScroll;
+            });
+        }
         renderBreadcrumb(dirPath);
         updateBookmarkBtn();
         // Refresh the tree-view sidebar's active-row highlight + expose
