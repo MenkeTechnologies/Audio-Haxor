@@ -78,4 +78,72 @@ describe('frontend/js/file-browser.js (vm-loaded)', () => {
     assert.strictEqual(F.getFavDirs().length, 0);
     assert.strictEqual(F.isFavDir('/Users/me/Projects/beats'), false);
   });
+
+  describe('applyFileSort', () => {
+    const entries = [
+      { name: 'zebra.wav', ext: 'wav', isDir: false, size: 500, modified: '2024-03-01 10:00' },
+      { name: 'apple.wav', ext: 'wav', isDir: false, size: 9999, modified: '2024-01-15 09:00' },
+      { name: 'NewFolder', ext: '', isDir: true, size: 0, modified: '2024-05-20 08:00' },
+      { name: 'beats.mp3', ext: 'mp3', isDir: false, size: 200, modified: '2024-02-10 12:00' },
+      { name: 'old_dir', ext: '', isDir: true, size: 0, modified: '2023-01-01 00:00' },
+    ];
+
+    it('folders always come first regardless of name-asc sort', () => {
+      F._fileSortKey && (F._fileSortKey = 'name');
+      // Direct mutation isn't exposed; instead test the helper directly.
+      const sorted = F.applyFileSort(entries);
+      assert.ok(sorted[0].isDir, 'first entry must be a folder');
+      assert.ok(sorted[1].isDir, 'second entry must be a folder');
+      assert.ok(!sorted[2].isDir, 'third entry must be a file');
+    });
+
+    it('folders sort alphabetically within the folders group', () => {
+      const sorted = F.applyFileSort(entries);
+      const folderNames = sorted.filter(e => e.isDir).map(e => e.name);
+      assert.deepStrictEqual([...folderNames], ['NewFolder', 'old_dir']);
+    });
+
+    it('files sort alphabetically (case-insensitive) by default', () => {
+      const sorted = F.applyFileSort(entries);
+      const fileNames = sorted.filter(e => !e.isDir).map(e => e.name);
+      assert.deepStrictEqual([...fileNames], ['apple.wav', 'beats.mp3', 'zebra.wav']);
+    });
+
+    it('size-desc sort puts largest files first (folders still on top)', () => {
+      F.loadFileSortFromPrefs(); // baseline
+      // Simulate header click → size, asc=false
+      F._fileSortKey = 'size'; F._fileSortAsc = false;
+      // Re-load applies internal globals; helper reads them directly.
+      const sorted = F.applyFileSort(entries);
+      const filesOnly = sorted.filter(e => !e.isDir).map(e => e.name);
+      assert.deepStrictEqual([...filesOnly], ['apple.wav', 'zebra.wav', 'beats.mp3']);
+    });
+
+    it('date-desc sort puts newest first', () => {
+      F._fileSortKey = 'date'; F._fileSortAsc = false;
+      const sorted = F.applyFileSort(entries);
+      const filesOnly = sorted.filter(e => !e.isDir).map(e => e.name);
+      assert.deepStrictEqual([...filesOnly], ['zebra.wav', 'beats.mp3', 'apple.wav']);
+    });
+  });
+
+  describe('saveFileSortToPrefs / loadFileSortFromPrefs round-trip', () => {
+    it('persists key + direction and reloads them', () => {
+      F._fileSortKey = 'size'; F._fileSortAsc = false;
+      F.saveFileSortToPrefs();
+      F._fileSortKey = 'name'; F._fileSortAsc = true; // reset
+      F.loadFileSortFromPrefs();
+      assert.strictEqual(F._fileSortKey, 'size');
+      assert.strictEqual(F._fileSortAsc, false);
+    });
+
+    it('ignores unknown keys (defensive on corrupt prefs)', () => {
+      F.prefs.setItem('fileSort', JSON.stringify({key: 'nonsense', asc: 'maybe'}));
+      F._fileSortKey = 'name'; F._fileSortAsc = true;
+      F.loadFileSortFromPrefs();
+      // Both keys rejected → defaults preserved
+      assert.strictEqual(F._fileSortKey, 'name');
+      assert.strictEqual(F._fileSortAsc, true);
+    });
+  });
 });

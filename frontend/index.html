@@ -5699,6 +5699,79 @@
             min-height: 0;
         }
 
+        /* Column header for the file list — matches the per-row `.file-row` flex
+         * layout (icon 20px | name flex | ext 50px | size 70px | date 120px) so
+         * the header labels align with the data cells beneath. Click a label to
+         * toggle that column's sort; active column is colored + shows ▲/▼. */
+        .file-list-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            margin: 0 24px;
+            border-bottom: 2px solid rgba(5, 217, 232, 0.25);
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            user-select: none;
+        }
+
+        .file-list-header .file-icon-h {
+            width: 20px;
+            flex-shrink: 0;
+        }
+
+        .file-list-header .file-name-h {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .file-list-header .file-ext-h {
+            width: 50px;
+            flex-shrink: 0;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .file-list-header .file-size-h {
+            width: 70px;
+            flex-shrink: 0;
+            cursor: pointer;
+            text-align: right;
+        }
+
+        .file-list-header .file-date-h {
+            width: 120px;
+            flex-shrink: 0;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .file-list-header [data-sort]:hover {
+            color: var(--cyan);
+        }
+
+        .file-list-header .sort-active {
+            color: var(--cyan);
+        }
+
+        .file-list-header .sort-arrow {
+            display: inline-block;
+            margin-left: 4px;
+            opacity: 0;
+            font-size: 9px;
+            transition: transform 0.15s, opacity 0.15s;
+        }
+
+        .file-list-header .sort-active .sort-arrow {
+            opacity: 1;
+        }
+
+        .file-list-header .sort-desc .sort-arrow {
+            transform: rotate(180deg);
+        }
+
         .file-row {
             display: flex;
             align-items: center;
@@ -11613,6 +11686,13 @@
                     <span></span></div>
                 <div class="file-favs-grid" id="fileFavsGrid"></div>
             </div>
+            <div class="file-list-header" id="fileListHeader">
+                <span class="file-icon-h"></span>
+                <span class="file-name-h" data-sort="name"><span data-i18n="ui.audio.th_name">Name</span><span class="sort-arrow">&#9650;</span></span>
+                <span class="file-ext-h" data-sort="type"><span data-i18n="ui.export.col_type">Type</span><span class="sort-arrow">&#9650;</span></span>
+                <span class="file-size-h" data-sort="size"><span data-i18n="ui.audio.th_size">Size</span><span class="sort-arrow">&#9650;</span></span>
+                <span class="file-date-h" data-sort="date"><span data-i18n="ui.audio.th_modified">Modified</span><span class="sort-arrow">&#9650;</span></span>
+            </div>
             <div class="file-list" id="fileList">
                 <div class="state-message">
                     <div class="state-icon">&#128193;</div>
@@ -14776,41 +14856,41 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=19406"></script>
-<script src="js/utils.js?v=19406"></script>
-<script src="js/ui-idle.js?v=19406"></script>
-<script src="js/ipc.js?v=19406"></script>
-<script src="js/tooltip-hover.js?v=19406"></script>
-<script src="js/drag-reorder.js?v=19406"></script>
-<script src="js/modal-drag.js?v=19406"></script>
-<script src="js/columns.js?v=19406"></script>
-<script src="js/notes.js?v=19406"></script>
-<script src="js/favorites.js?v=19406"></script>
-<script src="js/export.js?v=19406"></script>
-<script src="js/plugins.js?v=19406"></script>
-<script src="js/settings.js?v=19406"></script>
-<script src="js/history.js?v=19406"></script>
-<script src="js/kvr.js?v=19406"></script>
-<script src="js/graph-freeze.js?v=19406"></script>
-<script src="js/audio.js?v=19406"></script>
-<script src="js/daw.js?v=19406"></script>
-<script src="js/disk-usage.js?v=19406"></script>
-<script src="js/presets.js?v=19406"></script>
-<script src="js/batch-select.js?v=19406"></script>
-<script src="js/native-file-drag.js?v=19406"></script>
-<script src="js/sort-persist.js?v=19406"></script>
-<script src="js/multi-filter.js?v=19406"></script>
-<script src="js/file-browser.js?v=19406"></script>
-<script src="js/duplicates.js?v=19406"></script>
-<script src="js/command-palette.js?v=19406"></script>
-<script src="js/xref.js?v=19406"></script>
-<script src="js/dep-graph.js?v=19406"></script>
-<script src="js/smart-playlists.js?v=19406"></script>
-<script src="js/heatmap-dashboard.js?v=19406"></script>
-<script src="js/genre-rules-dashboard.js?v=19406"></script>
-<script src="js/midi.js?v=19406"></script>
-<script src="js/pdf.js?v=19406"></script>
-<script src="js/video.js?v=19406"></script>
+<script src="js/i18n-ui.js?v=56057"></script>
+<script src="js/utils.js?v=56057"></script>
+<script src="js/ui-idle.js?v=56057"></script>
+<script src="js/ipc.js?v=56057"></script>
+<script src="js/tooltip-hover.js?v=56057"></script>
+<script src="js/drag-reorder.js?v=56057"></script>
+<script src="js/modal-drag.js?v=56057"></script>
+<script src="js/columns.js?v=56057"></script>
+<script src="js/notes.js?v=56057"></script>
+<script src="js/favorites.js?v=56057"></script>
+<script src="js/export.js?v=56057"></script>
+<script src="js/plugins.js?v=56057"></script>
+<script src="js/settings.js?v=56057"></script>
+<script src="js/history.js?v=56057"></script>
+<script src="js/kvr.js?v=56057"></script>
+<script src="js/graph-freeze.js?v=56057"></script>
+<script src="js/audio.js?v=56057"></script>
+<script src="js/daw.js?v=56057"></script>
+<script src="js/disk-usage.js?v=56057"></script>
+<script src="js/presets.js?v=56057"></script>
+<script src="js/batch-select.js?v=56057"></script>
+<script src="js/native-file-drag.js?v=56057"></script>
+<script src="js/sort-persist.js?v=56057"></script>
+<script src="js/multi-filter.js?v=56057"></script>
+<script src="js/file-browser.js?v=56057"></script>
+<script src="js/duplicates.js?v=56057"></script>
+<script src="js/command-palette.js?v=56057"></script>
+<script src="js/xref.js?v=56057"></script>
+<script src="js/dep-graph.js?v=56057"></script>
+<script src="js/smart-playlists.js?v=56057"></script>
+<script src="js/heatmap-dashboard.js?v=56057"></script>
+<script src="js/genre-rules-dashboard.js?v=56057"></script>
+<script src="js/midi.js?v=56057"></script>
+<script src="js/pdf.js?v=56057"></script>
+<script src="js/video.js?v=56057"></script>
 <!-- Blacklist Modal -->
 <div id="blacklistModal" class="modal-overlay">
     <div class="modal-content" style="max-width:600px;">
@@ -14869,20 +14949,20 @@
     </div>
 </div>
 
-<script src="js/settings-search.js?v=19406"></script>
-<script src="js/visualizer.js?v=19406"></script>
-<script src="js/walker-status.js?v=19406"></script>
-<script src="js/audio-engine.js?v=19406"></script>
-<script src="js/als-timeline.js?v=19406"></script>
-<script src="js/als-generator.js?v=19406"></script>
-<script src="js/trance-lead.js?v=19406"></script>
-<script src="js/sample-browser.js?v=19406"></script>
-<script src="lib/xterm.js?v=19406"></script>
-<script src="js/terminal.js?v=19406"></script>
-<script src="js/context-menu.js?v=19406"></script>
-<script src="js/shortcuts.js?v=19406"></script>
-<script src="js/help-overlay.js?v=19406"></script>
-<script src="js/keyboard-nav.js?v=19406"></script>
-<script src="js/app.js?v=19406"></script>
+<script src="js/settings-search.js?v=56057"></script>
+<script src="js/visualizer.js?v=56057"></script>
+<script src="js/walker-status.js?v=56057"></script>
+<script src="js/audio-engine.js?v=56057"></script>
+<script src="js/als-timeline.js?v=56057"></script>
+<script src="js/als-generator.js?v=56057"></script>
+<script src="js/trance-lead.js?v=56057"></script>
+<script src="js/sample-browser.js?v=56057"></script>
+<script src="lib/xterm.js?v=56057"></script>
+<script src="js/terminal.js?v=56057"></script>
+<script src="js/context-menu.js?v=56057"></script>
+<script src="js/shortcuts.js?v=56057"></script>
+<script src="js/help-overlay.js?v=56057"></script>
+<script src="js/keyboard-nav.js?v=56057"></script>
+<script src="js/app.js?v=56057"></script>
 </body>
 </html>

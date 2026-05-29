@@ -122,7 +122,111 @@ function fileIcon(entry) {
     return '&#128196;';
 }
 
+// ── File-list column sort ──
+// Global (not per-directory) sort state. Stored in prefs as `{key, asc}`.
+// Folders always sort first regardless of direction (standard file-browser
+// convention — prevents folders from getting lost mid-list when sorting
+// large directories by size/date).
+// `var` (not `let`) so the VM-loaded test harness can read/mutate via
+// `globalThis` to exercise the sort helpers without booting the full UI.
+var _fileSortKey = 'name';
+var _fileSortAsc = true;
+
+function loadFileSortFromPrefs() {
+    try {
+        const raw = prefs.getObject('fileSort', null);
+        if (raw && typeof raw === 'object') {
+            if (['name', 'size', 'date', 'type'].includes(raw.key)) _fileSortKey = raw.key;
+            if (typeof raw.asc === 'boolean') _fileSortAsc = raw.asc;
+        }
+    } catch (_) { /* ignore */ }
+}
+
+function saveFileSortToPrefs() {
+    try {
+        // Pass the raw object; `prefs.setItem` JSON-stringifies internally,
+        // mirroring the `favDirs` save path above (and matching what
+        // `prefs.getObject` expects to read back).
+        prefs.setItem('fileSort', {key: _fileSortKey, asc: _fileSortAsc});
+    } catch (_) { /* ignore */ }
+}
+
+/**
+ * Sort a copy of the entries array by the current global sort key/direction.
+ * Folders always come first within each direction. Secondary sort is always
+ * name (asc) so equal-size or equal-date files stay alphabetical.
+ */
+function applyFileSort(entries) {
+    const key = _fileSortKey;
+    const dirMul = _fileSortAsc ? 1 : -1;
+    const sorted = entries.slice();
+    sorted.sort((a, b) => {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+        let cmp = 0;
+        switch (key) {
+            case 'size':
+                cmp = (Number(a.size) || 0) - (Number(b.size) || 0);
+                break;
+            case 'date':
+                // `modified` is `YYYY-MM-DD HH:MM` (lexically sortable per `fs_list_dir`).
+                cmp = String(a.modified || '').localeCompare(String(b.modified || ''));
+                break;
+            case 'type':
+                cmp = String(a.ext || '').localeCompare(String(b.ext || ''));
+                break;
+            case 'name':
+            default:
+                cmp = String(a.name || '').toLowerCase().localeCompare(String(b.name || '').toLowerCase());
+                break;
+        }
+        if (cmp === 0 && key !== 'name') {
+            return String(a.name || '').toLowerCase().localeCompare(String(b.name || '').toLowerCase());
+        }
+        return cmp * dirMul;
+    });
+    return sorted;
+}
+
+function updateFileSortHeaderUI() {
+    const header = document.getElementById('fileListHeader');
+    if (!header) return;
+    header.querySelectorAll('[data-sort]').forEach((el) => {
+        el.classList.remove('sort-active', 'sort-asc', 'sort-desc');
+    });
+    const active = header.querySelector(`[data-sort="${_fileSortKey}"]`);
+    if (active) {
+        active.classList.add('sort-active', _fileSortAsc ? 'sort-asc' : 'sort-desc');
+    }
+}
+
+function _onFileSortHeaderClick(e) {
+    const target = e.target.closest('[data-sort]');
+    if (!target) return;
+    const key = target.dataset.sort;
+    if (!['name', 'size', 'date', 'type'].includes(key)) return;
+    if (_fileSortKey === key) {
+        _fileSortAsc = !_fileSortAsc;
+    } else {
+        _fileSortKey = key;
+        // Sensible default direction per column type — text columns ascend,
+        // numeric/temporal columns descend (largest / newest first).
+        _fileSortAsc = (key === 'name' || key === 'type');
+    }
+    saveFileSortToPrefs();
+    updateFileSortHeaderUI();
+    if (typeof renderFileList === 'function') renderFileList();
+}
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const header = document.getElementById('fileListHeader');
+        if (header) header.addEventListener('click', _onFileSortHeaderClick);
+    });
+}
+
 async function initFileBrowser() {
+    loadFileSortFromPrefs();
+    updateFileSortHeaderUI();
     renderFavDirs();
     // Tab revisit: listing is still in the DOM (panel hidden, not destroyed) — avoid IPC + full re-render.
     if (_fileBrowserInited && _fileBrowserPath) {
@@ -248,10 +352,13 @@ function renderFileList() {
             const score = typeof searchScore === 'function' ? searchScore(search, [e.name, e.ext], mode) : (e.name.toLowerCase().includes(search.toLowerCase()) ? 1 : 0);
             return {entry: e, score};
         }).filter(s => s.score > 0);
+        // Search results stay in score order (best match first) — manual
+        // sorting kicks in only for the unfiltered listing where there's no
+        // semantic ranking to preserve.
         scored.sort((a, b) => b.score - a.score);
         filtered = scored.map(s => s.entry);
     } else {
-        filtered = _fileBrowserEntries;
+        filtered = applyFileSort(_fileBrowserEntries);
     }
 
     if (filtered.length === 0) {
