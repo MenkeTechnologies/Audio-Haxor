@@ -1088,7 +1088,12 @@ document.addEventListener('click', (e) => {
     }
 
     const row = e.target.closest('.file-row');
-    if (row && !e.target.closest('.fb-meta-panel')) {
+    // Clicks inside the checkbox cell (the cell wrapper OR the input itself)
+    // are exclusively for selection — they must not also trigger the row's
+    // navigate / preview action. `stopPropagation` in the checkbox handler
+    // (registered separately on document) doesn't help here because both
+    // listeners are on the same target; only ordering + a guard does.
+    if (row && !e.target.closest('.fb-meta-panel') && !e.target.closest('.file-cb')) {
         const path = row.dataset.filePath;
         const isDir = row.dataset.fileDir === 'true';
         if (isDir) {
@@ -1199,7 +1204,10 @@ document.addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
     const cb = e.target.closest('.file-row-cb');
     if (cb) {
-        e.stopPropagation();
+        // `stopImmediatePropagation` (not just `stopPropagation`) — multiple
+        // click listeners are attached to `document`; we have to prevent the
+        // sibling row-click handler from also firing on this same event.
+        e.stopImmediatePropagation();
         const path = cb.dataset.fbCb;
         if (!path) return;
         const allRows = Array.from(document.querySelectorAll('.file-row-cb'));
@@ -1227,7 +1235,7 @@ document.addEventListener('click', (e) => {
     }
     const allCb = e.target.closest('.file-row-cb-all');
     if (allCb) {
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         if (allCb.checked) selectAllVisibleFiles();
         else clearFileSelection();
         return;
