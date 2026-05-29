@@ -311,7 +311,14 @@ fn classify_fts_name_path_search(
 /// contains 2.4 GB of scanned content" instantly (the raw filesystem total
 /// requires a recursive directory walk and is computed lazily via
 /// `fs_folder_size`).
+///
+/// `#[serde(rename_all = "camelCase")]` matches the rest of the project's
+/// JSON-to-JS convention (see `AudioSampleRow`, `UnifiedScanRunRow`, etc.).
+/// Without this, `total_bytes` would serialize as `total_bytes` while every
+/// other multi-word field in the IPC layer arrives camelCased — confusing
+/// readers and tripping JS that assumes the convention.
 #[derive(Debug, Default, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FolderScanStatus {
     pub samples: u64,
     pub presets: u64,

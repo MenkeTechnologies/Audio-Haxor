@@ -313,12 +313,16 @@ function _applyScanBadgesToRow(folderPath, status) {
             if (html) nameCell.insertAdjacentHTML('beforeend', html);
         }
         const sizeCell = row.querySelector('.file-size');
-        if (sizeCell && status && Number(status.total_bytes) > 0) {
-            sizeCell.textContent = _fbFormatBytes(Number(status.total_bytes));
+        // Reads `totalBytes` (camelCase, project convention) with a
+        // `total_bytes` fallback for backward-compat against any older
+        // binary that hasn't picked up the serde rename yet.
+        const totalBytes = status ? Number(status.totalBytes ?? status.total_bytes ?? 0) : 0;
+        if (sizeCell && totalBytes > 0) {
+            sizeCell.textContent = _fbFormatBytes(totalBytes);
             sizeCell.classList.add('file-size-inv');
             // Tooltip until the user hovers — at hover time we'll replace with
             // the recursive filesystem total (see `_fbFolderSizeHoverHandler`).
-            sizeCell.title = `Inventory total: ${_fbFormatBytes(Number(status.total_bytes))} · hover for filesystem total`;
+            sizeCell.title = `Inventory total: ${_fbFormatBytes(totalBytes)} · hover for filesystem total`;
         }
     } catch (_) { /* CSS.escape unavailable */ }
 }
