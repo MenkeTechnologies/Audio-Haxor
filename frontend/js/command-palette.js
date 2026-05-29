@@ -255,44 +255,44 @@ function buildPaletteStaticItems() {
     // silently on non-Files tab via the typeof check). Icons + names
     // chosen to be searchable: "compress", "extract", "hash", "diff",
     // "find duplicates", etc.
-    const fbAction = (name, icon, fn) => ({
+    const fbAction = (key, icon, fn) => ({
         type: 'action',
-        name: `File browser: ${name}`,
+        name: appFmt(key),
         icon,
         action: () => { if (typeof fn === 'function') fn(); },
     });
     items.push(
         // Navigation
-        fbAction('Quick Open (recent files/folders)', '&#9889;', () => window.fileBrowserShowQuickPalette?.()),
-        fbAction('Spotlight (search all inventory)',  '&#128269;', () => window.fileBrowserShowSpotlight?.()),
-        fbAction('Manage Bookmarks',                  '&#9733;',  () => window.fileBrowserShowBookmarksModal?.()),
-        fbAction('Toggle Tree Sidebar',               '&#128218;', () => window.fileBrowserToggleTreeSidebar?.()),
+        fbAction('menu.fb_cp_quick_open',          '&#9889;',  () => window.fileBrowserShowQuickPalette?.()),
+        fbAction('menu.fb_cp_spotlight',           '&#128269;', () => window.fileBrowserShowSpotlight?.()),
+        fbAction('menu.fb_cp_manage_bookmarks',    '&#9733;',  () => window.fileBrowserShowBookmarksModal?.()),
+        fbAction('menu.fb_cp_toggle_tree',         '&#128218;', () => window.fileBrowserToggleTreeSidebar?.()),
         // View / filter
-        fbAction('Toggle Hidden Files',               '&#128065;', () => window.fileBrowserToggleHidden?.()),
-        fbAction('Filter: clear color label',         '&#9711;',  () => window.fileBrowserSetLabelFilter?.(null)),
-        fbAction('Invert Selection',                  '&#8646;',  () => window.invertFileSelection?.()),
-        fbAction('Select by Pattern',                 '&#128269;', () => window.fileBrowserPatternSelect?.()),
+        fbAction('menu.fb_cp_toggle_hidden',       '&#128065;', () => window.fileBrowserToggleHidden?.()),
+        fbAction('menu.fb_cp_clear_label_filter',  '&#9711;',  () => window.fileBrowserSetLabelFilter?.(null)),
+        fbAction('menu.fb_cp_invert_selection',    '&#8646;',  () => window.invertFileSelection?.()),
+        fbAction('menu.fb_cp_select_pattern',      '&#128269;', () => window.fileBrowserPatternSelect?.()),
         // Multi-pane
-        fbAction('Cycle Pane Count (1 → 2 → 3 → 4)',  '&#9783;',  () => window._fbCyclePaneCount?.()),
-        fbAction('Toggle Sync Scroll across panes',   '&#128279;', () => window.fileBrowserToggleSyncScroll?.()),
-        fbAction('Copy Active Selection → Next Pane', '&#10145;', () => window._fbCrossPaneOp?.('copy')),
-        fbAction('Move Active Selection → Next Pane', '&#10145;', () => window._fbCrossPaneOp?.('move')),
-        fbAction('Swap Active Pane ↔ Next Pane',      '&#8646;',  () => window._fbSwapPanes?.(window._fbActivePaneIdx || 0, ((window._fbActivePaneIdx || 0) + 1) % (window._fbPaneCount || 1))),
+        fbAction('menu.fb_cp_cycle_panes',         '&#9783;',  () => window._fbCyclePaneCount?.()),
+        fbAction('menu.fb_cp_toggle_sync_scroll',  '&#128279;', () => window.fileBrowserToggleSyncScroll?.()),
+        fbAction('menu.fb_cp_copy_next_pane',      '&#10145;', () => window._fbCrossPaneOp?.('copy')),
+        fbAction('menu.fb_cp_move_next_pane',      '&#10145;', () => window._fbCrossPaneOp?.('move')),
+        fbAction('menu.fb_cp_swap_panes',          '&#8646;',  () => window._fbSwapPanes?.(window._fbActivePaneIdx || 0, ((window._fbActivePaneIdx || 0) + 1) % (window._fbPaneCount || 1))),
         // File ops
-        fbAction('New Folder',                        '&#128193;', () => { if (typeof fileBrowserNewFolder === 'function') fileBrowserNewFolder(); }),
-        fbAction('New File',                          '&#128196;', () => { if (typeof fileBrowserNewFile === 'function') fileBrowserNewFile(); }),
-        fbAction('Paste from File Clipboard',         '&#128203;', () => window.fileBrowserPasteClipboard?.()),
-        fbAction('New Folder with Selection',         '&#128193;', () => {
+        fbAction('menu.fb_cp_new_folder',          '&#128193;', () => { if (typeof fileBrowserNewFolder === 'function') fileBrowserNewFolder(); }),
+        fbAction('menu.fb_cp_new_file',            '&#128196;', () => { if (typeof fileBrowserNewFile === 'function') fileBrowserNewFile(); }),
+        fbAction('menu.fb_cp_paste',               '&#128203;', () => window.fileBrowserPasteClipboard?.()),
+        fbAction('menu.fb_cp_new_folder_with_selection', '&#128193;', () => {
             const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
             window.fileBrowserNewFolderWithSelection?.(sel);
         }),
         // Search / analysis
-        fbAction('Find in Files (grep contents)',     '&#128270;', () => window.fileBrowserShowGrepModal?.()),
-        fbAction('Find Duplicates (by content)',      '&#128269;', () => window.fileBrowserShowDuplicatesModal?.()),
-        fbAction('Diff Two Selected Files',           '&#8651;',  () => window.fileBrowserShowDiffModal?.()),
-        fbAction('Compare Folders (active ↔ next pane)', '&#8651;', () => window.fileBrowserShowCompareModal?.()),
+        fbAction('menu.fb_cp_grep',                '&#128270;', () => window.fileBrowserShowGrepModal?.()),
+        fbAction('menu.fb_cp_find_duplicates',     '&#128269;', () => window.fileBrowserShowDuplicatesModal?.()),
+        fbAction('menu.fb_cp_diff',                '&#8651;',  () => window.fileBrowserShowDiffModal?.()),
+        fbAction('menu.fb_cp_compare_folders',     '&#8651;',  () => window.fileBrowserShowCompareModal?.()),
         // Per-file power
-        fbAction('Hash Selected (SHA-256)',           '&#128273;', () => {
+        fbAction('menu.fb_cp_hash_selected',       '&#128273;', () => {
             const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
             const files = sel.filter((p) => {
                 const e = typeof _fileEntryByPath === 'function' ? _fileEntryByPath(p) : null;
@@ -301,22 +301,22 @@ function buildPaletteStaticItems() {
             if (files.length) window.fileBrowserShowHashModal?.(files);
             else showToast(toastFmt('toast.failed', {err: 'select files first'}), 4000, 'error');
         }),
-        fbAction('Permissions (chmod) on Selection',  '&#128274;', () => {
+        fbAction('menu.fb_cp_chmod_selected',      '&#128274;', () => {
             const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
             if (sel.length) window.fileBrowserShowBulkChmodModal?.(sel);
             else showToast(toastFmt('toast.failed', {err: 'select files first'}), 4000, 'error');
         }),
-        fbAction('Touch (set mtime) on Selection',    '&#9201;',  () => {
+        fbAction('menu.fb_cp_touch_selected',      '&#9201;',  () => {
             const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
             if (sel.length) window.fileBrowserTouchPaths?.(sel);
             else showToast(toastFmt('toast.failed', {err: 'select files first'}), 4000, 'error');
         }),
-        fbAction('Compress Selection (zip)',          '&#128230;', () => {
+        fbAction('menu.fb_cp_compress_selected',   '&#128230;', () => {
             const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
             if (sel.length) window.fileBrowserBulkCompress?.(sel);
             else showToast(toastFmt('toast.failed', {err: 'select files first'}), 4000, 'error');
         }),
-        fbAction('Extract Selected Archives Here',    '&#128194;', () => {
+        fbAction('menu.fb_cp_extract_selected',    '&#128194;', () => {
             const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
             if (sel.length) window.fileBrowserBulkExtract?.(sel);
             else showToast(toastFmt('toast.failed', {err: 'select archives first'}), 4000, 'error');

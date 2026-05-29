@@ -1194,11 +1194,11 @@ async function populatePreviewPane(filePath) {
         const _renderImageShell = (innerHtml) => {
             body.innerHTML = `
                 <div class="fb-preview-image-toolbar">
-                    <button class="fb-img-btn" data-img-zoom="fit" title="Fit to pane">Fit</button>
-                    <button class="fb-img-btn" data-img-zoom="100" title="Actual size">100%</button>
-                    <button class="fb-img-btn" data-img-zoom="-" title="Zoom out">&minus;</button>
+                    <button class="fb-img-btn" data-img-zoom="fit" title="${escapeHtml(appFmt('ui.fb_btn_fit_tip'))}">${escapeHtml(appFmt('ui.fb_btn_fit'))}</button>
+                    <button class="fb-img-btn" data-img-zoom="100" title="${escapeHtml(appFmt('ui.fb_btn_actual_tip'))}">${escapeHtml(appFmt('ui.fb_btn_actual'))}</button>
+                    <button class="fb-img-btn" data-img-zoom="-" title="${escapeHtml(appFmt('ui.fb_btn_zoom_out'))}">&minus;</button>
                     <span class="fb-img-pct" id="fbImgPct">—</span>
-                    <button class="fb-img-btn" data-img-zoom="+" title="Zoom in">+</button>
+                    <button class="fb-img-btn" data-img-zoom="+" title="${escapeHtml(appFmt('ui.fb_btn_zoom_in'))}">+</button>
                 </div>
                 <div class="fb-preview-image-viewer" id="fbImgViewer">
                     ${innerHtml}
@@ -1864,7 +1864,7 @@ async function fileBrowserShowInfo(path) {
             ['Accessed', _fmtTs(info.atimeMs)],
             ['Permissions', info.modeString ? `${info.modeString}  (${info.modeOctal})` : (info.isReadonly ? 'read-only' : 'read-write')],
             ...(info.uid != null ? [['Owner / Group', `uid=${info.uid}  gid=${info.gid}`]] : []),
-            ['xattrs', 'loading…'],
+            ['xattrs', appFmt('ui.fb_lbl_loading')],
             // EXIF only when the file looks like an image — JPEG / TIFF
             // / HEIF / PNG (kamadak-exif decodes these). Skipping for
             // dirs / non-images avoids a wasted IPC.
@@ -1877,7 +1877,7 @@ async function fileBrowserShowInfo(path) {
                 ? [['Audio', 'loading…']]
                 : []),
             // Disk usage of the filesystem containing this row.
-            ['Disk Usage', 'loading…'],
+            ['Disk Usage', appFmt('ui.fb_lbl_loading')],
         ]
         : [];
     const gridHtml = info
@@ -1886,13 +1886,13 @@ async function fileBrowserShowInfo(path) {
     const html = `<div class="modal-overlay modal-visible" id="appFileInfoModal" role="dialog" aria-modal="true">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h2>Get Info — ${escapeHtml(name)}</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_get_info', {name}))}</h2>
         <button type="button" class="modal-close" data-app-info="close" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         ${gridHtml}
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-secondary" data-app-info="close">Close</button>
+          <button type="button" class="btn btn-secondary" data-app-info="close">${escapeHtml(appFmt('ui.fb_btn_close'))}</button>
         </div>
       </div>
     </div>
@@ -2022,14 +2022,14 @@ async function fileBrowserShowHashModal(paths) {
     const html = `<div class="modal-overlay modal-visible" id="appHashModal" role="dialog" aria-modal="true">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h2>SHA-256 ${paths.length === 1 ? '' : `(${paths.length} files)`}</h2>
+        <h2>${escapeHtml(paths.length === 1 ? appFmt('ui.fb_modal_hash') : appFmt('ui.fb_modal_hash_n', {n: paths.length}))}</h2>
         <button type="button" class="modal-close" data-app-hash="close" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         ${rowSkel}
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-secondary" data-app-hash="copy-all">Copy All</button>
-          <button type="button" class="btn btn-primary" data-app-hash="close">Close</button>
+          <button type="button" class="btn btn-secondary" data-app-hash="copy-all">${escapeHtml(appFmt('ui.fb_btn_copy_all'))}</button>
+          <button type="button" class="btn btn-primary" data-app-hash="close">${escapeHtml(appFmt('ui.fb_btn_close'))}</button>
         </div>
       </div>
     </div>
@@ -2083,15 +2083,15 @@ async function fileBrowserShowBulkChmodModal(paths) {
     const html = `<div class="modal-overlay modal-visible" id="appChmodModal" role="dialog" aria-modal="true">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h2>Permissions — ${paths.length} files</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_chmod_n', {n: paths.length}))}</h2>
         <button type="button" class="modal-close" data-app-chmod="cancel" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <p class="app-confirm-message">Octal mode (e.g. 0644, 755). Applies to ALL ${paths.length} selected paths. First path's current mode: <code>${escapeHtml(curMode || '?')}</code></p>
         <input type="text" id="appChmodInput" class="app-prompt-input" value="${escapeHtml(curMode)}" />
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-secondary" data-app-chmod="cancel">Cancel</button>
-          <button type="button" class="btn btn-primary" data-app-chmod="ok">Apply to all</button>
+          <button type="button" class="btn btn-secondary" data-app-chmod="cancel">${escapeHtml(appFmt('ui.fb_btn_cancel'))}</button>
+          <button type="button" class="btn btn-primary" data-app-chmod="ok">${escapeHtml(appFmt('ui.fb_btn_apply_all'))}</button>
         </div>
       </div>
     </div>
@@ -2147,7 +2147,7 @@ async function fileBrowserShowSymlinkEditor(path) {
     const html = `<div class="modal-overlay modal-visible" id="appSymlinkModal" role="dialog" aria-modal="true">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h2>Edit Symlink — ${escapeHtml(name)}</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_symlink', {name}))}</h2>
         <button type="button" class="modal-close" data-app-sym="cancel" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
@@ -2155,8 +2155,8 @@ async function fileBrowserShowSymlinkEditor(path) {
         <p class="app-confirm-message">Current target:</p>
         <input type="text" id="appSymlinkInput" class="app-prompt-input" value="${escapeHtml(curTarget)}" />
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-secondary" data-app-sym="cancel">Cancel</button>
-          <button type="button" class="btn btn-primary" data-app-sym="ok">Re-point</button>
+          <button type="button" class="btn btn-secondary" data-app-sym="cancel">${escapeHtml(appFmt('ui.fb_btn_cancel'))}</button>
+          <button type="button" class="btn btn-primary" data-app-sym="ok">${escapeHtml(appFmt('ui.fb_btn_repoint'))}</button>
         </div>
       </div>
     </div>
@@ -2204,15 +2204,15 @@ async function fileBrowserShowChmodModal(path) {
     const html = `<div class="modal-overlay modal-visible" id="appChmodModal" role="dialog" aria-modal="true">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h2>Permissions — ${escapeHtml(name)}</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_chmod', {name}))}</h2>
         <button type="button" class="modal-close" data-app-chmod="cancel" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <p class="app-confirm-message">Octal mode (e.g. 0644, 755). Current: <code>${escapeHtml(curMode || '?')}</code></p>
         <input type="text" id="appChmodInput" class="app-prompt-input" value="${escapeHtml(curMode)}" />
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-secondary" data-app-chmod="cancel">Cancel</button>
-          <button type="button" class="btn btn-primary" data-app-chmod="ok">Apply</button>
+          <button type="button" class="btn btn-secondary" data-app-chmod="cancel">${escapeHtml(appFmt('ui.fb_btn_cancel'))}</button>
+          <button type="button" class="btn btn-primary" data-app-chmod="ok">${escapeHtml(appFmt('ui.fb_btn_apply'))}</button>
         </div>
       </div>
     </div>
@@ -2361,19 +2361,19 @@ async function fileBrowserShowGrepModal() {
     const html = `<div class="modal-overlay modal-visible" id="appGrepModal" role="dialog" aria-modal="true">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h2>Find in Files — ${escapeHtml(_fileBrowserPath.split('/').filter(Boolean).pop() || _fileBrowserPath)}</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_grep', {dir: _fileBrowserPath.split('/').filter(Boolean).pop() || _fileBrowserPath}))}</h2>
         <button type="button" class="modal-close" data-app-grep="close" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <p class="app-confirm-message">Substring search. Skips binaries, dotdirs, and files &gt; 4 MiB.</p>
-        <input type="text" id="appGrepInput" class="app-prompt-input" placeholder="search text…" />
+        <input type="text" id="appGrepInput" class="app-prompt-input" placeholder="${escapeHtml(appFmt('ui.fb_placeholder_search_text'))}" />
         <label class="app-confirm-message fb-modal-flex-row">
           <input type="checkbox" id="appGrepCase"> Case insensitive
         </label>
         <div id="appGrepResults" class="fb-info-grid fb-modal-results-box"></div>
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-secondary" data-app-grep="close">Close</button>
-          <button type="button" class="btn btn-primary" data-app-grep="run">Search</button>
+          <button type="button" class="btn btn-secondary" data-app-grep="close">${escapeHtml(appFmt('ui.fb_btn_close'))}</button>
+          <button type="button" class="btn btn-primary" data-app-grep="run">${escapeHtml(appFmt('ui.fb_btn_search'))}</button>
         </div>
       </div>
     </div>
@@ -2387,11 +2387,11 @@ async function fileBrowserShowGrepModal() {
     const run = async () => {
         const q = (input.value || '').trim();
         if (!q) return;
-        results.innerHTML = '<div class="fb-info-val">searching…</div>';
+        results.innerHTML = `<div class="fb-info-val">${escapeHtml(appFmt('ui.fb_lbl_searching'))}</div>`;
         try {
             const matches = await window.vstUpdater.fsGrep(_fileBrowserPath, q, cs.checked, 500);
             if (!matches || matches.length === 0) {
-                results.innerHTML = '<div class="fb-info-val">no matches</div>';
+                results.innerHTML = `<div class="fb-info-val">${escapeHtml(appFmt('ui.fb_lbl_no_matches'))}</div>`;
                 return;
             }
             results.innerHTML = matches.map((m) => {
@@ -2677,7 +2677,7 @@ async function fileBrowserShowDuplicatesModal() {
     const html = `<div class="modal-overlay modal-visible" id="appDupModal" role="dialog" aria-modal="true">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h2>Find Duplicates — ${escapeHtml(_fileBrowserPath.split('/').filter(Boolean).pop() || _fileBrowserPath)}</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_duplicates', {dir: _fileBrowserPath.split('/').filter(Boolean).pop() || _fileBrowserPath}))}</h2>
         <button type="button" class="modal-close" data-app-dup="close" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
@@ -2690,8 +2690,8 @@ async function fileBrowserShowDuplicatesModal() {
         </label>
         <div id="appDupResults" class="fb-info-grid fb-modal-results-box-tall"></div>
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-secondary" data-app-dup="close">Close</button>
-          <button type="button" class="btn btn-primary" data-app-dup="scan">Scan</button>
+          <button type="button" class="btn btn-secondary" data-app-dup="close">${escapeHtml(appFmt('ui.fb_btn_close'))}</button>
+          <button type="button" class="btn btn-primary" data-app-dup="scan">${escapeHtml(appFmt('ui.fb_btn_scan'))}</button>
         </div>
       </div>
     </div>
@@ -2728,7 +2728,7 @@ async function fileBrowserShowDuplicatesModal() {
         scan();
     };
     const scan = async () => {
-        results.innerHTML = '<div class="fb-info-val">scanning…</div>';
+        results.innerHTML = `<div class="fb-info-val">${escapeHtml(appFmt('ui.fb_lbl_scanning'))}</div>`;
         try {
             const groups = await window.vstUpdater.fsFindDuplicates(
                 _fileBrowserPath,
@@ -2736,7 +2736,7 @@ async function fileBrowserShowDuplicatesModal() {
                 parseInt(minSize.value, 10) || 1,
             );
             if (!groups || groups.length === 0) {
-                results.innerHTML = '<div class="fb-info-val">no duplicates found</div>';
+                results.innerHTML = `<div class="fb-info-val">${escapeHtml(appFmt('ui.fb_lbl_no_duplicates'))}</div>`;
                 return;
             }
             // Render each group as a block. Header: "N files, X MB each
@@ -2913,13 +2913,13 @@ async function fileBrowserShowDiffModal(pathA, pathB) {
     const html = `<div class="modal-overlay modal-visible" id="appDiffModal" role="dialog" aria-modal="true">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Diff — ${escapeHtml(nameA)} ⇄ ${escapeHtml(nameB)}</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_diff', {a: nameA, b: nameB}))}</h2>
         <button type="button" class="modal-close" data-app-diff="close" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <div id="appDiffBody" class="fb-diff-body">computing diff…</div>
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-primary" data-app-diff="close">Close</button>
+          <button type="button" class="btn btn-primary" data-app-diff="close">${escapeHtml(appFmt('ui.fb_btn_close'))}</button>
         </div>
       </div>
     </div>
@@ -2936,7 +2936,7 @@ async function fileBrowserShowDiffModal(pathA, pathB) {
     try {
         const ops = await window.vstUpdater.fsDiff(pathA, pathB);
         if (!ops || ops.length === 0) {
-            body.innerHTML = '<div class="fb-diff-equal">files are identical</div>';
+            body.innerHTML = `<div class="fb-diff-equal">${escapeHtml(appFmt('ui.fb_lbl_files_identical'))}</div>`;
             return;
         }
         // Filter to non-equal ops + a couple lines of context. For
@@ -3116,14 +3116,14 @@ async function fileBrowserShowCompareModal(dirA, dirB) {
     const html = `<div class="modal-overlay modal-visible" id="appCmpModal" role="dialog" aria-modal="true">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Compare Folders</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_compare'))}</h2>
         <button type="button" class="modal-close" data-app-cmp="close" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <p class="app-confirm-message"><strong>A:</strong> ${escapeHtml(dirA)}<br><strong>B:</strong> ${escapeHtml(dirB)}</p>
-        <div id="appCmpBody" class="fb-cmp-body">comparing…</div>
+        <div id="appCmpBody" class="fb-cmp-body">${escapeHtml(appFmt('ui.fb_lbl_comparing'))}</div>
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-primary" data-app-cmp="close">Close</button>
+          <button type="button" class="btn btn-primary" data-app-cmp="close">${escapeHtml(appFmt('ui.fb_btn_close'))}</button>
         </div>
       </div>
     </div>
@@ -3147,7 +3147,7 @@ async function fileBrowserShowCompareModal(dirA, dirB) {
         };
         const total = (r.onlyInA?.length || 0) + (r.onlyInB?.length || 0) + (r.different?.length || 0);
         if (total === 0) {
-            body.innerHTML = '<div class="fb-cmp-equal">trees are identical</div>';
+            body.innerHTML = `<div class="fb-cmp-equal">${escapeHtml(appFmt('ui.fb_lbl_trees_identical'))}</div>`;
         } else {
             body.innerHTML = sec('Only in A', r.onlyInA, 'fb-cmp-only-a')
                 + sec('Only in B', r.onlyInB, 'fb-cmp-only-b')
@@ -3209,11 +3209,11 @@ async function fileBrowserShowQuickPalette() {
     const html = `<div class="modal-overlay modal-visible" id="appQuickModal" role="dialog" aria-modal="true">
     <div class="modal-content modal-small">
       <div class="modal-header">
-        <h2>Quick Open — recent folders &amp; files</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_quick'))}</h2>
         <button type="button" class="modal-close" data-app-quick="close" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
-        <input type="text" id="appQuickInput" class="app-prompt-input" placeholder="Fuzzy search…" />
+        <input type="text" id="appQuickInput" class="app-prompt-input" placeholder="${escapeHtml(appFmt('ui.fb_placeholder_fuzzy'))}" />
         <div id="appQuickResults" class="fb-quick-results"></div>
       </div>
     </div>
@@ -3283,11 +3283,11 @@ async function fileBrowserShowSpotlight() {
     const html = `<div class="modal-overlay modal-visible" id="appSpotlightModal" role="dialog" aria-modal="true">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Spotlight — search all scanned inventory</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_spotlight'))}</h2>
         <button type="button" class="modal-close" data-app-spot="close" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
-        <input type="text" id="appSpotInput" class="app-prompt-input" placeholder="search audio, DAW, presets, MIDI, PDFs, videos…" />
+        <input type="text" id="appSpotInput" class="app-prompt-input" placeholder="${escapeHtml(appFmt('ui.fb_placeholder_spotlight'))}" />
         <div id="appSpotResults" class="fb-spot-results"><div class="fb-info-val">Type ≥ 3 chars for FTS, 1-2 for LIKE fallback…</div></div>
       </div>
     </div>
@@ -3357,7 +3357,7 @@ async function fileBrowserShowSpotlight() {
     const runSearch = async () => {
         const q = (input.value || '').trim();
         if (!q) { results.innerHTML = '<div class="fb-info-val">Type ≥ 3 chars for FTS, 1-2 for LIKE fallback…</div>'; return; }
-        results.innerHTML = '<div class="fb-info-val">searching…</div>';
+        results.innerHTML = `<div class="fb-info-val">${escapeHtml(appFmt('ui.fb_lbl_searching'))}</div>`;
         try {
             const data = await window.vstUpdater.fsGlobalSearch(q, 25);
             render(data);
@@ -3399,15 +3399,15 @@ async function fileBrowserShowBookmarksModal() {
     const html = `<div class="modal-overlay modal-visible" id="appBmModal" role="dialog" aria-modal="true">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Bookmarks (${dirs.length})</h2>
+        <h2>${escapeHtml(appFmt('ui.fb_modal_bookmarks', {n: dirs.length}))}</h2>
         <button type="button" class="modal-close" data-app-bm="close" aria-label="Close">&#10005;</button>
       </div>
       <div class="modal-body">
         <p class="app-confirm-message">Rename inline, reorder via ▲▼, click path to jump, × to remove.</p>
         <div id="appBmBody" class="fb-bm-body"></div>
         <div class="export-actions app-confirm-actions">
-          <button type="button" class="btn btn-secondary" data-app-bm="close">Close</button>
-          <button type="button" class="btn btn-primary" data-app-bm="save">Save</button>
+          <button type="button" class="btn btn-secondary" data-app-bm="close">${escapeHtml(appFmt('ui.fb_btn_close'))}</button>
+          <button type="button" class="btn btn-primary" data-app-bm="save">${escapeHtml(appFmt('ui.fb_btn_save'))}</button>
         </div>
       </div>
     </div>

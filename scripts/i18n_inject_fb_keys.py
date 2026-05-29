@@ -119,6 +119,12 @@ NEW_KEYS: dict[str, str] = {
     "ui.fb_btn_search": "Search",
     "ui.fb_btn_copy_all": "Copy All",
     "ui.fb_btn_repoint": "Re-point",
+    "ui.fb_btn_fit": "Fit",
+    "ui.fb_btn_actual": "100%",
+    "ui.fb_btn_zoom_in": "Zoom in",
+    "ui.fb_btn_zoom_out": "Zoom out",
+    "ui.fb_btn_fit_tip": "Fit to pane",
+    "ui.fb_btn_actual_tip": "Actual size",
     # ── Modal labels / fields / placeholders ──
     "ui.fb_lbl_octal_mode": "Octal mode (e.g. 0644, 755).",
     "ui.fb_lbl_octal_mode_current": "Current: {mode}",
