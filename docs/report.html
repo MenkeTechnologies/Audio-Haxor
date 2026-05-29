@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <meta name="description" content="AUDIO_HAXOR — Engineering report. Tauri v2 desktop app + JUCE 8 audio engine sidecar: 144k Rust lines (production), 71k Rust test lines, 71k JS lines, 9,425 #[test] functions, 294 IPC commands, 44 SQLite tables, 27 i18n locales.">
+  <meta name="description" content="AUDIO_HAXOR — Engineering report. Tauri v2 desktop app + JUCE 8 audio engine sidecar: 156k production lines (Rust+JS+HTML+C++), 71k Rust test lines, 58k JS lines, 9,426 #[test] functions, 281 IPC commands, 44 SQLite tables, 27 i18n locales.">
   <title>AUDIO_HAXOR &mdash; Engineering Report</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -94,28 +94,28 @@
       <!-- SECTION 1: EXECUTIVE SUMMARY           -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">&gt;_</span>EXECUTIVE SUMMARY</h2>
-      <p class="tutorial-subtitle">AUDIO_HAXOR is a Tauri v2 desktop application for cataloging, analyzing, and arranging music-production assets. The Rust backend (<code>src-tauri/</code>) walks the filesystem to index VST2/VST3/AU/CLAP/AAX plugins, audio samples, DAW projects across 13 formats, MIDI files, presets, PDFs, and video reference material into a SQLite catalog. A separate JUCE 8 sidecar process (<code>audio-engine</code>) handles device I/O, plugin hosting, sample-accurate playback, and waveform / spectrogram rendering over a stdin/stdout JSON protocol. The frontend is a WebKit-rendered cyberpunk HUD with 51 JS modules driving the grid views, command palette, tray popover, and ALS Ableton-project generator.</p>
+      <p class="tutorial-subtitle">AUDIO_HAXOR is a Tauri v2 desktop application for cataloging, analyzing, and arranging music-production assets. The Rust backend (<code>src-tauri/</code>) walks the filesystem to index VST2/VST3/AU/CLAP/AAX plugins, audio samples, DAW projects across 13 formats, MIDI files, presets, PDFs, and video reference material into a SQLite catalog. A separate JUCE 8 sidecar process (<code>audio-engine</code>) handles device I/O, plugin hosting, sample-accurate playback, and waveform / spectrogram rendering over a stdin/stdout JSON protocol. The frontend is a WebKit-rendered cyberpunk HUD with 52 JS modules driving the grid views, command palette, tray popover, and ALS Ableton-project generator.</p>
 
       <div class="stat-grid">
-        <div class="stat-card"><div class="stat-val">72,460</div><div class="stat-label">Rust LOC (Production)</div></div>
+        <div class="stat-card"><div class="stat-val">75,606</div><div class="stat-label">Rust LOC (Production)</div></div>
         <div class="stat-card"><div class="stat-val">64,110</div><div class="stat-label">Rust LOC (Tests)</div></div>
-        <div class="stat-card"><div class="stat-val">51,628</div><div class="stat-label">Frontend JS LOC</div></div>
+        <div class="stat-card"><div class="stat-val">58,324</div><div class="stat-label">Frontend JS LOC</div></div>
         <div class="stat-card"><div class="stat-val">5,802</div><div class="stat-label">Audio Engine C++ LOC</div></div>
-        <div class="stat-card"><div class="stat-val accent">250</div><div class="stat-label">IPC Commands</div></div>
-        <div class="stat-card"><div class="stat-val green">9,413</div><div class="stat-label">#[test] Functions</div></div>
+        <div class="stat-card"><div class="stat-val accent">281</div><div class="stat-label">IPC Commands</div></div>
+        <div class="stat-card"><div class="stat-val green">9,426</div><div class="stat-label">#[test] Functions</div></div>
         <div class="stat-card"><div class="stat-val">44</div><div class="stat-label">SQLite Tables</div></div>
         <div class="stat-card"><div class="stat-val">93</div><div class="stat-label">SQLite Indices</div></div>
         <div class="stat-card"><div class="stat-val">27</div><div class="stat-label">i18n Locales</div></div>
-        <div class="stat-card"><div class="stat-val">1,549</div><div class="stat-label">Git Commits</div></div>
+        <div class="stat-card"><div class="stat-val">1,648</div><div class="stat-label">Git Commits</div></div>
       </div>
 
       <div style="margin:1.2rem 0;">
-        <p style="font-size:11px;color:var(--text-muted);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:4px;font-family:'Orbitron',sans-serif;font-weight:700;">Source Distribution &mdash; 222,889 total lines</p>
+        <p style="font-size:11px;color:var(--text-muted);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:4px;font-family:'Orbitron',sans-serif;font-weight:700;">Source Distribution &mdash; 234,870 total lines</p>
         <div class="bar-wrap" style="height:26px;">
-          <div class="bar-fill cyan" style="width:64.7%;"></div>
-          <span class="bar-pct" style="font-size:12px;">144,831 production / 71,048 tests &amp; benches / 7,010 tooling &middot; 65.0% production</span>
+          <div class="bar-fill cyan" style="width:66.8%;"></div>
+          <span class="bar-pct" style="font-size:12px;">156,812 production / 71,048 tests &amp; benches / 7,010 tooling &middot; 66.8% production</span>
         </div>
-        <p style="font-size:10px;color:var(--text-muted);margin-top:4px;">Production = Rust src () + Frontend JS (51,628) + HTML (15,427) + audio-engine C++ (5,802). Tests &amp; benches = 114 Rust integration modules under <code>src-tauri/tests/</code> + criterion bench + 7 example binaries. Tooling = 60 build / i18n / packaging scripts (Bash + Node + Python).</p>
+        <p style="font-size:10px;color:var(--text-muted);margin-top:4px;">Production = Rust src (75,606) + Frontend JS (58,324) + HTML (17,080) + audio-engine C++ (5,802). Tests &amp; benches = 114 Rust integration modules under <code>src-tauri/tests/</code> + criterion bench + 7 example binaries. Tooling = 60 build / i18n / packaging scripts (Bash + Node + Python).</p>
       </div>
 
       <hr class="section-rule">
@@ -124,14 +124,14 @@
       <!-- SECTION 2: SUBSYSTEM BREAKDOWN          -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">#</span>SUBSYSTEM BREAKDOWN</h2>
-      <p class="tutorial-subtitle">The Rust backend ( LOC across 46 files) is partitioned below by role. <code>db.rs</code> dominates at 21.7% &mdash; the entire SQLite schema (44 tables, 93 indices), all CRUD helpers, plus filter / facet / stats queries live in a single file. <code>lib.rs</code> at 13.7% is the Tauri-command surface (250 registered IPC handlers) plus app setup. ALS / MIDI / track generators total 22.0% &mdash; the largest concentration of domain logic, including the trance-arrangement state machine and Ableton-project XML emitter.</p>
+      <p class="tutorial-subtitle">The Rust backend (75,606 LOC across 47 files) is partitioned below by role. <code>db.rs</code> dominates &mdash; the entire SQLite schema (44 tables, 93 indices), all CRUD helpers, plus filter / facet / stats queries live in a single file. <code>lib.rs</code> is the Tauri-command surface (281 registered IPC handlers) plus app setup. ALS / MIDI / track generators are the largest concentration of domain logic, including the trance-arrangement state machine and Ableton-project XML emitter.</p>
 
       <table class="file-table">
         <thead><tr><th>Subsystem</th><th>Key Files</th><th class="num">Lines</th><th class="num">%</th><th style="min-width:120px;">Share</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td style="color:var(--accent);">Database</td><td><code>db</code></td><td class="num">15,603</td><td class="num">21.7%</td><td><div class="bar-wrap"><div class="bar-fill magenta" style="width:21.7%"></div></div></td><td>SQLite schema (44 tables, 93 indices), connection management, all CRUD queries, filter facets, stats aggregations, palette preview, cache tables, migration paths</td></tr>
-          <tr><td style="color:var(--accent);">App Core / IPC</td><td><code>lib, main</code></td><td class="num">9,901</td><td class="num">13.7%</td><td><div class="bar-wrap"><div class="bar-fill cyan" style="width:13.7%"></div></div></td><td>Tauri entry point, 250 <code>#[tauri::command]</code> handlers, event emission, window setup, prefs load/save, panic handler, async runtime wiring</td></tr>
-          <tr><td style="color:var(--accent);">ALS / Track Generators</td><td><code>track_generator, als_generator, midi_generator, trance_generator, trance_starter, als_project</code></td><td class="num">16,287</td><td class="num">22.6%</td><td><div class="bar-wrap"><div class="bar-fill magenta" style="width:22.6%"></div></div></td><td>Ableton Live Set (.als) project synthesizer: scene/track/clip layout, sample auditioning + filtering, BPM-locked alignment, kit selection, group routing, sidechain compressor templates, gzip XML emission</td></tr>
+          <tr><td style="color:var(--accent);">Database</td><td><code>db</code></td><td class="num">16,310</td><td class="num">21.6%</td><td><div class="bar-wrap"><div class="bar-fill magenta" style="width:21.6%"></div></div></td><td>SQLite schema (44 tables, 93 indices), connection management, all CRUD queries, filter facets, stats aggregations, palette preview, cache tables, migration paths</td></tr>
+          <tr><td style="color:var(--accent);">App Core / IPC</td><td><code>lib, main</code></td><td class="num">12,167</td><td class="num">16.1%</td><td><div class="bar-wrap"><div class="bar-fill cyan" style="width:16.1%"></div></div></td><td>Tauri entry point, 281 <code>#[tauri::command]</code> handlers, event emission, window setup, prefs load/save, panic handler, async runtime wiring</td></tr>
+          <tr><td style="color:var(--accent);">ALS / Track Generators</td><td><code>track_generator, als_generator, midi_generator, trance_generator, trance_starter, als_project</code></td><td class="num">16,773</td><td class="num">22.2%</td><td><div class="bar-wrap"><div class="bar-fill magenta" style="width:22.2%"></div></div></td><td>Ableton Live Set (.als) project synthesizer: scene/track/clip layout, sample auditioning + filtering, BPM-locked alignment, kit selection, group routing, sidechain compressor templates, gzip XML emission</td></tr>
           <tr><td style="color:var(--accent);">Scanners</td><td><code>scanner, audio_scanner, daw_scanner, midi_scanner, preset_scanner, pdf_scanner, video_scanner, unified_walker, bulk_stat, scanner_skip_dirs, file_watcher, similarity, content_hash</code></td><td class="num">9,167</td><td class="num">12.7%</td><td><div class="bar-wrap"><div class="bar-fill cyan" style="width:12.7%"></div></div></td><td>Rayon-parallel filesystem walkers for plugins, samples, DAW projects, MIDI, presets, PDFs, video; unified scan orchestration; bulk <code>stat()</code>; <code>notify</code>-based watchers; SHA-256 content hashing; similarity fingerprinting</td></tr>
           <tr><td style="color:var(--accent);">Audio Analysis</td><td><code>sample_analysis, bpm, key_detect, lufs, sample_filters</code></td><td class="num">5,790</td><td class="num">8.0%</td><td><div class="bar-wrap"><div class="bar-fill cyan" style="width:8.0%"></div></div></td><td>Per-sample BPM autocorrelation, key detection (chromagram), LUFS loudness (BS.1770), filter classification (kick / snare / hat / bass / lead / pad), batch analysis runner with cancellation</td></tr>
           <tr><td style="color:var(--accent);">History</td><td><code>history</code></td><td class="num">3,487</td><td class="num">4.8%</td><td><div class="bar-wrap"><div class="bar-fill cyan" style="width:4.8%"></div></div></td><td>Per-domain scan snapshot store: save / load / diff / list / delete for plugins, audio, DAW, presets, MIDI, PDFs, videos; preferences JSON round-trip</td></tr>
@@ -140,14 +140,14 @@
           <tr><td style="color:var(--accent);">i18n</td><td><code>app_i18n</code></td><td class="num">2,044</td><td class="num">2.8%</td><td><div class="bar-wrap"><div class="bar-fill cyan" style="width:2.8%"></div></div></td><td>Runtime string catalog loader: 3,033 English keys mirrored across 27 locales; toast strings; placeholder substitution; fallback resolution to <code>en</code></td></tr>
           <tr><td style="color:var(--accent);">Audio Engine Bridge</td><td><code>audio_engine, audio_extensions</code></td><td class="num">1,385</td><td class="num">1.9%</td><td><div class="bar-wrap"><div class="bar-fill cyan" style="width:1.9%"></div></div></td><td>Sidecar process management: spawn / restart / health-check the JUCE engine; stdin/stdout JSON RPC; EOF watchdog; next-track hinting; process-stats sampling</td></tr>
           <tr><td style="color:var(--accent);">MIDI / KVR / Misc</td><td><code>midi, kvr, waveform_container_extract, waveform_prefetch, terminal, open_with_app, pdf_meta, path_norm</code></td><td class="num">3,071</td><td class="num">4.3%</td><td><div class="bar-wrap"><div class="bar-fill cyan" style="width:4.3%"></div></div></td><td>SMF parser, KVR plugin database scraper, ALS-embedded waveform extraction, prefetch worker pool, PTY terminal, "Open With" launcher, PDF metadata extractor, path normalizer</td></tr>
-          <tr><td style="color:var(--green);">Tests</td><td><code>tests/*.rs</code></td><td class="num"></td><td class="num">+89.1%*</td><td><div class="bar-wrap"><div class="bar-fill green" style="width:89.1%"></div></div></td><td>114 integration test modules: handcrafted tables (table-driven regression catchers), behavioral suites (focused / heavy / ton / ultra / expanded / more), DB / IPC / history serde round-trips, BPM detection edge cases, file-watcher patterns, parser corner cases</td></tr>
+          <tr><td style="color:var(--green);">Tests</td><td><code>tests/*.rs</code></td><td class="num">64,110</td><td class="num">+84.8%*</td><td><div class="bar-wrap"><div class="bar-fill green" style="width:84.8%"></div></div></td><td>114 integration test modules: handcrafted tables (table-driven regression catchers), behavioral suites (focused / heavy / ton / ultra / expanded / more), DB / IPC / history serde round-trips, BPM detection edge cases, file-watcher patterns, parser corner cases</td></tr>
           <tr><td style="color:var(--text-muted);">Benches / Examples</td><td><code>benches/benchmarks.rs, examples/generate_*.rs</code></td><td class="num">6,938</td><td class="num">+9.6%*</td><td><div class="bar-wrap"><div class="bar-fill yellow" style="width:9.6%"></div></div></td><td>Criterion HTML-report bench harness; 7 example binaries for generating empty / toy / schranz / techno / true-techno ALS projects and sample-filter dry-runs</td></tr>
         </tbody>
         <tfoot>
-          <tr class="total-row"><td colspan="2" style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;">PRODUCTION TOTAL</td><td class="num"></td><td class="num">100%</td><td></td><td>46 files in <code>src-tauri/src/</code></td></tr>
+          <tr class="total-row"><td colspan="2" style="font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:1px;">PRODUCTION TOTAL</td><td class="num">75,606</td><td class="num">100%</td><td></td><td>47 files in <code>src-tauri/src/</code></td></tr>
         </tfoot>
       </table>
-      <p style="font-size:10px;color:var(--text-muted);margin-top:0.4rem;">* Test / bench percentages are relative to production LOC (), not part of the 100% above.</p>
+      <p style="font-size:10px;color:var(--text-muted);margin-top:0.4rem;">* Test / bench percentages are relative to production LOC (75,606), not part of the 100% above.</p>
 
       <hr class="section-rule">
 
@@ -155,18 +155,18 @@
       <!-- SECTION 3: TOP FILES                    -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">$</span>TOP 15 FILES BY SIZE</h2>
-      <p class="tutorial-subtitle">The 15 largest files in <code>src-tauri/src/</code> account for 93.0% of the Rust production slice. <code>db.rs</code> is by far the heaviest &mdash; SQLite is the catalog spine, every query routes through it, and inlined SQL templates plus filter-stat aggregations push the file past 15k lines.</p>
+      <p class="tutorial-subtitle">The 15 largest files in <code>src-tauri/src/</code> account for 80.8% of the Rust production slice. <code>db.rs</code> is by far the heaviest &mdash; SQLite is the catalog spine, every query routes through it, and inlined SQL templates plus filter-stat aggregations push the file past 16k lines.</p>
 
       <table class="file-table">
         <thead><tr><th>File</th><th class="num">Lines</th><th>Role</th></tr></thead>
         <tbody>
-          <tr><td>src-tauri/src/db.rs</td><td class="num">15,603</td><td>SQLite schema (44 tables, 93 indices), connection pool, all CRUD + filter + stats queries, palette preview, cache tables</td></tr>
-          <tr><td>src-tauri/src/lib.rs</td><td class="num">9,888</td><td>250 <code>#[tauri::command]</code> handlers, Tauri setup, event emission, window restore, panic handler</td></tr>
+          <tr><td>src-tauri/src/db.rs</td><td class="num">16,310</td><td>SQLite schema (44 tables, 93 indices), connection pool, all CRUD + filter + stats queries, palette preview, cache tables</td></tr>
+          <tr><td>src-tauri/src/lib.rs</td><td class="num">12,167</td><td>281 <code>#[tauri::command]</code> handlers, Tauri setup, event emission, window restore, panic handler</td></tr>
           <tr><td>src-tauri/src/track_generator.rs</td><td class="num">7,177</td><td>Per-track ALS clip layout: BPM-locked alignment, scene assembly, automation lanes, kit routing, group sidechain</td></tr>
           <tr><td>src-tauri/src/history.rs</td><td class="num">3,487</td><td>Per-domain scan-history store: save / load / diff / list / delete for 7 inventory domains plus prefs round-trip</td></tr>
           <tr><td>src-tauri/src/sample_analysis.rs</td><td class="num">3,252</td><td>Background batch analyzer: BPM + key + LUFS for unanalyzed samples; cancellation tokens; stats aggregation</td></tr>
           <tr><td>src-tauri/src/midi_generator.rs</td><td class="num">2,882</td><td>SMF synthesis: lead / chord / drum-kit MIDI emission with scale + key + velocity humanization</td></tr>
-          <tr><td>src-tauri/src/als_generator.rs</td><td class="num">2,781</td><td>Ableton Live Set composer: scene / track allocation, sample selection, blacklist / whitelist, kit picker, gzip XML emission</td></tr>
+          <tr><td>src-tauri/src/als_generator.rs</td><td class="num">2,927</td><td>Ableton Live Set composer: scene / track allocation, sample selection, blacklist / whitelist, kit picker, gzip XML emission</td></tr>
           <tr><td>src-tauri/src/xref.rs</td><td class="num">2,218</td><td>DAW-project cross-reference graph: parses every supported project format for plugin + sample references</td></tr>
           <tr><td>src-tauri/src/app_i18n.rs</td><td class="num">2,044</td><td>Runtime i18n: catalog loader for 27 locales, placeholder substitution, fallback resolution</td></tr>
           <tr><td>src-tauri/src/als_project.rs</td><td class="num">1,790</td><td>Standalone ALS-project file emitter: empty / techno / schranz starter templates with embedded XML fragments</td></tr>
@@ -177,28 +177,28 @@
           <tr><td>src-tauri/src/daw_scanner.rs</td><td class="num">1,224</td><td>DAW-project scanner: 13 formats including <code>.als</code>, <code>.flp</code>, <code>.rpp</code>, <code>.cpr</code>, <code>.logic</code>, <code>.ptx</code>, <code>.bwproject</code>, <code>.song</code>, <code>.reason</code>, <code>.aup3</code>, <code>.band</code>, <code>.ardour</code>, <code>.dawproject</code></td></tr>
         </tbody>
         <tfoot>
-          <tr class="total-row"><td>TOP 15 SUBTOTAL</td><td class="num">57,923</td><td>80.5% of -line Rust production slice</td></tr>
+          <tr class="total-row"><td>TOP 15 SUBTOTAL</td><td class="num">61,055</td><td>80.8% of 75,606-line Rust production slice</td></tr>
         </tfoot>
       </table>
 
       <h3 class="tutorial-title" style="font-size:1.05em;margin-top:24px;"><span class="step-hash">$</span>TOP 10 FRONTEND MODULES</h3>
-      <p class="tutorial-subtitle">The 10 largest JS modules under <code>frontend/js/</code> account for 55.9% of the 51,628-line frontend slice. <code>audio.js</code> at 8,753 lines is the playback / waveform / spectrogram / drag-source / player-history controller — the longest single JS file in the app.</p>
+      <p class="tutorial-subtitle">The 10 largest JS modules under <code>frontend/js/</code> account for 59.2% of the 58,324-line frontend slice. <code>audio.js</code> at 8,759 lines is the playback / waveform / spectrogram / drag-source / player-history controller — the longest single JS file in the app.</p>
       <table class="file-table">
         <thead><tr><th>File</th><th class="num">Lines</th><th>Role</th></tr></thead>
         <tbody>
-          <tr><td>frontend/js/audio.js</td><td class="num">8,753</td><td>Playback controller, waveform / spectrogram canvas, native file drag, player history</td></tr>
+          <tr><td>frontend/js/audio.js</td><td class="num">8,759</td><td>Playback controller, waveform / spectrogram canvas, native file drag, player history</td></tr>
+          <tr><td>frontend/js/file-browser.js</td><td class="num">6,312</td><td>Power file browser: multi-pane state, drag-resize/swap/reorder, Spotlight FTS, modal toolset</td></tr>
           <tr><td>frontend/js/audio-engine.js</td><td class="num">4,491</td><td>Browser-side bridge to the JUCE sidecar: device list, MIDI device list, plugin host UI, transport</td></tr>
-          <tr><td>frontend/js/context-menu.js</td><td class="num">2,788</td><td>Right-click menu builder per row type: 50+ actions across all inventory grids</td></tr>
+          <tr><td>frontend/js/context-menu.js</td><td class="num">3,306</td><td>Right-click menu builder per row type: 50+ actions across all inventory grids</td></tr>
           <tr><td>frontend/js/settings.js</td><td class="num">2,497</td><td>Settings tab: directory pickers, theme selector, scan throttle, audio device routing, watcher toggle</td></tr>
-          <tr><td>frontend/js/ipc.js</td><td class="num">2,134</td><td>Wrapper around <code>window.__TAURI__.core.invoke</code>: typed helpers per IPC command (~250 wrappers)</td></tr>
-          <tr><td>frontend/js/utils.js</td><td class="num">1,726</td><td>Shared formatters, debounce / throttle, dataset diff helpers, format-size / format-duration</td></tr>
+          <tr><td>frontend/js/ipc.js</td><td class="num">2,291</td><td>Wrapper around <code>window.__TAURI__.core.invoke</code>: typed helpers per IPC command (~281 wrappers)</td></tr>
+          <tr><td>frontend/js/utils.js</td><td class="num">1,830</td><td>Shared formatters, debounce / throttle, dataset diff helpers, format-size / format-duration</td></tr>
+          <tr><td>frontend/js/command-palette.js</td><td class="num">1,707</td><td>Cmd-K palette: fuzzy match across actions, inventory rows, settings, tutorial steps</td></tr>
           <tr><td>frontend/js/video.js</td><td class="num">1,706</td><td>Video tab: thumbnail strip, scrub bar, metadata pane</td></tr>
-          <tr><td>frontend/js/visualizer.js</td><td class="num">1,633</td><td>Live FFT visualizer + analyzer modes (oscilloscope, spectrum, spectrogram)</td></tr>
-          <tr><td>frontend/js/tray-popover.js</td><td class="num">1,507</td><td>Tray-popover controller: now-playing card, waveform, transport buttons, subtitle queue</td></tr>
-          <tr><td>frontend/js/command-palette.js</td><td class="num">1,481</td><td>Cmd-K palette: fuzzy match across actions, inventory rows, settings, tutorial steps</td></tr>
+          <tr><td>frontend/js/visualizer.js</td><td class="num">1,634</td><td>Live FFT visualizer + analyzer modes (oscilloscope, spectrum, spectrogram)</td></tr>
         </tbody>
         <tfoot>
-          <tr class="total-row"><td>TOP 10 SUBTOTAL</td><td class="num">28,716</td><td>55.6% of 51,628-line frontend slice (51 modules)</td></tr>
+          <tr class="total-row"><td>TOP 10 SUBTOTAL</td><td class="num">34,533</td><td>59.2% of 58,324-line frontend slice (52 modules)</td></tr>
         </tfoot>
       </table>
 
@@ -208,7 +208,7 @@
       <!-- SECTION 4: PROCESS ARCHITECTURE         -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">@</span>PROCESS ARCHITECTURE</h2>
-      <p class="tutorial-subtitle">Three processes per running instance: the Tauri shell (main), the WebKit frontend, and the JUCE audio-engine sidecar. The shell owns the SQLite catalog and filesystem walkers; the WebView drives the UI; the sidecar holds <code>juce::AudioDeviceManager</code>, hosts plugin instances, and renders waveforms. The shell talks to the frontend over Tauri's IPC bus (263 commands), and to the sidecar over a stdin/stdout JSON line protocol.</p>
+      <p class="tutorial-subtitle">Three processes per running instance: the Tauri shell (main), the WebKit frontend, and the JUCE audio-engine sidecar. The shell owns the SQLite catalog and filesystem walkers; the WebView drives the UI; the sidecar holds <code>juce::AudioDeviceManager</code>, hosts plugin instances, and renders waveforms. The shell talks to the frontend over Tauri's IPC bus (281 commands), and to the sidecar over a stdin/stdout JSON line protocol.</p>
 
       <pre style="margin:0.5rem 0;padding:1rem;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-dim);font-size:11px;line-height:1.7;overflow-x:auto;">
   ┌──────────────────────────────────────────────────────────────────┐
@@ -218,8 +218,8 @@
   │   ┌────────────────────┐         ┌────────────────────────────┐  │
   │   │  WebView frontend  │ ◀─────▶ │   Rust shell (src-tauri)   │  │
   │   │  (frontend/)       │   IPC   │   ────────────────────     │  │
-  │   │   51 JS modules    │   250   │   • 250 #[tauri::command]  │  │
-  │   │   51,628 LOC       │   cmds  │   • SQLite catalog (db.rs) │  │
+  │   │   52 JS modules    │   281   │   • 281 #[tauri::command]  │  │
+  │   │   58,324 LOC       │   cmds  │   • SQLite catalog (db.rs) │  │
   │   │   WebKit (release) │  events │     44 tables / 93 indices │  │
   │   │   http (dev)       │ ──────▶ │   • Rayon-parallel walkers │  │
   │   │                    │         │   • Symphonia metadata     │  │
@@ -290,19 +290,19 @@
       <!-- SECTION 6: ALS GENERATOR                -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">!</span>ALS PROJECT GENERATOR</h2>
-      <p class="tutorial-subtitle">16,287 lines across six files compose the Ableton Live Set generator &mdash; the largest single feature in the app by code mass (22.6% of the Rust slice). Output is gzip'd XML that opens natively in Ableton Live; the generator selects samples from the catalog by genre / BPM / key constraints, lays out scenes, routes groups, attaches sidechain compressors, and emits the complete project file with no post-processing required.</p>
+      <p class="tutorial-subtitle">16,773 lines across six files compose the Ableton Live Set generator &mdash; the largest single feature in the app by code mass (22.2% of the Rust slice). Output is gzip'd XML that opens natively in Ableton Live; the generator selects samples from the catalog by genre / BPM / key constraints, lays out scenes, routes groups, attaches sidechain compressors, and emits the complete project file with no post-processing required.</p>
 
       <table class="file-table">
         <thead><tr><th>File</th><th class="num">Lines</th><th>Role</th></tr></thead>
         <tbody>
           <tr><td>track_generator.rs</td><td class="num">7,177</td><td>Per-track clip layout: BPM-locked alignment, automation lanes, kit routing, group sidechain insertion</td></tr>
           <tr><td>midi_generator.rs</td><td class="num">2,882</td><td>SMF synthesis: lead, chord, and drum-kit MIDI emission with scale + key + velocity humanization</td></tr>
-          <tr><td>als_generator.rs</td><td class="num">2,781</td><td>Top-level project synthesizer: scene allocation, sample selection by genre / kit, blacklist + whitelist enforcement</td></tr>
+          <tr><td>als_generator.rs</td><td class="num">2,927</td><td>Top-level project synthesizer: scene allocation, sample selection by genre / kit, blacklist + whitelist enforcement</td></tr>
           <tr><td>als_project.rs</td><td class="num">1,790</td><td>Standalone ALS-project file emitter: empty / toy / techno / schranz / true-techno starter templates</td></tr>
-          <tr><td>trance_generator.rs</td><td class="num">1,157</td><td>Trance-specific arrangement state machine: intro / breakdown / build / drop / outro section sequencing</td></tr>
-          <tr><td>trance_starter.rs</td><td class="num">500</td><td>Trance-only starter project: standalone short arrangement scaffolding</td></tr>
+          <tr><td>trance_generator.rs</td><td class="num">1,354</td><td>Trance-specific arrangement state machine: intro / breakdown / build / drop / outro section sequencing</td></tr>
+          <tr><td>trance_starter.rs</td><td class="num">643</td><td>Trance-only starter project: standalone short arrangement scaffolding</td></tr>
         </tbody>
-        <tfoot><tr class="total-row"><td>ALS GENERATOR TOTAL</td><td class="num">16,287</td><td>22.6% of Rust production slice</td></tr></tfoot>
+        <tfoot><tr class="total-row"><td>ALS GENERATOR TOTAL</td><td class="num">16,773</td><td>22.2% of Rust production slice</td></tr></tfoot>
       </table>
 
       <h3 style="font-family:'Orbitron',sans-serif;font-size:11px;color:var(--accent);letter-spacing:1.5px;margin:1.5rem 0 0.5rem;">// EMBEDDED XML TEMPLATES (raw inline assets in <code>src-tauri/src/</code>)</h3>
@@ -346,12 +346,12 @@
       <!-- SECTION 8: SQLITE CATALOG               -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">%</span>SQLITE CATALOG</h2>
-      <p class="tutorial-subtitle">44 tables and 93 indices, all bundled in <code>src-tauri/src/db.rs</code> (15,603 LOC). The catalog covers every inventory domain plus history snapshots, KVR plugin metadata, waveform / spectrogram caches, and per-row notes / tags / favorites. <code>rusqlite</code> with the <code>bundled</code> feature so the binary ships its own SQLite &mdash; no system dependency.</p>
+      <p class="tutorial-subtitle">44 tables and 93 indices, all bundled in <code>src-tauri/src/db.rs</code> (16,310 LOC). The catalog covers every inventory domain plus history snapshots, KVR plugin metadata, waveform / spectrogram caches, and per-row notes / tags / favorites. <code>rusqlite</code> with the <code>bundled</code> feature so the binary ships its own SQLite &mdash; no system dependency.</p>
 
       <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));">
         <div class="stat-card"><div class="stat-val accent">44</div><div class="stat-label">Tables</div></div>
         <div class="stat-card"><div class="stat-val accent">93</div><div class="stat-label">Indices</div></div>
-        <div class="stat-card"><div class="stat-val">15,603</div><div class="stat-label">db.rs LOC</div></div>
+        <div class="stat-card"><div class="stat-val">16,310</div><div class="stat-label">db.rs LOC</div></div>
         <div class="stat-card"><div class="stat-val">7</div><div class="stat-label">Inventory Domains</div></div>
         <div class="stat-card"><div class="stat-val">bundled</div><div class="stat-label">rusqlite Feature</div></div>
         <div class="stat-card"><div class="stat-val">hooks</div><div class="stat-label">Change Notifications</div></div>
@@ -375,12 +375,12 @@
       <!-- SECTION 9: IPC SURFACE                  -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">^</span>IPC COMMAND SURFACE</h2>
-      <p class="tutorial-subtitle">263 IPC commands registered in <code>tauri::generate_handler!</code>. The frontend invokes them through <code>window.__TAURI__.core.invoke(name, args)</code>; <code>frontend/js/ipc.js</code> (2,134 LOC) wraps each one with a typed helper. Domains below break down what the frontend can ask the shell to do.</p>
+      <p class="tutorial-subtitle">281 IPC commands defined in <code>lib.rs</code> and registered via <code>tauri::generate_handler!</code>. The frontend invokes them through <code>window.__TAURI__.core.invoke(name, args)</code>; <code>frontend/js/ipc.js</code> (2,291 LOC) wraps each one with a typed helper. Domains below break down what the frontend can ask the shell to do.</p>
 
       <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));">
-        <div class="stat-card"><div class="stat-val accent">250</div><div class="stat-label">Total IPC Commands</div></div>
-        <div class="stat-card"><div class="stat-val">249</div><div class="stat-label">#[tauri::command] fns</div></div>
-        <div class="stat-card"><div class="stat-val">2,134</div><div class="stat-label">ipc.js Wrapper LOC</div></div>
+        <div class="stat-card"><div class="stat-val accent">281</div><div class="stat-label">Total IPC Commands</div></div>
+        <div class="stat-card"><div class="stat-val">293</div><div class="stat-label">#[tauri::command] fns</div></div>
+        <div class="stat-card"><div class="stat-val">2,291</div><div class="stat-label">ipc.js Wrapper LOC</div></div>
       </div>
 
       <table class="file-table" style="margin-top:1rem;">
@@ -399,7 +399,7 @@
           <tr><td>Terminal (PTY)</td><td class="num">4</td><td><code>terminal::terminal_spawn / write / resize / kill</code></td></tr>
           <tr><td>Misc</td><td class="num">86</td><td>prefs, KVR, file watcher, i18n, log, similarity, waveform prefetch, sample-analysis, crate filters, palette preview, etc.</td></tr>
         </tbody>
-        <tfoot><tr class="total-row"><td>TOTAL REGISTERED</td><td class="num">250</td><td>From <code>invoke_handler!</code> in <code>src-tauri/src/lib.rs</code></td></tr></tfoot>
+        <tfoot><tr class="total-row"><td>TOTAL REGISTERED</td><td class="num">281</td><td>From <code>invoke_handler!</code> in <code>src-tauri/src/lib.rs</code></td></tr></tfoot>
       </table>
 
       <hr class="section-rule">
@@ -425,11 +425,11 @@
       <!-- SECTION 11: TESTS                       -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">.</span>TESTS</h2>
-      <p class="tutorial-subtitle">9,413 <code>#[test]</code> functions across 114 Rust integration modules in <code>src-tauri/tests/</code>, totaling  LOC. The largest single test file (<code>handcrafted_tables_massive.rs</code> at 22,878 LOC) is a table-driven regression catcher pinning behaviors that earlier bugs broke. Rule: never delete a test file; never write generic boilerplate tests; every test catches a real bug or pins a real behavior.</p>
+      <p class="tutorial-subtitle">9,426 <code>#[test]</code> functions across 114 Rust integration modules in <code>src-tauri/tests/</code>, totaling 64,110 LOC. The largest single test file (<code>handcrafted_tables_massive.rs</code> at 22,878 LOC) is a table-driven regression catcher pinning behaviors that earlier bugs broke. Rule: never delete a test file; never write generic boilerplate tests; every test catches a real bug or pins a real behavior.</p>
 
       <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));">
-        <div class="stat-card"><div class="stat-val green">9,413</div><div class="stat-label">#[test] Functions</div></div>
-        <div class="stat-card"><div class="stat-val accent"></div><div class="stat-label">Test LOC</div></div>
+        <div class="stat-card"><div class="stat-val green">9,426</div><div class="stat-label">#[test] Functions</div></div>
+        <div class="stat-card"><div class="stat-val accent">64,110</div><div class="stat-label">Test LOC</div></div>
         <div class="stat-card"><div class="stat-val">114</div><div class="stat-label">Test Modules</div></div>
         <div class="stat-card"><div class="stat-val">22,878</div><div class="stat-label">Largest Single Test File</div></div>
         <div class="stat-card"><div class="stat-val">273</div><div class="stat-label">Criterion Bench LOC</div></div>
@@ -480,18 +480,16 @@
       <!-- SECTION 13: PUBLIC API SURFACE          -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">;</span>PUBLIC API SURFACE</h2>
-      <p class="tutorial-subtitle">The Rust shell is built as a single <code>rlib</code> (<code>app_lib</code>) consumed by <code>src-tauri/src/main.rs</code>. The public surface is the 263 Tauri-IPC commands; internally there are 2,419 functions and 164 structs across 46 modules.</p>
+      <p class="tutorial-subtitle">The Rust shell is built as a single <code>rlib</code> (<code>app_lib</code>) consumed by <code>src-tauri/src/main.rs</code>. The public surface is the 281 Tauri-IPC commands registered from <code>lib.rs</code>; internally the crate spans 47 modules.</p>
 
       <table class="file-table">
         <thead><tr><th>Surface</th><th class="num">Count</th><th>Notes</th></tr></thead>
         <tbody>
-          <tr><td>IPC commands</td><td class="num">250</td><td>Registered in <code>tauri::generate_handler!</code> in <code>lib.rs</code></td></tr>
-          <tr><td><code>#[tauri::command]</code> fns</td><td class="num">249</td><td>Defined across <code>lib.rs</code> (237), <code>tray_menu.rs</code> (8), <code>terminal.rs</code> (4)</td></tr>
-          <tr><td>Public Rust fns</td><td class="num">222</td><td><code>pub fn</code> / <code>pub async fn</code> across the crate</td></tr>
+          <tr><td>IPC commands (lib.rs)</td><td class="num">281</td><td><code>#[tauri::command]</code> handlers in <code>lib.rs</code></td></tr>
+          <tr><td><code>#[tauri::command]</code> fns (all)</td><td class="num">293</td><td>Defined across <code>lib.rs</code> (281), <code>tray_menu.rs</code> (8), <code>terminal.rs</code> (4)</td></tr>
           <tr><td>Structs</td><td class="num">164</td><td>Data shapes &mdash; DB rows, IPC payloads, walker state, settings</td></tr>
           <tr><td>Enums</td><td class="num">5</td><td>Small &mdash; most variants are flat tagged-union JSON shapes</td></tr>
-          <tr><td>Total fns (any vis)</td><td class="num">2,419</td><td>Methods, closures, inline helpers across <code>src-tauri/src/</code></td></tr>
-          <tr><td>Frontend modules</td><td class="num">51</td><td>JS modules under <code>frontend/js/</code></td></tr>
+          <tr><td>Frontend modules</td><td class="num">52</td><td>JS modules under <code>frontend/js/</code></td></tr>
           <tr><td>Tutorial pages</td><td class="num">20</td><td>HTML walkthrough under <code>docs/tutorial/</code></td></tr>
         </tbody>
       </table>
@@ -522,7 +520,7 @@
     </main>
 
     <footer style="text-align:center;padding:2rem;font-size:10px;color:var(--text-muted);font-family:'Orbitron',sans-serif;letter-spacing:2px;">
-      AUDIO_HAXOR ENGINEERING REPORT &middot; v1.28.15 &middot;  RUST LINES &middot; 71,276 JS LINES &middot; 5,620 C++ LINES &middot; 9,425 TESTS &middot; 294 IPC COMMANDS &middot; 44 DB TABLES &middot; 27 LOCALES &middot; MENKETECHNOLOGIES
+      AUDIO_HAXOR ENGINEERING REPORT &middot; v1.28.15 &middot; 75,606 RUST LINES &middot; 58,324 JS LINES &middot; 5,802 C++ LINES &middot; 9,426 TESTS &middot; 281 IPC COMMANDS &middot; 44 DB TABLES &middot; 27 LOCALES &middot; MENKETECHNOLOGIES
     </footer>
   </div>
 
