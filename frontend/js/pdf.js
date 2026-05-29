@@ -1109,16 +1109,22 @@ async function _renderPdfThumb(canvas, filePath) {
         const ctx = canvas.getContext('2d');
         await page.render({canvasContext: ctx, viewport}).promise;
         canvas.classList.add('pdf-thumb-loaded');
-        // Persist render to cache for next time. Fire-and-forget.
+        // Persist render to cache RIGHT NOW. Awaited so the write commits
+        // before this function returns — guarantees the thumb is cached on
+        // every render, no fire-and-forget races. Failures logged to
+        // console (silent swallow was hiding the Uint8Array-serialization
+        // bug for too long).
         if (typeof window.canvasToPngBytes === 'function') {
             try {
                 const png = await window.canvasToPngBytes(canvas);
                 if (png) {
-                    window.vstUpdater.pdfPreviewSet(
+                    await window.vstUpdater.pdfPreviewSet(
                         filePath, PDF_THUMB_PAGE, PDF_THUMB_WIDTH, png,
-                    ).catch(() => {});
+                    );
                 }
-            } catch (_) { /* ignore cache-write errors */ }
+            } catch (err) {
+                console.warn('pdf thumb cache write failed:', err);
+            }
         }
     } catch (_) {
         // Render failed (file gone, corrupt PDF, etc.) — leave canvas blank.

@@ -528,16 +528,22 @@ async function populatePreviewPane(filePath) {
             const ctx = canvas.getContext('2d');
             await page.render({canvasContext: ctx, viewport}).promise;
             if (seq !== _fbPreviewSeq) return;
-            // 3) Persist render to cache for next time. Fire-and-forget —
-            //    a write failure shouldn't surface to the user.
+            // 3) Persist render to cache RIGHT NOW. Awaited (not
+            //    fire-and-forget) so the write commits before this function
+            //    returns — guarantees the next preview of the same PDF hits
+            //    the cache even if the user closes the pane / quits the app
+            //    immediately after seeing the render. Errors are logged so
+            //    silent serialization / IPC failures surface in the console.
             try {
                 const pngBytes = await _fbCanvasToPngBytes(canvas);
                 if (pngBytes) {
-                    window.vstUpdater.pdfPreviewSet(
+                    await window.vstUpdater.pdfPreviewSet(
                         filePath, FB_PDF_PREVIEW_PAGE, FB_PDF_PREVIEW_WIDTH, pngBytes,
-                    ).catch(() => {});
+                    );
                 }
-            } catch (_) { /* ignore cache-write errors */ }
+            } catch (err) {
+                console.warn('pdf preview cache write failed:', err);
+            }
         } catch (err) {
             if (seq !== _fbPreviewSeq) return;
             const msg = (err && (err.message || err)) ? String(err.message || err) : 'PDF preview unavailable';
@@ -652,10 +658,15 @@ async function showQuickLook(filePath) {
             canvas.height = Math.round(viewport.height);
             await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
             setLoading(false);
+            // Persist immediately — await so the write commits before
+            // returning, surfacing any failure in console rather than
+            // silently leaving the cache empty.
             try {
                 const png = await _fbCanvasToPngBytes(canvas);
-                if (png) window.vstUpdater.pdfPreviewSet(filePath, 1, QL_WIDTH, png).catch(() => {});
-            } catch (_) { /* ignore cache write */ }
+                if (png) await window.vstUpdater.pdfPreviewSet(filePath, 1, QL_WIDTH, png);
+            } catch (err) {
+                console.warn('quicklook pdf cache write failed:', err);
+            }
         } catch (_) {
             setLoading(false);
             // Leave canvas blank on failure; the metadata + path are still
