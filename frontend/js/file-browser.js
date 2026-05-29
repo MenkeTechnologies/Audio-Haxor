@@ -592,8 +592,15 @@ document.addEventListener('click', (e) => {
 });
 
 function opener_open(path) {
+    // DAW project formats first (.als / .flp / .logicx etc. → Ableton, FL Studio,
+    // Logic). When the path isn't a DAW project (or the DAW isn't installed), fall
+    // back to the OS default-app opener instead of `openPresetFolder` (which
+    // *revealed the parent folder* — surprising for files like .txt / .png where
+    // the user expected the file itself to open). With this fallback a click on
+    // foo.txt opens TextEdit / Notepad / xdg-open per platform; a click on foo.als
+    // still opens Ableton via the DAW path.
     window.vstUpdater.openDawProject(path).catch(() => {
-        window.vstUpdater.openPresetFolder(path);
+        window.vstUpdater.openFileDefault(path).catch(() => {});
     });
 }
 
@@ -772,6 +779,19 @@ document.addEventListener('contextmenu', (e) => {
             });
         }
         items.push({icon: '&#128194;', label: appFmt('menu.open'), ..._ctxMenuNoEcho, action: () => opener_open(path)});
+        // Explicit "Open in Default App" — bypasses the DAW-first routing in
+        // `opener_open`. Useful when the user wants the OS default for a file
+        // type that's also a DAW project (e.g. open .als raw in a text editor)
+        // or for arbitrary files (.txt, .png, .docx) where there's no in-app
+        // viewer. Toast on failure so the user knows when no handler is
+        // registered for the extension.
+        items.push({
+            icon: '&#128194;',
+            label: appFmt('menu.open_default_app'), ..._ctxMenuNoEcho,
+            action: () => window.vstUpdater.openFileDefault(path).catch((err) =>
+                showToast(toastFmt('toast.failed_open_file', {err: err && err.message ? err.message : err}), 4000, 'error')
+            ),
+        });
         items.push({
             icon: '&#128193;',
             label: appFmt('menu.reveal_in_finder'), ..._ctxMenuNoEcho, ..._ctxShortcutTip('revealFile'),
