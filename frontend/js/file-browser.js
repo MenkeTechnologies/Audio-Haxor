@@ -2233,7 +2233,13 @@ document.addEventListener('click', async (e) => {
         const msg = paths.length === 1
             ? appFmt('confirm.delete_file_browser', {name: paths[0].split('/').pop()})
             : appFmt('confirm.delete_file_browser', {name: `${paths.length} items`});
-        if (!confirm(msg)) return;
+        // Prefer the in-app modal (`confirmAction`) over native `confirm()` —
+        // native confirm is unreliable in Tauri WKWebView (silently dismissed
+        // in some release builds). Falls back to native only if the modal
+        // helper isn't loaded for some reason. Same pattern as shortcuts.js
+        // delete handler.
+        const ok = typeof confirmAction === 'function' ? await confirmAction(msg) : confirm(msg);
+        if (!ok) return;
         let failures = 0;
         for (const p of paths) {
             try { await window.vstUpdater.deleteFile(p); }
@@ -2666,7 +2672,11 @@ document.addEventListener('contextmenu', (e) => {
     items.push('---');
     items.push({
         icon: '&#128465;', label: appFmt('menu.delete'), ..._ctxShortcutTip('deleteItem'), action: async () => {
-            if (!confirm(appFmt('confirm.delete_file_browser', {name}))) return;
+            const msg = appFmt('confirm.delete_file_browser', {name});
+            // In-app modal (`confirmAction`) — native `confirm()` is
+            // unreliable in Tauri WKWebView release builds.
+            const ok = typeof confirmAction === 'function' ? await confirmAction(msg) : confirm(msg);
+            if (!ok) return;
             try {
                 await window.vstUpdater.deleteFile(path);
                 showToast(toastFmt('toast.deleted_name_quotes', {name}));
