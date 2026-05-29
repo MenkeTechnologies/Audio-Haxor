@@ -44,6 +44,13 @@ tar = "0.4"
 # transitively; declaring directly so our code doesn't rely on a
 # transitive feature flag.
 xattr = "1"
+# Text diff for the file-browser "Diff Two Files" action. Myers / Patience
+# algorithms; we use unified-diff output.
+similar = "2"
+# .7z archive decoding (LZMA / LZMA2). Encoding is bigger surface area;
+# only decode is wired for now (matches existing .tar.gz support model:
+# extract many formats, only compress to .zip).
+sevenz-rust2 = { version = "0.16", default-features = false, features = ["util"] }
 notify = "8"
 # Cross-platform "send to recycle bin / trash" (macOS NSFileManager
 # trashItemAtURL, Linux XDG Trash spec, Windows Recycle Bin). Used by the

@@ -7477,6 +7477,71 @@ async fn fs_image_thumbnail(
     Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// Produce a unified diff between two text files. Each side is read up
+/// to 4 MiB; binary files (NUL in first 8 KiB) are rejected with a
+/// clear error rather than returning gibberish. Returns the diff as a
+/// list of `{tag, content}` ops — caller renders with side-by-side or
+/// inline coloring as it likes. `tag` is one of: `equal`, `delete`,
+/// `insert`, `replace`. Trailing-newline normalization keeps the diff
+/// useful when one file has the final NL and the other doesn't.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DiffOp {
+    tag: String,
+    a_line_start: usize,
+    a_line_end: usize,
+    b_line_start: usize,
+    b_line_end: usize,
+    text: String,
+}
+
+#[tauri::command]
+async fn fs_diff(path_a: String, path_b: String) -> Result<Vec<DiffOp>, String> {
+    blocking_res(move || {
+        const MAX_BYTES: u64 = 4 * 1024 * 1024;
+        for p in [&path_a, &path_b] {
+            let meta = std::fs::metadata(p)
+                .map_err(|e| format!("stat {p}: {e}"))?;
+            if !meta.is_file() {
+                return Err(format!("Not a regular file: {p}"));
+            }
+            if meta.len() > MAX_BYTES {
+                return Err(format!("File too large to diff (> 4 MiB): {p}"));
+            }
+        }
+        let read_text = |p: &str| -> Result<String, String> {
+            let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
+            if bytes.iter().take(8192).any(|&b| b == 0) {
+                return Err(format!("Binary file: {p}"));
+            }
+            Ok(String::from_utf8_lossy(&bytes).to_string())
+        };
+        let a = read_text(&path_a)?;
+        let b = read_text(&path_b)?;
+        let diff = similar::TextDiff::from_lines(&a, &b);
+        let mut ops: Vec<DiffOp> = Vec::new();
+        for change in diff.iter_all_changes() {
+            let tag = match change.tag() {
+                similar::ChangeTag::Equal => "equal",
+                similar::ChangeTag::Delete => "delete",
+                similar::ChangeTag::Insert => "insert",
+            };
+            let old_idx = change.old_index();
+            let new_idx = change.new_index();
+            ops.push(DiffOp {
+                tag: tag.to_string(),
+                a_line_start: old_idx.unwrap_or(0),
+                a_line_end: old_idx.map(|i| i + 1).unwrap_or(0),
+                b_line_start: new_idx.unwrap_or(0),
+                b_line_end: new_idx.map(|i| i + 1).unwrap_or(0),
+                text: change.value().trim_end_matches('\n').to_string(),
+            });
+        }
+        Ok(ops)
+    })
+    .await
+}
+
 /// Find duplicate files inside a directory by SHA-256 content hash.
 /// Two-pass for speed:
 ///   1. Group every (non-empty, regular) file by `(size, ext)`. Anything
@@ -7872,6 +7937,17 @@ async fn fs_extract(archive_path: String, dest_dir: String) -> Result<String, St
         let is_tar_gz = lower.ends_with(".tar.gz") || lower.ends_with(".tgz");
         let is_tar = lower.ends_with(".tar");
         let is_zip = lower.ends_with(".zip");
+        let is_7z = lower.ends_with(".7z");
+        if is_7z {
+            // sevenz-rust2 reads from a file path directly; no need to
+            // pre-open the File handle. Decode + write each entry under
+            // `dest`. The crate handles LZMA/LZMA2 streams + multi-volume.
+            sevenz_rust2::decompress_file(&archive, &dest)
+                .map_err(|e| format!(".7z decode failed: {e}"))?;
+            #[cfg(not(test))]
+            append_log(format!("EXTRACT — {} → {}", archive_path, dest_dir));
+            return Ok(dest_dir);
+        }
         let file = std::fs::File::open(&archive).map_err(|e| e.to_string())?;
         if is_tar_gz {
             let gz = flate2::read::GzDecoder::new(file);
@@ -7910,7 +7986,7 @@ async fn fs_extract(archive_path: String, dest_dir: String) -> Result<String, St
             }
         } else {
             return Err(format!(
-                "Unsupported archive format. Supported: .zip, .tar, .tar.gz, .tgz"
+                "Unsupported archive format. Supported: .zip, .tar, .tar.gz, .tgz, .7z"
             ));
         }
         #[cfg(not(test))]
@@ -11010,6 +11086,7 @@ pub fn run() {
             fs_open_in_editor,
             fs_image_thumbnail,
             fs_find_duplicates,
+            fs_diff,
             delete_inventory_item,
             rename_file,
             fs_create_dir,

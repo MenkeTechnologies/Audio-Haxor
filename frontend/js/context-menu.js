@@ -2540,16 +2540,17 @@ document.addEventListener('contextmenu', (e) => {
                     },
                 });
             }
-            // Extract Here — .zip, .tar, .tar.gz, .tgz. Creates a sibling
-            // folder named after the archive stem (Nautilus / Finder
-            // behavior). .7z would need sevenz-rust which would bloat
-            // deps for moderate value; not added.
+            // Extract Here — .zip, .tar, .tar.gz, .tgz, .7z. Creates a
+            // sibling folder named after the archive stem (Nautilus /
+            // Finder behavior). .7z decode via sevenz-rust2 (decode-only;
+            // encode would bloat deps for moderate value).
             const lname = name.toLowerCase();
             const isArchive = !isDir && (
                 lname.endsWith('.zip')
                 || lname.endsWith('.tar')
                 || lname.endsWith('.tar.gz')
                 || lname.endsWith('.tgz')
+                || lname.endsWith('.7z')
             );
             if (isArchive) {
                 items.push({
@@ -2559,7 +2560,7 @@ document.addEventListener('contextmenu', (e) => {
                         const parent = path.replace(/\/[^/]+$/, '');
                         // Strip the longest matching suffix so `foo.tar.gz` → `foo`.
                         let stem = name;
-                        for (const suf of ['.tar.gz', '.tgz', '.tar', '.zip']) {
+                        for (const suf of ['.tar.gz', '.tgz', '.tar', '.zip', '.7z']) {
                             if (lname.endsWith(suf)) { stem = name.slice(0, name.length - suf.length); break; }
                         }
                         let dest = `${parent}/${stem}`;

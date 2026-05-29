@@ -1729,8 +1729,8 @@ async function fileBrowserBulkCompress(paths) {
     }
 }
 async function fileBrowserBulkExtract(paths) {
-    const ARCHIVE_RE = /\.(zip|tar|tar\.gz|tgz)$/i;
-    const STEM_STRIP = /\.(tar\.gz|tgz|tar|zip)$/i;
+    const ARCHIVE_RE = /\.(zip|tar|tar\.gz|tgz|7z)$/i;
+    const STEM_STRIP = /\.(tar\.gz|tgz|tar|zip|7z)$/i;
     const archives = (paths || []).filter((p) => ARCHIVE_RE.test(p));
     if (archives.length === 0) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'No archive files selected (.zip / .tar / .tar.gz)'}), 4000, 'error');
@@ -2144,6 +2144,175 @@ async function fileBrowserShowDuplicatesModal() {
     requestAnimationFrame(() => scan());
 }
 
+// ── Drag and drop between panes ──
+// HTML5 native drag — rows are draggable="true" via buildFileListRowHtml.
+// dragstart: pick the dragged paths (selection if row is in it, else
+//   just that row's path) + record source pane idx.
+// dragover on .fb-pane: preventDefault + set dropEffect (move if no
+//   Cmd held, copy if Cmd/Ctrl/Alt). Highlight target pane.
+// drop: parse source paths + run copy / move IPC into the target
+//   pane's path, then reload both panes.
+//
+// Custom MIME type so this doesn't clash with native filesystem drag
+// (Tauri's tauri-plugin-drag handles drags FROM the app to the OS).
+const FB_DND_MIME = 'application/x-audio-haxor-paths';
+let _fbDragSrcPaneIdx = -1;
+
+document.addEventListener('dragstart', (e) => {
+    const row = e.target.closest('.file-row');
+    if (!row || !row.dataset.filePath) return;
+    const paneEl = row.closest('.fb-pane[data-pane-idx]');
+    if (!paneEl) return;
+    _fbDragSrcPaneIdx = parseInt(paneEl.dataset.paneIdx, 10);
+    // If the dragged row IS in the selection, drag the WHOLE selection.
+    // Else drag just that row. Matches Finder behavior.
+    const path = row.dataset.filePath;
+    const srcPane = _fbPanes[_fbDragSrcPaneIdx];
+    const sel = srcPane ? srcPane.selection : null;
+    const paths = (sel && sel.has(path) && sel.size > 1) ? [...sel] : [path];
+    try {
+        e.dataTransfer.setData(FB_DND_MIME, JSON.stringify(paths));
+        e.dataTransfer.effectAllowed = 'copyMove';
+    } catch (_) { /* some browsers throw on certain MIMEs */ }
+});
+
+document.addEventListener('dragover', (e) => {
+    const pane = e.target.closest('.fb-pane[data-pane-idx]');
+    if (!pane) return;
+    if (!e.dataTransfer || !e.dataTransfer.types || !e.dataTransfer.types.includes(FB_DND_MIME)) return;
+    e.preventDefault();
+    // Default to MOVE; Cmd/Ctrl (Win) or Opt (Mac) flips to COPY —
+    // matches Finder + Nautilus.
+    e.dataTransfer.dropEffect = (e.metaKey || e.ctrlKey || e.altKey) ? 'copy' : 'move';
+    pane.classList.add('fb-pane-drop-target');
+});
+
+document.addEventListener('dragleave', (e) => {
+    const pane = e.target.closest('.fb-pane[data-pane-idx]');
+    if (!pane) return;
+    // Only remove highlight when leaving the pane itself, not when
+    // moving between its children (children fire dragleave bubbling).
+    if (!pane.contains(e.relatedTarget)) {
+        pane.classList.remove('fb-pane-drop-target');
+    }
+});
+
+document.addEventListener('drop', async (e) => {
+    const pane = e.target.closest('.fb-pane[data-pane-idx]');
+    if (!pane) return;
+    const data = e.dataTransfer && e.dataTransfer.getData(FB_DND_MIME);
+    if (!data) return;
+    e.preventDefault();
+    pane.classList.remove('fb-pane-drop-target');
+    const destPaneIdx = parseInt(pane.dataset.paneIdx, 10);
+    const destPane = _fbPanes[destPaneIdx];
+    if (!destPane || !destPane.path) return;
+    let paths = [];
+    try { paths = JSON.parse(data); } catch (_) { return; }
+    if (!Array.isArray(paths) || paths.length === 0) return;
+    // Same pane + same parent dir → no-op (Finder behavior).
+    const isCopy = e.metaKey || e.ctrlKey || e.altKey;
+    let ok = 0, fail = 0;
+    for (const src of paths) {
+        const base = src.split('/').pop();
+        const dest = `${destPane.path}/${base}`;
+        if (src === dest) continue; // same place
+        try {
+            if (isCopy) {
+                // Same-folder copy → use fsCopyPath; will fail on
+                // collision so the user sees the error.
+                await window.vstUpdater.fsCopyPath(src, dest);
+            } else {
+                await window.vstUpdater.renameFile(src, dest);
+            }
+            ok++;
+        } catch (_) { fail++; }
+    }
+    if (typeof showToast === 'function') {
+        const verb = isCopy ? 'copied' : 'moved';
+        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `${verb} ${ok} item${ok === 1 ? '' : 's'} → pane ${destPaneIdx + 1}`}));
+        if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} ${verb === 'copied' ? 'copy' : 'move'}${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+    }
+    // Refresh destination + source (move emptied source's selection).
+    if (destPaneIdx !== _fbActivePaneIdx) {
+        await loadDirectoryIntoPane(destPane.path, destPaneIdx);
+    } else if (_fileBrowserPath) {
+        await loadDirectory(_fileBrowserPath);
+    }
+    if (!isCopy && _fbDragSrcPaneIdx >= 0 && _fbDragSrcPaneIdx !== destPaneIdx) {
+        const srcPane = _fbPanes[_fbDragSrcPaneIdx];
+        if (srcPane && srcPane.path) {
+            if (_fbDragSrcPaneIdx === _fbActivePaneIdx) {
+                await loadDirectory(srcPane.path);
+            } else {
+                await loadDirectoryIntoPane(srcPane.path, _fbDragSrcPaneIdx);
+            }
+        }
+    }
+    _fbDragSrcPaneIdx = -1;
+});
+
+// ── Diff Two Files modal ──
+// Picks the FIRST TWO selected files from the active pane (alphabetical
+// order). Server returns unified diff ops; client renders side-by-side.
+async function fileBrowserShowDiffModal(pathA, pathB) {
+    if (!pathA || !pathB) {
+        // Auto-pick from selection (need exactly 2 files).
+        const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set)
+            ? [..._fileSelected].sort()
+            : [];
+        if (sel.length !== 2) {
+            if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'Select exactly 2 files to diff'}), 4000, 'error');
+            return;
+        }
+        pathA = sel[0];
+        pathB = sel[1];
+    }
+    document.getElementById('appDiffModal')?.remove();
+    const nameA = pathA.split('/').pop();
+    const nameB = pathB.split('/').pop();
+    const html = `<div class="modal-overlay modal-visible" id="appDiffModal" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Diff — ${escapeHtml(nameA)} ⇄ ${escapeHtml(nameB)}</h2>
+        <button type="button" class="modal-close" data-app-diff="close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <div id="appDiffBody" class="fb-diff-body">computing diff…</div>
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-primary" data-app-diff="close">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appDiffModal');
+    const body = document.getElementById('appDiffBody');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', (e) => {
+        if (e.target.closest('[data-app-diff="close"]') || e.target === modal) close();
+    });
+    try {
+        const ops = await window.vstUpdater.fsDiff(pathA, pathB);
+        if (!ops || ops.length === 0) {
+            body.innerHTML = '<div class="fb-diff-equal">files are identical</div>';
+            return;
+        }
+        // Filter to non-equal ops + a couple lines of context. For
+        // typical text diffs the output is short enough to render
+        // inline without virtualization.
+        body.innerHTML = ops.map((op) => {
+            const cls = `fb-diff-${op.tag}`;
+            const prefix = op.tag === 'delete' ? '−' : op.tag === 'insert' ? '+' : ' ';
+            return `<div class="${cls}"><span class="fb-diff-gutter">${prefix}</span><span class="fb-diff-text">${escapeHtml(op.text)}</span></div>`;
+        }).join('');
+    } catch (err) {
+        body.innerHTML = `<div class="fb-diff-error">error: ${escapeHtml(String(err && err.message ? err.message : err))}</div>`;
+    }
+}
+
 // Expose helpers to context-menu.js (separate file, separate scope).
 if (typeof window !== 'undefined') {
     window.fileBrowserMarkClipboard = fileBrowserMarkClipboard;
@@ -2157,6 +2326,7 @@ if (typeof window !== 'undefined') {
     window.fileBrowserBulkExtract = fileBrowserBulkExtract;
     window.fileBrowserShowGrepModal = fileBrowserShowGrepModal;
     window.fileBrowserShowDuplicatesModal = fileBrowserShowDuplicatesModal;
+    window.fileBrowserShowDiffModal = fileBrowserShowDiffModal;
 }
 
 // ── Move-to-bookmark (right-click → Move to → <bookmark>) ──
@@ -3184,7 +3354,7 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
     const iconCell = isImageThumb
         ? `<span class="file-icon file-icon-thumb"><canvas class="file-image-thumb" data-fb-thumb-path="${escapeHtml(e.path)}" width="32" height="32"></canvas></span>`
         : `<span class="file-icon">${fileIcon(e)}</span>`;
-    return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}${isSelected ? ' file-selected' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
+    return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}${isSelected ? ' file-selected' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" draggable="true" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
       <span class="file-cb"><input type="checkbox" class="file-row-cb" data-fb-cb="${escapeHtml(e.path)}"${isSelected ? ' checked' : ''}></span>
       ${wfBg}
       ${iconCell}
@@ -4166,7 +4336,7 @@ document.addEventListener('contextmenu', (e) => {
             action: () => fileBrowserBulkCompress(selected),
         });
         // Extract every selected archive (.zip / .tar / .tar.gz).
-        const archives = selected.filter((p) => /\.(zip|tar|tar\.gz|tgz)$/i.test(p));
+        const archives = selected.filter((p) => /\.(zip|tar|tar\.gz|tgz|7z)$/i.test(p));
         if (archives.length > 0) {
             items.push({
                 icon: '&#128194;',
@@ -4190,6 +4360,13 @@ document.addEventListener('contextmenu', (e) => {
         label: 'Find Duplicates… (by content)', ..._ctxMenuNoEcho,
         action: () => fileBrowserShowDuplicatesModal(),
     });
+    if (selected.length === 2) {
+        items.push({
+            icon: '&#8651;',
+            label: `Diff ${selected.map((p) => p.split('/').pop()).join(' ⇄ ')}`, ..._ctxMenuNoEcho,
+            action: () => fileBrowserShowDiffModal(),
+        });
+    }
     items.push(...[
         '---',
         {

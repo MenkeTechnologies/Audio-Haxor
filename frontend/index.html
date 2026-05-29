@@ -4521,6 +4521,47 @@
             opacity: 1;
         }
 
+        /* Drop-target highlight when dragging files onto another pane. */
+        .file-list-wrap .fb-pane.fb-pane-drop-target {
+            background: rgba(5, 217, 232, 0.06);
+            outline: 2px dashed var(--cyan);
+            outline-offset: -4px;
+        }
+
+        /* Diff modal — fixed monospace, color-coded ops. */
+        .fb-diff-body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            max-height: 60vh;
+            overflow: auto;
+            padding: 6px;
+            white-space: pre;
+        }
+        .fb-diff-equal, .fb-diff-delete, .fb-diff-insert {
+            display: flex;
+            align-items: baseline;
+        }
+        .fb-diff-equal { color: var(--text-dim); }
+        .fb-diff-delete {
+            background: rgba(255, 85, 85, 0.12);
+            color: #ff5555;
+        }
+        .fb-diff-insert {
+            background: rgba(80, 250, 123, 0.12);
+            color: #50fa7b;
+        }
+        .fb-diff-gutter {
+            display: inline-block;
+            width: 14px;
+            color: var(--text-dim);
+            user-select: none;
+        }
+        .fb-diff-text { flex: 1; }
+        .fb-diff-error { color: #ff5555; padding: 12px; }
+
         .modal-resize {
             position: absolute;
             z-index: 10;

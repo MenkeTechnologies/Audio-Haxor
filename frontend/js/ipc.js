@@ -1910,6 +1910,10 @@ window.vstUpdater = {
      *  (size, ext) so non-duplicates are never hashed. */
     fsFindDuplicates: (dir, recursive, minSizeBytes) =>
         invoke('fs_find_duplicates', {dir, recursive: !!recursive, minSizeBytes: minSizeBytes || null}),
+    /** Unified text diff between two files. Returns
+     *  `[{tag, aLineStart, aLineEnd, bLineStart, bLineEnd, text}]`
+     *  where tag ∈ equal/delete/insert. Rejects binary + >4 MiB files. */
+    fsDiff: (pathA, pathB) => invoke('fs_diff', {pathA, pathB}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),
