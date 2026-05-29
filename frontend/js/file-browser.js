@@ -80,6 +80,15 @@ function _fbEnsurePanesInited() {
             activeTabId: null,
             history: [],
             historyIdx: -1,
+            // V3: per-pane sort + ext-filter + show-hidden + search mode.
+            // Pane 0 seeds from prefs-restored globals (set further down
+            // in this file); panes 1-3 start from a neutral default and
+            // diverge as the user adjusts each pane.
+            sortKey: 'name',
+            sortAsc: true,
+            extFilter: 'all',
+            showHidden: false,
+            searchMode: 'fuzzy',
         };
     }
 }
@@ -150,6 +159,12 @@ function _fbSaveGlobalsToActivePane() {
     p.activeTabId = _fbActiveTabId;
     try { p.history = _fbHistory; } catch (_) { /* TDZ — leave as-is */ }
     try { p.historyIdx = _fbHistoryIdx; } catch (_) { /* TDZ */ }
+    // V3: per-pane sort + ext-filter + show-hidden + search mode.
+    try { p.sortKey = _fileSortKey; } catch (_) { /* TDZ */ }
+    try { p.sortAsc = _fileSortAsc; } catch (_) { /* TDZ */ }
+    try { p.extFilter = _fbExtFilter; } catch (_) { /* TDZ */ }
+    try { p.showHidden = _fbShowHidden; } catch (_) { /* TDZ */ }
+    try { p.searchMode = _lastFilesMode; } catch (_) { /* TDZ */ }
 }
 
 // Pull the active pane's state into the globals (called after
@@ -168,6 +183,18 @@ function _fbLoadActivePaneIntoGlobals() {
     try { _fbHistory = p.history || []; } catch (_) { /* TDZ */ }
     try { _fbHistoryIdx = (p.historyIdx == null ? -1 : p.historyIdx); } catch (_) { /* TDZ */ }
     if (typeof _updateNavButtons === 'function') _updateNavButtons();
+    // V3: per-pane sort + ext-filter + show-hidden + search mode.
+    try { _fileSortKey = p.sortKey || 'name'; } catch (_) { /* TDZ */ }
+    try { _fileSortAsc = (p.sortAsc !== false); } catch (_) { /* TDZ */ }
+    try { _fbExtFilter = p.extFilter || 'all'; } catch (_) { /* TDZ */ }
+    try { _fbShowHidden = !!p.showHidden; } catch (_) { /* TDZ */ }
+    try { _lastFilesMode = p.searchMode || 'fuzzy'; } catch (_) { /* TDZ */ }
+    // Repaint UI controls so the user sees the new active pane's state:
+    //   • sort header arrows
+    //   • ext-chip active state
+    //   • (show-hidden has no toggle UI besides the menu label)
+    if (typeof updateFileSortHeaderUI === 'function') updateFileSortHeaderUI();
+    if (typeof _fbRepaintExtChips === 'function') _fbRepaintExtChips();
 }
 
 function _fbSetActivePane(idx) {
@@ -236,7 +263,10 @@ async function loadDirectoryIntoPane(dirPath, paneIdx) {
     pane.scroll = 0;
     pane.navIdx = -1;
     try {
-        const result = await window.vstUpdater.listDirectory(dirPath, _fbShowHidden);
+        // V3: each pane has its own show-hidden flag; use the destination's
+        // (NOT the global active mirror — that would leak the active
+        // pane's choice into a peer pane).
+        const result = await window.vstUpdater.listDirectory(dirPath, !!pane.showHidden);
         pane.entries = result.entries || [];
     } catch (err) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.failed_open_directory', {err: err.message || err}), 4000, 'error');
@@ -261,20 +291,27 @@ function renderPaneList(paneIdx) {
         listEl.innerHTML = `<div class="state-message"><div class="state-icon">&#128193;</div><h2>${escapeHtml(pane.path || '')}</h2><p>Empty</p></div>`;
         return;
     }
-    // Build rows from this pane's entries + selection. We temporarily
-    // swap globals so `buildFileListRowHtml` (which reads _fileSelected
-    // etc.) sees the pane's state, then restore. Cheaper than
-    // refactoring every helper to take a selection set parameter.
+    // Build rows from this pane's entries + selection + V3 per-pane
+    // sort / ext-filter / search-mode. We temporarily swap globals so
+    // `buildFileListRowHtml` (which reads _fileSelected etc.) sees the
+    // pane's state, then restore. Cheaper than refactoring every
+    // helper to take all that state as parameters.
     const savedSel = _fileSelected;
     const savedEntries = _fileBrowserEntries;
+    const savedExt = _fbExtFilter;
+    const savedMode = _lastFilesMode;
     _fileSelected = pane.selection;
     _fileBrowserEntries = pane.entries;
+    _fbExtFilter = pane.extFilter || 'all';
+    _lastFilesMode = pane.searchMode || 'fuzzy';
     try {
         const html = pane.entries.map((e) => buildFileListRowHtml(e, '', null, _lastFilesMode)).join('');
         listEl.innerHTML = html;
     } finally {
         _fileSelected = savedSel;
         _fileBrowserEntries = savedEntries;
+        _fbExtFilter = savedExt;
+        _lastFilesMode = savedMode;
     }
 }
 
@@ -554,10 +591,16 @@ var _fbShowHidden = (() => {
 })();
 function fileBrowserToggleHidden() {
     _fbShowHidden = !_fbShowHidden;
+    // Mirror into active pane — show-hidden is per-pane in V3, so this
+    // toggle is scoped to the active pane (not a global default any
+    // more). The prefs key still stores the LAST toggled value so
+    // newly-spun-up panes get a sensible default.
+    const ap = (typeof _fbActivePane === 'function') ? _fbActivePane() : null;
+    if (ap) ap.showHidden = _fbShowHidden;
     try { if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserShowHidden', _fbShowHidden ? '1' : '0'); }
     catch (_) { /* ignore */ }
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.deleted_name', {name: _fbShowHidden ? 'showing hidden files' : 'hiding hidden files'}));
+        showToast(toastFmt('toast.deleted_name', {name: _fbShowHidden ? 'showing hidden files in active pane' : 'hiding hidden files in active pane'}));
     }
     if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
 }
@@ -3222,12 +3265,22 @@ function _fbExtMatches(entry, category) {
 
 function setFileExtFilter(category) {
     _fbExtFilter = category || 'all';
-    if (typeof document !== 'undefined') {
-        document.querySelectorAll('.fb-ext-chips .ext-chip').forEach((c) => {
-            c.classList.toggle('active', c.dataset.extFilter === _fbExtFilter);
-        });
-    }
+    // Mirror into active pane snapshot so pane switches preserve the
+    // chip choice across the per-pane state machine.
+    const ap = (typeof _fbActivePane === 'function') ? _fbActivePane() : null;
+    if (ap) ap.extFilter = _fbExtFilter;
+    _fbRepaintExtChips();
     if (typeof renderFileList === 'function') renderFileList();
+}
+
+// Sync chip-active class to the current `_fbExtFilter`. Pulled out so
+// the pane-switch reload can also call it without firing a full
+// renderFileList (which is invoked separately).
+function _fbRepaintExtChips() {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('.fb-ext-chips .ext-chip').forEach((c) => {
+        c.classList.toggle('active', c.dataset.extFilter === _fbExtFilter);
+    });
 }
 
 // ── Footer status line ──
@@ -3824,6 +3877,10 @@ function _onFileSortHeaderClick(e) {
         _fileSortAsc = (key === 'name' || key === 'type');
         // size/items/date/created → desc by default (handled by the else above).
     }
+    // Mirror sort choice into active pane snapshot so pane switches
+    // preserve each pane's independent sort.
+    const ap = (typeof _fbActivePane === 'function') ? _fbActivePane() : null;
+    if (ap) { ap.sortKey = _fileSortKey; ap.sortAsc = _fileSortAsc; }
     saveFileSortToPrefs();
     updateFileSortHeaderUI();
     if (typeof renderFileList === 'function') renderFileList();
