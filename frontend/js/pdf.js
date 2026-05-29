@@ -972,6 +972,50 @@ function maybeAutoStartPdfScanOnStartup() {
 window.buildPdfPagesCache = buildPdfPagesCache;
 window.stopPdfMetadataExtractionUser = stopPdfMetadataExtractionUser;
 
+// ── Cmd+I / Space → Quick-look overlay for focused PDF row ──
+// `keyboard-nav.js` maintains a `.nav-selected` row per tab. Use that as the
+// focused row when the user presses the shortcut. Falls back to the first
+// row of the table if nothing's selected yet.
+function _pdfTabFocusedPath() {
+    const tab = document.querySelector('.tab-content.active');
+    if (!tab || tab.id !== 'tabPdf') return null;
+    const sel = tab.querySelector('#pdfTableBody tr.nav-selected[data-pdf-path]')
+        || tab.querySelector('#pdfTableBody tr[data-pdf-path]');
+    return sel ? sel.dataset.pdfPath : null;
+}
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', (e) => {
+        const tab = document.querySelector('.tab-content.active');
+        if (!tab || tab.id !== 'tabPdf') return;
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        // Cmd+I → toggle Quick-look for the focused row.
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'i' || e.key === 'I')) {
+            e.preventDefault();
+            if (typeof window.isQuickLookVisible === 'function' && window.isQuickLookVisible()) {
+                window.hideQuickLook();
+                return;
+            }
+            const path = _pdfTabFocusedPath();
+            if (path && typeof window.showQuickLook === 'function') window.showQuickLook(path);
+            return;
+        }
+        // Space → same. Mirrors the Files tab convention.
+        if (e.key === ' ') {
+            if (typeof window.isQuickLookVisible === 'function' && window.isQuickLookVisible()) {
+                e.preventDefault();
+                window.hideQuickLook();
+                return;
+            }
+            const path = _pdfTabFocusedPath();
+            if (!path) return;
+            e.preventDefault();
+            if (typeof window.showQuickLook === 'function') window.showQuickLook(path);
+        }
+    });
+}
+
 // ── PDF inventory thumbnails (lazy, cached in SQLite) ──
 // Each row's `<canvas class="pdf-thumb-canvas">` is initially blank. An
 // IntersectionObserver watches every canvas; when one scrolls into view we:
@@ -1062,6 +1106,12 @@ function initPdfThumbObserver() {
         try { _pdfThumbObserver.disconnect(); } catch (_) { /* ignore */ }
         _pdfThumbObserver = null;
     }
+    // The PDF table scrolls inside its `#pdfTableWrap` container (CSS
+    // `overflow-y: auto`), not the page viewport. Using viewport as IO root
+    // would miss visibility events for rows that scroll into view inside
+    // the wrap but stay outside the viewport. Pass the wrap as `root` so
+    // intersection events fire correctly per-scroll within the table.
+    const root = document.getElementById('pdfTableWrap') || null;
     _pdfThumbObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {
             if (!entry.isIntersecting) continue;
@@ -1075,6 +1125,7 @@ function initPdfThumbObserver() {
         }
         _pumpPdfThumbQueue();
     }, {
+        root,
         // 100 px rootMargin so thumbs start loading just before they're visible
         // — smoother for fast scrolls.
         rootMargin: '100px 0px',

@@ -579,7 +579,7 @@ function _ensureQuickLookOverlay() {
     return overlay;
 }
 
-function showQuickLook(filePath) {
+async function showQuickLook(filePath) {
     if (typeof document === 'undefined' || !filePath) return;
     const overlay = _ensureQuickLookOverlay();
     if (!overlay) return;
@@ -588,25 +588,64 @@ function showQuickLook(filePath) {
     const name = filePath.split('/').pop();
     const ext = (name.split('.').pop() || '').toLowerCase();
     if (title) title.textContent = name;
-    if (body) {
-        const isAudio = typeof AUDIO_EXTS !== 'undefined' && AUDIO_EXTS.includes(ext);
-        const wfHtml = isAudio
-            ? `<canvas class="fb-quicklook-wf" id="fbQuickLookWf" data-wf-path="${escapeHtml(filePath)}" width="800" height="120"></canvas>`
-            : '';
-        body.innerHTML = `
-            ${wfHtml}
-            <div class="fb-quicklook-meta">
-                <div class="fb-quicklook-row"><span class="fb-quicklook-label">Path</span><span class="fb-quicklook-val">${escapeHtml(filePath)}</span></div>
-                <div class="fb-quicklook-row"><span class="fb-quicklook-label">Type</span><span class="fb-quicklook-val">${escapeHtml(ext || '—')}</span></div>
-            </div>
-            <div class="fb-quicklook-hint">Press Esc or Space to close</div>
-        `;
-        if (isAudio && typeof drawMiniWaveform === 'function') {
-            const canvas = document.getElementById('fbQuickLookWf');
-            if (canvas) drawMiniWaveform(canvas, filePath);
-        }
+    if (!body) {
+        overlay.classList.remove('fb-hidden');
+        return;
     }
+    const isAudio = typeof AUDIO_EXTS !== 'undefined' && AUDIO_EXTS.includes(ext);
+    const isPdf = ext === 'pdf';
+    const wfHtml = isAudio
+        ? `<canvas class="fb-quicklook-wf" id="fbQuickLookWf" data-wf-path="${escapeHtml(filePath)}" width="800" height="120"></canvas>`
+        : '';
+    const pdfHtml = isPdf
+        ? `<canvas class="fb-quicklook-pdf" id="fbQuickLookPdf"></canvas>`
+        : '';
+    body.innerHTML = `
+        ${wfHtml}
+        ${pdfHtml}
+        <div class="fb-quicklook-meta">
+            <div class="fb-quicklook-row"><span class="fb-quicklook-label">Path</span><span class="fb-quicklook-val">${escapeHtml(filePath)}</span></div>
+            <div class="fb-quicklook-row"><span class="fb-quicklook-label">Type</span><span class="fb-quicklook-val">${escapeHtml(ext || '—')}</span></div>
+        </div>
+        <div class="fb-quicklook-hint">Press Esc or Space to close</div>
+    `;
     overlay.classList.remove('fb-hidden');
+    if (isAudio && typeof drawMiniWaveform === 'function') {
+        const canvas = document.getElementById('fbQuickLookWf');
+        if (canvas) drawMiniWaveform(canvas, filePath);
+        return;
+    }
+    if (isPdf) {
+        // Big render — 600 px width. Cache-first using width=600 (independent
+        // of the 320 preview-pane and 80 thumbnail caches — no collisions).
+        const canvas = document.getElementById('fbQuickLookPdf');
+        if (!canvas) return;
+        const QL_WIDTH = 600;
+        try {
+            const cached = await window.vstUpdater.pdfPreviewGet(filePath, 1, QL_WIDTH);
+            if (cached && cached.length > 0 && typeof _fbPaintPngBytesIntoCanvas === 'function') {
+                await _fbPaintPngBytesIntoCanvas(canvas, cached);
+                return;
+            }
+        } catch (_) { /* fall through */ }
+        try {
+            const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 32 * 1024 * 1024);
+            const pdfjs = await loadPdfJs();
+            const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+            const pdf = await pdfjs.getDocument({data: u8}).promise;
+            const page = await pdf.getPage(1);
+            const baseViewport = page.getViewport({scale: 1.0});
+            const scale = Math.min(1.0, QL_WIDTH / baseViewport.width);
+            const viewport = page.getViewport({scale});
+            canvas.width = Math.round(viewport.width);
+            canvas.height = Math.round(viewport.height);
+            await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+            try {
+                const png = await _fbCanvasToPngBytes(canvas);
+                if (png) window.vstUpdater.pdfPreviewSet(filePath, 1, QL_WIDTH, png).catch(() => {});
+            } catch (_) { /* ignore cache write */ }
+        } catch (_) { /* leave canvas blank on failure */ }
+    }
 }
 
 function hideQuickLook() {
@@ -619,6 +658,14 @@ function isQuickLookVisible() {
     if (typeof document === 'undefined') return false;
     const overlay = document.getElementById('fbQuickLook');
     return !!(overlay && !overlay.classList.contains('fb-hidden'));
+}
+
+// Exposed on `window` so the PDF inventory tab (pdf.js) can trigger Quick-look
+// via Cmd+I / Space for the focused row.
+if (typeof window !== 'undefined') {
+    window.showQuickLook = showQuickLook;
+    window.hideQuickLook = hideQuickLook;
+    window.isQuickLookVisible = isQuickLookVisible;
 }
 
 // ── Inline rename (F2 on focused row, or via context menu) ──
@@ -1939,12 +1986,30 @@ document.addEventListener('click', (e) => {
             if (AUDIO_EXTS.includes(ext)) {
                 previewAudio(path);
                 toggleFileBrowserMeta(path);
-            } else {
-                opener_open(path);
             }
+            // Non-audio non-folder files (.pdf / .txt / .png / etc.): single
+            // click is reserved for selection + preview-pane population (which
+            // is wired in a separate handler below). Double-click opens in
+            // default app — see the `dblclick` listener further down.
         }
         return;
     }
+});
+
+// Files tab — double-click on a non-audio file opens in default app
+// (single-click is reserved for selection + preview pane).
+document.addEventListener('dblclick', (e) => {
+    const row = e.target instanceof Element ? e.target.closest('.file-row') : null;
+    if (!row) return;
+    if (e.target.closest('.fb-meta-panel') || e.target.closest('.file-cb')
+        || e.target.closest('.fb-rename-input')) return;
+    const path = row.dataset.filePath;
+    const isDir = row.dataset.fileDir === 'true';
+    if (isDir) return; // single-click already navigates dirs
+    const ext = path.split('.').pop().toLowerCase();
+    if (typeof AUDIO_EXTS !== 'undefined' && AUDIO_EXTS.includes(ext)) return; // audio uses single-click play
+    e.preventDefault();
+    if (typeof opener_open === 'function') opener_open(path);
 });
 
 function opener_open(path) {
