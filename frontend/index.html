@@ -6153,6 +6153,34 @@
             overflow: auto;
         }
 
+        /* Multi-pane (1-4 panes side-by-side). Each pane is a flex column
+         * containing its own .file-list. Active pane has a cyan left
+         * border indicator so the user can see which pane keyboard/menu
+         * actions target. Pane 0 always exists; panes 1-3 are hidden by
+         * default and unhide as _fbPaneCount grows. */
+        .file-list-wrap .fb-pane {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-left: 2px solid transparent;
+            transition: border-color 0.1s;
+        }
+        .file-list-wrap .fb-pane:first-of-type {
+            border-left: none;
+        }
+        .file-list-wrap .fb-pane.fb-pane-active {
+            border-left-color: var(--cyan);
+        }
+        .file-list-wrap .fb-pane.fb-hidden {
+            display: none;
+        }
+        .file-list-wrap .fb-pane .file-list {
+            flex: 1;
+            overflow: auto;
+        }
+
         /* File browser tabs — horizontal scroll, active highlighted in
          * cyan, close button per tab, + at end. Each tab represents a
          * distinct path; switching tabs just calls loadDirectory. */
@@ -12707,13 +12735,24 @@
                     </div>
                     <div class="fb-tree-body" id="fbTreeBody"></div>
                 </aside>
-                <div class="file-list" id="fileList">
-                    <div class="state-message">
-                        <div class="state-icon">&#128193;</div>
-                        <h2 data-i18n="ui.h2.file_browser">File Browser</h2>
-                        <p data-i18n="ui.p.browse_your_filesystem_configure_root_directories_">Browse your filesystem.
-                            Configure root directories in Settings > Scanning.</p>
+                <div class="fb-pane fb-pane-active" data-pane-idx="0">
+                    <div class="file-list" id="fileList">
+                        <div class="state-message">
+                            <div class="state-icon">&#128193;</div>
+                            <h2 data-i18n="ui.h2.file_browser">File Browser</h2>
+                            <p data-i18n="ui.p.browse_your_filesystem_configure_root_directories_">Browse your filesystem.
+                                Configure root directories in Settings > Scanning.</p>
+                        </div>
                     </div>
+                </div>
+                <div class="fb-pane fb-hidden" data-pane-idx="1">
+                    <div class="file-list"></div>
+                </div>
+                <div class="fb-pane fb-hidden" data-pane-idx="2">
+                    <div class="file-list"></div>
+                </div>
+                <div class="fb-pane fb-hidden" data-pane-idx="3">
+                    <div class="file-list"></div>
                 </div>
                 <aside class="fb-preview-pane fb-hidden" id="fbPreviewPane">
                     <div class="fb-preview-header">

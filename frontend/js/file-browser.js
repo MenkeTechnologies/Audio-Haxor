@@ -35,6 +35,245 @@ function pathFileName(p) {
 // seed `_fileBrowserEntries` (and inspect path/inited state) via globalThis.
 // Same rationale as the sort/select state below.
 var _fileBrowserPath = null;
+
+// ════════════════════════════════════════════════════════════════════
+// ── Multi-pane (1-4 panes) ──
+// Each pane has its own {path, entries, selection, scroll, navIdx}.
+// Active pane is the target of all toolbar/menu/keyboard actions.
+// Non-active panes still render their own data into their own DOM so
+// the user can see multiple folders simultaneously (Total Commander
+// style). Per-pane tabs/history land in a follow-up commit — for V1
+// the global tabs/history apply to the active pane.
+// ════════════════════════════════════════════════════════════════════
+const FB_MAX_PANES = 4;
+let _fbPanes = []; // {path, entries, selection: Set, scroll: number, navIdx: number}
+let _fbActivePaneIdx = 0;
+let _fbPaneCount = (() => {
+    try {
+        if (typeof prefs === 'undefined') return 1;
+        const n = parseInt(prefs.getItem('fileBrowserPaneCount') || '1', 10);
+        if (isNaN(n)) return 1;
+        return Math.max(1, Math.min(FB_MAX_PANES, n));
+    } catch (_) { return 1; }
+})();
+
+function _fbActivePane() { return _fbPanes[_fbActivePaneIdx]; }
+function _fbPaneListEl(idx) {
+    return document.querySelector(`.fb-pane[data-pane-idx="${idx}"] .file-list`);
+}
+function _fbActiveListEl() { return _fbPaneListEl(_fbActivePaneIdx); }
+
+// Seed all max-pane slots up front so we can swap freely without
+// null-checks downstream. Pane 0 takes over the existing globals
+// (path/entries/selection); panes 1-3 start empty and lazy-load.
+function _fbEnsurePanesInited() {
+    for (let i = 0; i < FB_MAX_PANES; i++) {
+        if (_fbPanes[i]) continue;
+        _fbPanes[i] = {
+            path: i === 0 ? _fileBrowserPath : null,
+            entries: i === 0 ? _fileBrowserEntries : [],
+            selection: i === 0 ? _fileSelected : new Set(),
+            scroll: 0,
+            navIdx: -1,
+        };
+    }
+}
+_fbEnsurePanesInited();
+
+// Save the current global state into the active pane (called before
+// switching). After this the active pane's snapshot is up-to-date.
+function _fbSaveGlobalsToActivePane() {
+    const p = _fbActivePane();
+    if (!p) return;
+    p.path = _fileBrowserPath;
+    p.entries = _fileBrowserEntries;
+    p.selection = _fileSelected;
+    p.navIdx = (typeof _fileNavIdx !== 'undefined') ? _fileNavIdx : -1;
+    const el = _fbActiveListEl();
+    if (el) p.scroll = el.scrollTop;
+}
+
+// Pull the active pane's state into the globals (called after
+// switching). Existing code that reads globals just sees the new
+// active pane's data, no further changes needed.
+function _fbLoadActivePaneIntoGlobals() {
+    const p = _fbActivePane();
+    if (!p) return;
+    _fileBrowserPath = p.path;
+    _fileBrowserEntries = p.entries || [];
+    _fileSelected = p.selection || new Set();
+    if (typeof _fileNavIdx !== 'undefined') _fileNavIdx = p.navIdx;
+}
+
+function _fbSetActivePane(idx) {
+    if (idx < 0 || idx >= _fbPaneCount) return;
+    if (idx === _fbActivePaneIdx) return;
+    _fbSaveGlobalsToActivePane();
+    _fbActivePaneIdx = idx;
+    _fbLoadActivePaneIntoGlobals();
+    // Visual indicator
+    document.querySelectorAll('.fb-pane').forEach((el, i) => {
+        el.classList.toggle('fb-pane-active', i === _fbActivePaneIdx);
+    });
+    // Repaint top-level UI from new active pane
+    if (_fileBrowserPath && typeof renderBreadcrumb === 'function') renderBreadcrumb(_fileBrowserPath);
+    if (typeof updateBookmarkBtn === 'function') updateBookmarkBtn();
+    if (typeof updateFileBulkBar === 'function') updateFileBulkBar();
+    // Restore scroll
+    const el = _fbActiveListEl();
+    if (el) el.scrollTop = _fbActivePane().scroll || 0;
+    // Refresh tab bar (global tabs reflect active pane's path)
+    if (typeof renderFileBrowserTabs === 'function') renderFileBrowserTabs();
+}
+
+function _fbSetPaneCount(n) {
+    n = Math.max(1, Math.min(FB_MAX_PANES, n));
+    _fbPaneCount = n;
+    document.querySelectorAll('.fb-pane').forEach((el, i) => {
+        el.classList.toggle('fb-hidden', i >= n);
+    });
+    try {
+        if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserPaneCount', String(n));
+    } catch (_) { /* ignore */ }
+    // If active pane got hidden, switch to 0.
+    if (_fbActivePaneIdx >= n) _fbSetActivePane(0);
+    // Newly-shown panes that have no content yet — load home into them.
+    for (let i = 0; i < n; i++) {
+        const p = _fbPanes[i];
+        if (!p) continue;
+        if (!p.path && _fbHomePath) {
+            // Lazy-load home into this newly-shown pane.
+            loadDirectoryIntoPane(_fbHomePath, i).catch(() => {});
+        } else if (p.path && (!p.entries || p.entries.length === 0)) {
+            // Already had a path but no entries (e.g. count was bumped
+            // back up after being collapsed). Reload it.
+            loadDirectoryIntoPane(p.path, i).catch(() => {});
+        }
+    }
+}
+
+function _fbCyclePaneCount() {
+    _fbSetPaneCount((_fbPaneCount % FB_MAX_PANES) + 1);
+}
+
+// Light-weight loader for non-active panes — does the IPC + state
+// update + targeted render WITHOUT touching active-pane globals or
+// repainting active-pane-only UI (path bar, tabs, breadcrumb).
+async function loadDirectoryIntoPane(dirPath, paneIdx) {
+    if (paneIdx === _fbActivePaneIdx) {
+        return loadDirectory(dirPath);
+    }
+    const pane = _fbPanes[paneIdx];
+    if (!pane) return;
+    pane.path = dirPath;
+    pane.selection = new Set();
+    pane.scroll = 0;
+    pane.navIdx = -1;
+    try {
+        const result = await window.vstUpdater.listDirectory(dirPath, _fbShowHidden);
+        pane.entries = result.entries || [];
+    } catch (err) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed_open_directory', {err: err.message || err}), 4000, 'error');
+        return;
+    }
+    renderPaneList(paneIdx);
+}
+
+// Render an inactive pane's entries into its DOM. The active pane is
+// rendered by the existing `renderFileList()` flow, which writes to
+// pane 0's `#fileList` (or whichever pane is active via `_fbActiveListEl`).
+function renderPaneList(paneIdx) {
+    if (paneIdx === _fbActivePaneIdx) {
+        if (typeof renderFileList === 'function') renderFileList();
+        return;
+    }
+    const pane = _fbPanes[paneIdx];
+    const listEl = _fbPaneListEl(paneIdx);
+    if (!pane || !listEl) return;
+    if (!pane.entries || pane.entries.length === 0) {
+        listEl.innerHTML = `<div class="state-message"><div class="state-icon">&#128193;</div><h2>${escapeHtml(pane.path || '')}</h2><p>Empty</p></div>`;
+        return;
+    }
+    // Build rows from this pane's entries + selection. We temporarily
+    // swap globals so `buildFileListRowHtml` (which reads _fileSelected
+    // etc.) sees the pane's state, then restore. Cheaper than
+    // refactoring every helper to take a selection set parameter.
+    const savedSel = _fileSelected;
+    const savedEntries = _fileBrowserEntries;
+    _fileSelected = pane.selection;
+    _fileBrowserEntries = pane.entries;
+    try {
+        const html = pane.entries.map((e) => buildFileListRowHtml(e, '', null, _lastFilesMode)).join('');
+        listEl.innerHTML = html;
+    } finally {
+        _fileSelected = savedSel;
+        _fileBrowserEntries = savedEntries;
+    }
+}
+
+// ── F5 (copy) / F6 (move) — active pane selection → next pane's folder ──
+function _fbNextPaneIdx() {
+    return (_fbActivePaneIdx + 1) % _fbPaneCount;
+}
+async function _fbCrossPaneOp(mode) {
+    if (_fbPaneCount < 2) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'Need at least 2 panes (Cmd+\\\\ to split)'}), 4000, 'error');
+        return;
+    }
+    const srcSel = _fbActivePane().selection;
+    if (!srcSel || srcSel.size === 0) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'Nothing selected in active pane'}), 4000, 'error');
+        return;
+    }
+    const destIdx = _fbNextPaneIdx();
+    const destPane = _fbPanes[destIdx];
+    if (!destPane || !destPane.path) {
+        if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: 'Destination pane has no folder loaded'}), 4000, 'error');
+        return;
+    }
+    let ok = 0, fail = 0;
+    for (const src of srcSel) {
+        const base = src.split('/').pop();
+        const dest = `${destPane.path}/${base}`;
+        try {
+            if (mode === 'move') {
+                await window.vstUpdater.renameFile(src, dest);
+            } else {
+                await window.vstUpdater.fsCopyPath(src, dest);
+            }
+            ok++;
+        } catch (_) { fail++; }
+    }
+    if (typeof showToast === 'function') {
+        const verb = mode === 'move' ? 'moved' : 'copied';
+        if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `${verb} ${ok} item${ok === 1 ? '' : 's'} → pane ${destIdx + 1}`}));
+        if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} ${mode}${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+    }
+    // Refresh dest pane (new files appeared) and active pane (move removed them).
+    await loadDirectoryIntoPane(destPane.path, destIdx);
+    if (mode === 'move' && _fileBrowserPath) await loadDirectory(_fileBrowserPath);
+}
+
+// Click in any pane → make it the active pane. Capture phase so it runs
+// before the row-click handler which would otherwise scope to old active.
+document.addEventListener('click', (e) => {
+    const pane = e.target.closest('.fb-pane[data-pane-idx]');
+    if (!pane) return;
+    const idx = parseInt(pane.dataset.paneIdx, 10);
+    if (Number.isInteger(idx) && idx !== _fbActivePaneIdx) {
+        _fbSetActivePane(idx);
+    }
+}, true);
+
+if (typeof window !== 'undefined') {
+    window._fbSetPaneCount = _fbSetPaneCount;
+    window._fbCyclePaneCount = _fbCyclePaneCount;
+    window._fbSetActivePane = _fbSetActivePane;
+    window._fbCrossPaneOp = _fbCrossPaneOp;
+    window.loadDirectoryIntoPane = loadDirectoryIntoPane;
+    window.renderPaneList = renderPaneList;
+}
+
 // ── Tabs ──
 // Each tab is just `{id, path}`. Selection / scroll / nav-history are
 // NOT per-tab in this v1 — keeps the existing global state model intact.
@@ -2367,6 +2606,8 @@ async function initFileBrowser() {
     // Render tab bar even when revisiting the panel — handles the case
     // where prefs restored a tab list but the DOM wasn't drawn yet.
     renderFileBrowserTabs();
+    // Apply persisted pane count to DOM (panes 2-4 unhide if user had >1).
+    if (_fbPaneCount > 1) _fbSetPaneCount(_fbPaneCount);
     // Tab revisit: listing is still in the DOM (panel hidden, not destroyed) — avoid IPC + full re-render.
     if (_fileBrowserInited && _fileBrowserPath) {
         return;
@@ -2433,6 +2674,16 @@ async function loadDirectory(dirPath) {
     try {
         const result = await window.vstUpdater.listDirectory(dirPath, _fbShowHidden);
         _fileBrowserEntries = result.entries;
+        // Multi-pane: keep the active pane's snapshot in sync. Globals
+        // are the source of truth for the active pane; this is a write-
+        // through cache so a pane switch later reads correct data.
+        const activePane = _fbActivePane();
+        if (activePane) {
+            activePane.path = dirPath;
+            activePane.entries = _fileBrowserEntries;
+            activePane.selection = _fileSelected;
+            activePane.scroll = 0;
+        }
         renderFileList();
         renderBreadcrumb(dirPath);
         updateBookmarkBtn();
@@ -2634,7 +2885,13 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
 }
 
 function renderFileList() {
-    const list = document.getElementById('fileList');
+    // Multi-pane: always render into the ACTIVE pane's list element.
+    // For pane 0 this is still `#fileList` (kept for backwards compat
+    // with the 9 callers that query that ID); for panes 1-3 it's the
+    // matching `.fb-pane[data-pane-idx="N"] .file-list`.
+    const list = (typeof _fbActiveListEl === 'function')
+        ? (_fbActiveListEl() || document.getElementById('fileList'))
+        : document.getElementById('fileList');
     if (!list) return;
     const search = (document.getElementById('fileSearchInput')?.value || '').trim();
     const mode = _lastFilesMode;
@@ -3630,6 +3887,11 @@ document.addEventListener('contextmenu', (e) => {
             action: () => fileBrowserToggleTreeSidebar(),
         },
         {
+            icon: '&#9783;',
+            label: `Panes: ${_fbPaneCount}/4 (Cmd+\\\\ cycle, F5 copy, F6 move)`, ..._ctxMenuNoEcho,
+            action: () => _fbCyclePaneCount(),
+        },
+        {
             icon: '&#128260;',
             label: 'Refresh', ..._ctxMenuNoEcho,
             action: () => loadDirectory(dir),
@@ -3894,6 +4156,44 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
         if (typeof fileBrowserToggleTreeSidebar === 'function') fileBrowserToggleTreeSidebar();
+        return;
+    }
+    // ── Multi-pane ──
+    // Cmd+\\ — cycle pane count (1 → 2 → 3 → 4 → 1). Mirrors how
+    // tmux uses Ctrl+B \ to split, but we cycle the count instead of
+    // toggling so 3- and 4-pane layouts are reachable.
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === '\\') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        _fbCyclePaneCount();
+        return;
+    }
+    // F5 → copy active-pane selection into next pane's folder.
+    // F6 → move active-pane selection into next pane's folder.
+    // Norton Commander / Total Commander conventions — no Cmd modifier
+    // (raw function keys), so they don't conflict with browser refresh
+    // (which fires on Cmd+R / Ctrl+R, not F5, in the Tauri WebView).
+    if (e.key === 'F5' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        _fbCrossPaneOp('copy');
+        return;
+    }
+    if (e.key === 'F6' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        _fbCrossPaneOp('move');
+        return;
+    }
+    // Cmd+Alt+1..4 — jump active to pane N (free of conflict with
+    // Cmd+1..9 = tab switching).
+    if ((e.ctrlKey || e.metaKey) && e.altKey && /^[1-4]$/.test(e.key)) {
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx >= 0 && idx < _fbPaneCount) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            _fbSetActivePane(idx);
+        }
         return;
     }
     // ── Tabs ──
