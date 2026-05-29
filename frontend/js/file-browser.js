@@ -365,13 +365,69 @@ function _pumpFsFolderSizeQueue() {
         _fsFolderSizeActive++;
         getFsFolderSize(job.folderPath)
             .then((result) => {
-                if (job.seq === _fsFolderSizeSeq) _paintFolderSizeCell(job.folderPath, result);
+                if (job.seq !== _fsFolderSizeSeq) return;
+                _paintFolderSizeCell(job.folderPath, result);
+                // Stash the walked size/count on the entry so the sort helper
+                // can see real folder sizes (the initial `e.size` is 0 because
+                // `metadata.len()` returns inode size for directories). Files
+                // already have their immediate size from fs_list_dir.
+                if (result && Array.isArray(_fileBrowserEntries)) {
+                    for (const e of _fileBrowserEntries) {
+                        if (e.isDir && e.path === job.folderPath) {
+                            e.size = Number(result.bytes) || 0;
+                            e.itemsCount = Number(result.files) || 0;
+                            break;
+                        }
+                    }
+                }
             })
             .finally(() => {
                 _fsFolderSizeActive--;
                 _pumpFsFolderSizeQueue();
+                // When the queue drains: if the user is sorting by Size (or
+                // any sort that depends on folder data populated by the walk),
+                // reorder the existing rows in place — no full re-render, so
+                // the painted size cells stay intact (no flicker).
+                if (_fsFolderSizeActive === 0
+                    && _fsFolderSizeQueue.length === 0
+                    && job.seq === _fsFolderSizeSeq
+                    && (_fileSortKey === 'size' || _fileSortKey === 'items')
+                    && typeof _reorderVisibleRowsInPlace === 'function') {
+                    _reorderVisibleRowsInPlace();
+                }
             });
     }
+}
+
+/** Reorders the existing `.file-row` elements in `#fileList` per the current
+ *  sort key/direction WITHOUT touching cell contents. Used after the
+ *  filesystem-size walks finish so the Size sort reflects the just-walked
+ *  folder sizes (initial render saw `e.size = 0` for folders). Search-mode
+ *  results are score-ordered; this is a no-op there. */
+function _reorderVisibleRowsInPlace() {
+    if (typeof document === 'undefined') return;
+    const list = document.getElementById('fileList');
+    if (!list) return;
+    const searchInput = document.getElementById('fileSearchInput');
+    const hasSearch = !!(searchInput && searchInput.value && searchInput.value.trim());
+    if (hasSearch) return;
+    if (!Array.isArray(_fileBrowserEntries)) return;
+    const preFiltered = (_fbExtFilter && _fbExtFilter !== 'all')
+        ? _fileBrowserEntries.filter((e) => _fbExtMatches(e, _fbExtFilter))
+        : _fileBrowserEntries;
+    const sorted = applyFileSort(preFiltered);
+    const rowByPath = new Map();
+    for (const row of list.querySelectorAll('.file-row')) {
+        rowByPath.set(row.dataset.filePath, row);
+    }
+    // `appendChild` on an existing DOM node MOVES it — no clone, no innerHTML
+    // reset. Doing this inside a DocumentFragment limits to one reflow.
+    const fragment = document.createDocumentFragment();
+    for (const e of sorted) {
+        const row = rowByPath.get(e.path);
+        if (row) fragment.appendChild(row);
+    }
+    list.appendChild(fragment);
 }
 
 function _fbFormatItemCount(n) {
@@ -662,7 +718,7 @@ function loadFileSortFromPrefs() {
     try {
         const raw = prefs.getObject('fileSort', null);
         if (raw && typeof raw === 'object') {
-            if (['name', 'size', 'date', 'type'].includes(raw.key)) _fileSortKey = raw.key;
+            if (['name', 'size', 'date', 'type', 'items', 'created'].includes(raw.key)) _fileSortKey = raw.key;
             if (typeof raw.asc === 'boolean') _fileSortAsc = raw.asc;
         }
     } catch (_) { /* ignore */ }
@@ -693,9 +749,22 @@ function applyFileSort(entries) {
             case 'size':
                 cmp = (Number(a.size) || 0) - (Number(b.size) || 0);
                 break;
+            case 'items':
+                // `itemsCount` is set on folder entries by the bg walk in
+                // `_pumpFsFolderSizeQueue`. Files don't have one — both sides
+                // fall back to 0, which leaves files alphabetical via the
+                // secondary name sort below.
+                cmp = (Number(a.itemsCount) || 0) - (Number(b.itemsCount) || 0);
+                break;
             case 'date':
                 // `modified` is `YYYY-MM-DD HH:MM` (lexically sortable per `fs_list_dir`).
                 cmp = String(a.modified || '').localeCompare(String(b.modified || ''));
+                break;
+            case 'created':
+                // Same format as `modified`; empty when FS doesn't track
+                // birthtime — empties sort to the start (asc) / end (desc)
+                // since localeCompare treats them as smallest.
+                cmp = String(a.created || '').localeCompare(String(b.created || ''));
                 break;
             case 'type':
                 cmp = String(a.ext || '').localeCompare(String(b.ext || ''));
@@ -729,7 +798,7 @@ function _onFileSortHeaderClick(e) {
     const target = e.target.closest('[data-sort]');
     if (!target) return;
     const key = target.dataset.sort;
-    if (!['name', 'size', 'date', 'type'].includes(key)) return;
+    if (!['name', 'size', 'date', 'type', 'items', 'created'].includes(key)) return;
     if (_fileSortKey === key) {
         _fileSortAsc = !_fileSortAsc;
     } else {
@@ -737,6 +806,7 @@ function _onFileSortHeaderClick(e) {
         // Sensible default direction per column type — text columns ascend,
         // numeric/temporal columns descend (largest / newest first).
         _fileSortAsc = (key === 'name' || key === 'type');
+        // size/items/date/created → desc by default (handled by the else above).
     }
     saveFileSortToPrefs();
     updateFileSortHeaderUI();

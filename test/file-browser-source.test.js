@@ -125,6 +125,28 @@ describe('frontend/js/file-browser.js (vm-loaded)', () => {
       const filesOnly = sorted.filter(e => !e.isDir).map(e => e.name);
       assert.deepStrictEqual([...filesOnly], ['zebra.wav', 'beats.mp3', 'apple.wav']);
     });
+
+    it('items-desc sort uses folder `itemsCount` from the bg walk', () => {
+      const folderEntries = [
+        { name: 'small', path: '/x/small', isDir: true, ext: '', size: 0, modified: '', itemsCount: 5 },
+        { name: 'huge', path: '/x/huge', isDir: true, ext: '', size: 0, modified: '', itemsCount: 5000 },
+        { name: 'medium', path: '/x/medium', isDir: true, ext: '', size: 0, modified: '', itemsCount: 100 },
+      ];
+      F._fileSortKey = 'items'; F._fileSortAsc = false;
+      const sorted = F.applyFileSort(folderEntries);
+      assert.deepStrictEqual(sorted.map(e => e.name), ['huge', 'medium', 'small']);
+    });
+
+    it('created-desc sort uses the `created` field (newest first)', () => {
+      const dated = [
+        { name: 'old', path: '/x/old', isDir: false, ext: '', size: 1, modified: '', created: '2020-01-01 00:00' },
+        { name: 'new', path: '/x/new', isDir: false, ext: '', size: 1, modified: '', created: '2026-01-01 00:00' },
+        { name: 'middle', path: '/x/middle', isDir: false, ext: '', size: 1, modified: '', created: '2023-06-15 00:00' },
+      ];
+      F._fileSortKey = 'created'; F._fileSortAsc = false;
+      const sorted = F.applyFileSort(dated);
+      assert.deepStrictEqual(sorted.map(e => e.name), ['new', 'middle', 'old']);
+    });
   });
 
   describe('multi-select state helpers', () => {
