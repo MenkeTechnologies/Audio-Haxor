@@ -2499,18 +2499,24 @@ document.addEventListener('contextmenu', (e) => {
             // Color label submenu — each label entry sets the row's
             // color tag. Click "None" to clear. Inline as items rather
             // than a real submenu so users see them at the top level.
+            // The colored swatch goes into the `icon` field (raw-HTML
+            // interpolated by showContextMenu) instead of the `label`
+            // field (escapeHtml'd — would render the <span> as text).
+            // The active label is signaled by appending " ✓" to the
+            // name so we keep both the color cue AND the active marker.
             if (typeof window.fileBrowserSetLabel === 'function' && Array.isArray(window.FB_LABEL_COLORS)) {
                 const cur = window.fileBrowserGetLabel ? window.fileBrowserGetLabel(path) : 0;
                 items.push('---');
                 for (let i = 0; i < window.FB_LABEL_COLORS.length; i++) {
                     const color = window.FB_LABEL_COLORS[i];
                     const name = window.FB_LABEL_NAMES[i];
-                    const swatch = color
-                        ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin-right:6px;vertical-align:middle"></span>`
-                        : '';
+                    const icon = color
+                        ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};vertical-align:middle"></span>`
+                        : '&#9711;';
+                    const marker = (i === cur) ? ' ✓' : '';
                     items.push({
-                        icon: i === cur ? '&#10003;' : '&#9711;',
-                        label: `${swatch}Label: ${name}`, ..._noEcho,
+                        icon,
+                        label: `Label: ${name}${marker}`, ..._noEcho,
                         action: () => window.fileBrowserSetLabel(path, i),
                     });
                 }
