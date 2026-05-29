@@ -2760,6 +2760,9 @@ function initSimilarPanelDrag() {
         panel.style.bottom = '';
         panel.classList.add(dock);
         prefs.setItem('similarDock', dock);
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+            showToast(toastFmt('toast.similar_panel_docked'));
+        }
     }, sig);
 
     // Resize via edge handles
@@ -7714,6 +7717,9 @@ function updateMetaLine() {
             width: np.offsetWidth,
             height: np.offsetHeight,
         }));
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+            showToast(toastFmt('toast.player_docked'));
+        }
         setTimeout(() => np.classList.remove('snapping'), 300);
     });
 })();

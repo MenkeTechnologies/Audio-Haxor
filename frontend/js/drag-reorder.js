@@ -424,6 +424,9 @@ function initFloatingElement(elementId, prefsKey) {
                     dropTarget.appendChild(el);
                 }
                 if (typeof prefs !== 'undefined') prefs.setItem(prefsKey, dropTarget.id || dropTarget.className.split(' ')[0]);
+                if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                    showToast(toastFmt('toast.relocated_button_group'));
+                }
             }
         };
 
