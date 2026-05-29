@@ -631,7 +631,7 @@ function renderFileBrowserTabs() {
             const active = t.id === activeId ? ' fb-tab-active' : '';
             return `<button class="fb-tab${active}" data-fb-tab-id="${escapeHtml(t.id)}" data-fb-tab-pane="${i}" title="${escapeHtml(t.path)}">`
                 + `<span class="fb-tab-name">${escapeHtml(_fbTabDisplayName(t.path))}</span>`
-                + `<span class="fb-tab-close" data-fb-tab-close="${escapeHtml(t.id)}" data-fb-tab-close-pane="${i}" title="Close tab (Cmd+Shift+W)">&times;</span>`
+                + `<span class="fb-tab-close" data-fb-tab-close="${escapeHtml(t.id)}" data-fb-tab-close-pane="${i}" title="Close tab">&times;</span>`
                 + `</button>`;
         }).join('');
         const activeEl = list.querySelector('.fb-tab-active');
@@ -3154,7 +3154,9 @@ async function fileBrowserShowCompareModal(dirA, dirB) {
     }
 }
 
-// ── Quick file palette (Cmd+P — VSCode-style recent file/folder jumper) ──
+// ── Quick file palette (VSCode-style recent file/folder jumper) ──
+// (Was bound to Cmd+P which shadowed `newSmartPlaylist`; keyboard
+// shortcut removed — reachable via context menu + command palette.)
 // Tracks every path that's been loaded via `loadDirectory` (folders)
 // or opened (files via opener_open / openFileDefault). Persisted in
 // prefs as a capped list (most-recent first).
@@ -5584,7 +5586,7 @@ document.addEventListener('contextmenu', (e) => {
     });
     items.push({
         icon: '&#9889;',
-        label: 'Quick Open… (Cmd+P)', ..._ctxMenuNoEcho,
+        label: 'Quick Open…', ..._ctxMenuNoEcho,
         action: () => fileBrowserShowQuickPalette(),
     });
     items.push({
@@ -5615,7 +5617,7 @@ document.addEventListener('contextmenu', (e) => {
         '---',
         {
             icon: _fbShowHidden ? '&#128064;' : '&#128065;',
-            label: _fbShowHidden ? 'Hide Hidden Files (Ctrl+H)' : 'Show Hidden Files (Ctrl+H)', ..._ctxMenuNoEcho,
+            label: _fbShowHidden ? 'Hide Hidden Files' : 'Show Hidden Files', ..._ctxMenuNoEcho,
             action: () => fileBrowserToggleHidden(),
         },
         {
@@ -5627,7 +5629,7 @@ document.addEventListener('contextmenu', (e) => {
         },
         {
             icon: '&#9783;',
-            label: `Panes: ${_fbPaneCount}/4 (Cmd+\\\\ cycle, F5 copy, F6 move)`, ..._ctxMenuNoEcho,
+            label: `Panes: ${_fbPaneCount}/4 (Cmd+\\\\ to cycle)`, ..._ctxMenuNoEcho,
             action: () => _fbCyclePaneCount(),
         },
     ]);
@@ -5646,6 +5648,18 @@ document.addEventListener('contextmenu', (e) => {
             icon: '&#128279;',
             label: `Sync Scroll: ${_fbSyncScroll ? 'ON' : 'OFF'}`, ..._ctxMenuNoEcho,
             action: () => fileBrowserToggleSyncScroll(),
+        });
+        // Cross-pane copy / move — was F5 / F6 but those shadowed
+        // tab13/tab14 globally; menu entries are now the canonical path.
+        items.push({
+            icon: '&#10145;',
+            label: 'Copy Active Selection → Next Pane', ..._ctxMenuNoEcho,
+            action: () => _fbCrossPaneOp('copy'),
+        });
+        items.push({
+            icon: '&#10145;',
+            label: 'Move Active Selection → Next Pane', ..._ctxMenuNoEcho,
+            action: () => _fbCrossPaneOp('move'),
         });
     }
     items.push(...[
@@ -5893,118 +5907,48 @@ document.addEventListener('keydown', (e) => {
     if (!activeTab || activeTab.id !== 'tabFiles') return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
-    // ── Nautilus-style shortcuts (must run BEFORE the rows.length guard
-    //     below — they're folder-level and shouldn't require a selection) ──
-    // Ctrl+H — toggle hidden files (`.dotfiles`).
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'h' || e.key === 'H')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        fileBrowserToggleHidden();
-        return;
-    }
-    // Cmd+Shift+I — invert selection (Nautilus Ctrl+I, but Cmd+I is
-    // Get Info here so we use Shift+I instead).
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === 'i' || e.key === 'I')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        if (typeof invertFileSelection === 'function') invertFileSelection();
-        return;
-    }
-    // Cmd+B — toggle tree-view sidebar (mirrors macOS Finder Cmd+Opt+S
-    // for sidebar, but Opt+S is taken; B = "Browser tree").
+    // ── File-browser shortcuts (Files-tab gated). All of these were
+    // audited against shortcuts.js for global-binding conflicts; the
+    // following 10 keys USED to be bound here and were REMOVED because
+    // they silently shadowed global shortcuts. Each one is still
+    // reachable via the empty-space context menu AND the command
+    // palette (Cmd+K → search the action name):
+    //   - Cmd+H            → shadowed clearPlayHistory + macOS hide-app
+    //   - Cmd+Shift+I      → shadowed exportMidiPalette
+    //   - Cmd+P            → shadowed newSmartPlaylist
+    //   - Cmd+T            → shadowed toggleTerminal
+    //   - Cmd+Shift+W      → shadowed exportSettingsPdf
+    //   - Cmd+Shift+]/[    → shadowed autoplaySource{Samples,Player}
+    //   - Cmd+1..9         → shadowed tab1..9 (global tab switcher)
+    //   - F5 / F6          → shadowed tab13 / tab14
+    //
+    // KEPT (verified non-conflicting):
+    //   - Cmd+B            → toggle tree sidebar
+    //   - Cmd+\\           → cycle pane count
+    //   - Cmd+Alt+1..4     → jump active pane
+    //   - Shift+Del/Bksp   → permanent delete
+
+    // Cmd+B — toggle tree-view sidebar.
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'b' || e.key === 'B')) {
         e.preventDefault();
         e.stopImmediatePropagation();
         if (typeof fileBrowserToggleTreeSidebar === 'function') fileBrowserToggleTreeSidebar();
         return;
     }
-    // Cmd+P — VSCode-style quick file palette (recent folders + files,
-    // fuzzy filter, Enter to open).
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'p' || e.key === 'P')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        if (typeof fileBrowserShowQuickPalette === 'function') fileBrowserShowQuickPalette();
-        return;
-    }
-    // ── Multi-pane ──
-    // Cmd+\\ — cycle pane count (1 → 2 → 3 → 4 → 1). Mirrors how
-    // tmux uses Ctrl+B \ to split, but we cycle the count instead of
-    // toggling so 3- and 4-pane layouts are reachable.
+    // Cmd+\\ — cycle pane count (1 → 2 → 3 → 4 → 1).
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === '\\') {
         e.preventDefault();
         e.stopImmediatePropagation();
         _fbCyclePaneCount();
         return;
     }
-    // F5 → copy active-pane selection into next pane's folder.
-    // F6 → move active-pane selection into next pane's folder.
-    // Norton Commander / Total Commander conventions — no Cmd modifier
-    // (raw function keys), so they don't conflict with browser refresh
-    // (which fires on Cmd+R / Ctrl+R, not F5, in the Tauri WebView).
-    if (e.key === 'F5' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        _fbCrossPaneOp('copy');
-        return;
-    }
-    if (e.key === 'F6' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        _fbCrossPaneOp('move');
-        return;
-    }
-    // Cmd+Alt+1..4 — jump active to pane N (free of conflict with
-    // Cmd+1..9 = tab switching).
+    // Cmd+Alt+1..4 — jump active to pane N.
     if ((e.ctrlKey || e.metaKey) && e.altKey && /^[1-4]$/.test(e.key)) {
         const idx = parseInt(e.key, 10) - 1;
         if (idx >= 0 && idx < _fbPaneCount) {
             e.preventDefault();
             e.stopImmediatePropagation();
             _fbSetActivePane(idx);
-        }
-        return;
-    }
-    // ── Tabs ──
-    // Cmd+T — new tab (clones current path)
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 't' || e.key === 'T')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        fbNewTab();
-        return;
-    }
-    // Cmd+Shift+W — close active tab. Cmd+W (without Shift) is bound by
-    // the native menu to "close window" via PredefinedMenuItem and never
-    // reaches the WebView, so we use Shift to disambiguate. The close
-    // button on each tab is always available via mouse.
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === 'w' || e.key === 'W')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        if (_fbActiveTabId) fbCloseTab(_fbActiveTabId);
-        return;
-    }
-    // Cmd+Shift+] / Cmd+Shift+[ — next / previous tab (matches macOS
-    // convention for tabbed apps like Safari).
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === ']' || e.key === '}')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        fbCycleTab(1);
-        return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === '[' || e.key === '{')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        fbCycleTab(-1);
-        return;
-    }
-    // Cmd+1..9 — jump to Nth tab (Cmd+9 → last tab per Chrome/Safari
-    // convention).
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key)) {
-        const n = parseInt(e.key, 10);
-        const idx = n === 9 ? _fbTabs.length - 1 : Math.min(n - 1, _fbTabs.length - 1);
-        if (idx >= 0 && _fbTabs[idx]) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            fbSwitchTab(_fbTabs[idx].id);
         }
         return;
     }

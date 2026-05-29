@@ -248,6 +248,81 @@ function buildPaletteStaticItems() {
     ];
     items.push(...tabs);
 
+    // ── File browser actions (Files tab) ──
+    // Every action added in the file-browser power-feature batches is
+    // registered here so it's reachable from the command palette. Each
+    // calls window.fileBrowser* exposed in file-browser.js (returns
+    // silently on non-Files tab via the typeof check). Icons + names
+    // chosen to be searchable: "compress", "extract", "hash", "diff",
+    // "find duplicates", etc.
+    const fbAction = (name, icon, fn) => ({
+        type: 'action',
+        name: `File browser: ${name}`,
+        icon,
+        action: () => { if (typeof fn === 'function') fn(); },
+    });
+    items.push(
+        // Navigation
+        fbAction('Quick Open (recent files/folders)', '&#9889;', () => window.fileBrowserShowQuickPalette?.()),
+        fbAction('Spotlight (search all inventory)',  '&#128269;', () => window.fileBrowserShowSpotlight?.()),
+        fbAction('Manage Bookmarks',                  '&#9733;',  () => window.fileBrowserShowBookmarksModal?.()),
+        fbAction('Toggle Tree Sidebar',               '&#128218;', () => window.fileBrowserToggleTreeSidebar?.()),
+        // View / filter
+        fbAction('Toggle Hidden Files',               '&#128065;', () => window.fileBrowserToggleHidden?.()),
+        fbAction('Filter: clear color label',         '&#9711;',  () => window.fileBrowserSetLabelFilter?.(null)),
+        fbAction('Invert Selection',                  '&#8646;',  () => window.invertFileSelection?.()),
+        fbAction('Select by Pattern',                 '&#128269;', () => window.fileBrowserPatternSelect?.()),
+        // Multi-pane
+        fbAction('Cycle Pane Count (1 → 2 → 3 → 4)',  '&#9783;',  () => window._fbCyclePaneCount?.()),
+        fbAction('Toggle Sync Scroll across panes',   '&#128279;', () => window.fileBrowserToggleSyncScroll?.()),
+        fbAction('Copy Active Selection → Next Pane', '&#10145;', () => window._fbCrossPaneOp?.('copy')),
+        fbAction('Move Active Selection → Next Pane', '&#10145;', () => window._fbCrossPaneOp?.('move')),
+        fbAction('Swap Active Pane ↔ Next Pane',      '&#8646;',  () => window._fbSwapPanes?.(window._fbActivePaneIdx || 0, ((window._fbActivePaneIdx || 0) + 1) % (window._fbPaneCount || 1))),
+        // File ops
+        fbAction('New Folder',                        '&#128193;', () => { if (typeof fileBrowserNewFolder === 'function') fileBrowserNewFolder(); }),
+        fbAction('New File',                          '&#128196;', () => { if (typeof fileBrowserNewFile === 'function') fileBrowserNewFile(); }),
+        fbAction('Paste from File Clipboard',         '&#128203;', () => window.fileBrowserPasteClipboard?.()),
+        fbAction('New Folder with Selection',         '&#128193;', () => {
+            const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
+            window.fileBrowserNewFolderWithSelection?.(sel);
+        }),
+        // Search / analysis
+        fbAction('Find in Files (grep contents)',     '&#128270;', () => window.fileBrowserShowGrepModal?.()),
+        fbAction('Find Duplicates (by content)',      '&#128269;', () => window.fileBrowserShowDuplicatesModal?.()),
+        fbAction('Diff Two Selected Files',           '&#8651;',  () => window.fileBrowserShowDiffModal?.()),
+        fbAction('Compare Folders (active ↔ next pane)', '&#8651;', () => window.fileBrowserShowCompareModal?.()),
+        // Per-file power
+        fbAction('Hash Selected (SHA-256)',           '&#128273;', () => {
+            const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
+            const files = sel.filter((p) => {
+                const e = typeof _fileEntryByPath === 'function' ? _fileEntryByPath(p) : null;
+                return e && !e.isDir;
+            });
+            if (files.length) window.fileBrowserShowHashModal?.(files);
+            else showToast(toastFmt('toast.failed', {err: 'select files first'}), 4000, 'error');
+        }),
+        fbAction('Permissions (chmod) on Selection',  '&#128274;', () => {
+            const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
+            if (sel.length) window.fileBrowserShowBulkChmodModal?.(sel);
+            else showToast(toastFmt('toast.failed', {err: 'select files first'}), 4000, 'error');
+        }),
+        fbAction('Touch (set mtime) on Selection',    '&#9201;',  () => {
+            const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
+            if (sel.length) window.fileBrowserTouchPaths?.(sel);
+            else showToast(toastFmt('toast.failed', {err: 'select files first'}), 4000, 'error');
+        }),
+        fbAction('Compress Selection (zip)',          '&#128230;', () => {
+            const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
+            if (sel.length) window.fileBrowserBulkCompress?.(sel);
+            else showToast(toastFmt('toast.failed', {err: 'select files first'}), 4000, 'error');
+        }),
+        fbAction('Extract Selected Archives Here',    '&#128194;', () => {
+            const sel = (typeof _fileSelected !== 'undefined' && _fileSelected instanceof Set) ? [..._fileSelected] : [];
+            if (sel.length) window.fileBrowserBulkExtract?.(sel);
+            else showToast(toastFmt('toast.failed', {err: 'select archives first'}), 4000, 'error');
+        }),
+    );
+
     // Actions — all trigger toast confirmation
     items.push({
         type: 'action', name: appFmt('menu.scan_plugins'), icon: '&#8635;', ...paletteShortcutTip('scanPluginsOnly'), action: () => {
