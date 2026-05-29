@@ -173,6 +173,71 @@ describe('frontend/js/file-browser.js (vm-loaded)', () => {
     });
   });
 
+  describe('history nav (_navHistoryRecord / fileNavBack / fileNavForward)', () => {
+    beforeEach(() => {
+      F._fbHistory = [];
+      F._fbHistoryIdx = -1;
+      F._fbHistorySkipPush = false;
+    });
+
+    it('records each new path and advances the index', () => {
+      F._navHistoryRecord('/a');
+      F._navHistoryRecord('/b');
+      F._navHistoryRecord('/c');
+      assert.deepStrictEqual([...F._fbHistory], ['/a', '/b', '/c']);
+      assert.strictEqual(F._fbHistoryIdx, 2);
+    });
+
+    it('no-op when recording the same path twice in a row', () => {
+      F._navHistoryRecord('/a');
+      F._navHistoryRecord('/a');
+      assert.deepStrictEqual([...F._fbHistory], ['/a']);
+      assert.strictEqual(F._fbHistoryIdx, 0);
+    });
+
+    it('skips push when the skip flag is set (back/forward triggered loads)', () => {
+      F._navHistoryRecord('/a');
+      F._fbHistorySkipPush = true;
+      F._navHistoryRecord('/b');
+      assert.deepStrictEqual([...F._fbHistory], ['/a']);
+      assert.strictEqual(F._fbHistoryIdx, 0);
+      assert.strictEqual(F._fbHistorySkipPush, false, 'flag must reset after consuming');
+    });
+
+    it('drops forward history when navigating to a new path after back', () => {
+      F._navHistoryRecord('/a');
+      F._navHistoryRecord('/b');
+      F._navHistoryRecord('/c');
+      F._fbHistoryIdx = 0; // simulate two back-clicks
+      F._navHistoryRecord('/x');
+      assert.deepStrictEqual([...F._fbHistory], ['/a', '/x']);
+      assert.strictEqual(F._fbHistoryIdx, 1);
+    });
+  });
+
+  describe('ext filter (_fbExtMatches)', () => {
+    it('all → matches every entry', () => {
+      assert.ok(F._fbExtMatches({isDir: false, ext: 'wav'}, 'all'));
+      assert.ok(F._fbExtMatches({isDir: false, ext: 'xyz'}, 'all'));
+    });
+
+    it('folders are always kept regardless of category', () => {
+      assert.ok(F._fbExtMatches({isDir: true, ext: ''}, 'audio'));
+      assert.ok(F._fbExtMatches({isDir: true, ext: ''}, 'other'));
+    });
+
+    it('audio matches AUDIO_EXTS, rejects other types', () => {
+      assert.ok(F._fbExtMatches({isDir: false, ext: 'wav'}, 'audio'));
+      assert.ok(!F._fbExtMatches({isDir: false, ext: 'pdf'}, 'audio'));
+    });
+
+    it('other is the inverse of all categorized types', () => {
+      assert.ok(F._fbExtMatches({isDir: false, ext: 'xyz'}, 'other'));
+      assert.ok(!F._fbExtMatches({isDir: false, ext: 'wav'}, 'other'));
+      assert.ok(!F._fbExtMatches({isDir: false, ext: 'pdf'}, 'other'));
+    });
+  });
+
   describe('saveFileSortToPrefs / loadFileSortFromPrefs round-trip', () => {
     it('persists key + direction and reloads them', () => {
       F._fileSortKey = 'size'; F._fileSortAsc = false;

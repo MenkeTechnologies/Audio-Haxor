@@ -5807,6 +5807,69 @@
         .scan-badge.sb-pdf     { color: #5cf76e; }
         .scan-badge.sb-video   { color: #f7a85c; }
 
+        /* Editable path input — toggled in via Cmd+L. Sits in the same slot as
+         * the breadcrumb (which is hidden while the input is active). */
+        .file-path-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 6px 10px;
+            border-radius: 3px;
+            outline: none;
+            min-width: 200px;
+        }
+
+        /* Extension filter chips — sit below the toolbar, above the bulk-bar.
+         * One active at a time. Folders are always visible regardless of chip
+         * so the user can navigate. */
+        .fb-ext-chips {
+            display: flex;
+            gap: 6px;
+            padding: 6px 24px;
+            border-bottom: 1px solid rgba(26, 26, 62, 0.3);
+            flex-wrap: wrap;
+        }
+
+        .fb-ext-chips .ext-chip {
+            background: transparent;
+            border: 1px solid rgba(5, 217, 232, 0.3);
+            color: var(--text-muted);
+            padding: 3px 10px;
+            font-size: 10px;
+            font-family: 'Orbitron', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .fb-ext-chips .ext-chip:hover {
+            color: var(--cyan);
+            border-color: var(--cyan);
+        }
+
+        .fb-ext-chips .ext-chip.active {
+            background: rgba(5, 217, 232, 0.15);
+            color: var(--cyan);
+            border-color: var(--cyan);
+            box-shadow: 0 0 6px rgba(5, 217, 232, 0.4);
+        }
+
+        /* Footer status line — total items / audio count / total size. Updated
+         * on every render so it reflects the current filtered+sorted view. */
+        .file-list-footer {
+            padding: 6px 24px;
+            border-top: 1px solid rgba(26, 26, 62, 0.4);
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'Courier New', monospace;
+            text-align: right;
+        }
+
         .file-list-header .file-name-h {
             flex: 1;
             cursor: pointer;
@@ -11726,6 +11789,10 @@
     <div class="tab-content" id="tabFiles">
         <div class="audio-container">
             <div class="audio-toolbar">
+                <button class="btn btn-secondary" data-action="fileNavBack" id="fbNavBack"
+                        title="Back (Cmd+[)" disabled>&#8592;</button>
+                <button class="btn btn-secondary" data-action="fileNavFwd" id="fbNavFwd"
+                        title="Forward (Cmd+])" disabled>&#8594;</button>
                 <button class="btn btn-secondary" data-action="fileUp" data-i18n-title="ui.tt.go_to_parent_directory" id="btnFileUp"
                         title="Go to parent directory">&#8593; <span
                         data-i18n="ui.btn.8593_up">Up</span></button>
@@ -11754,6 +11821,9 @@
                         id="btnFileFav" title="Bookmark current directory">&#9733;
                     <span data-i18n="ui.btn.9733_bookmark">Bookmark</span></button>
                 <div class="file-breadcrumb" id="fileBreadcrumb"></div>
+                <input type="text" class="file-path-input" id="fileBrowserPathInput"
+                       style="display:none;" autocomplete="off" autocorrect="off"
+                       spellcheck="false" placeholder="Type a path… (Cmd+L)">
                 <div class="search-box" style="flex: 1; max-width: 300px;">
                     <span class="search-icon">&#128269;</span>
                     <input autocapitalize="off" autocomplete="off" autocorrect="off"
@@ -11770,6 +11840,17 @@
                 <div class="file-favs-header"><span>&#9733; <span data-i18n="ui.files.favorite_dirs_header">Favorite Directories</span></span>
                     <span></span></div>
                 <div class="file-favs-grid" id="fileFavsGrid"></div>
+            </div>
+            <div class="fb-ext-chips" id="fileExtChips">
+                <button class="ext-chip active" data-ext-filter="all" title="Show all files">All</button>
+                <button class="ext-chip" data-ext-filter="audio" title="Audio files only">Audio</button>
+                <button class="ext-chip" data-ext-filter="daw" title="DAW project files only">DAW</button>
+                <button class="ext-chip" data-ext-filter="preset" title="Plug-in preset files only">Preset</button>
+                <button class="ext-chip" data-ext-filter="midi" title="MIDI files only">MIDI</button>
+                <button class="ext-chip" data-ext-filter="pdf" title="PDFs only">PDF</button>
+                <button class="ext-chip" data-ext-filter="video" title="Video files only">Video</button>
+                <button class="ext-chip" data-ext-filter="image" title="Images only">Image</button>
+                <button class="ext-chip" data-ext-filter="other" title="Files not in any other category">Other</button>
             </div>
             <div class="file-bulk-bar" id="fileBulkBar" style="display:none;">
                 <span class="file-bulk-count"><span id="fileBulkCount">0</span> selected</span>
@@ -11802,6 +11883,7 @@
                         Configure root directories in Settings > Scanning.</p>
                 </div>
             </div>
+            <div class="file-list-footer" id="fileListFooter"></div>
         </div>
     </div>
 

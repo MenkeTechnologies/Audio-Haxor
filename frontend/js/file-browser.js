@@ -125,6 +125,142 @@ function fileIcon(entry) {
     return '&#128196;';
 }
 
+// ── Forward/back navigation history ──
+// Browser-style nav: each `loadDirectory` push appends to the history stack
+// unless the load was itself triggered by back/forward (which sets the skip
+// flag). Forward history is dropped on a new push (matches browser semantics).
+var _fbHistory = [];
+var _fbHistoryIdx = -1;
+var _fbHistorySkipPush = false;
+
+function _navHistoryRecord(path) {
+    if (_fbHistorySkipPush) {
+        _fbHistorySkipPush = false;
+        return;
+    }
+    if (_fbHistory[_fbHistoryIdx] === path) return; // no-op nav to same dir
+    // Drop forward history past the current index (new branch).
+    _fbHistory = _fbHistory.slice(0, _fbHistoryIdx + 1);
+    _fbHistory.push(path);
+    _fbHistoryIdx = _fbHistory.length - 1;
+    _updateNavButtons();
+}
+
+function _updateNavButtons() {
+    if (typeof document === 'undefined') return;
+    const back = document.getElementById('fbNavBack');
+    const fwd = document.getElementById('fbNavFwd');
+    if (back) back.disabled = _fbHistoryIdx <= 0;
+    if (fwd) fwd.disabled = _fbHistoryIdx >= _fbHistory.length - 1;
+}
+
+function fileNavBack() {
+    if (_fbHistoryIdx <= 0) return;
+    _fbHistoryIdx--;
+    _fbHistorySkipPush = true;
+    loadDirectory(_fbHistory[_fbHistoryIdx]);
+}
+
+function fileNavForward() {
+    if (_fbHistoryIdx >= _fbHistory.length - 1) return;
+    _fbHistoryIdx++;
+    _fbHistorySkipPush = true;
+    loadDirectory(_fbHistory[_fbHistoryIdx]);
+}
+
+// ── Cmd+L editable path input ──
+function showFilePathEditor() {
+    if (typeof document === 'undefined') return;
+    const input = document.getElementById('fileBrowserPathInput');
+    const breadcrumb = document.getElementById('fileBreadcrumb');
+    if (!input || !breadcrumb) return;
+    input.value = _fileBrowserPath || '';
+    input.style.display = '';
+    breadcrumb.style.display = 'none';
+    input.focus();
+    input.select();
+}
+
+function hideFilePathEditor() {
+    if (typeof document === 'undefined') return;
+    const input = document.getElementById('fileBrowserPathInput');
+    const breadcrumb = document.getElementById('fileBreadcrumb');
+    if (!input || !breadcrumb) return;
+    input.style.display = 'none';
+    breadcrumb.style.display = '';
+}
+
+// ── Extension filter chips ──
+// Categories map to existing global extension sets where available
+// (`AUDIO_EXTS`, `DAW_EXTS`). Preset / MIDI / PDF / video / image use
+// dedicated lists below. Folders are always visible regardless of chip so
+// the user can navigate.
+var _fbExtFilter = 'all';
+var _fbExtCategories = null; // lazily built after globals are loaded
+
+function _fbGetExtCategories() {
+    if (_fbExtCategories) return _fbExtCategories;
+    const audio = (typeof AUDIO_EXTS !== 'undefined') ? AUDIO_EXTS : [];
+    const daw = (typeof DAW_EXTS !== 'undefined') ? DAW_EXTS : [];
+    const preset = ['fxp', 'fxb', 'preset', 'aupreset', 'h2p', 'nksf', 'nksfx', 'adv', 'agr', 'vstpreset', 'cmb', 'patch', 'nrkt'];
+    const midi = ['mid', 'midi'];
+    const pdf = ['pdf'];
+    const video = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', 'wmv', 'flv', 'mpg', 'mpeg'];
+    const image = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'tiff', 'tif', 'ico'];
+    _fbExtCategories = {audio, daw, preset, midi, pdf, video, image};
+    return _fbExtCategories;
+}
+
+function _fbExtMatches(entry, category) {
+    if (category === 'all') return true;
+    if (entry.isDir) return true; // folders always visible — navigation can't break
+    const cats = _fbGetExtCategories();
+    if (category === 'other') {
+        const inAny = [
+            ...cats.audio, ...cats.daw, ...cats.preset, ...cats.midi,
+            ...cats.pdf, ...cats.video, ...cats.image,
+        ].includes(entry.ext);
+        return !inAny;
+    }
+    const list = cats[category];
+    return Array.isArray(list) && list.includes(entry.ext);
+}
+
+function setFileExtFilter(category) {
+    _fbExtFilter = category || 'all';
+    if (typeof document !== 'undefined') {
+        document.querySelectorAll('.fb-ext-chips .ext-chip').forEach((c) => {
+            c.classList.toggle('active', c.dataset.extFilter === _fbExtFilter);
+        });
+    }
+    if (typeof renderFileList === 'function') renderFileList();
+}
+
+// ── Footer status line ──
+function _fbFormatBytes(n) {
+    if (!Number.isFinite(n) || n <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const idx = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+    return `${(n / Math.pow(1024, idx)).toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+}
+
+function updateFileListFooter(entries) {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById('fileListFooter');
+    if (!el) return;
+    const arr = Array.isArray(entries) ? entries : [];
+    let audio = 0;
+    let totalBytes = 0;
+    const audioExts = (typeof AUDIO_EXTS !== 'undefined') ? AUDIO_EXTS : [];
+    for (const e of arr) {
+        if (!e.isDir) {
+            if (audioExts.includes(e.ext)) audio++;
+            totalBytes += Number(e.size) || 0;
+        }
+    }
+    el.textContent = `${arr.length} items · ${audio} audio · ${_fbFormatBytes(totalBytes)}`;
+}
+
 // ── Folder scan-status badges ──
 // After each directory render, query the backend for per-folder inventory
 // counts (samples / presets / DAW / MIDI / PDF / video under the folder
@@ -434,6 +570,7 @@ async function initFileBrowser() {
 async function loadDirectory(dirPath) {
     _fileListRenderSeq += 1;
     _fileBrowserPath = dirPath;
+    if (typeof _navHistoryRecord === 'function') _navHistoryRecord(dirPath);
     // Reset cursor cache when directory changes
     window._fbCursorPath = null;
     window._fbCursorEl = null;
@@ -539,9 +676,15 @@ function renderFileList() {
     if (!list) return;
     const search = (document.getElementById('fileSearchInput')?.value || '').trim();
     const mode = _lastFilesMode;
+    // Extension chip filter applies BEFORE search/sort — chips narrow the
+    // candidate pool, then search ranks within that pool. Folders are always
+    // kept regardless of chip (see `_fbExtMatches`) so the user can navigate.
+    const preFiltered = (_fbExtFilter && _fbExtFilter !== 'all')
+        ? _fileBrowserEntries.filter((e) => _fbExtMatches(e, _fbExtFilter))
+        : _fileBrowserEntries;
     let filtered;
     if (search) {
-        const scored = _fileBrowserEntries.map(e => {
+        const scored = preFiltered.map(e => {
             const score = typeof searchScore === 'function' ? searchScore(search, [e.name, e.ext], mode) : (e.name.toLowerCase().includes(search.toLowerCase()) ? 1 : 0);
             return {entry: e, score};
         }).filter(s => s.score > 0);
@@ -551,8 +694,9 @@ function renderFileList() {
         scored.sort((a, b) => b.score - a.score);
         filtered = scored.map(s => s.entry);
     } else {
-        filtered = applyFileSort(_fileBrowserEntries);
+        filtered = applyFileSort(preFiltered);
     }
+    if (typeof updateFileListFooter === 'function') updateFileListFooter(filtered);
 
     if (filtered.length === 0) {
         _fileListRenderSeq += 1;
@@ -1116,6 +1260,79 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     selectAllVisibleFiles();
 });
+
+// ── Forward/back nav button clicks ──
+document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="fileNavBack"]')) {
+        e.stopPropagation();
+        fileNavBack();
+        return;
+    }
+    if (e.target.closest('[data-action="fileNavFwd"]')) {
+        e.stopPropagation();
+        fileNavForward();
+        return;
+    }
+});
+
+// ── Extension chip clicks ──
+document.addEventListener('click', (e) => {
+    const chip = e.target.closest('.fb-ext-chips .ext-chip[data-ext-filter]');
+    if (!chip) return;
+    e.stopPropagation();
+    setFileExtFilter(chip.dataset.extFilter);
+});
+
+// ── Cmd+L editable path input + Cmd+[ / Cmd+] history nav shortcuts ──
+document.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    const activeTab = document.querySelector('.tab-content.active');
+    if (!activeTab || activeTab.id !== 'tabFiles') return;
+    const t = e.target;
+    const inField = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    if (e.key === 'l' || e.key === 'L') {
+        if (inField && t.id !== 'fileBrowserPathInput') return;
+        e.preventDefault();
+        showFilePathEditor();
+        return;
+    }
+    if (e.key === '[') {
+        if (inField) return;
+        e.preventDefault();
+        fileNavBack();
+        return;
+    }
+    if (e.key === ']') {
+        if (inField) return;
+        e.preventDefault();
+        fileNavForward();
+        return;
+    }
+});
+
+// Path input: Enter navigates, Esc cancels, blur hides.
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const input = document.getElementById('fileBrowserPathInput');
+        if (!input) return;
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const path = input.value.trim();
+                hideFilePathEditor();
+                if (path) loadDirectory(path);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                hideFilePathEditor();
+            }
+        });
+        input.addEventListener('blur', () => {
+            // Defer so Enter's loadDirectory has a chance to fire before the
+            // breadcrumb takes its slot back.
+            setTimeout(() => hideFilePathEditor(), 100);
+        });
+    });
+}
 
 // Filter — uses unified filter system
 registerFilter('filterFiles', {
