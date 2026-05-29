@@ -7427,6 +7427,169 @@ async fn fs_grep(
     .await
 }
 
+/// Generate (or fetch from cache) a thumbnail PNG for an image file.
+/// Server-side resize via the `image_crate` so the frontend doesn't
+/// shuttle full-resolution photos over the IPC. Returns raw PNG bytes
+/// as a `tauri::ipc::Response` — JS receives an ArrayBuffer directly
+/// (no JSON-array-of-numbers slowdown; see `pdf_preview_get`).
+///
+/// Cached in `image_preview_cache` keyed on `(path, width)` with
+/// mtime-second invalidation. Miss → empty ArrayBuffer (JS checks
+/// `byteLength === 0`).
+///
+/// `width` is the target render width in pixels; height scales to
+/// preserve aspect. The image crate's `thumbnail` uses fast nearest-
+/// neighbor downscaling — good enough for a row icon (typically 32-80
+/// px wide); higher-quality `resize` is reserved for the preview pane.
+#[tauri::command]
+async fn fs_image_thumbnail(
+    file_path: String,
+    width: i64,
+) -> Result<tauri::ipc::Response, String> {
+    let bytes = blocking_res(move || {
+        // Cache hit?
+        if let Some(cached) = db::global().image_preview_get(&file_path, width)? {
+            return Ok::<_, String>(cached);
+        }
+        // Miss — load + resize + encode + persist.
+        let img = image_crate::ImageReader::open(&file_path)
+            .map_err(|e| e.to_string())?
+            .with_guessed_format()
+            .map_err(|e| e.to_string())?
+            .decode()
+            .map_err(|e| e.to_string())?;
+        let target_w = width.clamp(8, 4096) as u32;
+        // `thumbnail` is the speed-optimized variant; for tiny row icons
+        // the aliasing is invisible. PNG encode is fast enough that we
+        // don't bother with quality knobs.
+        let thumb = img.thumbnail(target_w, target_w * 8); // tall cap so portraits aren't squished
+        let mut png_bytes = Vec::new();
+        thumb
+            .write_to(
+                &mut std::io::Cursor::new(&mut png_bytes),
+                image_crate::ImageFormat::Png,
+            )
+            .map_err(|e| e.to_string())?;
+        db::global().image_preview_set(&file_path, width, &png_bytes)?;
+        Ok(png_bytes)
+    })
+    .await?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// Find duplicate files inside a directory by SHA-256 content hash.
+/// Two-pass for speed:
+///   1. Group every (non-empty, regular) file by `(size, ext)`. Anything
+///      with no twin at that pre-key can't possibly be a duplicate.
+///   2. For each group with ≥ 2 files, hash and bucket by digest.
+/// Returns only the groups with ≥ 2 matching files. Caller renders + lets
+/// the user decide what to keep. `recursive` walks subdirectories;
+/// otherwise just the immediate folder. `min_size_bytes` filters out
+/// trivially-small files (default 1 byte = include everything).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DuplicateGroup {
+    hash: String,
+    size: u64,
+    paths: Vec<String>,
+}
+
+#[tauri::command]
+async fn fs_find_duplicates(
+    dir: String,
+    recursive: Option<bool>,
+    min_size_bytes: Option<u64>,
+) -> Result<Vec<DuplicateGroup>, String> {
+    let recursive = recursive.unwrap_or(false);
+    let min_size = min_size_bytes.unwrap_or(1);
+    blocking_res(move || {
+        use sha2::{Digest, Sha256};
+        use std::io::Read;
+        let root = std::path::PathBuf::from(&dir);
+        if !root.is_dir() {
+            return Err(format!("Not a directory: {dir}"));
+        }
+        // Pass 1: gather (path, size, ext) for every file.
+        let mut by_pre_key: std::collections::HashMap<(u64, String), Vec<std::path::PathBuf>> =
+            std::collections::HashMap::new();
+        let mut stack = vec![root];
+        while let Some(d) = stack.pop() {
+            let Ok(rd) = std::fs::read_dir(&d) else { continue };
+            for entry in rd.flatten() {
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') {
+                    continue;
+                }
+                let Ok(ty) = entry.file_type() else { continue };
+                if ty.is_dir() {
+                    if recursive {
+                        stack.push(path);
+                    }
+                    continue;
+                }
+                if !ty.is_file() {
+                    continue;
+                }
+                let Ok(meta) = entry.metadata() else { continue };
+                let size = meta.len();
+                if size < min_size {
+                    continue;
+                }
+                let ext = path
+                    .extension()
+                    .map(|e| e.to_string_lossy().to_lowercase())
+                    .unwrap_or_default();
+                by_pre_key.entry((size, ext)).or_default().push(path);
+            }
+        }
+        // Pass 2: hash only the groups with ≥ 2 candidates.
+        let mut groups: Vec<DuplicateGroup> = Vec::new();
+        for ((size, _ext), paths) in by_pre_key {
+            if paths.len() < 2 {
+                continue;
+            }
+            let mut by_hash: std::collections::HashMap<String, Vec<String>> =
+                std::collections::HashMap::new();
+            for p in paths {
+                let Ok(mut f) = std::fs::File::open(&p) else { continue };
+                let mut hasher = Sha256::new();
+                let mut buf = [0u8; 65536];
+                let mut io_err = false;
+                loop {
+                    match f.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => hasher.update(&buf[..n]),
+                        Err(_) => { io_err = true; break; }
+                    }
+                }
+                if io_err {
+                    continue;
+                }
+                let hex = hex_encode(&hasher.finalize());
+                by_hash.entry(hex).or_default().push(p.to_string_lossy().to_string());
+            }
+            for (hash, paths) in by_hash {
+                if paths.len() < 2 {
+                    continue;
+                }
+                groups.push(DuplicateGroup {
+                    hash,
+                    size,
+                    paths,
+                });
+            }
+        }
+        // Largest groups + largest files first so the user sees the
+        // biggest reclaim candidates at the top.
+        groups.sort_by(|a, b| {
+            (b.paths.len() * b.size as usize).cmp(&(a.paths.len() * a.size as usize))
+        });
+        Ok(groups)
+    })
+    .await
+}
+
 /// Run `git status --porcelain=v1 -z` in `dir_path` (or the containing
 /// git repo if `dir_path` itself isn't a worktree root). Returns a map
 /// `{absolute_path → status_code}` where status_code is the 2-char
@@ -10845,6 +11008,8 @@ pub fn run() {
             fs_git_status,
             fs_xattrs,
             fs_open_in_editor,
+            fs_image_thumbnail,
+            fs_find_duplicates,
             delete_inventory_item,
             rename_file,
             fs_create_dir,

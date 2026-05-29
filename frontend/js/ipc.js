@@ -1901,6 +1901,15 @@ window.vstUpdater = {
      *  Returns the binary name that succeeded. */
     fsOpenInEditor: (filePath, editorOverride) =>
         invoke('fs_open_in_editor', {filePath, editorOverride: editorOverride || null}),
+    /** Resize+cache an image thumbnail. Returns raw PNG bytes as an
+     *  ArrayBuffer (caller wraps in Blob → URL.createObjectURL). Empty
+     *  ArrayBuffer on miss/error → caller falls back to the doc icon. */
+    fsImageThumbnail: (filePath, width) => invoke('fs_image_thumbnail', {filePath, width}),
+    /** Find duplicate files inside `dir` (by SHA-256 content hash).
+     *  Returns `[{hash, size, paths: [absPath,...]}]`. Pre-filtered by
+     *  (size, ext) so non-duplicates are never hashed. */
+    fsFindDuplicates: (dir, recursive, minSizeBytes) =>
+        invoke('fs_find_duplicates', {dir, recursive: !!recursive, minSizeBytes: minSizeBytes || null}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),

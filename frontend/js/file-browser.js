@@ -1970,6 +1970,180 @@ if (typeof window !== 'undefined') {
     window.renderFileBrowserTree = renderFileBrowserTree;
 }
 
+// ── Inline image thumbnails (lazy) ──
+// IntersectionObserver on the file-list scroll container fires when a
+// thumb canvas comes into view; we then fetch the cached PNG bytes via
+// `fs_image_thumbnail` (server-side resize + SQLite cache) and paint
+// once. Each canvas is observed at most once — the `dataset.loaded` flag
+// prevents re-fetching after scroll-out / scroll-back.
+const FB_THUMB_WIDTH = 64; // 2× the visual 32px slot for HiDPI sharpness
+let _fbThumbObserver = null;
+function _fbInitThumbObserver() {
+    if (typeof IntersectionObserver === 'undefined') return;
+    if (_fbThumbObserver) return;
+    _fbThumbObserver = new IntersectionObserver(
+        (entries) => {
+            for (const entry of entries) {
+                if (!entry.isIntersecting) continue;
+                const canvas = entry.target;
+                if (canvas.dataset.loaded === '1' || canvas.dataset.loading === '1') continue;
+                canvas.dataset.loading = '1';
+                const path = canvas.dataset.fbThumbPath;
+                if (!path) continue;
+                window.vstUpdater.fsImageThumbnail(path, FB_THUMB_WIDTH).then((ab) => {
+                    if (!ab || ab.byteLength === 0) return;
+                    if (typeof window.paintPngBytesIntoCanvas === 'function') {
+                        return window.paintPngBytesIntoCanvas(canvas, ab);
+                    }
+                }).then(() => {
+                    canvas.dataset.loaded = '1';
+                    canvas.dataset.loading = '';
+                    canvas.classList.add('file-image-thumb-loaded');
+                    _fbThumbObserver.unobserve(canvas);
+                }).catch(() => {
+                    canvas.dataset.loading = '';
+                });
+            }
+        },
+        { root: null, rootMargin: '200px 0px', threshold: 0.01 }
+    );
+}
+// Observe thumb canvases after each render. Called from a MutationObserver
+// on the file list so newly-rendered chunks pick up automatically.
+function _fbObserveThumbCanvases(rootEl) {
+    if (!_fbThumbObserver) _fbInitThumbObserver();
+    if (!_fbThumbObserver) return;
+    (rootEl || document).querySelectorAll('.file-image-thumb:not([data-loaded="1"])').forEach((c) => {
+        _fbThumbObserver.observe(c);
+    });
+}
+if (typeof window !== 'undefined' && typeof MutationObserver !== 'undefined') {
+    // Watch every pane's file-list for new rows being appended (chunked
+    // renderer adds in batches). The observer kicks IntersectionObserver
+    // on the new canvases.
+    const mo = new MutationObserver(() => _fbObserveThumbCanvases());
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.fb-pane .file-list').forEach((el) => {
+            mo.observe(el, {childList: true, subtree: true});
+        });
+        _fbObserveThumbCanvases();
+    });
+}
+
+// ── Find Duplicates modal ──
+// Recursive SHA-256 scan inside the current folder. Server pre-filters
+// by (size, ext) so only candidate sets are hashed. Modal groups files
+// by identical content + lets the user trash all-but-first per group.
+async function fileBrowserShowDuplicatesModal() {
+    if (!_fileBrowserPath) return;
+    document.getElementById('appDupModal')?.remove();
+    const html = `<div class="modal-overlay modal-visible" id="appDupModal" role="dialog" aria-modal="true">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>Find Duplicates — ${escapeHtml(_fileBrowserPath.split('/').filter(Boolean).pop() || _fileBrowserPath)}</h2>
+        <button type="button" class="modal-close" data-app-dup="close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p class="app-confirm-message">Scans by SHA-256 content hash. Pre-filters by (size, ext) so only real candidate sets are hashed.</p>
+        <label class="app-confirm-message" style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+          <input type="checkbox" id="appDupRecursive" checked> Recursive (walk subfolders)
+        </label>
+        <label class="app-confirm-message" style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+          Min size: <input type="number" id="appDupMinSize" value="1024" min="1" style="width:80px"> bytes
+        </label>
+        <div id="appDupResults" class="fb-info-grid" style="max-height:420px;overflow-y:auto;margin-top:12px;"></div>
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-dup="close">Close</button>
+          <button type="button" class="btn btn-primary" data-app-dup="scan">Scan</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appDupModal');
+    const recursive = document.getElementById('appDupRecursive');
+    const minSize = document.getElementById('appDupMinSize');
+    const results = document.getElementById('appDupResults');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const fmtBytes = (n) => {
+        if (typeof _fmtBytes === 'function') return _fmtBytes(n);
+        return `${n} B`;
+    };
+    const trashGroup = async (paths) => {
+        // Keep the first, trash the rest. User can sort the group order
+        // before clicking if they want to keep a different copy — for
+        // now first-wins is the convention.
+        const toTrash = paths.slice(1);
+        const ok = typeof confirmAction === 'function'
+            ? await confirmAction(`Move ${toTrash.length} duplicate${toTrash.length === 1 ? '' : 's'} to Trash? (Keeping the first copy in the group.)`, 'Trash Duplicates')
+            : confirm(`Move ${toTrash.length} duplicates to Trash?`);
+        if (!ok) return;
+        let okCount = 0, fail = 0;
+        for (const p of toTrash) {
+            try { await window.vstUpdater.moveToTrash(p); okCount++; }
+            catch (_) { fail++; }
+        }
+        if (typeof showToast === 'function') {
+            if (okCount > 0) showToast(toastFmt('toast.deleted_name', {name: `trashed ${okCount} duplicate${okCount === 1 ? '' : 's'}`}));
+            if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} failed`}), 4000, 'error');
+        }
+        // Re-scan to refresh
+        scan();
+    };
+    const scan = async () => {
+        results.innerHTML = '<div class="fb-info-val">scanning…</div>';
+        try {
+            const groups = await window.vstUpdater.fsFindDuplicates(
+                _fileBrowserPath,
+                recursive.checked,
+                parseInt(minSize.value, 10) || 1,
+            );
+            if (!groups || groups.length === 0) {
+                results.innerHTML = '<div class="fb-info-val">no duplicates found</div>';
+                return;
+            }
+            // Render each group as a block. Header: "N files, X MB each
+            // (reclaim Y MB)" + per-path list with Trash All But First.
+            results.innerHTML = groups.map((g, gi) => {
+                const reclaim = g.size * (g.paths.length - 1);
+                const pathsHtml = g.paths.map((p) => `<div class="fb-info-val" style="cursor:pointer" data-dup-path="${escapeHtml(p)}">${escapeHtml(p)}</div>`).join('');
+                return `<div class="fb-info-key" style="margin-top:${gi === 0 ? 0 : 16}px">${g.paths.length} files, ${escapeHtml(fmtBytes(g.size))} each — reclaim ${escapeHtml(fmtBytes(reclaim))}</div>
+                <div class="fb-info-val">
+                  ${pathsHtml}
+                  <button type="button" class="btn btn-stop" style="margin-top:6px;font-size:11px" data-dup-trash="${gi}">Trash all but first (${g.paths.length - 1})</button>
+                </div>`;
+            }).join('');
+            // Wire trash buttons (need closure over groups[gi].paths).
+            results.querySelectorAll('[data-dup-trash]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const gi = parseInt(btn.dataset.dupTrash, 10);
+                    if (groups[gi]) trashGroup(groups[gi].paths);
+                });
+            });
+            // Click a path → navigate to its parent + close modal.
+            results.querySelectorAll('[data-dup-path]').forEach((el) => {
+                el.addEventListener('click', () => {
+                    const p = el.dataset.dupPath;
+                    const parent = p.replace(/\/[^/]+$/, '');
+                    close();
+                    loadDirectory(parent);
+                });
+            });
+        } catch (err) {
+            results.innerHTML = `<div class="fb-info-val">error: ${escapeHtml(String(err && err.message ? err.message : err))}</div>`;
+        }
+    };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-app-dup]');
+        if (btn) { if (btn.dataset.appDup === 'scan') scan(); else close(); return; }
+        if (e.target === modal) close();
+    });
+    // Auto-scan on open so the modal isn't blank.
+    requestAnimationFrame(() => scan());
+}
+
 // Expose helpers to context-menu.js (separate file, separate scope).
 if (typeof window !== 'undefined') {
     window.fileBrowserMarkClipboard = fileBrowserMarkClipboard;
@@ -1982,6 +2156,7 @@ if (typeof window !== 'undefined') {
     window.fileBrowserBulkCompress = fileBrowserBulkCompress;
     window.fileBrowserBulkExtract = fileBrowserBulkExtract;
     window.fileBrowserShowGrepModal = fileBrowserShowGrepModal;
+    window.fileBrowserShowDuplicatesModal = fileBrowserShowDuplicatesModal;
 }
 
 // ── Move-to-bookmark (right-click → Move to → <bookmark>) ──
@@ -2988,6 +3163,11 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
     const extras = parts.length > 0 ? `<span class="file-meta-tags-row">${parts.join('')}</span>` : '';
 
     const wfBg = isAudio ? `<canvas class="file-waveform" data-wf-path="${escapeHtml(e.path)}" height="36" title="Waveform"></canvas><span class="file-wf-cursor"></span>` : '';
+    // Inline image thumbnails for picture rows. The icon cell holds a
+    // canvas instead of the doc-glyph; `_fbThumbObserver` lazy-loads the
+    // bytes via `fs_image_thumbnail` (cached in SQLite). SVG is skipped
+    // server-side (image crate doesn't decode SVG); .heic too.
+    const isImageThumb = !e.isDir && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'tif'].includes(e.ext);
     const isSelected = _fileSelected.has(e.path);
     // Folders show "…" placeholders for Size + Items until the background
     // walk completes (see `refreshFolderFilesystemSizes` →
@@ -3001,10 +3181,13 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
         ? '<span class="file-items-loading-text">…</span>'
         : '';
     const itemsCls = e.isDir ? ' file-items-loading' : '';
+    const iconCell = isImageThumb
+        ? `<span class="file-icon file-icon-thumb"><canvas class="file-image-thumb" data-fb-thumb-path="${escapeHtml(e.path)}" width="32" height="32"></canvas></span>`
+        : `<span class="file-icon">${fileIcon(e)}</span>`;
     return `<div class="file-row${cls}${isAudio ? ' file-audio' : ''}${isSelected ? ' file-selected' : ''}" data-file-path="${escapeHtml(e.path)}" data-file-dir="${e.isDir}" ${isAudio ? `data-wf-file="${escapeHtml(e.path)}"` : ''}>
       <span class="file-cb"><input type="checkbox" class="file-row-cb" data-fb-cb="${escapeHtml(e.path)}"${isSelected ? ' checked' : ''}></span>
       ${wfBg}
-      <span class="file-icon">${fileIcon(e)}</span>
+      ${iconCell}
       <span class="file-name">${search && typeof highlightMatch === 'function' ? highlightMatch(e.name, search, mode || 'fuzzy') : escapeHtml(e.name)}${extras}${note}</span>
       <span class="file-ext">${e.isDir ? 'DIR' : e.ext}</span>
       <span class="file-size${sizeCls}">${sizeContent}</span>
@@ -4001,6 +4184,11 @@ document.addEventListener('contextmenu', (e) => {
         icon: '&#128270;',
         label: 'Find in Files… (grep)', ..._ctxMenuNoEcho,
         action: () => fileBrowserShowGrepModal(),
+    });
+    items.push({
+        icon: '&#128269;',
+        label: 'Find Duplicates… (by content)', ..._ctxMenuNoEcho,
+        action: () => fileBrowserShowDuplicatesModal(),
     });
     items.push(...[
         '---',

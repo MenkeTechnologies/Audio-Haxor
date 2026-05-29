@@ -50,7 +50,7 @@ notify = "8"
 # file-browser delete paths so deletes are recoverable, not permanent.
 trash = "5"
 sysinfo = "0.38"
-image_crate = { version = "0.25", default-features = false, features = ["png"], package = "image" }
+image_crate = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "tiff"], package = "image" }
 sha2 = "0.11"
 dashmap = "6"
 tauri-plugin-drag = "2.1"

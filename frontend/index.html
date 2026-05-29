@@ -4497,6 +4497,30 @@
         .fb-git-renamed   { color: #bd93f9; border-color: #bd93f9; }
         .fb-git-clean     { color: var(--text-dim); border-color: var(--text-dim); }
 
+        /* Inline image thumbnails — server-side resized + cached in
+         * image_preview_cache. Canvas slot is 32×32 to match the existing
+         * file-icon size; bitmap is 64w (2× DPR) so retina screens stay
+         * sharp. CSS scales to 32 px display. */
+        .file-icon-thumb {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+        .file-image-thumb {
+            width: 32px;
+            height: 32px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 2px;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        .file-image-thumb.file-image-thumb-loaded {
+            opacity: 1;
+        }
+
         .modal-resize {
             position: absolute;
             z-index: 10;

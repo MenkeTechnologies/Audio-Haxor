@@ -2960,6 +2960,33 @@ DROP TABLE _pl_refresh_paths;"#;
                 .map_err(|e| format!("Migration v29 schema_version failed: {e}"))?;
         }
 
+        // Migration v30: image_preview_cache. Same shape as pdf_preview_cache
+        // but keyed on `(path, width)` (no page concept for images). Used by
+        // the file-browser inline thumbnails on .png/.jpg/.gif/.webp rows so
+        // the resize+encode cost only hits the first viewing per file.
+        let has_v30 = conn
+            .query_row(
+                "SELECT 1 FROM schema_version WHERE version = 30",
+                [],
+                |_| Ok(()),
+            )
+            .is_ok();
+        if !has_v30 {
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS image_preview_cache (
+                    path        TEXT NOT NULL,
+                    width       INTEGER NOT NULL,
+                    mtime_ms    INTEGER NOT NULL,
+                    png_bytes   BLOB NOT NULL,
+                    created_at  INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                    PRIMARY KEY (path, width)
+                );",
+            )
+            .map_err(|e| format!("Migration v30 (image_preview_cache) failed: {e}"))?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (30)", [])
+                .map_err(|e| format!("Migration v30 schema_version failed: {e}"))?;
+        }
+
         if conn
             .query_row(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_i18n'",
@@ -10957,6 +10984,74 @@ DROP TABLE _pl_refresh_paths;"#;
                  png_bytes = excluded.png_bytes,
                  created_at = strftime('%s', 'now')",
             params![canon, page, width, mtime_ms, png_bytes],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Image preview cache get — mirrors `pdf_preview_get` but keyed on
+    /// `(path, width)` only. mtime-second invalidation: cache hit IFF
+    /// current file mtime (in whole seconds) matches the stored value,
+    /// OR the file is unreachable (let the bytes serve even when the
+    /// source moved / unmounted). See `pdf_preview_get` for the same
+    /// whole-second compare rationale (APFS/HFS+ nanosecond drift).
+    pub fn image_preview_get(&self, path: &str, width: i64) -> Result<Option<Vec<u8>>, String> {
+        let canon = normalize_path_for_db(path);
+        let cur_mtime_s: Option<i64> = std::fs::metadata(&canon)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64);
+        let conn = self.read_conn();
+        let mut stmt = conn
+            .prepare(
+                "SELECT mtime_ms, png_bytes FROM image_preview_cache
+                 WHERE path = ?1 AND width = ?2 LIMIT 1",
+            )
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt
+            .query(params![canon, width])
+            .map_err(|e| e.to_string())?;
+        if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let stored_mtime_ms: i64 = row.get(0).map_err(|e| e.to_string())?;
+            let stored_mtime_s = stored_mtime_ms / 1000;
+            let fresh = match cur_mtime_s {
+                None => true,
+                Some(cur) => cur == stored_mtime_s,
+            };
+            if fresh {
+                let bytes: Vec<u8> = row.get(1).map_err(|e| e.to_string())?;
+                return Ok(Some(bytes));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Upsert a resized image thumbnail. `mtime_ms` captured server-side
+    /// at write time so subsequent gets can detect staleness without
+    /// re-stating.
+    pub fn image_preview_set(
+        &self,
+        path: &str,
+        width: i64,
+        png_bytes: &[u8],
+    ) -> Result<(), String> {
+        let canon = normalize_path_for_db(path);
+        let mtime_ms = std::fs::metadata(&canon)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        let conn = self.write_conn();
+        conn.execute(
+            "INSERT INTO image_preview_cache (path, width, mtime_ms, png_bytes)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(path, width) DO UPDATE SET
+                 mtime_ms = excluded.mtime_ms,
+                 png_bytes = excluded.png_bytes,
+                 created_at = strftime('%s', 'now')",
+            params![canon, width, mtime_ms, png_bytes],
         )
         .map_err(|e| e.to_string())?;
         Ok(())
