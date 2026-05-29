@@ -6351,31 +6351,41 @@
             margin-bottom: 16px;
         }
 
+        /* Wrapper around the Quick-look PDF canvas. Spinner overlay lives
+         * here as `::after` — pseudo-elements don't render on `<canvas>`,
+         * which is why the previous spinner attempt was invisible. */
+        .fb-quicklook-pdf-wrap {
+            position: relative;
+            margin: 0 auto 16px;
+            display: inline-block;
+            min-width: 200px;
+            min-height: 200px;
+        }
+
         .fb-quicklook-pdf {
             display: block;
             max-width: 100%;
             height: auto;
-            margin: 0 auto 16px;
             background: white;
             border: 1px solid var(--cyan);
             border-radius: 3px;
-            position: relative;
-            min-height: 200px;
         }
 
         /* While the page is being rendered: overlay a pulsing cyan gradient +
          * a centered spinning ring. Removed (`fb-quicklook-pdf-loading` class
-         * dropped) when render completes — the rendered page replaces the
-         * overlay. Without this the user sees a blank white box for the
-         * full render duration (1–3 s on big PDFs), which read as broken. */
-        .fb-quicklook-pdf.fb-quicklook-pdf-loading {
+         * dropped from wrapper) when render completes — the rendered canvas
+         * replaces the overlay. */
+        .fb-quicklook-pdf-wrap.fb-quicklook-pdf-loading {
             background:
                 radial-gradient(circle at center, rgba(5, 217, 232, 0.5) 0%, rgba(5, 217, 232, 0) 40%),
                 white;
             min-height: 280px;
+            min-width: 360px;
+            border: 1px solid var(--cyan);
+            border-radius: 3px;
         }
 
-        .fb-quicklook-pdf.fb-quicklook-pdf-loading::after {
+        .fb-quicklook-pdf-wrap.fb-quicklook-pdf-loading::after {
             content: '';
             position: absolute;
             top: 50%;

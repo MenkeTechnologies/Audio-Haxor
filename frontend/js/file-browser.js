@@ -597,8 +597,12 @@ async function showQuickLook(filePath) {
     const wfHtml = isAudio
         ? `<canvas class="fb-quicklook-wf" id="fbQuickLookWf" data-wf-path="${escapeHtml(filePath)}" width="800" height="120"></canvas>`
         : '';
+    // Wrap canvas in a `<div>` so the loading-spinner `::after` pseudo-element
+    // can render. CSS spec forbids pseudo-elements on `<canvas>` (a "replaced"
+    // element); without the wrapper the spinner is invisible and the user
+    // sees a blank white box during render.
     const pdfHtml = isPdf
-        ? `<canvas class="fb-quicklook-pdf" id="fbQuickLookPdf"></canvas>`
+        ? `<div class="fb-quicklook-pdf-wrap" id="fbQuickLookPdfWrap"><canvas class="fb-quicklook-pdf" id="fbQuickLookPdf"></canvas></div>`
         : '';
     body.innerHTML = `
         ${wfHtml}
@@ -619,9 +623,13 @@ async function showQuickLook(filePath) {
         // Big render — 600 px width. Cache-first using width=600 (independent
         // of the 320 preview-pane and 80 thumbnail caches — no collisions).
         const canvas = document.getElementById('fbQuickLookPdf');
+        const wrap = document.getElementById('fbQuickLookPdfWrap');
         if (!canvas) return;
         const QL_WIDTH = 600;
-        const setLoading = (on) => canvas.classList.toggle('fb-quicklook-pdf-loading', !!on);
+        // Loading class on the WRAPPER div (not the canvas) so the spinner
+        // `::after` pseudo-element renders — pseudo-elements don't work on
+        // replaced elements like `<canvas>`.
+        const setLoading = (on) => { if (wrap) wrap.classList.toggle('fb-quicklook-pdf-loading', !!on); };
         setLoading(true);
         try {
             const cached = await window.vstUpdater.pdfPreviewGet(filePath, 1, QL_WIDTH);

@@ -1870,8 +1870,15 @@ window.vstUpdater = {
      *  or when the file's mtime has changed since the cache write. */
     pdfPreviewGet: (filePath, page, width) => invoke('pdf_preview_get', {filePath, page, width}),
     /** Store a freshly-rendered PDF page (PNG bytes) in the cache. Server
-     *  captures the file's current mtime at write time. */
-    pdfPreviewSet: (filePath, page, width, pngBytes) => invoke('pdf_preview_set', {filePath, page, width, pngBytes}),
+     *  captures the file's current mtime at write time. Bytes are converted
+     *  to a plain Array via `Array.from` — Tauri's invoke JSON-serializes
+     *  Uint8Array as `{"0":1,…}` (object with string keys) which fails to
+     *  deserialize into Rust `Vec<u8>`. Same pattern as `write_binary_file`
+     *  elsewhere in the codebase. */
+    pdfPreviewSet: (filePath, page, width, pngBytes) => {
+        const arr = pngBytes instanceof Uint8Array ? Array.from(pngBytes) : pngBytes;
+        return invoke('pdf_preview_set', {filePath, page, width, pngBytes: arr});
+    },
     getHomeDir: () => invoke('get_home_dir'),
     // Similarity
     findSimilarSamples: (filePath, candidatePaths, maxResults) => invoke('find_similar_samples', {
