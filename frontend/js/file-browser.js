@@ -626,9 +626,8 @@ function _fbReindexPanesFromDOM() {
     if (typeof renderFileBrowserTabs === 'function') renderFileBrowserTabs();
     _fbLoadActivePaneIntoGlobals();
     if (_fileBrowserPath && typeof renderBreadcrumb === 'function') renderBreadcrumb(_fileBrowserPath);
-    if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.fb_action', {name: `panes reordered`}));
-    }
+    // (Universal "panes reordered" toast emitted by the drag-reorder
+    // engine via `toastKey: 'toast.reordered_panes'`.)
 }
 
 if (typeof document !== 'undefined') {
@@ -636,6 +635,7 @@ if (typeof document !== 'undefined') {
         const wrap = document.querySelector('.file-list-wrap');
         if (!wrap || typeof window.initDragReorder !== 'function') return;
         window.initDragReorder(wrap, '.fb-pane[data-pane-idx]', null, {
+            toastKey: 'toast.reordered_panes',
             direction: 'horizontal',
             // Drag handle is the tab strip — keeps the file list + row
             // drag (HTML5 drag for cross-pane file move) free of
@@ -808,6 +808,7 @@ function _fbInitTabDragForPane(paneIdx) {
     if (!list || list._fbTabDragInit) return;
     list._fbTabDragInit = true;
     window.initDragReorder(list, '.fb-tab', null, {
+        toastKey: 'toast.reordered_tabs',
         direction: 'horizontal',
         getKey: (el) => el.dataset.fbTabId || '',
         onReorder: () => {
@@ -3063,9 +3064,13 @@ document.addEventListener('drop', async (e) => {
         } catch (_) { fail++; }
     }
     if (typeof showToast === 'function') {
-        const verb = isCopy ? 'copied' : 'moved';
-        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `${verb} ${ok} item${ok === 1 ? '' : 's'} → pane ${destPaneIdx + 1}`}));
-        if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} ${verb === 'copied' ? 'copy' : 'move'}${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+        if (ok > 0) {
+            const key = isCopy ? 'toast.fb_drop_copied_n' : 'toast.fb_drop_moved_n';
+            showToast(toastFmt(key, {n: ok, pane: destPaneIdx + 1}));
+        }
+        if (fail > 0) {
+            showToast(toastFmt('toast.fb_drop_failed', {err: `${fail} item${fail === 1 ? '' : 's'}`}), 4000, 'error');
+        }
     }
     // Refresh destination + source (move emptied source's selection).
     if (destPaneIdx !== _fbActivePaneIdx) {

@@ -1594,6 +1594,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const grid = document.getElementById('vizGrid');
     if (grid && typeof initDragReorder === 'function') {
         initDragReorder(grid, '.viz-tile', 'vizTileOrder', {
+            toastKey: 'toast.reordered_viz_tiles',
             getKey: (el) => el.dataset.vizTile || '',
         });
     }

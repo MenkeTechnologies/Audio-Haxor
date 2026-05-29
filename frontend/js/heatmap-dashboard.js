@@ -161,6 +161,7 @@ function renderDashboard(root, samples, plugins, projects, presets, agg) {
     // Make dashboard cards draggable to reorder
     if (typeof initDragReorder === 'function') {
         initDragReorder(grid, '.hm-card', 'hmCardOrder', {
+            toastKey: 'toast.reordered_heatmap',
             getKey: (el) => el.dataset.hmCard || '',
         });
     }

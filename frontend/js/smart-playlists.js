@@ -168,7 +168,7 @@ function renderSmartPlaylists() {
 
     // Drag reorder smart playlists
     if (typeof initDragReorder === 'function') {
-        initDragReorder(container, '.sp-item', 'smartPlaylistOrder', {
+        initDragReorder(container, '.sp-item', 'smartPlaylistOrder', { toastKey: "toast.reordered_smart_playlists",
             getKey: (el) => el.dataset.spId || '',
             onReorder: (keys) => {
                 const reordered = keys.map(k => _smartPlaylists.find(p => p.id === k)).filter(Boolean);

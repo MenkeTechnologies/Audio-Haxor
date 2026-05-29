@@ -113,6 +113,27 @@
             }
             d.saveOrder();
             if (d.onReorder) d.onReorder();
+            // Universal "reordered" toast so EVERY surface that uses
+            // this engine gets feedback for free — multi-pane, per-pane
+            // tabs, stats bar, settings sections, smart playlists,
+            // walker tiles, viz tiles, fav chips / list, recently
+            // played, shortcut rows, note cards, tag cards, audio
+            // stats pairs, file-fav chips, tab-strip toolbar buttons,
+            // np player sections, file-browser panes.
+            //
+            // Caller opts in via opts.toastKey (i18n key) OR
+            // opts.toastName (raw label). Pass opts.toastSilent to
+            // suppress (useful if the caller emits its own narrower
+            // toast — e.g. shortcut-rebind path).
+            if (!d.toastSilent && typeof showToast === 'function' && typeof toastFmt === 'function') {
+                if (d.toastKey) {
+                    showToast(toastFmt(d.toastKey));
+                } else if (d.toastName) {
+                    showToast(toastFmt('toast.fb_action', {name: d.toastName}));
+                } else {
+                    showToast(toastFmt('toast.reordered'));
+                }
+            }
         }
         _drag = null;
     });
@@ -194,6 +215,11 @@
                 dragged: child, ghost: null, placeholder: null, isDragging: false,
                 startX: e.clientX, startY: e.clientY,
                 offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top,
+                // Toast hooks — read at drop time so the engine can emit
+                // a "reordered" toast without each caller wiring its own.
+                toastKey: opts?.toastKey,
+                toastName: opts?.toastName,
+                toastSilent: !!opts?.toastSilent,
             };
         });
     };
@@ -237,13 +263,13 @@ function reorderNewTableRows(tableId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     const headerStats = document.getElementById('headerStats');
-    if (headerStats) initDragReorder(headerStats, '.header-info-item', 'headerStatsOrder', {
+    if (headerStats) initDragReorder(headerStats, '.header-info-item', 'headerStatsOrder', { toastKey: "toast.reordered_header_stats",
         direction: 'horizontal',
         getKey: (el) => el.textContent.trim().split(/\s+/)[0]
     });
 
     const statsBar = document.getElementById('statsBar');
-    if (statsBar) initDragReorder(statsBar, '.stat', 'statsBarOrder', {
+    if (statsBar) initDragReorder(statsBar, '.stat', 'statsBarOrder', { toastKey: "toast.reordered_stats",
         direction: 'horizontal',
         getKey: (el) => el.dataset.statKey || el.textContent.trim().replace(/\d+/g, '').trim()
     });
@@ -258,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ].forEach(([id, prefsKey]) => {
         const bar = document.getElementById(id);
         if (bar) {
-            initDragReorder(bar, '.audio-stats-pair', prefsKey, {
+            initDragReorder(bar, '.audio-stats-pair', prefsKey, { toastKey: "toast.reordered_audio_stats",
                 direction: 'horizontal',
                 getKey: (el) =>
                     el.dataset.statKey ||
@@ -269,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setTimeout(() => {
         const favGrid = document.getElementById('fileFavsGrid');
-        if (favGrid) initDragReorder(favGrid, '.file-fav-chip', 'fileFavOrder', {
+        if (favGrid) initDragReorder(favGrid, '.file-fav-chip', 'fileFavOrder', { toastKey: "toast.reordered_fav_chips",
             direction: 'horizontal',
             getKey: (el) => el.dataset.fileNav || el.textContent.trim()
         });
@@ -284,6 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tabContent = toolbar.closest('.tab-content');
         const tabId = tabContent?.id || 'toolbar' + i;
         initDragReorder(toolbar, '.btn, .search-box, .filter-select, select', tabId + 'BtnOrder', {
+            toastKey: 'toast.reordered_toolbar',
             direction: 'horizontal',
             getKey: (el) => el.dataset.action || el.id || el.textContent.trim().slice(0, 20),
         });
@@ -292,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Settings + Audio Engine: reorder whole `.settings-section` panes (rows still use initSettingsSectionDrag in app.js)
     const settingsPane = document.querySelector('#tabSettings .settings-container');
     if (settingsPane) {
-        initDragReorder(settingsPane, '.settings-section[data-section]', 'settingsSectionOrder', {
+        initDragReorder(settingsPane, '.settings-section[data-section]', 'settingsSectionOrder', { toastKey: "toast.reordered_settings_sections",
             direction: 'vertical',
             getKey: (el) => el.dataset.section || '',
             restoreAnchorSelector: '.settings-search-bar',
@@ -302,7 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const aePane = document.querySelector('#tabAudioEngine .settings-container.audio-engine-tab');
     const aeMainStack = aePane?.querySelector(':scope > .ae-main-stack');
     if (aeMainStack) {
-        initDragReorder(aeMainStack, '.settings-section[data-section]', 'audioEngineSectionOrder', {
+        initDragReorder(aeMainStack, '.settings-section[data-section]', 'audioEngineSectionOrder', { toastKey: "toast.reordered_audio_engine_sections",
             direction: 'vertical',
             getKey: (el) => el.dataset.section || '',
             restoreMode: 'fragment',
@@ -409,14 +436,14 @@ function initFloatingElement(elementId, prefsKey) {
 
 function initFavDragReorder() {
     const favList = document.getElementById('favList');
-    if (favList) initDragReorder(favList, '.fav-item', 'favItemOrder', {getKey: (el) => el.querySelector('.fav-name')?.textContent?.trim() || ''});
+    if (favList) initDragReorder(favList, '.fav-item', 'favItemOrder', { toastKey: "toast.reordered_fav_items",getKey: (el) => el.querySelector('.fav-name')?.textContent?.trim() || ''});
 }
 
 function initRecentlyPlayedDragReorder() {
     const histList = document.getElementById('npHistoryList');
     if (!histList) return;
     histList._trelloDragInit = false; // allow re-init after re-render
-    initDragReorder(histList, '.np-history-item', null, {
+    initDragReorder(histList, '.np-history-item', null, { toastKey: "toast.reordered_recently_played",
         getKey: (el) => el.dataset.path || el.getAttribute('data-path') || '',
         onReorder: () => {
             if (typeof recentlyPlayed === 'undefined') return;

@@ -21,6 +21,31 @@ I18N_DIR = ROOT / "i18n"
 # Every English string the file-browser power-feature batches added.
 # Organized by namespace so cross-locale review is easier later.
 NEW_KEYS: dict[str, str] = {
+    # ── Reorder toasts (universal — every initDragReorder caller) ──
+    "toast.reordered": "Reordered",
+    "toast.reordered_panes": "File-browser panes reordered",
+    "toast.reordered_tabs": "File-browser tabs reordered",
+    "toast.reordered_stats": "Stats bar reordered",
+    "toast.reordered_header_stats": "Header stats reordered",
+    "toast.reordered_audio_stats": "Audio stats reordered",
+    "toast.reordered_fav_chips": "Favorite chips reordered",
+    "toast.reordered_fav_items": "Favorites reordered",
+    "toast.reordered_toolbar": "Toolbar reordered",
+    "toast.reordered_settings_sections": "Settings sections reordered",
+    "toast.reordered_audio_engine_sections": "Audio Engine sections reordered",
+    "toast.reordered_notes": "Notes reordered",
+    "toast.reordered_tag_cards": "Tag cards reordered",
+    "toast.reordered_smart_playlists": "Smart playlists reordered",
+    "toast.reordered_walker_tiles": "Walker tiles reordered",
+    "toast.reordered_viz_tiles": "Visualizer tiles reordered",
+    "toast.reordered_recently_played": "Recently played reordered",
+    "toast.reordered_shortcut_rows": "Shortcut rows reordered",
+    "toast.reordered_np_sections": "Player sections reordered",
+    "toast.reordered_heatmap": "Heatmap tiles reordered",
+    # OS-drop receiver (cross-pane file move/copy via native drag).
+    "toast.fb_drop_copied_n": "Copied {n} item(s) → Pane {pane}",
+    "toast.fb_drop_moved_n": "Moved {n} item(s) → Pane {pane}",
+    "toast.fb_drop_failed": "Drop failed: {err}",
     # ── Toasts ──
     # Generic "action done" toast — replaces my abuse of
     # `toast.deleted_name` ("Deleted {name}") as a status message,

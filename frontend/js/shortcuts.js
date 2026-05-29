@@ -372,7 +372,7 @@ function renderShortcutSettings(filter) {
     </div>`
     ).join('');
     if (!q && typeof initDragReorder === 'function') {
-        initDragReorder(list, '.shortcut-row', 'shortcutOrder', {
+        initDragReorder(list, '.shortcut-row', 'shortcutOrder', { toastKey: "toast.reordered_shortcut_rows",
             getKey: (el) => el.dataset.scId || '',
             // Drag from anywhere on the row (skip list handles buttons)
         });

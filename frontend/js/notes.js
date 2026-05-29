@@ -404,7 +404,7 @@ async function renderNotesTab() {
     }).join('');
     if (typeof initDragReorder === 'function') {
         requestAnimationFrame(() => {
-            initDragReorder(list, '.note-card', 'noteCardOrder', {
+            initDragReorder(list, '.note-card', 'noteCardOrder', { toastKey: "toast.reordered_notes",
                 getKey: (el) => el.dataset.path || '',
             });
         });
@@ -932,7 +932,7 @@ async function renderTagsManager() {
 
     container.innerHTML = html;
     if (typeof initDragReorder === 'function') {
-        initDragReorder(container, '.tag-manager-card', 'tagCardOrder', {
+        initDragReorder(container, '.tag-manager-card', 'tagCardOrder', { toastKey: "toast.reordered_tag_cards",
             getKey: (el) => el.querySelector('.tag-manager-name')?.textContent?.trim() || '',
         });
     }

@@ -7578,7 +7578,7 @@ function updateMetaLine() {
 (function initPlayerSectionDrag() {
     const body = document.querySelector('.np-body');
     if (!body) return;
-    initDragReorder(body, '.np-section', 'playerSectionOrder', {
+    initDragReorder(body, '.np-section', 'playerSectionOrder', { toastKey: "toast.reordered_np_sections",
         getKey: (el) => el.dataset.npSection,
         onReorder: () => {
             const eqPanel = document.getElementById('npEqSection');

@@ -126,7 +126,7 @@ function _renderTile(bodyId, tileId, dirs, color, poolThreads, isScanning) {
 (function initWalkerDrag() {
     const grid = document.getElementById('walkerGrid');
     if (grid && typeof initDragReorder === 'function') {
-        initDragReorder(grid, '.walker-tile', 'walkerTileOrder', {
+        initDragReorder(grid, '.walker-tile', 'walkerTileOrder', { toastKey: "toast.reordered_walker_tiles",
             getKey: (el) => el.id || '',
         });
     }
