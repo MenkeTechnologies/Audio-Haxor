@@ -1866,8 +1866,11 @@ window.vstUpdater = {
      *  round-trip. `maxBytes` is retained on the signature for backward
      *  compat with older callers but is silently ignored server-side. */
     fsReadFileBytes: (filePath, maxBytes) => invoke('fs_read_file_bytes', {filePath, maxBytes}),
-    /** Look up a cached PDF-page render (PNG bytes). Returns `null` on miss
-     *  or when the file's mtime has changed since the cache write. */
+    /** Look up a cached PDF-page render (PNG bytes). Returns an `ArrayBuffer`
+     *  always (Rust wraps in `tauri::ipc::Response` so the wire format is raw
+     *  binary, not a JSON array-of-numbers — see the Rust command comment).
+     *  Miss → empty ArrayBuffer (`.byteLength === 0`). Callers MUST check
+     *  `byteLength`, not truthiness — every ArrayBuffer is truthy. */
     pdfPreviewGet: (filePath, page, width) => invoke('pdf_preview_get', {filePath, page, width}),
     /** Store a freshly-rendered PDF page (PNG bytes) in the cache. Server
      *  captures the file's current mtime at write time. Bytes are converted

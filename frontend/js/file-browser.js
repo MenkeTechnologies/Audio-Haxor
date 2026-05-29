@@ -508,7 +508,8 @@ async function populatePreviewPane(filePath) {
         try {
             const cached = await window.vstUpdater.pdfPreviewGet(filePath, FB_PDF_PREVIEW_PAGE, FB_PDF_PREVIEW_WIDTH);
             if (seq !== _fbPreviewSeq) return;
-            if (cached && cached.length > 0) {
+            // Raw ArrayBuffer — check byteLength (truthiness is always true).
+            if (cached && cached.byteLength > 0) {
                 await _fbPaintPngBytesIntoCanvas(canvas, cached);
                 if (seq !== _fbPreviewSeq) return;
                 return;
@@ -641,15 +642,18 @@ async function showQuickLook(filePath) {
         // `::after` pseudo-element renders — pseudo-elements don't work on
         // replaced elements like `<canvas>`.
         const setLoading = (on) => { if (wrap) wrap.classList.toggle('fb-quicklook-pdf-loading', !!on); };
-        setLoading(true);
+        // Try cache FIRST without showing the spinner — hits should be
+        // invisible (no flash of loading state).
         try {
             const cached = await window.vstUpdater.pdfPreviewGet(filePath, 1, QL_WIDTH);
-            if (cached && cached.length > 0 && typeof _fbPaintPngBytesIntoCanvas === 'function') {
+            // Raw ArrayBuffer — check byteLength (truthiness is always true).
+            if (cached && cached.byteLength > 0 && typeof _fbPaintPngBytesIntoCanvas === 'function') {
                 await _fbPaintPngBytesIntoCanvas(canvas, cached);
-                setLoading(false);
                 return;
             }
         } catch (_) { /* fall through */ }
+        // Confirmed cache miss → show spinner, now do the slow render.
+        setLoading(true);
         try {
             const bytes = await window.vstUpdater.fsReadFileBytes(filePath);
             const pdfjs = await loadPdfJs();

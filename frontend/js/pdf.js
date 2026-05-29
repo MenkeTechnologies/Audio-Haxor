@@ -1072,8 +1072,10 @@ function _pumpPdfThumbQueue() {
         if (!path || _pdfThumbInflight.has(path)) continue;
         _pdfThumbActive++;
         _pdfThumbInflight.add(path);
-        // Flag the cell as rendering so the CSS spinner / pulse shows.
-        canvas.classList.add('pdf-thumb-rendering');
+        // NOTE: pulse spinner is added INSIDE _renderPdfThumb, only after
+        // a confirmed cache miss. Adding it here would flash the animation
+        // on every row even for instant cache hits — that's the "always
+        // re-rendering" bug.
         _renderPdfThumb(canvas, path).finally(() => {
             _pdfThumbActive--;
             _pdfThumbInflight.delete(path);
@@ -1089,7 +1091,9 @@ async function _renderPdfThumb(canvas, filePath) {
     // 1) Try SQLite cache. Fresh hit → paint and done.
     try {
         const cached = await window.vstUpdater.pdfPreviewGet(filePath, PDF_THUMB_PAGE, PDF_THUMB_WIDTH);
-        if (cached && cached.length > 0) {
+        // Raw ArrayBuffer from Rust — check byteLength (every ArrayBuffer
+        // is truthy, so `if (cached)` is always true). Empty buffer = miss.
+        if (cached && cached.byteLength > 0) {
             if (typeof window.paintPngBytesIntoCanvas === 'function') {
                 await window.paintPngBytesIntoCanvas(canvas, cached);
             }
@@ -1098,7 +1102,8 @@ async function _renderPdfThumb(canvas, filePath) {
         }
     } catch (_) { /* fall through to render */ }
 
-    // 2) Cache miss → render via PDF.js, write back to cache.
+    // 2) Cache miss → NOW show the pulse (we're about to do real work).
+    canvas.classList.add('pdf-thumb-rendering');
     try {
         if (typeof window.loadPdfJs !== 'function'
             || typeof window.vstUpdater?.fsReadFileBytes !== 'function') return;

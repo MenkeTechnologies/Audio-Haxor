@@ -7132,15 +7132,25 @@ async fn fs_read_head(file_path: String, max_bytes: Option<u64>) -> Result<Strin
 
 /// Returns cached PDF page render bytes (PNG) when fresh. JS calls this
 /// before invoking PDF.js — a hit means we skip the lazy module load + the
-/// page render entirely. Returns `null` on miss (no entry, or file mtime
-/// changed since cache write).
+/// page render entirely.
+///
+/// Wire format: `tauri::ipc::Response` so JS receives a raw `ArrayBuffer`
+/// (NOT a JSON array-of-numbers). For a 300 KB PNG, the array-of-numbers
+/// path is ~1.2 MB of JSON string per hit, costing ~30-70 ms of
+/// serialization + parse per row — visible as flashing-spinner thumbs on
+/// PDF-tab open even with the cache warm. `Response::new(Vec<u8>)` skips
+/// JSON entirely.
+///
+/// Miss → empty `ArrayBuffer` (`.byteLength === 0`). The JS side must
+/// check `byteLength`, not truthiness (ArrayBuffer is always truthy).
 #[tauri::command]
 async fn pdf_preview_get(
     file_path: String,
     page: i64,
     width: i64,
-) -> Result<Option<Vec<u8>>, String> {
-    blocking_res(move || db::global().pdf_preview_get(&file_path, page, width)).await
+) -> Result<tauri::ipc::Response, String> {
+    let bytes = blocking_res(move || db::global().pdf_preview_get(&file_path, page, width)).await?;
+    Ok(tauri::ipc::Response::new(bytes.unwrap_or_default()))
 }
 
 /// Stores a freshly-rendered PDF page (PNG bytes from `canvas.toBlob`) in
