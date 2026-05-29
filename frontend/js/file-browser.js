@@ -1562,11 +1562,50 @@ async function loadDirectory(dirPath) {
         renderFileList();
         renderBreadcrumb(dirPath);
         updateBookmarkBtn();
+        // Swap the auto-reload watcher to this directory. Fire-and-forget —
+        // the listing already painted; if Rust can't watch (path gone, EACCES)
+        // the worst case is no auto-reload, not a failed navigation. Canonical
+        // path is stored in `_fbWatchedCanonical` so the event listener can
+        // compare strict-equal against the watcher's reply (the path Rust
+        // canonicalizes may differ from `dirPath` by /System/Volumes/Data
+        // prefix, symlinks, trailing slash).
+        window.vstUpdater.fbWatcherSet(dirPath)
+            .then((canonical) => { _fbWatchedCanonical = canonical || null; })
+            .catch((err) => console.warn('fb_watcher_set failed:', err));
     } catch (err) {
         showToast(toastFmt('toast.failed_open_directory', {err: err.message || err}), 4000, 'error');
     } finally {
         hideGlobalProgress();
     }
+}
+
+// ── Auto-reload on disk change ──
+// Canonical path Rust is watching (set by `loadDirectory` after the IPC
+// returns). Compared strict-equal against the event payload so an in-flight
+// event from a previously-watched dir (the user navigated mid-burst) can't
+// cause a stale reload.
+var _fbWatchedCanonical = null;
+// Coalesce bursts that arrive after Rust's 300 ms debounce — e.g. on macOS
+// FSEvents can deliver coordinated changes (create + chmod + rename) as
+// two emits 50 ms apart. 150 ms here means at most one reload per ~half-
+// second of activity, which feels instant but never thrashes.
+var _fbReloadPending = false;
+function _fbScheduleReload() {
+    if (_fbReloadPending) return;
+    _fbReloadPending = true;
+    setTimeout(() => {
+        _fbReloadPending = false;
+        if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+    }, 150);
+}
+if (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.event) {
+    window.__TAURI__.event.listen('file-browser-change', (e) => {
+        const payloadDir = e && e.payload && e.payload.dir;
+        if (!payloadDir) return;
+        // Ignore stale events from a folder we navigated away from.
+        if (payloadDir !== _fbWatchedCanonical) return;
+        _fbScheduleReload();
+    });
 }
 
 function renderBreadcrumb(dirPath) {

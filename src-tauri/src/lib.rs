@@ -30,6 +30,7 @@ pub mod bulk_stat;
 pub mod content_hash;
 pub mod daw_scanner;
 pub mod db;
+pub mod fb_watcher;
 pub mod file_watcher;
 pub mod history;
 pub mod key_detect;
@@ -9348,6 +9349,23 @@ fn get_file_watcher_status(app: AppHandle) -> serde_json::Value {
     })
 }
 
+/// File-browser watcher: `Some(dir)` swaps to a new directory, `None` stops.
+/// Returns the canonical path actually being watched, or `null` when stopped.
+/// JS calls this after every successful `list_directory` so the browser
+/// auto-reloads on disk changes (create / modify / remove / rename, 300 ms
+/// debounce). See `fb_watcher` module docs for design rationale.
+#[tauri::command]
+fn fb_watcher_set(app: AppHandle, dir: Option<String>) -> Result<Option<String>, String> {
+    let state = app.state::<fb_watcher::FbWatcherState>();
+    match dir {
+        None => {
+            fb_watcher::stop(&state);
+            Ok(None)
+        }
+        Some(d) => fb_watcher::watch(&app, &state, d).map(Some),
+    }
+}
+
 // ── App setup ──
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -9621,6 +9639,7 @@ pub fn run() {
         })
         .manage(terminal::TerminalState::default())
         .manage(file_watcher::FileWatcherState::new())
+        .manage(fb_watcher::FbWatcherState::new())
         .manage(tray_menu::TrayState::default())
         .invoke_handler(tauri::generate_handler![
             get_version,
@@ -9859,6 +9878,7 @@ pub fn run() {
             start_file_watcher,
             stop_file_watcher,
             get_file_watcher_status,
+            fb_watcher_set,
             get_midi_info,
             sample_analysis_seed,
             sample_analysis_start,

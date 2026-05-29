@@ -1866,6 +1866,13 @@ window.vstUpdater = {
      *  round-trip. `maxBytes` is retained on the signature for backward
      *  compat with older callers but is silently ignored server-side. */
     fsReadFileBytes: (filePath, maxBytes) => invoke('fs_read_file_bytes', {filePath, maxBytes}),
+    /** File-browser auto-reload watcher. Pass a directory string to start
+     *  watching it (replaces any previous watch); pass `null` to stop.
+     *  Returns the canonical path that's actually being watched (or null).
+     *  Rust emits `file-browser-change` on disk changes after a 300 ms
+     *  debounce — frontend listens once at module load and reloads when
+     *  the event's `dir` matches the currently-displayed folder. */
+    fbWatcherSet: (dir) => invoke('fb_watcher_set', {dir}),
     /** Look up a cached PDF-page render (PNG bytes). Returns an `ArrayBuffer`
      *  always (Rust wraps in `tauri::ipc::Response` so the wire format is raw
      *  binary, not a JSON array-of-numbers — see the Rust command comment).
