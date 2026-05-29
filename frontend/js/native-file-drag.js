@@ -286,10 +286,28 @@ function resolveNativeDragPathsFromTarget(t) {
     }
 
     if (id === 'tabFiles') {
-        const row = t.closest('#fileList .file-row[data-file-path]');
+        // Match `.file-row` in ANY pane (V2 multi-pane: pane 0 keeps
+        // `#fileList`, panes 1-3 use `.fb-pane[data-pane-idx] .file-list`).
+        // Walk to the enclosing pane to pull that pane's selection set
+        // so dragging a selected row drags the WHOLE selection (Finder
+        // behavior + matches the in-app pane-to-pane drag).
+        const row = t.closest('.fb-pane .file-row[data-file-path], #fileList .file-row[data-file-path]');
         if (!row || t.closest('.fb-meta-panel')) return null;
         const p = row.dataset.filePath;
-        return p ? {paths: [p]} : null;
+        if (!p) return null;
+        const paneEl = row.closest('.fb-pane[data-pane-idx]');
+        let paths = [p];
+        if (paneEl && typeof window !== 'undefined' && Array.isArray(window._fbPanes)) {
+            const idx = parseInt(paneEl.dataset.paneIdx, 10);
+            const pane = window._fbPanes[idx];
+            const sel = pane && pane.selection;
+            if (sel && sel.has && sel.has(p) && sel.size > 1) {
+                paths = [...sel];
+            }
+        } else if (typeof _fileSelected !== 'undefined' && _fileSelected && _fileSelected.has && _fileSelected.has(p) && _fileSelected.size > 1) {
+            paths = [..._fileSelected];
+        }
+        return {paths};
     }
 
     if (id === 'tabCrate') {

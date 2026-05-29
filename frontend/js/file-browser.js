@@ -339,6 +339,11 @@ if (typeof window !== 'undefined') {
     window._fbCrossPaneOp = _fbCrossPaneOp;
     window.loadDirectoryIntoPane = loadDirectoryIntoPane;
     window.renderPaneList = renderPaneList;
+    // Exposed for native-file-drag.js so OS drag can pick up per-pane
+    // selection (a row that's in the active pane's selection drags the
+    // whole selection out to Finder/Desktop, matching the in-app
+    // pane-to-pane drag behavior).
+    window._fbPanes = _fbPanes;
 }
 
 // ── Tabs (per-pane in V2) ──
