@@ -2654,6 +2654,13 @@ document.addEventListener('contextmenu', (e) => {
     ];
     showContextMenu(e, items);
     e.preventDefault();
+    // file-browser.js loads BEFORE context-menu.js (per index.html script
+    // order), so our listener fires first. Without stopImmediatePropagation,
+    // context-menu.js's universal-fallback branch then runs and OVERWRITES
+    // our menu with the "Copy visible text / Command Palette / Help /
+    // Settings" generic menu. Stopping immediate propagation prevents
+    // context-menu.js's listener from running for this event at all.
+    e.stopImmediatePropagation();
 });
 
 // Right-click context menu
