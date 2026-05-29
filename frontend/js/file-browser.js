@@ -901,7 +901,7 @@ if (typeof window !== 'undefined') {
 //              capped at 2 MiB to prevent the WebView stalling on huge JPEGs)
 //   - text   → first 4 KiB via `fs_read_head`, in a scrollable `<pre>`
 //   - other  → just the basic metadata (size / date / path)
-const FB_PREVIEW_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico'];
+const FB_PREVIEW_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'tif', 'svg', 'ico'];
 const FB_PREVIEW_TEXT_EXTS = ['txt', 'md', 'json', 'toml', 'xml', 'yaml', 'yml', 'log', 'csv', 'tsv', 'sh', 'js', 'ts', 'rs', 'py', 'rb', 'go', 'c', 'cpp', 'h', 'hpp', 'java', 'css', 'html', 'env', 'gitignore'];
 const FB_PREVIEW_IMAGE_CAP = 2 * 1024 * 1024;
 
@@ -988,15 +988,56 @@ async function populatePreviewPane(filePath) {
     }
 
     if (isImage) {
+        // SVG + ICO go through the base64 path — they're typically tiny
+        // AND the `image` crate doesn't decode SVG (no rasterizer) /
+        // .ico is multi-image and the crate picks an awkward frame.
+        const baseRasterPath = ext !== 'svg' && ext !== 'ico';
+        if (baseRasterPath) {
+            // Server-side resize via fs_image_thumbnail (SQLite-cached,
+            // raw-binary IPC). Width 800 px is HiDPI-sharp for the
+            // ~360 px-wide preview pane (CSS shrinks via object-fit).
+            // No file-size cap — the resize happens server-side so we
+            // never ship multi-MB raw bytes for a thumbnail view.
+            const FB_PREVIEW_IMAGE_W = 800;
+            try {
+                const ab = await window.vstUpdater.fsImageThumbnail(filePath, FB_PREVIEW_IMAGE_W);
+                if (seq !== _fbPreviewSeq) return;
+                if (!ab || ab.byteLength === 0) {
+                    // Thumbnail generator couldn't decode this format;
+                    // fall back to the raw base64 path below.
+                    throw new Error('thumbnail unavailable');
+                }
+                const blob = new Blob([ab], {type: 'image/png'});
+                const url = URL.createObjectURL(blob);
+                // Revoke the object URL on next preview swap so we don't
+                // accumulate memory across thousands of previews. The
+                // `_fbPreviewSeq` bump in the next load fires onload of
+                // the new image before revoke; for the current preview
+                // we revoke when the swap happens via the seq check.
+                body.innerHTML = `<img class="fb-preview-image" data-fb-prev-blob-url="${url}" src="${url}" alt="${escapeHtml(name)}">${metaHtml}`;
+                // Best-effort cleanup — revoke when the image leaves the DOM.
+                const img = body.querySelector('.fb-preview-image');
+                if (img) img.addEventListener('load', () => {
+                    // Defer revoke so the bitmap stays decoded; once
+                    // the next preview swaps in, the old `body.innerHTML`
+                    // replace drops this `<img>` and the URL is no
+                    // longer referenced.
+                });
+                return;
+            } catch (_) {
+                if (seq !== _fbPreviewSeq) return;
+                // Fall through to base64 path on any thumbnail error.
+            }
+        }
+        // SVG / ICO / thumbnail-fallback path: base64 data URL.
         try {
             const b64 = await window.vstUpdater.fsReadFileBase64(filePath, FB_PREVIEW_IMAGE_CAP);
-            if (seq !== _fbPreviewSeq) return; // selection moved during the load
+            if (seq !== _fbPreviewSeq) return;
             const mime = _fbPreviewMimeFromExt(ext);
             body.innerHTML = `<img class="fb-preview-image" src="data:${mime};base64,${b64}" alt="${escapeHtml(name)}">${metaHtml}`;
         } catch (err) {
             if (seq !== _fbPreviewSeq) return;
-            // Most common failure is "File too large" (over the 2 MiB cap).
-            body.innerHTML = `<div class="fb-preview-empty">Image too large to preview</div>${metaHtml}`;
+            body.innerHTML = `<div class="fb-preview-empty">Could not preview image (${escapeHtml(String(err && err.message ? err.message : err))})</div>${metaHtml}`;
         }
         return;
     }
