@@ -4643,6 +4643,91 @@
             border: 1px solid rgba(0, 0, 0, 0.6);
             pointer-events: none;
         }
+        /* Per-color label classes — applied alongside `.fb-label-ring` so
+         * the background is class-based (release WebKit strips inline
+         * `style="background:..."` on innerHTML-inserted nodes). Same 7
+         * colors as FB_LABEL_COLORS in file-browser.js. */
+        .fb-label-1 { background: #ff5555; }
+        .fb-label-2 { background: #ffb86c; }
+        .fb-label-3 { background: #f1fa8c; }
+        .fb-label-4 { background: #50fa7b; }
+        .fb-label-5 { background: #8be9fd; }
+        .fb-label-6 { background: #bd93f9; }
+        .fb-label-7 { background: #bfbfbf; }
+        /* Color swatch shown in context-menu label entries.
+         * Replaces inline `style="display:inline-block;width:10px..."`. */
+        .fb-label-swatch {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            vertical-align: middle;
+        }
+        /* Tree-view depth indents — depths 0-15 cover 99 % of folder
+         * trees; deeper falls back to depth 15. Replaces inline
+         * `style="padding-left:Npx"` (stripped by release WebKit). */
+        .fb-tree-depth-0  { padding-left: 6px; }
+        .fb-tree-depth-1  { padding-left: 20px; }
+        .fb-tree-depth-2  { padding-left: 34px; }
+        .fb-tree-depth-3  { padding-left: 48px; }
+        .fb-tree-depth-4  { padding-left: 62px; }
+        .fb-tree-depth-5  { padding-left: 76px; }
+        .fb-tree-depth-6  { padding-left: 90px; }
+        .fb-tree-depth-7  { padding-left: 104px; }
+        .fb-tree-depth-8  { padding-left: 118px; }
+        .fb-tree-depth-9  { padding-left: 132px; }
+        .fb-tree-depth-10 { padding-left: 146px; }
+        .fb-tree-depth-11 { padding-left: 160px; }
+        .fb-tree-depth-12 { padding-left: 174px; }
+        .fb-tree-depth-13 { padding-left: 188px; }
+        .fb-tree-depth-14 { padding-left: 202px; }
+        .fb-tree-depth-15 { padding-left: 216px; }
+        /* Modal body helper classes — replace per-element inline styles
+         * (`display:flex`, `max-height`, `cursor:pointer`, etc.) so the
+         * styles survive release WebKit's innerHTML stripping. */
+        .fb-modal-flex-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+        .fb-modal-results-box {
+            max-height: 320px;
+            overflow-y: auto;
+            margin-top: 12px;
+        }
+        .fb-modal-results-box-tall {
+            max-height: 420px;
+            overflow-y: auto;
+            margin-top: 12px;
+        }
+        .fb-cmp-section + .fb-cmp-section { margin-top: 16px; }
+        .fb-row-clickable { cursor: pointer; }
+        .fb-input-narrow { width: 80px; }
+        .fb-btn-tight { margin-top: 6px; font-size: 11px; }
+        /* Get Info modal — EXIF/audio/disk sub-tables. */
+        .fb-info-subrow {
+            display: flex;
+            gap: 8px;
+        }
+        .fb-info-subkey {
+            color: var(--text-dim);
+            min-width: 140px;
+        }
+        .fb-info-ifd {
+            color: var(--cyan);
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+        .fb-info-ifd-group { margin-bottom: 6px; }
+        .fb-info-dim { color: var(--text-dim); }
+        /* Compact spinner used inside meta-row icons. Replaces inline
+         * `style="width:8px;height:8px"` which is per-element dynamic. */
+        .fb-spinner-tiny { width: 8px; height: 8px; }
+        .fb-spinner-mid  { width: 14px; height: 14px; margin: 0 auto; }
+        .fb-loading-center { text-align: center; padding: 12px; }
+        .fb-load-err { padding: 8px; color: var(--red); font-size: 11px; }
 
         /* Label-filter chip strip — sits below the ext-filter chips.
          * Each chip is a 16×16 colored dot; "All" + "None" are text. */

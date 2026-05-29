@@ -1924,7 +1924,7 @@ async function fileBrowserShowInfo(path) {
         window.vstUpdater.fsXattrs(path).then((xattrs) => {
             if (!xattrs || xattrs.length === 0) { patchCell('xattrs', '(none)'); return; }
             patchCell('xattrs', xattrs.map((x) =>
-                `${escapeHtml(x.name)} <span style="color:var(--text-dim)">(${x.size} B)</span>`
+                `${escapeHtml(x.name)} <span class="fb-info-dim">(${x.size} B)</span>`
             ).join('<br>'));
         }).catch(() => patchCell('xattrs', '(unavailable)'));
         // Audio metadata — skipped for non-audio rows (cell wasn't rendered).
@@ -1963,9 +1963,9 @@ async function fileBrowserShowInfo(path) {
                 }
                 const html = Object.entries(groups).map(([ifd, ts]) => {
                     const rows = ts.map((t) =>
-                        `<div style="display:flex;gap:8px"><span style="color:var(--text-dim);min-width:140px">${escapeHtml(t.tag)}</span><span>${escapeHtml(t.value)}</span></div>`
+                        `<div class="fb-info-subrow"><span class="fb-info-subkey">${escapeHtml(t.tag)}</span><span>${escapeHtml(t.value)}</span></div>`
                     ).join('');
-                    return `<div style="margin-bottom:6px"><div style="color:var(--cyan);font-weight:bold;font-size:10px;text-transform:uppercase">${escapeHtml(ifd)}</div>${rows}</div>`;
+                    return `<div class="fb-info-ifd-group"><div class="fb-info-ifd">${escapeHtml(ifd)}</div>${rows}</div>`;
                 }).join('');
                 patchCell('exif', html);
             }).catch(() => patchCell('exif', '(unavailable)'));
@@ -2367,10 +2367,10 @@ async function fileBrowserShowGrepModal() {
       <div class="modal-body">
         <p class="app-confirm-message">Substring search. Skips binaries, dotdirs, and files &gt; 4 MiB.</p>
         <input type="text" id="appGrepInput" class="app-prompt-input" placeholder="search text…" />
-        <label class="app-confirm-message" style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+        <label class="app-confirm-message fb-modal-flex-row">
           <input type="checkbox" id="appGrepCase"> Case insensitive
         </label>
-        <div id="appGrepResults" class="fb-info-grid" style="max-height:320px;overflow-y:auto;margin-top:12px;"></div>
+        <div id="appGrepResults" class="fb-info-grid fb-modal-results-box"></div>
         <div class="export-actions app-confirm-actions">
           <button type="button" class="btn btn-secondary" data-app-grep="close">Close</button>
           <button type="button" class="btn btn-primary" data-app-grep="run">Search</button>
@@ -2396,7 +2396,7 @@ async function fileBrowserShowGrepModal() {
             }
             results.innerHTML = matches.map((m) => {
                 const name = m.path.split('/').pop();
-                return `<div class="fb-info-key">${escapeHtml(name)}:${m.line}</div><div class="fb-info-val" style="cursor:pointer;" data-grep-path="${escapeHtml(m.path)}">${escapeHtml(m.text)}</div>`;
+                return `<div class="fb-info-key">${escapeHtml(name)}:${m.line}</div><div class="fb-info-val fb-row-clickable" data-grep-path="${escapeHtml(m.path)}">${escapeHtml(m.text)}</div>`;
             }).join('');
         } catch (err) {
             results.innerHTML = `<div class="fb-info-val">error: ${escapeHtml(String(err && err.message ? err.message : err))}</div>`;
@@ -2511,8 +2511,10 @@ async function renderFileBrowserTree() {
     body.innerHTML = visible.map((n) => {
         const isCur = n.path === cur ? ' fb-tree-active' : '';
         const twist = _fbTreeExpanded.has(n.path) ? '&#9660;' : '&#9658;';
-        const pad = 6 + n.depth * 14;
-        return `<div class="fb-tree-node${isCur}" style="padding-left:${pad}px" data-fb-tree-path="${escapeHtml(n.path)}">`
+        // Depth as class (.fb-tree-depth-0…15) — release WebKit strips
+        // dynamic inline padding-left. Anything deeper than 15 caps at 15.
+        const depthCls = `fb-tree-depth-${Math.min(n.depth, 15)}`;
+        return `<div class="fb-tree-node${isCur} ${depthCls}" data-fb-tree-path="${escapeHtml(n.path)}">`
             + `<span class="fb-tree-twist" data-fb-tree-twist="${escapeHtml(n.path)}">${twist}</span>`
             + `<span class="fb-tree-icon">&#128193;</span>`
             + `<span class="fb-tree-name" title="${escapeHtml(n.path)}">${escapeHtml(n.name)}</span>`
@@ -2680,13 +2682,13 @@ async function fileBrowserShowDuplicatesModal() {
       </div>
       <div class="modal-body">
         <p class="app-confirm-message">Scans by SHA-256 content hash. Pre-filters by (size, ext) so only real candidate sets are hashed.</p>
-        <label class="app-confirm-message" style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+        <label class="app-confirm-message fb-modal-flex-row">
           <input type="checkbox" id="appDupRecursive" checked> Recursive (walk subfolders)
         </label>
-        <label class="app-confirm-message" style="display:flex;gap:8px;align-items:center;margin-top:6px;">
-          Min size: <input type="number" id="appDupMinSize" value="1024" min="1" style="width:80px"> bytes
+        <label class="app-confirm-message fb-modal-flex-row">
+          Min size: <input type="number" id="appDupMinSize" value="1024" min="1" class="fb-input-narrow"> bytes
         </label>
-        <div id="appDupResults" class="fb-info-grid" style="max-height:420px;overflow-y:auto;margin-top:12px;"></div>
+        <div id="appDupResults" class="fb-info-grid fb-modal-results-box-tall"></div>
         <div class="export-actions app-confirm-actions">
           <button type="button" class="btn btn-secondary" data-app-dup="close">Close</button>
           <button type="button" class="btn btn-primary" data-app-dup="scan">Scan</button>
@@ -2741,12 +2743,14 @@ async function fileBrowserShowDuplicatesModal() {
             // (reclaim Y MB)" + per-path list with Trash All But First.
             results.innerHTML = groups.map((g, gi) => {
                 const reclaim = g.size * (g.paths.length - 1);
-                const pathsHtml = g.paths.map((p) => `<div class="fb-info-val" style="cursor:pointer" data-dup-path="${escapeHtml(p)}">${escapeHtml(p)}</div>`).join('');
-                return `<div class="fb-info-key" style="margin-top:${gi === 0 ? 0 : 16}px">${g.paths.length} files, ${escapeHtml(fmtBytes(g.size))} each — reclaim ${escapeHtml(fmtBytes(reclaim))}</div>
+                const pathsHtml = g.paths.map((p) => `<div class="fb-info-val fb-row-clickable" data-dup-path="${escapeHtml(p)}">${escapeHtml(p)}</div>`).join('');
+                // Group spacing handled by CSS .fb-cmp-section + sibling
+                // selector — no dynamic margin needed.
+                return `<div class="fb-cmp-section"><div class="fb-info-key">${g.paths.length} files, ${escapeHtml(fmtBytes(g.size))} each — reclaim ${escapeHtml(fmtBytes(reclaim))}</div>
                 <div class="fb-info-val">
                   ${pathsHtml}
-                  <button type="button" class="btn btn-stop" style="margin-top:6px;font-size:11px" data-dup-trash="${gi}">Trash all but first (${g.paths.length - 1})</button>
-                </div>`;
+                  <button type="button" class="btn btn-stop fb-btn-tight" data-dup-trash="${gi}">Trash all but first (${g.paths.length - 1})</button>
+                </div></div>`;
             }).join('');
             // Wire trash buttons (need closure over groups[gi].paths).
             results.querySelectorAll('[data-dup-trash]').forEach((btn) => {
@@ -3060,11 +3064,11 @@ function fileBrowserSetLabel(path, idx) {
         } else {
             if (!ring) {
                 ring = document.createElement('span');
-                ring.className = 'fb-label-ring';
                 const iconCell = row.querySelector('.file-icon');
                 if (iconCell) iconCell.appendChild(ring);
             }
-            ring.style.background = FB_LABEL_COLORS[idx];
+            // Class-only: clear any previous label-N then add the new one.
+            ring.className = `fb-label-ring fb-label-${idx}`;
             ring.title = `Label: ${FB_LABEL_NAMES[idx]}`;
         }
     }
@@ -4554,7 +4558,7 @@ function buildFileListRowHtml(e, search, sampleByPath, mode) {
     // as an absolutely-positioned span so it overlays the glyph corner.
     const labelIdx = (typeof fileBrowserGetLabel === 'function') ? fileBrowserGetLabel(e.path) : 0;
     const labelRing = labelIdx > 0
-        ? `<span class="fb-label-ring" style="background:${FB_LABEL_COLORS[labelIdx]}" title="Label: ${FB_LABEL_NAMES[labelIdx]}"></span>`
+        ? `<span class="fb-label-ring fb-label-${labelIdx}" title="Label: ${FB_LABEL_NAMES[labelIdx]}"></span>`
         : '';
     const iconCell = isImageThumb
         ? `<span class="file-icon file-icon-thumb"><canvas class="file-image-thumb" data-fb-thumb-path="${escapeHtml(e.path)}" width="32" height="32"></canvas>${labelRing}</span>`
@@ -4836,7 +4840,7 @@ async function toggleFileBrowserMeta(filePath) {
     panel.id = 'fbMetaPanel';
     panel.dataset.metaPath = filePath;
     panel.className = 'fb-meta-panel';
-    panel.innerHTML = '<div style="text-align:center;padding:12px;"><div class="spinner" style="width:14px;height:14px;margin:0 auto;"></div></div>';
+    panel.innerHTML = '<div class="fb-loading-center"><div class="spinner fb-spinner-mid"></div></div>';
     row.after(panel);
 
     try {
@@ -4857,9 +4861,9 @@ async function toggleFileBrowserMeta(filePath) {
         if (meta.byteRate) html += mi('Byte Rate', (typeof formatAudioSize === 'function' ? formatAudioSize(meta.byteRate) : meta.byteRate) + '/s');
 
         // BPM
-        html += `<div class="fb-meta-item" title="BPM"><span class="fb-meta-label">BPM</span><span class="fb-meta-val" id="fbBpmVal"><span class="spinner" style="width:8px;height:8px;"></span></span></div>`;
+        html += `<div class="fb-meta-item" title="BPM"><span class="fb-meta-label">BPM</span><span class="fb-meta-val" id="fbBpmVal"><span class="spinner fb-spinner-tiny"></span></span></div>`;
         // Key
-        html += `<div class="fb-meta-item" title="Musical Key"><span class="fb-meta-label">Key</span><span class="fb-meta-val" id="fbKeyVal"><span class="spinner" style="width:8px;height:8px;"></span></span></div>`;
+        html += `<div class="fb-meta-item" title="Musical Key"><span class="fb-meta-label">Key</span><span class="fb-meta-val" id="fbKeyVal"><span class="spinner fb-spinner-tiny"></span></span></div>`;
 
         const fmtDate = (v) => {
             if (!v) return '—';
@@ -4928,7 +4932,7 @@ async function toggleFileBrowserMeta(filePath) {
         }
     } catch (err) {
         const p = document.getElementById('fbMetaPanel');
-        if (p) p.innerHTML = `<div style="padding:8px;color:var(--red);font-size:11px;">Failed: ${escapeHtml(err.message || String(err))}</div>`;
+        if (p) p.innerHTML = `<div class="fb-load-err">Failed: ${escapeHtml(err.message || String(err))}</div>`;
     }
 }
 

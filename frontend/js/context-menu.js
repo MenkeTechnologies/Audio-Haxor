@@ -2511,7 +2511,7 @@ document.addEventListener('contextmenu', (e) => {
                     const color = window.FB_LABEL_COLORS[i];
                     const name = window.FB_LABEL_NAMES[i];
                     const icon = color
-                        ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};vertical-align:middle"></span>`
+                        ? `<span class="fb-label-swatch fb-label-${i}"></span>`
                         : '&#9711;';
                     const marker = (i === cur) ? ' ✓' : '';
                     items.push({
