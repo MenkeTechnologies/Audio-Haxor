@@ -1077,8 +1077,65 @@ async function populatePreviewPane(filePath) {
         return;
     }
 
-    // No type-specific preview — show just the metadata.
-    body.innerHTML = metaHtml;
+    // No type-specific preview path matched → fall through to a hex /
+    // binary dump (read the first 4 KiB so the pane shows something
+    // useful even for opaque formats). Hex view is ALSO useful for files
+    // that DO have a typed preview but whose type the user wants to
+    // verify (e.g. checking a PDF magic byte). For now we only show it
+    // as the fallback; a Cmd+Opt+H "force hex" toggle could be added
+    // later if asked.
+    try {
+        // `fsReadHeadBytes` returns a raw ArrayBuffer of the first
+        // 4 KiB (server-side bounded read, doesn't ship the whole file
+        // — important for the GB-scale ALS / DAW project case the user
+        // might preview-pane by accident). UTF-8-lossy `fsReadHead`
+        // would scramble 0x80+ bytes into U+FFFD; this one preserves
+        // every byte for the hex view.
+        const ab = await window.vstUpdater.fsReadHeadBytes(filePath, 4096);
+        if (seq !== _fbPreviewSeq) return;
+        const u8 = new Uint8Array(ab || new ArrayBuffer(0));
+        body.innerHTML = `<pre class="fb-preview-hex">${_fbBytesToHexDump(u8, 4096)}</pre>${metaHtml}`;
+    } catch (err) {
+        if (seq !== _fbPreviewSeq) return;
+        body.innerHTML = `<div class="fb-preview-empty">Could not read file (${escapeHtml(String(err && err.message ? err.message : err))})</div>${metaHtml}`;
+    }
+}
+
+/**
+ * Format a byte buffer as a `xxd`-style hex+ASCII dump:
+ *   00000000  48 65 6c 6c 6f 20 57 6f  72 6c 64 0a              |Hello World.|
+ * Caps at `maxBytes` so a huge file can't pin the preview pane (caller
+ * also reads a bounded slice on the Rust side).
+ */
+function _fbBytesToHexDump(u8, maxBytes) {
+    const cap = Math.min(u8.length, maxBytes || 4096);
+    const lines = [];
+    for (let off = 0; off < cap; off += 16) {
+        const end = Math.min(off + 16, cap);
+        // Address column — 8 hex digits, zero-padded.
+        const addr = off.toString(16).padStart(8, '0');
+        // Hex bytes (16 per row, split into 2 groups of 8 for readability).
+        let hex = '';
+        for (let i = 0; i < 16; i++) {
+            if (i === 8) hex += ' ';
+            if (off + i < end) {
+                hex += u8[off + i].toString(16).padStart(2, '0') + ' ';
+            } else {
+                hex += '   '; // pad missing bytes so the ASCII column lines up
+            }
+        }
+        // ASCII pane — printable ASCII as-is, others as '.'.
+        let ascii = '';
+        for (let i = 0; i < end - off; i++) {
+            const c = u8[off + i];
+            ascii += (c >= 0x20 && c < 0x7f) ? String.fromCharCode(c) : '.';
+        }
+        lines.push(`${addr}  ${hex.trimEnd()}  |${escapeHtml(ascii)}|`);
+    }
+    if (u8.length > cap) {
+        lines.push(`… ${u8.length - cap} more bytes`);
+    }
+    return lines.join('\n');
 }
 
 // ── Quick-look overlay (Space key → big preview modal) ──

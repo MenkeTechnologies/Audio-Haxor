@@ -1921,6 +1921,11 @@ window.vstUpdater = {
      *  Skips dotfiles; capped 50k entries/side; hashes files ≤ 16 MiB
      *  to confirm content equality when sizes match. */
     fsCompareDirs: (dirA, dirB) => invoke('fs_compare_dirs', {dirA, dirB}),
+    /** Read the first `maxBytes` of a file as raw bytes (no UTF-8 lossy
+     *  translation). Returns an `ArrayBuffer`. Used by the hex-dump
+     *  preview pane. Cap clamped server-side to 256..65536. */
+    fsReadHeadBytes: (filePath, maxBytes) =>
+        invoke('fs_read_head_bytes', {filePath, maxBytes: maxBytes || null}),
     /** Spotlight-style global search across all scanned inventory
      *  (FTS5 trigram on audio_samples / daw_projects / presets /
      *  midi_files / pdf_files / video_files). Returns

@@ -8407,6 +8407,31 @@ async fn fs_read_file_base64(
     .await
 }
 
+/// Reads the first `max_bytes` of a file as RAW bytes (no UTF-8 lossy
+/// translation — every byte preserved). Returns a `tauri::ipc::Response`
+/// so JS receives an `ArrayBuffer` directly (skips JSON-array-of-numbers
+/// slowdown). Used by the hex-dump preview pane so binary files render
+/// faithfully (the existing `fs_read_head` is UTF-8 lossy and would
+/// scramble `0x80+` bytes into `U+FFFD`). Cap defaults to 4 KiB;
+/// clamped to 256..65536.
+#[tauri::command]
+async fn fs_read_head_bytes(
+    file_path: String,
+    max_bytes: Option<u64>,
+) -> Result<tauri::ipc::Response, String> {
+    use std::io::Read;
+    let cap = max_bytes.unwrap_or(4 * 1024).clamp(256, 64 * 1024);
+    let bytes = blocking_res(move || {
+        let f = std::fs::File::open(&file_path).map_err(|e| e.to_string())?;
+        let mut take = f.take(cap);
+        let mut buf = Vec::with_capacity(cap as usize);
+        take.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+        Ok::<_, String>(buf)
+    })
+    .await?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
 /// Reads the first `max_bytes` of a file as a UTF-8 string (lossy: invalid
 /// bytes become `U+FFFD`). Used by the file browser preview pane for text
 /// files. Cap defaults to 4 KiB; clamped to 256..65536.
@@ -11335,6 +11360,7 @@ pub fn run() {
             fs_open_terminal,
             fs_read_file_base64,
             fs_read_head,
+            fs_read_head_bytes,
             fs_read_file_bytes,
             pdf_preview_get,
             pdf_preview_set,

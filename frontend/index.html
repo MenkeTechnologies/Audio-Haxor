@@ -6674,6 +6674,25 @@
             margin-bottom: 12px;
         }
 
+        /* Hex / binary dump for non-text fallback. `xxd`-style format
+         * with address column + hex bytes + ASCII gutter; monospace
+         * required so columns align. `pre-wrap` would break the
+         * fixed-width layout — use `pre` + horizontal scroll. */
+        .fb-preview-hex {
+            background: rgba(0, 0, 0, 0.55);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.35;
+            color: var(--text-primary);
+            white-space: pre;
+            max-height: 240px;
+            overflow: auto;
+            margin-bottom: 12px;
+        }
+
         .fb-preview-wf {
             display: block;
             width: 100%;
