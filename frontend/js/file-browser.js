@@ -786,7 +786,51 @@ function renderFileBrowserTabs() {
         if (activeEl && typeof activeEl.scrollIntoView === 'function') {
             activeEl.scrollIntoView({block: 'nearest', inline: 'nearest'});
         }
+        // Re-arm Trello-style drag-reorder on this pane's tab list.
+        // The engine short-circuits on `_fbTabDragInit`, so calling
+        // every render is cheap — the mousedown listener was bound on
+        // the LIST element (which we kept; only innerHTML was
+        // replaced) so prior child swaps don't break anything.
+        _fbInitTabDragForPane(i);
     }
+}
+
+// Per-pane tab drag-reorder. Reuses window.initDragReorder (same engine
+// as stats bar / settings sections / fav chips / smart playlists /
+// multi-pane reorder). On drop, the pane's `tabs[]` array permutes
+// to match the new DOM order, then _fbTabsPersist saves the per-pane
+// order to prefs — the existing `fileBrowserPanesTabs` key (array of
+// arrays of {id, path}); the array element ORDER is the saved order
+// so no new prefs key is needed.
+function _fbInitTabDragForPane(paneIdx) {
+    if (typeof window === 'undefined' || typeof window.initDragReorder !== 'function') return;
+    const list = document.querySelector(`.fb-pane[data-pane-idx="${paneIdx}"] [data-fb-tab-list]`);
+    if (!list || list._fbTabDragInit) return;
+    list._fbTabDragInit = true;
+    window.initDragReorder(list, '.fb-tab', null, {
+        direction: 'horizontal',
+        getKey: (el) => el.dataset.fbTabId || '',
+        onReorder: () => {
+            const newIds = [...list.querySelectorAll('.fb-tab')].map((el) => el.dataset.fbTabId);
+            const pane = _fbPanes[paneIdx];
+            if (!pane) return;
+            // Active pane uses globals (live state); others use the snapshot.
+            const targetTabs = (paneIdx === _fbActivePaneIdx) ? _fbTabs : (pane.tabs || []);
+            if (newIds.length !== targetTabs.length) return;
+            const reordered = newIds
+                .map((id) => targetTabs.find((t) => t && t.id === id))
+                .filter(Boolean);
+            if (reordered.length !== targetTabs.length) return;
+            if (paneIdx === _fbActivePaneIdx) {
+                _fbTabs.length = 0;
+                for (const t of reordered) _fbTabs.push(t);
+                pane.tabs = _fbTabs;
+            } else {
+                pane.tabs = reordered;
+            }
+            _fbTabsPersist();
+        },
+    });
 }
 
 // New tab on active pane (default) or specific pane.
