@@ -6167,6 +6167,19 @@
             border-radius: 3px;
         }
 
+        /* PDF preview canvas — rendered by PDF.js (pure-JS in WebView, no
+         * native deps). Canvas width/height set by JS from the rendered page
+         * viewport so the image is crisp at 1:1 device pixels. */
+        .fb-preview-pdf-canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto 12px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: white;
+        }
+
         .fb-preview-text {
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid var(--border);

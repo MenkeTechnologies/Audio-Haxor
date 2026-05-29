@@ -40,7 +40,8 @@
   },
   "license": "ISC",
   "devDependencies": {
-    "@tauri-apps/cli": "^2"
+    "@tauri-apps/cli": "^2",
+    "pdfjs-dist": "4.10.38"
   },
   "packageManager": "pnpm@10.33.0",
   "dependencies": {

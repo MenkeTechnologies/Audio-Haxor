@@ -287,6 +287,27 @@ async function applyFileBulkRename() {
     if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
 }
 
+// ── PDF.js lazy-loader (for preview pane) ──
+// Module-level promise so concurrent calls share the same load. PDF.js is
+// ~350 KB (main) + ~1.4 MB (worker); deferring until the first PDF preview
+// keeps it out of the initial bundle. Absolute path from WebView root —
+// frontend is served from `frontend/` so `/lib/...` resolves correctly.
+var _pdfJsPromise = null;
+function _loadPdfJs() {
+    if (_pdfJsPromise) return _pdfJsPromise;
+    _pdfJsPromise = (async () => {
+        const mod = await import('/lib/pdf.min.mjs');
+        if (mod && mod.GlobalWorkerOptions) {
+            mod.GlobalWorkerOptions.workerSrc = '/lib/pdf.worker.min.mjs';
+        }
+        return mod;
+    })().catch((err) => {
+        _pdfJsPromise = null; // allow retry on next preview
+        throw err;
+    });
+    return _pdfJsPromise;
+}
+
 // ── Inline preview pane (right side of file list) ──
 // Persistent side panel that updates whenever a file row is focused or
 // clicked. Toggled via the toolbar Preview button or Cmd+I. Per-extension
@@ -409,13 +430,36 @@ async function populatePreviewPane(filePath) {
     }
 
     if (ext === 'pdf') {
+        body.innerHTML = `
+            <canvas class="fb-preview-pdf-canvas" id="fbPreviewPdfCanvas"></canvas>
+            ${metaHtml}
+        `;
         try {
-            const b64 = await window.vstUpdater.fsPdfRenderFirstPage(filePath, 400);
+            const bytes = await window.vstUpdater.fsReadFileBytes(filePath, 32 * 1024 * 1024);
             if (seq !== _fbPreviewSeq) return;
-            body.innerHTML = `<img class="fb-preview-image" src="data:image/png;base64,${b64}" alt="${escapeHtml(name)}">${metaHtml}`;
+            const pdfjs = await _loadPdfJs();
+            if (seq !== _fbPreviewSeq) return;
+            // `bytes` arrives from Tauri as a regular JS array of u8 numbers.
+            // PDF.js wants a Uint8Array.
+            const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+            const pdf = await pdfjs.getDocument({data: u8}).promise;
+            if (seq !== _fbPreviewSeq) return;
+            const page = await pdf.getPage(1);
+            if (seq !== _fbPreviewSeq) return;
+            const canvas = document.getElementById('fbPreviewPdfCanvas');
+            if (!canvas) return;
+            // Scale page to fit the pane width (pane is 360px, body has ~24px
+            // of padding). Cap at 1.0 so tiny pages don't upscale and blur.
+            const baseViewport = page.getViewport({scale: 1.0});
+            const targetWidth = 320;
+            const scale = Math.min(1.0, targetWidth / baseViewport.width);
+            const viewport = page.getViewport({scale});
+            canvas.width = Math.round(viewport.width);
+            canvas.height = Math.round(viewport.height);
+            const ctx = canvas.getContext('2d');
+            await page.render({canvasContext: ctx, viewport}).promise;
         } catch (err) {
             if (seq !== _fbPreviewSeq) return;
-            // pdftoppm not installed → clear hint with install command.
             const msg = (err && (err.message || err)) ? String(err.message || err) : 'PDF preview unavailable';
             body.innerHTML = `<div class="fb-preview-empty">${escapeHtml(msg)}</div>${metaHtml}`;
         }
