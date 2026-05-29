@@ -466,6 +466,64 @@ document.addEventListener('dblclick', (e) => {
     _fbPersistPaneFlex();
 });
 
+// ── Pane swap ──
+// Swap every per-pane field (path, entries, selection, scroll, navIdx,
+// tabs/activeTabId, history, V3 sort/filter/hidden/searchMode) between
+// two panes. Active-pane idx follows the LOGICAL pane (if active was
+// one of the swapped, focus moves to the other side so the user's
+// "current" pane stays visually focused). Both panes re-render.
+function _fbSwapPanes(a, b) {
+    if (a === b) return;
+    if (!_fbPanes[a] || !_fbPanes[b]) return;
+    // If one of the panes being swapped is active, snapshot the live
+    // globals into it first so we don't lose un-mirrored state.
+    if (a === _fbActivePaneIdx || b === _fbActivePaneIdx) {
+        _fbSaveGlobalsToActivePane();
+    }
+    [_fbPanes[a], _fbPanes[b]] = [_fbPanes[b], _fbPanes[a]];
+    // Active idx follows the content: if active was `a`, content moved
+    // to `b`, so follow it. Same vice versa. Otherwise unchanged.
+    if (_fbActivePaneIdx === a) _fbActivePaneIdx = b;
+    else if (_fbActivePaneIdx === b) _fbActivePaneIdx = a;
+    // Re-mirror globals from the (possibly new-idx) active pane and
+    // repaint indicator + tab bars. Then render both panes' lists.
+    _fbLoadActivePaneIntoGlobals();
+    document.querySelectorAll('.fb-pane').forEach((el, i) => {
+        el.classList.toggle('fb-pane-active', i === _fbActivePaneIdx);
+    });
+    if (typeof renderFileBrowserTabs === 'function') renderFileBrowserTabs();
+    if (_fileBrowserPath && typeof renderBreadcrumb === 'function') renderBreadcrumb(_fileBrowserPath);
+    if (typeof updateBookmarkBtn === 'function') updateBookmarkBtn();
+    renderPaneList(a);
+    renderPaneList(b);
+    _fbPersistPanePaths();
+    if (typeof showToast === 'function') {
+        showToast(toastFmt('toast.deleted_name', {name: `swapped panes ${a + 1} ↔ ${b + 1}`}));
+    }
+}
+
+// Click swap button (centered on each gutter, hover-revealed). Stop
+// propagation so the click doesn't also fire the pointerdown drag.
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-fb-pane-swap]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const k = parseInt(btn.dataset.fbPaneSwap, 10);
+    _fbSwapPanes(k, k + 1);
+});
+// Suppress pointerdown on the swap button so the drag handler doesn't
+// see it (drag would start the moment you click the centered circle).
+document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('[data-fb-pane-swap]')) {
+        e.stopPropagation();
+    }
+}, true);
+
+if (typeof window !== 'undefined') {
+    window._fbSwapPanes = _fbSwapPanes;
+}
+
 if (typeof window !== 'undefined') {
     window._fbSetPaneCount = _fbSetPaneCount;
     window._fbCyclePaneCount = _fbCyclePaneCount;
@@ -5354,6 +5412,18 @@ document.addEventListener('contextmenu', (e) => {
             label: `Panes: ${_fbPaneCount}/4 (Cmd+\\\\ cycle, F5 copy, F6 move)`, ..._ctxMenuNoEcho,
             action: () => _fbCyclePaneCount(),
         },
+    ]);
+    // Swap entries — one per visible gutter (between pane k and k+1).
+    // Added separately because the count depends on _fbPaneCount; the
+    // static spread above can't conditionally include them.
+    for (let k = 0; k + 1 < _fbPaneCount; k++) {
+        items.push({
+            icon: '&#8646;',
+            label: `Swap Pane ${k + 1} ⇄ Pane ${k + 2}`, ..._ctxMenuNoEcho,
+            action: () => _fbSwapPanes(k, k + 1),
+        });
+    }
+    items.push(...[
         {
             icon: '&#128260;',
             label: 'Refresh', ..._ctxMenuNoEcho,
