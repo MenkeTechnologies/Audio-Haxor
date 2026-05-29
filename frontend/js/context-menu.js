@@ -16,12 +16,32 @@ function _pathDeleteItems(path, name, isDir = false, onAfter = null) {
         try {
             if (typeof onAfter === 'function') onAfter();
         } catch {}
-        if (typeof loadDirectory === 'function'
-            && typeof _fileBrowserPath !== 'undefined'
-            && _fileBrowserPath
-            && path.startsWith(_fileBrowserPath)) {
-            loadDirectory(_fileBrowserPath);
-        }
+        // File browser: reload the current dir if the deleted path lived
+        // there. Path-prefix check must respect the directory boundary so
+        // `/foo` does not match `/foobar/x`.
+        try {
+            if (typeof loadDirectory === 'function'
+                && typeof _fileBrowserPath !== 'undefined'
+                && _fileBrowserPath) {
+                const fb = _fileBrowserPath.endsWith('/') ? _fileBrowserPath : _fileBrowserPath + '/';
+                if ((path + '/').startsWith(fb)) loadDirectory(_fileBrowserPath);
+            }
+        } catch {}
+        // Inventory tables: every row uses the path as a `data-*-path`
+        // attribute. Remove the row directly so the user sees the
+        // deletion reflected without forcing a full inventory re-query.
+        // The in-memory array (`allAudioSamples`, …) is left as-is — the
+        // next paginated `db_query_*` will refresh it; for users who
+        // sort/filter immediately after delete, the row being absent from
+        // the DOM is what matters.
+        try {
+            const sel = `tr[data-audio-path], tr[data-daw-path], tr[data-midi-path], tr[data-preset-path], tr[data-pdf-path], tr[data-video-path]`;
+            for (const row of document.querySelectorAll(sel)) {
+                const rp = row.dataset.audioPath || row.dataset.dawPath || row.dataset.midiPath
+                        || row.dataset.presetPath || row.dataset.pdfPath || row.dataset.videoPath;
+                if (rp === path) row.remove();
+            }
+        } catch {}
     };
     const list = [];
     list.push({

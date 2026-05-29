@@ -91,21 +91,27 @@ Settings Tab         Cmd+,</pre>
 
       <section class="tutorial-section">
         <h2>Row type — <em>Actions</em></h2>
-        <p>Every action you can trigger from menus, header buttons, or shortcuts is listed here. Highlights:</p>
+        <p>Every action you can trigger from menus, header buttons, or shortcuts is listed here. The v1.28.14 audit added the per-tab stops / imports / exports, the player track actions, and the resets so every <code>data-action</code> attribute in <code>index.html</code> that maps to a discrete invocable verb is now reachable from the palette (form inputs, sliders, and modal-internal buttons are intentionally excluded). Highlights:</p>
         <ul>
           <li><strong>Scan All · Stop All Scans · Reset All Scans</strong></li>
-          <li><strong>Scan Plugins Only</strong> · Scan Samples Only · Scan DAW Projects Only · Scan Presets Only · Scan PDFs Only</li>
-          <li><strong>Stop PDF Scan · Extract PDF Metadata · Stop PDF Metadata</strong></li>
+          <li><strong>Scan Plugins / Samples / DAW / Presets / PDFs / Videos / MIDI</strong></li>
+          <li><strong>Stop Plugin Scan · Stop Audio Scan · Stop DAW Scan · Stop Preset Scan · Stop MIDI Scan · Stop PDF Scan · Stop Video Scan</strong> — per-scanner aborts (typed search "stop midi" lands the right one)</li>
+          <li><strong>Extract PDF Metadata · Stop PDF Metadata</strong></li>
           <li><strong>Build Fingerprint Cache · Find Duplicates · Build Plugin Index (Xref)</strong></li>
           <li><strong>Start BPM/Key/LUFS Analysis · Stop BPM/Key/LUFS Analysis</strong></li>
-          <li><strong>Check Updates</strong> (KVR)</li>
-          <li><strong>Show Dependency Graph · Show Heatmap Dashboard</strong></li>
-          <li><strong>Create New Smart Playlist</strong></li>
+          <li><strong>Start Content Duplicate Scan · Stop Content Duplicate Scan</strong></li>
+          <li><strong>Start / Stop Waveform Analysis · Sample Analysis</strong></li>
+          <li><strong>Start / Stop All Background Jobs</strong></li>
+          <li><strong>Check Updates (KVR) · Stop KVR Update Check</strong></li>
+          <li><strong>Show Dependency Graph · Show Heatmap Dashboard · Show Genre Rules · Create New Smart Playlist</strong></li>
           <li><strong>Export Current Tab · Import to Current Tab</strong></li>
-          <li><strong>Export Settings &amp; Keybindings (PDF) · Export App Log (PDF)</strong></li>
-          <li><strong>Export MIDI Files · Export Plugin Xref · Export Smart Playlists</strong></li>
-          <li><strong>Clear All Caches</strong></li>
-          <li><strong>Help &amp; Keyboard Shortcuts · Open App Log File</strong></li>
+          <li><strong>Per-tab Export / Import</strong> (audio samples, DAW projects, plugins, presets, favorites, notes, recently played, MIDI, PDFs, videos) — typing "export plugins" or "import notes" lands the right command without switching tabs first.</li>
+          <li><strong>Export Settings &amp; Keybindings (PDF) · Export App Log (PDF) · Export Plugin Xref · Export Smart Playlists</strong></li>
+          <li><strong>Player track actions</strong> — Favorite Current Track · Tag Current Track · Toggle Reverse Playback · Set A-B Loop Start · Set A-B Loop End · Clear A-B Loop · Play/Pause · Prev/Next · Toggle Loop · Toggle Shuffle · Toggle Mute · Toggle Mono · Toggle EQ Panel · Expand Player</li>
+          <li><strong>File browser power</strong> — Quick Open · Spotlight · Manage Bookmarks · Toggle Tree Sidebar · Toggle Hidden · Clear Label Filter · Invert Selection · Select by Pattern · Cycle Panes · Sync Scroll · Copy/Move/Swap Panes · New Folder · New File · Paste · Find in Files · Find Duplicates · Diff · Compare Folders · Bulk Hash / Chmod / Touch / Compress / Extract · Select All / Clear Selection</li>
+          <li><strong>Clear</strong> — All Caches · Analysis Cache · App Log · Favorites · KVR · Play History · All Notes &amp; Tags · All Scan History · All Databases</li>
+          <li><strong>Reset</strong> — Tabs · Settings Layout · Search Weights · All UI Layout · Column Widths · EQ · Keyboard Shortcuts</li>
+          <li><strong>Help &amp; Keyboard Shortcuts · Open App Log File · Terminal</strong></li>
         </ul>
       </section>
 
