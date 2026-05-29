@@ -4562,6 +4562,74 @@
         .fb-diff-text { flex: 1; }
         .fb-diff-error { color: #ff5555; padding: 12px; }
 
+        /* Quick-open palette (Cmd+P) results list. */
+        .fb-quick-results {
+            margin-top: 12px;
+            max-height: 50vh;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        .fb-quick-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .fb-quick-row:hover { background: rgba(5, 217, 232, 0.08); }
+        .fb-quick-row.fb-quick-active { background: rgba(5, 217, 232, 0.18); }
+        .fb-quick-icon { width: 18px; text-align: center; }
+        .fb-quick-name { color: var(--cyan); min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fb-quick-path { color: var(--text-dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Bookmarks management modal. */
+        .fb-bm-body {
+            margin-top: 12px;
+            max-height: 50vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .fb-bm-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 2px;
+        }
+        .fb-bm-up, .fb-bm-down, .fb-bm-del {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 12px;
+            padding: 2px 4px;
+            cursor: pointer;
+        }
+        .fb-bm-up:hover, .fb-bm-down:hover { color: var(--cyan); }
+        .fb-bm-del:hover { color: #ff5555; }
+        .fb-bm-name {
+            flex: 0 0 160px;
+            font-size: 12px;
+        }
+        .fb-bm-path {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: var(--text-dim);
+            cursor: pointer;
+        }
+        .fb-bm-path:hover { color: var(--cyan); }
+
         .modal-resize {
             position: absolute;
             z-index: 10;

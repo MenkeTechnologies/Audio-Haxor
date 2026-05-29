@@ -1601,6 +1601,66 @@ async function fileBrowserShowHashModal(paths) {
     }
 }
 
+// Bulk chmod — same modal contract but applies the mode to every path
+// in the selection. Pre-fills with the mode of the FIRST path (so
+// homogeneous selections show their existing value).
+async function fileBrowserShowBulkChmodModal(paths) {
+    if (!Array.isArray(paths) || paths.length === 0) return;
+    if (paths.length === 1) return fileBrowserShowChmodModal(paths[0]);
+    document.getElementById('appChmodModal')?.remove();
+    let curMode = '';
+    try {
+        const info = await window.vstUpdater.fsGetInfo(paths[0]);
+        curMode = info.modeOctal || '';
+    } catch (_) { /* ignore */ }
+    const html = `<div class="modal-overlay modal-visible" id="appChmodModal" role="dialog" aria-modal="true">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>Permissions — ${paths.length} files</h2>
+        <button type="button" class="modal-close" data-app-chmod="cancel" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p class="app-confirm-message">Octal mode (e.g. 0644, 755). Applies to ALL ${paths.length} selected paths. First path's current mode: <code>${escapeHtml(curMode || '?')}</code></p>
+        <input type="text" id="appChmodInput" class="app-prompt-input" value="${escapeHtml(curMode)}" />
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-chmod="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" data-app-chmod="ok">Apply to all</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appChmodModal');
+    const input = document.getElementById('appChmodInput');
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const apply = async () => {
+        const mode = (input.value || '').trim();
+        if (!mode) { close(); return; }
+        let ok = 0, fail = 0;
+        for (const p of paths) {
+            try { await window.vstUpdater.fsChmod(p, mode); ok++; }
+            catch (_) { fail++; }
+        }
+        if (typeof showToast === 'function') {
+            if (ok > 0) showToast(toastFmt('toast.deleted_name', {name: `chmod ${mode} on ${ok} file${ok === 1 ? '' : 's'}`}));
+            if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} chmod${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+        }
+        close();
+        if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
+    };
+    const esc = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(); }
+        else if (e.key === 'Enter' && document.activeElement === input) { e.preventDefault(); apply(); }
+    };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-app-chmod]');
+        if (btn) { if (btn.dataset.appChmod === 'ok') apply(); else close(); return; }
+        if (e.target === modal) close();
+    });
+    requestAnimationFrame(() => { input?.focus(); input?.select(); });
+}
+
 // ── Chmod modal (Unix) ──
 // Text entry for octal mode; checkbox grid would be nice but the modal
 // real estate is small and power users prefer typing 644 / 755 anyway.
@@ -2313,6 +2373,205 @@ async function fileBrowserShowDiffModal(pathA, pathB) {
     }
 }
 
+// ── Quick file palette (Cmd+P — VSCode-style recent file/folder jumper) ──
+// Tracks every path that's been loaded via `loadDirectory` (folders)
+// or opened (files via opener_open / openFileDefault). Persisted in
+// prefs as a capped list (most-recent first).
+const FB_RECENT_CAP = 200;
+let _fbRecent = (() => {
+    try {
+        const raw = typeof prefs !== 'undefined' ? prefs.getItem('fileBrowserRecent') : null;
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (Array.isArray(parsed)) {
+            return parsed.filter((e) => e && typeof e.path === 'string').slice(0, FB_RECENT_CAP);
+        }
+    } catch (_) { /* fall through */ }
+    return [];
+})();
+function fileBrowserRecordRecent(path, isDir) {
+    if (!path) return;
+    _fbRecent = _fbRecent.filter((r) => r.path !== path);
+    _fbRecent.unshift({path, isDir: !!isDir, ts: Date.now()});
+    if (_fbRecent.length > FB_RECENT_CAP) _fbRecent.length = FB_RECENT_CAP;
+    try {
+        if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserRecent', JSON.stringify(_fbRecent));
+    } catch (_) { /* ignore */ }
+}
+// Fuzzy match: walk the needle char-by-char through the haystack; the
+// shorter the matched span, the better the score.
+function _fbFuzzyScore(haystack, needle) {
+    if (!needle) return 1;
+    const hl = haystack.toLowerCase();
+    const nl = needle.toLowerCase();
+    let h = 0, n = 0;
+    let firstHit = -1, lastHit = -1;
+    while (h < hl.length && n < nl.length) {
+        if (hl[h] === nl[n]) {
+            if (firstHit < 0) firstHit = h;
+            lastHit = h;
+            n++;
+        }
+        h++;
+    }
+    if (n < nl.length) return 0;
+    const span = lastHit - firstHit + 1;
+    return needle.length / span;
+}
+async function fileBrowserShowQuickPalette() {
+    document.getElementById('appQuickModal')?.remove();
+    const html = `<div class="modal-overlay modal-visible" id="appQuickModal" role="dialog" aria-modal="true">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2>Quick Open — recent folders &amp; files</h2>
+        <button type="button" class="modal-close" data-app-quick="close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="appQuickInput" class="app-prompt-input" placeholder="Fuzzy search…" />
+        <div id="appQuickResults" class="fb-quick-results"></div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appQuickModal');
+    const input = document.getElementById('appQuickInput');
+    const results = document.getElementById('appQuickResults');
+    let cursor = 0;
+    let visible = [];
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', key, true); };
+    const open = (entry) => {
+        close();
+        if (!entry) return;
+        if (entry.isDir) loadDirectory(entry.path);
+        else if (window.vstUpdater && typeof window.vstUpdater.openFileDefault === 'function') {
+            window.vstUpdater.openFileDefault(entry.path).catch(() => {});
+        }
+    };
+    const render = () => {
+        const q = (input.value || '').trim();
+        const scored = _fbRecent.map((r) => {
+            const name = r.path.split('/').pop() || r.path;
+            const sc = _fbFuzzyScore(name + ' ' + r.path, q);
+            return {entry: r, name, score: sc};
+        }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 50);
+        visible = scored.map((s) => s.entry);
+        if (cursor >= visible.length) cursor = 0;
+        results.innerHTML = visible.map((r, i) => {
+            const name = r.path.split('/').pop() || r.path;
+            const icon = r.isDir ? '&#128193;' : '&#128196;';
+            const active = i === cursor ? ' fb-quick-active' : '';
+            return `<div class="fb-quick-row${active}" data-fb-quick-idx="${i}">`
+                + `<span class="fb-quick-icon">${icon}</span>`
+                + `<span class="fb-quick-name">${escapeHtml(name)}</span>`
+                + `<span class="fb-quick-path">${escapeHtml(r.path)}</span>`
+                + `</div>`;
+        }).join('');
+    };
+    const key = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+        if (e.key === 'Enter') { e.preventDefault(); open(visible[cursor]); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); cursor = Math.min(cursor + 1, visible.length - 1); render(); return; }
+        if (e.key === 'ArrowUp') { e.preventDefault(); cursor = Math.max(cursor - 1, 0); render(); return; }
+    };
+    document.addEventListener('keydown', key, true);
+    input.addEventListener('input', () => { cursor = 0; render(); });
+    modal?.addEventListener('click', (e) => {
+        const row = e.target.closest('[data-fb-quick-idx]');
+        if (row) { open(visible[parseInt(row.dataset.fbQuickIdx, 10)]); return; }
+        if (e.target.closest('[data-app-quick="close"]') || e.target === modal) close();
+    });
+    requestAnimationFrame(() => { input.focus(); render(); });
+}
+
+// ── Bookmarks management modal ──
+// Rename / reorder / delete favorite directories in one place. Pulls
+// from `getFavDirs()` / writes back via the existing setter.
+async function fileBrowserShowBookmarksModal() {
+    if (typeof getFavDirs !== 'function') return;
+    document.getElementById('appBmModal')?.remove();
+    let dirs = (getFavDirs() || []).slice();
+    const render = (body) => {
+        body.innerHTML = dirs.length === 0
+            ? '<div class="fb-info-val">no bookmarks yet — star folders from the file list to add them</div>'
+            : dirs.map((d, i) => {
+                return `<div class="fb-bm-row" data-bm-idx="${i}">
+                    <button class="fb-bm-up" data-bm-up="${i}" title="Move up">&#9650;</button>
+                    <button class="fb-bm-down" data-bm-down="${i}" title="Move down">&#9660;</button>
+                    <input type="text" class="fb-bm-name app-prompt-input" data-bm-name="${i}" value="${escapeHtml(d.name || '')}">
+                    <span class="fb-bm-path" data-bm-go="${i}" title="${escapeHtml(d.path)}">${escapeHtml(d.path)}</span>
+                    <button class="fb-bm-del" data-bm-del="${i}" title="Remove bookmark">&times;</button>
+                </div>`;
+            }).join('');
+    };
+    const html = `<div class="modal-overlay modal-visible" id="appBmModal" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Bookmarks (${dirs.length})</h2>
+        <button type="button" class="modal-close" data-app-bm="close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p class="app-confirm-message">Rename inline, reorder via ▲▼, click path to jump, × to remove.</p>
+        <div id="appBmBody" class="fb-bm-body"></div>
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-bm="close">Close</button>
+          <button type="button" class="btn btn-primary" data-app-bm="save">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = document.getElementById('appBmModal');
+    const body = document.getElementById('appBmBody');
+    render(body);
+    const close = () => { modal?.remove(); document.removeEventListener('keydown', esc, true); };
+    const save = () => {
+        // Persist via prefs directly (`getFavDirs` reads `prefs.favDirs`).
+        try {
+            if (typeof prefs !== 'undefined') prefs.setItem('favDirs', JSON.stringify(dirs));
+        } catch (_) { /* ignore */ }
+        if (typeof renderFavDirs === 'function') renderFavDirs();
+        if (typeof showToast === 'function') showToast(toastFmt('toast.deleted_name', {name: `saved ${dirs.length} bookmark${dirs.length === 1 ? '' : 's'}`}));
+        close();
+    };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', esc, true);
+    modal?.addEventListener('click', (e) => {
+        const up = e.target.closest('[data-bm-up]');
+        if (up) {
+            const i = parseInt(up.dataset.bmUp, 10);
+            if (i > 0) { [dirs[i - 1], dirs[i]] = [dirs[i], dirs[i - 1]]; render(body); }
+            return;
+        }
+        const down = e.target.closest('[data-bm-down]');
+        if (down) {
+            const i = parseInt(down.dataset.bmDown, 10);
+            if (i < dirs.length - 1) { [dirs[i + 1], dirs[i]] = [dirs[i], dirs[i + 1]]; render(body); }
+            return;
+        }
+        const del = e.target.closest('[data-bm-del]');
+        if (del) {
+            const i = parseInt(del.dataset.bmDel, 10);
+            dirs.splice(i, 1); render(body);
+            return;
+        }
+        const go = e.target.closest('[data-bm-go]');
+        if (go) {
+            const i = parseInt(go.dataset.bmGo, 10);
+            if (dirs[i]) { close(); loadDirectory(dirs[i].path); }
+            return;
+        }
+        const btn = e.target.closest('[data-app-bm]');
+        if (btn) { if (btn.dataset.appBm === 'save') save(); else close(); return; }
+        if (e.target === modal) close();
+    });
+    modal?.addEventListener('input', (e) => {
+        const nameInput = e.target.closest('[data-bm-name]');
+        if (nameInput) {
+            const i = parseInt(nameInput.dataset.bmName, 10);
+            if (dirs[i]) dirs[i].name = nameInput.value;
+        }
+    });
+}
+
 // Expose helpers to context-menu.js (separate file, separate scope).
 if (typeof window !== 'undefined') {
     window.fileBrowserMarkClipboard = fileBrowserMarkClipboard;
@@ -2327,6 +2586,10 @@ if (typeof window !== 'undefined') {
     window.fileBrowserShowGrepModal = fileBrowserShowGrepModal;
     window.fileBrowserShowDuplicatesModal = fileBrowserShowDuplicatesModal;
     window.fileBrowserShowDiffModal = fileBrowserShowDiffModal;
+    window.fileBrowserShowQuickPalette = fileBrowserShowQuickPalette;
+    window.fileBrowserShowBookmarksModal = fileBrowserShowBookmarksModal;
+    window.fileBrowserShowBulkChmodModal = fileBrowserShowBulkChmodModal;
+    window.fileBrowserRecordRecent = fileBrowserRecordRecent;
 }
 
 // ── Move-to-bookmark (right-click → Move to → <bookmark>) ──
@@ -3159,6 +3422,7 @@ async function loadDirectory(dirPath) {
             activePane.scroll = 0;
         }
         _fbPersistPanePaths();
+        if (typeof fileBrowserRecordRecent === 'function') fileBrowserRecordRecent(dirPath, true);
         renderFileList();
         renderBreadcrumb(dirPath);
         updateBookmarkBtn();
@@ -3779,6 +4043,7 @@ function opener_open(path) {
     // the user expected the file itself to open). With this fallback a click on
     // foo.txt opens TextEdit / Notepad / xdg-open per platform; a click on foo.als
     // still opens Ableton via the DAW path.
+    if (typeof fileBrowserRecordRecent === 'function') fileBrowserRecordRecent(path, false);
     window.vstUpdater.openDawProject(path).catch(() => {
         window.vstUpdater.openFileDefault(path).catch(() => {});
     });
@@ -4329,6 +4594,12 @@ document.addEventListener('contextmenu', (e) => {
                 fileBrowserShowHashModal(files);
             },
         });
+        // Bulk chmod — applies one octal mode to every selected path.
+        items.push({
+            icon: '&#128274;',
+            label: `Permissions on ${selected.length} Item${selected.length === 1 ? '' : 's'}…`, ..._ctxMenuNoEcho,
+            action: () => fileBrowserShowBulkChmodModal(selected),
+        });
         // Compress selection into one .zip.
         items.push({
             icon: '&#128230;',
@@ -4359,6 +4630,16 @@ document.addEventListener('contextmenu', (e) => {
         icon: '&#128269;',
         label: 'Find Duplicates… (by content)', ..._ctxMenuNoEcho,
         action: () => fileBrowserShowDuplicatesModal(),
+    });
+    items.push({
+        icon: '&#9889;',
+        label: 'Quick Open… (Cmd+P)', ..._ctxMenuNoEcho,
+        action: () => fileBrowserShowQuickPalette(),
+    });
+    items.push({
+        icon: '&#9733;',
+        label: 'Manage Bookmarks…', ..._ctxMenuNoEcho,
+        action: () => fileBrowserShowBookmarksModal(),
     });
     if (selected.length === 2) {
         items.push({
@@ -4653,6 +4934,14 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
         if (typeof fileBrowserToggleTreeSidebar === 'function') fileBrowserToggleTreeSidebar();
+        return;
+    }
+    // Cmd+P — VSCode-style quick file palette (recent folders + files,
+    // fuzzy filter, Enter to open).
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (typeof fileBrowserShowQuickPalette === 'function') fileBrowserShowQuickPalette();
         return;
     }
     // ── Multi-pane ──
