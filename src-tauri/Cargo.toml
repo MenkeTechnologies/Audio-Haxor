@@ -37,6 +37,10 @@ symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "ogg", "pcm", "
 rusqlite = { version = "0.39", features = ["bundled", "functions", "hooks"] }
 zip = { version = "8", default-features = false, features = ["deflate"] }
 notify = "8"
+# Cross-platform "send to recycle bin / trash" (macOS NSFileManager
+# trashItemAtURL, Linux XDG Trash spec, Windows Recycle Bin). Used by the
+# file-browser delete paths so deletes are recoverable, not permanent.
+trash = "5"
 sysinfo = "0.38"
 image_crate = { version = "0.25", default-features = false, features = ["png"], package = "image" }
 sha2 = "0.11"

@@ -1846,6 +1846,10 @@ window.vstUpdater = {
      *  hover; the inline number comes from `fsFolderScanStatus.total_bytes`. */
     fsFolderSize: (folderPath, timeoutMs) => invoke('fs_folder_size', {folderPath, timeoutMs}),
     deleteFile: (filePath) => invoke('delete_file', {filePath}),
+    /** Move a file/dir to the OS trash (recoverable). Use this for every
+     *  user-initiated delete; `deleteFile` is permanent and should be
+     *  reserved for non-recoverable cleanup paths. */
+    moveToTrash: (filePath) => invoke('move_to_trash', {filePath}),
     /** Delete on disk + purge path from all inventory DB tables (keyboard `x` / Backspace). */
     deleteInventoryItem: (filePath) => invoke('delete_inventory_item', {filePath}),
     renameFile: (oldPath, newPath) => invoke('rename_file', {oldPath, newPath}),

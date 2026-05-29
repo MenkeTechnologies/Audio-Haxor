@@ -2308,7 +2308,9 @@ document.addEventListener('click', async (e) => {
         if (!ok) return;
         let failures = 0;
         for (const p of paths) {
-            try { await window.vstUpdater.deleteFile(p); }
+            // moveToTrash (recoverable) — `deleteFile` is permanent and
+            // reserved for inventory-cleanup paths.
+            try { await window.vstUpdater.moveToTrash(p); }
             catch (_) { failures++; }
         }
         clearFileSelection();
@@ -2815,7 +2817,9 @@ document.addEventListener('contextmenu', (e) => {
             const ok = typeof confirmAction === 'function' ? await confirmAction(msg) : confirm(msg);
             if (!ok) return;
             try {
-                await window.vstUpdater.deleteFile(path);
+                // moveToTrash (recoverable) — never permanent unlink from
+                // a user-facing menu.
+                await window.vstUpdater.moveToTrash(path);
                 showToast(toastFmt('toast.deleted_name_quotes', {name}));
                 loadDirectory(_fileBrowserPath);
             } catch (err) {

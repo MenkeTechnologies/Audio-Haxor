@@ -2465,8 +2465,11 @@ document.addEventListener('contextmenu', (e) => {
                     showToast(toastFmt('toast.failed', {err: 'Too many existing archives'}), 4000, 'error');
                 },
             });
-            // Move to Trash — destructive, confirm via in-app modal (native
-            // confirm() is silently dismissed in WKWebView release builds).
+            // Move to Trash — recoverable (NSFileManager trashItemAtURL /
+            // XDG Trash / Recycle Bin). Distinct from `deleteFile` which
+            // is a permanent unlink reserved for inventory-cleanup paths.
+            // Confirms via in-app modal (native confirm() is silently
+            // dismissed in WKWebView release builds).
             items.push({
                 icon: '&#128465;',
                 label: 'Move to Trash', ..._noEcho, ...shortcutTip('deleteItem'),
@@ -2475,7 +2478,7 @@ document.addEventListener('contextmenu', (e) => {
                     const ok = typeof confirmAction === 'function' ? await confirmAction(msg) : confirm(msg);
                     if (!ok) return;
                     try {
-                        await window.vstUpdater.deleteFile(path);
+                        await window.vstUpdater.moveToTrash(path);
                         showToast(toastFmt('toast.deleted_name_quotes', {name}));
                         if (typeof loadDirectory === 'function' && typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath) {
                             loadDirectory(_fileBrowserPath);

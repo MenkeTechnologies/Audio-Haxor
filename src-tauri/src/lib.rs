@@ -7004,11 +7004,32 @@ async fn delete_file(file_path: String) -> Result<(), String> {
     .await
 }
 
-/// Delete a file or directory on disk, then remove matching rows from all inventory SQLite tables.
+/// Move a file or directory to the OS trash (NSFileManager trashItemAtURL
+/// on macOS, XDG Trash on Linux, Recycle Bin on Windows) — recoverable,
+/// unlike `delete_file` which is a permanent unlink. Use this for every
+/// user-initiated delete; reserve `delete_file` for non-recoverable
+/// cleanup like inventory purges.
+#[tauri::command]
+async fn move_to_trash(file_path: String) -> Result<(), String> {
+    blocking_res(move || {
+        #[cfg(not(test))]
+        append_log(format!("FILE TRASH — {}", file_path));
+        let path = std::path::Path::new(&file_path);
+        if !path.exists() {
+            return Err("File not found".into());
+        }
+        trash::delete(path).map_err(|e| e.to_string())
+    })
+    .await
+}
+
+/// Move a file or directory to the OS trash (recoverable), then remove
+/// matching rows from all inventory SQLite tables. Used by Backspace from
+/// every inventory tab — never a permanent unlink for user actions.
 #[tauri::command]
 async fn delete_inventory_item(file_path: String) -> Result<(), String> {
     let path_for_db = file_path.clone();
-    match delete_file(file_path).await {
+    match move_to_trash(file_path).await {
         Ok(()) => {}
         Err(e) => {
             if !e.to_lowercase().contains("not found") {
@@ -9987,6 +10008,7 @@ pub fn run() {
             fs_folder_scan_status,
             fs_folder_size,
             delete_file,
+            move_to_trash,
             delete_inventory_item,
             rename_file,
             fs_create_dir,
