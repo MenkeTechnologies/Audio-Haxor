@@ -2416,7 +2416,7 @@ document.addEventListener('contextmenu', (e) => {
             // the overlay knows how to render (audio waveform, PDF, image).
             items.push({
                 icon: '&#128065;',
-                label: 'Quick Look (Space)', ..._noEcho,
+                label: 'Quick Look', ..._noEcho,
                 action: () => {
                     if (typeof showQuickLook === 'function') showQuickLook(path);
                 },
@@ -2511,19 +2511,44 @@ document.addEventListener('contextmenu', (e) => {
                 },
             });
             // Move to Trash — recoverable (NSFileManager trashItemAtURL /
-            // XDG Trash / Recycle Bin). Distinct from `deleteFile` which
-            // is a permanent unlink reserved for inventory-cleanup paths.
-            // Confirms via in-app modal (native confirm() is silently
-            // dismissed in WKWebView release builds).
+            // XDG Trash / Recycle Bin). Confirm prompt is trash-specific
+            // ("Move to Trash?") so the user knows the file is recoverable,
+            // distinct from the permanent Delete item below.
             items.push({
                 icon: '&#128465;',
                 label: 'Move to Trash', ..._noEcho, ...shortcutTip('deleteItem'),
                 action: async () => {
-                    const msg = appFmt('confirm.delete_file_browser', {name});
-                    const ok = typeof confirmAction === 'function' ? await confirmAction(msg) : confirm(msg);
+                    const msg = `Move "${name}" to Trash?`;
+                    const ok = typeof confirmAction === 'function'
+                        ? await confirmAction(msg, 'Move to Trash')
+                        : confirm(msg);
                     if (!ok) return;
                     try {
                         await window.vstUpdater.moveToTrash(path);
+                        showToast(toastFmt('toast.deleted_name', {name: `moved "${name}" to Trash`}));
+                        if (typeof loadDirectory === 'function' && typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath) {
+                            loadDirectory(_fileBrowserPath);
+                        }
+                    } catch (err) {
+                        showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
+                    }
+                },
+            });
+            // Delete (permanent) — distinct from Move to Trash; bypasses
+            // the OS Trash entirely (std::fs::remove_file / remove_dir_all).
+            // Confirm prompt explicitly warns the action is irrecoverable
+            // so the user knows this is the dangerous variant.
+            items.push({
+                icon: '&#9760;',
+                label: 'Delete Permanently', ..._noEcho,
+                action: async () => {
+                    const msg = `Permanently delete "${name}"?\n\nThis cannot be undone — the file will not be moved to Trash.`;
+                    const ok = typeof confirmAction === 'function'
+                        ? await confirmAction(msg, 'Delete Permanently')
+                        : confirm(msg);
+                    if (!ok) return;
+                    try {
+                        await window.vstUpdater.deleteFile(path);
                         showToast(toastFmt('toast.deleted_name_quotes', {name}));
                         if (typeof loadDirectory === 'function' && typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath) {
                             loadDirectory(_fileBrowserPath);

@@ -1008,20 +1008,8 @@ if (typeof document !== 'undefined') {
             if (path && typeof window.showQuickLook === 'function') window.showQuickLook(path);
             return;
         }
-        // Space → same. Mirrors the Files tab convention.
-        if (e.key === ' ') {
-            if (typeof window.isQuickLookVisible === 'function' && window.isQuickLookVisible()) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                window.hideQuickLook();
-                return;
-            }
-            const path = _pdfTabFocusedPath();
-            if (!path) return;
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            if (typeof window.showQuickLook === 'function') window.showQuickLook(path);
-        }
+        // (Space is reserved for play/pause globally — never bind it to
+        // Quick Look here. Cmd+I above is the only Quick Look toggle.)
     }, true);
 }
 

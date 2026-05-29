@@ -585,6 +585,16 @@ function _ensureQuickLookOverlay() {
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay || e.target.closest('[data-action="fbQuickLookClose"]')) hideQuickLook();
     });
+    // Esc closes the overlay. Capture phase + stopImmediatePropagation so
+    // it wins over the global shortcuts.js _handleEscape (which doesn't
+    // know about .fb-quicklook). Only fires while the overlay is visible.
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (overlay.classList.contains('fb-hidden')) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        hideQuickLook();
+    }, true);
     return overlay;
 }
 
@@ -624,7 +634,7 @@ async function showQuickLook(filePath) {
             <div class="fb-quicklook-row"><span class="fb-quicklook-label">Path</span><span class="fb-quicklook-val">${escapeHtml(filePath)}</span></div>
             <div class="fb-quicklook-row"><span class="fb-quicklook-label">Type</span><span class="fb-quicklook-val">${escapeHtml(ext || '—')}</span></div>
         </div>
-        <div class="fb-quicklook-hint">Press Esc or Space to close</div>
+        <div class="fb-quicklook-hint">Press Esc to close</div>
     `;
     overlay.classList.remove('fb-hidden');
     if (isAudio && typeof drawMiniWaveform === 'function') {
@@ -2468,15 +2478,18 @@ document.addEventListener('click', async (e) => {
         return;
     }
     if (action === 'fileBulkDelete') {
-        const msg = paths.length === 1
-            ? appFmt('confirm.delete_file_browser', {name: paths[0].split('/').pop()})
-            : appFmt('confirm.delete_file_browser', {name: `${paths.length} items`});
+        // Bulk toolbar Delete moves to Trash (recoverable). Modal text is
+        // trash-specific so the user knows the action isn't permanent.
+        const target = paths.length === 1
+            ? `"${paths[0].split('/').pop()}"`
+            : `${paths.length} items`;
+        const msg = `Move ${target} to Trash?`;
         // Prefer the in-app modal (`confirmAction`) over native `confirm()` —
         // native confirm is unreliable in Tauri WKWebView (silently dismissed
-        // in some release builds). Falls back to native only if the modal
-        // helper isn't loaded for some reason. Same pattern as shortcuts.js
-        // delete handler.
-        const ok = typeof confirmAction === 'function' ? await confirmAction(msg) : confirm(msg);
+        // in some release builds).
+        const ok = typeof confirmAction === 'function'
+            ? await confirmAction(msg, 'Move to Trash')
+            : confirm(msg);
         if (!ok) return;
         let failures = 0;
         for (const p of paths) {
@@ -2487,11 +2500,9 @@ document.addEventListener('click', async (e) => {
         }
         clearFileSelection();
         if (typeof showToast === 'function') {
-            // Reuse existing single-item toast key by passing a count-as-name. Avoids
-            // adding a new i18n key for a low-frequency bulk-delete-success message.
             const survived = paths.length - failures;
-            if (survived > 0) showToast(toastFmt('toast.deleted_name', {name: `${survived} item${survived === 1 ? '' : 's'}`}));
-            if (failures > 0) showToast(toastFmt('toast.failed', {err: `${failures} delete${failures === 1 ? '' : 's'} failed`}), 4000, 'error');
+            if (survived > 0) showToast(toastFmt('toast.deleted_name', {name: `moved ${survived} item${survived === 1 ? '' : 's'} to Trash`}));
+            if (failures > 0) showToast(toastFmt('toast.failed', {err: `${failures} item${failures === 1 ? '' : 's'} failed`}), 4000, 'error');
         }
         if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
         return;
