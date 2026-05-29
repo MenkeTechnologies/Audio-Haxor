@@ -1853,6 +1853,12 @@ window.vstUpdater = {
     fsCreateDir: (dirPath) => invoke('fs_create_dir', {dirPath}),
     /** Create a zero-byte file. Fails if the path exists (no truncate). */
     fsCreateFile: (filePath) => invoke('fs_create_file', {filePath}),
+    /** Duplicate a file/dir in-place with `{stem} copy[.{ext}]` naming
+     *  (with incrementing suffix on collision). Returns the new path. */
+    fsDuplicate: (path) => invoke('fs_duplicate', {path}),
+    /** Compress one or more source paths into a single .zip archive.
+     *  Archive path must not already exist. Returns the archive path. */
+    fsCompress: (paths, archivePath) => invoke('fs_compress', {paths, archivePath}),
     /** Open a system terminal in the given folder. macOS: `open -a Terminal`;
      *  Linux: probes common terminal emulators; Windows: `cmd /C start ...`. */
     fsOpenTerminal: (folderPath) => invoke('fs_open_terminal', {folderPath}),

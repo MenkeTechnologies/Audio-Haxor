@@ -7220,6 +7220,154 @@ async fn write_text_file(file_path: String, contents: String) -> Result<(), Stri
     blocking_res(move || std::fs::write(&file_path, &contents).map_err(|e| e.to_string())).await
 }
 
+/// Duplicate a file or directory inside its own parent. The new name is
+/// `"{stem} copy.{ext}"` for files (or `{stem} copy` for extensionless
+/// names / directories); if that path already exists, an incrementing
+/// suffix is appended — `{stem} copy 2.ext`, `{stem} copy 3.ext`, …
+/// Returns the new path that was created. Recursive walk for dirs.
+#[tauri::command]
+async fn fs_duplicate(path: String) -> Result<String, String> {
+    blocking_res(move || {
+        let src = std::path::PathBuf::from(&path);
+        if !src.exists() {
+            return Err(format!("Path does not exist: {path}"));
+        }
+        let parent = src
+            .parent()
+            .ok_or_else(|| format!("No parent directory for: {path}"))?;
+        let file_name = src
+            .file_name()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| format!("Invalid file name: {path}"))?;
+        // Split stem / ext — preserves leading dot of dotfiles + multi-segment
+        // extensions live as the very last segment only (matches Finder).
+        let (stem, ext) = match file_name.rsplit_once('.') {
+            // Skip dotfiles like `.bashrc` (no real extension): treat whole
+            // name as stem so the copy becomes `.bashrc copy` not `.bashrc copy.`
+            Some((s, e)) if !s.is_empty() => (s, Some(e)),
+            _ => (file_name, None),
+        };
+        let make_name = |n: u32| match ext {
+            None if n == 1 => format!("{stem} copy"),
+            None => format!("{stem} copy {n}"),
+            Some(e) if n == 1 => format!("{stem} copy.{e}"),
+            Some(e) => format!("{stem} copy {n}.{e}"),
+        };
+        // Search for the first unused suffix — bounded loop so a malicious
+        // / pathological directory can't hang the IPC.
+        let mut dest: Option<std::path::PathBuf> = None;
+        for n in 1..=1000 {
+            let candidate = parent.join(make_name(n));
+            if !candidate.exists() {
+                dest = Some(candidate);
+                break;
+            }
+        }
+        let dest = dest.ok_or_else(|| "Too many duplicates (1000+)".to_string())?;
+        if src.is_dir() {
+            // Recursive directory copy. `std::fs` has no built-in; walk
+            // manually so we don't add another dep.
+            fn copy_dir_recursive(
+                src: &std::path::Path,
+                dst: &std::path::Path,
+            ) -> std::io::Result<()> {
+                std::fs::create_dir(dst)?;
+                for entry in std::fs::read_dir(src)? {
+                    let entry = entry?;
+                    let ty = entry.file_type()?;
+                    let dst_path = dst.join(entry.file_name());
+                    if ty.is_dir() {
+                        copy_dir_recursive(&entry.path(), &dst_path)?;
+                    } else {
+                        std::fs::copy(entry.path(), dst_path)?;
+                    }
+                }
+                Ok(())
+            }
+            copy_dir_recursive(&src, &dest).map_err(|e| e.to_string())?;
+        } else {
+            std::fs::copy(&src, &dest).map_err(|e| e.to_string())?;
+        }
+        #[cfg(not(test))]
+        append_log(format!("DUPLICATE — {} → {}", path, dest.display()));
+        Ok(dest.to_string_lossy().to_string())
+    })
+    .await
+}
+
+/// Compress one or more paths into a single `.zip` archive at
+/// `archive_path`. Uses the `zip` crate (already a project dep) with
+/// DEFLATE — same default Finder's "Compress" produces. Directories are
+/// walked recursively, preserving relative paths under their top-level
+/// entry name. Returns the archive path on success.
+///
+/// Fails if `archive_path` already exists (no silent overwrite) or if any
+/// source path doesn't exist.
+#[tauri::command]
+async fn fs_compress(paths: Vec<String>, archive_path: String) -> Result<String, String> {
+    blocking_res(move || {
+        if paths.is_empty() {
+            return Err("No paths to compress".to_string());
+        }
+        let archive = std::path::PathBuf::from(&archive_path);
+        if archive.exists() {
+            return Err(format!("Archive already exists: {archive_path}"));
+        }
+        let file = std::fs::File::create(&archive).map_err(|e| e.to_string())?;
+        let mut zip = zip::ZipWriter::new(file);
+        let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated)
+            .unix_permissions(0o644);
+
+        fn add_path(
+            zip: &mut zip::ZipWriter<std::fs::File>,
+            options: zip::write::SimpleFileOptions,
+            root: &std::path::Path,
+            current: &std::path::Path,
+        ) -> Result<(), String> {
+            use std::io::{Read, Write};
+            let rel = current
+                .strip_prefix(root.parent().unwrap_or(root))
+                .map_err(|e| e.to_string())?;
+            let rel_str = rel.to_string_lossy().to_string();
+            if current.is_dir() {
+                // Trailing slash marks dirs in zip-spec.
+                let dir_entry = format!("{}/", rel_str.trim_end_matches('/'));
+                zip.add_directory(dir_entry, options).map_err(|e| e.to_string())?;
+                for entry in std::fs::read_dir(current).map_err(|e| e.to_string())? {
+                    let entry = entry.map_err(|e| e.to_string())?;
+                    add_path(zip, options, root, &entry.path())?;
+                }
+            } else {
+                zip.start_file(rel_str, options).map_err(|e| e.to_string())?;
+                let mut f = std::fs::File::open(current).map_err(|e| e.to_string())?;
+                let mut buf = Vec::new();
+                f.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+                zip.write_all(&buf).map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        }
+
+        for p in &paths {
+            let path = std::path::PathBuf::from(p);
+            if !path.exists() {
+                return Err(format!("Source does not exist: {p}"));
+            }
+            add_path(&mut zip, options, &path, &path)?;
+        }
+        zip.finish().map_err(|e| e.to_string())?;
+        #[cfg(not(test))]
+        append_log(format!(
+            "COMPRESS — {} → {} ({} sources)",
+            paths.join(", "),
+            archive_path,
+            paths.len()
+        ));
+        Ok(archive_path)
+    })
+    .await
+}
+
 /// Create a zero-byte file at `file_path`. Uses `create_new` semantics —
 /// fails (rather than truncating) if anything already exists at the path.
 /// Used by the file-browser empty-space context-menu's "New File" action.
@@ -9843,6 +9991,8 @@ pub fn run() {
             rename_file,
             fs_create_dir,
             fs_create_file,
+            fs_duplicate,
+            fs_compress,
             fs_open_terminal,
             fs_read_file_base64,
             fs_read_head,

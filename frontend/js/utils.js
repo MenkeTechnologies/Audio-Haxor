@@ -954,6 +954,104 @@ function showAppConfirmModal(message, title) {
     });
 }
 
+/**
+ * Themed prompt modal — single text input + OK/Cancel. Mirrors
+ * `showAppConfirmModal` but resolves to `string` (the input value) on OK
+ * or `null` on cancel/escape/click-outside. Use over `window.prompt()`
+ * which is silently dismissed in Tauri WKWebView release builds.
+ *
+ * @param {string} message — text shown above the input
+ * @param {string} [defaultValue] — pre-fills + selects the input
+ * @param {string} [title]
+ * @returns {Promise<string|null>}
+ */
+function showAppPromptModal(message, defaultValue, title) {
+    return new Promise((resolve) => {
+        document.getElementById('appPromptModal')?.remove();
+
+        const t = title || catalogFmt('confirm.dialog_title');
+        // Hardcoded — `confirm.btn_ok` / `confirm.btn_cancel` aren't in the
+        // i18n catalogs (only btn_yes / btn_no exist for the confirm modal).
+        // OK / Cancel are universally recognized in app prompts.
+        const okL = 'OK';
+        const cancelL = 'Cancel';
+        const msgHtml = escapeHtml(message);
+        const defVal = defaultValue == null ? '' : String(defaultValue);
+        const html = `<div class="modal-overlay modal-visible" id="appPromptModal" role="dialog" aria-modal="true" aria-labelledby="appPromptTitle">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h2 id="appPromptTitle">${escapeHtml(t)}</h2>
+        <button type="button" class="modal-close" data-app-prompt="cancel" title="${escapeHtml(cancelL)}" aria-label="${escapeHtml(cancelL)}">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p class="app-confirm-message">${msgHtml}</p>
+        <input type="text" id="appPromptInput" class="app-prompt-input" value="${escapeHtml(defVal)}" />
+        <div class="export-actions app-confirm-actions">
+          <button type="button" class="btn btn-secondary" data-app-prompt="cancel">${escapeHtml(cancelL)}</button>
+          <button type="button" class="btn btn-primary" data-app-prompt="ok">${escapeHtml(okL)}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        const modal = document.getElementById('appPromptModal');
+        const input = document.getElementById('appPromptInput');
+        if (!modal || !input) {
+            resolve(null);
+            return;
+        }
+
+        let settled = false;
+        const finish = (v) => {
+            if (settled) return;
+            settled = true;
+            document.removeEventListener('keydown', keyHandler, true);
+            modal.remove();
+            resolve(v);
+        };
+
+        const keyHandler = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                finish(null);
+            } else if (e.key === 'Enter' && document.activeElement === input) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                finish(input.value);
+            }
+        };
+        document.addEventListener('keydown', keyHandler, true);
+
+        modal.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-app-prompt]');
+            if (btn) {
+                finish(btn.dataset.appPrompt === 'ok' ? input.value : null);
+                return;
+            }
+            if (e.target === modal) finish(null);
+        });
+
+        requestAnimationFrame(() => {
+            input.focus();
+            input.select();
+        });
+    });
+}
+
+/**
+ * Themed text prompt — preferred over native `window.prompt()` which is
+ * silently dismissed in Tauri WKWebView release builds. Returns the
+ * entered string, or `null` if the user cancelled.
+ */
+async function promptAction(message, defaultValue, title) {
+    if (typeof document !== 'undefined' && document.body) {
+        return showAppPromptModal(String(message ?? ''), defaultValue, title);
+    }
+    // Final fallback only if document isn't ready (test contexts).
+    return Promise.resolve(prompt(message, defaultValue ?? ''));
+}
+
 async function confirmAction(message, title) {
     if (typeof document !== 'undefined' && document.body) {
         return showAppConfirmModal(String(message ?? ''), title);

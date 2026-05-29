@@ -4441,6 +4441,26 @@
             flex-wrap: wrap;
         }
 
+        /* Text input for the in-app prompt modal (replacement for native
+         * window.prompt() which is silently dismissed in Tauri WKWebView). */
+        .app-prompt-input {
+            width: 100%;
+            margin-top: 12px;
+            padding: 8px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: var(--text-primary);
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--cyan);
+            border-radius: 3px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .app-prompt-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 6px var(--cyan-dim);
+        }
+
         .modal-resize {
             position: absolute;
             z-index: 10;

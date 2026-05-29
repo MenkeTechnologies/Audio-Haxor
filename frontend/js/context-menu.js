@@ -2411,6 +2411,81 @@ document.addEventListener('contextmenu', (e) => {
                     },
                 });
             }
+            // ── Finder-style file operations ──
+            // Quick Look (Space) — overlay preview. Works for any file type
+            // the overlay knows how to render (audio waveform, PDF, image).
+            items.push({
+                icon: '&#128065;',
+                label: 'Quick Look (Space)', ..._noEcho,
+                action: () => {
+                    if (typeof showQuickLook === 'function') showQuickLook(path);
+                },
+            });
+            // Duplicate — `{stem} copy.{ext}` inside the same folder.
+            // Recursive for dirs. Server picks an incrementing suffix if
+            // the first candidate already exists.
+            items.push({
+                icon: '&#128203;',
+                label: 'Duplicate', ..._noEcho,
+                action: async () => {
+                    try {
+                        const dest = await window.vstUpdater.fsDuplicate(path);
+                        const destName = (dest || '').split('/').pop() || 'copy';
+                        showToast(toastFmt('toast.deleted_name', {name: `duplicated → ${destName}`}));
+                    } catch (err) {
+                        showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
+                    }
+                },
+            });
+            // Compress to .zip — same default Finder produces. Archive lands
+            // next to the source as `{name}.zip` (with incrementing suffix
+            // if that exists — Rust side errors, JS retries with -2, -3, …).
+            items.push({
+                icon: '&#128230;',
+                label: `Compress "${name}"`, ..._noEcho,
+                action: async () => {
+                    const parent = path.replace(/\/[^/]+$/, '');
+                    let archive = `${parent}/${name}.zip`;
+                    // Probe up to 10 numbered suffixes before giving up.
+                    for (let i = 0; i < 10; i++) {
+                        try {
+                            await window.vstUpdater.fsCompress([path], archive);
+                            const arName = archive.split('/').pop();
+                            showToast(toastFmt('toast.deleted_name', {name: `compressed → ${arName}`}));
+                            return;
+                        } catch (err) {
+                            const msg = String(err && err.message ? err.message : err);
+                            if (!msg.includes('already exists')) {
+                                showToast(toastFmt('toast.failed', {err: msg}), 4000, 'error');
+                                return;
+                            }
+                            archive = `${parent}/${name} ${i + 2}.zip`;
+                        }
+                    }
+                    showToast(toastFmt('toast.failed', {err: 'Too many existing archives'}), 4000, 'error');
+                },
+            });
+            // Move to Trash — destructive, confirm via in-app modal (native
+            // confirm() is silently dismissed in WKWebView release builds).
+            items.push({
+                icon: '&#128465;',
+                label: 'Move to Trash', ..._noEcho, ...shortcutTip('deleteItem'),
+                action: async () => {
+                    const msg = appFmt('confirm.delete_file_browser', {name});
+                    const ok = typeof confirmAction === 'function' ? await confirmAction(msg) : confirm(msg);
+                    if (!ok) return;
+                    try {
+                        await window.vstUpdater.deleteFile(path);
+                        showToast(toastFmt('toast.deleted_name_quotes', {name}));
+                        if (typeof loadDirectory === 'function' && typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath) {
+                            loadDirectory(_fileBrowserPath);
+                        }
+                    } catch (err) {
+                        showToast(toastFmt('toast.delete_failed_msg', {err: err.message || err}), 4000, 'error');
+                    }
+                },
+            });
+            items.push('---');
             items.push({
                 icon: '&#128203;',
                 label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'),

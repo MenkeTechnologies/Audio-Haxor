@@ -775,9 +775,14 @@ function startFileRename(row) {
 }
 
 // ── New Folder (button + Cmd+Shift+N) ──
+// Uses the in-app `promptAction()` modal — native `window.prompt()` is
+// silently dismissed in Tauri WKWebView release builds (same class of
+// bug as `window.confirm()`, see file-browser delete path).
 async function fileBrowserNewFolder() {
     if (!_fileBrowserPath) return;
-    const name = window.prompt(appFmt('confirm.delete_file_browser', {name: 'new folder name'}).replace(/Delete.*/, 'New folder name:'), 'untitled folder');
+    const name = typeof promptAction === 'function'
+        ? await promptAction('New folder name:', 'untitled folder')
+        : window.prompt('New folder name:', 'untitled folder');
     if (!name) return;
     const cleaned = name.trim();
     if (!cleaned) return;
@@ -794,10 +799,12 @@ async function fileBrowserNewFolder() {
 // ── New File (empty-space right-click → New File) ──
 // Mirrors `fileBrowserNewFolder` but creates a zero-byte file via
 // `fs_create_file` (uses `create_new` so an existing path errors instead
-// of being silently truncated).
+// of being silently truncated). Same `promptAction()` reasoning above.
 async function fileBrowserNewFile() {
     if (!_fileBrowserPath) return;
-    const name = window.prompt('New file name:', 'untitled.txt');
+    const name = typeof promptAction === 'function'
+        ? await promptAction('New file name:', 'untitled.txt')
+        : window.prompt('New file name:', 'untitled.txt');
     if (!name) return;
     const cleaned = name.trim();
     if (!cleaned) return;
