@@ -2344,7 +2344,7 @@ document.addEventListener('contextmenu', (e) => {
                     action: async () => {
                         try {
                             const bin = await window.vstUpdater.fsOpenInEditor(path);
-                            showToast(toastFmt('toast.fb_action', {name: `opening in ${bin}`}));
+                            showToast(toastFmt('toast.fb_opening_in_bin', {bin}));
                         } catch (err) {
                             showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
                         }
@@ -2550,7 +2550,7 @@ document.addEventListener('contextmenu', (e) => {
                     try {
                         const dest = await window.vstUpdater.fsMakeAlias(path);
                         const destName = (dest || '').split('/').pop() || 'alias';
-                        showToast(toastFmt('toast.fb_action', {name: `aliased → ${destName}`}));
+                        showToast(toastFmt('toast.fb_aliased_to', {name: destName}));
                     } catch (err) {
                         showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
                     }
@@ -2566,7 +2566,7 @@ document.addEventListener('contextmenu', (e) => {
                     try {
                         const dest = await window.vstUpdater.fsDuplicate(path);
                         const destName = (dest || '').split('/').pop() || 'copy';
-                        showToast(toastFmt('toast.fb_action', {name: `duplicated → ${destName}`}));
+                        showToast(toastFmt('toast.fb_duplicated_to', {name: destName}));
                     } catch (err) {
                         showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
                     }
@@ -2583,7 +2583,7 @@ document.addEventListener('contextmenu', (e) => {
                     action: async () => {
                         try {
                             await window.vstUpdater.fsRunProgram(path);
-                            showToast(toastFmt('toast.fb_action', {name: `running ${name}`}));
+                            showToast(toastFmt('toast.fb_running_name', {name}));
                         } catch (err) {
                             showToast(toastFmt('toast.failed', {err: err && err.message ? err.message : err}), 4000, 'error');
                         }
@@ -2617,7 +2617,7 @@ document.addEventListener('contextmenu', (e) => {
                         for (let i = 0; i < 10; i++) {
                             try {
                                 await window.vstUpdater.fsExtract(path, dest);
-                                showToast(toastFmt('toast.fb_action', {name: `extracted → ${dest.split('/').pop()}`}));
+                                showToast(toastFmt('toast.fb_extracted_to', {name: dest.split('/').pop()}));
                                 return;
                             } catch (err) {
                                 const m = String(err && err.message ? err.message : err);
@@ -2646,7 +2646,7 @@ document.addEventListener('contextmenu', (e) => {
                         try {
                             await window.vstUpdater.fsCompress([path], archive);
                             const arName = archive.split('/').pop();
-                            showToast(toastFmt('toast.fb_action', {name: `compressed → ${arName}`}));
+                            showToast(toastFmt('toast.fb_compressed_to', {name: arName}));
                             return;
                         } catch (err) {
                             const msg = String(err && err.message ? err.message : err);
@@ -2675,7 +2675,7 @@ document.addEventListener('contextmenu', (e) => {
                     if (!ok) return;
                     try {
                         await window.vstUpdater.moveToTrash(path);
-                        showToast(toastFmt('toast.deleted_name', {name: `moved "${name}" to Trash`}));
+                        showToast(toastFmt('toast.fb_moved_to_trash_name', {name}));
                         if (typeof loadDirectory === 'function' && typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath) {
                             loadDirectory(_fileBrowserPath);
                         }

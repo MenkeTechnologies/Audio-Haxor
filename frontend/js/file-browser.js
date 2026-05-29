@@ -420,7 +420,7 @@ async function _fbCrossPaneOp(mode) {
     }
     if (typeof showToast === 'function') {
         const verb = mode === 'move' ? 'moved' : 'copied';
-        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `${verb} ${ok} item${ok === 1 ? '' : 's'} → pane ${destIdx + 1}`}));
+        if (ok > 0) showToast(toastFmt(verb === 'copied' ? 'toast.fb_copied_to_pane_n' : 'toast.fb_moved_to_pane_n', {n: ok, pane: destIdx + 1}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} ${mode}${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     // Refresh dest pane (new files appeared) and active pane (move removed them).
@@ -559,7 +559,7 @@ function _fbSwapPanes(a, b) {
     renderPaneList(b);
     _fbPersistPanePaths();
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.fb_action', {name: `swapped panes ${a + 1} ↔ ${b + 1}`}));
+        showToast(toastFmt('toast.fb_swapped_panes', {a: a + 1, b: b + 1}));
     }
 }
 
@@ -951,7 +951,7 @@ function fileBrowserToggleHidden() {
     // alongside the rest of the pane's independent state.
     if (typeof _fbPersistPanesV3State === 'function') _fbPersistPanesV3State();
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.fb_action', {name: _fbShowHidden ? 'showing hidden files in active pane' : 'hiding hidden files in active pane'}));
+        showToast(toastFmt(_fbShowHidden ? 'toast.fb_show_hidden_active_pane' : 'toast.fb_hide_hidden_active_pane'));
     }
     if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
 }
@@ -1200,7 +1200,7 @@ async function applyFileBulkRename() {
         }
     }
     if (typeof showToast === 'function') {
-        if (fail === 0) showToast(toastFmt('toast.fb_action', {name: `renamed ${success} file${success === 1 ? '' : 's'}`}));
+        if (fail === 0) showToast(toastFmt('toast.fb_renamed_n', {n: success}));
         else showToast(toastFmt('toast.failed', {err: `${fail} of ${success + fail} rename${success + fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     hideFileBulkRenameModal();
@@ -1865,7 +1865,7 @@ async function _commitFileRename(oldPath, input, row) {
     }
     try {
         await window.vstUpdater.renameFile(oldPath, newPath);
-        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `renamed to ${next}`}));
+        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_renamed_to', {name: next}));
         if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
     } catch (err) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
@@ -1929,7 +1929,7 @@ async function fileBrowserNewFolder() {
     const newPath = `${_fileBrowserPath}/${cleaned}`;
     try {
         await window.vstUpdater.fsCreateDir(newPath);
-        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `created ${cleaned}`}));
+        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_created_name', {name: cleaned}));
         loadDirectory(_fileBrowserPath);
     } catch (err) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
@@ -1951,7 +1951,7 @@ async function fileBrowserNewFile() {
     const newPath = `${_fileBrowserPath}/${cleaned}`;
     try {
         await window.vstUpdater.fsCreateFile(newPath);
-        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `created ${cleaned}`}));
+        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_created_name', {name: cleaned}));
         loadDirectory(_fileBrowserPath);
     } catch (err) {
         if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
@@ -1973,7 +1973,7 @@ function fileBrowserMarkClipboard(mode, paths) {
     if (typeof showToast === 'function') {
         const verb = mode === 'cut' ? 'cut' : 'copied';
         const target = paths.length === 1 ? paths[0].split('/').pop() : `${paths.length} items`;
-        showToast(toastFmt('toast.fb_action', {name: `${verb} ${target} — paste in target folder`}));
+        showToast(toastFmt('toast.fb_clipboard_marked', {verb, target}));
     }
 }
 
@@ -2021,7 +2021,7 @@ async function fileBrowserPasteClipboard() {
         window._fbClipboard = {mode: null, paths: []};
     }
     if (typeof showToast === 'function') {
-        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `pasted ${ok} item${ok === 1 ? '' : 's'}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_pasted_n', {n: ok}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} item${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     loadDirectory(_fileBrowserPath);
@@ -2197,7 +2197,7 @@ async function fileBrowserNewFolderWithSelection(paths) {
         }
     }
     if (typeof showToast === 'function') {
-        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `moved ${ok} item${ok === 1 ? '' : 's'} into ${cleaned}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_moved_n_into', {n: ok, folder: cleaned}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} move${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     loadDirectory(_fileBrowserPath);
@@ -2305,7 +2305,7 @@ async function fileBrowserShowBulkChmodModal(paths) {
             catch (_) { fail++; }
         }
         if (typeof showToast === 'function') {
-            if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `chmod ${mode} on ${ok} file${ok === 1 ? '' : 's'}`}));
+            if (ok > 0) showToast(toastFmt('toast.fb_chmod_on_n', {mode, n: ok}));
             if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} chmod${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
         }
         close();
@@ -2366,7 +2366,7 @@ async function fileBrowserShowSymlinkEditor(path) {
         if (!next || next === curTarget) { close(); return; }
         try {
             await window.vstUpdater.fsSymlinkRetarget(path, next);
-            if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `re-pointed → ${next}`}));
+            if (typeof showToast === 'function') showToast(toastFmt('toast.fb_symlink_repointed', {target: next}));
             close();
             if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
         } catch (err) {
@@ -2422,7 +2422,7 @@ async function fileBrowserShowChmodModal(path) {
         if (!mode) { close(); return; }
         try {
             await window.vstUpdater.fsChmod(path, mode);
-            showToast(toastFmt('toast.fb_action', {name: `chmod ${mode} ${name}`}));
+            showToast(toastFmt('toast.fb_chmod_one', {mode, name}));
             close();
             if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
         } catch (err) {
@@ -2477,7 +2477,7 @@ async function fileBrowserPatternSelect() {
     });
     updateFileBulkBar();
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.fb_action', {name: `selected ${matched} matching ${cleaned}`}));
+        showToast(toastFmt('toast.fb_selected_matching', {n: matched, pattern: cleaned}));
     }
 }
 
@@ -2500,7 +2500,7 @@ async function fileBrowserBulkCompress(paths) {
     for (let i = 0; i < 10; i++) {
         try {
             await window.vstUpdater.fsCompress(paths, archive);
-            showToast(toastFmt('toast.fb_action', {name: `compressed → ${archive.split('/').pop()}`}));
+            showToast(toastFmt('toast.fb_compressed_to', {name: archive.split('/').pop()}));
             loadDirectory(_fileBrowserPath);
             return;
         } catch (err) {
@@ -2542,7 +2542,7 @@ async function fileBrowserBulkExtract(paths) {
         if (placed) ok++; else fail++;
     }
     if (typeof showToast === 'function') {
-        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `extracted ${ok} archive${ok === 1 ? '' : 's'}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_extracted_n_archives', {n: ok}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} extraction${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
@@ -2917,8 +2917,8 @@ async function fileBrowserShowDuplicatesModal() {
             catch (_) { fail++; }
         }
         if (typeof showToast === 'function') {
-            if (okCount > 0) showToast(toastFmt('toast.deleted_name', {name: `trashed ${okCount} duplicate${okCount === 1 ? '' : 's'}`}));
-            if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} failed`}), 4000, 'error');
+            if (okCount > 0) showToast(toastFmt('toast.fb_trashed_n_dupes', {n: okCount}));
+            if (fail > 0) showToast(toastFmt('toast.fb_failed_n', {n: fail}), 4000, 'error');
         }
         // Re-scan to refresh
         scan();
@@ -3167,7 +3167,7 @@ function fileBrowserToggleSyncScroll() {
     try { if (typeof prefs !== 'undefined') prefs.setItem('fileBrowserSyncScroll', _fbSyncScroll ? '1' : '0'); }
     catch (_) { /* ignore */ }
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.fb_action', {name: _fbSyncScroll ? 'sync scroll ON' : 'sync scroll OFF'}));
+        showToast(toastFmt(_fbSyncScroll ? 'toast.fb_sync_scroll_on' : 'toast.fb_sync_scroll_off'));
     }
 }
 // Debounced scroll persistence — write the active pane's scrollTop
@@ -3294,7 +3294,7 @@ function fileBrowserSetLabel(path, idx) {
 function fileBrowserBulkSetLabel(paths, idx) {
     for (const p of paths) fileBrowserSetLabel(p, idx);
     if (typeof showToast === 'function') {
-        showToast(toastFmt('toast.fb_action', {name: `labeled ${paths.length} item${paths.length === 1 ? '' : 's'} ${FB_LABEL_NAMES[idx] || 'None'}`}));
+        showToast(toastFmt('toast.fb_label_applied_n', {n: paths.length, label: FB_LABEL_NAMES[idx] || 'None'}));
     }
 }
 
@@ -3307,7 +3307,7 @@ async function fileBrowserTouchPaths(paths) {
         catch (_) { fail++; }
     }
     if (typeof showToast === 'function') {
-        if (ok > 0) showToast(toastFmt('toast.fb_action', {name: `touched ${ok} item${ok === 1 ? '' : 's'}`}));
+        if (ok > 0) showToast(toastFmt('toast.fb_touched_n', {n: ok}));
         if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} touch${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
     }
     if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
@@ -3641,7 +3641,7 @@ async function fileBrowserShowBookmarksModal() {
             if (typeof prefs !== 'undefined') prefs.setItem('favDirs', JSON.stringify(dirs));
         } catch (_) { /* ignore */ }
         if (typeof renderFavDirs === 'function') renderFavDirs();
-        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `saved ${dirs.length} bookmark${dirs.length === 1 ? '' : 's'}`}));
+        if (typeof showToast === 'function') showToast(toastFmt('toast.fb_saved_n_bookmarks', {n: dirs.length}));
         close();
     };
     const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
@@ -3737,7 +3737,7 @@ function buildMoveToBookmarkMenuItems(srcPath) {
             const target = `${d.path}/${base}`;
             try {
                 await window.vstUpdater.renameFile(srcPath, target);
-                if (typeof showToast === 'function') showToast(toastFmt('toast.fb_action', {name: `moved ${base} → ${d.name}`}));
+                if (typeof showToast === 'function') showToast(toastFmt('toast.fb_moved_path_to', {name: base, target: d.name}));
                 if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
             } catch (err) {
                 if (typeof showToast === 'function') showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
@@ -5430,8 +5430,8 @@ document.addEventListener('click', async (e) => {
         clearFileSelection();
         if (typeof showToast === 'function') {
             const survived = paths.length - failures;
-            if (survived > 0) showToast(toastFmt('toast.deleted_name', {name: `moved ${survived} item${survived === 1 ? '' : 's'} to Trash`}));
-            if (failures > 0) showToast(toastFmt('toast.failed', {err: `${failures} item${failures === 1 ? '' : 's'} failed`}), 4000, 'error');
+            if (survived > 0) showToast(toastFmt('toast.fb_moved_n_to_trash', {n: survived}));
+            if (failures > 0) showToast(toastFmt('toast.fb_failed_n', {n: failures}), 4000, 'error');
         }
         if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
         return;
@@ -6226,8 +6226,8 @@ document.addEventListener('keydown', (e) => {
             }
             if (typeof clearFileSelection === 'function') clearFileSelection();
             if (typeof showToast === 'function') {
-                if (ok_c > 0) showToast(toastFmt('toast.deleted_name', {name: `permanently deleted ${ok_c} item${ok_c === 1 ? '' : 's'}`}));
-                if (fail > 0) showToast(toastFmt('toast.failed', {err: `${fail} delete${fail === 1 ? '' : 's'} failed`}), 4000, 'error');
+                if (ok_c > 0) showToast(toastFmt('toast.fb_permanently_deleted_n', {n: ok_c}));
+                if (fail > 0) showToast(toastFmt('toast.fb_failed_n', {n: fail}), 4000, 'error');
             }
             if (_fileBrowserPath) loadDirectory(_fileBrowserPath);
         })();

@@ -535,6 +535,13 @@ function initRecentlyPlayedDragReorder() {
                 v: 2,
                 order: [...c.thead.children].map(th => c.getColKey(th))
             });
+            // Toast — table column reorder was the one drag surface
+            // missing feedback. Always emit since this engine has no
+            // toastSilent equivalent (table column reorder is always
+            // user-driven, never programmatic).
+            if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+                showToast(toastFmt('toast.reordered_columns'));
+            }
         }
         _colDrag = null;
     });
