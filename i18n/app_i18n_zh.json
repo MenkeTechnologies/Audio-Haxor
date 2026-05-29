@@ -686,6 +686,7 @@
   "toast.fb_compressed_to": "Compressed → {name}",
   "toast.fb_copied_to_pane_n": "Copied {n} item(s) → Pane {pane}",
   "toast.fb_created_name": "Created {name}",
+  "toast.fb_drag_started_n": "Started OS drag with {n} item(s)",
   "toast.fb_drop_copied_n": "Copied {n} item(s) → Pane {pane}",
   "toast.fb_drop_failed": "Drop failed: {err}",
   "toast.fb_drop_moved_n": "Moved {n} item(s) → Pane {pane}",

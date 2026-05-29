@@ -4,6 +4,88 @@ const ctxMenu = document.getElementById('ctxMenu');
 const _noEcho = {skipEchoToast: true};
 
 /**
+ * Shared Move-to-Trash / Delete-Permanently / Secure-Delete menu items.
+ * Used by file-browser file rows AND every inventory table row menu
+ * (audio / DAW / preset / MIDI / PDF / video) so any context that exposes
+ * a file path gets the same three deletion options.
+ *
+ * Returns an array of menu items + separators ready to splat into items.
+ */
+function _pathDeleteItems(path, name, isDir = false, onAfter = null) {
+    const refresh = () => {
+        try {
+            if (typeof onAfter === 'function') onAfter();
+        } catch {}
+        if (typeof loadDirectory === 'function'
+            && typeof _fileBrowserPath !== 'undefined'
+            && _fileBrowserPath
+            && path.startsWith(_fileBrowserPath)) {
+            loadDirectory(_fileBrowserPath);
+        }
+    };
+    const list = [];
+    list.push({
+        icon: '&#128465;',
+        label: appFmt('menu.fb_move_to_trash'), ..._noEcho, ...shortcutTip('deleteItem'),
+        action: async () => {
+            const msg = `Move "${name}" to Trash?`;
+            const ok = typeof confirmAction === 'function'
+                ? await confirmAction(msg, 'Move to Trash')
+                : confirm(msg);
+            if (!ok) return;
+            try {
+                await window.vstUpdater.moveToTrash(path);
+                showToast(toastFmt('toast.fb_moved_to_trash_name', {name}));
+                refresh();
+            } catch (err) {
+                showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
+            }
+        },
+    });
+    list.push({
+        icon: '&#9760;',
+        label: appFmt('menu.fb_delete_permanently'), ..._noEcho,
+        action: async () => {
+            const msg = `Permanently delete "${name}"?\n\nThis cannot be undone — the file will not be moved to Trash.`;
+            const ok = typeof confirmAction === 'function'
+                ? await confirmAction(msg, 'Delete Permanently')
+                : confirm(msg);
+            if (!ok) return;
+            try {
+                await window.vstUpdater.deleteFile(path);
+                showToast(toastFmt('toast.deleted_name_quotes', {name}));
+                refresh();
+            } catch (err) {
+                showToast(toastFmt('toast.delete_failed_msg', {err: err.message || err}), 4000, 'error');
+            }
+        },
+    });
+    if (!isDir) {
+        list.push({
+            icon: '&#128737;',
+            label: appFmt('menu.fb_secure_delete'), ..._noEcho,
+            action: async () => {
+                const msg = appFmt('confirm.fb_secure_delete_body', {name});
+                const title = appFmt('confirm.fb_secure_delete_title');
+                const ok = typeof confirmAction === 'function'
+                    ? await confirmAction(msg, title)
+                    : confirm(msg);
+                if (!ok) return;
+                try {
+                    await window.vstUpdater.fsSecureDelete(path);
+                    showToast(toastFmt('toast.deleted_name_quotes', {name}));
+                    refresh();
+                } catch (err) {
+                    showToast(toastFmt('toast.delete_failed_msg', {err: err.message || err}), 4000, 'error');
+                }
+            },
+        });
+    }
+    return list;
+}
+window._pathDeleteItems = _pathDeleteItems;
+
+/**
  * Attach a shortcuts.js id so the row tooltip includes formatKey(...) in parentheses.
  * (scripts load before context-menu.js may still call this at contextmenu time.)
  */
@@ -295,6 +377,8 @@ function getVideoTableRowContextMenuItems(videoRow) {
         })()],
         { icon: '&#128221;', label: appFmt('menu.add_note'), action: () => showNoteEditor(path, name) },
         ...quickTagItems(path, name),
+        '---',
+        ..._pathDeleteItems(path, name),
     ];
 }
 
@@ -704,6 +788,8 @@ document.addEventListener('contextmenu', (e) => {
                 '---',
                 ...ctxMenuVideoAudioRouteItems(),
             ];
+            items.push('---');
+            for (const it of _pathDeleteItems(path, name)) items.push(it);
             showContextMenu(e, items);
             return;
         }
@@ -800,6 +886,8 @@ document.addEventListener('contextmenu', (e) => {
                 {icon: '&#128203;', label: appFmt('menu.copy_name'), ..._noEcho, action: () => typeof copyToClipboard === 'function' && copyToClipboard(name)},
                 {icon: '&#128203;', label: appFmt('menu.copy_path'), ..._noEcho, ...shortcutTip('copyPath'), action: () => typeof copyToClipboard === 'function' && copyToClipboard(path)},
             ];
+            items.push('---');
+            for (const it of _pathDeleteItems(path, name)) items.push(it);
             showContextMenu(e, items);
             return;
         }
@@ -871,6 +959,8 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 ...(typeof quickTagItems === 'function' ? quickTagItems(path, name) : []),
             ];
+            items.push('---');
+            for (const it of _pathDeleteItems(path, name)) items.push(it);
             showContextMenu(e, items);
             return;
         }
@@ -965,6 +1055,8 @@ document.addEventListener('contextmenu', (e) => {
                 {icon: '&#128221;', label: appFmt('menu.add_note'), action: () => showNoteEditor(path, name)},
                 ...quickTagItems(path, name),
             ];
+            items.push('---');
+            for (const it of _pathDeleteItems(path, name)) items.push(it);
             showContextMenu(e, items);
             return;
         }
@@ -1017,6 +1109,8 @@ document.addEventListener('contextmenu', (e) => {
                 {icon: '&#128221;', label: appFmt('menu.add_note'), action: () => showNoteEditor(path, name)},
                 ...quickTagItems(path, name),
             ];
+            items.push('---');
+            for (const it of _pathDeleteItems(path, name)) items.push(it);
             showContextMenu(e, items);
             return;
         }
@@ -1060,6 +1154,8 @@ document.addEventListener('contextmenu', (e) => {
                 {icon: '&#128221;', label: appFmt('menu.add_note'), action: () => showNoteEditor(path, name)},
                 ...quickTagItems(path, name),
             ];
+            items.push('---');
+            for (const it of _pathDeleteItems(path, name)) items.push(it);
             showContextMenu(e, items);
             return;
         }
@@ -2660,81 +2756,11 @@ document.addEventListener('contextmenu', (e) => {
                     showToast(toastFmt('toast.failed', {err: 'Too many existing archives'}), 4000, 'error');
                 },
             });
-            // Move to Trash — recoverable (NSFileManager trashItemAtURL /
-            // XDG Trash / Recycle Bin). Confirm prompt is trash-specific
-            // ("Move to Trash?") so the user knows the file is recoverable,
-            // distinct from the permanent Delete item below.
-            items.push({
-                icon: '&#128465;',
-                label: appFmt('menu.fb_move_to_trash'), ..._noEcho, ...shortcutTip('deleteItem'),
-                action: async () => {
-                    const msg = `Move "${name}" to Trash?`;
-                    const ok = typeof confirmAction === 'function'
-                        ? await confirmAction(msg, 'Move to Trash')
-                        : confirm(msg);
-                    if (!ok) return;
-                    try {
-                        await window.vstUpdater.moveToTrash(path);
-                        showToast(toastFmt('toast.fb_moved_to_trash_name', {name}));
-                        if (typeof loadDirectory === 'function' && typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath) {
-                            loadDirectory(_fileBrowserPath);
-                        }
-                    } catch (err) {
-                        showToast(toastFmt('toast.failed', {err: err.message || err}), 4000, 'error');
-                    }
-                },
-            });
-            // Delete (permanent) — distinct from Move to Trash; bypasses
-            // the OS Trash entirely (std::fs::remove_file / remove_dir_all).
-            // Confirm prompt explicitly warns the action is irrecoverable
-            // so the user knows this is the dangerous variant.
-            items.push({
-                icon: '&#9760;',
-                label: appFmt('menu.fb_delete_permanently'), ..._noEcho,
-                action: async () => {
-                    const msg = `Permanently delete "${name}"?\n\nThis cannot be undone — the file will not be moved to Trash.`;
-                    const ok = typeof confirmAction === 'function'
-                        ? await confirmAction(msg, 'Delete Permanently')
-                        : confirm(msg);
-                    if (!ok) return;
-                    try {
-                        await window.vstUpdater.deleteFile(path);
-                        showToast(toastFmt('toast.deleted_name_quotes', {name}));
-                        if (typeof loadDirectory === 'function' && typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath) {
-                            loadDirectory(_fileBrowserPath);
-                        }
-                    } catch (err) {
-                        showToast(toastFmt('toast.delete_failed_msg', {err: err.message || err}), 4000, 'error');
-                    }
-                },
-            });
-            // Secure Delete — overwrite every byte with zeros + fsync +
-            // unlink. Confirm prompt spells out the SSD / CoW caveats so
-            // users don't believe the guarantee is stronger than it is
-            // on their actual filesystem.
-            if (!isDir) {
-                items.push({
-                    icon: '&#128737;',
-                    label: appFmt('menu.fb_secure_delete'), ..._noEcho,
-                    action: async () => {
-                        const msg = appFmt('confirm.fb_secure_delete_body', {name});
-                        const title = appFmt('confirm.fb_secure_delete_title');
-                        const ok = typeof confirmAction === 'function'
-                            ? await confirmAction(msg, title)
-                            : confirm(msg);
-                        if (!ok) return;
-                        try {
-                            await window.vstUpdater.fsSecureDelete(path);
-                            showToast(toastFmt('toast.deleted_name_quotes', {name}));
-                            if (typeof loadDirectory === 'function' && typeof _fileBrowserPath !== 'undefined' && _fileBrowserPath) {
-                                loadDirectory(_fileBrowserPath);
-                            }
-                        } catch (err) {
-                            showToast(toastFmt('toast.delete_failed_msg', {err: err.message || err}), 4000, 'error');
-                        }
-                    },
-                });
-            }
+            // Move to Trash / Delete Permanently / Secure Delete —
+            // shared with every inventory-table row menu via the
+            // `_pathDeleteItems` helper so this surface stays in sync
+            // with audio / DAW / preset / MIDI / PDF / video rows.
+            for (const it of _pathDeleteItems(path, name, isDir)) items.push(it);
             items.push('---');
             items.push({
                 icon: '&#128203;',

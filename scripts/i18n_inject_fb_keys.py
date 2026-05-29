@@ -47,6 +47,11 @@ NEW_KEYS: dict[str, str] = {
     "toast.fb_drop_moved_n": "Moved {n} item(s) → Pane {pane}",
     "toast.fb_drop_failed": "Drop failed: {err}",
     "toast.reordered_columns": "Table columns reordered",
+    # Native OS drag-out (Finder / Desktop / DAW drop target). Fires
+    # from `startNativeFileDrag` after `tauri-plugin-drag` accepts the
+    # drag payload. The destination app is opaque to us so the message
+    # only reports the count.
+    "toast.fb_drag_started_n": "Started OS drag with {n} item(s)",
     # Replacements for raw-English `toast.fb_action` calls — each
     # gets its own catalog entry with proper placeholders so the
     # message can be translated.

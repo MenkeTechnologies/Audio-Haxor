@@ -339,6 +339,9 @@ async function startNativeFileDrag(filePaths) {
             icon: getCyberpunkDragIconDataUrl(),
             mode: 'copy',
         });
+        if (typeof showToast === 'function' && typeof toastFmt === 'function') {
+            showToast(toastFmt('toast.fb_drag_started_n', {n: paths.length}));
+        }
     } catch (err) {
         if (typeof showToast === 'function') {
             showToast(String(err && err.message ? err.message : err), 4000, 'error');
