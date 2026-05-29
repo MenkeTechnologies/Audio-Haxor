@@ -5967,6 +5967,16 @@
             user-select: none !important;
         }
 
+        /* Generic show/hide toggle — replaces `style="display:none"` on
+         * file-browser elements. `!important` overrides element-default
+         * displays (`.file-bulk-bar { display: flex }`). Release WebKit
+         * strips inline `style=""` on dynamically inserted DOM and is
+         * generally less reliable with inline display toggles, so we route
+         * all show/hide through `classList.add/remove('fb-hidden')`. */
+        .fb-hidden {
+            display: none !important;
+        }
+
         .file-row {
             display: flex;
             align-items: center;
@@ -11937,8 +11947,8 @@
                         id="btnFileFav" title="Bookmark current directory">&#9733;
                     <span data-i18n="ui.btn.9733_bookmark">Bookmark</span></button>
                 <div class="file-breadcrumb" id="fileBreadcrumb"></div>
-                <input type="text" class="file-path-input" id="fileBrowserPathInput"
-                       style="display:none;" autocomplete="off" autocorrect="off"
+                <input type="text" class="file-path-input fb-hidden" id="fileBrowserPathInput"
+                       autocomplete="off" autocorrect="off"
                        spellcheck="false" placeholder="Type a path… (Cmd+L)">
                 <div class="search-box" style="flex: 1; max-width: 300px;">
                     <span class="search-icon">&#128269;</span>
@@ -11952,7 +11962,7 @@
                     </button>
                 </div>
             </div>
-            <div class="file-favs" id="fileFavs" style="display:none;">
+            <div class="file-favs fb-hidden" id="fileFavs">
                 <div class="file-favs-header"><span>&#9733; <span data-i18n="ui.files.favorite_dirs_header">Favorite Directories</span></span>
                     <span></span></div>
                 <div class="file-favs-grid" id="fileFavsGrid"></div>
@@ -11968,7 +11978,7 @@
                 <button class="ext-chip" data-ext-filter="image" title="Images only">Image</button>
                 <button class="ext-chip" data-ext-filter="other" title="Files not in any other category">Other</button>
             </div>
-            <div class="file-bulk-bar" id="fileBulkBar" style="display:none;">
+            <div class="file-bulk-bar fb-hidden" id="fileBulkBar">
                 <span class="file-bulk-count"><span id="fileBulkCount">0</span> selected</span>
                 <div class="batch-sep"></div>
                 <button class="btn btn-stop" data-action="fileBulkClear" title="Clear selection">&#10005; <span data-i18n="ui.btn.10005_clear">Clear</span></button>

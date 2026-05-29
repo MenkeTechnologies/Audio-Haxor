@@ -80,10 +80,10 @@ function renderFavDirs() {
     if (!container || !grid) return;
     const dirs = getFavDirs();
     if (dirs.length === 0) {
-        container.style.display = 'none';
+        container.classList.add('fb-hidden');
         return;
     }
-    container.style.display = '';
+    container.classList.remove('fb-hidden');
     const rmTitle = catalogFmt('ui.tt.remove_bookmark_from_chip');
     grid.innerHTML = dirs.map(d =>
         `<div class="file-fav-chip" data-fav-dir="${escapeHtml(d.path)}" title="${escapeHtml(d.path)}">
@@ -175,8 +175,8 @@ function showFilePathEditor() {
     const breadcrumb = document.getElementById('fileBreadcrumb');
     if (!input || !breadcrumb) return;
     input.value = _fileBrowserPath || '';
-    input.style.display = '';
-    breadcrumb.style.display = 'none';
+    input.classList.remove('fb-hidden');
+    breadcrumb.classList.add('fb-hidden');
     input.focus();
     input.select();
 }
@@ -186,8 +186,8 @@ function hideFilePathEditor() {
     const input = document.getElementById('fileBrowserPathInput');
     const breadcrumb = document.getElementById('fileBreadcrumb');
     if (!input || !breadcrumb) return;
-    input.style.display = 'none';
-    breadcrumb.style.display = '';
+    input.classList.add('fb-hidden');
+    breadcrumb.classList.remove('fb-hidden');
 }
 
 // ── Extension filter chips ──
@@ -511,7 +511,10 @@ function updateFileBulkBar() {
     const bar = document.getElementById('fileBulkBar');
     const count = document.getElementById('fileBulkCount');
     if (!bar) return;
-    bar.style.display = _fileSelected.size > 0 ? 'flex' : 'none';
+    // `.fb-hidden` (CSS class with `display: none !important`) instead of
+    // `style.display` — release WebKit handles class toggles more reliably
+    // than inline display on dynamic flex containers.
+    bar.classList.toggle('fb-hidden', _fileSelected.size === 0);
     if (count) count.textContent = String(_fileSelected.size);
     // Header `select-all` checkbox reflects current selection: checked when
     // all visible rows are selected, otherwise unchecked.
