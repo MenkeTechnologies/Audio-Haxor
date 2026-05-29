@@ -1860,6 +1860,10 @@ window.vstUpdater = {
     /** Read first `maxBytes` of a file as a UTF-8 string (lossy on invalid bytes).
      *  Default 4 KiB; clamped 256..64 KiB. Used for text preview. */
     fsReadHead: (filePath, maxBytes) => invoke('fs_read_head', {filePath, maxBytes}),
+    /** Render first page of a PDF to base64 PNG via `pdftoppm` (poppler-utils).
+     *  `maxWidth` is render width in pixels (default 400; clamped 100..2000).
+     *  Errors when pdftoppm isn't installed — caller should show install hint. */
+    fsPdfRenderFirstPage: (filePath, maxWidth) => invoke('fs_pdf_render_first_page', {filePath, maxWidth}),
     getHomeDir: () => invoke('get_home_dir'),
     // Similarity
     findSimilarSamples: (filePath, candidatePaths, maxResults) => invoke('find_similar_samples', {

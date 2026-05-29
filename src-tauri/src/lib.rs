@@ -7130,6 +7130,81 @@ async fn fs_read_head(file_path: String, max_bytes: Option<u64>) -> Result<Strin
     .await
 }
 
+/// Renders the first page of a PDF to a base64 PNG. Used by the file
+/// browser preview pane.
+///
+/// Shells out to `pdftoppm` (part of poppler-utils — `brew install poppler`
+/// on macOS, `apt install poppler-utils` on Linux). Not bundled because
+/// poppler is GPL and bundling complicates licensing; runtime detection
+/// returns a clear "install poppler" error so the UI can surface it.
+///
+/// `max_width` is the render width in pixels (height auto-scaled to
+/// preserve aspect ratio). Defaults 400, clamped 100..2000.
+#[tauri::command]
+async fn fs_pdf_render_first_page(
+    file_path: String,
+    max_width: Option<u32>,
+) -> Result<String, String> {
+    let width = max_width.unwrap_or(400).clamp(100, 2000);
+    blocking_res(move || {
+        let out_dir = std::env::temp_dir().join(format!(
+            "ah_pdfprev_{}_{}",
+            std::process::id(),
+            rand::random::<u32>()
+        ));
+        std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
+        let out_prefix = out_dir.join("page");
+        // `-scale-to-x N -scale-to-y -1` = scale width to N, preserve aspect.
+        // `-f 1 -l 1` = first page only.
+        let width_s = width.to_string();
+        let result = std::process::Command::new("pdftoppm")
+            .args([
+                "-png",
+                "-f",
+                "1",
+                "-l",
+                "1",
+                "-scale-to-x",
+                &width_s,
+                "-scale-to-y",
+                "-1",
+            ])
+            .arg(&file_path)
+            .arg(&out_prefix)
+            .output();
+        let output = match result {
+            Ok(o) => o,
+            Err(_) => {
+                let _ = std::fs::remove_dir_all(&out_dir);
+                return Err(
+                    "pdftoppm not found — install poppler-utils for PDF preview (e.g. `brew install poppler`)"
+                        .to_string(),
+                );
+            }
+        };
+        if !output.status.success() {
+            let _ = std::fs::remove_dir_all(&out_dir);
+            return Err(format!(
+                "pdftoppm failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        // pdftoppm names the file like `page-1.png` or `page-01.png` depending
+        // on total page count — find the first PNG it produced.
+        let entries = std::fs::read_dir(&out_dir).map_err(|e| e.to_string())?;
+        let png_path = entries
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| p.extension().is_some_and(|e| e == "png"))
+            .ok_or_else(|| "pdftoppm produced no output".to_string())?;
+        let bytes = std::fs::read(&png_path).map_err(|e| e.to_string())?;
+        let _ = std::fs::remove_dir_all(&out_dir);
+        use base64::Engine;
+        Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+    })
+    .await
+}
+
 /// Creates a directory at `dir_path`. Fails if the parent doesn't exist
 /// (use `create_dir_all`-style API explicitly if recursive is wanted).
 /// Returns an error if the path already exists.
@@ -8361,6 +8436,32 @@ mod tests {
         assert_eq!(result.bytes, 0);
         assert_eq!(result.files, 0);
         let _ = fs::remove_dir_all(&root);
+    }
+
+    /// `fs_pdf_render_first_page` returns a clear "install poppler" error
+    /// when `pdftoppm` isn't on PATH. Test isolates by emptying PATH so the
+    /// spawn fails deterministically, even on dev machines that have it.
+    #[test]
+    fn test_fs_pdf_render_first_page_missing_pdftoppm() {
+        // Save + restore PATH (process-global state — keep the window narrow).
+        let orig_path = std::env::var("PATH").ok();
+        unsafe {
+            std::env::set_var("PATH", "");
+        }
+        // Path doesn't need to exist — the spawn fails before file access.
+        let result = rt_block_on(fs_pdf_render_first_page("/nonexistent.pdf".into(), Some(400)));
+        unsafe {
+            if let Some(p) = orig_path {
+                std::env::set_var("PATH", p);
+            } else {
+                std::env::remove_var("PATH");
+            }
+        }
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().contains("pdftoppm not found"),
+            "must surface the install-poppler hint"
+        );
     }
 
     /// `fs_create_dir` creates a new directory and rejects existing paths.
@@ -9700,6 +9801,7 @@ pub fn run() {
             fs_open_terminal,
             fs_read_file_base64,
             fs_read_head,
+            fs_pdf_render_first_page,
             write_text_file,
             write_binary_file,
             ensure_snapshot_export_dir,

@@ -408,6 +408,20 @@ async function populatePreviewPane(filePath) {
         return;
     }
 
+    if (ext === 'pdf') {
+        try {
+            const b64 = await window.vstUpdater.fsPdfRenderFirstPage(filePath, 400);
+            if (seq !== _fbPreviewSeq) return;
+            body.innerHTML = `<img class="fb-preview-image" src="data:image/png;base64,${b64}" alt="${escapeHtml(name)}">${metaHtml}`;
+        } catch (err) {
+            if (seq !== _fbPreviewSeq) return;
+            // pdftoppm not installed → clear hint with install command.
+            const msg = (err && (err.message || err)) ? String(err.message || err) : 'PDF preview unavailable';
+            body.innerHTML = `<div class="fb-preview-empty">${escapeHtml(msg)}</div>${metaHtml}`;
+        }
+        return;
+    }
+
     // No type-specific preview — show just the metadata.
     body.innerHTML = metaHtml;
 }
