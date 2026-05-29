@@ -35,6 +35,138 @@ function pathFileName(p) {
 // seed `_fileBrowserEntries` (and inspect path/inited state) via globalThis.
 // Same rationale as the sort/select state below.
 var _fileBrowserPath = null;
+// ── Tabs ──
+// Each tab is just `{id, path}`. Selection / scroll / nav-history are
+// NOT per-tab in this v1 — keeps the existing global state model intact.
+// Switching tabs = loadDirectory on the new path; the rest of file-
+// browser state rebuilds naturally.
+let _fbTabs = (() => {
+    try {
+        const raw = typeof prefs !== 'undefined' ? prefs.getItem('fileBrowserTabs') : null;
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (Array.isArray(parsed) && parsed.length > 0
+            && parsed.every((t) => t && typeof t.id === 'string' && typeof t.path === 'string')) {
+            return parsed;
+        }
+    } catch (_) { /* fall through to default */ }
+    return [];
+})();
+let _fbActiveTabId = (() => {
+    try {
+        const v = typeof prefs !== 'undefined' ? prefs.getItem('fileBrowserActiveTabId') : null;
+        return v || null;
+    } catch (_) { return null; }
+})();
+function _fbTabsPersist() {
+    try {
+        if (typeof prefs === 'undefined') return;
+        prefs.setItem('fileBrowserTabs', JSON.stringify(_fbTabs));
+        prefs.setItem('fileBrowserActiveTabId', _fbActiveTabId || '');
+    } catch (_) { /* ignore */ }
+}
+function _fbActiveTab() {
+    return _fbTabs.find((t) => t.id === _fbActiveTabId) || _fbTabs[0] || null;
+}
+function _fbTabId() {
+    return 'tab-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+}
+function _fbTabDisplayName(path) {
+    if (!path) return 'untitled';
+    if (path === '/') return '/';
+    return path.split('/').filter(Boolean).pop() || path;
+}
+function renderFileBrowserTabs() {
+    const list = document.getElementById('fbTabList');
+    if (!list) return;
+    list.innerHTML = _fbTabs.map((t) => {
+        const active = t.id === _fbActiveTabId ? ' fb-tab-active' : '';
+        return `<button class="fb-tab${active}" data-fb-tab-id="${escapeHtml(t.id)}" title="${escapeHtml(t.path)}">`
+            + `<span class="fb-tab-name">${escapeHtml(_fbTabDisplayName(t.path))}</span>`
+            + `<span class="fb-tab-close" data-fb-tab-close="${escapeHtml(t.id)}" title="Close tab (Cmd+W)">&times;</span>`
+            + `</button>`;
+    }).join('');
+    // Scroll active tab into view if it's off-screen.
+    const activeEl = list.querySelector('.fb-tab-active');
+    if (activeEl && typeof activeEl.scrollIntoView === 'function') {
+        activeEl.scrollIntoView({block: 'nearest', inline: 'nearest'});
+    }
+}
+function fbNewTab(path) {
+    const tabPath = path || (_fbActiveTab() ? _fbActiveTab().path : _fileBrowserPath) || _fbHomePath || '/';
+    const tab = {id: _fbTabId(), path: tabPath};
+    _fbTabs.push(tab);
+    _fbActiveTabId = tab.id;
+    _fbTabsPersist();
+    renderFileBrowserTabs();
+    if (tabPath) loadDirectory(tabPath);
+}
+function fbCloseTab(id) {
+    const idx = _fbTabs.findIndex((t) => t.id === id);
+    if (idx < 0) return;
+    _fbTabs.splice(idx, 1);
+    if (_fbTabs.length === 0) {
+        // Always keep at least one tab open — open a fresh one at home.
+        const fresh = {id: _fbTabId(), path: _fbHomePath || '/'};
+        _fbTabs.push(fresh);
+        _fbActiveTabId = fresh.id;
+        _fbTabsPersist();
+        renderFileBrowserTabs();
+        loadDirectory(fresh.path);
+        return;
+    }
+    if (_fbActiveTabId === id) {
+        // Activate the nearest neighbor (right if available, else left).
+        const next = _fbTabs[Math.min(idx, _fbTabs.length - 1)];
+        _fbActiveTabId = next.id;
+        _fbTabsPersist();
+        renderFileBrowserTabs();
+        loadDirectory(next.path);
+    } else {
+        _fbTabsPersist();
+        renderFileBrowserTabs();
+    }
+}
+function fbSwitchTab(id) {
+    const tab = _fbTabs.find((t) => t.id === id);
+    if (!tab || tab.id === _fbActiveTabId) return;
+    _fbActiveTabId = tab.id;
+    _fbTabsPersist();
+    renderFileBrowserTabs();
+    loadDirectory(tab.path);
+}
+function fbCycleTab(delta) {
+    if (_fbTabs.length === 0) return;
+    const idx = _fbTabs.findIndex((t) => t.id === _fbActiveTabId);
+    const next = (idx + delta + _fbTabs.length) % _fbTabs.length;
+    fbSwitchTab(_fbTabs[next].id);
+}
+// Click handlers — registered once at module load.
+document.addEventListener('click', (e) => {
+    const close = e.target.closest('[data-fb-tab-close]');
+    if (close) {
+        e.stopPropagation();
+        fbCloseTab(close.dataset.fbTabClose);
+        return;
+    }
+    const tab = e.target.closest('[data-fb-tab-id]');
+    if (tab) {
+        e.stopPropagation();
+        fbSwitchTab(tab.dataset.fbTabId);
+        return;
+    }
+    if (e.target.closest('#fbTabAdd')) {
+        e.stopPropagation();
+        fbNewTab();
+    }
+});
+if (typeof window !== 'undefined') {
+    window.fbNewTab = fbNewTab;
+    window.fbCloseTab = fbCloseTab;
+    window.fbSwitchTab = fbSwitchTab;
+    window.fbCycleTab = fbCycleTab;
+    window.renderFileBrowserTabs = renderFileBrowserTabs;
+}
+
 // Whether dotfiles (`.bashrc`, `.git`, etc.) are visible. Persisted in
 // prefs so the toggle survives across sessions. Default false matches
 // Nautilus + Finder defaults.
@@ -2202,8 +2334,20 @@ async function initFileBrowser() {
     loadFileColumnWidths();
     initFileColumnResize();
     renderFavDirs();
+    // Render tab bar even when revisiting the panel — handles the case
+    // where prefs restored a tab list but the DOM wasn't drawn yet.
+    renderFileBrowserTabs();
     // Tab revisit: listing is still in the DOM (panel hidden, not destroyed) — avoid IPC + full re-render.
     if (_fileBrowserInited && _fileBrowserPath) {
+        return;
+    }
+    // Prefer the persisted active tab's path over `_fileBrowserPath` —
+    // tabs are the source of truth across launches. Falls through to
+    // home / `/` only when no tabs were restored.
+    const activeTab = _fbActiveTab();
+    if (activeTab && activeTab.path) {
+        await loadDirectory(activeTab.path);
+        _fileBrowserInited = true;
         return;
     }
     if (_fileBrowserPath) {
@@ -2226,6 +2370,21 @@ async function initFileBrowser() {
 async function loadDirectory(dirPath) {
     _fileListRenderSeq += 1;
     _fileBrowserPath = dirPath;
+    // Mirror the new path into the active tab + persist + repaint the
+    // tab bar so the label updates. If no tab exists yet (first ever
+    // load), spin up the initial one — keeps the tab bar always
+    // populated so users discover the +/× affordances.
+    if (_fbTabs.length === 0) {
+        const t = {id: _fbTabId(), path: dirPath};
+        _fbTabs.push(t);
+        _fbActiveTabId = t.id;
+    } else {
+        const active = _fbActiveTab();
+        if (active) active.path = dirPath;
+        else _fbActiveTabId = _fbTabs[0].id;
+    }
+    _fbTabsPersist();
+    renderFileBrowserTabs();
     if (typeof _navHistoryRecord === 'function') _navHistoryRecord(dirPath);
     // Reset cursor cache when directory changes
     window._fbCursorPath = null;
@@ -3648,6 +3807,50 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
         if (typeof fileBrowserToggleTreeSidebar === 'function') fileBrowserToggleTreeSidebar();
+        return;
+    }
+    // ── Tabs ──
+    // Cmd+T — new tab (clones current path)
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        fbNewTab();
+        return;
+    }
+    // Cmd+Shift+W — close active tab. Cmd+W (without Shift) is bound by
+    // the native menu to "close window" via PredefinedMenuItem and never
+    // reaches the WebView, so we use Shift to disambiguate. The close
+    // button on each tab is always available via mouse.
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === 'w' || e.key === 'W')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (_fbActiveTabId) fbCloseTab(_fbActiveTabId);
+        return;
+    }
+    // Cmd+Shift+] / Cmd+Shift+[ — next / previous tab (matches macOS
+    // convention for tabbed apps like Safari).
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === ']' || e.key === '}')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        fbCycleTab(1);
+        return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === '[' || e.key === '{')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        fbCycleTab(-1);
+        return;
+    }
+    // Cmd+1..9 — jump to Nth tab (Cmd+9 → last tab per Chrome/Safari
+    // convention).
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key)) {
+        const n = parseInt(e.key, 10);
+        const idx = n === 9 ? _fbTabs.length - 1 : Math.min(n - 1, _fbTabs.length - 1);
+        if (idx >= 0 && _fbTabs[idx]) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            fbSwitchTab(_fbTabs[idx].id);
+        }
         return;
     }
     // Shift+Delete / Shift+Backspace — permanent delete (skip Trash).

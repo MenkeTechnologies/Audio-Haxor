@@ -6136,6 +6136,80 @@
             overflow: auto;
         }
 
+        /* File browser tabs — horizontal scroll, active highlighted in
+         * cyan, close button per tab, + at end. Each tab represents a
+         * distinct path; switching tabs just calls loadDirectory. */
+        .fb-tab-bar {
+            display: flex;
+            align-items: stretch;
+            gap: 0;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        .fb-tab-list {
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            flex: 1;
+            min-width: 0;
+        }
+        .fb-tab {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--text-dim);
+            background: transparent;
+            border: none;
+            border-right: 1px solid var(--border);
+            cursor: pointer;
+            max-width: 200px;
+            min-width: 60px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .fb-tab:hover { background: rgba(5, 217, 232, 0.08); color: var(--text-primary); }
+        .fb-tab.fb-tab-active {
+            color: var(--cyan);
+            background: rgba(5, 217, 232, 0.12);
+            border-bottom: 2px solid var(--cyan);
+            margin-bottom: -1px;
+        }
+        .fb-tab-name {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .fb-tab-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 14px;
+            padding: 0 2px;
+            cursor: pointer;
+            line-height: 1;
+            border-radius: 2px;
+            visibility: hidden;
+        }
+        .fb-tab:hover .fb-tab-close,
+        .fb-tab.fb-tab-active .fb-tab-close { visibility: visible; }
+        .fb-tab-close:hover { background: var(--accent); color: white; }
+        .fb-tab-add {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 18px;
+            padding: 0 12px;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .fb-tab-add:hover { color: var(--cyan); }
+
         /* Tree-view sidebar — left rail, collapsible folder tree. Hidden
          * by default; toggle via Cmd+B or the empty-space menu. */
         .fb-tree-sidebar {
@@ -12603,6 +12677,10 @@
                 <span class="file-items-h" data-sort="items" data-fb-col="items" title="Recursive file count (folders only)">Items<span class="sort-arrow">&#9650;</span><span class="fb-col-resize" data-fb-resize="items"></span></span>
                 <span class="file-date-h" data-sort="date" data-fb-col="date"><span data-i18n="ui.audio.th_modified">Modified</span><span class="sort-arrow">&#9650;</span><span class="fb-col-resize" data-fb-resize="date"></span></span>
                 <span class="file-created-h" data-sort="created" data-fb-col="created" title="File creation date">Created<span class="sort-arrow">&#9650;</span><span class="fb-col-resize" data-fb-resize="created"></span></span>
+            </div>
+            <div class="fb-tab-bar" id="fbTabBar" role="tablist" aria-label="File browser tabs">
+                <div class="fb-tab-list" id="fbTabList"></div>
+                <button class="fb-tab-add" id="fbTabAdd" title="New tab (Cmd+T)" aria-label="New tab">+</button>
             </div>
             <div class="file-list-wrap">
                 <aside class="fb-tree-sidebar fb-hidden" id="fbTreeSidebar" aria-label="Folder tree">
