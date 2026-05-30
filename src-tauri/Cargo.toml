@@ -4,6 +4,8 @@ version = "1.28.15"
 description = "Desktop app to scan and manage VST/VST3/AU audio plugins, samples, and DAW projects"
 authors = ["MenkeTechnologies <MenkeTechnologies@gmail.com>"]
 edition = "2024"
+repository = "https://github.com/MenkeTechnologies/Audio-Haxor"
+license = "MIT"
 
 [dependencies]
 # `macos-private-api` is required for `tauri.conf.json > app.macOSPrivateApi` to actually take
