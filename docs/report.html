@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <meta name="description" content="AUDIO_HAXOR — Engineering report. Tauri v2 desktop app + JUCE 8 audio engine sidecar: 156k production lines (Rust+JS+HTML+C++), 71k Rust test lines, 58k JS lines, 9,438 #[test] functions, 281 IPC commands, 46 SQLite tables, 27 i18n locales.">
+  <meta name="description" content="AUDIO_HAXOR — Engineering report. Tauri v2 desktop app + JUCE 8 audio engine sidecar: 156k production lines (Rust+JS+HTML+C++), 71k Rust test lines, 58k JS lines, 9,471 #[test] functions, 281 IPC commands, 46 SQLite tables, 27 i18n locales.">
   <title>AUDIO_HAXOR &mdash; Engineering Report</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -102,7 +102,7 @@
         <div class="stat-card"><div class="stat-val">58,324</div><div class="stat-label">Frontend JS LOC</div></div>
         <div class="stat-card"><div class="stat-val">5,802</div><div class="stat-label">Audio Engine C++ LOC</div></div>
         <div class="stat-card"><div class="stat-val accent">281</div><div class="stat-label">IPC Commands</div></div>
-        <div class="stat-card"><div class="stat-val green">9,438</div><div class="stat-label">#[test] Functions</div></div>
+        <div class="stat-card"><div class="stat-val green">9,471</div><div class="stat-label">#[test] Functions</div></div>
         <div class="stat-card"><div class="stat-val">46</div><div class="stat-label">SQLite Tables</div></div>
         <div class="stat-card"><div class="stat-val">86</div><div class="stat-label">SQLite Indices</div></div>
         <div class="stat-card"><div class="stat-val">27</div><div class="stat-label">i18n Locales</div></div>
@@ -425,10 +425,10 @@
       <!-- SECTION 11: TESTS                       -->
       <!-- ═══════════════════════════════════════ -->
       <h2 class="tutorial-title"><span class="step-hash">.</span>TESTS</h2>
-      <p class="tutorial-subtitle">9,438 <code>#[test]</code> functions across 114 Rust integration modules in <code>src-tauri/tests/</code>, totaling 71,139 LOC. The largest single test file (<code>handcrafted_tables_massive.rs</code> at 22,878 LOC) is a table-driven regression catcher pinning behaviors that earlier bugs broke. Rule: never delete a test file; never write generic boilerplate tests; every test catches a real bug or pins a real behavior.</p>
+      <p class="tutorial-subtitle">9,471 <code>#[test]</code> functions across 114 Rust integration modules in <code>src-tauri/tests/</code>, totaling 71,139 LOC. The largest single test file (<code>handcrafted_tables_massive.rs</code> at 22,878 LOC) is a table-driven regression catcher pinning behaviors that earlier bugs broke. Rule: never delete a test file; never write generic boilerplate tests; every test catches a real bug or pins a real behavior.</p>
 
       <div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));">
-        <div class="stat-card"><div class="stat-val green">9,438</div><div class="stat-label">#[test] Functions</div></div>
+        <div class="stat-card"><div class="stat-val green">9,471</div><div class="stat-label">#[test] Functions</div></div>
         <div class="stat-card"><div class="stat-val accent">71,139</div><div class="stat-label">Test LOC</div></div>
         <div class="stat-card"><div class="stat-val">114</div><div class="stat-label">Test Modules</div></div>
         <div class="stat-card"><div class="stat-val">22,878</div><div class="stat-label">Largest Single Test File</div></div>
@@ -520,7 +520,7 @@
     </main>
 
     <footer style="text-align:center;padding:2rem;font-size:10px;color:var(--text-muted);font-family:'Orbitron',sans-serif;letter-spacing:2px;">
-      AUDIO_HAXOR ENGINEERING REPORT &middot; v1.28.15 &middot; 75,711 RUST LINES &middot; 58,324 JS LINES &middot; 5,802 C++ LINES &middot; 9,438 TESTS &middot; 281 IPC COMMANDS &middot; 46 DB TABLES &middot; 27 LOCALES &middot; MENKETECHNOLOGIES
+      AUDIO_HAXOR ENGINEERING REPORT &middot; v1.28.15 &middot; 75,711 RUST LINES &middot; 58,324 JS LINES &middot; 5,802 C++ LINES &middot; 9,471 TESTS &middot; 281 IPC COMMANDS &middot; 46 DB TABLES &middot; 27 LOCALES &middot; MENKETECHNOLOGIES
     </footer>
   </div>
 
