@@ -5,6 +5,7 @@ description = "Desktop app to scan and manage VST/VST3/AU audio plugins, samples
 authors = ["MenkeTechnologies <MenkeTechnologies@gmail.com>"]
 edition = "2024"
 repository = "https://github.com/MenkeTechnologies/Audio-Haxor"
+homepage = "https://menketechnologies.github.io/Audio-Haxor/"
 license = "MIT"
 
 [dependencies]
