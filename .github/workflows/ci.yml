@@ -154,3 +154,12 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: ignore
+
+  docs-gates:
+    name: Docs gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: bash tests/docs-target-blank-rel-noopener.sh
+      - run: bash tests/docs-no-http-links.sh
+      - run: bash tests/docs-no-inline-handlers.sh
