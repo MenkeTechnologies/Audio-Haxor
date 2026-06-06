@@ -2896,7 +2896,7 @@
   "ui.tt.folder_watch_directories": "Шляхи перегляду папок, по одному на рядок (перевизначає комбіновані каталоги сканування, якщо вони не порожні)",
   "ui.tt.folder_watch_paths_one_per_line": "Шляхи перегляду папок, по одному на рядок",
   "ui.tt.fuzzy_filter_keyboard_shortcuts_by_name_or_key": "Нечіткі фільтри комбінацій клавіш за назвою або клавішею",
-  "ui.tt.generate_als": "Створіть живий набір Ableton",
+  "ui.tt.generate_als": "Створити набір Ableton Live",
   "ui.tt.generate_kits": "Створіть набори зразків для відповідних шарів",
   "ui.tt.generate_midi": "Згенеруйте MIDI-файл із конфігурації",
   "ui.tt.generate_plus_samples": "Створіть MIDI та знайдіть відповідні зразки",

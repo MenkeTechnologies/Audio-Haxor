@@ -2896,7 +2896,7 @@
   "ui.tt.folder_watch_directories": "Ścieżki obserwowania folderów, jedna w linii (zastępuje połączone katalogi skanowania, gdy nie są puste)",
   "ui.tt.folder_watch_paths_one_per_line": "Ścieżki obserwowania folderów, po jednej w linii",
   "ui.tt.fuzzy_filter_keyboard_shortcuts_by_name_or_key": "Skróty klawiaturowe z filtrem rozmytym według nazwy lub klawisza",
-  "ui.tt.generate_als": "Wygeneruj zestaw na żywo Ableton",
+  "ui.tt.generate_als": "Wygeneruj zestaw Ableton Live",
   "ui.tt.generate_kits": "Wygeneruj zestawy próbek dla dopasowanych warstw",
   "ui.tt.generate_midi": "Wygeneruj plik MIDI z konfiguracji",
   "ui.tt.generate_plus_samples": "Wygeneruj MIDI i znajdź pasujące próbki",

@@ -2896,7 +2896,7 @@
   "ui.tt.folder_watch_directories": "Đường dẫn xem thư mục, mỗi đường dẫn trên một dòng (ghi đè các thư mục quét kết hợp khi không trống)",
   "ui.tt.folder_watch_paths_one_per_line": "Đường dẫn xem thư mục, mỗi đường dẫn một dòng",
   "ui.tt.fuzzy_filter_keyboard_shortcuts_by_name_or_key": "Lọc phím tắt mờ theo tên hoặc phím",
-  "ui.tt.generate_als": "Tạo bộ trực tiếp Ableton",
+  "ui.tt.generate_als": "Tạo bộ Ableton Live",
   "ui.tt.generate_kits": "Tạo bộ dụng cụ mẫu cho các lớp phù hợp",
   "ui.tt.generate_midi": "Tạo tệp MIDI từ cấu hình",
   "ui.tt.generate_plus_samples": "Tạo MIDI và tìm các mẫu phù hợp",

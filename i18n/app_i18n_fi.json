@@ -3254,7 +3254,7 @@
   "ui.xref.meta_xml_uncompressed": "{lines} riviä | {size} pakkaamaton",
   "ui.xref.modal_title_bitwig": "{project} — Bitwig-projekti",
   "ui.xref.modal_title_pair": "{left} — {right}",
-  "ui.xref.modal_title_reaper": "{project} — VIITKAISU",
+  "ui.xref.modal_title_reaper": "{project} – REAPER",
   "ui.xref.modal_title_xml": "{project} — XML",
   "ui.xref.no_plugins_in_project": "Tästä projektista ei löytynyt lisäosia",
   "ui.xref.parsing_binary_data": "Jäsennetään binaaridataa…",

@@ -2896,7 +2896,7 @@
   "ui.tt.folder_watch_directories": "Caminhos de observação de pastas, um por linha (substitui diretórios de varredura combinados quando não estão vazios)",
   "ui.tt.folder_watch_paths_one_per_line": "Caminhos de observação de pastas, um por linha",
   "ui.tt.fuzzy_filter_keyboard_shortcuts_by_name_or_key": "Atalhos de teclado com filtro difuso por nome ou tecla",
-  "ui.tt.generate_als": "Gerar conjunto ao vivo do Ableton",
+  "ui.tt.generate_als": "Gerar conjunto Ableton Live",
   "ui.tt.generate_kits": "Gere kits de amostra para camadas correspondentes",
   "ui.tt.generate_midi": "Gere arquivo MIDI a partir da configuração",
   "ui.tt.generate_plus_samples": "Gere MIDI e encontre amostras correspondentes",
