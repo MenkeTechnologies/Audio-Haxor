@@ -106,6 +106,14 @@ function runEngineExchange(bin, requestLines, opts = {}) {
   const expectedOut = opts.expectedOutputLines ?? requestLines.length;
   const writePauseAfterIdx = opts.writePauseAfterIdx ?? -1;
   const writePauseMs = opts.writePauseMs ?? 0;
+  // `writePauses` (optional) — map of `{ idx: ms }` for multi-pause exchanges.
+  // Each entry sleeps `ms` after the command at index `idx` is written. Lets a
+  // test poll a state field that flips on a background callback (e.g. the
+  // audio-callback `eof` flip after cursor reaches end) without spawning a
+  // second engine. Synthesised from the legacy single-pause params when
+  // `writePauses` isn't passed, so existing call sites stay unchanged.
+  const writePauses = opts.writePauses
+    ?? (writePauseAfterIdx >= 0 && writePauseMs > 0 ? { [writePauseAfterIdx]: writePauseMs } : {});
   return new Promise((resolve, reject) => {
     /* Arm the C++ `ParentWatchdog` (see `audio-engine/src/ParentWatchdog.cpp`) so the spawned
      * audio-engine self-destructs within ~2 s if this test runner dies (Ctrl+C, crash, timeout).
@@ -207,8 +215,9 @@ function runEngineExchange(bin, requestLines, opts = {}) {
         finish(reject, err);
         return;
       }
-      if (idx === writePauseAfterIdx && writePauseMs > 0) {
-        setTimeout(() => writeNext(idx + 1), writePauseMs);
+      const pauseMs = writePauses[idx];
+      if (pauseMs && pauseMs > 0) {
+        setTimeout(() => writeNext(idx + 1), pauseMs);
       } else {
         writeNext(idx + 1);
       }
@@ -755,6 +764,19 @@ if (!bin) {
      * `LockFreeStreamSource::getNextReadPosition` (which still returns the raw
      * cumulative position) so a future "always modulo" misfix can't sneak through. */
     it('playback_status without loop: eof true and position_sec at end after track finishes', async () => {
+      // Two `playback_status` probes with a 120 ms gap between them. The first
+      // read is at +800 ms (cursor should be at end). The second is at +920 ms
+      // — gives the audio callback ~12 more periods to flip the `eof` flag.
+      //
+      // Without the retry probe this test was flaky on the macos-latest runner
+      // (same SHA passing one run, failing the next). The race is:
+      //   1. cursor reaches end of source on audio callback N
+      //   2. *next* audio callback (N+1, ~10 ms later) is what flips `eof=true`
+      //   3. JSON `playback_status` lands between N and N+1 → `eof=false`,
+      //      `position_sec=duration_sec` simultaneously visible
+      // The single-probe version asserts `eof=true` against this window and
+      // fails on the unlucky landing. Two probes 120 ms apart steps past the
+      // ~10 ms callback interval comfortably.
       const { outLines } = await runEngineExchange(
         bin,
         [
@@ -765,12 +787,12 @@ if (!bin) {
             tone: false,
           }),
           jl({ cmd: 'playback_status' }),
+          jl({ cmd: 'playback_status' }),
         ],
         {
           timeoutMs: 30_000,
-          expectedOutputLines: 2,
-          writePauseAfterIdx: 0,
-          writePauseMs: 800,
+          expectedOutputLines: 3,
+          writePauses: { 0: 800, 1: 120 },
         },
       );
       const start = JSON.parse(outLines[0]);
@@ -778,7 +800,8 @@ if (!bin) {
         assertOkOrNoAudioDevice(start, 'output');
         return;
       }
-      const status = JSON.parse(outLines[1]);
+      const probe1 = JSON.parse(outLines[1]);
+      const status = JSON.parse(outLines[2]);
       assert.equal(status.ok, true);
       assert.equal(status.loaded, true);
       assert.equal(typeof status.position_sec, 'number');
@@ -792,21 +815,24 @@ if (!bin) {
       // as the `scope_len === 0` skip elsewhere in this suite (commit
       // `1ce82b1b30`). The bug under test is "cursor reached end but eof flag
       // not flipped"; we can only assert that when the cursor *did* reach the
-      // end. 10 ms grace covers float clamp at the very tail.
+      // end. 10 ms grace covers float clamp at the very tail. Check the second
+      // probe (the +920 ms read) because it sees a later cursor state.
       if (
         !(status.duration_sec > 0)
         || status.position_sec < status.duration_sec - 0.01
       ) {
         console.log(
-          `position_sec=${status.position_sec} duration=${status.duration_sec}: audio callback `
-            + 'has not consumed the full track within 800ms (slow/headless CI), skipping EOF assertion',
+          `probe1.position_sec=${probe1.position_sec} probe2.position_sec=${status.position_sec} `
+            + `duration=${status.duration_sec}: audio callback has not consumed the full track `
+            + 'within 920ms (slow/headless CI), skipping EOF assertion',
         );
         return;
       }
       assert.equal(
         status.eof,
         true,
-        `eof should be true on a finished non-looping ${status.duration_sec}s track after 800ms`,
+        `eof should be true on a finished non-looping ${status.duration_sec}s track after 920ms `
+          + `(probe1 eof=${probe1.eof}, position_sec=${probe1.position_sec})`,
       );
     });
 
