@@ -595,6 +595,13 @@ function buildPaletteStaticItems() {
             }
         });
     }
+    if (typeof showToastHistory === 'function') {
+        items.push({
+            type: 'action', name: appFmt('menu.toast_history'), icon: '&#128226;', action: () => {
+                showToastHistory();
+            }
+        });
+    }
     if (typeof showGenreRulesDashboard === 'function') {
         items.push({
             type: 'action', name: appFmt('menu.genre_rules'), icon: '&#127911;', ...paletteShortcutTip('genreRules'), action: () => {

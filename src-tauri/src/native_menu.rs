@@ -819,6 +819,13 @@ pub fn build_native_menu_bar<R: Runtime>(
         true,
         Some("CmdOrCtrl+H"),
     )?;
+    let toast_history = MenuItem::with_id(
+        handle,
+        "show_toast_history",
+        t("menu.toast_history", "Toast History"),
+        true,
+        None::<&str>,
+    )?;
     let build_plugin_index = MenuItem::with_id(
         handle,
         "build_plugin_index",
@@ -909,6 +916,7 @@ pub fn build_native_menu_bar<R: Runtime>(
             &tools_sep,
             &open_log_file,
             &open_data_directory,
+            &toast_history,
             &tools_sep,
             &cmd_palette,
             &help_overlay,

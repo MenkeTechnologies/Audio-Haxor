@@ -4417,6 +4417,56 @@
             margin-bottom: 12px;
         }
         .modal-list-loading { color: var(--text-dim); }
+
+        /* Toast history viewer rows.
+           Static CSS (NOT inline style on dynamic DOM) per feedback_no_inline_styles_webkit.md. */
+        .th-list {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            min-height: 240px;
+            max-height: 50vh;
+        }
+        .th-row {
+            display: grid;
+            grid-template-columns: 64px 64px 1fr;
+            gap: 8px;
+            align-items: baseline;
+            padding: 4px 6px;
+            border-bottom: 1px solid var(--border);
+            line-height: 1.4;
+        }
+        .th-row:last-child { border-bottom: none; }
+        .th-time {
+            color: var(--text-dim);
+            white-space: nowrap;
+        }
+        .th-badge {
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+            padding: 1px 4px;
+            border-radius: 2px;
+            text-align: center;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .th-badge.th-type-info     { color: #05d9e8; border-color: #05d9e8; }
+        .th-badge.th-type-error    { color: #ff2a6d; border-color: #ff2a6d; }
+        .th-badge.th-type-warning  { color: #f9f002; border-color: #f9f002; }
+        .th-badge.th-type-success  { color: #39ff14; border-color: #39ff14; }
+        .th-msg {
+            color: var(--text);
+            word-break: break-word;
+            white-space: pre-wrap;
+        }
+        .th-row.th-type-error    .th-msg { color: #ff2a6d; }
+        .th-row.th-type-warning  .th-msg { color: #f9f002; }
+        .th-empty {
+            color: var(--text-dim);
+            text-align: center;
+            padding: 32px 0;
+            font-style: italic;
+        }
         .modal-row-footer {
             display: flex;
             justify-content: space-between;
@@ -14914,6 +14964,22 @@
                 </div>
             </div>
 
+            <div class="settings-section" data-section="notifications">
+                <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_notifications">Notifications</span></h2>
+                <div class="settings-row">
+                    <div class="settings-label">
+                        <span class="settings-title" data-i18n="ui.st.toast_history">Toast History</span>
+                        <span class="settings-desc" data-i18n="ui.sd.toast_history">Open a viewer listing the most recent in-app toast notifications (errors, warnings, info).</span>
+                    </div>
+                    <div class="settings-control">
+                        <button class="btn btn-secondary btn-settings-action" data-action="showToastHistory"
+                                data-i18n="ui.btn.view_toast_history"
+                                data-i18n-title="ui.tt.view_toast_history"
+                                title="View recent toast notifications">View History</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="settings-section" data-section="about">
                 <h2 class="settings-heading">&#9776; <span data-i18n="ui.sh.9776_about">About</span></h2>
                 <div class="settings-row">
@@ -16522,6 +16588,7 @@
     </div>
 </div>
 
+<script src="js/toast-history.js?v=99143"></script>
 <script src="js/settings-search.js?v=99143"></script>
 <script src="js/visualizer.js?v=99143"></script>
 <script src="js/walker-status.js?v=99143"></script>

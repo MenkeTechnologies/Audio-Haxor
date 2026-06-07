@@ -586,6 +586,9 @@ listen('menu-action', (event) => {
         case 'heatmap_dashboard':
             if (typeof window.showHeatmapDashboard === 'function') void window.showHeatmapDashboard();
             break;
+        case 'show_toast_history':
+            if (typeof window.showToastHistory === 'function') window.showToastHistory();
+            break;
         case 'build_plugin_index':
             if (typeof window.buildXrefIndex === 'function') {
                 if (typeof showToast === 'function') showToast(toastFmt('toast.building_plugin_index'));
@@ -788,6 +791,9 @@ document.addEventListener('click', (e) => {
                 break;
             case 'showHeatmapDash':
                 if (typeof showHeatmapDashboard === 'function') void showHeatmapDashboard();
+                break;
+            case 'showToastHistory':
+                if (typeof showToastHistory === 'function') showToastHistory();
                 break;
             case 'showGenreRules':
                 if (typeof showGenreRulesDashboard === 'function') void showGenreRulesDashboard();
@@ -1618,7 +1624,27 @@ document.addEventListener('keydown', (e) => {
     // Cmd+F — handled by native menu accelerator (find)
 });
 
+/** Rolling in-memory record of every toast — surfaced by the settings → Notifications → Toast History viewer.
+ *  Capped at TOAST_HISTORY_MAX entries; pushed BEFORE the idle short-circuit so backgrounded toasts are still logged. */
+const TOAST_HISTORY_MAX = 500;
+window.__toastHistory = window.__toastHistory || [];
+
+function recordToastHistory(message, type, duration) {
+    const hist = window.__toastHistory;
+    hist.push({
+        t: Date.now(),
+        message: String(message ?? ''),
+        type: type || 'info',
+        duration: Number(duration) || 0,
+    });
+    if (hist.length > TOAST_HISTORY_MAX) hist.splice(0, hist.length - TOAST_HISTORY_MAX);
+    document.dispatchEvent(new CustomEvent('toast-history-update'));
+}
+
+window.recordToastHistory = recordToastHistory;
+
 function showToast(message, duration = 2500, type = '', extraClass = '') {
+    recordToastHistory(message, type, duration);
     if (type === 'error' && window.vstUpdater?.appendLog) {
         window.vstUpdater.appendLog('TOAST_ERROR: ' + message);
     }
