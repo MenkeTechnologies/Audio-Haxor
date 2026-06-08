@@ -766,6 +766,20 @@ document.addEventListener('contextmenu', (e) => {
                 },
                 '---',
                 ...[(() => {
+                    const isExpanded = typeof expandedMetaPath !== 'undefined' && expandedMetaPath === path;
+                    return {
+                        icon: isExpanded ? '&#9650;' : '&#9660;',
+                        label: isExpanded ? appFmt('menu.collapse_sample_row') : appFmt('menu.expand_sample_row'), ..._noEcho,
+                        action: () => {
+                            if (isExpanded) {
+                                if (typeof closeMetaRow === 'function') closeMetaRow();
+                            } else {
+                                if (typeof expandMetaForPath === 'function') void expandMetaForPath(path);
+                            }
+                        }
+                    };
+                })()],
+                ...[(() => {
                     const on = prefs.getItem('expandOnClick') !== 'off';
                     return {
                         icon: on ? '&#9660;' : '&#9654;',
