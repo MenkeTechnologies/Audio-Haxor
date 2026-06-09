@@ -61,6 +61,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Build Tauri (CI, unsigned bundles)
+        env:
+          CARGO_BUILD_LOCKED: "1"
         run: pnpm run tauri:build:ci
 
       - name: Stage release files (macOS)
