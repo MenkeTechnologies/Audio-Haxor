@@ -89,8 +89,16 @@ async function _updateWalkerTiles() {
         }
     } catch (err) {
         const body = document.getElementById('walkerUnifiedBody');
-        if (body) body.innerHTML = `<div style="color:var(--red);padding:8px;">Error: ${err?.message || err}</div>`;
+        if (body) body.innerHTML = `<div class="walker-tile-error">Error: ${escapeHtml(String(err?.message || err))}</div>`;
     }
+}
+
+// Map var(--cyan) / var(--accent) callers to the corresponding status-text modifier class.
+// Element.style.borderColor still accepts the raw CSS variable directly.
+function _walkerColorClass(color) {
+    if (color === 'var(--cyan)') return 'is-cyan';
+    if (color === 'var(--accent)') return 'is-accent';
+    return '';
 }
 
 function _renderTile(bodyId, tileId, dirs, color, poolThreads, isScanning) {
@@ -100,16 +108,17 @@ function _renderTile(bodyId, tileId, dirs, color, poolThreads, isScanning) {
 
     const statusEl = tile.querySelector('.walker-tile-status');
     if (!isScanning) {
-        if (statusEl) statusEl.innerHTML = `<span style="color:var(--text-dim);">idle — ${poolThreads} threads in pool</span>`;
+        if (statusEl) statusEl.innerHTML = `<span class="walker-tile-status-text is-idle">idle — ${poolThreads} threads in pool</span>`;
         if (!dirs || dirs.length === 0) {
-            body.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:24px;font-size:11px;">Waiting for scan to start...</div>';
+            body.innerHTML = '<div class="walker-tile-empty">Waiting for scan to start...</div>';
         }
         tile.style.borderColor = 'var(--border)';
         return;
     }
 
     tile.style.borderColor = color;
-    if (statusEl) statusEl.innerHTML = `<span style="color:${color};font-weight:600;">scanning — ${poolThreads} threads</span> <span style="color:var(--text-dim);">| ${dirs.length} dirs in buffer</span>`;
+    const colorClass = _walkerColorClass(color);
+    if (statusEl) statusEl.innerHTML = `<span class="walker-tile-status-text ${colorClass}">scanning — ${poolThreads} threads</span> <span class="walker-tile-status-dirs">| ${dirs.length} dirs in buffer</span>`;
 
     // Build dir list — oldest at top, newest at bottom. Buffer is sized (200)
     // to fill a full-height tile; auto-scroll to bottom so the latest dirs

@@ -2449,6 +2449,22 @@
             box-shadow: 0 0 15px var(--cyan-dim);
         }
 
+        /* Shared loading-state container — used by tab loading spinners (crate, midi, etc.).
+           Static CSS so inline styles aren't stripped by release WebKit on innerHTML inserts. */
+        .loading-state {
+            text-align: center;
+            padding: 40px;
+        }
+        .loading-state .spinner {
+            width: 28px;
+            height: 28px;
+            margin: 0 auto 12px;
+        }
+        .loading-state-label {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
         @keyframes spin {
             to {
                 transform: rotate(360deg);
@@ -4420,6 +4436,11 @@
 
         /* Toast history viewer rows.
            Static CSS (NOT inline style on dynamic DOM) per feedback_no_inline_styles_webkit.md. */
+        .th-modal-content {
+            max-width: 780px;
+            width: 90vw;
+            max-height: 80vh;
+        }
         .th-list {
             font-family: 'Share Tech Mono', monospace;
             font-size: 11px;
@@ -9707,6 +9728,28 @@
             color: var(--text-dim);
             padding: 4px 14px;
             border-bottom: 1px solid rgba(26, 26, 62, 0.3);
+        }
+
+        /* Walker-tile status / empty / error states — static CSS instead of inline style on
+           innerHTML inserts (release WebKit strips those). Color variants picked by JS via
+           `is-cyan` / `is-accent` modifier classes. */
+        .walker-tile-status-text { font-weight: 600; }
+        .walker-tile-status-text.is-idle {
+            color: var(--text-dim);
+            font-weight: normal;
+        }
+        .walker-tile-status-text.is-cyan { color: var(--cyan); }
+        .walker-tile-status-text.is-accent { color: var(--accent); }
+        .walker-tile-status-dirs { color: var(--text-dim); }
+        .walker-tile-empty {
+            text-align: center;
+            color: var(--text-dim);
+            padding: 24px;
+            font-size: 11px;
+        }
+        .walker-tile-error {
+            color: var(--red);
+            padding: 8px;
         }
 
         .walker-tile-body {
@@ -16460,41 +16503,41 @@
     </div>
 </div>
 
-<script src="js/i18n-ui.js?v=99143"></script>
-<script src="js/utils.js?v=99143"></script>
-<script src="js/ui-idle.js?v=99143"></script>
-<script src="js/ipc.js?v=99143"></script>
-<script src="js/tooltip-hover.js?v=99143"></script>
-<script src="js/drag-reorder.js?v=99143"></script>
-<script src="js/modal-drag.js?v=99143"></script>
-<script src="js/columns.js?v=99143"></script>
-<script src="js/notes.js?v=99143"></script>
-<script src="js/favorites.js?v=99143"></script>
-<script src="js/export.js?v=99143"></script>
-<script src="js/plugins.js?v=99143"></script>
-<script src="js/settings.js?v=99143"></script>
-<script src="js/history.js?v=99143"></script>
-<script src="js/kvr.js?v=99143"></script>
-<script src="js/graph-freeze.js?v=99143"></script>
-<script src="js/audio.js?v=99143"></script>
-<script src="js/daw.js?v=99143"></script>
-<script src="js/disk-usage.js?v=99143"></script>
-<script src="js/presets.js?v=99143"></script>
-<script src="js/batch-select.js?v=99143"></script>
-<script src="js/native-file-drag.js?v=99143"></script>
-<script src="js/sort-persist.js?v=99143"></script>
-<script src="js/multi-filter.js?v=99143"></script>
-<script src="js/file-browser.js?v=99143"></script>
-<script src="js/duplicates.js?v=99143"></script>
-<script src="js/command-palette.js?v=99143"></script>
-<script src="js/xref.js?v=99143"></script>
-<script src="js/dep-graph.js?v=99143"></script>
-<script src="js/smart-playlists.js?v=99143"></script>
-<script src="js/heatmap-dashboard.js?v=99143"></script>
-<script src="js/genre-rules-dashboard.js?v=99143"></script>
-<script src="js/midi.js?v=99143"></script>
-<script src="js/pdf.js?v=99143"></script>
-<script src="js/video.js?v=99143"></script>
+<script src="js/i18n-ui.js?v=68597"></script>
+<script src="js/utils.js?v=68597"></script>
+<script src="js/ui-idle.js?v=68597"></script>
+<script src="js/ipc.js?v=68597"></script>
+<script src="js/tooltip-hover.js?v=68597"></script>
+<script src="js/drag-reorder.js?v=68597"></script>
+<script src="js/modal-drag.js?v=68597"></script>
+<script src="js/columns.js?v=68597"></script>
+<script src="js/notes.js?v=68597"></script>
+<script src="js/favorites.js?v=68597"></script>
+<script src="js/export.js?v=68597"></script>
+<script src="js/plugins.js?v=68597"></script>
+<script src="js/settings.js?v=68597"></script>
+<script src="js/history.js?v=68597"></script>
+<script src="js/kvr.js?v=68597"></script>
+<script src="js/graph-freeze.js?v=68597"></script>
+<script src="js/audio.js?v=68597"></script>
+<script src="js/daw.js?v=68597"></script>
+<script src="js/disk-usage.js?v=68597"></script>
+<script src="js/presets.js?v=68597"></script>
+<script src="js/batch-select.js?v=68597"></script>
+<script src="js/native-file-drag.js?v=68597"></script>
+<script src="js/sort-persist.js?v=68597"></script>
+<script src="js/multi-filter.js?v=68597"></script>
+<script src="js/file-browser.js?v=68597"></script>
+<script src="js/duplicates.js?v=68597"></script>
+<script src="js/command-palette.js?v=68597"></script>
+<script src="js/xref.js?v=68597"></script>
+<script src="js/dep-graph.js?v=68597"></script>
+<script src="js/smart-playlists.js?v=68597"></script>
+<script src="js/heatmap-dashboard.js?v=68597"></script>
+<script src="js/genre-rules-dashboard.js?v=68597"></script>
+<script src="js/midi.js?v=68597"></script>
+<script src="js/pdf.js?v=68597"></script>
+<script src="js/video.js?v=68597"></script>
 <!-- Blacklist Modal -->
 <!-- Bulk rename modal (file browser multi-select → Rename...) -->
 <div id="fbBulkRenameModal" class="modal-overlay">
@@ -16588,21 +16631,21 @@
     </div>
 </div>
 
-<script src="js/toast-history.js?v=99143"></script>
-<script src="js/settings-search.js?v=99143"></script>
-<script src="js/visualizer.js?v=99143"></script>
-<script src="js/walker-status.js?v=99143"></script>
-<script src="js/audio-engine.js?v=99143"></script>
-<script src="js/als-timeline.js?v=99143"></script>
-<script src="js/als-generator.js?v=99143"></script>
-<script src="js/trance-lead.js?v=99143"></script>
-<script src="js/sample-browser.js?v=99143"></script>
-<script src="lib/xterm.js?v=99143"></script>
-<script src="js/terminal.js?v=99143"></script>
-<script src="js/context-menu.js?v=99143"></script>
-<script src="js/shortcuts.js?v=99143"></script>
-<script src="js/help-overlay.js?v=99143"></script>
-<script src="js/keyboard-nav.js?v=99143"></script>
-<script src="js/app.js?v=99143"></script>
+<script src="js/toast-history.js?v=68597"></script>
+<script src="js/settings-search.js?v=68597"></script>
+<script src="js/visualizer.js?v=68597"></script>
+<script src="js/walker-status.js?v=68597"></script>
+<script src="js/audio-engine.js?v=68597"></script>
+<script src="js/als-timeline.js?v=68597"></script>
+<script src="js/als-generator.js?v=68597"></script>
+<script src="js/trance-lead.js?v=68597"></script>
+<script src="js/sample-browser.js?v=68597"></script>
+<script src="lib/xterm.js?v=68597"></script>
+<script src="js/terminal.js?v=68597"></script>
+<script src="js/context-menu.js?v=68597"></script>
+<script src="js/shortcuts.js?v=68597"></script>
+<script src="js/help-overlay.js?v=68597"></script>
+<script src="js/keyboard-nav.js?v=68597"></script>
+<script src="js/app.js?v=68597"></script>
 </body>
 </html>
