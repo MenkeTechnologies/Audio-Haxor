@@ -63,7 +63,7 @@ function showToastHistory() {
     document.querySelectorAll('#toastHistoryModal').forEach((el) => el.remove());
 
     const html = `<div class="modal-overlay modal-visible" id="toastHistoryModal" data-action-modal="closeToastHistory">
-  <div class="modal-content" style="max-width:780px;width:90vw;max-height:80vh;">
+  <div class="modal-content th-modal-content">
     <div class="modal-header">
       <h2>${_thEsc(_thFmt('ui.h2.toast_history'))}</h2>
       <button class="modal-close" data-action-modal="closeToastHistory" title="${_thEsc(_thFmt('ui.tt.close_modal'))}">&times;</button>
