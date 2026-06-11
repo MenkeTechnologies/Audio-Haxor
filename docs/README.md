@@ -11,4 +11,4 @@
 
 - **Root `README.md`** — Full product and developer guide (features, testing counts, architecture).
 
-JavaScript tests (`pnpm test` / `node --test test/*.test.js`) are **Node-only unit** checks; they do **not** run the WebView, Tauri IPC, or the real `applyFilter` / filter-persistence pipeline. See README → *JavaScript tests* for the honest scope table.
+JavaScript tests (`pnpm test` / `node --test test/*.test.js`) are **Node-only unit** checks; they do **not** run the WebView, Tauri IPC, or the real `applyFilter` / filter-persistence pipeline. See README → *[0x04] TESTING* for the suite scope.
